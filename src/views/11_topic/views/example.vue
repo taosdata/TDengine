@@ -14,6 +14,9 @@
       </el-tab-pane>
       <el-tab-pane class="topic-python" name="python" :label="'Python'">
         <docs :category="'topic'" :lang="'Python'" :topic="topicTitle"></docs>
+      </el-tab-pane> 
+      <el-tab-pane class="topic-java" name="java" :label="'Java'">
+        <docs :category="'topic'" :lang="'Java'" :topic="topicTitle"></docs>
       </el-tab-pane>
     </el-tabs>
     <!-- <el-form inline class="topic-example-select">
@@ -69,6 +72,10 @@ export default {
           scrollTop: 0,
         },
         python: {
+          fixed: false,
+          scrollTop: 0,
+        },
+        java: {
           fixed: false,
           scrollTop: 0,
         },
@@ -230,7 +237,8 @@ export default {
     }
     ::v-deep(#tab-python.is-active),
     ::v-deep(#tab-go.is-active),
-    ::v-deep(#tab-rust.is-active) {
+    ::v-deep(#tab-rust.is-active),
+    ::v-deep(#tab-java.is-active) {
       background-color: #4259ce;
       font-weight: 600;
       color: white;
