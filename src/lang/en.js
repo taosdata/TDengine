@@ -321,7 +321,8 @@ export default {
     usernameTips: 'Please enter the Username',
     passwordTips: 'Please enter the Password',
     errorTip: 'The user name or password is incorrect',
-    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.'
+    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.',
+    servTaosdTip: 'Your taosd service is abnormal. Restart the taosd service and ensure that the service is available.',
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
