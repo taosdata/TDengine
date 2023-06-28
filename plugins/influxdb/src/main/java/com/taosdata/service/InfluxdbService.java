@@ -1,5 +1,6 @@
 package com.taosdata.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -13,6 +14,16 @@ import java.util.List;
  * @author ZYP
  */
 public interface InfluxdbService {
+
+    /**
+     * 单次连接，查询指定influxdb中schema信息
+     *
+     * @param url
+     * @param token
+     * @return
+     * @throws ArtificialException
+     */
+    JSONObject fetchSchemaInfo(String url, String token) throws ArtificialException;
 
     /**
      * 获取influxdb中所有bucket
