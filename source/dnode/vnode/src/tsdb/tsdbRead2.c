@@ -507,7 +507,7 @@ static void clearBlockScanInfo(STableBlockScanInfo* p) {
 
   p->delSkyline = taosArrayDestroy(p->delSkyline);
   p->pBlockList = taosArrayDestroy(p->pBlockList);
-  tMapDataClear(&p->mapData);
+  p->pDelData = taosArrayDestroy(p->pDelData);
 }
 
 static void destroyAllBlockScanInfo(SSHashObj* pTableMap) {
@@ -2788,9 +2788,9 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
   return true;
 }
 
-static int32_t loadTomRecordInfoFromSttFiles(SSttBlockLoadInfo* pBlockLoadInfo, uint64_t suid,
-                                             STableBlockScanInfo* pBlockScanInfo, uint64_t maxVer) {
-  int32_t size = taosArrayGetSize(pBlockLoadInfo->pTombBlockArray);
+static int32_t loadTomRecordInfoFromSttFiles(SArray* pLDataIterList, uint64_t suid, STableBlockScanInfo* pBlockScanInfo,
+                                             uint64_t maxVer) {
+  int32_t size = taosArrayGetSize(pLDataIterList);
   if (size <= 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2800,32 +2800,49 @@ static int32_t loadTomRecordInfoFromSttFiles(SSttBlockLoadInfo* pBlockLoadInfo, 
     pBlockScanInfo->pDelData = taosArrayInit(4, sizeof(SDelData));
   }
 
+  STombRecord record = {0};
+
   for(int32_t i = 0; i < size; ++i) {
-    STombBlock* pBlock = taosArrayGetP(pBlockLoadInfo->pTombBlockArray, i);
+    SArray* pLeveledLDataIter = taosArrayGetP(pLDataIterList, i);
 
-    STombRecord record = {0};
-    for(int32_t j = 0; j < pBlock->suid->size; ++j) {
-      int32_t code = tTombBlockGet(pBlock, j, &record);
-      if (code != TSDB_CODE_SUCCESS) {
-        // todo handle error
-      }
+    int32_t numOfIter = taosArrayGetSize(pLeveledLDataIter);
+    if (numOfIter == 0) {
+      continue;
+    }
 
-      if (record.suid < suid) {
-        continue;
-      }
+    for (int32_t f = 0; f < numOfIter; ++f) {
+      SLDataIter* pIter = taosArrayGetP(pLeveledLDataIter, f);
 
-      // todo use binary search instead here
-      if (record.uid < uid) {
-        continue;
-      }
+      SArray* pTombBlockArray = pIter->pBlockLoadInfo->pTombBlockArray;
 
-      if (record.uid > uid) {
-        break;
-      }
+      int32_t numOfBlocks = taosArrayGetSize(pTombBlockArray);
+      for (int32_t k = 0; k < numOfBlocks; ++k) {
+        STombBlock* pBlock = taosArrayGetP(pTombBlockArray, k);
 
-      if (record.version <= maxVer) {
-        SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
-        taosArrayPush(pBlockScanInfo->pDelData, &delData);
+        for (int32_t j = 0; j < pBlock->suid->size; ++j) {
+          int32_t code = tTombBlockGet(pBlock, j, &record);
+          if (code != TSDB_CODE_SUCCESS) {
+            // todo handle error
+          }
+
+          if (record.suid < suid) {
+            continue;
+          }
+
+          // todo use binary search instead here
+          if (record.uid < uid) {
+            continue;
+          }
+
+          if (record.uid > uid) {
+            break;
+          }
+
+          if (record.version <= maxVer) {
+            SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
+            taosArrayPush(pBlockScanInfo->pDelData, &delData);
+          }
+        }
       }
     }
   }
@@ -2862,7 +2879,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
     return false;
   }
 
-  code = loadTomRecordInfoFromSttFiles(pLBlockReader->pInfo, pReader->suid, pScanInfo, pReader->verRange.maxVer);
+  code = loadTomRecordInfoFromSttFiles(pReader->status.pLDataIterArray, pReader->suid, pScanInfo, pReader->verRange.maxVer);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
