@@ -243,11 +243,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, terrstr());
     goto _OVER;
   }
-
-  // if connection is from udfd, no user/password/db check
-  if (strcmp(connReq.app, "udfd") == 0) {
-    goto _CONNECT;
-  }
   
   if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
