@@ -24,7 +24,8 @@ static int32_t mndAddToTaskset(SArray* pArray, SStreamTask* pTask) {
   return 0;
 }
 
-SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam, SArray* pTaskList) {
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam,
+                            SArray* pTaskList) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
