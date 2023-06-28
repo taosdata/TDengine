@@ -190,7 +190,7 @@ static int32_t tsdbDoRetention2(void *arg) {
   code = tsdbDoRetentionBegin(arg, rtner);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  while (rtner->ctx->fsetArrIdx < TARRAY2_SIZE(rtner->fsetArr)) {
+  for (rtner->ctx->fsetArrIdx = 0; rtner->ctx->fsetArrIdx < TARRAY2_SIZE(rtner->fsetArr); rtner->ctx->fsetArrIdx++) {
     rtner->ctx->fset = TARRAY2_GET(rtner->fsetArr, rtner->ctx->fsetArrIdx);
 
     STFileObj *fobj;
