@@ -64,10 +64,14 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
 /**
  *
  * @param type
+ * @param maxRows keep maxRows at most
+ * @param maxTupleLength max len of one tuple, for check if heap sort is applicable
+ * @param sortBufSize sort memory buf size, for check if heap sort is applicable
  * @return
  */
 SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
-                                   SSDataBlock* pBlock, const char* idstr);
+                                   SSDataBlock* pBlock, const char* idstr, uint64_t maxRows, uint32_t maxTupleLength,
+                                   uint32_t sortBufSize);
 
 /**
  *
@@ -169,6 +173,10 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
  * @return
  */
 int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols);
+
+
+bool tsortIsClosed(SSortHandle* pHandle);
+void tsortSetClosed(SSortHandle* pHandle);
 
 #ifdef __cplusplus
 }

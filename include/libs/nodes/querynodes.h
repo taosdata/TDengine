@@ -52,6 +52,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
   bool      orderAlias;
   bool      asAlias;
+  bool      asParam;
 } SExprNode;
 
 typedef enum EColumnType {

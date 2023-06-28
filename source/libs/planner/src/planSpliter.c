@@ -1018,6 +1018,7 @@ static int32_t stbSplCreatePartSortNode(SSortLogicNode* pSort, SLogicNode** pOut
     splSetParent((SLogicNode*)pPartSort);
     pPartSort->pSortKeys = pSortKeys;
     pPartSort->groupSort = pSort->groupSort;
+    pPartSort->maxRows = pSort->maxRows;
     code = stbSplCreateMergeKeys(pPartSort->pSortKeys, pPartSort->node.pTargets, &pMergeKeys);
   }
 

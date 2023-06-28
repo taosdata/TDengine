@@ -75,10 +75,11 @@ typedef struct SResultRowInfo {
 } SResultRowInfo;
 
 typedef struct SColMatchItem {
-  int32_t colId;
-  int32_t srcSlotId;
-  int32_t dstSlotId;
-  bool    needOutput;
+  int32_t   colId;
+  int32_t   srcSlotId;
+  int32_t   dstSlotId;
+  bool      needOutput;
+  SDataType dataType;
 } SColMatchItem;
 
 typedef struct SColMatchInfo {

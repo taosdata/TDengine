@@ -24,6 +24,36 @@ The source code for the Python connector is hosted on [GitHub](https://github.co
 
 We recommend using the latest version of `taospy`, regardless of the version of TDengine.
 
+## Handling Exceptions
+
+There are 4 types of exception in python connector.
+
+- The exception of Python Connector itself.
+- The exception of native library.
+- The exception of websocket
+- The exception of subscription.
+- The exception of other TDengine function modules.
+
+|Error Type|Description|Suggested Actions|
+|:--------:|:---------:|:---------------:|
+|InterfaceError|the native library is too old that it cannot support the function|please check the TDengine client version|
+|ConnectionError|connection error|please check TDengine's status and the connection params|
+|DatabaseError|database error|please upgrade Python connector to latest|
+|OperationalError|operation error||
+|ProgrammingError|||
+|StatementError|the exception of stmt||
+|ResultError|||
+|SchemalessError|the exception of stmt schemaless||
+|TmqError|the exception of stmt tmq||
+
+It usually uses try-expect to handle exceptions in python. For exception handling, please refer to [Python Errors and Exceptions Documentation](https://docs.python.org/3/tutorial/errors.html).
+
+All exceptions from the Python Connector are thrown directly. Applications should handle these exceptions. For example:
+
+```python
+{{#include docs/examples/python/handle_exception.py}}
+```
+
 ## Supported features
 
 - Native connections support all the core features of TDengine, including connection management, SQL execution, bind interface, subscriptions, and schemaless writing.
@@ -343,12 +373,54 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
 
+The `Connection` class contains both an implementation of the PEP249 Connection interface (e.g., the `cursor()` method and the `close()` method) and many extensions (e.g., the `execute()`, `query()`, `schemaless_insert()`, and `subscribe()` methods).
+
 ```python
 {{#include docs/examples/python/connect_websocket_examples.py:basic}}
 ```
 
 - `conn.execute`: can use to execute arbitrary SQL statements, and return the number of rows affected.
 - `conn.query`: can use to execute query SQL statements, and return the query results.
+
+</TabItem>
+</Tabs>
+
+### Querying Data
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="native connection">
+
+The `query` method of the `TaosConnection` class can be used to query data and return the result data of type `TaosResult`.
+
+```python
+{{#include docs/examples/python/connection_usage_native_reference.py:query}}
+```
+
+:::tip
+The queried results can only be fetched once. For example, only one of `fetch_all()` and `fetch_all_into_dict()` can be used in the example above. Repeated fetches will result in an empty list.
+:::
+
+</TabItem>
+
+<TabItem value="rest" label="REST connection">
+
+The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python
+{{#include docs/examples/python/rest_client_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket connection">
+
+The `query` method of the `TaosConnection` class can be used to query data and return the result data of type `TaosResult`.
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+```
 
 </TabItem>
 </Tabs>
@@ -810,14 +882,6 @@ bind multiple rows at once |
 | [tmq.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq.py)                         | TMQ subscription              |
 
 ## Other notes 
-
-### Exception handling
-
-All errors from database operations are thrown directly as exceptions and the error message from the database is passed up the exception stack. The application is responsible for exception handling. For example:
-
-```python
-{{#include docs/examples/python/handle_exception.py}}
-```
 
 ### About nanoseconds
 

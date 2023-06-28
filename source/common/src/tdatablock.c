@@ -47,6 +47,17 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
   }
 }
 
+
+int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx) {
+  if (colDataIsNull_s(pColumnInfoData, rowIdx)) return 0;
+
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) return pColumnInfoData->info.bytes;
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON)
+    return getJsonValueLen(colDataGetData(pColumnInfoData, rowIdx));
+  else
+    return varDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+}
+
 int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length + sizeof(int32_t) * numOfRows;
@@ -1763,7 +1774,8 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
+    // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
+    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
 
     // clear the offset value of the unused entries.
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
@@ -1795,7 +1807,7 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
+    // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   } else {  // reset the bitmap value
     /*int32_t stopIndex = BitmapLen(n) * 8;
