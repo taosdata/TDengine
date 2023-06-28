@@ -64,14 +64,21 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
 void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
+  int8_t status = atomic_load_8(&pTask->triggerStatus);
+  qDebug("s-task:%s in scheduler timer, trigger status:%d", pTask->id.idStr, status);
+
   if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
     streamMetaReleaseTask(NULL, pTask);
+    qDebug("s-task:%s jump out of schedTimer", pTask->id.idStr);
     return;
   }
 
-  if (atomic_load_8(&pTask->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
+  if (status == TASK_TRIGGER_STATUS__ACTIVE) {
     SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0);
-    if (trigger == NULL) return;
+    if (trigger == NULL) {
+      return;
+    }
+
     trigger->type = STREAM_INPUT__GET_RES;
     trigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
     if (trigger->pBlock == NULL) {
@@ -84,23 +91,27 @@ void streamSchedByTimer(void* param, void* tmrId) {
 
     if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)trigger) < 0) {
       taosFreeQitem(trigger);
-      taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
+      taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->schedTimer);
       return;
     }
 
     streamSchedExec(pTask);
   }
 
-  taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
+  taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->schedTimer);
 }
 
-int32_t streamSetupTrigger(SStreamTask* pTask) {
+int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
   if (pTask->triggerParam != 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    ASSERT(ref == 2);
-    pTask->timer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
+    ASSERT(ref == 2 && pTask->schedTimer == NULL);
+
+    qDebug("s-task:%s setup scheduler trigger, delay:%d ms", pTask->id.idStr, pTask->triggerParam);
+
+    pTask->schedTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
     pTask->triggerStatus = TASK_TRIGGER_STATUS__INACTIVE;
   }
+
   return 0;
 }
 

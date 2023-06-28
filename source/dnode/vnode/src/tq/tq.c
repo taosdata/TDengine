@@ -889,11 +889,12 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond);
   }
 
-  streamSetupTrigger(pTask);
+  streamSetupScheduleTrigger(pTask);
 
-  tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d, scan-history:%d",
+  tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64
+         " child id:%d, level:%d, scan-history:%d, trigger:%" PRId64 " ms",
          vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->info.selfChildId, pTask->info.taskLevel,
-         pTask->info.fillHistory);
+         pTask->info.fillHistory, pTask->triggerParam);
 
   // next valid version will add one
   pTask->chkInfo.version += 1;
@@ -1189,9 +1190,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaReleaseTask(pMeta, pStreamTask);
 
+    taosWLockLatch(&pMeta->lock);
     if (streamMetaCommit(pTask->pMeta) < 0) {
       // persist to disk
     }
+    taosWUnLockLatch(&pMeta->lock);
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of

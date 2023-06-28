@@ -118,7 +118,7 @@ echo "statusInterval         1"                  >> $TAOS_CFG
 echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
 echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
 echo "debugFlag              0"                  >> $TAOS_CFG
-echo "tmrDebugFlag           131"                >> $TAOS_CFG
+echo "tmrDebugFlag           143"                >> $TAOS_CFG
 echo "uDebugFlag             143"                >> $TAOS_CFG
 echo "rpcDebugFlag           143"                >> $TAOS_CFG
 echo "jniDebugFlag           143"                >> $TAOS_CFG

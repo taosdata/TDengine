@@ -333,7 +333,8 @@ struct SStreamTask {
   // trigger
   int8_t        triggerStatus;
   int64_t       triggerParam;
-  void*         timer;
+  void*         schedTimer;
+  void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
 
@@ -550,7 +551,7 @@ int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTas
                                int64_t dstTaskId);
 void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
-int32_t streamSetupTrigger(SStreamTask* pTask);
+int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);

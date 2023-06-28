@@ -441,7 +441,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SStreamTaskRetryInfo* pInfo = param;
   SStreamMeta*          pMeta = pInfo->pMeta;
 
-  qDebug("s-task:0x%x in timer to launch history task", pInfo->taskId);
+  qDebug("s-task:0x%x in timer to launch related history task", pInfo->taskId);
 
   taosWLockLatch(&pMeta->lock);
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &pInfo->taskId, sizeof(int32_t));
@@ -472,7 +472,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
           "destroyed, or should stop exec",
           pTask->id.idStr, pMeta->vgId, pStatus, pTask->historyTaskId.taskId);
 
-      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->timer);
+      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
       streamMetaReleaseTask(pMeta, pTask);
       return;
     }
@@ -486,7 +486,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
     pTask->status.timerActive = 0;
     streamMetaReleaseTask(pMeta, pTask);
   } else {
-    qError("s-task:0x%x failed to load task, it may have been destoryed", pInfo->taskId);
+    qError("s-task:0x%x failed to load task, it may have been destroyed", pInfo->taskId);
   }
 
   taosMemoryFree(pInfo);
@@ -508,18 +508,18 @@ int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask) {
     pInfo->taskId = pTask->id.taskId;
     pInfo->pMeta = pTask->pMeta;
 
-    if (pTask->timer == NULL) {
-      pTask->timer = taosTmrStart(tryLaunchHistoryTask,  100, pInfo, streamEnv.timer);
-      if (pTask->timer == NULL) {
+    if (pTask->launchTaskTimer == NULL) {
+      pTask->launchTaskTimer = taosTmrStart(tryLaunchHistoryTask,  100, pInfo, streamEnv.timer);
+      if (pTask->launchTaskTimer == NULL) {
         // todo failed to create timer
       } else {
         pTask->status.timerActive = 1;  // timer is active
-        qDebug("s-task:%s set time active flag", pTask->id.idStr);
+        qDebug("s-task:%s set timer active flag", pTask->id.idStr);
       }
     } else {  // timer exists
       pTask->status.timerActive = 1;
-      qDebug("s-task:%s set time active flag", pTask->id.idStr);
-      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->timer);
+      qDebug("s-task:%s set timer active flag, task timer not null", pTask->id.idStr);
+      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
     }
 
     // try again in 500ms

@@ -139,9 +139,14 @@ void streamMetaClose(SStreamMeta* pMeta) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->timer) {
-      taosTmrStop(pTask->timer);
-      pTask->timer = NULL;
+    if (pTask->schedTimer) {
+      taosTmrStop(pTask->schedTimer);
+      pTask->schedTimer = NULL;
+    }
+
+    if (pTask->launchTaskTimer) {
+      taosTmrStop(pTask->launchTaskTimer);
+      pTask->launchTaskTimer = NULL;
     }
 
     tFreeStreamTask(pTask);

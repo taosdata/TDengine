@@ -557,7 +557,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
 
 void streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration) {
   qError("s-task:%s dispatch data in %"PRId64"ms", pTask->id.idStr, waitDuration);
-  taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->timer);
+  taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->launchTaskTimer);
 }
 
 int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
