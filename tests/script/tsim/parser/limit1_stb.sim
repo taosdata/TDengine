@@ -468,7 +468,7 @@ if $data01 != 1 then
 endi
 
 ## supertable aggregation + where + interval + group by order by tag + limit offset
-sql select _wstart, max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9),t1 from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 5 and c1 > 0 and c2 < 9 and c3 > 1 and c4 < 7 and c5 > 4 partition by t1  interval(5m) order by t1 desc limit 2 offset 0
+sql select _wstart, max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9),t1 from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 5 and c1 > 0 and c2 < 9 and c3 > 1 and c4 < 7 and c5 > 4 partition by t1  interval(5m) order by t1 desc, max(c1) asc limit 2 offset 0
 if $rows != 2 then
   return -1
 endi

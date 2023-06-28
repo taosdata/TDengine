@@ -62,6 +62,7 @@ int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsMaxStreamBackendCache = 128;  // M
+int32_t tsPQSortMemThreshold = 16; // M
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
@@ -533,6 +534,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -914,6 +916,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
+  tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
 
   GRANT_CFG_GET;
   return 0;
