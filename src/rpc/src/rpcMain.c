@@ -1536,6 +1536,7 @@ static void rpcProcessConnError(void *param, void *id) {
     rpcMsg.msgType = pContext->msgType + 1;
     rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code != TSDB_CODE_SUCCESS ? pContext->code : TSDB_CODE_RPC_TOO_SLOW;
+    // rpcMsg.code = pContext->code;
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
 
