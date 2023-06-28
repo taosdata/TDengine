@@ -1,6 +1,11 @@
 <template>
   <div class="source-ui">
-    <div class="left-ui">
+    <div
+      :class="[
+        'left-ui',
+        this.$parent.currentTaskStatus == 'running' ? 'readable' : '',
+      ]"
+    >
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
@@ -388,7 +393,7 @@
                     size="medium"
                     @click="handleSelBtn"
                     style="height: 42px"
-                    >{{ $t('datasource.select') }}</el-button
+                    >{{ $t("datasource.select") }}</el-button
                   >
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
@@ -438,7 +443,7 @@
                             type="primary"
                             plain
                             @click="addOption"
-                            >{{ $t('datasource.add') }}</el-button
+                            >{{ $t("datasource.add") }}</el-button
                           >
                         </div>
                       </div>
@@ -570,21 +575,20 @@
         <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
         <div class="target-db-name">
           <el-select v-model="dbname" placeholder="">
-          <el-option
-            v-for="db in dblist"
-            :key="db['node-key']"
-            :label="db.name"
-            :value="db.name"
-          ></el-option>
-        </el-select>
-        <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
+            <el-option
+              v-for="db in dblist"
+              :key="db['node-key']"
+              :label="db.name"
+              :value="db.name"
+            ></el-option>
+          </el-select>
+          <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
         </div>
-        
       </section>
       <section class="bottom">
-        <el-button type="primary" @click="submit" :disabled="disable"
-          >{{ $t('submit') }}</el-button
-        >
+        <el-button type="primary" @click="submit" :disabled="disable">{{
+          $t("submit")
+        }}</el-button>
       </section>
     </div>
     <div class="right-ui">
@@ -598,7 +602,6 @@
   </div>
 </template>
 <script>
-import { sendSQLReq } from "@/api/gateway/console";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
@@ -770,7 +773,7 @@ export default {
       return targetObj;
     },
     async getDatabases() {
-      try { 
+      try {
         this.dblist = await getDBListReq();
       } catch (error) {
         console.log(error);
@@ -1195,18 +1198,33 @@ export default {
     color: #acaab2;
     white-space: pre-wrap;
   }
+  .left-ui.readable {
+    position: relative;
+    &::before {
+      content: "";
+      display: block;
+      background: #f2f6fc40;
+      position: absolute;
+      top:0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index:100;
+    }
+  }
+
   .left-ui {
     min-width: 800px;
     .description {
       max-width: 500px;
       overflow: auto;
     }
-    .target-db-name{
+    .target-db-name {
       display: flex;
       flex-direction: column;
-      flex:1;
-      .desc{
-        color:red;
+      flex: 1;
+      .desc {
+        color: red;
         display: block;
         margin-top: 8px;
       }
