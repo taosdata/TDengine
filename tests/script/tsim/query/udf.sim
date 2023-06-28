@@ -8,6 +8,9 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c udf -v 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
+sql alter user root pass 'taosdata2'
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s start
 
 print ======== step1 udf
 system sh/compile_udf.sh

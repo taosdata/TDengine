@@ -232,7 +232,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   code = -1;
-
   taosIp2String(pReq->info.conn.clientIp, ip);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
@@ -244,7 +243,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, terrstr());
     goto _OVER;
   }
-
+  
   if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
@@ -270,6 +269,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     }
   }
 
+_CONNECT:
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
