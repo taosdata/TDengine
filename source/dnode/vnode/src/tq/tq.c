@@ -1112,8 +1112,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       // wait for the stream task get ready for scan history data
       while (((pStreamTask->status.downstreamReady == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
             pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-        tqDebug("s-task:%s level:%d not ready for halt, wait for 100ms and recheck", pStreamTask->id.idStr,
-                pStreamTask->info.taskLevel);
+        tqDebug("s-task:%s level:%d related stream task:%s not ready for halt, wait for it continue and recheck in 100ms",
+                pTask->id.idStr, pStreamTask->id.idStr, pStreamTask->info.taskLevel);
         taosMsleep(100);
       }
 
@@ -1181,11 +1181,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamTryExec(pTask);
 
     pTask->status.taskStatus = TASK_STATUS__DROPPING;
-    tqDebug("s-task:%s set status to be dropping", pId);
-
-    // transfer the ownership of executor state
-    streamTaskReleaseState(pTask);
-    streamTaskReloadState(pStreamTask);
+    tqDebug("s-task:%s scan-history-task set status to be dropping", pId);
 
     streamMetaSaveTask(pMeta, pTask);
     streamMetaSaveTask(pMeta, pStreamTask);
@@ -1236,12 +1232,14 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.taskId);
   if (pTask == NULL) {
-    tqError("failed to find task:0x%x", req.taskId);
+    tqError("failed to find task:0x%x, it may have been dropped already", req.taskId);
     return -1;
   }
 
   // transfer the ownership of executor state
   streamTaskReleaseState(pTask);
+  tqDebug("s-task:%s receive state transfer req", pTask->id.idStr);
+
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
   streamTaskReloadState(pStreamTask);
 

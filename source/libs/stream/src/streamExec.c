@@ -351,7 +351,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
-  qDebug("s-task:%s scan history task end, update stream task:%s info and launch it", pTask->id.idStr, pStreamTask->id.idStr);
+  qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr, pStreamTask->id.idStr);
 
   // todo handle stream task is dropped here
 
@@ -390,7 +390,12 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   pTimeWindow->skey = INT64_MIN;
   qResetStreamInfoTimeWindow(pStreamTask->exec.pExecutor);
 
+  // transfer the ownership of executor state
+  streamTaskReleaseState(pTask);
+  streamTaskReloadState(pStreamTask);
+
   streamSetStatusNormal(pStreamTask);
+
   streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pTask->pMeta, pStreamTask);
   return TSDB_CODE_SUCCESS;
@@ -584,6 +589,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
 }
 
 int32_t streamTaskReleaseState(SStreamTask* pTask) {
+  qDebug("s-task:%s release exec state", pTask->id.idStr);
   void* pExecutor = pTask->exec.pExecutor;
   if (pExecutor != NULL) {
     int32_t code = qStreamOperatorReleaseState(pExecutor);
@@ -594,6 +600,7 @@ int32_t streamTaskReleaseState(SStreamTask* pTask) {
 }
 
 int32_t streamTaskReloadState(SStreamTask* pTask) {
+  qDebug("s-task:%s reload exec state", pTask->id.idStr);
   void* pExecutor = pTask->exec.pExecutor;
   if (pExecutor != NULL) {
     int32_t code = qStreamOperatorReloadState(pExecutor);
