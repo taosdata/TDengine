@@ -82,6 +82,10 @@ class TDTestQuery(TDCase):
         
         column_ts,column_bool,column_int,column_float,column_char = '','','','',''
         
+        tinyint_list=[]
+        for num in range(-random.randint(0,500),random.randint(0,500)):
+            tinyint_list.append(num)
+        
         i = random.randint(1,rows)
         column_type = self.tdSql.getData(i - 1,1)        
         column_field = self.tdSql.getData(i - 1,0)
@@ -89,12 +93,15 @@ class TDTestQuery(TDCase):
         i1 = random.randint(1,rows)
         column_type_1 = self.tdSql.getData(i1 - 1,1) 
         column_field_1 = self.tdSql.getData(i1 - 1,0)
-        column_null = '(`%s`' %column_field + ' is null or ' +  '`%s`' %column_field_1 + ' is not null ) and '
         
-        if column_type == 'TIMESTAMP'  :
+        column_null = '(`%s`' %self.tdSql.getData(random.randint(1,rows) - 1,0)  + ' is null or ' +  '`%s`' %self.tdSql.getData(random.randint(1,rows) - 1,0) + ' is not null ) and '
+        
+        if column_type == 'TIMESTAMP'  and column_type_1 == 'TIMESTAMP':
             column_ts = '`%s`' %column_field + ' < now and '
         elif column_type_1 == 'TIMESTAMP'  :
             column_ts = '`%s`' %column_field_1 + ' between 0 and now and '
+        elif column_type == 'TIMESTAMP'  :
+            column_ts =  ' _rowts between 0 and now and '
         
         if column_type  == 'INT' :
             column_int = '`%s`' %column_field + ' <= %d and ' %random_int
@@ -104,6 +111,8 @@ class TDTestQuery(TDCase):
             column_int = '`%s`' %column_field + ' between %d and  %d and ' %(random_float,random_int)
         elif column_type  == 'TINYINT':
             column_int = '`%s`' %column_field + ' != %d and ' %random_int
+        elif column_type_1  == 'TINYINT':
+            column_int = '`%s`' %column_field_1 + ' in ( ' + str(tinyint_list).replace(",","|").replace("[","").replace("]","") + ") and "
             
         if column_type  == 'FLOAT':
             column_float = '`%s`' %column_field + ' >= %d and ' %random_float
@@ -114,12 +123,16 @@ class TDTestQuery(TDCase):
         elif column_type_1  == 'DOUBLE' :
             column_float = '`%s`' %column_field_1 + ' != %d and ' %(random_float)
         
-        if column_type  == 'BOOL':
+        if column_type  == 'BOOL' and column_type_1  == 'BOOL':
             column_bool = '`%s`' %column_field + ' = true and ' 
         elif column_type_1  == 'BOOL':
             column_bool = '`%s`' %column_field_1 + ' = false and '
+        elif column_type  == 'BOOL' :
+            column_bool = '`%s`' %column_field + ' in (0 | 1)  and '    # | replace ,
         
-        if column_type == 'VARCHAR' :
+        if column_type == 'VARCHAR' and column_type_1 == 'VARCHAR':
+            column_char = '`%s`' %column_field + ' in ( ' + str(tinyint_list).replace(",","|").replace("[","").replace("]","") + ") and "
+        elif column_type == 'VARCHAR' :
             column_char = '`%s`' %column_field + ' match\'{a-zA-Z}\' and '
         elif column_type == 'NCHAR' :
             column_char = '`%s`' %column_field + ' nmatch\'{a-z}\' and '
@@ -135,10 +148,66 @@ class TDTestQuery(TDCase):
         column_tag_list_where.append(column_int)
         column_tag_list_where.append(column_float)
         column_tag_list_where.append(column_char)
-        
-        
+                
         return column_tag_list_where
 
+    def limit_slimit(self,db_tb,num):
+        limit_num = random.randint(0,1000000)
+        limit_offset = random.randint(0,1000000)
+        slimit_num = random.randint(0,1000000)
+        slimit_offset = random.randint(0,1000000)
+        
+        if num == 1:
+            #只返回limit
+            i = random.randint(0,4)
+            if i ==1:
+                limit_slimit = ' limit %d ' %limit_num 
+            elif i ==2:
+                limit_slimit = ' limit %d ,%d ' %(limit_num, limit_offset)  
+            elif i ==3:
+                limit_slimit = ' limit %d offset %d ' %(limit_num, limit_offset)
+            else:
+                limit_slimit = ' '  
+        else:
+            #返回limit+slimit
+            i = random.randint(0,17)
+            if i ==1:
+                limit_slimit = ' limit %d ' %limit_num 
+            elif i ==2:
+                limit_slimit = ' limit %d ,%d ' %(limit_num, limit_offset)  
+            elif i ==3:
+                limit_slimit = ' limit %d offset %d ' %(limit_num, limit_offset)
+            elif i ==4:
+                limit_slimit = ' slimit %d ' %slimit_num 
+            elif i ==5:
+                limit_slimit = ' slimit %d ,%d ' %(slimit_num, slimit_offset)  
+            elif i ==6:
+                limit_slimit = ' slimit %d soffset %d ' %(slimit_num, slimit_offset) 
+            elif i ==7:
+                limit_slimit = ' slimit %d limit %d ' %(slimit_num,limit_num) 
+            elif i ==8:
+                limit_slimit = ' slimit %d ,%d limit %d ' %(slimit_num, slimit_offset,limit_num)  
+            elif i ==9:
+                limit_slimit = ' slimit %d soffset %d limit %d ' %(slimit_num, slimit_offset,limit_num)   
+            elif i ==10:
+                limit_slimit = ' slimit %d limit %d,%d ' %(slimit_num,limit_num, limit_offset) 
+            elif i ==11:
+                limit_slimit = ' slimit %d ,%d limit %d,%d ' %(slimit_num, slimit_offset,limit_num, limit_offset)  
+            elif i ==12:
+                limit_slimit = ' slimit %d soffset %d limit %d,%d ' %(slimit_num, slimit_offset,limit_num, limit_offset)   
+            elif i ==13:
+                limit_slimit = ' slimit %d limit %d offset %d ' %(slimit_num,limit_num, limit_offset) 
+            elif i ==14:
+                limit_slimit = ' slimit %d ,%d limit %d offset %d ' %(slimit_num, slimit_offset,limit_num, limit_offset)  
+            elif i ==15:
+                limit_slimit = ' slimit %d soffset %d limit %d offset %d ' %(slimit_num, slimit_offset,limit_num, limit_offset)   
+            else:
+                limit_slimit = ' '   
+            
+        return limit_slimit
+        
+        
+        
     def describe_table(self,db_tb):
         random_num1 = random.randint(0,1000)
         random_num2 = random.randint(0,100)
@@ -230,9 +299,10 @@ class TDTestQuery(TDCase):
             
     def basic_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
         column_tag_list = self.random_column_tag(db_tb)
-        column_tag_list_where = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'")
-        print(column_tag_list)
-        print(column_tag_list_where)
+        column_tag_list_where = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
+        column_tag_list_where_1 = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
+        limit = self.limit_slimit(db_tb,1)
+        limit_slimit = self.limit_slimit(db_tb,2)
         
         # sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         # self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
@@ -263,12 +333,16 @@ class TDTestQuery(TDCase):
         # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
-        self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where_null = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
-        # sql_base_where_notnull = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
-        # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
+        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
+        # self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where)
+        # sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where_1)
+        # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit_slimit)
+        sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit_slimit)
+        sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
+        self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
         # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
