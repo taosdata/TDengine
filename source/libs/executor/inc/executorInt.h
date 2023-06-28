@@ -285,6 +285,8 @@ typedef struct SStreamAggSupporter {
   int16_t         stateKeyType;
   SDiskbasedBuf*  pResultBuf;
   SStateStore     stateStore;
+  STimeWindow     winRange;
+  SStorageAPI*    pSessionAPI;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
