@@ -64,7 +64,7 @@ else()
 endif()
 
 IF (JEMALLOC_ENABLED)
-    target_link_libraries(os PUBLIC -ljemalloc)
+    target_link_libraries(os PUBLIC -L${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
 ENDIF ()
 
 if(${BUILD_TEST})

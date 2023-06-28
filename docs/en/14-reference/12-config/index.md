@@ -19,14 +19,18 @@ taosd -C
 
 ## Configuration File on Client Side
 
-TDengine CLI `taos` is the tool for users to interact with TDengine. It can share same configuration file as `taosd` or use a separate configuration file. When launching `taos`, parameter `-c` can be used to specify the location where its configuration file is. For example `taos -c /home/cfg` means `/home/cfg/taos.cfg` will be used. If `-c` is not used, the default location of the configuration file is `/etc/taos`. For more details please use `taos --help` to get.
+TDengine CLI `taos` is the tool for users to interact with TDengine. It can share same configuration file as `taosd` or use a separate configuration file. When launching `taos`, parameter `-c` can be used to specify the location where its configuration file is. For example:
+
+```
+taos -c /home/cfg
+```
+
+means `/home/cfg/taos.cfg` will be used. If `-c` is not used, the default location of the configuration file is `/etc/taos`. For more details please use `taos --help` to get.
+
+Parameter `-C` can be used on the CLI of `taos` to show its configuration, like below:
 
 ```bash
 taos -C
-```
-
-```bash
-taos --dump-config
 ```
 
 ## Configuration Parameters
@@ -77,8 +81,9 @@ The parameters described in this document by the effect that they have on the sy
 | Default Value | 6030                                                  |
 
 :::note
-- Ensure that your firewall rules do not block TCP port 6042  on any host in the cluster. Below table describes the ports used by TDengine in details.
+Ensure that your firewall rules do not block TCP port 6042  on any host in the cluster. Below table describes the ports used by TDengine in details.
 :::
+
 | Protocol | Default Port | Description                                                                                               | How to configure                                                                               |
 | :------- | :----------- | :-------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | TCP      | 6030         | Communication between client and server. In a multi-node cluster, communication between nodes. serverPort |
@@ -119,6 +124,8 @@ The parameters described in this document by the effect that they have on the sy
 
 :::note
 Please note the `taoskeeper` needs to be installed and running to create the `log` database and receiving metrics sent by `taosd` as the full monitoring solution.
+
+:::
 
 ### monitor
 
@@ -365,6 +372,16 @@ The charset that takes effect is UTF-8.
 | Unit          | GB                                                                                                |
 | Default Value | 2.0                                                                                               |
 
+### metaCacheMaxSize
+
+| Attribute     | Description                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| Applicable    | Client Only                                                                                       |
+| Meaning       | Maximum meta cache size in single client process                                                  |
+| Unit          | MB                                                                                                |
+| Default Value | -1 (No limitation)                                                                                |
+
+
 ## Cluster Parameters
 
 ### supportVnodes
@@ -432,6 +449,26 @@ The charset that takes effect is UTF-8.
 | Unit          | day                                                                                                                                         |
 | Default Value | 0                                                                                                                                           |
 | Note          | When it's bigger than 0, the log file would be renamed to "taosdlog.xxx" in which "xxx" is the timestamp when the file is changed last time |
+
+### slowLogThreshold
+
+| Attribute     | Description                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                              |
+| Meaning       | When an operation execution time exceeds this threshold, the operation will be logged in slow log file   |
+| Unit          | second                                                                                                   |
+| Default Value | 3                                                                                                        |
+| Note          | All slow operations will be logged in file "taosSlowLog" in the log directory                            |
+
+### slowLogScope
+
+| Attribute       | Description                                                             |
+| --------------- | ----------------------------------------------------------------------- |
+| Applicable      | Client only                                                             |
+| Meaning         | Slow log type to be logged                                              |
+| Optional Values | ALL, QUERY, INSERT, OTHERS, NONE                                        |
+| Default Value   | ALL                                                                     |
+| Note            | All slow operations will be logged by default, one option could be set  |
 
 ### debugFlag
 

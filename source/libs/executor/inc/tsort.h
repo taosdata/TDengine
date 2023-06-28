@@ -146,7 +146,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-
+void*    tsortGetBlockInfo(STupleHandle* pVHandle);
 /**
  *
  * @param pSortHandle
@@ -169,6 +169,10 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
  * @return
  */
 int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols);
+
+
+bool tsortIsClosed(SSortHandle* pHandle);
+void tsortSetClosed(SSortHandle* pHandle);
 
 #ifdef __cplusplus
 }

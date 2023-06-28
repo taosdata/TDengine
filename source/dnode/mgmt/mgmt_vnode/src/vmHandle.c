@@ -265,6 +265,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
+#if 0
   if (pMgmt->pTfs) {
     if (tfsDirExistAt(pMgmt->pTfs, path, (SDiskID){0})) {
       terrno = TSDB_CODE_VND_DIR_ALREADY_EXIST;
@@ -278,8 +279,9 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return -1;
     }
   }
+#endif
 
-if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
+  if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
     tFreeSCreateVnodeReq(&req);
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
@@ -482,10 +484,18 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   int32_t srcVgId = req.srcVgId;
   int32_t dstVgId = req.dstVgId;
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, dstVgId);
+  if (pVnode != NULL) {
+    dError("vgId:%d, vnode already exist", dstVgId);
+    vmReleaseVnode(pMgmt, pVnode);
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
+    return -1;
+  }
+
   dInfo("vgId:%d, start to alter vnode hashrange:[%u, %u], dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
         req.dstVgId);
-
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, srcVgId);
+  pVnode = vmAcquireVnode(pMgmt, srcVgId);
   if (pVnode == NULL) {
     dError("vgId:%d, failed to alter hashrange since %s", srcVgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
@@ -498,6 +508,13 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .vgVersion = pVnode->vgVersion,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
+
+  // prepare alter
+  pVnode->toVgId = dstVgId;
+  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
+    return -1;
+  }
 
   dInfo("vgId:%d, close vnode", srcVgId);
   vmCloseVnode(pMgmt, pVnode, true);
@@ -530,6 +547,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
+  // complete alter
   if (vmWriteVnodeListToFile(pMgmt) != 0) {
     dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
     return -1;
@@ -712,6 +730,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_ADD_CHECKINFO, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_DEL_CHECKINFO, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_CONSUME, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_CONSUME_PUSH, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_WALINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DELETE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_BATCH_DEL, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

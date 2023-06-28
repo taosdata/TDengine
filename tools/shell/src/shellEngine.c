@@ -326,6 +326,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   char quotationStr[2];
   quotationStr[0] = '\"';
   quotationStr[1] = 0;
+  int32_t width;
 
   int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
@@ -358,20 +359,27 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      width = SHELL_FLOAT_WIDTH;
       if (tsEnableScience) {
-        taosFprintfFile(pFile, "%e", GET_FLOAT_VAL(val));
+        taosFprintfFile(pFile, "%*e", width, GET_FLOAT_VAL(val));
       } else {
-        taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.5f", width, GET_FLOAT_VAL(val));
+        if (n > SHELL_FLOAT_WIDTH) {
+          taosFprintfFile(pFile, "%*e", width, GET_FLOAT_VAL(val));
+        } else {
+          taosFprintfFile(pFile, "%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
+      width = SHELL_DOUBLE_WIDTH;
       if (tsEnableScience) {
-        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9e", 23, GET_DOUBLE_VAL(val));
-        taosFprintfFile(pFile, "%s", buf);
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
+        taosFprintfFile(pFile, "%*s", width, buf);
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
-        if (n > TMAX(25, length)) {
-          taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+        if (n > SHELL_DOUBLE_WIDTH) {
+          taosFprintfFile(pFile, "%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
           taosFprintfFile(pFile, "%s", buf);
         }
@@ -607,7 +615,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         printf("%*e", width, GET_FLOAT_VAL(val));
       } else {
         n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.5f", width, GET_FLOAT_VAL(val));
-        if (n > TMAX(20, width)) {
+        if (n > SHELL_FLOAT_WIDTH) {
             printf("%*e", width, GET_FLOAT_VAL(val));
         } else {
             printf("%s", buf);
@@ -620,7 +628,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         printf("%*s", width, buf);
       } else {
         n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
-        if (n > TMAX(25, width)) {
+        if (n > SHELL_DOUBLE_WIDTH) {
             printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
             printf("%s", buf);
@@ -757,10 +765,10 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       return TMAX(21, width);  // '-9223372036854775807'
 
     case TSDB_DATA_TYPE_FLOAT:
-      return TMAX(20, width);
+      return TMAX(SHELL_FLOAT_WIDTH, width);
 
     case TSDB_DATA_TYPE_DOUBLE:
-      return TMAX(25, width);
+      return TMAX(SHELL_DOUBLE_WIDTH, width);
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY:

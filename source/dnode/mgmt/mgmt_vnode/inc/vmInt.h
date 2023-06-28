@@ -46,6 +46,7 @@ typedef struct {
   int32_t vgId;
   int32_t vgVersion;
   int8_t  dropped;
+  int32_t toVgId;
   char    path[PATH_MAX + 20];
 } SWrapperCfg;
 
@@ -55,6 +56,7 @@ typedef struct {
   int32_t       refCount;
   int8_t        dropped;
   int8_t        disable;
+  int32_t       toVgId;
   char         *path;
   SVnode       *pImpl;
   SMultiWorker  pWriteW;
@@ -70,6 +72,7 @@ typedef struct {
   int32_t      vnodeNum;
   int32_t      opened;
   int32_t      failed;
+  bool         updateVnodesList;
   int32_t      threadIndex;
   TdThread     thread;
   SVnodeMgmt  *pMgmt;

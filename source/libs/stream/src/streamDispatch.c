@@ -349,6 +349,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     SBlockName* pBln = (SBlockName*)pVal;
     hashValue = pBln->hashValue;
     if (!pDataBlock->info.parTbName[0]) {
+      memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
       memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
     }
   } else {

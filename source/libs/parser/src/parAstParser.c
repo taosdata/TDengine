@@ -384,6 +384,10 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
   }
+  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    code = reserveDbCfgForLastRow(pCxt, pSelect->pFromTable);
+  }  
   return code;
 }
 

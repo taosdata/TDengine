@@ -46,12 +46,16 @@ int32_t tdbAlter(TDB *pDb, int pages);
 int32_t tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb,
                   int8_t rollback);
 int32_t tdbTbClose(TTB *pTb);
+bool    tdbTbExist(const char *tbname, TDB *pEnv);
+int     tdbTbDropByName(const char *tbname, TDB *pEnv, TXN* pTxn);
 int32_t tdbTbDrop(TTB *pTb);
 int32_t tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
 int32_t tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn);
 int32_t tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
 int32_t tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen);
 int32_t tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+int32_t tdbTbTraversal(TTB *pTb, void *data,
+                       int32_t (*func)(const void *pKey, int keyLen, const void *pVal, int valLen, void *data));
 
 // TBC
 int32_t tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn);

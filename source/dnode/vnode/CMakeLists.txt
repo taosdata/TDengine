@@ -27,6 +27,7 @@ target_sources(
     "src/meta/metaEntry.c"
     "src/meta/metaSnapshot.c"
     "src/meta/metaCache.c"
+    "src/meta/metaTtl.c"
 
     # sma
     "src/sma/smaEnv.c"
@@ -80,14 +81,50 @@ IF (TD_VNODE_PLUGINS)
   )
 ENDIF ()
 
-target_include_directories(
-    vnode
-    PUBLIC "inc"
-    PUBLIC "src/inc"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
-)
-IF (TD_LINUX)
+# IF (NOT ${TD_LINUX})
+# target_include_directories(
+#     vnode
+#     PUBLIC "inc"
+#     PUBLIC "src/inc"
+#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+#     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+# )
+# ELSE()
+# target_include_directories(
+#     vnode
+#     PUBLIC "inc"
+#     PUBLIC "src/inc"
+#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+# )
+#ENDIF(NOT ${TD_LINUX})
+
+if (${BUILD_CONTRIB})
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+    )
+else()
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    )
+    if (${TD_LINUX})
+        target_include_directories(
+            vnode 
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+        target_link_directories(
+            vnode 
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+    endif()
+endif()
+
 target_link_libraries(
     vnode
     PUBLIC os
@@ -108,28 +145,6 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
-ELSE()
-target_link_libraries(
-    vnode
-    PUBLIC os
-    PUBLIC util
-    PUBLIC common
-    PUBLIC tfs
-    PUBLIC wal
-    PUBLIC qworker
-    PUBLIC sync
-    PUBLIC executor
-    PUBLIC scheduler
-    PUBLIC tdb
-
-    # PUBLIC bdb
-    # PUBLIC scalar
-    PUBLIC rocksdb
-    PUBLIC transport
-    PUBLIC stream
-    PUBLIC index
-)
-ENDIF()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)

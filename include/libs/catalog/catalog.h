@@ -87,6 +87,7 @@ typedef struct SCatalogReq {
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
   bool    forceUpdate;
+  bool    cloned;
 } SCatalogReq;
 
 typedef struct SMetaRes {

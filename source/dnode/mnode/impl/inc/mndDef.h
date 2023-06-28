@@ -108,7 +108,7 @@ typedef enum {
   TRN_STAGE_UNDO_ACTION = 3,
   TRN_STAGE_COMMIT = 4,
   TRN_STAGE_COMMIT_ACTION = 5,
-  TRN_STAGE_FINISHED = 6,
+  TRN_STAGE_FINISH = 6,
   TRN_STAGE_PRE_FINISH = 7
 } ETrnStage;
 
@@ -157,6 +157,7 @@ typedef struct {
   void*       rpcRsp;
   int32_t     rpcRspLen;
   int32_t     redoActionPos;
+  SArray*     prepareActions;
   SArray*     redoActions;
   SArray*     undoActions;
   SArray*     commitActions;
@@ -467,6 +468,7 @@ typedef struct {
   int8_t         replica;
   int16_t        numOfColumns;
   int32_t        numOfRows;
+  int32_t        curIterPackedRows;
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
@@ -550,33 +552,39 @@ typedef struct {
   int64_t upTime;
   int64_t subscribeTime;
   int64_t rebalanceTime;
+
+  int8_t         withTbName;
+  int8_t         autoCommit;
+  int32_t        autoCommitInterval;
+  int32_t        resetOffsetCfg;
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
 void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer);
+void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
   int32_t vgId;
-  char*   qmsg;  // SubPlanToString
+//  char*   qmsg;  // SubPlanToString
   SEpSet  epSet;
 } SMqVgEp;
 
 SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
 void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
 int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
-void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp);
+void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
   SArray* vgs;         // SArray<SMqVgEp*>
+  SArray* offsetRows;  // SArray<OffsetRows*>
 } SMqConsumerEp;
 
-SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-void           tDeleteSMqConsumerEp(void* pEp);
+//SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
+//void           tDeleteSMqConsumerEp(void* pEp);
 int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
-void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
+void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -588,34 +596,36 @@ typedef struct {
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
+  SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
+  char*     qmsg;           // SubPlanToString
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
 SMqSubscribeObj* tCloneSubscribeObj(const SMqSubscribeObj* pSub);
 void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
-void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub);
+void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
-typedef struct {
-  int32_t epoch;
-  SArray* consumers;  // SArray<SMqConsumerEp*>
-} SMqSubActionLogEntry;
+//typedef struct {
+//  int32_t epoch;
+//  SArray* consumers;  // SArray<SMqConsumerEp*>
+//} SMqSubActionLogEntry;
 
-SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
-void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
-
-typedef struct {
-  char    key[TSDB_SUBSCRIBE_KEY_LEN];
-  SArray* logs;  // SArray<SMqSubActionLogEntry*>
-} SMqSubActionLogObj;
-
-SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
-void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
+//SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
+//void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
+//int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
+//void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
+//
+//typedef struct {
+//  char    key[TSDB_SUBSCRIBE_KEY_LEN];
+//  SArray* logs;  // SArray<SMqSubActionLogEntry*>
+//} SMqSubActionLogObj;
+//
+//SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
+//void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
+//int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
+//void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
   int32_t           oldConsumerNum;
@@ -634,7 +644,7 @@ typedef struct {
   SArray*               removedConsumers;  // SArray<int64_t>
   SArray*               modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj*      pSub;
-  SMqSubActionLogEntry* pLogEntry;
+//  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
 typedef struct {
@@ -687,12 +697,12 @@ int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
-typedef struct {
-  char    streamName[TSDB_STREAM_FNAME_LEN];
-  int64_t uid;
-  int64_t streamUid;
-  SArray* childInfo;  // SArray<SStreamChildEpInfo>
-} SStreamCheckpointObj;
+//typedef struct {
+//  char    streamName[TSDB_STREAM_FNAME_LEN];
+//  int64_t uid;
+//  int64_t streamUid;
+//  SArray* childInfo;  // SArray<SStreamChildEpInfo>
+//} SStreamCheckpointObj;
 
 #ifdef __cplusplus
 }

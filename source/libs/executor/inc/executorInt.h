@@ -399,6 +399,8 @@ typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;
   bool           mergeResultBlock;
+  int32_t        inputTsOrder;
+  int32_t        outputTsOrder;
 } SOptrBasicInfo;
 
 typedef struct SIntervalAggOperatorInfo {
@@ -411,8 +413,6 @@ typedef struct SIntervalAggOperatorInfo {
   STimeWindow        win;                // query time range
   bool               timeWindowInterpo;  // interpolation needed or not
   SArray*            pInterpCols;        // interpolation columns
-  int32_t            resultTsOrder;      // result timestamp order
-  int32_t            inputOrder;         // input data ts order
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.

@@ -1154,7 +1154,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     int32_t tableType = mr.me.type;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
-      int64_t ts = mr.me.ctbEntry.ctime;
+      int64_t ts = mr.me.ctbEntry.btime;
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
@@ -1206,7 +1206,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
@@ -1338,7 +1338,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     int32_t tableType = pInfo->pCur->mr.me.type;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
-      int64_t ts = pInfo->pCur->mr.me.ctbEntry.ctime;
+      int64_t ts = pInfo->pCur->mr.me.ctbEntry.btime;
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
@@ -1392,7 +1392,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
@@ -1600,6 +1600,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
+
+  blockDataCleanup(pInfo->pRes);
 
   const char* name = tNameGetTableName(&pInfo->name);
   if (pInfo->showRewrite) {

@@ -288,6 +288,7 @@ The configuration parameters in the URL are as follows:
 - httpSocketTimeout: socket timeout in milliseconds, the default value is 5000 ms. It only takes effect when batchfetch is false.
 - messageWaitTimeout: message transmission timeout in milliseconds, the default value is 3000 ms. It only takes effect when batchfetch is true.
 - useSSL: connecting Securely Using SSL. true: using SSL connection, false: not using SSL connection.
+- httpPoolSize: size of REST concurrent requests. The default value is 20.
 
 **Note**: Some configuration items (e.g., locale, timezone) do not work in the REST connection.
 
@@ -355,6 +356,7 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket timeout in milliseconds, the default value is 5000 ms. It only takes effect when using JDBC REST connection and batchfetch is false.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 3000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
 - TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL connection, false: not using SSL connection. It only takes effect when using JDBC REST connection.
+- TSDBDriver.HTTP_POOL_SIZE: size of REST concurrent requests. The default value is 20.
   For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client-Only).
 
 ### Priority of configuration parameters
@@ -418,6 +420,19 @@ while(resultSet.next()){
 ```
 
 > The query is consistent with operating a relational database. When using subscripts to get the contents of the returned fields, you have to start from 1. However, we recommend using the field names to get the values of the fields in the result set.
+
+### execute SQL with reqId
+
+This reqId can be used to request link tracing.
+
+```java
+AbstractStatement aStmt = (AbstractStatement) connection.createStatement();
+aStmt.execute("create database if not exists db", 1L);
+aStmt.executeUpdate("use db", 2L);
+try (ResultSet rs = aStmt.executeQuery("select * from tb", 3L)) {
+    Timestamp ts = rs.getTimestamp(1);
+}
+```
 
 ### Writing data via parameter binding
 
@@ -936,6 +951,14 @@ public class SchemalessWsTest {
 </TabItem>
 </Tabs>
 
+### Schemaless with reqId
+
+This reqId can be used to request link tracing.
+
+```java
+writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
+```
+
 ### Data Subscription
 
 The TDengine Java Connector supports subscription functionality with the following application API.
@@ -993,13 +1016,36 @@ while(true) {
 
 #### Assignment subscription Offset
 
-```
+```java
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
 Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
 
 void seek(TopicPartition partition, long offset) throws SQLException;
+```
+
+Example usage is as follows.
+
+```java
+String topic = "offset_seek_test";
+Map<TopicPartition, Long> offset = null;
+try (TaosConsumer<ResultBean> consumer = new TaosConsumer<>(properties)) {
+    consumer.subscribe(Collections.singletonList(topic));
+    for (int i = 0; i < 10; i++) {
+        if (i == 3) {
+            // Saving consumption position
+            offset = consumer.position(topic);
+        }
+        if (i == 5) {
+            // reset consumption to the previously saved position
+            for (Map.Entry<TopicPartition, Long> entry : offset.entrySet()) {
+                consumer.seek(entry.getKey(), entry.getValue());
+            }
+        }
+        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(500));
+    }
+}
 ```
 
 #### Close subscriptions
@@ -1308,3 +1354,7 @@ For additional troubleshooting, see [FAQ](../../../train-faq/faq).
 ## API Reference
 
 [taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)
+
+```
+
+```
