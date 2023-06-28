@@ -1114,7 +1114,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       while (((pStreamTask->status.downstreamReady == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
             pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
         tqDebug("s-task:%s level:%d related stream task:%s not ready for halt, wait for it continue and recheck in 100ms",
-                pTask->id.idStr, pStreamTask->id.idStr, pStreamTask->info.taskLevel);
+                pTask->id.idStr, pTask->info.taskLevel, pStreamTask->id.idStr);
         taosMsleep(100);
       }
 
