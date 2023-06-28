@@ -939,8 +939,6 @@ int stmtClose(TAOS_STMT* stmt) {
   stmtCleanSQLInfo(pStmt);
   taosMemoryFree(stmt);
 
-  STMT_DLOG_E("stmt freed");
-
   return TSDB_CODE_SUCCESS;
 }
 
