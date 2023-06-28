@@ -280,7 +280,7 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
 }
 
 static bool stbSplNeedSplitJoin(bool streamQuery, SJoinLogicNode* pJoin) {
-  if (pJoin->isSingleTableJoin) {
+  if (pJoin->isSingleTableJoin || JOIN_ALGO_HASH == pJoin->joinAlgo) {
     return false;
   }
   SNode* pChild = NULL;

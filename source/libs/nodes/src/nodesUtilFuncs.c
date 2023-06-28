@@ -492,6 +492,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SInterpFuncLogicNode));
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return makeNode(type, sizeof(SGroupCacheLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      return makeNode(type, sizeof(SDynQueryCtrlLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -1178,6 +1180,17 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pFillValues);
       nodesDestroyNode(pLogicNode->pTimeSeries);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE: {
+      SGroupCacheLogicNode* pLogicNode = (SGroupCacheLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pGroupCols);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
+      SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
       break;
     }
     case QUERY_NODE_LOGIC_SUBPLAN: {

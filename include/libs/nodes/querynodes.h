@@ -180,6 +180,10 @@ typedef enum EJoinAlgorithm {
   JOIN_ALGO_HASH,
 } EJoinAlgorithm;
 
+typedef enum EDynQueryType {
+  DYN_QTYPE_STB_HASH = 1,
+} EDynQueryType;
+
 typedef struct SJoinTableNode {
   STableNode table;  // QUERY_NODE_JOIN_TABLE
   EJoinType  joinType;

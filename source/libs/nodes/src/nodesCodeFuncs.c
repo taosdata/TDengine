@@ -295,6 +295,10 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicIndefRowsFunc";
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return "LogicInterpFunc";
+    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
+      return "LogicGroupCache";
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      return "LogicDynamicQueryCtrl";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -1172,6 +1176,55 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkGroupCacheLogicPlanGroupCols = "GroupCols";
+
+static int32_t logicGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
+  const SGroupCacheLogicNode* pNode = (const SGroupCacheLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkGroupCacheLogicPlanGroupCols, pNode->pGroupCols);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicGroupCacheNode(const SJson* pJson, void* pObj) {
+  SGroupCacheLogicNode* pNode = (SGroupCacheLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkGroupCacheLogicPlanGroupCols, &pNode->pGroupCols);
+  }
+
+  return code;
+}
+
+static const char* jkDynQueryCtrlLogicPlanQueryType = "QueryType";
+
+static int32_t logicDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
+  const SDynQueryCtrlLogicNode* pNode = (const SDynQueryCtrlLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
+  SDynQueryCtrlLogicNode* pNode = (SDynQueryCtrlLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType, code);
+  }
+
+  return code;
+}
+
+
 static const char* jkSubplanIdQueryId = "QueryId";
 static const char* jkSubplanIdGroupId = "GroupId";
 static const char* jkSubplanIdSubplanId = "SubplanId";
@@ -1426,9 +1479,11 @@ static int32_t jsonToLogicPlan(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkJoinLogicPlanJoinType = "JoinType";
-static const char* jkJoinLogicPlanOnConditions = "OnConditions";
+static const char* jkJoinLogicPlanJoinAlgo = "JoinAlgo";
+static const char* jkJoinLogicPlanOnConditions = "OtherOnCond";
 static const char* jkJoinLogicPlanPrimKeyEqCondition = "PrimKeyEqCond";
 static const char* jkJoinLogicPlanColEqCondition = "ColumnEqCond";
+static const char* jkJoinLogicPlanTagEqCondition = "TagEqCond";
 
 static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
@@ -1438,13 +1493,19 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkJoinLogicPlanJoinType, pNode->joinType);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkJoinLogicPlanJoinAlgo, pNode->joinAlgo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinLogicPlanPrimKeyEqCondition, nodeToJson, pNode->pPrimKeyEqCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkJoinLogicPlanOnConditions, nodeToJson, pNode->pOtherOnCond);
+    code = tjsonAddObject(pJson, jkJoinLogicPlanColEqCondition, nodeToJson, pNode->pColEqCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkJoinLogicPlanColEqCondition, nodeToJson, pNode->pColEqCond);
+    code = tjsonAddObject(pJson, jkJoinLogicPlanTagEqCondition, nodeToJson, pNode->pTagEqCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinLogicPlanOnConditions, nodeToJson, pNode->pOtherOnCond);
   }
   return code;
 }
@@ -1457,14 +1518,21 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkJoinLogicPlanJoinType, pNode->joinType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkJoinLogicPlanPrimKeyEqCondition, &pNode->pPrimKeyEqCond);
+    tjsonGetNumberValue(pJson, jkJoinLogicPlanJoinAlgo, pNode->joinAlgo, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkJoinLogicPlanOnConditions, &pNode->pOtherOnCond);
+    code = jsonToNodeObject(pJson, jkJoinLogicPlanPrimKeyEqCondition, &pNode->pPrimKeyEqCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinLogicPlanColEqCondition, &pNode->pColEqCond);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinLogicPlanTagEqCondition, &pNode->pTagEqCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinLogicPlanOnConditions, &pNode->pOtherOnCond);
+  }
+
   return code;
 }
 
@@ -6577,6 +6645,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicIndefRowsFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return logicInterpFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
+      return logicGroupCacheNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      return logicDynQueryCtrlNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN:
@@ -6895,6 +6967,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicIndefRowsFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return jsonToLogicInterpFuncNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
+      return jsonToLogicGroupCacheNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      return jsonToLogicDynQueryCtrlNode(pJson, pObj);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return jsonToLogicSubplan(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN:

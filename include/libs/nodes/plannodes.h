@@ -42,6 +42,7 @@ typedef enum EGroupAction {
 
 typedef struct SLogicNode {
   ENodeType          type;
+  bool               dynamicOp;
   SNodeList*         pTargets;  // SColumnNode
   SNode*             pConditions;
   SNodeList*         pChildren;
@@ -114,6 +115,7 @@ typedef struct SJoinLogicNode {
   SNode*         pPrimKeyEqCond;
   SNode*         pColEqCond;
   SNode*         pTagEqCond;
+  SNode*         pTagOnCond;
   SNode*         pOtherOnCond;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
@@ -157,9 +159,13 @@ typedef struct SInterpFuncLogicNode {
 
 typedef struct SGroupCacheLogicNode {
   SLogicNode  node;
-  SNode*      pGroupCol;
+  SNodeList*  pGroupCols;
 } SGroupCacheLogicNode;
 
+typedef struct SDynQueryCtrlLogicNode {
+  SLogicNode    node;
+  EDynQueryType qType;
+} SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
 

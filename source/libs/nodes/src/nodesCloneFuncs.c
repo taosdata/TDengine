@@ -403,11 +403,13 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(joinType);
+  COPY_SCALAR_FIELD(joinAlgo);
   CLONE_NODE_FIELD(pPrimKeyEqCond);
   CLONE_NODE_FIELD(pColEqCond);
   CLONE_NODE_FIELD(pTagEqCond);
   CLONE_NODE_FIELD(pOtherOnCond);
   COPY_SCALAR_FIELD(isSingleTableJoin);
+  COPY_SCALAR_FIELD(hasSubQuery);
   return TSDB_CODE_SUCCESS;
 }
 
