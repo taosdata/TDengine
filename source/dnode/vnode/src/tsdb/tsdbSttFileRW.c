@@ -964,7 +964,7 @@ int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *re
 
   if (!writer->ctx->opened) {
     code = tsdbSttFWriterDoOpen(writer);
-    return code;
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     if (writer->blockData->nRow > 0) {
       code = tsdbSttFileDoWriteBlockData(writer);
