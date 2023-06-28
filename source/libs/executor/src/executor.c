@@ -1078,6 +1078,16 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   const char*    id = GET_TASKID(pTaskInfo);
 
+  if(subType == TOPIC_SUB_TYPE__COLUMN && pOffset->type == TMQ_OFFSET__LOG){
+    pOperator = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
+    if (pOperator == NULL) {
+      return -1;
+    }
+    SStreamScanInfo* pInfo = pOperator->info;
+    SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
+    SWalReader* pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
+    walReaderVerifyOffset(pWalReader, pOffset);
+  }
   // if pOffset equal to current offset, means continue consume
   if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset)) {
     return 0;
