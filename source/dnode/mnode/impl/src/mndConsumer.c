@@ -646,11 +646,16 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t newTopicNum = taosArrayGetSize(pTopicList);
   for(int i = 0; i < newTopicNum; i++){
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, (const char*)cgroup, (const char*)taosArrayGetP(pTopicList, i));
+    taosRLockLatch(&pSub->lock);
     if(pSub != NULL && taosHashGetSize(pSub->consumerHash) > MND_MAX_GROUP_PER_TOPIC){
       terrno = TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE;
       code = terrno;
+      taosRUnLockLatch(&pSub->lock);
+      mndReleaseSubscribe(pMnode, pSub);
       goto _over;
     }
+    taosRUnLockLatch(&pSub->lock);
+    mndReleaseSubscribe(pMnode, pSub);
   }
 
   // check topic existence
