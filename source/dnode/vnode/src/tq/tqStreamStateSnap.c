@@ -45,7 +45,7 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pReader->ever = ever;
 
   SStreamSnapReader* pSnapReader = NULL;
-  sprintf(tdir, "%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM);
+  sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "checkpoints");
   streamSnapReaderOpen(pTq, sver, ever, tdir, &pSnapReader);
 
   pReader->pReaderImpl = pSnapReader;

@@ -117,10 +117,10 @@ NextTbl:
       tdbTbcClose(pReader->pCur);
 
       pReader->pos += 1;
-      code = tdbTbcOpen(taosArrayGetP(pReader->tdbTbList, pReader->pos), &pReader->pCur, NULL);
+      pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
+      code = tdbTbcOpen(pPair->tbl, &pReader->pCur, NULL);
       tdbTbcMoveToFirst(pReader->pCur);
 
-      pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
       goto NextTbl;
     }
   }
@@ -141,8 +141,6 @@ NextTbl:
 
   tqInfo("vgId:%d, vnode stream-task snapshot read data vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
 
-  return code;
-_exit:
   return code;
 _err:
   tqError("vgId:%d, vnode stream-task snapshot read data failed since %s", TD_VID(pReader->pTq->pVnode),
