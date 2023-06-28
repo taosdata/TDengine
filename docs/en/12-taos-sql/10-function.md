@@ -998,17 +998,13 @@ SAMPLE(expr, k)
 
 **Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
 
-**Return value type**: Same as the column being operated plus the associated timestamp
+**Return value type**: Same as the column being operated
 
-**Applicable data types**: Any data type except for tags of STable
+**Applicable data types**: Any data type
 
 **Applicable nested query**: Inner query and Outer query
 
 **Applicable table types**: standard tables and supertables
-
-**More explanations**:
-
-- This function cannot be used in expression calculation.
 
 
 ### TAIL
