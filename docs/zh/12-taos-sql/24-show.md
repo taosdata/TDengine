@@ -36,7 +36,7 @@ SHOW CONNECTIONS;
 SHOW CONSUMERS;
 ```
 
-显示当前数据库下所有活跃的消费者的信息。
+显示当前数据库下所有消费者的信息。
 
 ## SHOW CREATE DATABASE
 
