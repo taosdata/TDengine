@@ -233,6 +233,7 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
   int  ret;
 
   tdbBtcOpen(&btc, pBt, pTxn);
+  btc.coder.ofps = taosArrayInit(8, sizeof(SPgno));
 
   tdbTrace("tdb delete, btc: %p, pTxn: %p", &btc, pTxn);
 
@@ -1317,10 +1318,9 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
           return -1;
         }
 
-        if (!pDecoder->ofps) {
-          pDecoder->ofps = taosArrayInit(8, sizeof(SPgno));
+        if (pDecoder->ofps) {
+          taosArrayPush(pDecoder->ofps, &pgno);
         }
-        taosArrayPush(pDecoder->ofps, &pgno);
 
         ofpCell = tdbPageGetCell(ofp, 0);
 
