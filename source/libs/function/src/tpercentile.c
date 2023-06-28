@@ -39,6 +39,7 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
   if (p != NULL) {
     pIdList = *(SArray **)p;
   } else {
+    taosMemoryFree(buffer);
     return NULL;
   }
 
@@ -48,6 +49,7 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
 
     SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
     if (pg == NULL) {
+      taosMemoryFree(buffer);
       return NULL;
     }
 
