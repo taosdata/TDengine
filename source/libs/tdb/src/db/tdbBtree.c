@@ -564,6 +564,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       }
     }
     // copy the parent key out if child pages are not leaf page
+    // childNotLeaf = !(TDB_BTREE_PAGE_IS_LEAF(pOlds[0]) || TDB_BTREE_PAGE_IS_OVFL(pOlds[0]));
     childNotLeaf = !TDB_BTREE_PAGE_IS_LEAF(pOlds[0]);
     if (childNotLeaf) {
       for (int i = 0; i < nOlds; i++) {
@@ -2084,7 +2085,7 @@ int tdbBtcDelete(SBTC *pBtc) {
   if (pBtc->coder.ofps) {
     for (int i = 0; i < TARRAY_SIZE(pBtc->coder.ofps); ++i) {
       SPgno *pgno = taosArrayGet(pBtc->coder.ofps, i);
-      tdbPagerInsertFreePage(pBtc->pBt->pPager, *pgno, pBtc->pTxn);
+      // tdbPagerInsertFreePage(pBtc->pBt->pPager, *pgno, pBtc->pTxn);
     }
   }
 
