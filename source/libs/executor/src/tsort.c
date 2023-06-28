@@ -19,6 +19,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "theap.h"
 #include "tlosertree.h"
 #include "tpagedbuf.h"
 #include "tsort.h"
@@ -41,6 +42,12 @@ struct SSortHandle {
   int64_t        startTs;
   uint64_t       totalElapsed;
 
+  uint64_t         maxRows;
+  uint32_t         maxTupleLength;
+  uint32_t         sortBufSize;
+  BoundedQueue*    pBoundedQueue;
+  uint32_t         tmpRowIdx;
+
   int32_t           sourceId;
   SSDataBlock*      pDataBlock;
   SMsortComparParam cmpParam;
@@ -61,6 +68,47 @@ struct SSortHandle {
 
 static int32_t msortComparFn(const void* pLeft, const void* pRight, void* param);
 
+// | offset[0] | offset[1] |....| nullbitmap | data |...|
+static void* createTuple(uint32_t columnNum, uint32_t tupleLen) {
+  uint32_t totalLen = sizeof(uint32_t) * columnNum + BitmapLen(columnNum) + tupleLen;
+  return taosMemoryCalloc(1, totalLen);
+}
+static void destoryTuple(void* t) { taosMemoryFree(t); }
+
+#define tupleOffset(tuple, colIdx) ((uint32_t*)(tuple + sizeof(uint32_t) * colIdx))
+#define tupleSetOffset(tuple, colIdx, offset) (*tupleOffset(tuple, colIdx) = offset)
+#define tupleSetNull(tuple, colIdx, colNum) colDataSetNull_f((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
+#define tupleColIsNull(tuple, colIdx, colNum) colDataIsNull_f((char*)tuple + sizeof(uint32_t) * colNum, colIdx)
+#define tupleGetDataStartOffset(colNum) (sizeof(uint32_t) * colNum + BitmapLen(colNum))
+#define tupleSetData(tuple, offset, data, length) memcpy(tuple + offset, data, length)
+
+/**
+ * @param t the tuple pointer addr, if realloced, *t is changed to the new addr
+ * @param offset copy data into pTuple start from offset
+ * @param colIndex the columnIndex, for setting null bitmap
+ * @return the next offset to add field
+ * */
+static inline size_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, uint32_t colIdx, void* data, size_t length,
+                            bool isNull, uint32_t tupleLen) {
+  tupleSetOffset(*t, colIdx, offset);
+  if (isNull) {
+    tupleSetNull(*t, colIdx, colNum);
+  } else {
+    if (offset + length > tupleLen + tupleGetDataStartOffset(colNum)) {
+      *t = taosMemoryRealloc(*t, offset + length);
+    }
+    tupleSetData(*t, offset, data, length);
+  }
+  return offset + length;
+}
+
+static void* tupleGetField(char* t, uint32_t colIdx, uint32_t colNum) {
+  if (tupleColIsNull(t, colIdx, colNum)) return NULL;
+  return t + *tupleOffset(t, colIdx);
+}
+
+static int32_t colDataComparFn(const void* pLeft, const void* pRight, void* param);
+
 SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle) {
   return createOneDataBlock(pSortHandle->pDataBlock, false);
 }
@@ -71,7 +119,8 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle) {
  * @return
  */
 SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
-                                   SSDataBlock* pBlock, const char* idstr) {
+                                   SSDataBlock* pBlock, const char* idstr, uint64_t maxRows, uint32_t maxTupleLength,
+                                   uint32_t sortBufSize) {
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
 
   pSortHandle->type = type;
@@ -79,6 +128,13 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo = pSortInfo;
   pSortHandle->loops = 0;
+
+  pSortHandle->maxTupleLength = maxTupleLength;
+  if (maxRows < 0)
+    pSortHandle->sortBufSize = 0;
+  else
+    pSortHandle->sortBufSize = sortBufSize;
+  pSortHandle->maxRows = maxRows;
 
   if (pBlock != NULL) {
     pSortHandle->pDataBlock = createOneDataBlock(pBlock, false);
@@ -150,7 +206,6 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   if (pSortHandle == NULL) {
     return;
   }
-
   tsortClose(pSortHandle);
   if (pSortHandle->pMergeTree != NULL) {
     tMergeTreeDestroy(&pSortHandle->pMergeTree);
@@ -159,6 +214,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   destroyDiskbasedBuf(pSortHandle->pBuf);
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
+  if (pSortHandle->pBoundedQueue) destroyBoundedQueue(pSortHandle->pBoundedQueue);
 
   int64_t fetchUs = 0, fetchNum = 0;
   tsortClearOrderdSource(pSortHandle->pOrderedSource, &fetchUs, &fetchNum);
@@ -769,17 +825,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
   return code;
 }
 
-int32_t tsortOpen(SSortHandle* pHandle) {
-  if (pHandle->opened) {
-    return 0;
-  }
-
-  if (pHandle->fetchfp == NULL || pHandle->comparFn == NULL) {
-    return -1;
-  }
-
-  pHandle->opened = true;
-
+static bool tsortOpenForBufMergeSort(SSortHandle* pHandle) {
   int32_t code = createInitialSources(pHandle);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -840,7 +886,7 @@ int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId) {
   return TSDB_CODE_SUCCESS;
 }
 
-STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
+static STupleHandle* tsortBufMergeSortNextTuple(SSortHandle* pHandle) {
   if (tsortIsClosed(pHandle)) {
     return NULL;
   }
@@ -888,6 +934,168 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   pSource->src.rowIndex += 1;
 
   return &pHandle->tupleHandle;
+}
+
+static bool tsortIsPQSortApplicable(SSortHandle* pHandle) {
+  if (pHandle->type != SORT_SINGLESOURCE_SORT) return false;
+  uint64_t maxRowsFitInMemory = pHandle->sortBufSize / (pHandle->maxTupleLength + sizeof(char*));
+  return maxRowsFitInMemory > pHandle->maxRows;
+}
+
+static bool tsortPQCompFn(void* a, void* b, void* param) {
+  SSortHandle* pHandle = param;
+  int32_t res = pHandle->comparFn(a, b, param);
+  if (res < 0) return 1;
+  return 0;
+}
+
+static bool tsortPQComFnReverse(void*a, void* b, void* param) {
+  SSortHandle* pHandle = param;
+  int32_t res = pHandle->comparFn(a, b, param);
+  if (res > 0) return 1;
+  return 0;
+}
+
+static int32_t colDataComparFn(const void* pLeft, const void* pRight, void* param) {
+  char* pLTuple = (char*)pLeft;
+  char* pRTuple = (char*)pRight;
+  SSortHandle* pHandle = (SSortHandle*)param;
+  SArray* orderInfo = (SArray*)pHandle->pSortInfo;
+  uint32_t colNum = blockDataGetNumOfCols(pHandle->pDataBlock);
+  for (int32_t i = 0; i < orderInfo->size; ++i) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(orderInfo, i);
+    void *lData = tupleGetField(pLTuple, pOrder->slotId, colNum);
+    void *rData = tupleGetField(pRTuple, pOrder->slotId, colNum);
+    if (!lData && !rData) continue;
+    if (!lData) return pOrder->nullFirst ? -1 : 1;
+    if (!rData) return pOrder->nullFirst ? 1 : -1;
+
+    int           type = ((SColumnInfoData*)taosArrayGet(pHandle->pDataBlock->pDataBlock, pOrder->slotId))->info.type;
+    __compar_fn_t fn = getKeyComparFunc(type, pOrder->order);
+
+    int ret = fn(lData, rData);
+    if (ret == 0) {
+      continue;
+    } else {
+      return ret;
+    }
+  }
+  return 0;
+}
+
+static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
+  pHandle->pBoundedQueue = createBoundedQueue(pHandle->maxRows, tsortPQCompFn, destoryTuple, pHandle);
+  if (NULL == pHandle->pBoundedQueue) return TSDB_CODE_OUT_OF_MEMORY;
+  tsortSetComparFp(pHandle, colDataComparFn);
+
+  SSortSource** pSource = taosArrayGet(pHandle->pOrderedSource, 0);
+  SSortSource*  source = *pSource;
+
+  pHandle->pDataBlock = NULL;
+  uint32_t tupleLen = 0;
+  PriorityQueueNode pqNode;
+  while (1) {
+    // fetch data
+    SSDataBlock* pBlock = pHandle->fetchfp(source->param);
+    if (NULL == pBlock) break;
+
+    if (pHandle->beforeFp != NULL) {
+      pHandle->beforeFp(pBlock, pHandle->param);
+    }
+    if (pHandle->pDataBlock == NULL) {
+      pHandle->pDataBlock = createOneDataBlock(pBlock, false);
+    }
+    if (pHandle->pDataBlock == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+    size_t colNum = blockDataGetNumOfCols(pBlock);
+
+    if (tupleLen == 0) {
+      for (size_t colIdx = 0; colIdx < colNum; ++colIdx) {
+        SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+        tupleLen += pCol->info.bytes;
+        if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+          tupleLen += sizeof(VarDataLenT);
+        }
+      }
+    }
+    size_t colLen = 0;
+    for (size_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
+      void* pTuple = createTuple(colNum, tupleLen);
+      if (pTuple == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+      uint32_t offset = tupleGetDataStartOffset(colNum);
+      for (size_t colIdx = 0; colIdx < colNum; ++colIdx) {
+        SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+        if (colDataIsNull_s(pCol, rowIdx)) {
+          offset = tupleAddField((char**)&pTuple, colNum, offset, colIdx, 0, 0, true, tupleLen);
+        } else {
+          colLen = colDataGetRowLength(pCol, rowIdx);
+          offset = tupleAddField((char**)&pTuple, colNum, offset, colIdx, colDataGetData(pCol, rowIdx), colLen, false,
+                                 tupleLen);
+        }
+      }
+      pqNode.data = pTuple;
+      taosBQPush(pHandle->pBoundedQueue, &pqNode);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static STupleHandle* tsortPQSortNextTuple(SSortHandle* pHandle) {
+  blockDataCleanup(pHandle->pDataBlock);
+  blockDataEnsureCapacity(pHandle->pDataBlock, 1);
+  // abondan the top tuple if queue size bigger than max size
+  if (taosBQSize(pHandle->pBoundedQueue) == taosBQMaxSize(pHandle->pBoundedQueue) + 1) {
+    taosBQPop(pHandle->pBoundedQueue);
+  }
+  if (pHandle->tmpRowIdx == 0) {
+    // sort the results
+    taosBQSetFn(pHandle->pBoundedQueue, tsortPQComFnReverse);
+    taosBQBuildHeap(pHandle->pBoundedQueue);
+  }
+  if (taosBQSize(pHandle->pBoundedQueue) > 0) {
+    uint32_t           colNum = blockDataGetNumOfCols(pHandle->pDataBlock);
+    PriorityQueueNode* node = taosBQTop(pHandle->pBoundedQueue);
+    char*              pTuple = (char*)node->data;
+
+    for (uint32_t i = 0; i < colNum; ++i) {
+      void* pData = tupleGetField(pTuple, i, colNum);
+      if (!pData) {
+        colDataSetNULL(bdGetColumnInfoData(pHandle->pDataBlock, i), 0);
+      } else {
+        colDataAppend(bdGetColumnInfoData(pHandle->pDataBlock, i), 0, pData, false);
+      }
+    }
+    pHandle->pDataBlock->info.rows++;
+    pHandle->tmpRowIdx++;
+    taosBQPop(pHandle->pBoundedQueue);
+  }
+  if (pHandle->pDataBlock->info.rows == 0) return NULL;
+  pHandle->tupleHandle.pBlock = pHandle->pDataBlock;
+  return &pHandle->tupleHandle;
+}
+
+int32_t tsortOpen(SSortHandle* pHandle) {
+  if (pHandle->opened) {
+    return 0;
+  }
+
+  if (pHandle->fetchfp == NULL || pHandle->comparFn == NULL) {
+    return -1;
+  }
+
+  pHandle->opened = true;
+  if (tsortIsPQSortApplicable(pHandle))
+    return tsortOpenForPQSort(pHandle);
+  else
+    return tsortOpenForBufMergeSort(pHandle);
+}
+
+STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
+  if (pHandle->pBoundedQueue)
+    return tsortPQSortNextTuple(pHandle);
+  else
+    return tsortBufMergeSortNextTuple(pHandle);
 }
 
 bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {

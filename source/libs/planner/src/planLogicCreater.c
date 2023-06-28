@@ -1027,6 +1027,7 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pSort->maxRows = -1;
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -1298,6 +1299,7 @@ static int32_t createSetOpSortLogicNode(SLogicPlanContext* pCxt, SSetOperator* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pSort->maxRows = -1;
   TSWAP(pSort->node.pLimit, pSetOperator->pLimit);
 
   int32_t code = TSDB_CODE_SUCCESS;
