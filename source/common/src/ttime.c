@@ -969,7 +969,7 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
 
     default:
       fractionLen = 0;
-      ASSERT(false);
+      return;
   }
 
   if (taosLocalTime(&quot, &ptm, buf) == NULL) {
