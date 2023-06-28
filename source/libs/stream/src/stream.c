@@ -106,7 +106,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
     ASSERT(ref == 2 && pTask->schedTimer == NULL);
 
-    qDebug("s-task:%s setup scheduler trigger, delay:%d ms", pTask->id.idStr, pTask->triggerParam);
+    qDebug("s-task:%s setup scheduler trigger, delay:%"PRId64" ms", pTask->id.idStr, pTask->triggerParam);
 
     pTask->schedTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
     pTask->triggerStatus = TASK_TRIGGER_STATUS__INACTIVE;
