@@ -1,6 +1,11 @@
 <template>
   <div class="source-ui">
-    <div class="left-ui">
+    <div
+      :class="[
+        'left-ui',
+        this.$parent.currentTaskStatus == 'running' ? 'readable' : '',
+      ]"
+    >
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
@@ -739,6 +744,7 @@ export default {
     }
   },
   mounted() {
+    console.log(this.$parent.currentTaskStatus, "状态---0000--opcui");
     if (this.tagName == "mqtt") {
       this.constmqttCols = this.dbsource[0].parser.fields;
     }
@@ -1318,9 +1324,24 @@ export default {
     color: #acaab2;
     white-space: pre-wrap;
   }
+  .left-ui.readable {
+    position: relative;
+    &::before {
+      content: "";
+      background: #f2f6fc40;
+      position: absolute;
+      top:0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index:100;
+    }
+  }
   .left-ui {
+    position: relative;
     overflow: auto;
     min-width: 800px;
+
     .description {
       max-width: 500px;
       overflow: auto;

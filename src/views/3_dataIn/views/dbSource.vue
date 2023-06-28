@@ -52,6 +52,7 @@ export default {
       mqttParser: null,
       staticParser: null,
       staticOpc: null,
+      currentTaskStatus:'',
       echoData: deepClone(opcDefaultChecked),
     };
   },

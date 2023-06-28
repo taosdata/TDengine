@@ -28,7 +28,7 @@
         max-height="250"
         v-loading="requestIng"
       >
-      <el-table-column
+        <el-table-column
           :label="$t('datasource.taskid')"
           prop="taskid"
           width="100"
@@ -123,10 +123,9 @@
               size="small"
               :disabled="
                 scope.row.from_detail === undefined ||
-                scope.row.status.toLowerCase() == 'running' ||
                 !getEditStatus(scope.row.labels)
               "
-              @click="edit(scope.row)"
+              @click="edit(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-edit"
             ></el-button>
             <el-button
@@ -169,7 +168,7 @@ import Agents from "../components/agents.vue";
 import { deepClone } from "@/utils";
 export default {
   name: "DataSource",
-  components: { AddDialog, Agents},
+  components: { AddDialog, Agents },
   props: {
     sourceList: {
       type: Array,
@@ -194,7 +193,7 @@ export default {
       total: 10,
       dialog: false,
       topicList: [],
-      requestIng: false
+      requestIng: false,
     };
   },
   methods: {
@@ -238,9 +237,9 @@ export default {
           });
       });
     },
-    edit(data) {
-      this.$parent.sourceName=data.name
-      console.log(data,'要编辑的数据');
+    edit(data, status) {
+      this.$parent.sourceName = data.name;
+      this.$parent.currentTaskStatus = status;
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {
@@ -263,14 +262,14 @@ export default {
 
     async getList() {
       try {
-        this.requestIng = true
+        this.requestIng = true;
         this.topicList = [];
         let id = localStorage.getItem("local_clusterID");
         await getDatain(id).then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
-              item['taskid']=item.id,
-              item["localname"] = item.name ? item.name : "tmq+" + item.id;
+              (item["taskid"] = item.id),
+                (item["localname"] = item.name ? item.name : "tmq+" + item.id);
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
               item["created_at"] = item.created_at
@@ -279,11 +278,11 @@ export default {
                 : "";
               return item;
             });
-            this.requestIng = false
+            this.requestIng = false;
           }
         });
       } catch (err) {
-        this.requestIng = false
+        this.requestIng = false;
         return Promise.reject(err);
       }
     },
@@ -300,13 +299,12 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await excuteStart(data.id).then((res) => {
-            if(res&&res.message){
-              Message.error(res.message)
-              return
-            }
-            this.refresh();
-          });
+          let result = await excuteStart(data.id);
+          if (result && result.message) {
+            Message.error(result.message);
+            return;
+          }
+          this.refresh();
         });
       } catch (err) {
         return Promise.reject(err);
@@ -323,9 +321,8 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await excuteStop(data.id).then((res) => {
-            this.refresh();
-          });
+          await excuteStop(data.id)
+           this.refresh();
         });
       } catch (err) {
         return Promise.reject(err);
@@ -352,7 +349,7 @@ export default {
   },
 };
 </script>
-<style lang='scss'>
+<style lang="scss">
 .el-tooltip__popper {
   max-width: 450px !important;
 }

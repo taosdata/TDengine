@@ -76,12 +76,12 @@ request.interceptors.response.use(
   },
   (error) => {
     Message.closeAll();
-    Message({
-      message: error.message || "Unknown Error",
-      type: "error",
-      duration: 3000,
-      showClose: true,
-    });
+      Message({
+        message: error.message || "Unknown Error",
+        type: "error",
+        duration: 3000,
+        showClose: true,
+      });
     let taosx404en = 'The Taosx API is not configured. Please check the explorer configuration'
     let taosx500en = 'The Taosx API cannot be accessed. Please check the Taosx service status'
     let taosx404 = '未配置 TaosX API，请检查 Explorer 配置'
