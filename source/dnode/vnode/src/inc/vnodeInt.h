@@ -89,6 +89,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA0_DIR "tsdb"
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
+#define VNODE_TQ_STREAM "stream"
 
 #define VNODE_BUFPOOL_SEGMENTS 3
 

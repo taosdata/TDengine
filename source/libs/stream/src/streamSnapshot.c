@@ -205,13 +205,13 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   return;
 }
 
-int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSnapReader** ppReader) {
+int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t ever, char* path, SStreamSnapReader** ppReader) {
   // impl later
   SStreamSnapReader* pReader = taosMemoryCalloc(1, sizeof(SStreamSnapReader));
   if (pReader == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  const char* path = NULL;
+  // const char* path = NULL;
   if (streamSnapHandleInit(&pReader->handle, (char*)path) < 0) {
     return -1;
   }
@@ -243,7 +243,7 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
     return code;
     // handle later
     return -1;
-  } else if (nread <= kBlockSize) {
+  } else if (nread > 0 && nread <= kBlockSize) {
     // left bytes less than kBlockSize
     pHandle->offset += nread;
     if (pHandle->offset >= item->size || nread < kBlockSize) {
@@ -254,6 +254,8 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
   } else {
     if (pHandle->currFileIdx >= taosArrayGetSize(pHandle->pFileList)) {
       // finish
+      *ppData = NULL;
+      *size = 0;
       return 0;
     }
     item = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
@@ -278,7 +280,7 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
   return 0;
 }
 // SMetaSnapWriter ========================================
-int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSnapWriter** ppWriter) {
+int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path, SStreamSnapWriter** ppWriter) {
   // impl later
   SStreamSnapWriter* pWriter = taosMemoryCalloc(1, sizeof(SStreamSnapWriter));
   if (pWriter == NULL) {
@@ -286,7 +288,6 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSna
   }
   SStreamSnapHandle* pHandle = &pWriter->handle;
 
-  const char*    path = NULL;
   SBanckendFile* pFile = taosMemoryCalloc(1, sizeof(SBanckendFile));
   pFile->path = taosStrdup(path);
   SArray* list = taosArrayInit(64, sizeof(SBackendFileItem));

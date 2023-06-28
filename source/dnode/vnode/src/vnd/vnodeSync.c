@@ -216,7 +216,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+              TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_SYN_RESTORING;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
@@ -279,7 +280,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+              TMSG_INFO(pMsg->msgType));
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
@@ -526,7 +528,7 @@ static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *p
 }
 
 static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
-  SVnode *pVnode = pFsm->data;
+  SVnode   *pVnode = pFsm->data;
   SyncIndex appliedIdx = -1;
 
   do {
@@ -660,8 +662,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort,
-          pNode->nodeId, pNode->clusterId);
+    vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn,
+          pNode->nodePort, pNode->nodeId, pNode->clusterId);
   }
 
   pVnode->sync = syncOpen(&syncInfo);

@@ -235,6 +235,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
         pReader->streamTaskDone = 1;
         code = streamTaskSnapReaderClose(pReader->pStreamTaskReader);
         if (code) goto _err;
+        pReader->pStreamTaskReader = NULL;
       }
     }
   }
@@ -254,6 +255,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
         pReader->streamStateDone = 1;
         code = streamStateSnapReaderClose(pReader->pStreamStateReader);
         if (code) goto _err;
+        pReader->pStreamStateReader = NULL;
       }
     }
   }

@@ -32,6 +32,8 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   int32_t             code = 0;
   SStreamStateReader* pReader = NULL;
 
+  char tdir[TSDB_FILENAME_LEN * 2] = {0};
+
   // alloc
   pReader = (SStreamStateReader*)taosMemoryCalloc(1, sizeof(SStreamStateReader));
   if (pReader == NULL) {
@@ -43,7 +45,8 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pReader->ever = ever;
 
   SStreamSnapReader* pSnapReader = NULL;
-  streamSnapReaderOpen(pTq, sver, ever, &pSnapReader);
+  sprintf(tdir, "%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM);
+  streamSnapReaderOpen(pTq, sver, ever, tdir, &pSnapReader);
 
   pReader->pReaderImpl = pSnapReader;
 
@@ -104,6 +107,7 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   int32_t             code = 0;
   SStreamStateWriter* pWriter;
 
+  char tdir[TSDB_FILENAME_LEN * 2] = {0};
   // alloc
   pWriter = (SStreamStateWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
@@ -114,8 +118,9 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->sver = sver;
   pWriter->ever = ever;
 
+  sprintf(tdir, "%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM);
   SStreamSnapWriter* pSnapWriter = NULL;
-  streamSnapWriterOpen(pTq, sver, ever, &pSnapWriter);
+  streamSnapWriterOpen(pTq, sver, ever, tdir, &pSnapWriter);
 
   pWriter->pWriterImpl = pSnapWriter;
 

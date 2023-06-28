@@ -102,6 +102,7 @@ int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
 
   STablePair* pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
 NextTbl:
+  except = 0;
   for (;;) {
     if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
       except = 1;
@@ -123,7 +124,10 @@ NextTbl:
       goto NextTbl;
     }
   }
-
+  if (pVal == NULL || vLen == 0) {
+    *ppData = NULL;
+    return code;
+  }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
