@@ -105,10 +105,10 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
       continue;
     }
     SPassInfo *passInfo = &pTscObj->passInfo;
-    // if (!passInfo->fp) {
-    //   releaseTscObj(pReq->connKey.tscRid);
-    //   continue;
-    // }
+    if (!passInfo->fp) {
+      releaseTscObj(pReq->connKey.tscRid);
+      continue;
+    }
 
     for (int32_t i = 0; i < numOfBatchs; ++i) {
       SGetUserPassRsp *rsp = taosArrayGet(batchRsp.pArray, i);
@@ -119,7 +119,7 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
           if (passInfo->fp) {
             (*passInfo->fp)(passInfo->param, &passInfo->ver, TAOS_NOTIFY_PASSVER);
           }
-          printf("update passVer of user %s from %d to %d, tscRid:%" PRIi64 "\n", rsp->user, oldVer,
+          tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, rsp->user, oldVer,
                    atomic_load_32(&passInfo->ver), pTscObj->id);
         }
         break;
@@ -588,9 +588,9 @@ static int32_t hbGetUserBasicInfo(SClientHbKey *connKey, SHbParam *param, SClien
   if ((pKv = taosHashGet(req->info, &kv.key, sizeof(kv.key)))) {
     SUserPassVersion *pPassVer = (SUserPassVersion *)pKv->value;
     tscDebug("hb got user basic info, already exists:%s, update passVer from %d to %d", pTscObj->user,
-             pPassVer->version, pTscObj->passInfo.ver);
-    pPassVer->version = pTscObj->passInfo.ver;
-    if (param) param->passVer = pPassVer->version;
+             htonl(pPassVer->version), pTscObj->passInfo.ver);
+    pPassVer->version = htonl(pTscObj->passInfo.ver);
+    if (param) param->passVer = pTscObj->passInfo.ver;
     goto _return;
   }
 
@@ -867,9 +867,9 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 
   hbGetQueryBasicInfo(connKey, req);
 
-  // if (hbParam->passKeyCnt > 0) {
+  if (hbParam->passKeyCnt > 0) {
     hbGetUserBasicInfo(connKey, hbParam, req);
-  // }
+  }
 
     if (hbParam->reqCnt == 0) {
     code = hbGetExpiredUserInfo(connKey, pCatalog, req);
