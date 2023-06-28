@@ -187,6 +187,9 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex);
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
 
+int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx);
+void    colDataTrim(SColumnInfoData* pColumnInfoData);
+
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 

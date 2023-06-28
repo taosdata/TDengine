@@ -47,7 +47,17 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
   }
 }
 
-static int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
+int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx) {
+  if (colDataIsNull_s(pColumnInfoData, rowIdx)) return 0;
+
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) return pColumnInfoData->info.bytes;
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON)
+    return getJsonValueLen(colDataGetData(pColumnInfoData, rowIdx));
+  else
+    return varDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+}
+
+int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length + sizeof(int32_t) * numOfRows;
   } else {
