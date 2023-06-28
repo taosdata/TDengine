@@ -1317,6 +1317,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
           return -1;
         }
 
+        if (!pDecoder->ofps) {
+          pDecoder->ofps = taosArrayInit(8, sizeof(SPgno));
+        }
+        taosArrayPush(pDecoder->ofps, &pgno);
+
         ofpCell = tdbPageGetCell(ofp, 0);
 
         if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
@@ -2075,6 +2080,14 @@ int tdbBtcDelete(SBTC *pBtc) {
 
   tdbPageDropCell(pBtc->pPage, idx, pBtc->pTxn, pBtc->pBt);
 
+  // recycle ofps if any
+  if (pBtc->coder.ofps) {
+    for (int i = 0; i < TARRAY_SIZE(pBtc->coder.ofps); ++i) {
+      SPgno *pgno = taosArrayGet(pBtc->coder.ofps, i);
+      tdbPagerInsertFreePage(pBtc->pBt->pPager, *pgno, pBtc->pTxn);
+    }
+  }
+
   // update interior page or do balance
   if (idx == nCells - 1) {
     if (idx) {
@@ -2368,6 +2381,10 @@ int tdbBtcClose(SBTC *pBtc) {
 
   if (pBtc->freeTxn) {
     tdbTxnClose(pBtc->pTxn);
+  }
+
+  if (pBtc->coder.ofps) {
+    taosArrayDestroy(pBtc->coder.ofps);
   }
 
   return 0;

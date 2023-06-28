@@ -131,13 +131,14 @@ typedef struct SBtInfo {
 #define TDB_CELLDECODER_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV & TDB_CELLD_F_VAL)
 
 typedef struct {
-  int   kLen;
-  u8   *pKey;
-  int   vLen;
-  u8   *pVal;
-  SPgno pgno;
-  u8   *pBuf;
-  u8    freeKV;
+  int     kLen;
+  u8     *pKey;
+  int     vLen;
+  u8     *pVal;
+  SPgno   pgno;
+  u8     *pBuf;
+  u8      freeKV;
+  SArray *ofps;
 } SCellDecoder;
 
 struct SBTC {
