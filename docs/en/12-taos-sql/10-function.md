@@ -1054,11 +1054,11 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp. The first occurrence of a timestamp or tag is used.
+**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp which correspond to first occurrence of the record.
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable column types**: Any data types except for timestamp
+**Applicable column types**: Any data types
 
 **Applicable table types**: table, STable
 
