@@ -636,6 +636,7 @@ typedef struct {
   SEpSet   epSet;
   int32_t  svrTimestamp;
   int32_t  passVer;
+  int32_t  authVer;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
 } SConnectRsp;

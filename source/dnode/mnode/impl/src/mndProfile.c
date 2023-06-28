@@ -287,6 +287,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
+  connectRsp.authVer = pUser->authVersion;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,

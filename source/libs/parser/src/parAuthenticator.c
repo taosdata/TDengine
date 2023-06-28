@@ -164,6 +164,25 @@ static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
   }
   return TSDB_CODE_SUCCESS;
 }
+#if 0
+static int32_t authAlterUser(SAuthCxt* pCxt, SAlterUserStmt* pStmt) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+
+  SUserAuthInfo authInfo = {0};
+  snprintf(authInfo.user, sizeof(authInfo.user), "%s", pStmt->userName);
+  authInfo.type = AUTH_TYPE_OTHER;
+
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SUserAuthRes     authRes = {0};
+  SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
+                           .requestId = pParseCxt->requestId,
+                           .requestObjRefId = pParseCxt->requestRid,
+                           .mgmtEps = pParseCxt->mgmtEpSet};
+  code = catalogChkAuth(pParseCxt->pCatalog, &conn, &authInfo, &authRes);
+
+  return TSDB_CODE_SUCCESS == code ? (authRes.pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
+}
+#endif
 
 static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   SNode*      pTagCond = NULL;
@@ -246,6 +265,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSelect(pCxt, (SSelectStmt*)pStmt);
     case QUERY_NODE_DROP_USER_STMT:
       return authDropUser(pCxt, (SDropUserStmt*)pStmt);
+    // case QUERY_NODE_ALTER_USER_STMT:
+    //   return authAlterUser(pCxt, (SAlterUserStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
       return authDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:
