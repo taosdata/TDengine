@@ -120,16 +120,6 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-static void generateBigVal(char *val, int valLen) {
-  for (int i = 0; i < valLen; ++i) {
-    char c = char(i & 0xff);
-    if (c == 0) {
-      c = 1;
-    }
-    val[i] = c;
-  }
-}
-
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
@@ -141,10 +131,18 @@ static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) 
   return pEnv;
 }
 
+static void generateBigVal(char *val, int valLen) {
+  for (int i = 0; i < valLen; ++i) {
+    char c = char(i & 0xff);
+    if (c == 0) {
+      c = 1;
+    }
+    val[i] = c;
+  }
+}
+
 static void insertOfp(void) {
   int ret = 0;
-
-  taosRemoveDir("tdb");
 
   // open Env
   int const pageSize = 4096;
@@ -156,7 +154,7 @@ static void insertOfp(void) {
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
   // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
-  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
@@ -176,22 +174,35 @@ static void insertOfp(void) {
   // insert the generated big data
   // char const *key = "key1";
   char const *key = "key123456789";
-  ret = tdbTbInsert(pDb, key, strlen(key), val, valLen, txn);
+  ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
   GTEST_ASSERT_EQ(ret, 0);
 
   // commit current transaction
   tdbCommit(pEnv, txn);
   tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
 }
+
+static void clearDb(char const *db) { taosRemoveDir(db); }
 
 TEST(TdbPageRecycleTest, DISABLED_TbInsertTest) {
   // TEST(TdbPageRecycleTest, TbInsertTest) {
   // ofp inserting
+  clearDb("tdb");
   insertOfp();
 }
 
 TEST(TdbPageRecycleTest, DISABLED_TbGetTest) {
   // TEST(TdbPageRecycleTest, TbGetTest) {
+  clearDb("tdb");
   insertOfp();
 
   // open Env
@@ -464,8 +475,6 @@ TEST(TdbPageRecycleTest, DISABLED_simple_insert1) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-static void clearDb(char const *db) { taosRemoveDir(db); }
-
 static void insertDb(int nData) {
   int           ret = 0;
   TDB          *pEnv = NULL;
@@ -617,3 +626,67 @@ TEST(TdbPageRecycleTest, seq_delete) { deleteDb(nDataConst); }
 
 // TEST(TdbPageRecycleTest, DISABLED_recycly_insert) {
 TEST(TdbPageRecycleTest, recycly_insert) { insertDb(nDataConst); }
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_seq_insert_ofp) {
+TEST(TdbPageRecycleTest, recycly_seq_insert_ofp) {
+  clearDb("tdb");
+  insertOfp();
+  system("ls -l ./tdb");
+}
+
+static void deleteOfp(void) {
+  // open Env
+  int       ret = 0;
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  {  // delete the data
+    char const *key = "key123456789";
+    ret = tdbTbDelete(pDb, key, strlen(key) + 1, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  ret = tdbTbDrop(pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_seq_delete_ofp) {
+TEST(TdbPageRecycleTest, seq_delete_ofp) {
+  deleteOfp();
+  system("ls -l ./tdb");
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_seq_insert_ofp_again) {
+TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_again) {
+  insertOfp();
+  system("ls -l ./tdb");
+}
