@@ -742,8 +742,6 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint6
     tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
   }
 
-//  pMTree->pLoadInfo = pBlockLoadInfo;
-//  pMTree->destroyLoadInfo = true;
   pMTree->ignoreEarlierTs = false;
 
   // todo handle other level of stt files, here only deal with the first level stt

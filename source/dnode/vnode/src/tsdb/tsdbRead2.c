@@ -2444,7 +2444,7 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
     // row in last file block
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
     int64_t ts = getCurrentKeyInLastBlock(pLastBlockReader);
-    ASSERT(ts >= key);
+//    ASSERT(ts >= key);
 
     if (ASCENDING_TRAVERSE(pReader->order)) {
       if (key < ts) {  // imem, mem are all empty, file blocks (data blocks and last block) exist
@@ -2473,8 +2473,8 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
         taosMemoryFree(pTSRow);
         tsdbRowMergerClear(pMerger);
         return code;
-      } else {
-        return TSDB_CODE_SUCCESS;
+      } else {  // key > ts
+        return doMergeFileBlockAndLastBlock(pLastBlockReader, pReader, pBlockScanInfo, NULL, false);
       }
     } else {  // desc order
       return doMergeFileBlockAndLastBlock(pLastBlockReader, pReader, pBlockScanInfo, pBlockData, true);
@@ -2902,8 +2902,9 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
   SRowMerger*         pMerger = &pReader->status.merger;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   bool                copied = false;
-  int32_t             code = tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo, &copied);
-  if (code) {
+
+  int32_t code = tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo, &copied);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
