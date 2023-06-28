@@ -486,7 +486,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
           OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
           bool jump = false;
           for (int i = 0; pConsumerEpNew && i < taosArrayGetSize(pConsumerEpNew->vgs); i++){
-            SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, j);
+            SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, i);
             if(pVgEp->vgId == d1->vgId){
               jump = true;
               mInfo("pSub->offsetRows jump, because consumer id:%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
