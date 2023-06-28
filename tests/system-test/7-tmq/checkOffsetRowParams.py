@@ -245,7 +245,7 @@ class TDTestCase:
 
         tdSql.query("show consumers")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 8, "tbname:1,commit:1,interval:2000,reset:earliest")
+        tdSql.checkData(0, 8, "tbname:1,commit:1,interval:2000ms,reset:earliest")
 
         time.sleep(2)
         tdLog.info("start insert data")
