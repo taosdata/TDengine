@@ -85,8 +85,8 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     return -1;
   }
 
-  int32_t numOfChildEp = taosArrayGetSize(pTask->childEpInfo);
-  SReadHandle handle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState };
+  int32_t     numOfChildEp = taosArrayGetSize(pTask->childEpInfo);
+  SReadHandle handle = {.vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState};
   initStreamStateAPI(&handle.api);
 
   pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, 0);
@@ -203,7 +203,7 @@ int32_t sndProcessTaskDispatchReq(SSnode *pSnode, SRpcMsg *pMsg, bool exec) {
 
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
   if (pTask) {
-    SRpcMsg rsp = { .info = pMsg->info, .code = 0 };
+    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp, exec);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return 0;
@@ -225,7 +225,7 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
 
   if (pTask) {
-    SRpcMsg rsp = { .info = pMsg->info, .code = 0};
+    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessRetrieveReq(pTask, &req, &rsp);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     tDeleteStreamRetrieveReq(&req);
