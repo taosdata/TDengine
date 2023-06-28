@@ -307,6 +307,22 @@ int32_t tqOffsetWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetWriter
 int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback);
 int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nData);
 // SStreamTaskWriter ======================================
+
+int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskReader** ppReader);
+int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader);
+int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData);
+
+int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter);
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback);
+int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData);
+
+int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader);
+int32_t streamStateSnapReaderClose(SStreamStateReader* pReader);
+int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData);
+
+int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateWriter** ppWriter);
+int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback);
+int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData);
 // SStreamTaskReader ======================================
 // SStreamStateWriter =====================================
 // SStreamStateReader =====================================

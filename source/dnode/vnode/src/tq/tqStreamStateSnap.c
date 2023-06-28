@@ -58,7 +58,7 @@ _err:
   return code;
 }
 
-int32_t streamStatSnapReaderClose(SStreamStateReader* pReader) {
+int32_t streamStateSnapReaderClose(SStreamStateReader* pReader) {
   int32_t code = 0;
   streamSnapReaderClose(pReader->pReaderImpl);
   taosMemoryFree(pReader);

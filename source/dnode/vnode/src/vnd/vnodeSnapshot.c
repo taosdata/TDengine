@@ -221,8 +221,41 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
   // STREAM ============
   if (!pReader->streamTaskDone) {
+    if (pReader->pStreamTaskReader == NULL) {
+      code = streamTaskSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamTaskReader);
+      if (code) goto _err;
+    }
+    code = streamTaskSnapRead(pReader->pStreamTaskReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->streamTaskDone = 1;
+        code = streamTaskSnapReaderClose(pReader->pStreamTaskReader);
+        if (code) goto _err;
+      }
+    }
   }
   if (!pReader->streamStateDone) {
+    if (pReader->pStreamStateReader == NULL) {
+      code =
+          streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamStateReader);
+      if (code) goto _err;
+    }
+    code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->streamStateDone = 1;
+        code = streamStateSnapReaderClose(pReader->pStreamStateReader);
+        if (code) goto _err;
+      }
+    }
   }
 
   // RSMA ==============
@@ -366,6 +399,16 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
+  if (pWriter->pStreamTaskWriter) {
+    code = streamTaskSnapWriterClose(pWriter->pStreamTaskWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pStreamStateWriter) {
+    code = streamStateSnapWriterClose(pWriter->pStreamStateWriter, rollback);
+    if (code) goto _exit;
+  }
+
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
     if (code) goto _exit;
@@ -469,9 +512,23 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     } break;
     case SNAP_DATA_TQ_OFFSET: {
     } break;
-    case SNAP_DATA_STREAM_TASK: {
+    case SNAP_DATA_STREAM_TASK:
+    case SNAP_DATA_STREAM_TASK_CHECKPOINT: {
+      if (pWriter->pStreamTaskWriter == NULL) {
+        code = streamTaskSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pStreamTaskWriter);
+        if (code) goto _err;
+      }
+      code = streamTaskSnapWrite(pWriter->pStreamTaskWriter, pData, nData);
+      if (code) goto _err;
     } break;
     case SNAP_DATA_STREAM_STATE: {
+      if (pWriter->pStreamStateWriter == NULL) {
+        code = streamStateSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pStreamStateWriter);
+        if (code) goto _err;
+      }
+      code = streamStateSnapWrite(pWriter->pStreamStateWriter, pData, nData);
+      if (code) goto _err;
+
     } break;
     case SNAP_DATA_RSMA1:
     case SNAP_DATA_RSMA2:

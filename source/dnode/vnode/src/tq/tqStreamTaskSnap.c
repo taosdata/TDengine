@@ -184,10 +184,9 @@ _err:
   return 0;
 }
 
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter** ppWriter, int8_t rollback) {
-  int32_t            code = 0;
-  SStreamTaskWriter* pWriter = *ppWriter;
-  STQ*               pTq = pWriter->pTq;
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
+  int32_t code = 0;
+  STQ*    pTq = pWriter->pTq;
 
   if (rollback) {
     tdbAbort(pWriter->pTq->pStreamMeta->db, pWriter->txn);
@@ -199,7 +198,6 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter** ppWriter, int8_t rollback)
   }
 
   taosMemoryFree(pWriter);
-  *ppWriter = NULL;
 
   // restore from metastore
   // if (tqMetaRestoreHandle(pTq) < 0) {
