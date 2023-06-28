@@ -17,6 +17,9 @@
 #include <taosws.h>
 #include <shellInt.h>
 
+// save current database name
+char curDBName[128] = ""; // TDB_MAX_DBNAME_LEN is 24, put large
+
 int shell_conn_ws_server(bool first) {
   char cuttedDsn[SHELL_WS_DSN_BUFF] = {0};
   int dsnLen = strlen(shell.args.dsn);
@@ -59,6 +62,14 @@ int shell_conn_ws_server(bool first) {
     fprintf(stdout, "successfully connected to cloud service\n");
   }
   fflush(stdout);
+
+  // switch to current database if have
+  if(curDBName[0] !=0) {
+    char command[256];
+    sprintf(command, "use %s;", curDBName);
+    shellRunSingleCommandWebsocketImp(command);
+  }
+
   return 0;
 }
 
@@ -290,7 +301,46 @@ void shellRunSingleCommandWebsocketImp(char *command) {
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$",
                       REG_EXTENDED | REG_ICASE)) {
-    fprintf(stdout, "Database changed.\r\n\r\n");
+
+    // copy dbname to curDBName
+    char *p         = command;
+    bool firstStart = false;
+    bool firstEnd   = false;
+    int  i          = 0;
+    while (*p != 0) {
+      if (*p != ' ') {
+        // not blank
+        if (!firstStart) {
+          firstStart = true;
+        } else if (firstEnd) {
+          if(*p == ';' && *p != '\\') {
+            break;
+          }
+          // database name
+          curDBName[i++] = *p;
+          if(i + 4 > sizeof(curDBName)) {
+            // DBName is too long, reset zero and break
+            i = 0;
+            break;
+          }
+        }
+      } else {
+        // blank
+        if(firstStart == true && firstEnd == false){
+          firstEnd = true;
+        }
+        if(firstStart && firstEnd && i > 0){
+          // blank after database name
+          break;
+        }
+      }
+      // move next
+      p++;
+    }
+    // append end
+    curDBName[i] = 0;
+
+    fprintf(stdout, "Database changed to %s.\r\n\r\n", curDBName);
     fflush(stdout);
     ws_free_result(res);
     return;
