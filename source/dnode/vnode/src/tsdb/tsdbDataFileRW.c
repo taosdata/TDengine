@@ -946,7 +946,7 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const TS
         } else {
           SBrinRecord record[1];
           tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
-          if (key->ts > record->lastKey || (key->ts == record->lastKey && key->version > record->lastKeyVer)) {
+          if (key->ts > record->lastKey || (key->ts == record->lastKey && key->version > record->maxVer)) {
             if (writer->blockData->nRow > 0) {
               code = tsdbDataFileDoWriteBlockData(writer, writer->blockData);
               TSDB_CHECK_CODE(code, lino, _exit);
