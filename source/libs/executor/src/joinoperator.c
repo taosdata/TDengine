@@ -150,9 +150,12 @@ static int32_t initTagColskeyBuf(int32_t* keyLen, char** keyBuf, const SArray* p
   int32_t nullFlagSize = sizeof(int8_t) * numOfGroupCols;
   (*keyLen) += nullFlagSize;
 
-  (*keyBuf) = taosMemoryCalloc(1, (*keyLen));
-  if ((*keyBuf) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (*keyLen >= 0) {
+
+    (*keyBuf) = taosMemoryCalloc(1, (*keyLen));
+    if ((*keyBuf) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   return TSDB_CODE_SUCCESS;

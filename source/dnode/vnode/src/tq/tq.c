@@ -1157,7 +1157,7 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
-  *pRefBlock = NULL;
+  (*pRefBlock) = NULL;
 
   pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
   if (pRes->uidList == NULL) {
@@ -1197,7 +1197,7 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
 
   taosArrayDestroy(pRes->uidList);
   *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-  if (pRefBlock == NULL) {
+  if ((*pRefBlock) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
