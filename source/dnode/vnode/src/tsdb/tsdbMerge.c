@@ -215,6 +215,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
     code = TSDB_CODE_FS_NO_VALID_DISK;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+  tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
   SFSetWriterConfig config = {
       .tsdb = merger->tsdb,
       .toSttOnly = true,
