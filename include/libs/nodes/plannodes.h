@@ -435,6 +435,16 @@ typedef struct SHashJoinPhysiNode {
   SQueryStat inputStat[2];
 } SHashJoinPhysiNode;
 
+typedef struct SGroupCachePhysiNode {
+  SPhysiNode node;
+  SNodeList* pGroupCols;
+} SGroupCachePhysiNode;
+
+typedef struct SDynQueryCtrlPhysiNode {
+  SPhysiNode    node;
+  EDynQueryType qType;
+} SDynQueryCtrlPhysiNode;
+
 typedef struct SAggPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of group_by_clause and parameter expression of aggregate function

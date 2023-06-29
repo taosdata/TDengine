@@ -1882,6 +1882,9 @@ static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild,
     nodesWalkExpr(pChild->pConditions, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
     if (!cxt.canUse) return false;
   }
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild) && ((SJoinLogicNode*)pChild)->joinAlgo != JOIN_ALGO_UNKNOWN) {
+    return false;
+  }  
   if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild) && ((SJoinLogicNode*)pChild)->pOtherOnCond) {
     SJoinLogicNode*         pJoinLogicNode = (SJoinLogicNode*)pChild;
     CheckNewChildTargetsCxt cxt = {.pNewChildTargets = pNewChildTargets, .canUse = false};
@@ -3160,7 +3163,7 @@ static int32_t stbJoinOptCreateTagHashJoinNode(SLogicNode* pOrig, SNodeList* pCh
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->pTagEqCond = nodesCloneNode(pOrigJoin->pTagEqCond);
-  pJoin->pTagOnCond = nodesCloneNode(pOrigJoin->pTagOnCond);
+  pJoin->pOtherOnCond = nodesCloneNode(pOrigJoin->pTagOnCond);
   
   int32_t code = TSDB_CODE_SUCCESS;
   pJoin->node.pChildren = pChildren;

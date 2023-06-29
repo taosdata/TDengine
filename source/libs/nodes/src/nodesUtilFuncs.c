@@ -520,6 +520,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return makeNode(type, sizeof(SSortMergeJoinPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+      return makeNode(type, sizeof(SHashJoinPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return makeNode(type, sizeof(SAggPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
@@ -575,6 +577,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SQueryInserterNode));
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return makeNode(type, sizeof(SDataDeleterNode));
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
+      return makeNode(type, sizeof(SGroupCachePhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
+      return makeNode(type, sizeof(SDynQueryCtrlPhysiNode));
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return makeNode(type, sizeof(SSubplan));
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -1243,6 +1249,15 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pColEqCond);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
+      SHashJoinPhysiNode* pPhyNode = (SHashJoinPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pOnLeft);
+      nodesDestroyList(pPhyNode->pOnRight);
+      nodesDestroyNode(pPhyNode->pFilterConditions);
+      nodesDestroyList(pPhyNode->pTargets);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
       SAggPhysiNode* pPhyNode = (SAggPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
@@ -1359,6 +1374,17 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pSink->pAffectedRows);
       nodesDestroyNode(pSink->pStartTs);
       nodesDestroyNode(pSink->pEndTs);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE: {
+      SGroupCachePhysiNode* pPhyNode = (SGroupCachePhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pGroupCols);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
+      SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
       break;
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
