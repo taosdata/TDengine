@@ -4,4 +4,4 @@ title: Network
 description: Network configurations
 ---
 
-This chapter introduces some network configurations. For example, how to use PrivateLink to achieve communications from customer VPC to TDengine Cloud.
+This chapter introduces the network configurations of TDengine Cloud. All is about how to use AWS PrivateLink to achieve communications from customer VPC to TDengine Cloud.
