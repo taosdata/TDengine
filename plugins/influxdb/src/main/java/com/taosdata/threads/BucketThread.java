@@ -98,6 +98,15 @@ public class BucketThread implements Runnable {
                 String timeRange = getTimeRange(this.index);
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
                 if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
+                    // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
+                    if (StringUtils.isNotEmpty(taskConfig.getEndTime())) {
+                        // 判断是否可以退出进程
+                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
+                            Thread.sleep(5000L);
+                            logger.info("任务执行完成，正常退出");
+                            System.exit(0);
+                        }
+                    }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getCreateBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;

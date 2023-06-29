@@ -164,7 +164,7 @@ public class PreLoading implements CommandLineRunner {
             this.taskConfig.setMode((String) tomlParseResult.get("task.mode"));
             this.taskConfig.setBuckets(Arrays.asList((String) tomlParseResult.get("task.bucket")));
             Set<String> measurements = new HashSet<>();
-            TomlArray tomlArray = (TomlArray) tomlParseResult.get("task.measurements");
+            TomlArray tomlArray = tomlParseResult.getArrayOrEmpty("task.measurements");
             for (int i = 0; i < tomlArray.size(); i++) {
                 measurements.add((String) tomlArray.get(i));
             }
