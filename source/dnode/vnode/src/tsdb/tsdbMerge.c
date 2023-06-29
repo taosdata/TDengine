@@ -383,7 +383,7 @@ _exit:
   } else {
     tsdbDebug("vgId:%d %s done, fid:%d", TD_VID(merger->tsdb->pVnode), __func__, fset->fid);
   }
-  return 0;
+  return code;
 }
 
 static int32_t tsdbDoMerge(SMerger *merger) {

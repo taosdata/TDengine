@@ -203,8 +203,9 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
   taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
-  nRef = fobj->ref++;
+  nRef = ++fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
+  tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
 }
 
@@ -213,6 +214,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   int32_t nRef = --fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef >= 0);
+  tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
       remove_file(fobj->fname);
@@ -229,6 +231,7 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
+  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     remove_file(fobj->fname);
     taosMemoryFree(fobj);
