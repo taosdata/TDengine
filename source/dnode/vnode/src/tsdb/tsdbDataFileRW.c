@@ -1405,7 +1405,7 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
     code = tsdbDataFileWriteTombFooter(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    ftype = TSDB_FTYPE_SMA;
+    ftype = TSDB_FTYPE_TOMB;
     if (writer->config->files[ftype].exist) {
       op = (STFileOp){
           .optype = TSDB_FOP_REMOVE,
