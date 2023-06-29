@@ -302,16 +302,19 @@
                     <div
                       class="searchList"
                       v-loading="loading"
-                      v-if="configurationdata.length > 0"
                     >
-                      <div
-                        v-for="c in configurationdata"
-                        :key="c.id"
-                        :class="[activeDataSet.id == c.id ? 'actived' : '']"
-                        @click="handelDataSet(c)"
-                      >
-                        {{ c.id }}
-                      </div>
+                      <el-empty :image-size="80" v-if="configurationdata.length <=0"></el-empty>
+                      <template v-else>
+                        <div
+                          class="searchListItem"
+                          v-for="c in configurationdata"
+                          :key="c.id"
+                          :class="[activeDataSet.id == c.id ? 'actived' : '']"
+                          @click="handelDataSet(c)"
+                        >
+                          {{ c.id }}
+                        </div>
+                      </template>
                     </div>
                     <template
                       v-if="
@@ -328,7 +331,7 @@
                             <span
                               :class="['label', o.required ? 'required' : '']"
                             >
-                              {{ o.name }}
+                              {{ o.display }}
                             </span>
                             <el-input placeholder="" v-model="o.value" />
                           </div>
@@ -726,25 +729,25 @@ export default {
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
-      this.dbsource[0].authentication.alternatives =
-        this.dbsource[0].authentication.alternatives.map((item) => {
-          if (item.name === "certificates") {
-            item.params.map((par) => {
-              if (["certificate", "private_key"].includes(par.name)) {
-                par.required = par.value === "None" ? false : true;
+      this.dbsource[0].authentication.alternatives = 
+      this.dbsource[0].authentication.alternatives.map(item => {
+        if(item.name === 'certificates') {
+          item.params.map((par,index) => {
+            if(par.name === 'security_mode') {
+              this.policyDisabled = par.value && par.value === 'None'
+              if(par.value && par.value !== 'None') {
+                item.params[2].required = true
+                item.params[3].required = true
               }
-              if (par.name === "security_mode") {
-                this.policyDisabled = par.value === "None";
-              }
-              return par;
-            });
-          }
-          return item;
-        });
+            }
+            return par
+          })
+        }
+        return item
+      })
     }
   },
   mounted() {
-    console.log(this.$parent.currentTaskStatus, "状态---0000--opcui");
     if (this.tagName == "mqtt") {
       this.constmqttCols = this.dbsource[0].parser.fields;
     }
@@ -800,23 +803,25 @@ export default {
     },
 
     handleAuthentication(p) {
-      if (p.name === "security_mode") {
-        this.dbsource[0].authentication.alternatives =
-          this.dbsource[0].authentication.alternatives.map((item) => {
-            if (item.name === "certificates") {
-              item.params.map((par) => {
-                if (["certificate", "private_key"].includes(par.name)) {
-                  par.required = p.value === "None" ? false : true;
+      if(p.name === 'security_mode') {
+        this.dbsource[0].authentication.alternatives = 
+        this.dbsource[0].authentication.alternatives.map(item => {
+          if(item.name === 'certificates') {
+            item.params.map(par => {
+              if(['certificate','private_key'].includes(par.name)) {
+                par.required = p.value === 'None' ? false : true
+              } 
+              if(par.name === 'security_policy') {
+                this.policyDisabled = p.value === 'None'
+                if(p.value === 'None') {
+                  par.value = ''
                 }
-                if (par.name === "security_policy") {
-                  this.policyDisabled = p.value === "None";
-                  par.value = p.value === "None" ? "None" : "";
-                }
-                return par;
-              });
-            }
-            return item;
-          });
+              }
+              return par
+            })
+          }
+          return item
+        })
       }
     },
 
@@ -1108,7 +1113,6 @@ export default {
           };
           dns += "&opc_table_config=" + JSON.stringify(saveConf);
         }
-        console.log(dns, querystr, "mqtt调用接口前的参数拼接");
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
@@ -1175,17 +1179,22 @@ export default {
         (item) => item.id === this.activeDataSet.id
       );
       let enterTip = this.$t("dataIn.enterTip");
-      let format = curData[0].id;
+      // let format = curData[0].id;
+      let format = curData[0].format
+      format = format.replace('{id}',curData[0].id)
       let options = curData[0].options;
       for (let i = 0; i < options.length; i++) {
         if (options[i].required && !options[i].value) {
           Message({
             type: "warning",
-            message: `${enterTip} ${options[i].name}`,
+            message: `${enterTip} ${options[i].display}`,
           });
           return;
         }
-        format += `::${options[i].value}`;
+        // format += `::${options[i].value}`;
+        if (format.indexOf(options[i].name) !== -1) {
+          format = format.replace(`{${options[i].name}}`, options[i].value)
+        } 
       }
       let categories = [];
       categories = this.dbsource[0].datasets.categories.map((cate) => {
@@ -1543,9 +1552,11 @@ export default {
       height: 210px;
       border: 1px solid #dcdfe6;
       overflow-y: auto;
-      > div {
+      position: relative;
+      .searchListItem {
         border-bottom: 1px solid #dcdfe6;
         line-height: 30px;
+        padding-left: 5px;
       }
       .actived {
         color: #4259ce;

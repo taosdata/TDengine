@@ -321,7 +321,8 @@ export default {
     usernameTips: 'Please enter the Username',
     passwordTips: 'Please enter the Password',
     errorTip: 'The user name or password is incorrect',
-    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.'
+    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.',
+    servTaosdTip: 'Your taosd service is abnormal. Restart the taosd service and ensure that the service is available.',
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
@@ -1689,6 +1690,9 @@ export default {
         step1desc: "You can create the Rust project:",
         step1desc1: "Then add the dependency to the `Cargo.toml` file:",
       },
+      createProject: 'Create Project',
+      step1desc: 'You can create the {0} project:',
+      step1desc1: 'Then add the dependency to the `{0}` file:',
       step2: "Configuration",
       step3: "Create Consumer",
       step3desc: "You can create a consumer as the following code:",

@@ -331,10 +331,10 @@ export default {
             // });
             this.getUserAuthority();
           } else {
+            this.loading = false;
             Message.error(this.$t("login.errorTip"));
           }
         });
-        this.loading = false;
       } catch (error) {
         Message.error(this.$t("login.servExceptionTip"));
         this.loading = false;
@@ -371,6 +371,7 @@ export default {
         return await sendSQLReq(
           `select version, (expire_time < now) as valid from information_schema.ins_cluster`
         ).then((res) => {
+          this.loading = false;
           if (res) {
             let result = res.data.map((data) => {
               return Object.fromEntries(
@@ -392,6 +393,11 @@ export default {
           }
         });
       } catch (err) {
+        this.loading = false;
+        if (err && err.code == 11) {
+          Message.error(this.$t("login.servTaosdTip"));
+          return
+        }
         Message.error(this.$t('login.versiontip'));
       }
     },
