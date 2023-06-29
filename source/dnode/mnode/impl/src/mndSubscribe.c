@@ -1117,9 +1117,13 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t cons
     colDataSetVal(pColInfo, *numOfRows, (const char *)&pVgEp->vgId, false);
 
     // consumer id
+    char        consumerIdHex[32] = {0};
+    sprintf(varDataVal(consumerIdHex), "0x%"PRIx64, consumerId);
+    varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
+    
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, *numOfRows, (const char *)&consumerId, consumerId == -1);
-
+    colDataSetVal(pColInfo, numOfRows, (const char *)consumerIdHex, false);
+    
     mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
            consumerId, varDataVal(cgroup), pVgEp->vgId);
 
