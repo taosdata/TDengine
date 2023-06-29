@@ -998,17 +998,13 @@ SAMPLE(expr, k)
 
 **Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
 
-**Return value type**: Same as the column being operated plus the associated timestamp
+**Return value type**: Same as the column being operated
 
-**Applicable data types**: Any data type except for tags of STable
+**Applicable data types**: Any data type
 
 **Applicable nested query**: Inner query and Outer query
 
 **Applicable table types**: standard tables and supertables
-
-**More explanations**:
-
-- This function cannot be used in expression calculation.
 
 
 ### TAIL
@@ -1054,11 +1050,11 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp. The first occurrence of a timestamp or tag is used.
+**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword.
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable column types**: Any data types except for timestamp
+**Applicable column types**: Any data types
 
 **Applicable table types**: table, STable
 

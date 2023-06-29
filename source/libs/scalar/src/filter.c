@@ -3741,10 +3741,10 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
     taosArrayPush(points, &startPt);
     taosArrayPush(points, &endPt);
   }
-  SFltSclDatum min;
+  SFltSclDatum min = {0};
   fltSclBuildDatumFromBlockSmaValue(&min, colRange->colNode->node.resType.type, pAgg->min);
   SFltSclPoint minPt = {.excl = false, .start = true, .val = min};
-  SFltSclDatum max;
+  SFltSclDatum max = {0};
   fltSclBuildDatumFromBlockSmaValue(&max, colRange->colNode->node.resType.type, pAgg->max);
   SFltSclPoint maxPt = {.excl = false, .start = false, .val = max};
   taosArrayPush(points, &minPt);
