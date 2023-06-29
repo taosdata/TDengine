@@ -86,6 +86,7 @@ _err:
 
 int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {
   int32_t code = 0;
+  tqInfo("vgId:%d, vnode stream-task snapshot reader closed", TD_VID(pReader->pTq->pVnode));
   taosArrayDestroy(pReader->tdbTbList);
   tdbTbcClose(pReader->pCur);
   taosMemoryFree(pReader);
@@ -104,6 +105,7 @@ int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
 
   *ppData = NULL;
   int8_t except = 0;
+  tqInfo("vgId:%d, vnode stream-task snapshot start read data", TD_VID(pReader->pTq->pVnode));
 
   STablePair* pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
 NextTbl:
@@ -131,6 +133,7 @@ NextTbl:
   }
   if (pVal == NULL || vLen == 0) {
     *ppData = NULL;
+    tqInfo("vgId:%d, vnode stream-task snapshot finished read data", TD_VID(pReader->pTq->pVnode));
     return code;
   }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
