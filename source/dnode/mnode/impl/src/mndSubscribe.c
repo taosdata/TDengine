@@ -992,6 +992,32 @@ SMqSubscribeObj *mndAcquireSubscribeByKey(SMnode *pMnode, const char *key) {
   return pSub;
 }
 
+int32_t mndGetGroupNumByTopic(SMnode *pMnode, const char *topicName) {
+  int32_t num = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void            *pIter = NULL;
+  SMqSubscribeObj *pSub = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
+    if (pIter == NULL) break;
+
+
+    char topic[TSDB_TOPIC_FNAME_LEN];
+    char cgroup[TSDB_CGROUP_LEN];
+    mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
+    if (strcmp(topic, topicName) != 0) {
+      sdbRelease(pSdb, pSub);
+      continue;
+    }
+
+    num++;
+    sdbRelease(pSdb, pSub);
+  }
+
+  return num;
+}
+
 void mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pSub);
