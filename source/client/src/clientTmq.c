@@ -813,7 +813,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
         offRows->offset = pVg->offsetInfo.currentOffset;
         char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
-        tscInfo("report offset: vgId:%d, offset:%s, rows:%"PRId64, offRows->vgId, buf, offRows->rows);
+        tscInfo("consumer:0x%" PRIx64 ",report offset: vgId:%d, offset:%s, rows:%"PRId64, tmq->consumerId, offRows->vgId, buf, offRows->rows);
       }
     }
 //    tmq->needReportOffsetRows = false;
@@ -1489,7 +1489,8 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
     makeTopicVgroupKey(vgKey, pTopic->topicName, pVgEp->vgId);
     SVgroupSaveInfo* pInfo = taosHashGet(pVgOffsetHashMap, vgKey, strlen(vgKey));
 
-    STqOffsetVal offsetNew = {.type = tmq->resetOffsetCfg};
+    STqOffsetVal offsetNew = {0};
+    offsetNew.type = tmq->resetOffsetCfg;
 
     SMqClientVg clientVg = {
         .pollCnt = 0,

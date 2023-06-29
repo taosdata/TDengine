@@ -468,40 +468,51 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     }
   }
 
-  if(taosHashGetSize(pOutput->pSub->consumerHash) == 0) {                            // if all consumer is removed
+//  if(taosHashGetSize(pOutput->pSub->consumerHash) == 0) {                            // if all consumer is removed
     SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key);  // put all offset rows
     if (pSub) {
       taosRLockLatch(&pSub->lock);
-      bool init = false;
       if (pOutput->pSub->offsetRows == NULL) {
         pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
-        init = true;
       }
       pIter = NULL;
       while (1) {
         pIter = taosHashIterate(pSub->consumerHash, pIter);
         if (pIter == NULL) break;
         SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-        if (init) {
-          taosArrayAddAll(pOutput->pSub->offsetRows, pConsumerEp->offsetRows);
-//          mDebug("pSub->offsetRows is init");
-        } else {
-          for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
-            OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
-            for (int i = 0; i < taosArrayGetSize(pOutput->pSub->offsetRows); i++) {
-              OffsetRows *d2 = taosArrayGet(pOutput->pSub->offsetRows, i);
-              if (d1->vgId == d2->vgId) {
-                d2->rows += d1->rows;
-                d2->offset = d1->offset;
-//                mDebug("pSub->offsetRows add vgId:%d, after:%"PRId64", before:%"PRId64, d2->vgId, d2->rows, d1->rows);
-              }
+        SMqConsumerEp *pConsumerEpNew = taosHashGet(pOutput->pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
+
+        for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
+          OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
+          bool jump = false;
+          for (int i = 0; pConsumerEpNew && i < taosArrayGetSize(pConsumerEpNew->vgs); i++){
+            SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, i);
+            if(pVgEp->vgId == d1->vgId){
+              jump = true;
+              mInfo("pSub->offsetRows jump, because consumer id:%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
+              break;
             }
+          }
+          if(jump) continue;
+          bool find = false;
+          for (int i = 0; i < taosArrayGetSize(pOutput->pSub->offsetRows); i++) {
+            OffsetRows *d2 = taosArrayGet(pOutput->pSub->offsetRows, i);
+            if (d1->vgId == d2->vgId) {
+              d2->rows += d1->rows;
+              d2->offset = d1->offset;
+              find = true;
+              mInfo("pSub->offsetRows add vgId:%d, after:%"PRId64", before:%"PRId64, d2->vgId, d2->rows, d1->rows);
+              break;
+            }
+          }
+          if(!find){
+            taosArrayPush(pOutput->pSub->offsetRows, d1);
           }
         }
       }
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
-    }
+//    }
   }
 
   // 8. generate logs
@@ -771,8 +782,10 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 }
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
-  SMnode         *pMnode = pMsg->info.node;
-  SMDropCgroupReq dropReq = {0};
+  SMnode          *pMnode = pMsg->info.node;
+  SMDropCgroupReq  dropReq = {0};
+  STrans          *pTrans = NULL;
+  int32_t          code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (tDeserializeSMDropCgroupReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -791,38 +804,40 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     }
   }
 
+  taosWLockLatch(&pSub->lock);
   if (taosHashGetSize(pSub->consumerHash) != 0) {
     terrno = TSDB_CODE_MND_CGROUP_USED;
     mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
-    mndReleaseSubscribe(pMnode, pSub);
-    return -1;
+    code = -1;
+    goto end;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
-    mndReleaseSubscribe(pMnode, pSub);
-    mndTransDrop(pTrans);
-    return -1;
+    code = -1;
+    goto end;
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
 
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
-    mndReleaseSubscribe(pMnode, pSub);
-    mndTransDrop(pTrans);
-    return -1;
+    code = -1;
+    goto end;
   }
 
   if (mndTransPrepare(pMnode, pTrans) < 0) {
-    mndReleaseSubscribe(pMnode, pSub);
-    mndTransDrop(pTrans);
-    return -1;
+    code = -1;
+    goto end;
   }
-  mndReleaseSubscribe(pMnode, pSub);
 
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+end:
+  taosWUnLockLatch(&pSub->lock);
+  mndReleaseSubscribe(pMnode, pSub);
+  mndTransDrop(pTrans);
+
+  return code;
 }
 
 void mndCleanupSubscribe(SMnode *pMnode) {}
