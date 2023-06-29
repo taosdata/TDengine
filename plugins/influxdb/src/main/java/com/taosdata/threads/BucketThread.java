@@ -299,7 +299,11 @@ public class BucketThread implements Runnable {
         }
         // 调整结束时间
         if (end > endTime.getTime()) {
+            // end晚于endTime，改为endTime
             end = endTime.getTime();
+        } else if (end > new Date().getTime()) {
+            // end晚于now，改为now（设置了一个晚于now的endTime）
+            end = new Date().getTime();
         }
         // 更新lastEnd
         this.lastEnd = end;
@@ -329,7 +333,11 @@ public class BucketThread implements Runnable {
         }
         // 调整结束时间
         if (end > endTime.getTime()) {
+            // end晚于endTime，改为endTime
             end = endTime.getTime();
+        } else if (end > new Date().getTime()) {
+            // end晚于now，改为now（设置了一个晚于now的endTime）
+            end = new Date().getTime();
         }
         // 更新lastEnd
         this.lastEnd = end;
@@ -359,7 +367,11 @@ public class BucketThread implements Runnable {
         }
         // 调整结束时间
         if (end > endTime.getTime()) {
+            // end晚于endTime，改为endTime
             end = endTime.getTime();
+        } else if (end > new Date().getTime()) {
+            // end晚于now，改为now（设置了一个晚于now的endTime）
+            end = new Date().getTime();
         }
         // 更新lastEnd
         this.lastEnd = end;
