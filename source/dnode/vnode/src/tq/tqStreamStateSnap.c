@@ -26,6 +26,7 @@ struct SStreamStateReader {
   TBC*    pCur;
 
   SStreamSnapReader* pReaderImpl;
+  int32_t            complete;
 };
 
 int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader) {
@@ -46,8 +47,9 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
 
   SStreamSnapReader* pSnapReader = NULL;
   sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "checkpoints");
-  streamSnapReaderOpen(pTq, sver, ever, tdir, &pSnapReader);
-
+  if (streamSnapReaderOpen(pTq, sver, ever, tdir, &pSnapReader) == 0) {
+    pReader->complete = 1;
+  }
   pReader->pReaderImpl = pSnapReader;
 
   tqInfo("vgId:%d, vnode stream-state snapshot reader opened", TD_VID(pTq->pVnode));
@@ -63,6 +65,7 @@ _err:
 
 int32_t streamStateSnapReaderClose(SStreamStateReader* pReader) {
   int32_t code = 0;
+  tqInfo("vgId:%d, vnode stream-state snapshot reader closed", TD_VID(pReader->pTq->pVnode));
   streamSnapReaderClose(pReader->pReaderImpl);
   taosMemoryFree(pReader);
   return code;
@@ -70,10 +73,16 @@ int32_t streamStateSnapReaderClose(SStreamStateReader* pReader) {
 
 int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
+  if (pReader->complete == 0) {
+    return 0;
+  }
 
   uint8_t* rowData = NULL;
   int64_t  len;
   code = streamSnapRead(pReader->pReaderImpl, &rowData, &len);
+  if (rowData == NULL || len == 0) {
+    return code;
+  }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + len);
   if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -122,16 +131,18 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   SStreamSnapWriter* pSnapWriter = NULL;
   streamSnapWriterOpen(pTq, sver, ever, tdir, &pSnapWriter);
 
+  tqInfo("vgId:%d, snapshot writer opened", TD_VID(pTq->pVnode));
   pWriter->pWriterImpl = pSnapWriter;
-
+  return code;
 _err:
-  tqError("vgId:%d, tq snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
 }
 
 int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback) {
   int32_t code = 0;
+  tqError("vgId:%d, vnode snapshot writer close", TD_VID(pWriter->pTq->pVnode));
   code = streamSnapWriterClose(pWriter->pWriterImpl, rollback);
   taosMemoryFree(pWriter);
   return code;
@@ -139,6 +150,7 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
 
 int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
+  tqError("vgId:%d, vnode snapshot write", TD_VID(pWriter->pTq->pVnode));
   code = streamSnapWrite(pWriter->pWriterImpl, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   return code;
 }

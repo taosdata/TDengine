@@ -182,6 +182,7 @@ int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   }
 
   *ppWriter = pWriter;
+  tqInfo("vgId:%d, stream-task snapshot writer opened", TD_VID(pTq->pVnode));
   return code;
 
 _err:
@@ -195,6 +196,7 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
   int32_t code = 0;
   STQ*    pTq = pWriter->pTq;
 
+  tqInfo("vgId:%d, stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
     tdbAbort(pWriter->pTq->pStreamMeta->db, pWriter->txn);
   } else {
@@ -249,6 +251,7 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
   } else if (pHdr->type == SNAP_DATA_STREAM_TASK_CHECKPOINT) {
     // do nothing
   }
+  tqInfo("vgId:%d, stream-task snapshot write", TD_VID(pTq->pVnode));
 
   return code;
 

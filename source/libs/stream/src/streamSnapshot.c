@@ -131,6 +131,10 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path) {
   }
   taosCloseDir(&pDir);
 
+  if (pFile->pCurrent == NULL) {
+    code = -1;
+    return code;
+  }
   SArray* list = taosArrayInit(64, sizeof(SBackendFileItem));
 
   SBackendFileItem item;
@@ -239,7 +243,8 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
   int64_t  nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
   if (nread == -1) {
     code = TAOS_SYSTEM_ERROR(terrno);
-    qError("stream snap failed to read snap, file name:%s, reason:%s", item->name, tstrerror(code));
+    qError("stream snap failed to read snap, file name:%s, type:%d, reason:%s", item->name, item->type,
+           tstrerror(code));
     return code;
     // handle later
     return -1;

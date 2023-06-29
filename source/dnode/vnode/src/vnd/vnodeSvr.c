@@ -584,7 +584,9 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME || pMsg->msgType == TDMT_VND_TMQ_CONSUME_PUSH) && !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME ||
+       pMsg->msgType == TDMT_VND_TMQ_CONSUME_PUSH) &&
+      !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -640,8 +642,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
-//    case TDMT_VND_TMQ_CONSUME:
-//      return tqProcessPollReq(pVnode->pTq, pMsg);
+      //    case TDMT_VND_TMQ_CONSUME:
+      //      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
@@ -1566,7 +1568,7 @@ static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
 }
 
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  vInfo("vgId:%d, vnode handle msgType:alter-confirm, alter confim msg is processed", TD_VID(pVnode));
+  vInfo("vgId:%d, vnode handle msgType:alter-confirm, alter confirm msg is processed", TD_VID(pVnode));
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pVnode->config.hashChange) {
     goto _exit;
