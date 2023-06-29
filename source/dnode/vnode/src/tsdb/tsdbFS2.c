@@ -511,6 +511,9 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
   }
 
 _exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
+  }
   return code;
 }
 
@@ -597,7 +600,6 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
   }
 
   tsem_wait(&fs->canEdit);
-
   fs->etype = etype;
 
   // edit
@@ -646,6 +648,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
   } else {
+    tsdbDebug("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
     tsem_post(&fs->canEdit);
   }
   return code;

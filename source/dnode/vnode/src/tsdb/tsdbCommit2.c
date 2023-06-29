@@ -329,6 +329,7 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
                   &committer->ctx->maxKey);
   code = tfsAllocDisk(committer->tsdb->pVnode->pTfs, committer->ctx->expLevel, &committer->ctx->did);
   TSDB_CHECK_CODE(code, lino, _exit);
+  tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did);
   STFileSet fset = {.fid = committer->ctx->fid};
   committer->ctx->fset = &fset;
   STFileSet **fsetPtr = TARRAY2_SEARCH(committer->fsetArr, &committer->ctx->fset, tsdbTFileSetCmprFn, TD_EQ);

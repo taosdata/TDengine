@@ -220,6 +220,7 @@ static int32_t tsdbDoRetention2(void *arg) {
         code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
+      tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
 
       // data
       for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = rtner->ctx->fset->farr[ftype], 1); ++ftype) {

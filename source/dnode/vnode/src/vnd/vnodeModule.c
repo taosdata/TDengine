@@ -147,7 +147,11 @@ static void* loop(void* arg) {
   SVnodeTask*       pTask;
   int               ret;
 
-  setThreadName("vnode-commit");
+  if (tp == &vnodeGlobal.tp[0]) {
+    setThreadName("vnode-commit");
+  } else if (tp == &vnodeGlobal.tp[1]) {
+    setThreadName("vnode-merge");
+  }
 
   for (;;) {
     taosThreadMutexLock(&(tp->mutex));
