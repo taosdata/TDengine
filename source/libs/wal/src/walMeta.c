@@ -139,12 +139,6 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       logContent = (SWalCkHead*)(buf + pos);
-      if (logContent->magic != WAL_MAGIC) {
-        terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-        ASSERT(forwardStage);
-        wError("vgId:%d, wal magic is corrupted. offset:%" PRId64 ", file:%s ", pWal->cfg.vgId, offset + pos, fnameStr);
-        break;
-      }
       if (walValidHeadCksum(logContent) != 0) {
         terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry header. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
