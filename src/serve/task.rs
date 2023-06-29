@@ -481,35 +481,37 @@ pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>,) -> im
 
 async fn save_files(MultipartForm(form): MultipartForm<UploadForm>,) -> anyhow::Result<Vec<String>> {
     let upload_file_save_path = get_file_save_home_dir();
-    fs::create_dir_all(&upload_file_save_path).with_context(|| "create file path failed")?;
     let mut file_save_paths = Vec::new();
     if form.files.is_empty() {
         anyhow::bail!("upload file is empty");
     }
     for f in form.files {
-        // file rename, add prefix
-        let file_name = format!("{}_{}", uuid::Uuid::new_v4(), f.file_name.unwrap());
-        let path = format!("{}/{}", upload_file_save_path.as_os_str().to_str().unwrap(), file_name);
-        log::info!("saving to {path}");
-        file_save_paths.push(path.clone());
+        let uuid = uuid::Uuid::new_v4();
+        let path = std::path::Path::new(&format!("{}/{uuid}", upload_file_save_path.as_os_str().to_str().unwrap())).to_path_buf();
+        fs::create_dir_all(&path).with_context(|| "create file path failed")?;
+        let file_name = f.file_name.unwrap();
+        let releative_path = format!("{}/{file_name}", uuid::Uuid::new_v4());
+        log::info!("saving to {}, {releative_path}", upload_file_save_path.as_os_str().to_str().unwrap());
+        file_save_paths.push(format!("./files/{releative_path}"));
+        let path = std::path::Path::new(&format!("{}/{uuid}/{file_name}", upload_file_save_path.as_os_str().to_str().unwrap())).to_path_buf();
         f.file.persist(path)?;
     }
     Ok(file_save_paths)
 }
 
-const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
-const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
+// const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
+pub(crate) const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
     cfg_if::cfg_if! {
         if #[cfg(windows)] {
-            "C:\\Program Files\\taosX\\upload_files"
+            "C:\\Program Files\\taosX\\files"
         } else {
-            "/usr/local/taosx/upload_files"
+            "/usr/local/taosx/files"
         }
     }
 };
 #[inline]
-fn get_file_save_home_dir() -> PathBuf {
-    let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
-        .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
-    std::path::Path::new(&env).to_path_buf()
+pub fn get_file_save_home_dir() -> PathBuf {
+    // let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
+        // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
+    std::path::Path::new(&ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT).to_path_buf()
 }

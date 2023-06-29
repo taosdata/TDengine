@@ -598,9 +598,10 @@ pub(super) fn get_string_vec_from_param_or_file(
             .partition(|v| v.starts_with("@"));
         // dbg!(&files, &node_config);
         for file in files {
+            log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!("file: {} read error", file);
+                log::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
                 continue;
                 // return Err("file read error".to_string());
             }
