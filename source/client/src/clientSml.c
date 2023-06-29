@@ -749,6 +749,9 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     pReq.suid = pTableMeta->uid;
     pReq.source = TD_REQ_FROM_TAOX;
     pSql = (action == SCHEMA_ACTION_ADD_COLUMN) ? "sml_add_column" : "sml_modify_column_size";
+  } else{
+    uError("SML:0x%" PRIx64 " invalid action:%d", info->id, action);
+    goto end;
   }
 
   code = buildRequest(info->taos->id, pSql, strlen(pSql), NULL, false, &pRequest, 0);
