@@ -332,6 +332,10 @@ export default {
             this.getUserAuthority();
           } else {
             this.loading = false;
+            if(res && res.code == 11) {
+              Message.error(this.$t("login.servTaosdTip"));
+              return
+            }
             Message.error(this.$t("login.errorTip"));
           }
         });

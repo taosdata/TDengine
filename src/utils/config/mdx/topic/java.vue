@@ -89,10 +89,8 @@ export default {
   },
   computed: {
     tmq() {
-      const wsPrefix = this.url.startsWith('https') ? 'wss' : 'ws';
-      const uri = this.url.replace(/https?:\/\//, '');
       const tokenStr = this.token;
-      return `${wsPrefix}://${uri}/rest/tmq?token=${tokenStr}`;
+      return `jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=${tokenStr}`;
     },
     topicName() {
       return this.topic ? this.topic : this.$t('docs.topic.defaultTopic');
