@@ -646,7 +646,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t newTopicNum = taosArrayGetSize(pTopicList);
   for(int i = 0; i < newTopicNum; i++){
     int32_t gNum = mndGetGroupNumByTopic(pMnode, (const char*)taosArrayGetP(pTopicList, i));
-    if(gNum > MND_MAX_GROUP_PER_TOPIC){
+    if(gNum >= MND_MAX_GROUP_PER_TOPIC){
       terrno = TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE;
       code = terrno;
       goto _over;
