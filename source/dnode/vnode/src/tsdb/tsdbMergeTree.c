@@ -200,7 +200,7 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
     goto _exit;
   }
 
-  code = tsdbSttFileReadBlockData(pIter->pReader, pIter->pSttBlk, pBlock);
+  code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
