@@ -84,6 +84,7 @@ int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
+int32_t getTableTypeFromTableNode(SNode *pTable);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);

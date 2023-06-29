@@ -346,7 +346,7 @@ static int32_t getFuncInfo(SFunctionNode* pFunc) {
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 
-static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return NULL;

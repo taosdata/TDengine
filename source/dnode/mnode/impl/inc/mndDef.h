@@ -108,7 +108,7 @@ typedef enum {
   TRN_STAGE_UNDO_ACTION = 3,
   TRN_STAGE_COMMIT = 4,
   TRN_STAGE_COMMIT_ACTION = 5,
-  TRN_STAGE_FINISHED = 6,
+  TRN_STAGE_FINISH = 6,
   TRN_STAGE_PRE_FINISH = 7
 } ETrnStage;
 
@@ -157,6 +157,7 @@ typedef struct {
   void*       rpcRsp;
   int32_t     rpcRspLen;
   int32_t     redoActionPos;
+  SArray*     prepareActions;
   SArray*     redoActions;
   SArray*     undoActions;
   SArray*     commitActions;
@@ -551,12 +552,17 @@ typedef struct {
   int64_t createTime;
   int64_t subscribeTime;
   int64_t rebalanceTime;
+
+  int8_t         withTbName;
+  int8_t         autoCommit;
+  int32_t        autoCommitInterval;
+  int32_t        resetOffsetCfg;
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
 void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool delete);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer);
+void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
   int32_t vgId;
@@ -572,11 +578,11 @@ void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
   SArray* vgs;         // SArray<SMqVgEp*>
-  SArray* offsetRows; // SArray<OffsetRows*>
+  SArray* offsetRows;  // SArray<OffsetRows*>
 } SMqConsumerEp;
 
-SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-void           tDeleteSMqConsumerEp(void* pEp);
+//SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
+//void           tDeleteSMqConsumerEp(void* pEp);
 int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
@@ -592,7 +598,7 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
-  char*     qmsg; // SubPlanToString
+  char*     qmsg;           // SubPlanToString
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
@@ -691,12 +697,12 @@ int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
-typedef struct {
-  char    streamName[TSDB_STREAM_FNAME_LEN];
-  int64_t uid;
-  int64_t streamUid;
-  SArray* childInfo;  // SArray<SStreamChildEpInfo>
-} SStreamCheckpointObj;
+//typedef struct {
+//  char    streamName[TSDB_STREAM_FNAME_LEN];
+//  int64_t uid;
+//  int64_t streamUid;
+//  SArray* childInfo;  // SArray<SStreamChildEpInfo>
+//} SStreamCheckpointObj;
 
 #ifdef __cplusplus
 }

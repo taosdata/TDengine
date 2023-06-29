@@ -47,6 +47,17 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
   }
 }
 
+
+int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx) {
+  if (colDataIsNull_s(pColumnInfoData, rowIdx)) return 0;
+
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) return pColumnInfoData->info.bytes;
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON)
+    return getJsonValueLen(colDataGetData(pColumnInfoData, rowIdx));
+  else
+    return varDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+}
+
 int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return pColumnInfoData->varmeta.length + sizeof(int32_t) * numOfRows;
@@ -791,8 +802,8 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema
+  // | each column length |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
@@ -2483,19 +2494,31 @@ _end:
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
-  if (stbFullName[0] == 0) {
+  char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
+  if (!pBuf) {
     return NULL;
+  }
+  int32_t code = buildCtbNameByGroupIdImpl(stbFullName, groupId, pBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBuf);
+    return NULL;
+  }
+  return pBuf;
+}
+
+int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, char* cname) {
+  if (stbFullName[0] == 0) {
+    return TSDB_CODE_FAILED;
   }
 
   SArray* tags = taosArrayInit(0, sizeof(SSmlKv));
   if (tags == NULL) {
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 
-  void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (cname == NULL) {
     taosArrayDestroy(tags);
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 
   SSmlKv pTag = {.key = "group_id",
@@ -2517,9 +2540,9 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   taosArrayDestroy(tags);
 
   if ((rname.ctbShortName && rname.ctbShortName[0]) == 0) {
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
-  return rname.ctbShortName;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
