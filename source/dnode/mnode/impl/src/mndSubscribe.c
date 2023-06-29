@@ -815,8 +815,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     sdbRelease(pMnode->pSdb, pConsumer);
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
-
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     code = -1;
