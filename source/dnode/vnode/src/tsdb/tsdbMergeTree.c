@@ -196,11 +196,13 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   }
 
   code = tBlockDataInit(pBlock, &id, pInfo->pSchema, pInfo->colIds, pInfo->numOfCols);
+//  code = tBlockDataInit(pBlock, &id, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols-1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
 
-  code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols - 1);
+  code = tsdbSttFileReadBlockData(pIter->pReader, pIter->pSttBlk, pBlock);
+//  code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
