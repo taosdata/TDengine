@@ -233,8 +233,9 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
   int  ret;
 
   tdbBtcOpen(&btc, pBt, pTxn);
+  /*
   btc.coder.ofps = taosArrayInit(8, sizeof(SPgno));
-
+  */
   tdbTrace("tdb delete, btc: %p, pTxn: %p", &btc, pTxn);
 
   // move the cursor
@@ -864,7 +865,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
     }
 
-    tdbPagerInsertFreePage(pBt->pPager, TDB_PAGE_PGNO(pNews[0]), pTxn);
+    tdbPagerInsertFreePage(pBt->pPager, pNews[0], pTxn);
   }
 
   for (int i = 0; i < 3; i++) {
@@ -875,7 +876,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
   for (pageIdx = 0; pageIdx < nOlds; ++pageIdx) {
     if (pageIdx >= nNews) {
-      tdbPagerInsertFreePage(pBt->pPager, TDB_PAGE_PGNO(pOlds[pageIdx]), pTxn);
+      tdbPagerInsertFreePage(pBt->pPager, pOlds[pageIdx], pTxn);
     }
     tdbPagerReturnPage(pBt->pPager, pOlds[pageIdx], pTxn);
   }
@@ -1319,10 +1320,6 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
           return -1;
         }
 
-        if (pDecoder->ofps) {
-          taosArrayPush(pDecoder->ofps, &pgno);
-        }
-
         ofpCell = tdbPageGetCell(ofp, 0);
 
         if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
@@ -1529,8 +1526,8 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
 
   if (pPage->vLen == TDB_VARIANT_LEN) {
     if (!leaf) {
-      tdbError("tdb/btree-cell-size: not a leaf page.");
-      return -1;
+      tdbError("tdb/btree-cell-size: not a leaf page:%p, pgno:%" PRIu32 ".", pPage, TDB_PAGE_PGNO(pPage));
+      // return -1;
     }
     nHeader += tdbGetVarInt(pCell + nHeader, &vLen);
   } else if (leaf) {
@@ -1570,7 +1567,26 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
           bytes = ofp->maxLocal - sizeof(SPgno);
         }
 
+        SPgno origPgno = pgno;
         memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+
+        ret = tdbPagerWrite(pBt->pPager, ofp);
+        if (ret < 0) {
+          tdbError("failed to write page since %s", terrstr());
+          return -1;
+        }
+        // tdbPageDropCell(ofp, 0, pTxn, pBt);
+        // tdbPageZero(ofp, sizeof(SLeafHdr), tdbBtreeCellSize);
+        // tdbPageZero(ofp, sizeof(SIntHdr), tdbBtreeCellSize);
+        // SIntHdr *pIntHdr = (SIntHdr *)(ofp->pData);
+        //  pIntHdr->flags = TDB_FLAG_ADD(0, TDB_BTREE_OVFL);
+        // pIntHdr->pgno = 0;
+        // ofp->pPager = NULL;
+
+        tdbPagerInsertFreePage(pBt->pPager, ofp, pTxn);
+
+        // printf("tdb recycle, pTxn: %p, pgno:%u\n", pTxn, pgno);
+        tdbTrace("tdb recycle, pTxn: %p, pgno:%u", pTxn, origPgno);
 
         tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
 
@@ -1991,6 +2007,11 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
     return -1;
   }
 
+  if (TDB_BTREE_PAGE_IS_OVFL(pBtc->pPage)) {
+    tdbError("tdb/btc-move-downward: should not be a ovfl page here.");
+    return -1;
+  }
+
   if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
     pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
     pgno = ((SPgno *)pCell)[0];
@@ -2080,14 +2101,6 @@ int tdbBtcDelete(SBTC *pBtc) {
   }
 
   tdbPageDropCell(pBtc->pPage, idx, pBtc->pTxn, pBtc->pBt);
-
-  // recycle ofps if any
-  if (pBtc->coder.ofps) {
-    for (int i = 0; i < TARRAY_SIZE(pBtc->coder.ofps); ++i) {
-      SPgno *pgno = taosArrayGet(pBtc->coder.ofps, i);
-      // tdbPagerInsertFreePage(pBtc->pBt->pPager, *pgno, pBtc->pTxn);
-    }
-  }
 
   // update interior page or do balance
   if (idx == nCells - 1) {
@@ -2382,10 +2395,6 @@ int tdbBtcClose(SBTC *pBtc) {
 
   if (pBtc->freeTxn) {
     tdbTxnClose(pBtc->pTxn);
-  }
-
-  if (pBtc->coder.ofps) {
-    taosArrayDestroy(pBtc->coder.ofps);
   }
 
   return 0;

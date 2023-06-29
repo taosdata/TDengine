@@ -690,3 +690,100 @@ TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_again) {
   insertOfp();
   system("ls -l ./tdb");
 }
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_seq_insert_ofp_nocommit) {
+TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_nocommit) {
+  clearDb("tdb");
+  insertOfp();
+  system("ls -l ./tdb");
+
+  // open Env
+  int       ret = 0;
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  {  // delete the data
+    char const *key = "key123456789";
+    ret = tdbTbDelete(pDb, key, strlen(key) + 1, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // 1, insert nData kv
+  {
+    int     nData = nDataConst;
+    char    key[64];
+    char    val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+    int64_t poolLimit = 4096;             // 1M pool limit
+    /*
+    SPoolMem *pPool;
+
+    // open the pool
+    pPool = openPool();
+
+    // start a transaction
+    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    */
+    for (int iData = 0; iData < nData; ++iData) {
+      sprintf(key, "key%03d", iData);
+      sprintf(val, "value%03d", iData);
+
+      ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), txn);
+      GTEST_ASSERT_EQ(ret, 0);
+      // if pool is full, commit the transaction and start a new one
+      if (pPool->size >= poolLimit) {
+        // commit current transaction
+        tdbCommit(pEnv, txn);
+        tdbPostCommit(pEnv, txn);
+
+        // start a new transaction
+        clearPool(pPool);
+
+        tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+      }
+    }
+  }
+
+  /*
+  // generate value payload
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
+  generateBigVal(val, valLen);
+
+  // insert the generated big data
+  // char const *key = "key1";
+  char const *key = "key123456789";
+  ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
+  GTEST_ASSERT_EQ(ret, 0);
+  */
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  system("ls -l ./tdb");
+}

@@ -292,7 +292,23 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   */
   return 0;
 }
+/*
+int tdbPagerCancelDirty(SPager *pPager, SPage *pPage, TXN *pTxn) {
+  SRBTreeNode *pNode = tRBTreeGet(&pPager->rbt, (SRBTreeNode *)pPage);
+  if (pNode) {
+    pPage->isDirty = 0;
 
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    if (pTxn->jPageSet) {
+      hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    }
+
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  }
+
+  return 0;
+}
+*/
 int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
   int    ret;
@@ -700,8 +716,9 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   //        TDB_PAGE_PGNO(pPage), pPage);
 }
 
-int tdbPagerInsertFreePage(SPager *pPager, SPgno pgno, TXN *pTxn) {
-  int code = 0;
+int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
+  int   code = 0;
+  SPgno pgno = TDB_PAGE_PGNO(pPage);
 
   // tdbError("tdb/insert-free-page: tbc get page: %d.", pgno);
   code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
@@ -709,6 +726,8 @@ int tdbPagerInsertFreePage(SPager *pPager, SPgno pgno, TXN *pTxn) {
     tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
     return -1;
   }
+
+  pPage->pPager = NULL;
 
   return code;
 }
