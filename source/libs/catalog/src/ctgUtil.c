@@ -1593,10 +1593,13 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(&pReq->tbName, dbFName);
 
+  // since that we add read/write previliges when create db, there is no need to check createdDbs
+#if 0
   if (pInfo->createdDbs && taosHashGet(pInfo->createdDbs, dbFName, strlen(dbFName))) {
     pRes->pass = true;
     return TSDB_CODE_SUCCESS;
   }
+#endif
 
   switch (pReq->type) {
     case AUTH_TYPE_READ: {

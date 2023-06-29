@@ -27,6 +27,7 @@ target_sources(
     "src/meta/metaEntry.c"
     "src/meta/metaSnapshot.c"
     "src/meta/metaCache.c"
+    "src/meta/metaTtl.c"
 
     # sma
     "src/sma/smaEnv.c"

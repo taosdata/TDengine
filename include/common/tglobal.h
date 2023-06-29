@@ -83,6 +83,7 @@ extern int64_t tsVndCommitMaxIntervalMs;
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
+extern bool    tsMndSkipGrant;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -119,6 +120,7 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsTtlChangeOnWrite;
 extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
@@ -184,6 +186,7 @@ extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
+extern int32_t tsPQSortMemThreshold;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

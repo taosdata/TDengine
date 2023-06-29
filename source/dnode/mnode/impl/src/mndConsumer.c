@@ -23,7 +23,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   1
+#define MND_CONSUMER_VER_NUMBER   2
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC           100
@@ -379,12 +379,13 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
+  int32_t code = 0;
   SMnode  *pMnode = pMsg->info.node;
   SMqHbReq req = {0};
 
-  if (tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
+  if ((code = tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req)) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    goto end;
   }
 
   int64_t         consumerId = req.consumerId;
@@ -392,7 +393,8 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   if (pConsumer == NULL) {
     mError("consumer:0x%" PRIx64 " not exist", consumerId);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
-    return -1;
+    code = -1;
+    goto end;
   }
 
   atomic_store_32(&pConsumer->hbStatus, 0);
@@ -412,9 +414,28 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
   }
 
+  for(int i = 0; i < taosArrayGetSize(req.topics); i++){
+    TopicOffsetRows* data = taosArrayGet(req.topics, i);
+    mDebug("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
+
+    SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
+    taosWLockLatch(&pSub->lock);
+    SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &consumerId, sizeof(int64_t));
+    if(pConsumerEp){
+      taosArrayDestroy(pConsumerEp->offsetRows);
+      pConsumerEp->offsetRows = data->offsetRows;
+      data->offsetRows = NULL;
+    }
+    taosWUnLockLatch(&pSub->lock);
+
+    mndReleaseSubscribe(pMnode, pSub);
+  }
+
   mndReleaseConsumer(pMnode, pConsumer);
 
-  return 0;
+end:
+  tDeatroySMqHbReq(&req);
+  return code;
 }
 
 static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
@@ -672,6 +693,11 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, tListLen(pConsumerNew->clientId));
 
+    pConsumerNew->withTbName = subscribe.withTbName;
+    pConsumerNew->autoCommit = subscribe.autoCommit;
+    pConsumerNew->autoCommitInterval = subscribe.autoCommitInterval;
+    pConsumerNew->resetOffsetCfg = subscribe.resetOffsetCfg;
+
 //  pConsumerNew->updateType = CONSUMER_UPDATE_SUB_MODIFY;   // use insert logic
     taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
@@ -815,7 +841,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
     goto CM_DECODE_OVER;
   }
 
-  if (sver != MND_CONSUMER_VER_NUMBER) {
+  if (sver < 1 || sver > MND_CONSUMER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto CM_DECODE_OVER;
   }
@@ -842,7 +868,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
 
-  if (tDecodeSMqConsumerObj(buf, pConsumer) == NULL) {
+  if (tDecodeSMqConsumerObj(buf, pConsumer, sver) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;  // TODO set correct error code
     goto CM_DECODE_OVER;
   }
@@ -1154,6 +1180,17 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       // rebalance time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->rebalanceTime, pConsumer->rebalanceTime == 0);
+
+      char buf[TSDB_OFFSET_LEN] = {0};
+      STqOffsetVal pVal = {.type = pConsumer->resetOffsetCfg};
+      tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal);
+
+      char parasStr[64 + TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+      sprintf(varDataVal(parasStr), "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName, pConsumer->autoCommit, pConsumer->autoCommitInterval, buf);
+      varDataSetLen(parasStr, strlen(varDataVal(parasStr)));
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)parasStr, false);
 
       numOfRows++;
     }

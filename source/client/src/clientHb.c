@@ -464,6 +464,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     desc.useconds = now - pRequest->metric.start;
     desc.reqRid = pRequest->self;
     desc.stableQuery = pRequest->stableQuery;
+    desc.isSubQuery = pRequest->isSubReq;
     taosGetFqdn(desc.fqdn);
     desc.subPlanNum = pRequest->body.subplanNum;
 

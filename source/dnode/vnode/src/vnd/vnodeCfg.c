@@ -325,7 +325,7 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
 
   if (hashValue < pVnode->config.hashBegin || hashValue > pVnode->config.hashEnd) {
     terrno = TSDB_CODE_VND_HASH_MISMATCH;
-    return TSDB_CODE_VND_HASH_MISMATCH;
+    return -1;
   }
 
   return 0;

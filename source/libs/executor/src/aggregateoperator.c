@@ -108,6 +108,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pInfo->groupId = UINT64_MAX;
+  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -164,10 +166,8 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   int64_t st = taosGetTimestampUs();
-
-  int32_t order = TSDB_ORDER_ASC;
-  int32_t scanFlag = MAIN_SCAN;
-
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t order = pAggInfo->binfo.inputTsOrder;
   bool hasValidBlock = false;
 
   while (1) {
@@ -185,12 +185,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
       }
     }
     hasValidBlock = true;
-
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
@@ -204,7 +199,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
-    setInputDataBlock(pSup, pBlock, order, scanFlag, true);
+    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     code = doAggregateImpl(pOperator, pSup->pCtx);
     if (code != 0) {
       destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
