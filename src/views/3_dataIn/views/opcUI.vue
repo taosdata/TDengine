@@ -748,7 +748,6 @@ export default {
     }
   },
   mounted() {
-    console.log(this.$parent.currentTaskStatus, "状态---0000--opcui");
     if (this.tagName == "mqtt") {
       this.constmqttCols = this.dbsource[0].parser.fields;
     }
@@ -1114,7 +1113,6 @@ export default {
           };
           dns += "&opc_table_config=" + JSON.stringify(saveConf);
         }
-        console.log(dns, querystr, "mqtt调用接口前的参数拼接");
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
