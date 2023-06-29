@@ -245,7 +245,6 @@ export default {
       },
     },
     checked(val) {
-        console.log('now trigger checked')
       this.disabledAgent = !val
       this.ruleForm.agent = ''
     }

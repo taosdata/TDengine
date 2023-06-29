@@ -323,12 +323,6 @@ export default {
         }
       },
     },
-    colData: {
-      deep: true,
-      handler(val, oldVal) {
-        // console.log(val, oldVal, "coldata");
-      },
-    },
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {
