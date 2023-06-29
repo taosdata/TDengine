@@ -1,9 +1,12 @@
+use std::{path::PathBuf, fs};
+
 use actix_web::{
     delete, get, patch, post,
-    web::{Data, Path, Query},
-    HttpResponse, Responder,
+    web::{Data, Path, Query, },
+    HttpResponse, Responder, 
 };
 
+use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -444,4 +447,71 @@ pub(super) async fn get_task_activities_by_id(
             message: err.to_string(),
         }),
     }
+}
+
+use actix_multipart::{
+    form::{
+        tempfile::{TempFile, },
+        MultipartForm,
+    },
+};
+#[derive(Debug, MultipartForm, ToSchema)]
+pub struct UploadForm {
+    #[multipart(rename = "file")]
+    files: Vec<TempFile>,
+}
+#[utoipa::path(
+    tag = "tasks",
+    request_body(content = UploadForm, content_type = "multipart/form-data"),
+    responses(
+        (status = 201, description = "file uploaded", body = Vec<String>),
+        (status = 500, description = "file upload error", body = Failed)
+    ),
+)]
+#[post("/upload")]
+pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>,) -> impl Responder {
+    match save_files(MultipartForm(form)).await {
+        Ok(file_saved) => HttpResponse::Created().json(file_saved),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+        }),
+    }
+}
+
+async fn save_files(MultipartForm(form): MultipartForm<UploadForm>,) -> anyhow::Result<Vec<String>> {
+    let upload_file_save_path = get_file_save_home_dir();
+    let mut file_save_paths = Vec::new();
+    if form.files.is_empty() {
+        anyhow::bail!("upload file is empty");
+    }
+    for f in form.files {
+        let uuid = uuid::Uuid::new_v4();
+        let path = std::path::Path::new(&format!("{}/{uuid}", upload_file_save_path.as_os_str().to_str().unwrap())).to_path_buf();
+        fs::create_dir_all(&path).with_context(|| "create file path failed")?;
+        let file_name = f.file_name.unwrap();
+        let releative_path = format!("{}/{file_name}", uuid::Uuid::new_v4());
+        log::info!("saving to {}, {releative_path}", upload_file_save_path.as_os_str().to_str().unwrap());
+        file_save_paths.push(format!("./files/{releative_path}"));
+        let path = std::path::Path::new(&format!("{}/{uuid}/{file_name}", upload_file_save_path.as_os_str().to_str().unwrap())).to_path_buf();
+        f.file.persist(path)?;
+    }
+    Ok(file_save_paths)
+}
+
+// const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
+pub(crate) const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
+    cfg_if::cfg_if! {
+        if #[cfg(windows)] {
+            "C:\\Program Files\\taosX\\files"
+        } else {
+            "/usr/local/taosx/files"
+        }
+    }
+};
+#[inline]
+pub fn get_file_save_home_dir() -> PathBuf {
+    // let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
+        // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
+    std::path::Path::new(&ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT).to_path_buf()
 }

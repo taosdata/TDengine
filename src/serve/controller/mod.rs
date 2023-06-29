@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::env;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -98,6 +99,8 @@ mod option_datetime_format {
         Target::deserialize(deserializer)
     }
 }
+
+use crate::serve::task;
 
 use self::agent::{
     Agent, AgentActivity, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
@@ -566,6 +569,10 @@ impl TaskController {
         // }
 
         let task_handler = async move {
+            // set current dir for upload files
+            let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.clone().replace("files", "");
+            let root = std::path::Path::new(path.as_str());
+            assert!(env::set_current_dir(&root).is_ok());
             let now = Utc::now();
             let _ = sqlx::query!(
                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
