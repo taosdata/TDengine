@@ -94,7 +94,7 @@ class TDTestCase:
                         consumer_commit = 1 if consumer_dict["enable.auto.commit"] == "true" else 0
                         consumer_tbname = 1 if consumer_dict["msg.with.table.name"] == "true" else 0
                         consumer_ret = "earliest" if offset_value == "" else offset_value
-                        expected_parameters=f'tbname:{consumer_tbname},commit:{consumer_commit},interval:{paraDict["auto_commit_interval"]},reset:{consumer_ret}'
+                        expected_parameters=f'tbname:{consumer_tbname},commit:{consumer_commit},interval:{paraDict["auto_commit_interval"]}ms,reset:{consumer_ret}'
                         if len(offset_value) == 0:
                             del consumer_dict["auto.offset.reset"]
                         consumer = Consumer(consumer_dict)

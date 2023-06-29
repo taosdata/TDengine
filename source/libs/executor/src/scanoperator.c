@@ -2374,6 +2374,10 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   if (pHandle->vnode) {
     SOperatorInfo*  pTableScanOp = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo);
+    if (pTableScanOp == NULL) {
+      qError("createTableScanOperatorInfo error, errorcode: %d", pTaskInfo->code);
+      goto _error;
+    }
     STableScanInfo* pTSInfo = (STableScanInfo*)pTableScanOp->info;
     if (pHandle->version > 0) {
       pTSInfo->base.cond.endVersion = pHandle->version;
