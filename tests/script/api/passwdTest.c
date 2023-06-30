@@ -166,11 +166,11 @@ void passVerTestMulti(const char *host, char *qstr) {
   // calculate the nPassVerNotified for root and users
   int nConn = nRoot + nUser;
 
-  for (int i = 1; i < 15; ++i) {
+  for (int i = 0; i < 15; ++i) {
+    printf("%s:%d [%d] second(s) elasped, passVer notification received:%d, total:%d\n", __func__, __LINE__, i,
+           nPassVerNotified, nConn);
     if (nPassVerNotified >= nConn) break;
     sleep(1);
-    printf("%s:%d %d second(s) elasped, passVer notification received:%d, total:%d\n", __func__, __LINE__, i,
-           nPassVerNotified, nConn);
   }
 
   // close the taos_conn

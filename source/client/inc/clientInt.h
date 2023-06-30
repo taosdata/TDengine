@@ -64,7 +64,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
-  int8_t  connHbFlag;
+  int8_t  connHbFlag;   // 0 init, 1 send req, 2 get resp
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl

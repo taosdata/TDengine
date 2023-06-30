@@ -1382,7 +1382,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
 
     pUsers[i].version = ntohl(pUsers[i].version);
     if (pUser->authVersion <= pUsers[i].version) {
-      mTrace("pUser->authVersion:%d <= pUsers[i].version:%d", pUser->authVersion, pUsers[i].version);
+      printf("pUser->authVersion:%d <= pUsers[i].version:%d\n", pUser->authVersion, pUsers[i].version);
       mndReleaseUser(pMnode, pUser);
       continue;
     }
