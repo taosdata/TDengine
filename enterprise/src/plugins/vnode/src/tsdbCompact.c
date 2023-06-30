@@ -973,6 +973,14 @@ static int32_t tsdbCompactFSetBegin(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  int32_t expLevel = 0;
+  tsdbFidLevel(compactor->ctx->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
+  code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   code = tsdbCompactFSetOpenReader(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
 
