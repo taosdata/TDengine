@@ -816,7 +816,7 @@ SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colLi
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
-void*              destroySttBlockReader(SArray* pLDataIterArray);
+void              *destroySttBlockReader(SArray *pLDataIterArray, int64_t *blocks, double *el);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {

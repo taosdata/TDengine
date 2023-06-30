@@ -134,14 +134,13 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   return NULL;
 }
 
-static void destroyLDataIterFn(void* param) {
-  SLDataIter** pIter = (SLDataIter**) param;
-  tLDataIterClose2(*pIter);
-  destroyLastBlockLoadInfo((*pIter)->pBlockLoadInfo);
-  taosMemoryFree(*pIter);
+static void destroyLDataIter(SLDataIter* pIter) {
+  tLDataIterClose2(pIter);
+  destroyLastBlockLoadInfo(pIter->pBlockLoadInfo);
+  taosMemoryFree(pIter);
 }
 
-void* destroySttBlockReader(SArray* pLDataIterArray) {
+void* destroySttBlockReader(SArray* pLDataIterArray, int64_t* blocks, double* el) {
   if (pLDataIterArray == NULL) {
     return NULL;
   }
@@ -149,7 +148,13 @@ void* destroySttBlockReader(SArray* pLDataIterArray) {
   int32_t numOfLevel = taosArrayGetSize(pLDataIterArray);
   for(int32_t i = 0; i < numOfLevel; ++i) {
     SArray* pList = taosArrayGetP(pLDataIterArray, i);
-    taosArrayDestroyEx(pList, destroyLDataIterFn);
+    for(int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
+      SLDataIter* pIter = taosArrayGetP(pList, j);
+      *el += pIter->pBlockLoadInfo->elapsedTime;
+      *blocks += pIter->pBlockLoadInfo->loadBlocks;
+      destroyLDataIter(pIter);
+    }
+    taosArrayDestroy(pList);
   }
 
   taosArrayDestroy(pLDataIterArray);
@@ -499,7 +504,7 @@ void tLDataIterNextBlock(SLDataIter *pIter, const char *idStr) {
   if (index != -1) {
     pIter->iSttBlk = index;
     pIter->pSttBlk = (SSttBlk *)taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, pIter->iSttBlk);
-    tsdbDebug("try next last file block:%d from %d, trigger by uid:%" PRIu64 ", file index:%d, %s", pIter->iSttBlk,
+    tsdbDebug("try next last file block:%d from stt fileIdx:%d, trigger by uid:%" PRIu64 ", file index:%d, %s", pIter->iSttBlk,
               oldIndex, pIter->uid, pIter->iStt, idStr);
   } else {
     tsdbDebug("no more last block qualified, uid:%" PRIu64 ", file index:%d, %s", pIter->uid, oldIndex, idStr);
