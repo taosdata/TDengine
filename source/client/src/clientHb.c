@@ -620,8 +620,6 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   }
 
   if (userNum <= 0) {
-    // printf("%s:%d hb get expired: [User:%s] NNNNo user since user num:  %d, second:%d\n", __func__, __LINE__, pTscObj->user, userNum,
-    //        taosGetTimestampSec());
     taosMemoryFree(users);
     releaseTscObj(connKey->tscRid);
     return TSDB_CODE_SUCCESS;
