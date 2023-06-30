@@ -112,6 +112,8 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
 
   committer->ctx->hasTSData = false;
 
+  committer->ctx->tbid->suid = 0;
+  committer->ctx->tbid->uid = 0;
   for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
       committer->ctx->tbid->suid = row->suid;
@@ -149,14 +151,28 @@ _exit:
 }
 
 static int32_t tsdbCommitTombData(SCommitter2 *committer) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SMetaInfo info;
 
   if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
     return 0;
   }
 
+  committer->ctx->tbid->suid = 0;
+  committer->ctx->tbid->uid = 0;
   for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
+    if (record->uid != committer->ctx->tbid->uid) {
+      committer->ctx->tbid->suid = record->suid;
+      committer->ctx->tbid->uid = record->uid;
+
+      if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
+        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      }
+    }
+
     if (record->ekey < committer->ctx->minKey) {
       goto _next;
     } else if (record->skey > committer->ctx->maxKey) {
