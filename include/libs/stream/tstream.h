@@ -347,6 +347,11 @@ typedef struct SStreamMeta {
   void*        streamBackend;
   int64_t      streamBackendRid;
   int64_t      checkpointTs;
+
+  SArray*  checkpointSaved;
+  SArray*  checkpointInUse;
+  int32_t  checkpointCap;
+  SRWLatch checkpointDirLock;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
