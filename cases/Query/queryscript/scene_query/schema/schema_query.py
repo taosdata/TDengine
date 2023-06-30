@@ -158,7 +158,7 @@ class TDTestQuery(TDCase):
         slimit_offset = random.randint(0,1000000)
         
         if num == 1:
-            #只返回limit
+            #只返回limit,
             i = random.randint(0,4)
             if i ==1:
                 limit_slimit = ' limit %d ' %limit_num 
@@ -169,7 +169,7 @@ class TDTestQuery(TDCase):
             else:
                 limit_slimit = ' '  
         else:
-            #返回limit+slimit
+            #返回limit+slimit，适合group by,partition by
             i = random.randint(0,17)
             if i ==1:
                 limit_slimit = ' limit %d ' %limit_num 
@@ -206,7 +206,349 @@ class TDTestQuery(TDCase):
             
         return limit_slimit
         
+    def event_window_i(self,i):   
+        trigger_condition = ''
+        fake = Faker('zh_CN')
+        data_bigint = fake.random_int(min=-1000000000, max=1000000000, step=1);
+        data_int = fake.random_int(min=-1000000, max=1000000, step=1);
+        data_smallint = fake.random_int(min=-1000, max=1000, step=1);
+        data_tinyint = fake.random_int(min=-10, max=10, step=1);
+        data_float = fake.pyfloat()/1000000;
+        data_str = fake.pystr();
         
+        event_window_support_data_all_types = ['q_bigint','q_smallint','q_tinyint','q_int','q_bigint_null','q_smallint_null','q_tinyint_null','q_int_null'] 
+        event_window_support_float_all_types = ['q_double','q_float','q_double_null','q_float_null'] 
+        
+        
+        event_window_support_data_types = ['q_bigint','q_smallint','q_tinyint','q_int'] 
+        event_window_support_data_bigint = ['q_bigint']
+        event_window_support_data_smallint = ['q_smallint']
+        event_window_support_data_int = ['q_int']
+        event_window_support_data_tinyint = ['q_tinyint']
+        
+        event_window_support_float_types = ['q_double','q_float'] 
+        event_window_support_str_types = ['q_nchar','q_binary'] 
+        
+        event_window_support_data_operators = ['>','<','!=','>=','<='] #,'='
+        
+        event_window_support_is_not_null_table = [" q_bigint is not null "," q_int is not null "," q_tinyint is not null "," q_smallint is not null "," q_bool is not null ",
+                                            " q_binary is not null "," q_nchar is not null "," q_double is not null "," q_float is not null "," q_ts is not null ",
+                                            " _c0 is not null "," _c0 is not null ",
+                                            " q_bigint_null is null "," q_int_null is null "," q_tinyint_null is null "," q_smallint_null is null "," q_bool_null is null ",
+                                            " q_binary_null is null "," q_nchar_null is null "," q_double_null is null "," q_float_null is null "," q_ts_null is null ",]
+        
+        event_window_support_is_not_null_stable = [" q_bigint is not null "," q_int is not null "," q_tinyint is not null "," q_smallint is not null "," q_bool is not null ",
+                                            " q_binary is not null "," q_nchar is not null "," q_double is not null "," q_float is not null "," q_ts is not null ",
+                                            " _c0 is not null "," _c0 is not null ",
+                                            " q_bigint_null is null "," q_int_null is null "," q_tinyint_null is null "," q_smallint_null is null "," q_bool_null is null ",
+                                            " q_binary_null is null "," q_nchar_null is null "," q_double_null is null "," q_float_null is null "," q_ts_null is null ",
+                                            " t_bigint is not null "," t_int is not null "," t_tinyint is not null "," t_smallint is not null "," t_bool is not null ",
+                                            " t_binary is not null "," t_nchar is not null "," t_double is not null "," t_float is not null "," t_ts is not null ",]
+        
+        event_window_support_str_operators_table = ["q_binary not like STAbinary_END","q_binary like STAbinaryENND","q_nchar not like STAnchar_END","q_nchar like STAncharENND",
+                                              "q_binary match STAbinaryEND","q_binary nmatch STAncharEND","q_nchar match STAncharEND","q_nchar nmatch STAbinaryEND",]
+        
+        event_window_support_str_operators_stable = ["q_binary not like STAbinary_END","q_binary like STAbinaryENND","q_nchar not like STAnchar_END","q_nchar like STAncharENND",
+                                              "q_binary match STAbinaryEND","q_binary nmatch STAncharEND","q_nchar match STAncharEND","q_nchar nmatch STAbinaryEND",
+                                              "t_binary not like STAbinary_END","t_binary like STAbinaryENND","t_nchar not like STAnchar_END","t_nchar like STAncharENND",
+                                              "t_binary match STAbinaryEND","t_binary nmatch STAncharEND","t_nchar match STAncharEND","t_nchar nmatch STAbinaryEND",
+                                              "loc match STA<table>END","loc match STA<^qwryuiop>END","loc nmatch STA<^>END","loc nmatch STA<qwryuiop>END",
+                                              "t_binary match STA<binary>END","t_binary match STA<^爨龘>END","t_binary nmatch STA<爨龘>END","t_binary nmatch STA<^>END",
+                                              "t_nchar match STA<nchar>END","t_nchar match STA<^爨龘>END","t_nchar nmatch STA<爨龘>END","t_nchar nmatch STA<^>END",
+                                              "loc match STA<a-z>END","t_binary match STA<a-z>END","t_nchar match STA<a-z>END",
+                                              "loc match STA<a-zA-Z>END","t_binary match STA<a-zA-Z>END","t_nchar match STA<a-zA-Z>END",
+                                              "loc match STA.END","t_binary match STA.END","t_nchar match STA.END",
+                                              "loc match STA.*END","t_binary match STA.*END","t_nchar match STA.*END",
+                                              "loc match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|zEND","loc match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|ZEND",
+                                              "t_binary match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|zEND","t_binary match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|ZEND",
+                                              "t_nchar match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|zEND","t_nchar match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|ZEND",
+                                              "( loc match STA\sEND or loc match STA\SEND )","( t_binary match STA\sEND or t_binary match STA\SEND )","( t_nchar match STA\sEND or t_nchar match STA\SEND )",
+                                              "loc nmatch STA\sEND "," t_binary nmatch STA\sEND "," t_nchar nmatch STA\sEND ",
+                                              "( loc match STA\wEND or loc match STA\WEND )","( t_binary match STA\wEND or t_binary match STA\WEND )","( t_nchar match STA\wEND or t_nchar match STA\WEND )",
+                                              "loc match STA\wEND "," t_binary match STA\wEND "," t_nchar match STA\wEND ",]
+               
+        
+        trigger_condition_data_common = random.sample(event_window_support_data_types,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data = str(trigger_condition_data_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_int)
+        
+        trigger_condition_data_bigint = random.sample(event_window_support_data_bigint,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_bigint = str(trigger_condition_data_bigint).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_bigint)
+        trigger_condition_data_smallint = random.sample(event_window_support_data_smallint,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_smallint = str(trigger_condition_data_smallint).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_smallint)
+        trigger_condition_data_int = random.sample(event_window_support_data_int,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_int = str(trigger_condition_data_int).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_int)
+        trigger_condition_data_tinyint = random.sample(event_window_support_data_types,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_tinyint = str(trigger_condition_data_tinyint).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_tinyint)
+        
+        trigger_condition_float_common = random.sample(event_window_support_float_types,1) + random.sample(event_window_support_data_operators,1)
+        trigger_condition_float = str(trigger_condition_float_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_float)
+        
+        trigger_condition_str_error_common = random.sample(event_window_support_str_types,1) + random.sample(event_window_support_data_operators,1)
+        trigger_condition_str_error = str(trigger_condition_str_error_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_str)
+        
+        trigger_condition_str_right_table = str(random.sample(event_window_support_str_operators_table,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace("STA","'").replace("END","'").replace("ENND","%'").replace(",","")
+        trigger_condition_str_right_stable = str(random.sample(event_window_support_str_operators_stable,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace("STA","'").replace("END","'").replace("ENND","%'").replace(",","").replace("<","[").replace(">","]")#< > repalce [正则 ]
+               
+        trigger_condition_is_not_null_table = str(random.sample(event_window_support_is_not_null_table,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(",","")
+        trigger_condition_is_not_null_stable = str(random.sample(event_window_support_is_not_null_stable,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(",","")
+              
+              
+        q_tinyint_list=[]
+        for q_list_i in range(-300,300):
+            q_tinyint_list.append(q_list_i)
+        q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
+        
+        t_tinyint_list=[]
+        for t_list_i in range(-300,300):
+            t_tinyint_list.append(t_list_i)
+        t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
+
+        trigger_condition_in_table = [q_tinyint_list, "q_bool in (0 , 1) " ,  "q_bool in ( true , false) " ," (q_bool = true or  q_bool = false)" , "(q_bool = 0 or q_bool = 1)",]
+        trigger_condition_in_table = str(random.sample(trigger_condition_in_table,1)).replace("[","").replace("]","").replace("'","")
+
+        trigger_condition_in_stable = [t_tinyint_list, "t_bool in (0 , 1) " ,  "t_bool in ( true , false) " ," (t_bool = true or  t_bool = false)" , "(t_bool = 0 or t_bool = 1)",
+                                       q_tinyint_list, "q_bool in (0 , 1) " ,  "q_bool in ( true , false) " ," (q_bool = true or  q_bool = false)" , "(q_bool = 0 or q_bool = 1)",]
+        trigger_condition_in_stable = str(random.sample(trigger_condition_in_stable,1)).replace("[","").replace("]","").replace("'","")
+        
+        if i==1:
+            trigger_condition = trigger_condition_data_bigint;
+        elif i==2:
+            trigger_condition = trigger_condition_data_smallint;
+        elif i==3:
+            trigger_condition = trigger_condition_data_int;
+        elif i==4:
+            trigger_condition = trigger_condition_data_tinyint;        
+        elif i==5:
+            trigger_condition = trigger_condition_float;
+            
+        elif i==6:
+            trigger_condition = trigger_condition_str_right_stable;  
+        elif i==61:
+            trigger_condition = trigger_condition_str_error;
+        elif i==7:
+            trigger_condition = trigger_condition_is_not_null_stable; 
+        elif i==8:
+            trigger_condition = trigger_condition_in_stable; 
+            
+            
+        elif i==11:
+            trigger_condition = trigger_condition_is_not_null_table; 
+        elif i==12:
+            trigger_condition = trigger_condition_is_not_null_table; 
+        elif i==13:
+            trigger_condition = trigger_condition_in_table; 
+            
+        return trigger_condition   
+
+    def time_window(self,db_tb,i):  
+        #数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 
+        #在指定降频操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。     
+        interval_n, offset_n, sliding_n = [random.randrange(10,20)]  , [random.randrange(1,10)] , [random.randrange(1,10)] 
+        time_window = ''
+                
+        #单interval
+        interval_units = ['s','m','h','d','w','n','a','y']
+        unit = random.sample(interval_units,1)
+        interval_base = str(interval_n + unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_interval = 'interval'+'(' +interval_base + ')'
+        
+        #单interval+offset
+        offset_base = str(offset_n + unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_interval_offset = 'interval'+'(' +interval_base + ',' + offset_base + ')'
+
+        #interval + sliding
+        interval_sliding_units = ['s','m','h','d','w'] #有限制，所以需要删除几个
+        interval_sliding_unit = random.sample(interval_sliding_units,1)
+        
+        sliding_base = str(sliding_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_sliding = 'sliding'+'(' +sliding_base + ')'
+
+        sliding_interval_no_offset = str(interval_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        sliding_interval = 'interval'+'(' +sliding_interval_no_offset + ')'
+        
+        sliding_interval_offset = str(offset_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        sliding_interval_offset = 'interval'+'(' + sliding_interval_no_offset + ',' + sliding_interval_offset + ')'
+        
+        #单fill,对时间强要求
+        fill_random_num = random.randint(-100000000,100000000)
+        fill_random_nu2 = random.randint(-100000000,100000000)
+        fill_random_nu3 = random.randint(-100000000,100000000)
+        fills_all = ['NONE','VALUE,100','VALUE_F,100','PREV','NULL','NULL_F','LINEAR','NEXT','VALUE,10000','VALUE_F,10000','VALUE,fill_random_num','VALUE_F,fill_random_num',
+                     'VALUE,fill_random_num + fill_random_nu2','VALUE_F,fill_random_num + fill_random_nu2','VALUE_F,fill_random_num + fill_random_nu2 + fill_random_nu3',
+                     'VALUE,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num - fill_random_nu2 - fill_random_nu3',
+                     'VALUE,fill_random_num * fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2 * fill_random_nu3',
+                     'VALUE,fill_random_num / fill_random_nu2','VALUE_F,fill_random_num / fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2 / fill_random_nu3']
+        fill_base = str(random.sample(fills_all,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
+        single_fill = 'Fill' +'(' +fill_base + ')'
+        
+        #强制fill,对时间强要求
+        #fill_random_num = random.randint(-1000000,1000000)
+        fills_f = ['VALUE_F,fill_random_num','NULL_F','VALUE_F,10000',
+                'VALUE_F,fill_random_num + fill_random_nu2','VALUE_F,fill_random_num + fill_random_nu2 + fill_random_nu3',
+                'VALUE_F,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num - fill_random_nu2 - fill_random_nu3',
+                'VALUE_F,fill_random_num * fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2 * fill_random_nu3',
+                'VALUE_F,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num / fill_random_nu2 / fill_random_nu3']
+        fill_f_base = str(random.sample(fills_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
+        single_fill_f = 'Fill' +'(' +fill_f_base + ')'
+        
+        #单fill,对时间强要求
+        #fill_random_num = random.randint(-1000000,1000000)
+        fills_not_f = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT','VALUE,10000','VALUE,fill_random_num',
+                    'VALUE,fill_random_num + fill_random_nu2','VALUE,fill_random_num + fill_random_nu2 + fill_random_nu3',
+                    'VALUE,fill_random_num - fill_random_nu2','VALUE,fill_random_num - fill_random_nu2 - fill_random_nu3',
+                    'VALUE,fill_random_num * fill_random_nu2','VALUE,fill_random_num * fill_random_nu2 * fill_random_nu3',
+                    'VALUE,fill_random_num / fill_random_nu2','VALUE,fill_random_num / fill_random_nu2 / fill_random_nu3']
+        fill_not_f_base = str(random.sample(fills_not_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
+        single_fill_not_f = 'Fill' +'(' +fill_not_f_base + ')'
+
+        #超级表，不支持session，state_window
+        session_units = ['s','m','h','d','w','a'] #不支持n(自然月) 和 y(自然年)
+        session_unit = random.sample(session_units,1)
+        session_base = str(interval_n + session_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_session = 'SESSION'+'(ts,'+ session_base + ')'
+        
+        #单state_window
+        func = ['STATE_WINDOW']
+        window_support_types = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_bool)'] #其余不支持
+        state_window = random.sample(func,1)+random.sample(window_support_types,1)
+        single_state_window = str(state_window).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        #event_window
+        #stable = 1\2\3\4\5\6\7
+        # table = 1\2\3\4\5\11\12
+        stable_event_list = (1,2,3,4,5,6,7,8,)
+        event_num1,event_num2 = random.choice(stable_event_list),random.choice(stable_event_list)
+        start_trigger_condition1,start_trigger_condition2 =  self.event_window_i(event_num1),self.event_window_i(event_num1)
+        end_trigger_condition1,end_trigger_condition2 =  self.event_window_i(event_num2),self.event_window_i(event_num2)      
+        single_event_window_stable_1 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1
+        single_event_window_stable_2 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_stable_3 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1
+        single_event_window_stable_4 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_stable_5 = ' EVENT_WINDOW START WITH '  + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,8)) + ' END WITH ' + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,8))
+
+
+        table_event_list = (1,2,3,4,5,11,12,13,)
+        event_num1,event_num2 = random.choice(table_event_list),random.choice(table_event_list)
+        start_trigger_condition1,start_trigger_condition2 =  self.event_window_i(event_num1),self.event_window_i(event_num1)
+        end_trigger_condition1,end_trigger_condition2 =  self.event_window_i(event_num2),self.event_window_i(event_num2) 
+        single_event_window_table_1 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1
+        single_event_window_table_2 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_table_3 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1
+        single_event_window_table_4 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_table_5 = ' EVENT_WINDOW START WITH '  + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(11,13)) + ' END WITH ' + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(11,13))
+
+        if i == 1:
+            time_window = single_interval
+        elif i == 2:
+            time_window = single_interval_offset
+        elif i == 3:
+            time_window = sliding_interval + ' ' + single_sliding
+        elif i == 4:
+            time_window = sliding_interval_offset + ' ' + single_sliding
+                        
+        # elif i == 6:
+        #     time_window = sliding_interval + ' ' + single_fill 
+        # elif i == 7:
+        #     time_window = sliding_interval + ' ' + single_sliding + ' ' + single_fill 
+        # elif i == 8:
+        #     time_window = sliding_interval_offset + ' ' + single_fill 
+        # elif i == 9:
+        #     time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill 
+            
+        # elif i == 61:
+        #     time_window = sliding_interval + ' ' + single_fill_f 
+        # elif i == 71:
+        #     time_window = sliding_interval + ' ' + single_sliding + ' ' + single_fill_f 
+        # elif i == 81:
+        #     time_window = sliding_interval_offset + ' ' + single_fill_f 
+        # elif i == 91:
+        #     time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill_f 
+            
+        # elif i == 62:
+        #     time_window = sliding_interval + ' ' + single_fill_not_f 
+        # elif i == 72:
+        #     time_window = sliding_interval + ' ' + single_sliding + ' ' + single_fill_not_f 
+        # elif i == 82:
+        #     time_window = sliding_interval_offset + ' ' + single_fill_not_f 
+        # elif i == 92:
+        #     time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill_not_f 
+                                    
+        # #下面是错误的
+        # elif i == 11:
+        #     time_window = single_sliding
+        # elif i == 12:
+        #     time_window = single_fill 
+        # elif i == 13:
+        #     time_window = single_sliding + ' ' + single_fill    
+        # elif i == 14:
+        #     time_window = single_session + ' ' + single_state_window  
+        # elif i == 15:
+        #     time_window = single_sliding + ' ' + single_session  
+        # elif i == 16:
+        #     time_window = single_sliding + ' ' + single_state_window  
+        # elif i == 17:
+        #     time_window = single_fill + ' ' + single_session  
+        # elif i == 18:
+        #     time_window = single_fill + ' ' + single_state_window  
+        # elif i == 19:
+        #     time_window = single_fill + ' ' + single_session  + ' ' + single_state_window
+        # elif i == 20:
+        #     time_window = single_sliding + ' ' + single_fill + ' ' + single_session  + ' ' + single_state_window
+                                    
+        # #部分正确的，超级表错误，子表，普通表正确     
+        # elif i == 21:
+        #     time_window = single_session
+        # elif i == 22:
+        #     time_window = single_state_window
+            
+        # #event_window    #stable-right
+        # elif i == 31:
+        #     time_window = single_event_window_stable_1
+        # elif i == 32:
+        #     time_window = single_event_window_stable_2
+        # elif i == 33:
+        #     time_window = single_event_window_stable_3
+        # elif i == 34:
+        #     time_window = single_event_window_stable_4
+        # elif i == 35:
+        #     time_window = single_event_window_stable_5
+            
+        # #event_window    #table-right
+        # elif i == 41:
+        #     time_window = single_event_window_table_1
+        # elif i == 42:
+        #     time_window = single_event_window_table_2
+        # elif i == 43:
+        #     time_window = single_event_window_table_3
+        # elif i == 44:
+        #     time_window = single_event_window_table_4
+        # elif i == 45:
+        #     time_window = single_event_window_table_5
+         
+        # #event_window_error    
+        # elif i == 50:
+        #     time_window = single_event_window_stable_1 + ' ' + single_state_window 
+        # elif i == 51:
+        #     time_window = single_event_window_stable_1 + ' ' + single_interval  
+        # elif i == 52:
+        #     time_window = single_event_window_stable_1 + ' ' + single_interval_offset  
+        # elif i == 53:
+        #     time_window = single_event_window_stable_1 + ' ' + single_sliding  
+        # elif i == 54:
+        #     time_window = single_event_window_stable_1 + ' ' + single_session  
+        # elif i == 55:
+        #     time_window = single_state_window + ' '  +  single_event_window_stable_1  
+        # elif i == 56:
+        #     time_window = single_interval + ' '  +  single_event_window_stable_1  
+        # elif i == 57:
+        #     time_window = single_interval_offset + ' '  +  single_event_window_stable_1     
+        # elif i == 58:
+        #     time_window = single_sliding + ' '  +  single_event_window_stable_1    
+        # elif i == 59:
+        #     time_window = single_session + ' '  +  single_event_window_stable_1  
+
+                               
+        return time_window        
         
     def describe_table(self,db_tb):
         random_num1 = random.randint(0,1000)
@@ -215,15 +557,18 @@ class TDTestQuery(TDCase):
         self.tdSql.query(describe_sql)  
         rows = self.tdSql.query_row
         
-        # column
-        for i in range(rows):
-            self.tdSql.query(describe_sql) 
-            self.basic_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','',',NUM','')
-        
-        # #count    
+        # # column
         # for i in range(rows):
         #     self.tdSql.query(describe_sql) 
-        #     self.basic_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','count',',NUM','')
+        #     self.basic_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','',',NUM','')
+        
+        #count    
+        for i in range(rows):
+            self.tdSql.query(describe_sql) 
+            self.basic_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','count',',NUM','')
+        for i in range(rows):
+            self.tdSql.query(describe_sql) 
+            self.interval_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','count',',NUM','')
         
         # #sample    
         # for i in range(rows):
@@ -302,10 +647,10 @@ class TDTestQuery(TDCase):
         column_tag_list_where = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
         column_tag_list_where_1 = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
         limit = self.limit_slimit(db_tb,1)
-        limit_slimit = self.limit_slimit(db_tb,2)
+        limit_slimit = self.limit_slimit(db_tb,2)  #适合group by,partition by
         
-        # sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
-        # self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
         # sql_str = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         # self.basic_query_util(sql_str,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
@@ -339,10 +684,10 @@ class TDTestQuery(TDCase):
         # sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where_1)
         # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit_slimit)
-        sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit_slimit)
-        sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
-        self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit)
+        # sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit)
+        # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
+        # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
         # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
@@ -362,7 +707,21 @@ class TDTestQuery(TDCase):
         # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
+
+    def interval_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        column_tag_list = self.random_column_tag(db_tb)
+        column_tag_list_where = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
+        column_tag_list_where_1 = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
+        limit = self.limit_slimit(db_tb,1)
+        limit_slimit = self.limit_slimit(db_tb,2)  #适合group by,partition by
+        
+        for i in (1,2,3,4,21,41,42,43,44,45,):                        
+            time_window = self.time_window(i)
             
+            sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s %s " %(data_col,db_tb,time_window)
+            self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+                    
     def basic_query_util_bak(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
         sql_base = "select DISTINCT FUNCTION(`%s`,NUM) from %s " %(data_col,db_tb)
         sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
@@ -758,15 +1117,17 @@ class TDTestQuery(TDCase):
                                         
     def run(self):
         startTime = time.time() 
+        
+        self.tdSql.query("alter local 'schedulePolicy' '2';") 
          
         #self.describe_table(self.db_tb) 
         
-        self.describe_table("`table_sample_1`.`stable_1`") 
-        #self.describe_table("`information_schema`.`ins_dnodes`") 
-        # self.describe_table("`information_schema`.`ins_mnodes`")
-        # #self.describe_table("`information_schema`.`ins_modules`")  #TD-24684
-        # self.describe_table("`information_schema`.`ins_qnodes`")
-        # self.describe_table("`information_schema`.`ins_snodes`")
+        #self.describe_table("`table_sample_1`.`stable_1`") 
+        self.describe_table("`information_schema`.`ins_dnodes`") 
+        self.describe_table("`information_schema`.`ins_mnodes`")
+        #self.describe_table("`information_schema`.`ins_modules`")  #TD-24684
+        self.describe_table("`information_schema`.`ins_qnodes`")
+        self.describe_table("`information_schema`.`ins_snodes`")
         # self.describe_table("`information_schema`.`ins_cluster`")
         # self.describe_table("`information_schema`.`ins_databases`")
         # self.describe_table("`information_schema`.`ins_functions`")
