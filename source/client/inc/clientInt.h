@@ -33,6 +33,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tmsgtype.h"
 #include "trpc.h"
+#include "tsimplehash.h"
 
 #include "tconfig.h"
 
@@ -63,7 +64,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
-  int32_t passKeyCnt;   // with passVer call back
+  int8_t  connHbFlag;
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -83,8 +84,9 @@ typedef struct {
   int8_t        threadStop;
   int8_t        quitByKill;
   TdThread      thread;
-  TdThreadMutex lock;  // used when app init and cleanup
+  TdThreadMutex lock;       // used when app init and cleanup
   SHashObj*     appSummary;
+  SSHashObj*    appHbHash;  // key: clusterId
   SArray*       appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle  reqHandle[CONN_TYPE__MAX];
   FHbRspHandle  rspHandle[CONN_TYPE__MAX];
