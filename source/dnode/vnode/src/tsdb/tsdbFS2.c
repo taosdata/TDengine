@@ -870,3 +870,20 @@ int32_t tsdbFSWaitAllBgTask(STFileSystem *fs) {
   taosThreadMutexUnlock(fs->mutex);
   return 0;
 }
+
+static int32_t tsdbFSDoDisableBgTask(STFileSystem *fs) {
+  // TODO
+  return 0;
+}
+
+int32_t tsdbFSDisableBgTask(STFileSystem *fs) {
+  taosThreadMutexLock(fs->mutex);
+  int32_t code = tsdbFSDoDisableBgTask(fs);
+  taosThreadMutexUnlock(fs->mutex);
+  return code;
+}
+
+int32_t tsdbFSEnableBgTask(STFileSystem *fs) {
+  // TODO
+  return 0;
+}

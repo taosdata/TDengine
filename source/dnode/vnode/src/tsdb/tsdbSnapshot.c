@@ -385,7 +385,7 @@ static int32_t tsdbSnapReadTombData(STsdbSnapReader* reader, uint8_t** data) {
       tbid->suid = record->suid;
       tbid->uid = record->uid;
       if (metaGetInfo(reader->tsdb->pVnode->pMeta, tbid->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTombData(reader->tombIterMerger, tbid);
+        code = tsdbIterMergerSkipTableData(reader->tombIterMerger, tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
