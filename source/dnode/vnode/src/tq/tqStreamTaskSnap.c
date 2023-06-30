@@ -119,8 +119,7 @@ NextTbl:
     break;
   }
   if (except == 1) {
-    if (pReader->pos + 1 >= taosArrayGetSize(pReader->tdbTbList)) {
-    } else {
+    if (pReader->pos + 1 < taosArrayGetSize(pReader->tdbTbList)) {
       tdbTbcClose(pReader->pCur);
 
       pReader->pos += 1;
