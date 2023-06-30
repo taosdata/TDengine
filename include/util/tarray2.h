@@ -138,8 +138,7 @@ static FORCE_INLINE int32_t tarray2SortInsert(void *arr, const void *elePtr, int
 #define TARRAY2_APPEND(a, e)           TARRAY2_APPEND_PTR(a, &(e))
 
 // return (TYPE *)
-#define TARRAY2_SEARCH(a, ep, cmp, flag) \
-  (typeof((a)->data))tarray2Search(a, ep, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag)
+#define TARRAY2_SEARCH(a, ep, cmp, flag) tarray2Search(a, ep, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag)
 
 #define TARRAY2_SEARCH_IDX(a, ep, cmp, flag) \
   tarray2SearchIdx(a, ep, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag)
