@@ -27,6 +27,7 @@ typedef struct {
   bool snapShot;
   bool dropTable;
   bool subTable;
+  int  meta;
   int  srcVgroups;
   int  dstVgroups;
   char dir[64];
@@ -511,14 +512,18 @@ int32_t create_topic() {
   taos_free_result(pRes);
 
   if (g_conf.subTable) {
-    pRes = taos_query(pConn, "create topic meters_summary_t1 with meta as stable meters_summary");
+    char topic[128] = {0};
+    sprintf(topic, "create topic meters_summary_t1 %s as stable meters_summary", g_conf.meta == 0 ? "with meta" : "only meta");
+    pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic meters_summary_t1, reason:%s\n", taos_errstr(pRes));
       return -1;
     }
     taos_free_result(pRes);
   } else {
-    pRes = taos_query(pConn, "create topic topic_db with meta as database abc1");
+    char topic[128] = {0};
+    sprintf(topic, "create topic topic_db %s as database abc1", g_conf.meta == 0 ? "with meta" : "only meta");
+    pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
       return -1;
@@ -802,6 +807,8 @@ int main(int argc, char* argv[]) {
       g_conf.dstVgroups = atol(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
       g_conf.subTable = true;
+    } else if (strcmp(argv[i], "-onlymeta") == 0) {
+      g_conf.meta = 1;
     }
   }
 
