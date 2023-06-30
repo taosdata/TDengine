@@ -45,7 +45,7 @@ namespace TDPIConnector.Core.Tasks
                         }
                         catch (Exception ex)
                         {
-                            this.monitoringService.PublishPIException(ex);
+                            // this.monitoringService.PublishPIException(ex);
                             if (ex is PIServerConnectionException)
                             {
                                 log.Warn("PI Data Archive not available.");
