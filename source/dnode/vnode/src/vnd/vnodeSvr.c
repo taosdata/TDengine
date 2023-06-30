@@ -234,8 +234,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
   }
 
-  *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
-  pCoder->pos += sizeof(int64_t);
+  if (!tDecodeIsEnd(pCoder)) {
+    *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
+    pCoder->pos += sizeof(int64_t);
+  }
 
   tEndDecode(pCoder);
 
