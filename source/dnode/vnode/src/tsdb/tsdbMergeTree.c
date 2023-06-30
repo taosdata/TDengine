@@ -187,22 +187,7 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   int64_t st = taosGetTimestampUs();
 
   SBlockData *pBlock = &pInfo->blockData[pInfo->currentLoadBlockIndex];
-
-  TABLEID id = {0};
-  if (pIter->pSttBlk->suid != 0) {
-    id.suid = pIter->pSttBlk->suid;
-  } else {
-    id.uid = pIter->uid;
-  }
-
-  code = tBlockDataInit(pBlock, &id, pInfo->pSchema, pInfo->colIds, pInfo->numOfCols);
-//  code = tBlockDataInit(pBlock, &id, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols-1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  code = tsdbSttFileReadBlockData(pIter->pReader, pIter->pSttBlk, pBlock);
-//  code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols - 1);
+  code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1], pInfo->numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }

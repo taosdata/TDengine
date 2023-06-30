@@ -194,7 +194,13 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   int32_t code = 0;
   int32_t lino = 0;
 
-  TABLEID tbid = {.suid = sttBlk->suid, .uid = 0};
+  TABLEID tbid = {.suid = sttBlk->suid};
+  if (tbid.suid == 0) {
+    tbid.uid = sttBlk->minUid;
+  } else {
+    tbid.uid = 0;
+  }
+
   code = tBlockDataInit(bData, &tbid, pTSchema, cids, ncid);
   TSDB_CHECK_CODE(code, lino, _exit);
 
