@@ -20,7 +20,7 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
@@ -408,7 +408,7 @@ static int64_t appendFilledResult(SFillInfo* pFillInfo, SSDataBlock* pBlock, int
 
   pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
 
-  assert(pFillInfo->numOfCurrent == resultCapacity);
+  ASSERT(pFillInfo->numOfCurrent == resultCapacity);
   return resultCapacity;
 }
 
@@ -517,10 +517,16 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
     return;
   }
 
+  // the endKey is now the aligned time window value. truncate time window isn't correct.
   pFillInfo->end = endKey;
-  if (!FILL_IS_ASC_FILL(pFillInfo)) {
-    pFillInfo->end = taosTimeTruncate(endKey, &pFillInfo->interval, pFillInfo->interval.precision);
+
+#if 0
+  if (pFillInfo->order == TSDB_ORDER_ASC) {
+    ASSERT(pFillInfo->start <= pFillInfo->end);
+  } else {
+    ASSERT(pFillInfo->start >= pFillInfo->end);
   }
+#endif
 
   pFillInfo->index = 0;
   pFillInfo->numOfRows = numOfRows;
@@ -529,6 +535,13 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) {
   pFillInfo->pSrcBlock = (SSDataBlock*)pInput;
 }
+
+void taosFillUpdateStartTimestampInfo(SFillInfo* pFillInfo, int64_t ts) {
+  pFillInfo->start = ts;
+  pFillInfo->currentKey = ts;
+}
+
+bool taosFillNotStarted(const SFillInfo* pFillInfo) {return pFillInfo->start == pFillInfo->currentKey;}
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
   int32_t remain = taosNumOfRemainRows(pFillInfo);
@@ -558,12 +571,13 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
     numOfRes += 1;
-    assert(numOfRes >= numOfRows);
+    ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
-        (ekey1 >= pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
+        (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
       return 0;
     }
+
     numOfRes = taosTimeCountInterval(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
     numOfRes += 1;
@@ -593,14 +607,14 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t ca
   int32_t remain = taosNumOfRemainRows(pFillInfo);
 
   int64_t numOfRes = getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, capacity);
-  assert(numOfRes <= capacity);
+  ASSERT(numOfRes <= capacity);
 
   // no data existed for fill operation now, append result according to the fill strategy
   if (remain == 0) {
     appendFilledResult(pFillInfo, p, numOfRes);
   } else {
     fillResultImpl(pFillInfo, p, (int32_t)numOfRes);
-    assert(numOfRes == pFillInfo->numOfCurrent);
+    ASSERT(numOfRes == pFillInfo->numOfCurrent);
   }
 
   qDebug("fill:%p, generated fill result, src block:%d, index:%d, brange:%" PRId64 "-%" PRId64 ", currentKey:%" PRId64

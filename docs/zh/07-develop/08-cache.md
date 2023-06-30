@@ -10,10 +10,10 @@ description: "TDengine 内部的缓存设计"
 
 TDengine 采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Used，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine 充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
 
-每个 vnode 的写入缓存大小在创建数据库时决定，创建数据库时的两个关键参数 vgroups 和 buffer 分别决定了该数据库中的数据由多少个 vgroup 处理，以及向其中的每个 vnode 分配多少写入缓存。
+每个 vnode 的写入缓存大小在创建数据库时决定，创建数据库时的两个关键参数 vgroups 和 buffer 分别决定了该数据库中的数据由多少个 vgroup 处理，以及向其中的每个 vnode 分配多少写入缓存。buffer 的单位是MB。
 
 ```sql
-create database db0 vgroups 100 buffer 16MB
+create database db0 vgroups 100 buffer 16
 ```
 
 理论上缓存越大越好，但超过一定阈值后再增加缓存对写入性能提升并无帮助，一般情况下使用默认值即可。
@@ -28,10 +28,10 @@ create database db0 vgroups 100 buffer 16MB
 
 ## 元数据缓存
 
-为了更高效地处理查询和写入，每个 vnode 都会缓存自己曾经获取到的元数据。元数据缓存由创建数据库时的两个参数 pages 和 pagesize 决定。
+为了更高效地处理查询和写入，每个 vnode 都会缓存自己曾经获取到的元数据。元数据缓存由创建数据库时的两个参数 pages 和 pagesize 决定。pagesize 的单位是 kb。
 
 ```sql
-create database db0 pages 128 pagesize 16kb
+create database db0 pages 128 pagesize 16
 ```
 
 上述语句会为数据库 db0 的每个 vnode 创建 128 个 page，每个 page 16kb 的元数据缓存。

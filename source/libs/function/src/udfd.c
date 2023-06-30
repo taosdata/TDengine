@@ -54,16 +54,15 @@ int32_t udfdCPluginOpen(SScriptUdfEnvItem *items, int numItems) { return 0; }
 int32_t udfdCPluginClose() { return 0; }
 
 const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
-  char  initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
+  char  initFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
   char *initSuffix = "_init";
-  strcpy(initFuncName, udfName);
-  strncat(initFuncName, initSuffix, strlen(initSuffix));
+  snprintf(initFuncName, sizeof(initFuncName), "%s%s", udfName, initSuffix);
   uv_dlsym(&udfCtx->lib, initFuncName, (void **)(&udfCtx->initFunc));
 
-  char  destroyFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
+  char  destroyFuncName[TSDB_FUNC_NAME_LEN + 9] = {0};
   char *destroySuffix = "_destroy";
   strcpy(destroyFuncName, udfName);
-  strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
+  snprintf(destroyFuncName, sizeof(destroyFuncName), "%s%s", udfName, destroySuffix);
   uv_dlsym(&udfCtx->lib, destroyFuncName, (void **)(&udfCtx->destroyFunc));
   return udfName;
 }
@@ -73,22 +72,19 @@ void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName)
   strcpy(processFuncName, udfName);
   uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
 
-  char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+  char  startFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *startSuffix = "_start";
-  strncpy(startFuncName, processFuncName, sizeof(startFuncName));
-  strncat(startFuncName, startSuffix, strlen(startSuffix));
+  snprintf(startFuncName, sizeof(startFuncName), "%s%s", processFuncName, startSuffix);
   uv_dlsym(&udfCtx->lib, startFuncName, (void **)(&udfCtx->aggStartFunc));
 
-  char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
+  char  finishFuncName[TSDB_FUNC_NAME_LEN + 8] = {0};
   char *finishSuffix = "_finish";
-  strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
-  strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
+  snprintf(finishFuncName, sizeof(finishFuncName), "%s%s", processFuncName, finishSuffix);
   uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc));
 
-  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *mergeSuffix = "_merge";
-  strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
-  strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
+  snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
   uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
 }
 
@@ -604,9 +600,9 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
       return udf;
     } else {
       (*pUdfHash)->expired = true;
-      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
       fnInfo("udfd expired, check for new version. existing udf %s udf version %d, udf created time %" PRIx64,
              (*pUdfHash)->name, (*pUdfHash)->version, (*pUdfHash)->createdTime);
+      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
     }
   }
 
@@ -965,40 +961,6 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   uv_sem_wait(&msgInfo->resultSem);
   uv_sem_destroy(&msgInfo->resultSem);
   int32_t code = msgInfo->code;
-  taosMemoryFree(msgInfo);
-  return code;
-}
-
-int32_t udfdConnectToMnode() {
-  SConnectReq connReq = {0};
-  connReq.connType = CONN_TYPE__UDFD;
-  tstrncpy(connReq.app, "udfd", sizeof(connReq.app));
-  tstrncpy(connReq.user, TSDB_DEFAULT_USER, sizeof(connReq.user));
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
-  tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
-  connReq.pid = taosGetPId();
-  connReq.startTime = taosGetTimestampMs();
-  strcpy(connReq.sVer, version);
-
-  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
-  void   *pReq = rpcMallocCont(contLen);
-  tSerializeSConnectReq(pReq, contLen, &connReq);
-
-  SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
-  msgInfo->rpcType = UDFD_RPC_MNODE_CONNECT;
-  uv_sem_init(&msgInfo->resultSem, 0);
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.msgType = TDMT_MND_CONNECT;
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = contLen;
-  rpcMsg.info.ahandle = msgInfo;
-  rpcSendRequest(global.clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
-
-  uv_sem_wait(&msgInfo->resultSem);
-  int32_t code = msgInfo->code;
-  uv_sem_destroy(&msgInfo->resultSem);
   taosMemoryFree(msgInfo);
   return code;
 }
@@ -1382,23 +1344,6 @@ static int32_t udfdRun() {
   return 0;
 }
 
-void udfdConnectMnodeThreadFunc(void *args) {
-  int32_t retryMnodeTimes = 0;
-  int32_t code = 0;
-  while (retryMnodeTimes++ <= TSDB_MAX_REPLICA) {
-    uv_sleep(100 * (1 << retryMnodeTimes));
-    code = udfdConnectToMnode();
-    if (code == 0) {
-      break;
-    }
-    fnError("udfd can not connect to mnode, code: %s. retry", tstrerror(code));
-  }
-
-  if (code != 0) {
-    fnError("udfd can not connect to mnode");
-  }
-}
-
 int32_t udfdInitResidentFuncs() {
   if (strlen(tsUdfdResFuncs) == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1500,9 +1445,6 @@ int main(int argc, char *argv[]) {
   }
 
   udfdInitResidentFuncs();
-
-  uv_thread_t mnodeConnectThread;
-  uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
 
   udfdRun();
 

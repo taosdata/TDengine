@@ -16,6 +16,20 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 
 在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。需要注意的是，RPM 和 Deb 包不含 `taosdump` 和 TDinsight 安装脚本，这些工具需要通过安装 taosTools 包获得。TDengine 也提供 Windows x64 平台和 macOS x64/m1 平台的安装包。
 
+## 运行环境要求
+在linux系统中，运行环境最低要求如下:
+
+linux 内核版本 - 3.10.0-1160.83.1.el7.x86_64;
+
+glibc 版本    -  2.17;
+
+如果通过clone源码进行编译安装，还需要满足:
+
+cmake版本 - 3.26.4或以上;
+
+gcc 版本  - 9.3.1或以上;
+
+
 ## 安装
 
 <Tabs>
@@ -299,7 +313,7 @@ SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
-对表 `d10` 按 10 每秒进行平均值、最大值和最小值聚合统计：
+对表 `d10` 按每 10 秒进行平均值、最大值和最小值聚合统计：
 
 ```sql
 SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(10s);

@@ -187,23 +187,24 @@ _err:
 
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t    code = 0;
+  int32_t    line = 0;
   SMeta*     pMeta = pWriter->pMeta;
   SMetaEntry metaEntry = {0};
   SDecoder*  pDecoder = &(SDecoder){0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = metaDecodeEntry(pDecoder, &metaEntry);
-  if (code) goto _err;
+  VND_CHECK_CODE(code, line, _err);
 
   code = metaHandleEntry(pMeta, &metaEntry);
-  if (code) goto _err;
+  VND_CHECK_CODE(code, line, _err);
 
   tDecoderClear(pDecoder);
   return code;
 
 _err:
   tDecoderClear(pDecoder);
-  metaError("vgId:%d, vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, vnode snapshot meta write failed since %s at line:%d", TD_VID(pMeta->pVnode), terrstr(), line);
   return code;
 }
 
@@ -216,34 +217,34 @@ typedef struct STableInfoForChildTable {
 static void destroySTableInfoForChildTable(void* data) {
   STableInfoForChildTable* pData = (STableInfoForChildTable*)data;
   taosMemoryFree(pData->tableName);
-  tDeleteSSchemaWrapper(pData->schemaRow);
-  tDeleteSSchemaWrapper(pData->tagRow);
+  tDeleteSchemaWrapper(pData->schemaRow);
+  tDeleteSchemaWrapper(pData->tagRow);
 }
 
 static void MoveToSnapShotVersion(SSnapContext* ctx) {
-  tdbTbcClose(ctx->pCur);
-  tdbTbcOpen(ctx->pMeta->pTbDb, &ctx->pCur, NULL);
+  tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
   STbDbKey key = {.version = ctx->snapVersion, .uid = INT64_MAX};
   int      c = 0;
-  tdbTbcMoveTo(ctx->pCur, &key, sizeof(key), &c);
+  tdbTbcMoveTo((TBC*)ctx->pCur, &key, sizeof(key), &c);
   if (c < 0) {
-    tdbTbcMoveToPrev(ctx->pCur);
+    tdbTbcMoveToPrev((TBC*)ctx->pCur);
   }
 }
 
 static int32_t MoveToPosition(SSnapContext* ctx, int64_t ver, int64_t uid) {
-  tdbTbcClose(ctx->pCur);
-  tdbTbcOpen(ctx->pMeta->pTbDb, &ctx->pCur, NULL);
+  tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
   STbDbKey key = {.version = ver, .uid = uid};
   int      c = 0;
-  tdbTbcMoveTo(ctx->pCur, &key, sizeof(key), &c);
+  tdbTbcMoveTo((TBC*)ctx->pCur, &key, sizeof(key), &c);
   return c;
 }
 
 static void MoveToFirst(SSnapContext* ctx) {
-  tdbTbcClose(ctx->pCur);
-  tdbTbcOpen(ctx->pMeta->pTbDb, &ctx->pCur, NULL);
-  tdbTbcMoveToFirst(ctx->pCur);
+  tdbTbcClose((TBC*)ctx->pCur);
+  tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
+  tdbTbcMoveToFirst((TBC*)ctx->pCur);
 }
 
 static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) {
@@ -259,12 +260,12 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
   taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
 }
 
-int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
+int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
                          SSnapContext** ctxRet) {
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
   if (ctx == NULL) return -1;
   *ctxRet = ctx;
-  ctx->pMeta = pMeta;
+  ctx->pMeta = pVnode->pMeta;
   ctx->snapVersion = snapVersion;
   ctx->suid = suid;
   ctx->subType = subType;
@@ -290,7 +291,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
   metaDebug("tmqsnap init snapVersion:%" PRIi64, ctx->snapVersion);
   MoveToFirst(ctx);
   while (1) {
-    int32_t ret = tdbTbcNext(ctx->pCur, &pKey, &kLen, &pVal, &vLen);
+    int32_t ret = tdbTbcNext((TBC*)ctx->pCur, &pKey, &kLen, &pVal, &vLen);
     if (ret < 0) break;
     STbDbKey* tmp = (STbDbKey*)pKey;
     if (tmp->version > ctx->snapVersion) break;
@@ -300,7 +301,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
       continue;
     }
 
-    if (tdbTbGet(pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) <
+    if (tdbTbGet(ctx->pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) <
         0) {  // check if table exist for now, need optimize later
       continue;
     }
@@ -328,7 +329,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
 
   MoveToSnapShotVersion(ctx);
   while (1) {
-    int32_t ret = tdbTbcPrev(ctx->pCur, &pKey, &kLen, &pVal, &vLen);
+    int32_t ret = tdbTbcPrev((TBC*)ctx->pCur, &pKey, &kLen, &pVal, &vLen);
     if (ret < 0) break;
 
     STbDbKey* tmp = (STbDbKey*)pKey;
@@ -377,7 +378,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
 }
 
 int32_t destroySnapContext(SSnapContext* ctx) {
-  tdbTbcClose(ctx->pCur);
+  tdbTbcClose((TBC*)ctx->pCur);
   taosArrayDestroy(ctx->idList);
   taosHashCleanup(ctx->idVersion);
   taosHashCleanup(ctx->suidInfo);
@@ -465,7 +466,7 @@ int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
   return c;
 }
 
-int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
+int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
   int32_t ret = 0;
   void*   pKey = NULL;
   void*   pVal = NULL;
@@ -495,7 +496,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     metaDebug("tmqsnap get meta not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
   }
 
-  tdbTbcGet(ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
+  tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
   SDecoder   dc = {0};
   SMetaEntry me = {0};
   tDecoderInit(&dc, pVal, vLen);
@@ -597,7 +598,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
   return ret;
 }
 
-SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx) {
+SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext* ctx) {
   SMetaTableInfo result = {0};
   void*          pKey = NULL;
   void*          pVal = NULL;
@@ -618,10 +619,10 @@ SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx) {
 
     int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
     if (ret != 0) {
-      metaDebug("tmqsnap getUidfromSnapShot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp, idInfo->version);
+      metaDebug("tmqsnap getMetaTableInfoFromSnapshot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp, idInfo->version);
       continue;
     }
-    tdbTbcGet(ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
+    tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
     SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);

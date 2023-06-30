@@ -148,28 +148,22 @@ class TMQCom:
     def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb',rows=1):
         loopFlag = 1
         while loopFlag:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            tdSql.query("select * from %s.notifyinfo where cmdid = 0"%cdbName)
             actRows = tdSql.getRows()
+            tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
-                for i in range(actRows):
-                    if tdSql.getData(i, 1) == 0:
-                        loopFlag = 0
-                        break
+                    loopFlag = 0
             time.sleep(0.02)
         return
 
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=2):
+    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=1):
         loopFlag = 1
         while loopFlag:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            tdSql.query("select * from %s.notifyinfo where cmdid = 1"%cdbName)
             actRows = tdSql.getRows()
+            tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
-                for i in range(actRows):
-                    if tdSql.getData(i, 1) == 1:
-                        loopFlag = 0
-                        break
+                loopFlag = 0
             time.sleep(0.02)
         return
 

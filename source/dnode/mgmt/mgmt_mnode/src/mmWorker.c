@@ -120,6 +120,11 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  if (NULL == pMgmt->pMnode) {
+    const STraceId *trace = &pMsg->info.traceId;
+    dGError("msg:%p, stop to pre-process in mnode since mnode is NULL, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+    return -1;
+  }
   pMsg->info.node = pMgmt->pMnode;
   if (mndPreProcessQueryMsg(pMsg) != 0) {
     const STraceId *trace = &pMsg->info.traceId;

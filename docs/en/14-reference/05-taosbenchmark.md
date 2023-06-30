@@ -245,7 +245,7 @@ The parameters listed in this section apply to all function modes.
 - ** trying_interval ** : Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 - ** childtable_from and childtable_to ** : specify the child table range to create. The range is [childtable_from, childtable_to).
- 
+
 - ** continue_if_fail ** :  allow the user to specify the reaction if the insertion failed.
 
   - "continue_if_fail" : "no"  // means taosBenchmark will exit if it fails to insert as default reaction behavior.

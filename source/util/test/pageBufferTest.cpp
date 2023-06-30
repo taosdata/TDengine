@@ -157,6 +157,68 @@ void recyclePageTest() {
 
   destroyDiskbasedBuf(pBuf);
 }
+
+int saveDataToPage(SFilePage* pPg, const char* data, uint32_t len) {
+  memcpy(pPg->data + pPg->num, data, len);
+  pPg->num += len;
+  setBufPageDirty(pPg, true);
+  return 0;
+}
+
+bool checkBufVarData(SFilePage* pPg, const char* varData, uint32_t varLen) {
+  const char* start = pPg->data + sizeof(SFilePage);
+  for (uint32_t i = 0; i < (pPg->num - sizeof(SFilePage)) / varLen; ++i) {
+    if (0 != strncmp(start + 6 * i + 3, varData, varLen - 3)) {
+      using namespace std;
+      cout << "pos: " << sizeof(SFilePage) + 6 * i + 3 << " should be " << varData << " but is: " << start + 6 * i + 3
+           << endl;
+      return false;
+    }
+  }
+  return true;
+}
+
+// SPageInfo.pData: |  sizeof(void*) 8 bytes | sizeof(SFilePage) 4 bytes| 4096 bytes |
+//                                           ^
+//                                           |
+//                                       SFilePage: flush to disk from here
+void testFlushAndReadBackBuffer() {
+  SDiskbasedBuf* pBuf = NULL;
+  uint32_t       totalLen = 4096;
+  auto           code = createDiskbasedBuf(&pBuf, totalLen, totalLen * 2, "1", TD_TMP_DIR_PATH);
+  int32_t        pageId = -1;
+  auto*          pPg = (SFilePage*)getNewBufPage(pBuf, &pageId);
+  ASSERT_TRUE(pPg != nullptr);
+  pPg->num = sizeof(SFilePage);
+
+  // save data into page
+  uint32_t len = 6;  // sizeof(SFilePage) + 6 * 682 = 4096
+  // nullbitmap(1) + len(2) + AA\0(3)
+  char* rowData = (char*)taosMemoryCalloc(1, len);
+  *(uint16_t*)(rowData + 2) = (uint16_t)2;
+  rowData[3] = 'A';
+  rowData[4] = 'A';
+
+  while (pPg->num + len <= getBufPageSize(pBuf)) {
+    saveDataToPage(pPg, rowData, len);
+  }
+  ASSERT_EQ(pPg->num, totalLen);
+  ASSERT_TRUE(checkBufVarData(pPg, rowData + 3, len));
+  releaseBufPage(pBuf, pPg);
+
+  // flush to disk
+  int32_t newPgId = -1;
+  pPg = (SFilePage*)getNewBufPage(pBuf, &newPgId);
+  releaseBufPage(pBuf, pPg);
+  pPg = (SFilePage*)getNewBufPage(pBuf, &newPgId);
+  releaseBufPage(pBuf, pPg);
+
+  // reload it from disk
+  pPg = (SFilePage*)getBufPage(pBuf, pageId);
+  ASSERT_TRUE(checkBufVarData(pPg, rowData + 3, len));
+  destroyDiskbasedBuf(pBuf);
+}
+
 }  // namespace
 
 TEST(testCase, resultBufferTest) {
@@ -164,6 +226,7 @@ TEST(testCase, resultBufferTest) {
   simpleTest();
   writeDownTest();
   recyclePageTest();
+  testFlushAndReadBackBuffer();
 }
 
 #pragma GCC diagnostic pop

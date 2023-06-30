@@ -121,7 +121,7 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("create some new child table and insert data for latest mode")
         paraDict["batchNum"] = 100
@@ -205,7 +205,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("create some new child table and insert data for latest mode")
         paraDict["batchNum"] = 10

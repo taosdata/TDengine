@@ -64,10 +64,13 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
 }
 
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
-  SSyncRaftEntry* pEntry = syncEntryBuild((int32_t)(pMsg->dataLen));
-  if (pEntry == NULL) return NULL;
-
+  SSyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
+  if (pEntry == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   memcpy(pEntry, pMsg->data, pMsg->dataLen);
+  ASSERT(pEntry->bytes == pMsg->dataLen);
   return pEntry;
 }
 

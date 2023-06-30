@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vnodeInt.h"
 
 // STsdbDataIter2
 /* open */
@@ -202,13 +203,6 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
   for (;;) {
     while (pIter->dIter.iRow < pIter->dIter.bData.nRow) {
       if (pFilterInfo) {
-        if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
-          if (pFilterInfo->tbid.uid == pIter->dIter.bData.uid) {
-            pIter->dIter.iRow = pIter->dIter.bData.nRow;
-            continue;
-          }
-        }
-
         if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
           if (pIter->dIter.bData.aVersion[pIter->dIter.iRow] < pFilterInfo->sver ||
               pIter->dIter.bData.aVersion[pIter->dIter.iRow] > pFilterInfo->ever) {
@@ -232,13 +226,6 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
 
         // filter
         if (pFilterInfo) {
-          if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
-            if (tTABLEIDCmprFn(&pFilterInfo->tbid, &pIter->rowInfo) == 0) {
-              pIter->dIter.iDataBlk = pIter->dIter.mDataBlk.nItem;
-              continue;
-            }
-          }
-
           if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
             if (pFilterInfo->sver > dataBlk.maxVer || pFilterInfo->ever < dataBlk.minVer) {
               pIter->dIter.iDataBlk++;
@@ -262,13 +249,23 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
         if (pIter->dIter.iBlockIdx < taosArrayGetSize(pIter->dIter.aBlockIdx)) {
           SBlockIdx* pBlockIdx = taosArrayGet(pIter->dIter.aBlockIdx, pIter->dIter.iBlockIdx);
 
-          if (pFilterInfo && (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID)) {
-            int32_t c = tTABLEIDCmprFn(pBlockIdx, &pFilterInfo->tbid);
-            if (c == 0) {
-              pIter->dIter.iBlockIdx++;
-              continue;
-            } else if (c < 0) {
-              ASSERT(0);
+          if (pFilterInfo) {
+            if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
+              int32_t c = tTABLEIDCmprFn(pBlockIdx, &pFilterInfo->tbid);
+              if (c == 0) {
+                pIter->dIter.iBlockIdx++;
+                continue;
+              } else if (c < 0) {
+                ASSERT(0);
+              }
+            }
+
+            if (pFilterInfo->flag & TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE) {
+              SMetaInfo info;
+              if (metaGetInfo(pIter->dIter.pReader->pTsdb->pVnode->pMeta, pBlockIdx->uid, &info, NULL)) {
+                pIter->dIter.iBlockIdx++;
+                continue;
+              }
             }
           }
 
@@ -304,11 +301,21 @@ static int32_t tsdbSttFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* p
   for (;;) {
     while (pIter->sIter.iRow < pIter->sIter.bData.nRow) {
       if (pFilterInfo) {
+        int64_t uid = pIter->sIter.bData.uid ? pIter->sIter.bData.uid : pIter->sIter.bData.aUid[pIter->sIter.iRow];
         if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
-          int64_t uid = pIter->sIter.bData.uid ? pIter->sIter.bData.uid : pIter->sIter.bData.aUid[pIter->sIter.iRow];
           if (pFilterInfo->tbid.uid == uid) {
             pIter->sIter.iRow++;
             continue;
+          }
+        }
+
+        if (pFilterInfo->flag & TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE) {
+          if (pIter->rowInfo.uid != uid) {
+            SMetaInfo info;
+            if (metaGetInfo(pIter->sIter.pReader->pTsdb->pVnode->pMeta, uid, &info, NULL)) {
+              pIter->sIter.iRow++;
+              continue;
+            }
           }
         }
 
@@ -395,7 +402,17 @@ static int32_t tsdbTombFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
       if (pIter->tIter.iDelIdx < taosArrayGetSize(pIter->tIter.aDelIdx)) {
         SDelIdx* pDelIdx = taosArrayGet(pIter->tIter.aDelIdx, pIter->tIter.iDelIdx);
 
-        code = tsdbReadDelData(pIter->tIter.pReader, pDelIdx, pIter->tIter.aDelData);
+        if (pFilterInfo) {
+          if (pFilterInfo->flag & TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE) {
+            SMetaInfo info;
+            if (metaGetInfo(pIter->dIter.pReader->pTsdb->pVnode->pMeta, pDelIdx->uid, &info, NULL)) {
+              pIter->tIter.iDelIdx++;
+              continue;
+            }
+          }
+        }
+
+        code = tsdbReadDelDatav1(pIter->tIter.pReader, pDelIdx, pIter->tIter.aDelData, INT64_MAX);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         pIter->delInfo.suid = pDelIdx->suid;

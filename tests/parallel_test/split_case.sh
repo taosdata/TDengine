@@ -5,6 +5,8 @@ parm_path=$(pwd ${parm_path})
 echo "execute path:${parm_path}"
 cd ${parm_path}
 cp cases.task  ${case_file}
+sed -i '/udf/d' ${case_file}
+sed -i '/Udf/d' ${case_file}
 sed -i '/^$/d' ${case_file} 
 sed -i '$a\%%FINISHED%%' ${case_file} 
 

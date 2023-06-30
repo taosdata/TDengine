@@ -243,11 +243,6 @@ static FORCE_INLINE STrashElem *doRemoveElemInTrashcan(SCacheObj *pCacheObj, STr
   if (next) {
     next->prev = pElem->prev;
   }
-
-  if (pCacheObj->numOfElemsInTrash == 0) {
-    assert(pCacheObj->pTrash == NULL);
-  }
-
   return next;
 }
 
@@ -261,8 +256,6 @@ static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj *pCacheObj, STrashElem 
 }
 
 static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
-  assert(pNode != NULL && pEntry != NULL);
-
   pNode->pNext = pEntry->next;
   pEntry->next = pNode;
   pEntry->num += 1;
@@ -271,7 +264,6 @@ static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
 
 static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode *pNode) {
   if (prev == NULL) {
-    ASSERT(pe->next == pNode);
     pe->next = pNode->pNext;
   } else {
     prev->pNext = pNode->pNext;
@@ -471,7 +463,6 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   SCacheNode *pNode = doSearchInEntryList(pe, key, keyLen, &prev);
   if (pNode != NULL) {
     int32_t ref = T_REF_INC(pNode);
-    ASSERT(ref > 0);
   }
 
   taosRUnLockLatch(&pe->latch);
@@ -503,7 +494,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   uDebug("cache:%s, data: %p acquired by data in cache, refcnt:%d", pCacheObj->name, ptNode->data, ref);
 
   // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
-  assert(ref >= 2);
+  ASSERT(ref >= 2);
   return data;
 }
 
@@ -516,7 +507,6 @@ void *taosCacheTransferData(SCacheObj *pCacheObj, void **data) {
     return NULL;
   }
 
-  assert(T_REF_VAL_GET(ptNode) >= 1);
   char *d = *data;
 
   // clear its reference to old area
@@ -575,19 +565,19 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
       if (ref == 1) {
         // If it is the last ref, remove it from trashcan linked-list first, and then destroy it.Otherwise, it may be
         // destroyed by refresh worker if decrease ref count before removing it from linked-list.
-        assert(pNode->pTNodeHeader->pData == pNode);
+        ASSERT(pNode->pTNodeHeader->pData == pNode);
 
         __trashcan_wr_lock(pCacheObj);
         doRemoveElemInTrashcan(pCacheObj, pNode->pTNodeHeader);
         __trashcan_unlock(pCacheObj);
 
         ref = T_REF_DEC(pNode);
-        assert(ref == 0);
+        ASSERT(ref == 0);
 
         doDestroyTrashcanElem(pCacheObj, pNode->pTNodeHeader);
       } else {
         ref = T_REF_DEC(pNode);
-        assert(ref >= 0);
+        ASSERT(ref >= 0);
       }
     } else {
       // NOTE: remove it from hash in the first place, otherwise, the pNode may have been released by other thread
@@ -609,13 +599,12 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
               "others already, prev must in trashcan",
               pCacheObj->name, pNode->key, p->data, T_REF_VAL_GET(p), pNode->data, T_REF_VAL_GET(pNode));
 
-          assert(p->pTNodeHeader == NULL && pNode->pTNodeHeader != NULL);
+          ASSERT(p->pTNodeHeader == NULL && pNode->pTNodeHeader != NULL);
         } else {
           removeNodeInEntryList(pe, prev, p);
           uDebug("cache:%s, key:%p, %p successfully removed from hash table, refcnt:%d", pCacheObj->name, pNode->key,
                  pNode->data, ref);
           if (ref > 0) {
-            assert(pNode->pTNodeHeader == NULL);
             taosAddToTrashcan(pCacheObj, pNode);
           } else {  // ref == 0
             atomic_sub_fetch_64(&pCacheObj->sizeInBytes, pNode->size);
@@ -736,7 +725,7 @@ SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pDat
 
 void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheNode *pNode) {
   if (pNode->inTrashcan) { /* node is already in trash */
-    assert(pNode->pTNodeHeader != NULL && pNode->pTNodeHeader->pData == pNode);
+    ASSERT(pNode->pTNodeHeader != NULL && pNode->pTNodeHeader->pData == pNode);
     return;
   }
 
@@ -782,7 +771,7 @@ void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
   STrashElem *pElem = pCacheObj->pTrash;
   while (pElem) {
     T_REF_VAL_CHECK(pElem->pData);
-    assert(pElem->next != pElem && pElem->prev != pElem);
+    ASSERT(pElem->next != pElem && pElem->prev != pElem);
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
       uDebug("cache:%s, key:%p, %p removed from trashcan. numOfElem in trashcan:%d", pCacheObj->name, pElem->pData->key,
@@ -814,8 +803,6 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 }
 
 static void doCacheRefresh(SCacheObj *pCacheObj, int64_t time, __cache_trav_fn_t fp, void *param1) {
-  assert(pCacheObj != NULL);
-
   SCacheObjTravSup sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time, .param1 = param1};
   doTraverseElems(pCacheObj, doRemoveExpiredFn, &sup);
 }
@@ -827,9 +814,7 @@ void taosCacheRefreshWorkerUnexpectedStopped(void) {
 }
 
 void *taosCacheTimedRefresh(void *handle) {
-  assert(pCacheArrayList != NULL);
   uDebug("cache refresh thread starts");
-
   setThreadName("cacheRefresh");
 
   const int32_t SLEEP_DURATION = 500;  // 500 ms
@@ -928,7 +913,6 @@ void taosStopCacheRefreshWorker(void) {
 size_t taosCacheGetNumOfObj(const SCacheObj *pCacheObj) { return pCacheObj->numOfElems + pCacheObj->numOfElemsInTrash; }
 
 SCacheIter *taosCacheCreateIter(const SCacheObj *pCacheObj) {
-  ASSERT(pCacheObj != NULL);
   SCacheIter *pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
   pIter->pCacheObj = (SCacheObj *)pCacheObj;
   pIter->entryIndex = -1;
@@ -978,12 +962,8 @@ bool taosCacheIterNext(SCacheIter *pIter) {
 
       SCacheNode *pNode = pEntry->next;
       for (int32_t i = 0; i < pEntry->num; ++i) {
-        ASSERT(pNode != NULL);
-
         pIter->pCurrent[i] = pNode;
         int32_t ref = T_REF_INC(pIter->pCurrent[i]);
-        ASSERT(ref >= 1);
-
         pNode = pNode->pNext;
       }
 

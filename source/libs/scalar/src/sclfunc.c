@@ -289,7 +289,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 static VarDataLenT tlength(char *input, int32_t type) { return varDataLen(input); }
 
 static VarDataLenT tcharlength(char *input, int32_t type) {
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return varDataLen(input);
   } else {  // NCHAR
     return varDataLen(input) / TSDB_NCHAR_SIZE;
@@ -935,7 +935,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
-      case TSDB_DATA_TYPE_BINARY: {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY: {
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           // NOTE: sprintf will append '\0' at the end of string
           int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE),
@@ -1662,73 +1663,6 @@ int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doLengthFunction(pInput, inputNum, pOutput, tcharlength);
 }
-
-#if 0
-static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
-  switch(type) {
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_UTINYINT:{
-      int8_t* p = (int8_t*) dest;
-      int8_t* pSrc = (int8_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_USMALLINT:{
-      int16_t* p = (int16_t*) dest;
-      int16_t* pSrc = (int16_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_UINT: {
-      int32_t* p = (int32_t*) dest;
-      int32_t* pSrc = (int32_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
-      int64_t* p = (int64_t*) dest;
-      int64_t* pSrc = (int64_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      float* p = (float*) dest;
-      float* pSrc = (float*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double* p = (double*) dest;
-      double* pSrc = (double*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    default: assert(0);
-  }
-}
-#endif
 
 bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
   pEnv->calcMemSize = sizeof(int64_t);

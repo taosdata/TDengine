@@ -22,11 +22,11 @@ wget https://github.com/taosdata/grafanaplugin/raw/master/dashboards/TDinsight.s
 chmod +x TDinsight.sh
 ```
 
-Prepare：
+Prepare:
 
 1. TDengine Server
 
-   - The URL of REST service：for example `http://localhost:6041` if TDengine is deployed locally
+   - The URL of REST service: for example `http://localhost:6041` if TDengine is deployed locally
    - User name and password
 
 2. Grafana Alert Notification
@@ -36,7 +36,7 @@ You can use below command to setup Grafana alert notification.
 An existing Grafana Notification Channel can be specified with parameter `-E`, the notifier uid of the channel can be obtained by `curl -u admin:admin localhost:3000/api/alert-notifications |jq`
 
      ```bash
-     sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
+     ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
      ```
 
 Launch `TDinsight.sh` with the command above and restart Grafana, then open Dashboard `http://localhost:3000/d/tdinsight`.
@@ -274,7 +274,7 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||metric value|
+|gauge|DOUBLE||metric value|
 |client\_ip|NCHAR|TAG|client ip|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 |request\_method|NCHAR|TAG|request method|
@@ -288,7 +288,7 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||metric value|
+|gauge|DOUBLE||metric value|
 |client\_ip|NCHAR|TAG|client ip|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 |request\_method|NCHAR|TAG|request method|
@@ -302,7 +302,7 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||metric value|
+|gauge|DOUBLE||metric value|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 
 ### taosadapter\_restful\_http\_request\_summary\_milliseconds table
@@ -330,7 +330,7 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||metric value|
+|gauge|DOUBLE||metric value|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 
 ### taosadapter\_system\_cpu\_percent table 
@@ -340,6 +340,6 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||mertic value|
+|gauge|DOUBLE||mertic value|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 

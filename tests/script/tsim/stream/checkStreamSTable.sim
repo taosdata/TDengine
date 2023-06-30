@@ -34,7 +34,7 @@ print $data20, $data21, $data22
 
 loop0:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -118,7 +118,7 @@ print $data20, $data21, $data22, $data23
 
 loop1:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -224,7 +224,7 @@ print $data20, $data21, $data22, $data23, $data24
 
 loop2:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -303,7 +303,7 @@ print $data20, $data21, $data22, $data23
 
 loop3:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -387,7 +387,7 @@ print $data20, $data21, $data22, $data23
 
 loop4:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -463,7 +463,7 @@ sql insert into t1 values(1648791233000,1,2,3,1.0);
 
 loop8:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

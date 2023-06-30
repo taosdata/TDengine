@@ -29,7 +29,10 @@ typedef struct {
   char    buf[0];
 } SDataBlock;
 
-static void deleteDataBlockFromLRU(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
+static void deleteDataBlockFromLRU(const void* key, size_t keyLen, void* value, void* ud) {
+  (void)ud;
+  taosMemoryFree(value);
+}
 
 static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t blockId) {
   char* p = buf;
@@ -136,7 +139,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         memcpy(buf + total, blk->buf + blkOffset, nread);
 
         LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
-                                         TAOS_LRU_PRIORITY_LOW);
+                                         TAOS_LRU_PRIORITY_LOW, NULL);
         if (s != TAOS_LRU_STATUS_OK) {
           return -1;
         }

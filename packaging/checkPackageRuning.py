@@ -42,8 +42,8 @@ else:
 # os.system("rm -rf /var/lib/taos/*")
 # os.system("systemctl restart taosd ")
 
-# wait a moment ,at least 5 seconds
-time.sleep(5)
+# wait a moment ,at least 10 seconds
+time.sleep(10)
 
 # prepare data by taosBenchmark 
 

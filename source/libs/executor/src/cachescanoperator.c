@@ -13,17 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "function.h"
 #include "os.h"
+#include "function.h"
 #include "tname.h"
 
 #include "tdatablock.h"
 #include "tmsg.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+
+#include "storageapi.h"
 
 typedef struct SCacheRowsScanInfo {
   SSDataBlock*    pRes;
@@ -100,9 +104,9 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
 
     uint64_t suid = tableListGetSuid(pTableListInfo);
-    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
-                                   taosArrayGetSize(pInfo->matchInfo.pList), pCidList, pInfo->pSlotIds, suid,
-                                   &pInfo->pLastrowReader, pTaskInfo->id.str);
+    code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
+                                                    taosArrayGetSize(pInfo->matchInfo.pList), pCidList, pInfo->pSlotIds,
+                                                    suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -122,7 +126,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   if (pScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* p = &pInfo->pseudoExprSup;
     p->pExprInfo = createExprInfo(pScanNode->scan.pScanPseudoCols, NULL, &p->numOfExprs);
-    p->pCtx = createSqlFunctionCtx(p->pExprInfo, p->numOfExprs, &p->rowEntryInfoOffset);
+    p->pCtx = createSqlFunctionCtx(p->pExprInfo, p->numOfExprs, &p->rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
   }
 
   setOperatorInfo(pOperator, "CachedRowScanOperator", QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN, false, OP_NOT_OPENED,
@@ -170,7 +174,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       blockDataCleanup(pInfo->pBufferredRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds,
+      int32_t code = pInfo->readHandle.api.cacheFn.retrieveRows(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds,
                                            pInfo->pDstSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
@@ -204,6 +208,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
       pRes->info.rows = 1;
+      pRes->info.scanFlag = MAIN_SCAN;
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
       int32_t    code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes,
@@ -236,18 +241,22 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                                     taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid,
-                                     &pInfo->pLastrowReader, pTaskInfo->id.str);
-      if (code != TSDB_CODE_SUCCESS) {
-        pInfo->currentGroupIndex += 1;
-        taosArrayClear(pInfo->pUidList);
-        continue;
+      if (NULL == pInfo->pLastrowReader) {
+        code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                                       taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader,
+                                       pTaskInfo->id.str);
+        if (code != TSDB_CODE_SUCCESS) {
+          pInfo->currentGroupIndex += 1;
+          taosArrayClear(pInfo->pUidList);
+          continue;
+        }
+      } else {
+        pInfo->readHandle.api.cacheFn.reuseReader(pInfo->pLastrowReader, pList, num);
       }
 
       taosArrayClear(pInfo->pUidList);
 
-      code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
+      code = pInfo->readHandle.api.cacheFn.retrieveRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
                                    pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
@@ -274,13 +283,14 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           }
         }
 
-        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+        //pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         return pInfo->pRes;
       } else {
-        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+        //pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
       }
     }
 
+    pInfo->pLastrowReader = pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
     setOperatorCompleted(pOperator);
     return NULL;
   }
@@ -298,7 +308,7 @@ void destroyCacheScanOperator(void* param) {
   tableListDestroy(pInfo->pTableList);
 
   if (pInfo->pLastrowReader != NULL) {
-    pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+    pInfo->pLastrowReader = pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
   }
 
   cleanupExprSupp(&pInfo->pseudoExprSup);

@@ -29,6 +29,9 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.dbname = 'db_test'
+        self.ns_dbname = 'ns_test'
+        self.us_dbname = 'us_test'
+        self.ms_dbname = 'ms_test'
         self.setsql = TDSetSql()
         self.stbname = 'stb'
         self.ntbname = 'ntb'
@@ -220,11 +223,45 @@ class TDTestCase:
                 tdSql.query(f'select {func}(*) from {self.stbname}')
             tdSql.execute(f'drop table {self.stbname}')
         tdSql.execute(f'drop database {self.dbname}')
+
+    def precision_now_check(self):
+        for dbname in [self.ms_dbname, self.us_dbname, self.ns_dbname]:
+            self.ts = 1537146000000
+            if dbname == self.us_dbname:
+                self.ts = int(self.ts*1000)
+                precision = "us"
+            elif dbname == self.ns_dbname:
+                precision = "ns"
+                self.ts = int(self.ts*1000000)
+            else:
+                precision = "ms"
+                self.ts = int(self.ts)
+            tdSql.execute(f'drop database if exists {dbname}')
+            tdSql.execute(f'create database if not exists {dbname} precision "{precision}"')
+            tdSql.execute(f'use {dbname}')
+            self.base_data = {
+                'tinyint':self.tinyint_val
+                        }
+            self.column_dict = {
+                'col1': 'tinyint'
+            }
+            for col_name,col_type in self.column_dict.items():
+                tdSql.execute(f'create table if not exists {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t1 int)')
+                for i in range(self.tbnum):
+                    tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags(1)')
+                    self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
+                tdSql.query(f'select * from {self.stbname}')
+                tdSql.checkEqual(tdSql.queryRows, self.tbnum*self.rowNum)
+                tdSql.execute(f'delete from {self.stbname} where ts < now()')
+                tdSql.query(f'select * from {self.stbname}')
+                tdSql.checkEqual(tdSql.queryRows, 0)
+
     def run(self):
         self.delete_data_stb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
         self.delete_data_stb()
+        self.precision_now_check()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

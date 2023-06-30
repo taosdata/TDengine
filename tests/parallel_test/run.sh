@@ -303,7 +303,7 @@ function run_thread() {
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
-                local remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
+                local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
                 # if [ $ent -ne 0 ]; then
                 #     remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
                 # fi

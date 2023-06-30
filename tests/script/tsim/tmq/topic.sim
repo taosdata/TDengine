@@ -108,4 +108,15 @@ if $rows != 6 then
   return -1
 endi
 
+sql create topic topic_stable_1 as stable stb where t1 > 0
+sql create topic topic_stable_2 as stable stb where t1 > 0 and t1 < 0
+sql create topic topic_stable_3 as stable stb where 1 > 0
+sql create topic topic_stable_4 as stable stb where abs(t1) > 0
+sql_error create topic topic_stable_5 as stable stb where last(t1) > 0
+sql_error create topic topic_stable_5 as stable stb where sum(t1) > 0
+sql create topic topic_stable_6 as stable stb where tbname is not null
+sql create topic topic_stable_7 as stable stb where tbname > 'a'
+sql_error create topic topic_stable_8 as stable stb where tbname > 0 and xx < 0
+sql_error create topic topic_stable_9 as stable stb where tbname > 0 and c1 < 0
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -11,7 +11,7 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
-sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st partition by tbname interval(10s);
+sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st partition by tbname interval(10s);
 
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
 sql insert into ts2 values(1648791213001,1,12,3,1.0);
@@ -21,7 +21,7 @@ sql insert into ts4 values(1648791213001,1,12,3,1.0);
 $loop_count = 0
 
 loop0:
-sleep 300
+sleep 1000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
@@ -43,7 +43,7 @@ sql create table ts1 using st tags(1,2,3);
 sql create table ts2 using st tags(1,3,4);
 sql create table ts3 using st tags(1,4,5);
 
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt as select  _wstart, count(*) c1, count(a) c2  from st partition by tbname interval(10s);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, count(a) c2  from st partition by tbname interval(10s);
 
 
 sql insert into ts1 values(1648791211000,1,2,3);
@@ -53,7 +53,7 @@ sql insert into ts2 values(1648791211000,1,2,3);
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt;
 
 $loop_count = $loop_count + 1
@@ -74,7 +74,7 @@ sql create stable st(ts timestamp,a int,b int,c int,id int) tags(ta int,tb int,t
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 
-sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0  into streamtST as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6, max(id) c7 from st partition by tbname interval(10s) ;
+sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6, max(id) c7 from st partition by tbname interval(10s) ;
 sql insert into ts1 values(1648791211000,1,2,3,1);
 sql insert into ts1 values(1648791222001,2,2,3,2);
 sql insert into ts2 values(1648791211000,1,2,3,3);
@@ -91,7 +91,7 @@ sql insert into ts2 values(1648791222001,2,2,3,4);
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamtST;
 
 $loop_count = $loop_count + 1

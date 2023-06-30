@@ -118,12 +118,12 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
     cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
     ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
   fi
-  if [ -f ${build_dir}/lib/libjemalloc.a ]; then
-    cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
-  fi
-  if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
-    cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
-  fi
+  # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+  # fi
+  # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+  # fi
   if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
     cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
   fi
@@ -175,7 +175,7 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install_client.sh
 
-if [[ $productName == "TDengine" ]]; then
+if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
   # Copy example code
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
@@ -191,14 +191,14 @@ if [[ $productName == "TDengine" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+  if [ "$verMode" == "cluster" ]; then
       # Copy connector
       connector_dir="${code_dir}/connector"
       mkdir -p ${install_dir}/connector
       if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
           if [ "$osType" != "Darwin" ]; then
-                jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
-                [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+              jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
+              [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
           fi
           git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
           rm -rf ${install_dir}/connector/go/.git ||:

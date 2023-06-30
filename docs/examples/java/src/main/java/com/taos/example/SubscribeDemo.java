@@ -53,20 +53,28 @@ public class SubscribeDemo {
 
             // create consumer
             Properties properties = new Properties();
+            properties.getProperty(TMQConstants.CONNECT_TYPE, "jni");
             properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, "127.0.0.1:6030");
+            properties.setProperty(TMQConstants.CONNECT_USER, "root");
+            properties.setProperty(TMQConstants.CONNECT_PASS, "taosdata");
             properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, "true");
             properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
-            properties.setProperty(TMQConstants.GROUP_ID, "test");
+            properties.setProperty(TMQConstants.AUTO_COMMIT_INTERVAL, "1000");
+            properties.setProperty(TMQConstants.GROUP_ID, "test1");
+            properties.setProperty(TMQConstants.CLIENT_ID, "1");
+            properties.setProperty(TMQConstants.AUTO_OFFSET_RESET, "earliest");
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
                     "com.taos.example.MetersDeserializer");
+            properties.setProperty(TMQConstants.VALUE_DESERIALIZER_ENCODING, "UTF-8");
+            properties.setProperty(TMQConstants.EXPERIMENTAL_SNAPSHOT_ENABLE, "true");
 
             // poll data
             try (TaosConsumer<Meters> consumer = new TaosConsumer<>(properties)) {
                 consumer.subscribe(Collections.singletonList(TOPIC));
                 while (!shutdown.get()) {
                     ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
-                    for (ConsumerRecord<Meters> recode : meters) {
-                        Meters meter = recode.value();
+                    for (ConsumerRecord<Meters> r : meters) {
+                        Meters meter = r.value();
                         System.out.println(meter);
                     }
                 }

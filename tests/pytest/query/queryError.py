@@ -19,7 +19,7 @@ from util.sql import *
 
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar = 1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -42,10 +42,10 @@ class TDTestCase:
             ('2020-05-13 10:00:00.005', 3, 'third')""")
 
         # query first .. as ..
-        tdSql.error("select first(*) as one from st")
+        tdSql.execute("select first(*) as one from st")
 
         # query last .. as ..
-        tdSql.error("select last(*) as latest from st")
+        tdSql.execute("select last(*) as latest from st")
 
         # query last row .. as ..
         tdSql.error("select last_row as latest from st")
@@ -54,7 +54,7 @@ class TDTestCase:
         #tdSql.error("select distinct tagtype from st")
 
         # query .. order by non-time field
-        tdSql.error("select * from st order by name")
+        tdSql.execute("select * from st order by name")
 
         # TD-2133
         tdSql.error("select diff(tagtype),bottom(tagtype,1) from dev_001")
@@ -66,8 +66,8 @@ class TDTestCase:
         tdSql.error("select diff(tagtype),top(tagtype,1) from dev_001")
 
         # TD-6006
-        tdSql.error("select * from dev_001 where 'name' is not null")
-        tdSql.error("select * from dev_001 where \"name\" = 'first'")
+        tdSql.execute("select * from dev_001 where 'name' is not null")
+        tdSql.execute("select * from dev_001 where \"name\" = 'first'")
 
     def stop(self):
         tdSql.close()

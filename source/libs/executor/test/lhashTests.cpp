@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "tlinearhash.h"
 
 #pragma GCC diagnostic push

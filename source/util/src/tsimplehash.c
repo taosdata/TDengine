@@ -361,10 +361,6 @@ int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t ke
   return TSDB_CODE_SUCCESS;
 }
 
-static void destroyItems(void* pItem) {
-  taosMemoryFree(*(void**)pItem);
-}
-
 void tSimpleHashClear(SSHashObj *pHashObj) {
   if (!pHashObj || taosHashTableEmpty(pHashObj)) {
     return;

@@ -15,24 +15,21 @@
 
 #include "filter.h"
 #include "function.h"
-#include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"
 #include "tname.h"
 
+#include "executorInt.h"
+#include "operator.h"
+#include "query.h"
+#include "querytask.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tglobal.h"
-#include "tmsg.h"
-#include "ttime.h"
-
-#include "executorimpl.h"
-#include "index.h"
-#include "query.h"
-#include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "vnode.h"
+#include "index.h"
 
 typedef struct {
   bool    hasAgg;
@@ -87,7 +84,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
   int32_t    code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                               pTaskInfo->streamInfo.pState);
+                               pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -98,7 +95,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     pScalarExprInfo = createExprInfo(pAggNode->pExprs, NULL, &numOfScalarExpr);
   }
 
-  code = initExprSupp(&pInfo->scalarExprSup, pScalarExprInfo, numOfScalarExpr);
+  code = initExprSupp(&pInfo->scalarExprSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -111,6 +108,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pInfo->groupId = UINT64_MAX;
+  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -167,10 +166,8 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   int64_t st = taosGetTimestampUs();
-
-  int32_t order = TSDB_ORDER_ASC;
-  int32_t scanFlag = MAIN_SCAN;
-
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t order = pAggInfo->binfo.inputTsOrder;
   bool hasValidBlock = false;
 
   while (1) {
@@ -188,12 +185,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
       }
     }
     hasValidBlock = true;
-
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
@@ -207,7 +199,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
-    setInputDataBlock(pSup, pBlock, order, scanFlag, true);
+    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     code = doAggregateImpl(pOperator, pSup->pCtx);
     if (code != 0) {
       destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
@@ -464,8 +456,12 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
 
   uint32_t defaultPgsz = 0;
   uint32_t defaultBufsz = 0;
-  getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
-
+  code = getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
+  if (code) {
+    qError("failed to get buff page size, rowSize:%d", pAggSup->resultRowSize);
+    return code;
+  }
+  
   if (!osTempSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
     qError("Init stream agg supporter failed since %s, key:%s, tempDir:%s", terrstr(code), pKey, tsTempDir);
@@ -488,8 +484,8 @@ void cleanupAggSup(SAggSupporter* pAggSup) {
 }
 
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
-                   const char* pkey, void* pState) {
-  int32_t code = initExprSupp(pSup, pExprInfo, numOfCols);
+                   const char* pkey, void* pState, SFunctionStateStore* pStore) {
+  int32_t code = initExprSupp(pSup, pExprInfo, numOfCols, pStore);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

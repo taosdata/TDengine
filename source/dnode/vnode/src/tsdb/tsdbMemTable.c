@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "util/tsimplehash.h"
 
 #define MEM_MIN_HASH 1024
 #define SL_MAX_LEVEL 5
@@ -189,9 +190,9 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     tsdbCacheDeleteLast(pTsdb->lruCache, pTbData->uid, eKey);
   }
   */
-  if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
-    tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
-  }
+  // if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
+  tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
+  //}
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " at version %" PRId64,
@@ -301,12 +302,12 @@ int64_t tsdbCountTbDataRows(STbData *pTbData) {
   return rowsNum;
 }
 
-void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj *pTableMap, int64_t *rowsNum) {
+void tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *rowsNum) {
   taosRLockLatch(&pMemTable->latch);
   for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
     STbData *pTbData = pMemTable->aBucket[i];
     while (pTbData) {
-      void *p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
+      void *p = tSimpleHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
       if (p == NULL) {
         pTbData = pTbData->next;
         continue;
@@ -672,7 +673,10 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
   }
-  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  }
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
@@ -733,7 +737,9 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
   }
-  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  }
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);

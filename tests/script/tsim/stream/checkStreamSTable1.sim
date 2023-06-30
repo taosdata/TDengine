@@ -21,7 +21,7 @@ sql insert into t1 values(1648791212000,2,2,3);
 $loop_count = 0
 loop0:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -51,7 +51,7 @@ sql insert into t1 values(1648791214000,1,2,3);
 $loop_count = 0
 loop1:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

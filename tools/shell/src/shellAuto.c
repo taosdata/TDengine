@@ -71,7 +71,6 @@ SWords shellCommands[] = {
     {"alter all dnodes \"monitor\" \"0\";", 0, 0, NULL},
     {"alter all dnodes \"monitor\" \"1\";", 0, 0, NULL},
     {"alter table <tb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
-    {"alter table modify column", 0, 0, NULL},
     {"alter local \"resetlog\";", 0, 0, NULL},
     {"alter local \"DebugFlag\" \"143\";", 0, 0, NULL},
     {"alter local \"cDebugFlag\" \"143\";", 0, 0, NULL},
@@ -92,9 +91,14 @@ SWords shellCommands[] = {
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
+    {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
     {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
+    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"compact database <db_name>", 0, 0, NULL},
+#endif
     {"describe <all_table>", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>", 0, 0, NULL},
@@ -118,8 +122,16 @@ SWords shellCommands[] = {
     {"kill connection <anyword> ;", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"merge vgroup ", 0, 0, NULL},
+#endif
+    {"pause stream <stream_name> ;", 0, 0, NULL},
+    {"resume stream <stream_name> ;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
+    {"restore dnode <dnode_id> ;", 0, 0, NULL},
+    {"restore vnode on dnode <dnode_id> ;", 0, 0, NULL},
+    {"restore mnode on dnode <dnode_id> ;", 0, 0, NULL},
+    {"restore qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"revoke all on <anyword> from <user_name> ;", 0, 0, NULL},
     {"revoke read on <anyword> from <user_name> ;", 0, 0, NULL},
     {"revoke write on <anyword> from <user_name> ;", 0, 0, NULL},
@@ -170,7 +182,9 @@ SWords shellCommands[] = {
     {"show vgroups;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"split vgroup ", 0, 0, NULL},
+#endif    
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -326,7 +340,7 @@ TdThreadMutex tiresMutex;
 TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
 char varTypes[WT_VAR_CNT][64] = {
-    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id >",  "<user_name>",    "<topic_name>", "<stream_name>",
+    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
     "<udf_name>",   "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
 
@@ -345,12 +359,12 @@ int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ******************************  Tab Completion  **********************************\n");
+  printf("  ********************************  Tab Completion  ************************************\n");
   char secondLine[160] = "\0";
-  sprintf(secondLine, "   *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
+  sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
   printf("%s", secondLine);
   int secondLineLen = strlen(secondLine);
-  while (84 - (secondLineLen++) > 0) {
+  while (87 - (secondLineLen++) > 0) {
     printf(" ");
   }
   printf("*\n");
@@ -382,7 +396,6 @@ void showHelp() {
     alter all dnodes \"resetlog\";\n\
     alter all dnodes \"debugFlag\" \n\
     alter table <tb_name> <tb_actions> ;\n\
-    alter table modify column\n\
     alter local \"resetlog\";\n\
     alter local \"DebugFlag\" \"143\";\n\
     alter topic\n\
@@ -430,10 +443,15 @@ void showHelp() {
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
     kill transaction <transaction_id>;\n\
-  ----- M ----- \n\
-    merge vgroup ...\n\
+  ----- P ----- \n\
+    pause stream <stream_name>;\n\
   ----- R ----- \n\
+    resume stream <stream_name>;\n\
     reset query cache;\n\
+    restore dnode <dnode_id> ;\n\
+    restore vnode on dnode <dnode_id> ;\n\
+    restore mnode on dnode <dnode_id> ;\n\
+    restore qnode on dnode <dnode_id> ;\n\
     revoke all   on <priv_level> from <user_name> ;\n\
     revoke read  on <priv_level> from <user_name> ;\n\
     revoke write on <priv_level> from <user_name> ;\n\
@@ -483,14 +501,20 @@ void showHelp() {
     show vgroups;\n\
     show consumers;\n\
     show grants;\n\
-    split vgroup ...\n\
   ----- T ----- \n\
     trim database <db_name>;\n\
   ----- U ----- \n\
     use <db_name>;");
 
-  printf("\n\n");
+#ifdef TD_ENTERPRISE
+  printf(
+      "\n\n\
+  ----- special commands on enterpise version ----- \n\
+    compact database <db_name>; \n\
+    split vgroup <vgroup_id>;");
+#endif
 
+  printf("\n\n");
   // define in getDuration() function
   printf(
       "\

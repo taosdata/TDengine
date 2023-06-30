@@ -147,6 +147,7 @@ function clean_lib() {
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
   [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
+  
 }
 
 function clean_header() {

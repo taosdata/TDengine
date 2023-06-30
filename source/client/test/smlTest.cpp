@@ -50,8 +50,9 @@ TEST(testCase, smlParseInfluxString_Test) {
   int ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
-  ASSERT_EQ(elements.measureLen, strlen(",st"));
-  ASSERT_EQ(elements.measureTagsLen, strlen(",st,t1=3,t2=4,t3=t3"));
+  ASSERT_EQ(elements.measureLen, strlen("\\,st"));
+  ASSERT_EQ(elements.measureEscaped, true);
+  ASSERT_EQ(elements.measureTagsLen, strlen("\\,st,t1=3,t2=4,t3=t3"));
 
   ASSERT_EQ(elements.tags, sql + elements.measureLen + 1);
   ASSERT_EQ(elements.tagsLen, strlen("t1=3,t2=4,t3=t3"));
@@ -204,7 +205,28 @@ TEST(testCase, smlParseCols_Error_Test) {
                         "st,t=1 c=-3.402823466e+39u64 1626006833639000000",
                         "st,t=1 c=-339u64 1626006833639000000",
                         "st,t=1 c=18446744073709551616u64 1626006833639000000",
-                        "st,t=1 c=1=2 1626006833639000000"};
+                        "st,t=1 c=1=2 1626006833639000000,",
+                        // escape error test
+                        // measure comma,space
+                        "s,t,t=1 c=1 1626006833639000000,",
+                        "s t,t=1 c=1 1626006833639000000,",
+                        //tag key comma,equal,space
+                        "st,t,t=1 c=2 1626006833639000000,",
+                        "st,t=t=1 c=2 1626006833639000000,",
+                        "st,t t=1 c=2 1626006833639000000,",
+                        //tag value comma,equal,space
+                        "st,tt=a,a c=2 1626006833639000000,",
+                        "st,t=t=a a c=2 1626006833639000000,",
+                        "st,t t=a=a c=2 1626006833639000000,",
+                        //field key comma,equal,space
+                        "st,tt=aa c,1=2 1626006833639000000,",
+                        "st,tt=aa c=1=2 1626006833639000000,",
+                        "st,tt=aa c 1=2 1626006833639000000,",
+                        //field value    double quote,slash
+                        "st,tt=aa c=\"a\"a\" 1626006833639000000,",
+                        "escape_test,tag1=\"tag1_value\",tag2=\"tag2_value\" co l0=\"col0_value\",col1=\"col1_value\" 1680918783010000000",
+                        "escape_test,tag1=\"tag1_value\",tag2=\"tag2_value\" col0=\"co\"l\"0_value\",col1=\"col1_value\" 1680918783010000000"
+  };
 
   SSmlHandle *info = smlBuildSmlInfo(NULL);
   info->protocol = TSDB_SML_LINE_PROTOCOL;
@@ -256,16 +278,18 @@ TEST(testCase, smlParseCols_Test) {
   ASSERT_EQ(strncasecmp(kv->key, "cb=in", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BINARY);
-  ASSERT_EQ(kv->length, 17);
-  ASSERT_EQ(strncasecmp(kv->value, "pass,it ", 8), 0);
+  ASSERT_EQ(kv->length, 18);
+  ASSERT_EQ(kv->keyEscaped, true);
+  ASSERT_EQ(kv->valueEscaped, false);
+  ASSERT_EQ(strncasecmp(kv->value, "pass\\,it ", 9), 0);
 
   // nchar
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 2);
   ASSERT_EQ(strncasecmp(kv->key, "cnch", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->length, 8);
-  ASSERT_EQ(strncasecmp(kv->value, "ii=sd", 5), 0);
+  ASSERT_EQ(kv->length, 9);
+  ASSERT_EQ(strncasecmp(kv->value, "ii\\=sd", 5), 0);
 
   // bool
   kv = (SSmlKv *)taosArrayGet(elements.colArray, 3);

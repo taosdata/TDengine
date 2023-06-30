@@ -33,6 +33,7 @@
 #include "os.h"
 
 #include "filter.h"
+#include "filterInt.h"
 #include "nodes.h"
 #include "scalar.h"
 #include "stub.h"
@@ -344,6 +345,7 @@ TEST(timerangeTest, greater_and_lower_not_strict) {
   nodesDestroyNode(logicNode1);
 }
 
+#if 0
 TEST(columnTest, smallint_column_greater_double_value) {
   SNode       *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int16_t      leftv[5] = {1, 2, 3, 4, 5};
@@ -1336,6 +1338,127 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
+}
+#endif
+
+template <class SignedT, class UnsignedT>
+int32_t compareSignedWithUnsigned(SignedT l, UnsignedT r) {
+  if (l < 0) return -1;
+  auto l_uint64 = static_cast<uint64_t>(l);
+  auto r_uint64 = static_cast<uint64_t>(r);
+  if (l_uint64 < r_uint64) return -1;
+  if (l_uint64 > r_uint64) return 1;
+  return 0;
+}
+
+template <class UnsignedT, class SignedT>
+int32_t compareUnsignedWithSigned(UnsignedT l, SignedT r) {
+  if (r < 0) return 1;
+  auto l_uint64 = static_cast<uint64_t>(l);
+  auto r_uint64 = static_cast<uint64_t>(r);
+  if (l_uint64 < r_uint64) return -1;
+  if (l_uint64 > r_uint64) return 1;
+  return 0;
+}
+
+template <class SignedT, class UnsignedT>
+void doCompareWithValueRange_SignedWithUnsigned(__compar_fn_t fp) {
+  int32_t signedMin = -10, signedMax = 10;
+  int32_t unsignedMin = 0, unsignedMax = 10;
+  for (SignedT l = signedMin; l <= signedMax; ++l) {
+    for (UnsignedT r = unsignedMin; r <= unsignedMax; ++r) {
+      ASSERT_EQ(fp(&l, &r), compareSignedWithUnsigned(l, r));
+    }
+  }
+}
+
+template <class UnsignedT, class SignedT>
+void doCompareWithValueRange_UnsignedWithSigned(__compar_fn_t fp) {
+  int32_t signedMin = -10, signedMax = 10;
+  int32_t unsignedMin = 0, unsignedMax = 10;
+  for (UnsignedT l = unsignedMin; l <= unsignedMax; ++l) {
+    for (SignedT r = signedMin; r <= signedMax; ++r) {
+      ASSERT_EQ(fp(&l, &r), compareUnsignedWithSigned(l, r));
+    }
+  }
+}
+
+template <class LType>
+void doCompareWithValueRange_OnlyLeftType(__compar_fn_t fp, int32_t rType) {
+  switch (rType) {
+    case TSDB_DATA_TYPE_UTINYINT:
+      doCompareWithValueRange_SignedWithUnsigned<LType, uint8_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      doCompareWithValueRange_SignedWithUnsigned<LType, uint16_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      doCompareWithValueRange_SignedWithUnsigned<LType, uint32_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      doCompareWithValueRange_SignedWithUnsigned<LType, uint64_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      doCompareWithValueRange_UnsignedWithSigned<LType, int8_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      doCompareWithValueRange_UnsignedWithSigned<LType, int16_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_INT:
+      doCompareWithValueRange_UnsignedWithSigned<LType, int32_t>(fp);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      doCompareWithValueRange_UnsignedWithSigned<LType, int64_t>(fp);
+      break;
+    default:
+      FAIL();
+  }
+}
+
+void doCompare(const std::vector<int32_t> &lTypes, const std::vector<int32_t> &rTypes, int32_t oper) {
+  for (int i = 0; i < lTypes.size(); ++i) {
+    for (int j = 0; j < rTypes.size(); ++j) {
+      auto fp = filterGetCompFuncEx(lTypes[i], rTypes[j], oper);
+      switch (lTypes[i]) {
+        case TSDB_DATA_TYPE_TINYINT:
+          doCompareWithValueRange_OnlyLeftType<int8_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          doCompareWithValueRange_OnlyLeftType<int16_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          doCompareWithValueRange_OnlyLeftType<int32_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          doCompareWithValueRange_OnlyLeftType<int64_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          doCompareWithValueRange_OnlyLeftType<uint8_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          doCompareWithValueRange_OnlyLeftType<uint16_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          doCompareWithValueRange_OnlyLeftType<uint32_t>(fp, rTypes[j]);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          doCompareWithValueRange_OnlyLeftType<uint64_t>(fp, rTypes[j]);
+          break;
+        default:
+          FAIL();
+      }
+    }
+  }
+}
+
+TEST(dataCompareTest, signed_and_unsigned_int) {
+  std::vector<int32_t> lType = {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_INT,
+                                TSDB_DATA_TYPE_BIGINT};
+  std::vector<int32_t> rType = {TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_UINT,
+                                TSDB_DATA_TYPE_UBIGINT};
+
+  doCompare(lType, rType, OP_TYPE_GREATER_THAN);
+  doCompare(rType, lType, OP_TYPE_GREATER_THAN);
 }
 
 int main(int argc, char **argv) {

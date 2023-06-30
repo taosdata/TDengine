@@ -87,10 +87,10 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
-  taosIgnSignal(SIGTERM);
-  taosIgnSignal(SIGHUP);
-  taosIgnSignal(SIGINT);
-  taosIgnSignal(SIGBREAK);
+  // taosIgnSignal(SIGTERM);
+  // taosIgnSignal(SIGHUP);
+  // taosIgnSignal(SIGINT);
+  // taosIgnSignal(SIGBREAK);
 
 #ifndef WINDOWS
   taosIgnSignal(SIGBUS);

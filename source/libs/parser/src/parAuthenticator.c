@@ -28,6 +28,10 @@ typedef struct SSelectAuthCxt {
   SSelectStmt* pSelect;
 } SSelectAuthCxt;
 
+typedef struct SAuthRewriteCxt {
+  STableNode*  pTarget;
+} SAuthRewriteCxt;
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
 static void setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
@@ -70,7 +74,7 @@ static EDealRes authSubquery(SAuthCxt* pCxt, SNode* pStmt) {
   return TSDB_CODE_SUCCESS == authQuery(pCxt, pStmt) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
-static int32_t mergeStableTagCond(SNode** pWhere, SNode** pTagCond) {
+static int32_t mergeStableTagCond(SNode** pWhere, SNode* pTagCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   if (NULL == pLogicCond) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -78,7 +82,7 @@ static int32_t mergeStableTagCond(SNode** pWhere, SNode** pTagCond) {
   pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  int32_t code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, *pTagCond);
+  int32_t code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, pTagCond);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(&pLogicCond->pParameterList, *pWhere);
   }
@@ -90,11 +94,25 @@ static int32_t mergeStableTagCond(SNode** pWhere, SNode** pTagCond) {
   return code;
 }
 
-static int32_t appendStableTagCond(SNode** pWhere, SNode* pTagCond) {
+EDealRes rewriteAuthTable(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    SAuthRewriteCxt* pCxt = (SAuthRewriteCxt*)pContext;
+    strcpy(pCol->tableName, pCxt->pTarget->tableName);
+    strcpy(pCol->tableAlias, pCxt->pTarget->tableAlias);
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STableNode* pTable) {
   SNode* pTagCondCopy = nodesCloneNode(pTagCond);
   if (NULL == pTagCondCopy) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  SAuthRewriteCxt cxt = {.pTarget = pTable};
+  nodesWalkExpr(pTagCondCopy, rewriteAuthTable, &cxt);
 
   if (NULL == *pWhere) {
     *pWhere = pTagCondCopy;
@@ -106,7 +124,7 @@ static int32_t appendStableTagCond(SNode** pWhere, SNode* pTagCond) {
     return nodesListStrictAppend(((SLogicConditionNode*)*pWhere)->pParameterList, pTagCondCopy);
   }
 
-  return mergeStableTagCond(pWhere, &pTagCondCopy);
+  return mergeStableTagCond(pWhere, pTagCondCopy);
 }
 
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
@@ -117,7 +135,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     STableNode* pTable = (STableNode*)pNode;
     pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);
     if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pTagCond) {
-      pAuthCxt->errCode = appendStableTagCond(&pCxt->pSelect->pWhere, pTagCond);
+      pAuthCxt->errCode = rewriteAppendStableTagCond(&pCxt->pSelect->pWhere, pTagCond, pTable);
     }
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
   } else if (QUERY_NODE_TEMP_TABLE == nodeType(pNode)) {
@@ -152,7 +170,7 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   STableNode* pTable = (STableNode*)pDelete->pFromTable;
   int32_t     code = checkAuth(pCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_WRITE, &pTagCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
-    code = appendStableTagCond(&pDelete->pWhere, pTagCond);
+    code = rewriteAppendStableTagCond(&pDelete->pWhere, pTagCond, pTable);
   }
   return code;
 }
@@ -175,7 +193,7 @@ static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
   SNode* pTagCond = NULL;
   // todo check tag condition for subtable
-  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_READ, &pTagCond);
+  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
 }
 
 static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {

@@ -1008,7 +1008,7 @@ int32_t taosGetFqdn(char *fqdn) {
   // hints.ai_family = AF_INET;
   strcpy(fqdn, hostname);
   strcpy(fqdn + strlen(hostname), ".local");
-#else   // __APPLE__
+#else   // linux
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
@@ -1020,7 +1020,7 @@ int32_t taosGetFqdn(char *fqdn) {
   }
   strcpy(fqdn, result->ai_canonname);
   freeaddrinfo(result);
-#endif  // __APPLE__
+#endif  // linux
 
   return 0;
 }

@@ -266,7 +266,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
     suid = pDelIdx->suid;
     uid = pDelIdx->uid;
 
-    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData);
+    code = tsdbReadDelDatav1(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData, INT64_MAX);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     taosArrayClear(pCommitter->aDelData);

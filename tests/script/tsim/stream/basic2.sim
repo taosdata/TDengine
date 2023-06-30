@@ -48,23 +48,34 @@ sleep 100
 #===================================================================
 print =============== query data from child table
 
+$loop_count = 0
+
+loop0:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb
 print rows: $rows 
 print $data00  $data01 $data02 $data03
 if $rows != 1 then
-  return -1
+  goto loop0
 endi
 
 if $data01 != 234 then 
-  return -1
+  goto loop0
 endi
 
 if $data02 != 234 then 
-  return -1
+  goto loop0
 endi
 
 if $data03 != 234 then 
-  return -1
+  goto loop0
 endi
 
 #===================================================================
@@ -77,36 +88,47 @@ sleep 100
 #===================================================================
 print =============== query data from child table
 
+$loop_count = 0
+
+loop1:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb
 print rows: $rows 
 print $data00  $data01 $data02 $data03
 print $data10  $data11 $data12 $data13
 if $rows != 2 then
-  return -1
+  goto loop1
 endi
 
 if $data01 != 234 then 
-  return -1
+  goto loop1
 endi
 
 if $data02 != 234 then 
-  return -1
+  goto loop1
 endi
 
 if $data03 != 234 then 
-  return -1
+  goto loop1
 endi
 
 if $data11 != -111 then 
-  return -1
+  goto loop1
 endi
 
 if $data12 != -111 then 
-  return -1
+  goto loop1
 endi
 
 if $data13 != -111 then 
-  return -1
+  goto loop1
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

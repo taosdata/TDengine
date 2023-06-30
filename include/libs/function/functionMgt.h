@@ -158,6 +158,17 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_PARTIAL,
   FUNCTION_TYPE_STDDEV_MERGE,
 
+  // geometry functions
+  FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
+  FUNCTION_TYPE_AS_TEXT,
+  FUNCTION_TYPE_MAKE_POINT,
+  FUNCTION_TYPE_INTERSECTS,
+  FUNCTION_TYPE_EQUALS,
+  FUNCTION_TYPE_TOUCHES,
+  FUNCTION_TYPE_COVERS,
+  FUNCTION_TYPE_CONTAINS,
+  FUNCTION_TYPE_CONTAINS_PROPERLY,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -205,7 +216,7 @@ bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
 bool fmIsForbidStreamFunc(int32_t funcId);
-bool fmIsForbidSuperTableFunc(int32_t funcId);
+bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
@@ -222,6 +233,7 @@ bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
@@ -230,6 +242,7 @@ typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_SMA_LOAD,
   FUNC_DATA_REQUIRED_NOT_LOAD,
   FUNC_DATA_REQUIRED_FILTEROUT,
+  FUNC_DATA_REQUIRED_ALL_FILTEROUT,
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);

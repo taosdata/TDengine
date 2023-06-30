@@ -138,7 +138,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
-      return "Only binary/nchar column length could be modified, and the length can only be increased, not decreased";
+      return "Only binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased";
     case TSDB_CODE_PAR_INVALID_TBNAME:
       return "Invalid tbname pseudo column";
     case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
@@ -170,6 +170,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function is not supported in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
       return "%s function is not supported in group query";
+    case TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC:
+      return "%s function is not supported in system table query";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
@@ -249,6 +251,17 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableM
 
 STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
+int32_t getTableTypeFromTableNode(SNode *pTable) {
+  if (NULL == pTable) {
+    return -1;
+  }
+  if (QUERY_NODE_REAL_TABLE != nodeType(pTable)) {
+    return -1;
+  }
+  return ((SRealTableNode *)pTable)->pMeta->tableType;
+}
+
+
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
   if (numOfFields > TSDB_MAX_COLUMNS || numOfFields < TSDB_MIN_COLUMNS) {
@@ -305,6 +318,7 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
     dst[j] = src[k];
     j++;
   }
+  if (j >= dlen) j = dlen - 1;
   dst[j] = '\0';
   return j;
 }
@@ -415,7 +429,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 end:
   taosHashCleanup(keyHash);
   if (retCode == TSDB_CODE_SUCCESS) {
-    tTagNew(pTagVals, 1, true, ppTag);
+    retCode = tTagNew(pTagVals, 1, true, ppTag);
   }
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
@@ -498,7 +512,7 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr) {
-  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL != pTable && '\0' == pTable[0]) ? NULL : pTable,
+  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
                  type);
 }
 
@@ -524,6 +538,9 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
     strncpy(pStr, pStart, p - pStart);
     *pNext = ++p;
   }
+  if (*pStart == '`' && *(pStart + 1) == '`') {
+    *pStr = 0;
+  }
 }
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
@@ -532,7 +549,11 @@ static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUser
   pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
   getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
   getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
-  pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  if (pUserAuth->tbName.tname[0]) {
+    pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  } else {
+    pUserAuth->tbName.type = TSDB_DB_NAME_T;
+  }
   pUserAuth->type = getIntegerFromAuthStr(p, &p);
 }
 
@@ -664,6 +685,22 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   }
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
+}
+
+
+SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
+  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  if (NULL == select) {
+    return NULL;
+  }
+  select->isDistinct = isDistinct;
+  select->pProjectionList = pProjectionList;
+  select->pFromTable = pTable;
+  sprintf(select->stmtName, "%p", select);
+  select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
+  select->onlyHasKeepOrderFunc = true;
+  select->timeRange = TSWINDOW_INITIALIZER;
+  return (SNode*)select;
 }
 
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {

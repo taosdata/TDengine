@@ -21,8 +21,9 @@
 static SDataSinkManager gDataSinkManager = {0};
 SDataSinkStat           gDataSinkStat = {0};
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg) {
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI) {
   gDataSinkManager.cfg = *cfg;
+  gDataSinkManager.pAPI = pAPI;
   return 0;  // to avoid compiler eror
 }
 

@@ -186,7 +186,7 @@ void* queryThread(void* arg) {
 int32_t numOfThreads = 1;
 
 void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) {
-  printf("auto commit success, code:%d\n\n\n\n", code);
+//  printf("auto commit success, code:%d\n", code);
 }
 
 void* doConsumeData(void* param) {
@@ -1080,9 +1080,14 @@ TEST(clientCase, sub_tb_test) {
   ASSERT_NE(pConn, nullptr);
 
   tmq_conf_t* conf = tmq_conf_new();
-  tmq_conf_set(conf, "enable.auto.commit", "false");
-  tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName1024");
+
+  int32_t ts = taosGetTimestampMs()%INT32_MAX;
+  char consumerGroupid[128] = {0};
+  sprintf(consumerGroupid, "group_id_%d", ts);
+
+  tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
+  tmq_conf_set(conf, "group.id", consumerGroupid);
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
@@ -1095,7 +1100,7 @@ TEST(clientCase, sub_tb_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_t1");
+  tmq_list_append(topicList, "t1");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1106,14 +1111,25 @@ TEST(clientCase, sub_tb_test) {
   int32_t     precision = 0;
   int32_t     totalRows = 0;
   int32_t     msgCnt = 0;
-  int32_t     timeout = 25000;
+  int32_t     timeout = 2500000;
 
   int32_t count = 0;
 
   tmq_topic_assignment* pAssign = NULL;
   int32_t numOfAssign = 0;
 
-  int32_t code = tmq_get_topic_assignment(tmq, "topic_t1", &pAssign, &numOfAssign);
+  int32_t code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
+  if (code != 0) {
+    printf("error occurs:%s\n", tmq_err2str(code));
+    tmq_consumer_close(tmq);
+    taos_close(pConn);
+    fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+    return;
+  }
+
+  tmq_offset_seek(tmq, "t1", pAssign[0].vgId, 4);
+
+  code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
   if (code != 0) {
     printf("error occurs:%s\n", tmq_err2str(code));
     tmq_consumer_close(tmq);
@@ -1124,14 +1140,16 @@ TEST(clientCase, sub_tb_test) {
 
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
-    if (pRes != NULL) {
-      const char* topicName = tmq_get_topic_name(pRes);
-      const char* dbName = tmq_get_db_name(pRes);
-      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+    if (pRes) {
+      char buf[128];
 
-      printf("topic: %s\n", topicName);
-      printf("db: %s\n", dbName);
-      printf("vgroup id: %d\n", vgroupId);
+      const char* topicName = tmq_get_topic_name(pRes);
+//      const char* dbName = tmq_get_db_name(pRes);
+//      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+//
+//      printf("topic: %s\n", topicName);
+//      printf("db: %s\n", dbName);
+//      printf("vgroup id: %d\n", vgroupId);
 
       printSubResults(pRes, &totalRows);
     } else {
@@ -1142,6 +1160,11 @@ TEST(clientCase, sub_tb_test) {
     tmq_commit_sync(tmq, pRes);
     if (pRes != NULL) {
       taos_free_result(pRes);
+      //      if ((++count) > 1) {
+      //        break;
+      //      }
+    } else {
+      break;
     }
 
     tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgId, pAssign[0].begin);

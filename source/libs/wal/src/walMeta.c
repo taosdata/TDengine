@@ -295,6 +295,36 @@ void walAlignVersions(SWal* pWal) {
   wInfo("vgId:%d, reset commitVer to %" PRId64, pWal->cfg.vgId, pWal->vers.commitVer);
 }
 
+int walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
+  int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
+  int32_t fileIdx = -1;
+  int32_t lastCloseTs = 0;
+  char    fnameStr[WAL_FILE_LEN] = {0};
+
+  while (++fileIdx < sz - 1) {
+    SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+    if (pFileInfo->closeTs != -1) {
+      lastCloseTs = pFileInfo->closeTs;
+      continue;
+    }
+
+    walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+    int32_t mtime = 0;
+    if (taosStatFile(fnameStr, NULL, &mtime) < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+      return -1;
+    }
+
+    if (updateMeta != NULL) *updateMeta = true;
+    if (pFileInfo->createTs == -1) pFileInfo->createTs = lastCloseTs;
+    pFileInfo->closeTs = mtime;
+    lastCloseTs = pFileInfo->closeTs;
+  }
+
+  return 0;
+}
+
 bool walLogEntriesComplete(const SWal* pWal) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   bool    complete = true;
@@ -433,15 +463,8 @@ int walCheckAndRepairMeta(SWal* pWal) {
         wError("failed to scan wal last ver since %s", terrstr());
         return -1;
       }
-      // remove the empty wal log, and its idx
-      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
-      taosRemoveFile(fnameStr);
-      walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
-      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
-      taosRemoveFile(fnameStr);
-      // remove its meta entry
-      taosArrayRemove(pWal->fileInfoSet, fileIdx);
-      continue;
+      // empty log file
+      lastVer = pFileInfo->firstVer - 1;
     }
 
     // update lastVer
@@ -459,6 +482,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
     pWal->vers.lastVer = ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer;
   }
   (void)walAlignVersions(pWal);
+
+  // repair ts of files
+  if (walRepairLogFileTs(pWal, &updateMeta) < 0) {
+    return -1;
+  }
 
   // update meta file
   if (updateMeta) {

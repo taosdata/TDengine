@@ -17,7 +17,7 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
 ```
   - OR REPLACE: if the UDF exists, the UDF properties are modified
   - function_name: The scalar function name to be used in the SQL statement
-  - LANGUAGE 'C|Python': the programming language of UDF. Now C or Python is supported. If this clause is omitted, C is assumed as the programming language.
+  - LANGUAGE 'C|Python': the programming language of UDF. Now C or Python (v3.7+) is supported. If this clause is omitted, C is assumed as the programming language.
   - library_path: For C programming language, The absolute path of the DLL file including the name of the shared object file (.so). For Python programming language, the absolute path of the Python UDF script. The path must be quoted with single or double quotes.
   - output_type: The data type of the results of the UDF.
 

@@ -42,8 +42,9 @@ if [ "$DISABLE_ADAPTER" = "0" ]; then
     done
 fi
 
-# if has mnode ep set or the host is first ep or not for cluster, just start.
-if [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
+# if dnode has been created or has mnode ep set or the host is first ep or not for cluster, just start.
+if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
+    [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
     [ "$TAOS_FQDN" = "$FIRST_EP_HOST" ]; then
     $@
 # others will first wait the first ep ready.
@@ -54,7 +55,7 @@ else
         exit $?
     fi
     while true; do
-        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
         echo ${es}
         if [ "${es%%:*}" -eq 2 ]; then
             echo "execute create dnode"

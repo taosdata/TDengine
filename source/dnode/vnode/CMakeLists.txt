@@ -15,6 +15,7 @@ target_sources(
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
     "src/vnd/vnodeRetention.c"
+    "src/vnd/vnodeInitApi.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -26,6 +27,7 @@ target_sources(
     "src/meta/metaEntry.c"
     "src/meta/metaSnapshot.c"
     "src/meta/metaCache.c"
+    "src/meta/metaTtl.c"
 
     # sma
     "src/sma/smaEnv.c"
@@ -79,13 +81,50 @@ IF (TD_VNODE_PLUGINS)
   )
 ENDIF ()
 
-target_include_directories(
-    vnode
-    PUBLIC "inc"
-    PUBLIC "src/inc"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
-)
+# IF (NOT ${TD_LINUX})
+# target_include_directories(
+#     vnode
+#     PUBLIC "inc"
+#     PUBLIC "src/inc"
+#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+#     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+# )
+# ELSE()
+# target_include_directories(
+#     vnode
+#     PUBLIC "inc"
+#     PUBLIC "src/inc"
+#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+# )
+#ENDIF(NOT ${TD_LINUX})
+
+if (${BUILD_CONTRIB})
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+    )
+else()
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    )
+    if (${TD_LINUX})
+        target_include_directories(
+            vnode 
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+        target_link_directories(
+            vnode 
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+    endif()
+endif()
+
 target_link_libraries(
     vnode
     PUBLIC os
@@ -116,6 +155,12 @@ target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 if(${BUILD_WITH_INVERTEDINDEX})
     add_definitions(-DUSE_INVERTED_INDEX)
 endif(${BUILD_WITH_INVERTEDINDEX})
+
+if(${BUILD_WITH_ROCKSDB})
+    add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB})
+
+
 
 if(${BUILD_TEST})
     add_subdirectory(test)

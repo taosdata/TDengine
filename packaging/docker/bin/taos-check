@@ -1,5 +1,5 @@
 #!/bin/sh
-es=$(taos --check)
+es=$(taos --check | grep "^[0-9]*:")
 code=${es%%:*}
 if [ "$code" -ne "0" ] && [ "$code" -ne "4" ]; then
     exit 0

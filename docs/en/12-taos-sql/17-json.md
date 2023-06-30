@@ -67,7 +67,7 @@ description: This document describes the JSON data type in TDengine.
 
 - The maximum length of keys in JSON is 256 bytes, and key must be printable ASCII characters. The maximum total length of a JSON is 4,096 bytes.
 
-- JSON format：
+- JSON format:
 
    - The input string for JSON can be empty, i.e. "", "\t", or NULL, but it can't be non-NULL string, bool or array.
    - object can be {}, and the entire JSON is empty if so. Key can be "", and it's ignored if so.

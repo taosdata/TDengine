@@ -173,7 +173,7 @@ _OVER:
   dmResetEps(pData, pData->dnodeEps);
 
   if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
-    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
+    dError("localEp %s different with %s and need to be reconfigured", tsLocalEp, file);
     terrno = TSDB_CODE_INVALID_CFG;
     return -1;
   }
@@ -288,6 +288,8 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
     taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
   }
 
+  pData->validMnodeEps = true;
+
   dmPrintEps(pData);
 }
 
@@ -348,6 +350,7 @@ void dmRotateMnodeEpSet(SDnodeData *pData) {
 }
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  if(!pData->validMnodeEps) return;
   dmGetMnodeEpSet(pData, pEpSet);
   dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
