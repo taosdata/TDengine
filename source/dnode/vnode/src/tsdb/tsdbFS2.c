@@ -872,7 +872,11 @@ int32_t tsdbFSWaitAllBgTask(STFileSystem *fs) {
 }
 
 static int32_t tsdbFSDoDisableBgTask(STFileSystem *fs) {
-  // TODO
+  fs->stop = true;
+
+  if (fs->bgTaskRunning) {
+    tsdbDoWaitBgTask(fs, fs->bgTaskRunning);
+  }
   return 0;
 }
 
@@ -884,6 +888,8 @@ int32_t tsdbFSDisableBgTask(STFileSystem *fs) {
 }
 
 int32_t tsdbFSEnableBgTask(STFileSystem *fs) {
-  // TODO
+  taosThreadMutexLock(fs->mutex);
+  fs->stop = false;
+  taosThreadMutexUnlock(fs->mutex);
   return 0;
 }

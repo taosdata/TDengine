@@ -1025,6 +1025,8 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   code = tsdbFSCreateCopySnapshot(pTsdb->pFS, &writer[0]->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  tsdbFSDisableBgTask(pTsdb->pFS);
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
@@ -1075,6 +1077,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
 
     taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
   }
+  tsdbFSEnableBgTask(tsdb->pFS);
 
   tsdbIterMergerClose(&writer[0]->ctx->tombIterMerger);
   tsdbIterMergerClose(&writer[0]->ctx->dataIterMerger);
