@@ -730,15 +730,7 @@ TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_nocommit) {
     char    key[64];
     char    val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
     int64_t poolLimit = 4096;             // 1M pool limit
-    /*
-    SPoolMem *pPool;
 
-    // open the pool
-    pPool = openPool();
-
-    // start a transaction
-    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-    */
     for (int iData = 0; iData < nData; ++iData) {
       sprintf(key, "key%03d", iData);
       sprintf(val, "value%03d", iData);
@@ -759,19 +751,6 @@ TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_nocommit) {
     }
   }
 
-  /*
-  // generate value payload
-  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-  char val[32605];
-  int  valLen = sizeof(val) / sizeof(val[0]);
-  generateBigVal(val, valLen);
-
-  // insert the generated big data
-  // char const *key = "key1";
-  char const *key = "key123456789";
-  ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
-  GTEST_ASSERT_EQ(ret, 0);
-  */
   // commit current transaction
   tdbCommit(pEnv, txn);
   tdbPostCommit(pEnv, txn);

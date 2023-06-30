@@ -407,6 +407,7 @@ struct SPager {
   SRBTree rbt;
   // u8        inTran;
   TXN    *pActiveTxn;
+  SArray *ofps;
   SPager *pNext;      // used by TDB
   SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB

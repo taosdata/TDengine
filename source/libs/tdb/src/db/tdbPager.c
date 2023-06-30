@@ -722,6 +722,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
 
   // memset(pPage->pData, 0, pPage->pageSize);
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", pgno);
+  // printf("tdb/insert-free-page: tbc recycle page: %d.\n", pgno);
   code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
   if (code < 0) {
     tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
@@ -765,6 +766,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
 
   *pPgno = *(SPgno *)pKey;
   tdbTrace("tdb/remove-free-page: tbc get page: %d.", *pPgno);
+  // printf("tdb/remove-free-page: tbc get page: %d.\n", *pPgno);
 
   code = tdbTbcDelete(pCur);
   if (code < 0) {
