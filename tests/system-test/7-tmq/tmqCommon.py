@@ -37,6 +37,9 @@ from util.common import *
 #     INSERT_DATA     = 3
 
 class TMQCom:
+    def __init__(self):
+        self.g_end_insert_flag = 0
+    
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor())
@@ -330,8 +333,11 @@ class TMQCom:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0
+        rowsOfCtb = 0        
         while rowsOfCtb < rowsPerTbl:
+            if (0 != self.g_end_insert_flag):
+                tdLog.debug("get signal to stop insert data")
+                break
             for i in range(ctbNum):
                 sql += " %s.%s%d values "%(dbName,ctbPrefix,i+ctbStartIdx)
                 rowsBatched = 0

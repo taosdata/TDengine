@@ -13,7 +13,7 @@ from tmqCommon import *
 
 class TDTestCase:
     updatecfgDict = {'debugFlag': 135}    
-
+    
     def __init__(self):
         self.vgroups    = 1
         self.ctbNum     = 10
@@ -145,7 +145,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
-                    'rowsPerTbl': 1000,
+                    'rowsPerTbl': 100000000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  3,
@@ -221,9 +221,10 @@ class TDTestCase:
         if res != 'success':
             tdLog.exit("limit max groupid fail")
         
+        tmqCom.g_end_insert_flag = 1
+        tdLog.debug("notify sub-thread to stop insert data")
         pThread.join()
-        tdLog.info(" wait insert thread end")
-        
+
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):
