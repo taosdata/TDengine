@@ -76,6 +76,11 @@ public class BucketThread implements Runnable {
      */
     private long lastEnd = 0L;
 
+    /**
+     * 任务结束时间，用于判断进程退出
+     */
+    private Date endTime = null;
+
     @Override
     public void run() {
         while (LocalConfig.isRunBucketThread) {
@@ -99,7 +104,7 @@ public class BucketThread implements Runnable {
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
                 if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
-                    if (StringUtils.isNotEmpty(taskConfig.getEndTime())) {
+                    if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.endTime.before(new Date())) {
                         // 判断是否可以退出进程
                         if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
                             Thread.sleep(5000L);
@@ -261,6 +266,7 @@ public class BucketThread implements Runnable {
         // 转换格式
         Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
         Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
+        this.endTime = end;
         // 默认按天拆分
         if (StringUtils.isEmpty(readWindow)) {
             readWindow = "D";
@@ -289,6 +295,12 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
         long end = begin + 24 * 60 * 60 * 1000;
+        // 当前时间
+        long now = new Date().getTime();
+        // 如果begin晚于now，返回空
+        if (begin >= now) {
+            return null;
+        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
@@ -301,9 +313,9 @@ public class BucketThread implements Runnable {
         if (end > endTime.getTime()) {
             // end晚于endTime，改为endTime
             end = endTime.getTime();
-        } else if (end > new Date().getTime()) {
+        } else if (end > now) {
             // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = new Date().getTime();
+            end = now;
         }
         // 更新lastEnd
         this.lastEnd = end;
@@ -323,6 +335,12 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 60 * 1000;
         long end = begin + 60 * 60 * 1000;
+        // 当前时间
+        long now = new Date().getTime();
+        // 如果begin晚于now，返回空
+        if (begin >= now) {
+            return null;
+        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
@@ -335,9 +353,9 @@ public class BucketThread implements Runnable {
         if (end > endTime.getTime()) {
             // end晚于endTime，改为endTime
             end = endTime.getTime();
-        } else if (end > new Date().getTime()) {
+        } else if (end > now) {
             // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = new Date().getTime();
+            end = now;
         }
         // 更新lastEnd
         this.lastEnd = end;
@@ -357,6 +375,12 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 1000;
         long end = begin + 60 * 1000;
+        // 当前时间
+        long now = new Date().getTime();
+        // 如果begin晚于now，返回空
+        if (begin >= now) {
+            return null;
+        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
@@ -369,9 +393,9 @@ public class BucketThread implements Runnable {
         if (end > endTime.getTime()) {
             // end晚于endTime，改为endTime
             end = endTime.getTime();
-        } else if (end > new Date().getTime()) {
+        } else if (end > now) {
             // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = new Date().getTime();
+            end = now;
         }
         // 更新lastEnd
         this.lastEnd = end;

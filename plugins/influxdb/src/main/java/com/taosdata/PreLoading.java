@@ -309,10 +309,27 @@ public class PreLoading implements CommandLineRunner {
             // Measurement数量
             int measurementAmount = BucketCache.measurementMap.size();
             // 任务开始与结束时间
-            Date beginTime = DateUtils.stringToDate(taskConfig.getBeginTime(), DateUtils.DATE_FORMAT_17);
-            Date endTime = StringUtils.isNotEmpty(taskConfig.getEndTime()) ? DateUtils.stringToDate(taskConfig.getEndTime(), DateUtils.DATE_FORMAT_17) : new Date();
+            String beginTime = taskConfig.getBeginTime();
+            String endTime = taskConfig.getEndTime();
+            // 验证格式
+            if (StringUtils.isEmpty(beginTime)) {
+                throw new Exception("parameter beginTime configuration error.");
+            } else if (beginTime.matches(DateUtils.PATTERN_YMD)) {
+                beginTime += " 00:00:00";
+            } else if (!beginTime.matches(DateUtils.PATTERN_YMDHMS)) {
+                throw new Exception("parameter beginTime configuration error.");
+            }
+            if (StringUtils.isEmpty(endTime)) {
+                endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
+            } else if (endTime.matches(DateUtils.PATTERN_YMD)) {
+                endTime += " 23:59:59";
+            } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS)) {
+                throw new Exception("parameter endTime configuration error.");
+            }
+            Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15);
+            Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15);
             // 相差毫秒数
-            long diff = endTime.getTime() - beginTime.getTime();
+            long diff = end.getTime() - begin.getTime();
             // 根据查询窗口类型计算
             String readWindow = performanceConfig.getReadWindow().toLowerCase();
             switch (readWindow) {
