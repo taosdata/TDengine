@@ -146,6 +146,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
 
   taosArrayDestroy(pMeta->checkpointSaved);
   taosArrayDestroy(pMeta->checkpointInUse);
+
   taosMemoryFree(pMeta);
 }
 

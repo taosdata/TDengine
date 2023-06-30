@@ -201,6 +201,23 @@ void streamBackendCleanup(void* arg) {
  *  checkpointInUse: |--cp2--|--cp4--|, checkpointDir in checkpointInUse do replicate trans, cannot del until
  * replication is finished
  */
+int32_t getLatestCheckpoint(void* arg, int64_t* checkpoint) {
+  SStreamMeta* pMeta = arg;
+  taosWLockLatch(&pMeta->checkpointDirLock);
+  int64_t tc = 0;
+  int32_t sz = taosArrayGetSize(pMeta->checkpointSaved);
+  if (sz <= 0) {
+    return -1;
+  } else {
+    tc = *(int64_t*)taosArrayGetLast(pMeta->checkpointSaved);
+  }
+
+  taosArrayPush(pMeta->checkpointInUse, &tc);
+
+  *checkpoint = tc;
+  taosWUnLockLatch(&pMeta->checkpointDirLock);
+  return 0;
+}
 int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   SStreamMeta* pMeta = arg;
 
