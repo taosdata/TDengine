@@ -538,15 +538,18 @@ sma_stream_opt(A) ::= sma_stream_opt(B) MAX_DELAY duration_literal(C).          
 sma_stream_opt(A) ::= sma_stream_opt(B) DELETE_MARK duration_literal(C).          { ((SStreamOptions*)B)->pDeleteMark = releaseRawExprNode(pCxt, C); A = B; }
 
 /************************************************ create/drop topic ***************************************************/
-with_meta(A) ::= .                                                                { A = 0; }
-with_meta(A) ::= WITH META.                                                       { A = 1; }
-with_meta(A) ::= ONLY META.                                                       { A = 2; }
-
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(D)
-  AS DATABASE db_name(C).                                                         { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, D); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(E)
-  AS STABLE full_table_name(C) where_clause_opt(D).                               { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, E, D); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS DATABASE db_name(C).      { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, 0); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B)
+  WITH META AS DATABASE db_name(C).                                               { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, 1); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B)
+  ONLY META AS DATABASE db_name(C).                                               { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, 2); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B)
+  AS STABLE full_table_name(C) where_clause_opt(D).                               { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, 0, D); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B)
+  WITH META AS STABLE full_table_name(C) where_clause_opt(D).                     { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, 1, D); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B)
+  ONLY META AS STABLE full_table_name(C) where_clause_opt(D).                     { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, 2, D); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) cgroup_name(B) ON topic_name(C).        { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 
