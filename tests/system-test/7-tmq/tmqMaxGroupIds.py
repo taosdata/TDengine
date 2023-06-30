@@ -186,7 +186,7 @@ class TDTestCase:
             tdLog.exit("show topics %d not equal expect num: %d"%(topicNum, expectTopicNum))
         
         flag = 0
-        for i in range(10):        
+        while (1):        
             tdSql.query('show consumers;')
             consumerNUm = tdSql.queryRows
             tdLog.info(" get consumers count: %d"%(consumerNUm))
