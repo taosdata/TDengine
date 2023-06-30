@@ -51,16 +51,7 @@ authentication:
       display: 证书访问
       description: 使用私钥及证书反问 OPC 服务器。
       params:
-        - name: certificate
-          display: 证书
-          description: 证书文件。当 security mode or policy isn't "None".
-          hint:
-            type: file
-        - name: private_key
-          display: 私钥
-          description: 私钥文件. Required when security mode or policy isn't "None"
-          hint:
-            type: file
+        
         - name: security_mode
           display: 安全模式
           description: |
@@ -94,16 +85,28 @@ authentication:
               - Basic128Rsa15
               - Basic256
               - Basic256Sha256
+        - name: certificate
+          display: 证书文件内容
+          # description: 证书文件。当 security mode or policy isn't "None".
+          hint:
+            type: file
+        - name: private_key
+          display: 私钥文件内容
+          # description: 私钥文件. Required when security mode or policy isn't "None"
+          hint:
+            type: file
 datasets:
-  name: Data Sets
+  name: 点位集
   description: OPC 采集数据点位列表。
   categories:
   - category: nodes
-    display: Nodes
-    description: 点位配置列表，使用英文逗号分隔。
+    display: 点位配置
+    description: |
+      OPC UA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
     target:
       name: ua.nodes
-      description: 点位配置列表，使用英文逗号分隔。
+      description: |
+        OPC UA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
       required: true
       multiple: true
       editable: true
@@ -212,5 +215,5 @@ groups:
         display: 开启 Debug 日志
         hint:
           type: bool
-        description: 是否开启 opc 连接器的点位
+        description: 是否开启 opc 连接器 debug 日志
 
