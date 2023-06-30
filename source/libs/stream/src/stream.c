@@ -74,7 +74,6 @@ void streamSchedByTimer(void* param, void* tmrId) {
     atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE);
 
     if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)trigger) < 0) {
-      taosFreeQitem(trigger);
       taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
       return;
     }

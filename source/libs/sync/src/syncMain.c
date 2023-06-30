@@ -615,8 +615,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
     return -1;
   }
 
-  // not restored, vnode enable
-  if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
+  if (!pSyncNode->restoreFinish) {
     terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
     sNError(pSyncNode, "failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
@@ -1590,6 +1589,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // persist cfg
     syncWriteCfgFile(pSyncNode);
 
+#if 0
     // change isStandBy to normal (election timeout)
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
       syncNodeBecomeLeader(pSyncNode, "");
@@ -1601,6 +1601,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     } else {
       syncNodeBecomeFollower(pSyncNode, "");
     }
+#endif
   } else {
     // persist cfg
     syncWriteCfgFile(pSyncNode);

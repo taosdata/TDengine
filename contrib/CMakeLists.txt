@@ -77,7 +77,6 @@ if(${BUILD_WITH_LEVELDB})
     cat("${TD_SUPPORT_DIR}/leveldb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_LEVELDB})
 
-
 if (${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
         cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -95,7 +94,6 @@ else()
         endif(${BUILD_WITH_ROCKSDB})
     endif()
 endif()
-
 
 # canonical-raft
 if(${BUILD_WITH_CRAFT})

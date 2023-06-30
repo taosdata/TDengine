@@ -765,7 +765,7 @@ TEST_F(ParserInitialCTest, createStable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, "
       "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
+      "COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
       "DELETE_MARK 1000s,200m");
   clearCreateStbReq();
 }
@@ -885,12 +885,12 @@ TEST_F(ParserInitialCTest, createStream) {
 
   setCreateStreamReq(
       "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 1 ignore "
+      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
       "update 1 into st3 as select count(*) from t1 interval(10s)",
       "st3", 1);
   setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
-                   10 * MILLISECOND_PER_SECOND, 0, 1, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 1 IGNORE "
+                   10 * MILLISECOND_PER_SECOND, 0, 0, 1);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
       "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
@@ -1005,7 +1005,7 @@ TEST_F(ParserInitialCTest, createTable) {
         ASSERT_EQ(pReq->flags, pExpect->flags);
         ASSERT_EQ(std::string(pReq->name), std::string(pExpect->name));
         ASSERT_EQ(pReq->uid, pExpect->uid);
-        ASSERT_EQ(pReq->ctime, pExpect->ctime);
+        ASSERT_EQ(pReq->btime, pExpect->btime);
         ASSERT_EQ(pReq->ttl, pExpect->ttl);
         ASSERT_EQ(pReq->commentLen, pExpect->commentLen);
         ASSERT_EQ(std::string(pReq->comment), std::string(pExpect->comment));
@@ -1038,7 +1038,7 @@ TEST_F(ParserInitialCTest, createTable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, a8 BINARY(20), "
       "a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
       "a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
+      "COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
 
   run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW)");
 

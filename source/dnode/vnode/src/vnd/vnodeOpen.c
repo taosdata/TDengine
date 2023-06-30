@@ -129,15 +129,20 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   return 0;
 }
 
+static int32_t vnodeVgroupIdLen(int32_t vgId) {
+  char tmp[TSDB_FILENAME_LEN];
+  sprintf(tmp, "%d", vgId);
+  return strlen(tmp);
+}
+
 int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
-  int32_t ret = tfsRename(pTfs, srcPath, dstPath);
-  if (ret != 0) return ret;
+  int32_t ret = 0;
 
   char oldRname[TSDB_FILENAME_LEN] = {0};
   char newRname[TSDB_FILENAME_LEN] = {0};
   char tsdbPath[TSDB_FILENAME_LEN] = {0};
   char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
-  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", dstPath, TD_DIRSEP);
+  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
   snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
 
   STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
@@ -154,8 +159,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 
     int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
     if (tsdbFileVgId == srcVgId) {
-      char *tsdbFileSurfixPos = strstr(tsdbFilePrefixPos, "f");
-      if (tsdbFileSurfixPos == NULL) continue;
+      char *tsdbFileSurfixPos = tsdbFilePrefixPos + 6 + vnodeVgroupIdLen(srcVgId);
 
       tsdbFilePrefixPos[6] = 0;
       snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
@@ -163,7 +167,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 
       ret = tfsRename(pTfs, tsdbFile->rname, newRname);
       if (ret != 0) {
-        vInfo("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
+        vError("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
         tfsClosedir(tsdbDir);
         return ret;
       }
@@ -171,6 +175,21 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   }
 
   tfsClosedir(tsdbDir);
+
+  vInfo("vgId:%d, rename dir from %s to %s", dstVgId, srcPath, dstPath);
+  ret = tfsRename(pTfs, srcPath, dstPath);
+  if (ret != 0) {
+    vError("vgId:%d, failed to rename dir from %s to %s since %s", dstVgId, srcPath, dstPath, terrstr());
+  }
+  return ret;
+}
+
+int32_t vnodeGetAbsDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
+  if (pTfs) {
+    snprintf(buf, bufLen, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
+  } else {
+    snprintf(buf, bufLen, "%s", relPath);
+  }
   return 0;
 }
 
@@ -179,13 +198,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, srcPath);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", srcPath);
-  }
-
-  // todo add stat file to handle exception while vnode open
+  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -238,6 +251,42 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
 
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
+}
+
+int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetAbsDir(dstPath, pTfs, dir, TSDB_FILENAME_LEN);
+  if (vnodeLoadInfo(dir, &info) == 0) {
+    if (info.config.vgId != dstVgId) {
+      vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
+      return -1;
+    }
+    return dstVgId;
+  }
+
+  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
+  if (vnodeLoadInfo(dir, &info) < 0) {
+    vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
+    return -1;
+  }
+
+  if (info.config.vgId == srcVgId) {
+    vInfo("vgId:%d, rollback alter hashrange", srcVgId);
+    return srcVgId;
+  } else if (info.config.vgId != dstVgId) {
+    vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
+    return -1;
+  }
+
+  vInfo("vgId:%d, rename %s to %s", dstVgId, srcPath, dstPath);
+  if (vnodeRenameVgroupId(srcPath, dstPath, srcVgId, dstVgId, pTfs) < 0) {
+    vError("vgId:%d, failed to rename vnode from %s to %s since %s", dstVgId, srcPath, dstPath, tstrerror(terrno));
+    return -1;
+  }
+
+  return dstVgId;
 }
 
 void vnodeDestroy(const char *path, STfs *pTfs) {

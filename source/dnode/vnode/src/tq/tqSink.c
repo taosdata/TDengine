@@ -298,10 +298,8 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
         if (res == TSDB_CODE_SUCCESS) {
           memcpy(ctbName, pTableSinkInfo->tbName, strlen(pTableSinkInfo->tbName));
         } else {
-          char* tmp = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
-          memcpy(ctbName, tmp, strlen(tmp));
-          memcpy(pTableSinkInfo->tbName, tmp, strlen(tmp));
-          taosMemoryFree(tmp);
+          buildCtbNameByGroupIdImpl(stbFullName, pDataBlock->info.id.groupId, ctbName);
+          memcpy(pTableSinkInfo->tbName, ctbName, strlen(ctbName));
           tqDebug("vgId:%d, gropuId:%" PRIu64 " datablock table name is null", TD_VID(pVnode),
                   pDataBlock->info.id.groupId);
         }
@@ -337,6 +335,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
           tagArray = taosArrayInit(1, sizeof(STagVal));
           if (!tagArray) {
             tdDestroySVCreateTbReq(pCreateTbReq);
+            taosMemoryFreeClear(pCreateTbReq);
             goto _end;
           }
           STagVal tagVal = {
@@ -352,6 +351,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
           tagArray = taosArrayDestroy(tagArray);
           if (pTag == NULL) {
             tdDestroySVCreateTbReq(pCreateTbReq);
+            taosMemoryFreeClear(pCreateTbReq);
             terrno = TSDB_CODE_OUT_OF_MEMORY;
             goto _end;
           }
