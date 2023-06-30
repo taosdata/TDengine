@@ -123,8 +123,8 @@ typedef struct SSnapContext {
   SHashObj* suidInfo;
   SArray*   idList;
   int32_t   index;
-  bool      withMeta;
-  bool      queryMeta;  // true-get meta, false-get data
+  int8_t    withMeta;
+  int8_t    queryMeta;  // true-get meta, false-get data
 } SSnapContext;
 
 typedef struct {

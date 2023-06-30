@@ -2909,6 +2909,12 @@ enum {
   TMQ_OFFSET__SNAPSHOT_META = 3,
 };
 
+enum {
+  WITH_DATA = 0,
+  WITH_META = 1,
+  ONLY_META = 2,
+};
+
 typedef struct {
   int8_t type;
   union {

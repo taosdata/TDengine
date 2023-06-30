@@ -227,7 +227,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
           continue;
         }
       }
-      if (pHandle->fetchMeta && pSubmitTbDataRet->pCreateTbReq != NULL) {
+      if (pHandle->fetchMeta != WITH_DATA && pSubmitTbDataRet->pCreateTbReq != NULL) {
         if (pRsp->createTableNum == 0) {
           pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
           pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
@@ -254,6 +254,9 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         pRsp->createTableNum++;
 
         tEncoderClear(&encoder);
+      }
+      if (pHandle->fetchMeta == ONLY_META && pSubmitTbDataRet->pCreateTbReq == NULL){
+        continue;
       }
       for (int32_t i = 0; i < taosArrayGetSize(pBlocks); i++) {
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
@@ -286,7 +289,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
           continue;
         }
       }
-      if (pHandle->fetchMeta && pSubmitTbDataRet->pCreateTbReq != NULL) {
+      if (pHandle->fetchMeta != WITH_DATA && pSubmitTbDataRet->pCreateTbReq != NULL) {
         if (pRsp->createTableNum == 0) {
           pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
           pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
@@ -313,6 +316,9 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         pRsp->createTableNum++;
 
         tEncoderClear(&encoder);
+      }
+      if (pHandle->fetchMeta == ONLY_META && pSubmitTbDataRet->pCreateTbReq == NULL){
+        continue;
       }
       for (int32_t i = 0; i < taosArrayGetSize(pBlocks); i++) {
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
