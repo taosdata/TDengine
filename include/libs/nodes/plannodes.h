@@ -159,6 +159,7 @@ typedef struct SInterpFuncLogicNode {
 
 typedef struct SGroupCacheLogicNode {
   SLogicNode  node;
+  bool        grpColsMayBeNull;  
   SNodeList*  pGroupCols;
 } SGroupCacheLogicNode;
 
@@ -437,6 +438,7 @@ typedef struct SHashJoinPhysiNode {
 
 typedef struct SGroupCachePhysiNode {
   SPhysiNode node;
+  bool       grpColsMayBeNull;
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 

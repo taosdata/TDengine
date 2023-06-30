@@ -3230,6 +3230,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
   }
   
   pGrpCache->node.dynamicOp = true;
+  pGrpCache->grpColsMayBeNull = false;
   pGrpCache->node.pChildren = pChildren;
   pGrpCache->node.pTargets = nodesMakeList();
   if (NULL == pGrpCache->node.pTargets) {

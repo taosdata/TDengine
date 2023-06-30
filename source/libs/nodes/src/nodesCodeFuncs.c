@@ -1182,12 +1182,16 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkGroupCacheLogicPlanGrpColsMayBeNull = "GroupColsMayBeNull";
 static const char* jkGroupCacheLogicPlanGroupCols = "GroupCols";
 
 static int32_t logicGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   const SGroupCacheLogicNode* pNode = (const SGroupCacheLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkGroupCacheLogicPlanGrpColsMayBeNull, pNode->grpColsMayBeNull);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCacheLogicPlanGroupCols, pNode->pGroupCols);
   }
@@ -1199,6 +1203,9 @@ static int32_t jsonToLogicGroupCacheNode(const SJson* pJson, void* pObj) {
   SGroupCacheLogicNode* pNode = (SGroupCacheLogicNode*)pObj;
 
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkGroupCacheLogicPlanGrpColsMayBeNull, &pNode->grpColsMayBeNull);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkGroupCacheLogicPlanGroupCols, &pNode->pGroupCols);
   }

@@ -271,7 +271,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->rightBuildTable = tSimpleHashInit(256,  hashFn);
   }
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL, NULL, NULL);
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

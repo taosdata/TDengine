@@ -30,7 +30,7 @@
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
-                                   __optr_explain_fn_t explain) {
+                                   __optr_explain_fn_t explain, __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn) {
   SOperatorFpSet fpSet = {
       ._openFn = openFn,
       .getNextFn = nextFn,
@@ -38,6 +38,8 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
       .closeFn = closeFn,
       .reqBufFn = reqBufFn,
       .getExplainFn = explain,
+      .getNextExtFn = nextExtFn,
+      .notifyFn = notifyFn
   };
 
   return fpSet;
@@ -422,6 +424,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       pOperator = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo);
     } else {
       terrno = TSDB_CODE_INVALID_PARA;
+      pTaskInfo->code = terrno;
       return NULL;
     }
 
@@ -435,6 +438,8 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
   size_t          size = LIST_LENGTH(pPhyNode->pChildren);
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   if (ops == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    pTaskInfo->code = terrno;
     return NULL;
   }
 
@@ -503,6 +508,8 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     pOptr = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
+    pOptr = createHashJoinOperatorInfo(ops, size, (SHashJoinPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
     pOptr = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL == type) {
@@ -513,8 +520,13 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     pOptr = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     pOptr = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
+    pOptr = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
+    pOptr = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
+    pTaskInfo->code = terrno;
     taosMemoryFree(ops);
     return NULL;
   }
@@ -579,3 +591,11 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
 
   return TSDB_CODE_SUCCESS;
 }
+
+void *getOperatorParam(int32_t opType, SOperatorParam* param) {
+  if (NULL == param || opType != param->opType) {
+    return NULL;
+  }
+  return param->value;
+}
+
