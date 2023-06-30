@@ -33,11 +33,13 @@ datasets:
   categories:
   - category: tags
     display: DA Tags
-    description: OPC DA 点位列表。
+    description: | 
+      OPC DA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
     target:
       name: da.tags
       display: DA Tags
-      description: OPC DA 数据采集点位列表。
+      description: |
+        OPC DA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
       required: true
       multiple: true
       editable: true
@@ -117,6 +119,6 @@ groups:
         display: 开启 Debug 日志
         hint:
           type: bool
-        description: 是否开启 opc 连接器的点位
+        description: 是否开启 opc 连接器的 debug 日志
 
 

@@ -78,6 +78,7 @@ pub struct OPCConfig {
     /// use receviced time as ts cloumn value when config true
     // use_received_time: bool,
     connect: ConnectConfig,
+    points: Option<PointsConfig>,
     collect: CollectConfig,
     report: ReportConfig,
 
@@ -136,6 +137,12 @@ struct UaConnectConfig {
 struct DaConnectConfig {
     server: String,
     nodes: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct PointsConfig {
+    limit: usize,
+    regex: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -449,6 +456,7 @@ impl OPCConfig {
             opc_type,
             debug,
             // use_received_time,
+            points: None,
             connect,
             collect,
             report,
@@ -890,7 +898,12 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
+    let mut config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
+    let points_config = PointsConfig {
+        limit: req.limit,
+        regex: req.pattern.clone(),
+    };
+    config.points = Some(points_config);
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -913,7 +926,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .stderr(std::process::Stdio::piped())
         .output()
         .await
-        .context("Start OPC collector error")?;
+        .with_context(|| "Start OPC collector error")?;
     // dbg!(output);
     let mut log_path = log_path();
     log_path.push(LOG_FILE);
@@ -942,20 +955,19 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         "opc datasets : {}",
         serde_json::to_string(&res).unwrap_or("".to_string())
     );
+    let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
+        match lang.as_str() {
+            "zh" => ("编码".to_string(), "点位编码".to_string()),
+            _ => ("Code".to_string(), "Point Code".to_string())
+        }
+    } else {
+        ("Code".to_string(),"Point Code".to_string())
+    };
     let options = vec![
-        // OptionSet {
-        //     name: "table".to_string(),
-        //     description: Some("Table name".to_string()),
-        //     required: true,
-        // },
-        // OptionSet {
-        //     name: "field".to_string(),
-        //     description: Some("Field name".to_string()),
-        //     required: true,
-        // },
         OptionSet {
             name: "code".to_string(),
-            description: Some("Code".to_string()),
+            display: option_set_code_display,
+            description: Some(option_set_code_desc),
             required: true,
         },
     ];
@@ -1039,6 +1051,10 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
         debug: true,
+        points: Some(PointsConfig {
+            limit: 32,
+            regex: Some(String::from("123")),
+        }),
         // use_received_time: true,
         connect: ConnectConfig {
             ua: Some(UaConnectConfig {
@@ -1104,6 +1120,10 @@ auth_method = "Anonymous"
 [connect.da]
 server = "server.server"
 nodes = ["localhost"]
+
+[points]
+limit = 32
+regex = "123"
 
 [collect]
 interval = 10
