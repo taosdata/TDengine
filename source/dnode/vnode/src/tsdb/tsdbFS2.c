@@ -791,9 +791,9 @@ static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32
   }
 
   // check if same task is on
-  if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
-    return 0;
-  }
+  // if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
+  //   return 0;
+  // }
 
   for (STFSBgTask *task = fs->bgTaskQueue->next; task != fs->bgTaskQueue; task = task->next) {
     if (task->type == type) {
