@@ -791,9 +791,9 @@ static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32
   }
 
   // check if same task is on
-  if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
-    return 0;
-  }
+  // if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
+  //   return 0;
+  // }
 
   for (STFSBgTask *task = fs->bgTaskQueue->next; task != fs->bgTaskQueue; task = task->next) {
     if (task->type == type) {
@@ -867,6 +867,29 @@ int32_t tsdbFSWaitAllBgTask(STFileSystem *fs) {
     taosThreadCondWait(fs->bgTaskRunning->done, fs->mutex);
   }
 
+  taosThreadMutexUnlock(fs->mutex);
+  return 0;
+}
+
+static int32_t tsdbFSDoDisableBgTask(STFileSystem *fs) {
+  fs->stop = true;
+
+  if (fs->bgTaskRunning) {
+    tsdbDoWaitBgTask(fs, fs->bgTaskRunning);
+  }
+  return 0;
+}
+
+int32_t tsdbFSDisableBgTask(STFileSystem *fs) {
+  taosThreadMutexLock(fs->mutex);
+  int32_t code = tsdbFSDoDisableBgTask(fs);
+  taosThreadMutexUnlock(fs->mutex);
+  return code;
+}
+
+int32_t tsdbFSEnableBgTask(STFileSystem *fs) {
+  taosThreadMutexLock(fs->mutex);
+  fs->stop = false;
   taosThreadMutexUnlock(fs->mutex);
   return 0;
 }

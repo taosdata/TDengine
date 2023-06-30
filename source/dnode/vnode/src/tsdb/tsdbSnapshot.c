@@ -281,21 +281,34 @@ _exit:
 }
 
 static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** data) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SMetaInfo info;
 
   tBlockDataReset(reader->blockData);
 
+  TABLEID tbid[1] = {0};
   for (SRowInfo* row; (row = tsdbIterMergerGetData(reader->dataIterMerger));) {
+    // skip dropped table
+    if (row->uid != tbid->uid) {
+      tbid->suid = row->suid;
+      tbid->uid = row->uid;
+      if (metaGetInfo(reader->tsdb->pVnode->pMeta, tbid->uid, &info, NULL) != 0) {
+        code = tsdbIterMergerSkipTableData(reader->dataIterMerger, tbid);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      }
+    }
+
     if (reader->blockData->suid == 0 && reader->blockData->uid == 0) {
       code = tsdbUpdateSkmTb(reader->tsdb, (TABLEID*)row, reader->skmTb);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      TABLEID tbid = {
+      TABLEID tbid1 = {
           .suid = row->suid,
           .uid = row->suid ? 0 : row->uid,
       };
-      code = tBlockDataInit(reader->blockData, &tbid, reader->skmTb->pTSchema, NULL, 0);
+      code = tBlockDataInit(reader->blockData, &tbid1, reader->skmTb->pTSchema, NULL, 0);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -360,12 +373,24 @@ _exit:
 }
 
 static int32_t tsdbSnapReadTombData(STsdbSnapReader* reader, uint8_t** data) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SMetaInfo info;
 
   tTombBlockClear(reader->tombBlock);
 
+  TABLEID tbid[1] = {0};
   for (STombRecord* record; (record = tsdbIterMergerGetTombRecord(reader->tombIterMerger)) != NULL;) {
+    if (record->uid != tbid->uid) {
+      tbid->suid = record->suid;
+      tbid->uid = record->uid;
+      if (metaGetInfo(reader->tsdb->pVnode->pMeta, tbid->uid, &info, NULL) != 0) {
+        code = tsdbIterMergerSkipTableData(reader->tombIterMerger, tbid);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      }
+    }
+
     code = tTombBlockPut(reader->tombBlock, record);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1000,6 +1025,8 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   code = tsdbFSCreateCopySnapshot(pTsdb->pFS, &writer[0]->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  tsdbFSDisableBgTask(pTsdb->pFS);
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
@@ -1050,6 +1077,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
 
     taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
   }
+  tsdbFSEnableBgTask(tsdb->pFS);
 
   tsdbIterMergerClose(&writer[0]->ctx->tombIterMerger);
   tsdbIterMergerClose(&writer[0]->ctx->dataIterMerger);
