@@ -337,27 +337,30 @@ async fn consume_lush_record(
                             }
                         }
                         let mut count = 0;
+                        let mut sql = format!("insert into ");
                         for (mut c, mut v) in column_value_pairs {
-                            let mut column_names = String::from("(");
-                            let mut values = String::from("(");
+                            // let mut column_names = String::from("(");
+                            // let mut values = String::from("(");
                             c.pop();
-                            column_names.push_str(c.as_str());
-                            column_names.push(')');
+                            // column_names.push_str(c.as_str());
+                            // column_names.push(')');
                             v.pop();
-                            values.push_str(v.as_str());
-                            values.push(')');
-                            let sql = format!(
-                                "insert into `{table_name}` {column_names} VALUES {values}"
-                            );
-                            log::debug!("sql: {sql}");
-                            let res = taos.exec(sql).await;
-                            match res {
-                                Ok(num) => {
-                                    count = count + num;
-                                }
-                                Err(err) => {
-                                    log::error!("written err for {table_name} cause: {}", err);
-                                }
+                            // values.push_str(v.as_str());
+                            // values.push(')');
+                            sql.push_str(format!("`{table_name}` ({}) VALUES ({}) ", c.as_str(), v.as_str()).as_str());
+                            // let sql = format!(
+                                // "insert into `{table_name}` {column_names} VALUES {values}"
+                            // );
+                            
+                        }
+                        log::debug!("sql: {sql}");
+                        let res = taos.exec(sql).await;
+                        match res {
+                            Ok(num) => {
+                                count = count + num;
+                            }
+                            Err(err) => {
+                                log::error!("written err for {table_name} cause: {}", err);
                             }
                         }
                         info!("written [{count}] records for table {table_name}");
