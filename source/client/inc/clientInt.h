@@ -33,7 +33,6 @@ extern "C" {
 #include "tmsg.h"
 #include "tmsgtype.h"
 #include "trpc.h"
-#include "tsimplehash.h"
 
 #include "tconfig.h"
 
@@ -86,7 +85,7 @@ typedef struct {
   TdThread      thread;
   TdThreadMutex lock;       // used when app init and cleanup
   SHashObj*     appSummary;
-  SSHashObj*    appHbHash;  // key: clusterId
+  SHashObj*     appHbHash;  // key: clusterId
   SArray*       appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle  reqHandle[CONN_TYPE__MAX];
   FHbRspHandle  rspHandle[CONN_TYPE__MAX];
