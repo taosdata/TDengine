@@ -617,7 +617,7 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   if (userNum <= 0) {
     taosMemoryFree(users);
     return TSDB_CODE_SUCCESS;
-  } 
+  }
 
   for (int32_t i = 0; i < userNum; ++i) {
     SUserAuthVersion *user = &users[i];
@@ -783,6 +783,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
       return code;
     }
   }
+
   ++hbParam->reqCnt;  // success to get catalog info
 
   return TSDB_CODE_SUCCESS;
@@ -811,7 +812,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   }
 
   void    *pIter = NULL;
-  SHbParam param = {.pAppHbMgr = pAppHbMgr};
+  SHbParam param = {0};
   while ((pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter))) {
     SClientHbReq *pOneReq = pIter;
     SClientHbKey *connKey = &pOneReq->connKey;
@@ -828,6 +829,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
         if (param.clusterId == 0) {
           // init
           param.clusterId = pOneReq->clusterId;
+          param.pAppHbMgr = pAppHbMgr;
           param.connHbFlag = atomic_load_8(&pAppHbMgr->connHbFlag);
         }
         break;
@@ -977,6 +979,7 @@ static void *hbThreadFunc(void *param) {
 
     taosMsleep(HEARTBEAT_INTERVAL);
   }
+  taosHashCleanup(clientHbMgr.appHbHash);
   return NULL;
 }
 
@@ -1088,11 +1091,6 @@ void appHbMgrCleanup(void) {
     if (pTarget == NULL) continue;
     hbFreeAppHbMgr(pTarget);
   }
-  clientHbMgr.appHbMgrs = taosArrayDestroy(clientHbMgr.appHbMgrs);
-  taosHashCleanup(clientHbMgr.appSummary);
-  taosHashCleanup(clientHbMgr.appHbHash);
-  clientHbMgr.appSummary = NULL;
-  clientHbMgr.appHbHash = NULL;
 }
 
 int hbMgrInit() {
@@ -1146,7 +1144,9 @@ void hbMgrCleanUp() {
 
   taosThreadMutexLock(&clientHbMgr.lock);
   appHbMgrCleanup();
+  taosArrayDestroy(clientHbMgr.appHbMgrs);
   taosThreadMutexUnlock(&clientHbMgr.lock);
+  clientHbMgr.appHbMgrs = NULL;
 }
 
 int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, int64_t clusterId) {
