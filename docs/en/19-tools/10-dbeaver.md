@@ -15,7 +15,11 @@ To use DBeaver to manage TDengine, you need to prepare the following:
 
 ## Use DBeaver to access TDengine Cloud
 
-1. Copy TDENGINE_JDBC_URL value.
+1. Log in to the TDengine Cloud service, select **Programming** > **Java** in the management console, and then copy the string value of `TDENGINE_JDBC_URL` displayed in the **Config** section.
+
+ ![Copy JDBC URL from TDengine Cloud](./dbeaver/tdengine-cloud-jdbc-dsn-en.webp)
+
+Or copy TDENGINE_JDBC_URL value directly after log in.
 
 ```
 <jdbcURL>
