@@ -17,10 +17,14 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
 ## 使用 DBeaver 访问 TDengine Cloud
 
-1. 复制 TDENGINE_JDBC_URL 的字符串值。
+1. 登录 TDengine Cloud 服务，在管理界面中选择“编程”和“Java”，然后复制 TDENGINE_JDBC_URL 的字符串值。 
+
+ ![复制 TDengine Cloud JDBC_URL](./dbeaver/tdengine-cloud-jdbc-dsn-zh.webp)
+
+也可以登录后直接复制 TDENGINE_JDBC_URL 的字符串值。
 
 ```
-<jdbcURL>
+ <jdbcURL>
 ```
 
 2. 启动 DBeaver 应用，点击按钮或菜单项选择“连接到数据库”，然后在时间序列分类栏中选择 TDengine Cloud。
