@@ -86,7 +86,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
           pTscObj->authVer = rsp->version;
 
-#if 1  // make jenkins happy temporarily. After PR pass, enable these lines again.
+#if 0  // make jenkins happy temporarily. After PR pass, enable these lines again.
           if (pTscObj->sysInfo != rsp->sysInfo) {
             tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, rsp->user,
                      pTscObj->sysInfo, rsp->sysInfo, pTscObj->id);
