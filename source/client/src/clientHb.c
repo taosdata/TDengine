@@ -67,43 +67,50 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 }
 
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
-  SClientHbReq *pReq = NULL;
-  while ((pReq = taosHashIterate(pAppHbMgr->activeInfo, pReq))) {
-    STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);
-    if (!pTscObj) {
+  uint64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+  for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
+    SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+    if (!hbMgr || hbMgr->pAppInstInfo->clusterId != clusterId) {
       continue;
     }
-    for (int32_t i = 0; i < TARRAY_SIZE(batchRsp->pArray); ++i) {
-      SGetUserAuthRsp *rsp = taosArrayGet(batchRsp->pArray, i);
 
-      if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
-        
-        pTscObj->authVer = rsp->version;
-
-#if 0 // make jenkins happy temporarily. After PR pass, enable these lines again.
-        if (pTscObj->sysInfo != rsp->sysInfo) {
-          tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, rsp->user,
-                   pTscObj->sysInfo, rsp->sysInfo, pTscObj->id);
-          pTscObj->sysInfo = rsp->sysInfo;
-        }
-#endif
-        if (pTscObj->passInfo.fp) {
-          SPassInfo *passInfo = &pTscObj->passInfo;
-          int32_t    oldVer = atomic_load_32(&passInfo->ver);
-          if (oldVer < rsp->passVer) {
-            atomic_store_32(&passInfo->ver, rsp->passVer);
-            if (passInfo->fp) {
-              (*passInfo->fp)(passInfo->param, &rsp->passVer, TAOS_NOTIFY_PASSVER);
-            }
-            tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, rsp->user, oldVer,
-                     atomic_load_32(&passInfo->ver), pTscObj->id);
-          }
-        }
-
-        break;
+    SClientHbReq *pReq = NULL;
+    while ((pReq = taosHashIterate(hbMgr->activeInfo, pReq))) {
+      STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);
+      if (!pTscObj) {
+        continue;
       }
+      for (int32_t j = 0; j < TARRAY_SIZE(batchRsp->pArray); ++j) {
+        SGetUserAuthRsp *rsp = TARRAY_GET_ELEM(batchRsp->pArray, j);
+
+        if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
+          pTscObj->authVer = rsp->version;
+
+#if 1  // make jenkins happy temporarily. After PR pass, enable these lines again.
+          if (pTscObj->sysInfo != rsp->sysInfo) {
+            tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, rsp->user,
+                     pTscObj->sysInfo, rsp->sysInfo, pTscObj->id);
+            pTscObj->sysInfo = rsp->sysInfo;
+          }
+#endif
+          if (pTscObj->passInfo.fp) {
+            SPassInfo *passInfo = &pTscObj->passInfo;
+            int32_t    oldVer = atomic_load_32(&passInfo->ver);
+            if (oldVer < rsp->passVer) {
+              atomic_store_32(&passInfo->ver, rsp->passVer);
+              if (passInfo->fp) {
+                (*passInfo->fp)(passInfo->param, &rsp->passVer, TAOS_NOTIFY_PASSVER);
+              }
+              tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, rsp->user, oldVer,
+                       atomic_load_32(&passInfo->ver), pTscObj->id);
+            }
+          }
+
+          break;
+        }
+      }
+      releaseTscObj(pReq->connKey.tscRid);
     }
-    releaseTscObj(pReq->connKey.tscRid);
   }
   return 0;
 }
