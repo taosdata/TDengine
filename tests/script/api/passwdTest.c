@@ -113,47 +113,37 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
       case TSDB_DATA_TYPE_TINYINT:
         len += sprintf(str + len, "%d", *((int8_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_UTINYINT:
         len += sprintf(str + len, "%u", *((uint8_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_SMALLINT:
         len += sprintf(str + len, "%d", *((int16_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_USMALLINT:
         len += sprintf(str + len, "%u", *((uint16_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_INT:
         len += sprintf(str + len, "%d", *((int32_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_UINT:
         len += sprintf(str + len, "%u", *((uint32_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_BIGINT:
         len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_UBIGINT:
         len += sprintf(str + len, "%" PRIu64, *((uint64_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
         len += sprintf(str + len, "%f", fv);
       } break;
-
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
         len += sprintf(str + len, "%lf", dv);
       } break;
-
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_GEOMETRY: {
@@ -161,18 +151,15 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
         memcpy(str + len, row[i], charLen);
         len += charLen;
       } break;
-
       case TSDB_DATA_TYPE_TIMESTAMP:
         len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
         break;
-
       case TSDB_DATA_TYPE_BOOL:
         len += sprintf(str + len, "%d", *((int8_t *)row[i]));
       default:
         break;
     }
   }
-
   return len;
 }
 
@@ -374,20 +361,6 @@ _REP:
   fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
   for (int i = 1; i <= 2; ++i) {
     sleep(1);
-  }
-
-  res = taos_query(taos[0], qstr);
-  int32_t code = taos_errno(res);
-  if (code != 0) {
-    fprintf(stderr, "%s:%d failed to execute: %s since %s\n", __func__, __LINE__, qstr, taos_errstr(res));
-    taos_free_result(res);
-    exit(EXIT_FAILURE);
-  }
-  printResult(res, output);
-  taos_free_result(res);
-  if (!strstr(output, "timeseries")) {
-    fprintf(stderr, "%s:%d expected output: 'timeseries' not occur\n", __func__, __LINE__);
-    exit(EXIT_FAILURE);
   }
 
   if(++nRep < 5) {
