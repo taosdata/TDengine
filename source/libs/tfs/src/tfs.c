@@ -227,6 +227,9 @@ int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
   char      aname[TMPNAME_LEN];
 
+  if (pDisk == NULL) {
+    return -1;
+  }
   snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   if (taosMkDir(aname) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);

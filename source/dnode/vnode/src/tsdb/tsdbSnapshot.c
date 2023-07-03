@@ -891,8 +891,10 @@ static int32_t tsdbSnapWriteFileDataStart(STsdbSnapWriter* pWriter, int32_t fid)
   if (pSet) {
     diskId = pSet->diskId;
   } else {
-    tfsAllocDisk(pTsdb->pVnode->pTfs, 0 /*TODO*/, &diskId);
-    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, diskId);
+    code = tfsAllocDisk(pTsdb->pVnode->pTfs, 0 /*TODO*/, &diskId);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, diskId);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   SDFileSet wSet = {.diskId = diskId,
                     .fid = fid,
