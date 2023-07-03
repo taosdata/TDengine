@@ -920,10 +920,10 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
     ASSERT(pBrinBlk->minTbid.suid <= pReader->suid && pBrinBlk->maxTbid.suid >= pReader->suid);
 
-    if (pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
-      i += 1;
-      continue;
-    }
+    // if (pBrinBlk->maxTbid.uid < pList->tableUidList[j]) {
+    //   i += 1;
+    //   continue;
+    // }
 
     // this block belongs to a table that is not queried.
     STableBlockScanInfo* pScanInfo =
