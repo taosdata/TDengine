@@ -297,13 +297,13 @@ async fn consume_lush_record(
                 let start = Instant::now();
                 let sql = record.generate_insert_sql_from_tablename(&data, columns);
                 let duration = start.elapsed();
-                log::debug!("generate sql time cost: {:?}", duration);
+                log::info!("generate sql time cost: {:?}", duration);
                 if let Some(sql) = sql {
                     // log::info!("gene sql: {sql}");
                     let start = Instant::now();
                     let res = taos.exec(sql).await;
                     let duration = start.elapsed();
-                    log::debug!("exec sql time cost: {:?}", duration);
+                    log::info!("exec sql time cost: {:?}", duration);
                     let mut count = 0;
                     match res {
                         Ok(num) => {
