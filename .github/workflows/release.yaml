@@ -30,22 +30,22 @@ jobs:
         run: |
           yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
 
-      - uses: actions/cache@v3
-        name: Cargo Caches
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+      # - uses: actions/cache@v3
+      #   name: Cargo Caches
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #     key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
 
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
+      # - uses: actions/cache@v3
+      #   name: Target Caches
+      #   with:
+      #     path: |
+      #       target
+      #     key: ${{ runner.os }}-cargo-target
 
       - name: Build taosX
         run: |
