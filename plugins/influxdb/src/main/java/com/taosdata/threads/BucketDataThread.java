@@ -111,8 +111,8 @@ public class BucketDataThread implements Runnable {
                     BucketDataCache.addBucketData(influxdbBucketDataEntityList);
                     // 记录统计信息
                     StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
-                    // 更新offset
-                    this.offset += influxdbBucketDataEntityList.size();
+                    // 更新offset，如果未读满batch，说明没数据了，所以可以不考虑
+                    this.offset += this.performanceConfig.getThread().getReadBucketBatch();
                 } else {
                     // 记录任务完成信息
                     StatisticCache.noteCompletedTask(this.key);

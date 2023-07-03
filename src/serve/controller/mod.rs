@@ -501,11 +501,11 @@ impl TaskController {
         let transferred = match from.driver.as_str() {
             "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
                 let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
-                let cluster_id: i64 = taos
+                let cluster_id: Option<i64> = taos
                     .query_one("select id from information_schema.ins_cluster")
                     .await
-                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
-                    .unwrap();
+                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))
+                    .unwrap_or_default();
                 // let license = taos.query_one(sql)
                 let connector = match from.driver.as_str() {
                     "opcua" => "opc_ua",
@@ -531,10 +531,13 @@ impl TaskController {
                         )
                     }
                 }
-
-                self.transferred
-                    .get(&(cluster_id, from.driver.clone()))
-                    .await
+                if let Some(cluster_id) = cluster_id {
+                    self.transferred
+                        .get(&(cluster_id, from.driver.clone()))
+                        .await
+                } else {
+                    None
+                }
             }
             _ => None,
         };

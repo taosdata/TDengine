@@ -62,16 +62,7 @@ authentication:
       display: Certificates
       description: Use certificate file and private key.
       params:
-        - name: certificate
-          display: Certificate
-          description: Path to cert.pem. Required when security mode or policy isn't "None".
-          hint:
-            type: file
-        - name: private_key
-          display: Private key
-          description: Path to private key.pem. Required when security mode or policy isn't "None"
-          hint:
-            type: file
+        
         - name: security_mode
           display: Security Mode
           description: |
@@ -97,16 +88,28 @@ authentication:
               - Basic128Rsa15
               - Basic256
               - Basic256Sha256
+        - name: certificate
+          display: Certificate file content
+          # description: Path to cert.pem. Required when security mode or policy isn't "None".
+          hint:
+            type: file
+        - name: private_key
+          display: Private key file content
+          # description: Path to private key.pem. Required when security mode or policy isn't "None"
+          hint:
+            type: file
 datasets:
   name: Data Sets
   description: Data points in OPC server to collect.
   categories:
   - category: nodes
     display: Nodes
-    description: Node id list separated by a ','.
+    description: |
+      OPC UA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
     target:
       name: ua.nodes
-      description: Node id list separated by a ','.
+      description: |
+        OPC UA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
       required: true
       multiple: true
       editable: true

@@ -112,17 +112,20 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         public void AddPointValue(string table, TDValue record) {
-            builder.tableNameArrowArray.Append(table.ToTDEngineNamingPattern());
-            builder.tsArrowArray.Append(record.Timestamp);
-            if (record.Quality == 0)
+            lock (stLock) 
             {
-                builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append($"{record.ValueString}");
-                builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append("0");
-            }
-            else
-            {
-                builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
-                builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality.ToString());
+                builder.tableNameArrowArray.Append(table.ToTDEngineNamingPattern());
+                builder.tsArrowArray.Append(record.Timestamp);
+                if (record.Quality == 0)
+                {
+                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append($"{record.ValueString}");
+                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append("0");
+                }
+                else
+                {
+                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
+                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality.ToString());
+                }
             }
            
             if (builder.tsArrowArray.Length > maxWaitLength)
@@ -223,24 +226,22 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void InitTables() {
             lock (stLock)
             {
+                if (builder.pointIds.Count == 0 && builder.tagVals.Count == 0) return;
                 log.Info($"Stable:{builder.stableName} Write tables into stream start...");
-                if (builder.pointIds.Count == 0 &&
-                     builder.tagVals.Count == 0) return;
+
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
                 log.Info($"Stable:{builder.stableName} Write tables into stream...");
-                // sendRecordBatch(recordBatch);
             }
         }
 
         public void send() {
             lock (stLock) {
-                log.Info($"Stable:{builder.stableName} Write records into stream start...");
                 if (builder.tableNameArrowArray.Length == 0) return;
+                log.Info($"Stable:{builder.stableName} Write records into stream start...");
                 var recordBatch = builder.BuildInsertMessage();
-                // sendRecordBatch(recordBatch);
                 writeRecordBatch(recordBatch);
-                log.Info($"Stable:{builder.stableName} Write records into stream...");
+                log.Info($"Stable:{builder.stableName} Write records into stream end.");
                 clear();
             }
         }

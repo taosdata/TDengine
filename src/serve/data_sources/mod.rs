@@ -166,9 +166,13 @@ pub(super) async fn data_source_collection(
         Ok(data) => HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: 0xFFFF.into(),
-            message: err.to_string(),
-        }),
+        Err(err) => {
+            dbg!(&err);
+            dbg!(&err.root_cause());
+            HttpResponse::InternalServerError().json(Failed {
+                code: 0xFFFF.into(),
+                message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+            })
+        },
     }
 }

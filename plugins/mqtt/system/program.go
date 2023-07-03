@@ -158,7 +158,7 @@ func (p *program) handleMessage() {
 			}
 			p.exitFinish <- struct{}{}
 			return
-		default:
+		case <-p.messages.C():
 			list := p.messages.GetAll()
 			if len(list) > 0 {
 				err := p.reporter.Report(list)
