@@ -769,7 +769,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_ERR_RET(schSetAddrsFromNodeList(pJob, pTask));
 
-  pTask->candidateIdx = abs(taosRand() % taosArrayGetSize(pTask->candidateAddrs));
+  pTask->candidateIdx = taosRand() % taosArrayGetSize(pTask->candidateAddrs);
 
   /*
     for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
