@@ -1317,8 +1317,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
           memcpy(varDataVal(status), "stop", 4);
           varDataSetLen(status, 4);
         } else if (taskStatus == TASK_STATUS__SCAN_HISTORY) {
-          memcpy(varDataVal(status), "history", 6);
-          varDataSetLen(status, 6);
+          memcpy(varDataVal(status), "history", 7);
+          varDataSetLen(status, 7);
         } else if (taskStatus == TASK_STATUS__HALT) {
           memcpy(varDataVal(status), "halt", 4);
           varDataSetLen(status, 4);
