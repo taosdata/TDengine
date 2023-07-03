@@ -30,6 +30,7 @@ jobs:
         run: |
           yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
 
+      - uses: Swatinem/rust-cache@v2
       # - uses: actions/cache@v3
       #   name: Cargo Caches
       #   with:
