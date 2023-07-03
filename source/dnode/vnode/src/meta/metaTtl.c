@@ -79,8 +79,8 @@ int ttlMgrClose(STtlManger *pTtlMgr) {
   return 0;
 }
 
-int ttlMgrBegin(STtlManger *pTtlMgr, void *pMeta) {
-  metaInfo("ttl mgr start open");
+int ttlMgrPostOpen(STtlManger *pTtlMgr, void *pMeta) {
+  metaInfo("ttl mgr start post open");
   int ret;
 
   int64_t startNs = taosGetTimestampNs();
@@ -112,7 +112,7 @@ int ttlMgrBegin(STtlManger *pTtlMgr, void *pMeta) {
 
   int64_t endNs = taosGetTimestampNs();
 
-  metaInfo("ttl mgr open end, hash size: %d, time consumed: %" PRId64 " ns", taosHashGetSize(pTtlMgr->pTtlCache),
+  metaInfo("ttl mgr post open end, hash size: %d, time consumed: %" PRId64 " ns", taosHashGetSize(pTtlMgr->pTtlCache),
            endNs - startNs);
 _out:
   return ret;

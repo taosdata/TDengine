@@ -81,7 +81,7 @@ typedef struct {
 
 int ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback);
 int ttlMgrClose(STtlManger* pTtlMgr);
-int ttlMgrBegin(STtlManger* pTtlMgr, void* pMeta);
+int ttlMgrPostOpen(STtlManger* pTtlMgr, void* pMeta);
 
 int ttlMgrConvert(TTB* pOldTtlIdx, TTB* pNewTtlIdx, void* pMeta);
 int ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
