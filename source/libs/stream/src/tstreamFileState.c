@@ -376,7 +376,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     ASSERT(pPos->pRowBuff && pFileState->rowSize > 0);
 
     if (streamStateGetBatchSize(batch) >= BATCH_LIMIT) {
-      code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
+      streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
       streamStateClearBatch(batch);
     }
 
@@ -390,7 +390,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   taosMemoryFree(buf);
 
   if (streamStateGetBatchSize(batch) > 0) {
-    code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
+    streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
 
   streamStateClearBatch(batch);
@@ -407,7 +407,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
       streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
+      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
       taosMemoryFree(valBuf);
     }
     {
@@ -511,7 +511,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
       break;
     }
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
-    code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->rowSize, &pNewPos, POINTER_BYTES);
+    code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);
       break;
