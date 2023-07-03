@@ -15,7 +15,7 @@
         >
         <el-button
           plain
-          @click="dialog = true"
+          @click="addDbSource"
           size="small"
           icon="el-icon-plus"
           >{{ $t("datasource.addsource") }}</el-button
@@ -69,7 +69,8 @@
                 popper-class="datain"
               >
                 <div v-html="scope.row.last_modified_at" slot="content"></div>
-                <div slot="content" v-html="scope.row.reason"></div>
+                <div slot="content" v-html="scope.row.reason" 
+                style="height:200px;overflow:auto;"></div>
                 <span style="width: 80px; display: inline-block">{{
                   scope.row.status
                 }}</span>
@@ -102,6 +103,20 @@
                     size="small"
                     @click="stop(scope.row)"
                     icon="el-icon-tingzhi"
+                  ></el-button
+                ></el-tooltip>
+              </template>
+              <template >
+                <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('refresh')"
+                >
+                  <el-button
+                    plain
+                    size="small"
+                    @click="refreshCurrentTask(scope.row)"
+                    icon="el-icon-refresh"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -161,7 +176,7 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getDatain } from "@/api/explorer/datain";
+import { getDatain,refreshTask } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -259,7 +274,10 @@ export default {
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
-
+    addDbSource() {
+      this.dialog = true;
+      this.$parent.currentTaskStatus = "";
+    },
     async getList() {
       try {
         this.requestIng = true;
@@ -321,8 +339,8 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await excuteStop(data.id)
-           this.refresh();
+          await excuteStop(data.id);
+          this.refresh();
         });
       } catch (err) {
         return Promise.reject(err);
@@ -330,6 +348,30 @@ export default {
     },
     refresh() {
       this.getList();
+    },
+    async refreshCurrentTask(data){
+      try {
+        let result = await refreshTask(data.taskid)
+        if(result&&(result.message||result.desc)){
+          Message.error(result.message||result.desc)
+          return
+        }
+        let index=this.topicList.findIndex(item=>item.taskid==data.taskid)
+        this.topicList.splice(index,1,[].concat(result).map((item) => {
+              (item["taskid"] = item.id),
+                (item["localname"] = item.name ? item.name : "tmq+" + item.id);
+              item["localtype"] = item.from_detail ? item.from_detail.name : "";
+              item["target"] = item.to_expand ? item.to_expand.subject : "";
+              item["created_at"] = item.created_at
+                ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
+                  "Z"
+                : "";
+              return item;
+            })[0])
+        Message.success(this.$t('datasource.refreshsuccess'))
+      } catch (error) {
+        console.log(error);
+      }
     },
     //显示添加数据源弹窗
     showAddDialog() {},

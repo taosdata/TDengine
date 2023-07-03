@@ -899,6 +899,7 @@ export default {
   },
 
   datasource: {
+    refreshsuccess:'刷新成功',
     influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
     taskid:'任务ID',
     opcconfig:'库表配置',
