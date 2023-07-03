@@ -122,18 +122,18 @@ class TDTestCase:
             tdLog.info("consumer.subscribe() fail ")
             tdLog.info("%s"%(e))
             if (expectResult == "fail"):
-                consumer.close
+                consumer.close()
                 return 'success'
             else: 
-                consumer.close
+                consumer.close()
                 return 'fail'
     
         tdLog.info("consumer.subscribe() success ")
         if (expectResult == "success"):
-            consumer.close
+            consumer.close()
             return 'success'
         else: 
-            consumer.close
+            consumer.close()
             return 'fail'
 
     def tmqCase1(self):
