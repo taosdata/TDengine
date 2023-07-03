@@ -90,33 +90,32 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             break;
           }
         }
-      }
-      if (pRsp) {
-        pTscObj->authVer = pRsp->version;
-
-        if (pTscObj->sysInfo != pRsp->sysInfo) {
-          tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, pRsp->user,
-                   pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
-          pTscObj->sysInfo = pRsp->sysInfo;
+        if (!pRsp) {
+          releaseTscObj(pReq->connKey.tscRid);
+          break;
         }
+      }
 
-        if (pTscObj->passInfo.fp) {
-          SPassInfo *passInfo = &pTscObj->passInfo;
-          int32_t    oldVer = atomic_load_32(&passInfo->ver);
-          if (oldVer < pRsp->passVer) {
-            atomic_store_32(&passInfo->ver, pRsp->passVer);
-            if (passInfo->fp) {
-              (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
-            }
-            tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, pRsp->user, oldVer,
-                     atomic_load_32(&passInfo->ver), pTscObj->id);
+      pTscObj->authVer = pRsp->version;
+
+      if (pTscObj->sysInfo != pRsp->sysInfo) {
+        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, pRsp->user,
+                 pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
+        pTscObj->sysInfo = pRsp->sysInfo;
+      }
+
+      if (pTscObj->passInfo.fp) {
+        SPassInfo *passInfo = &pTscObj->passInfo;
+        int32_t    oldVer = atomic_load_32(&passInfo->ver);
+        if (oldVer < pRsp->passVer) {
+          atomic_store_32(&passInfo->ver, pRsp->passVer);
+          if (passInfo->fp) {
+            (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
           }
+          tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, pRsp->user, oldVer,
+                   atomic_load_32(&passInfo->ver), pTscObj->id);
         }
-      } else {
-        releaseTscObj(pReq->connKey.tscRid);
-        break;
       }
-
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
