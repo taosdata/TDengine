@@ -49,11 +49,8 @@ jobs:
 
       - name: Build taosX
         run: |
-          cat ~/.gitconfig
           git config --global --add safe.directory '*'
-          cat ~/.gitconfig
-          git config --global --add safe.directory *
-          cat ~/.gitconfig
+          git config --global --add safe.directory /__w/taosx/taosx
           cargo build --release --no-default-features --features optin --features native-tls
           target/release/taosx -V
           strip target/release/taosx
