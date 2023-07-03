@@ -113,6 +113,7 @@ class TDTestCase:
             "msg.with.table.name": "false"
         }
         
+        ret = 'success'
         consumer = Consumer(consumer_dict)
         # print("======%s"%(inputDict['topic_name']))
         try:
@@ -121,14 +122,18 @@ class TDTestCase:
             tdLog.info("consumer.subscribe() fail ")
             tdLog.info("%s"%(e))
             if (expectResult == "fail"):
+                consumer.close
                 return 'success'
             else: 
+                consumer.close
                 return 'fail'
     
         tdLog.info("consumer.subscribe() success ")
         if (expectResult == "success"):
+            consumer.close
             return 'success'
         else: 
+            consumer.close
             return 'fail'
 
     def tmqCase1(self):
