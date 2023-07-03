@@ -49,7 +49,7 @@ jobs:
 
       - name: Build taosX
         run: |
-          /usr/bin/git config --global --add safe.directory /__w/taosx/taosx
+          git config --global --add safe.directory '*'
           git branch
           cargo build --release --no-default-features --features optin --features native-tls
           target/release/taosx -V
