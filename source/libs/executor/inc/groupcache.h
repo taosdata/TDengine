@@ -21,17 +21,10 @@ extern "C" {
 
 #define GROUP_CACHE_DEFAULT_PAGE_SIZE 10485760
 
-typedef struct SGcSessionCtx {
-  SOperatorInfo*  pDownstream;
-  bool            cacheHit;
-  bool            needCache;
-  SGcBlkBufInfo*  pLastBlk; 
-} SGcSessionCtx;
-
 typedef struct SGcOperatorParam {
   SOperatorBasicParam basic;
   int64_t             sessionId;
-  int32_t             downstreamKey;
+  int32_t             downstreamIdx;
   bool                needCache;
   void*               pGroupValue;
   int32_t             groupValueSize;
@@ -71,18 +64,18 @@ typedef struct SGroupColsInfo {
   char*          pData;
 } SGroupColsInfo;
 
-typedef struct SGcDownstreamInfo {
-  SSHashObj*       pKey2Idx;
-  SOperatorInfo**  ppDownStream;
-  int32_t          downStreamNum;
-} SGcDownstreamInfo;
+typedef struct SGcSessionCtx {
+  SOperatorInfo*  pDownstream;
+  bool            cacheHit;
+  bool            needCache;
+  SGcBlkBufInfo*  pLastBlk; 
+} SGcSessionCtx;
 
 typedef struct SGroupCacheOperatorInfo {
   SSHashObj*        pSessionHash;  
   SGroupColsInfo    groupColsInfo;
   SArray*           pBlkBufs;
   SSHashObj*        pBlkHash;  
-  SGcDownstreamInfo downstreamInfo;
   int64_t           pCurrentId;
   SGcSessionCtx*    pCurrent;
 } SGroupCacheOperatorInfo;

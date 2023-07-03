@@ -366,6 +366,7 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
 
   TSWAP(pPhysiNode->pLimit, pLogicNode->pLimit);
   TSWAP(pPhysiNode->pSlimit, pLogicNode->pSlimit);
+  pPhysiNode->dynamicOp = pLogicNode->dynamicOp;
   pPhysiNode->inputTsOrder = pLogicNode->inputTsOrder;
   pPhysiNode->outputTsOrder = pLogicNode->outputTsOrder;
 

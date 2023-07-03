@@ -810,6 +810,11 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
     goto _error;
   }
 
+  code = appendDownstream(pOperator, pDownstream, numOfDownstream);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doHashJoin, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, NULL, NULL);
 
   return pOperator;

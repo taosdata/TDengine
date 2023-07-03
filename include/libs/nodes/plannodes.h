@@ -325,6 +325,7 @@ typedef struct SDataBlockDescNode {
 
 typedef struct SPhysiNode {
   ENodeType           type;
+  bool                dynamicOp;
   EOrder              inputTsOrder;
   EOrder              outputTsOrder;
   SDataBlockDescNode* pOutputDataBlockDesc;
@@ -443,9 +444,17 @@ typedef struct SGroupCachePhysiNode {
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 
+typedef struct SStbJoinDynCtrlInfo {
+  int32_t  vgSlot[2];
+  int32_t  uidSlot[2];
+} SStbJoinDynCtrlInfo;
+
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
+  union {
+    SStbJoinDynCtrlInfo stbJoin;
+  };
 } SDynQueryCtrlPhysiNode;
 
 typedef struct SAggPhysiNode {

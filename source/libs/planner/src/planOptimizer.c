@@ -3210,6 +3210,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
       break;
     }
     pScan->node.dynamicOp = true;
+    pScan->scanType = SCAN_TYPE_TABLE;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
