@@ -233,7 +233,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   code = -1;
-
   taosIp2String(pReq->info.conn.clientIp, ip);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
@@ -271,6 +270,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     }
   }
 
+_CONNECT:
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
@@ -842,7 +842,7 @@ static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBloc
     }
     varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, curRowIndex, subStatus, false);
+    colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(sql, pQuery->sql);

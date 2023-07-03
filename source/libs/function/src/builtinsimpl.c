@@ -2415,6 +2415,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 }
 
 static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+  if (!pInput->hasResult) {
+    return TSDB_CODE_FAILED;
+  }
+
   if (pOutput->hasResult) {
     if (isFirst) {
       if (pInput->ts > pOutput->ts) {

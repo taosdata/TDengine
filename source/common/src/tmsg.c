@@ -6982,8 +6982,11 @@ int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int6
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeSVAlterTbReqCommon(pDecoder, pReq) < 0) return -1;
 
-  *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
-  if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  pReq->ctimeMs = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
+    if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
 
   tEndDecode(pDecoder);
   return 0;
@@ -7541,8 +7544,11 @@ int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
 int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder *pDecoder, SBatchDeleteReq *pReq, int64_t ctimeMs) {
   if (tDecodeSBatchDeleteReqCommon(pDecoder, pReq)) return -1;
 
-  *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
-  if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  pReq->ctimeMs = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
+    if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
   return 0;
 }
 

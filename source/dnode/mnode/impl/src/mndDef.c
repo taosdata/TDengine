@@ -223,7 +223,7 @@ void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   return (void *)buf;
 }
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]) {
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char* cgroup) {
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -254,16 +254,20 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
     return NULL;
   }
 
-  pConsumer->upTime = taosGetTimestampMs();
+  pConsumer->createTime = taosGetTimestampMs();
 
   return pConsumer;
 }
 
-void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer) {
+void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer, bool delete) {
+  if(pConsumer == NULL) return;
   taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
+  if(delete){
+    taosMemoryFree(pConsumer);
+  }
 }
 
 int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
@@ -278,7 +282,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
 
   tlen += taosEncodeFixedI32(buf, pConsumer->pid);
   tlen += taosEncodeSEpSet(buf, &pConsumer->ep);
-  tlen += taosEncodeFixedI64(buf, pConsumer->upTime);
+  tlen += taosEncodeFixedI64(buf, pConsumer->createTime);
   tlen += taosEncodeFixedI64(buf, pConsumer->subscribeTime);
   tlen += taosEncodeFixedI64(buf, pConsumer->rebalanceTime);
 
@@ -348,7 +352,7 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
 
   buf = taosDecodeFixedI32(buf, &pConsumer->pid);
   buf = taosDecodeSEpSet(buf, &pConsumer->ep);
-  buf = taosDecodeFixedI64(buf, &pConsumer->upTime);
+  buf = taosDecodeFixedI64(buf, &pConsumer->createTime);
   buf = taosDecodeFixedI64(buf, &pConsumer->subscribeTime);
   buf = taosDecodeFixedI64(buf, &pConsumer->rebalanceTime);
 

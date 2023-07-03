@@ -56,7 +56,8 @@ typedef struct {
   void*   pStateBackend;
   struct SStorageAPI api;
 
-  int8_t  fillHistory;
+  int8_t        fillHistory;
+  STimeWindow   winRange;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
