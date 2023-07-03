@@ -287,7 +287,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   qDebug("s-task:%s output status is set to:%d", pTask->id.idStr, pTask->outputStatus);
 
-  // the input queue of the (down stream) task that receive the output data is full, so the TASK_INPUT_STATUS_BLOCKED is rsp
+  // the input queue of the (down stream) task that receive the output data is full,
+  // so the TASK_INPUT_STATUS_BLOCKED is rsp
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     pTask->msgInfo.blockingTs = taosGetTimestampMs(); // record the blocking start time
 
