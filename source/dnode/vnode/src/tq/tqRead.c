@@ -218,7 +218,7 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
     } else {
       if (pHandle->fetchMeta != WITH_DATA) {
         SWalCont* pHead = &((*ppCkHead)->head);
-        if (IS_META_MSG(pHead->msgType)) {
+        if (IS_META_MSG(pHead->msgType) && !(pHead->msgType == TDMT_VND_DELETE && pHandle->fetchMeta == ONLY_META)) {
           code = walFetchBody(pHandle->pWalReader, ppCkHead);
           if (code < 0) {
             *fetchOffset = offset;
