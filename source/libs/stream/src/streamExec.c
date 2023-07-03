@@ -381,12 +381,12 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       }
     }
 
-    if (streamTaskShouldStop(&pTask->status)) {
-      if (pInput) {
-        streamFreeQitem(pInput);
-      }
-      return 0;
-    }
+//    if (streamTaskShouldStop(&pTask->status)) {
+//      if (pInput) {
+//        streamFreeQitem(pInput);
+//      }
+//      return 0;
+//    }
 
     if (pInput == NULL) {
       break;
