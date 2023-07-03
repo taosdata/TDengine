@@ -25,6 +25,16 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 无论使用什么版本的 TDengine 都建议使用最新版本的 `taospy`。
 
+|Python Connector 版本|主要变化|
+|:-------------------:|:----:|
+|2.7.9|数据订阅支持获取消费进度和重置消费进度|
+|2.7.8|新增 `execute_many`|
+
+|Python Websocket Connector 版本|主要变化|
+|:----------------------------:|:-----:|
+|0.2.5|1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT|
+|0.2.4|数据订阅新增取消订阅方法|
+
 ## 处理异常
 
 Python 连接器可能会产生 4 种异常：
@@ -549,7 +559,7 @@ consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 
 #### 订阅 topics
 
-Comsumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
+Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
 
 ```python
 consumer.subscribe(['topic1', 'topic2'])
@@ -631,7 +641,7 @@ consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws
 
 #### 订阅 topics
 
-Comsumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
+Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
 
 ```python
 consumer.subscribe(['topic1', 'topic2'])

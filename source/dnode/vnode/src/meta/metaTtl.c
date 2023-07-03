@@ -358,7 +358,8 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
-      metaError("ttlMgr flush failed to get ttl cache since %s", tstrerror(terrno));
+      metaError("ttlMgr flush failed to get ttl cache since %s, uid: %" PRId64 ", type: %d", tstrerror(terrno), *pUid,
+                pEntry->type);
       goto _out;
     }
 

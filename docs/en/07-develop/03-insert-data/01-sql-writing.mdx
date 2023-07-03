@@ -33,7 +33,7 @@ The below SQL statement is used to insert one row into table "d1001".
 INSERT INTO d1001 VALUES (ts1, 10.3, 219, 0.31);
 ```
 
-`ts1` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detial, refer to [TDengine SQL insert timestamp section](/taos-sql/insert).
+`ts1` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detail, refer to [TDengine SQL insert timestamp section](/taos-sql/insert).
 
 ### Insert Multiple Rows
 
@@ -43,7 +43,7 @@ Multiple rows can be inserted in a single SQL statement. The example below inser
 INSERT INTO d1001 VALUES (ts2, 10.2, 220, 0.23) (ts2, 10.3, 218, 0.25);
 ```
 
-`ts1` and `ts2` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detial, refer to [TDengine SQL insert timestamp section](/taos-sql/insert).
+`ts1` and `ts2` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detail, refer to [TDengine SQL insert timestamp section](/taos-sql/insert).
 
 ### Insert into Multiple Tables
 
@@ -53,7 +53,7 @@ Data can be inserted into multiple tables in the same SQL statement. The example
 INSERT INTO d1001 VALUES (ts1, 10.3, 219, 0.31) (ts2, 12.6, 218, 0.33) d1002 VALUES (ts3, 12.3, 221, 0.31);
 ```
 
-`ts1`, `ts2` and `ts3` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detial, refer to [TDengine SQL insert timestamp section](/taos-sql/insert).
+`ts1`, `ts2` and `ts3` is Unix timestamp, the timestamps which is larger than the difference between current time and KEEP in config is only allowed. For further detail, refer to [TDengine SQL insert timestamp section](/taos-sql/insert).
 
 For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
 

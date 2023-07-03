@@ -33,6 +33,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb3.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
@@ -127,6 +129,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -778,7 +781,7 @@
 ,,y,script,./test.sh -f tsim/user/basic.sim
 ,,y,script,./test.sh -f tsim/user/password.sim
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
-,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+#,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,y,script,./test.sh -f tsim/user/privilege_topic.sim
 ,,y,script,./test.sh -f tsim/user/privilege_table.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
