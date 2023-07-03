@@ -1,16 +1,15 @@
 <template>
   <div>
-    <!-- <p class="primary-tip" v-html="$t('dataIn.inputCSVFile')"></p> -->
-    <CsvData />
+    <p class="primary-tip" v-html="$t('dataIn.inputCSVFile')"></p>
+    <InputCSVFile />
   </div>
 </template>
 
 <script>
-// import InputCSVFile from "../components/inputCSVFile.vue";
-import CsvData from '../components/csvData.vue'
+import InputCSVFile from "../components/inputCSVFile.vue";
 import { dataInConnector, party } from "@/utils/config";
 export default {
-  components: { CsvData },
+  components: { InputCSVFile },
   docsMap: {
     connector: {
       docsList: dataInConnector,
