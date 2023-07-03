@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from Query.queryscript.table_function.numeric.table_numeric_interp import *
+from Query.queryscript.stable_function.numeric.table_numeric_interp import *
 
 class TDTestQuery(TDTestQuery):
         

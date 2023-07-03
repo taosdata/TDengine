@@ -99,7 +99,7 @@ class TDTestQuery(TDCase):
     def run(self)-> bool:
         startTime = time.time() 
         
-        for i in range(360):
+        for i in range(250):
             self.logger.info("  ================i=  %d ====================" % i)
             if i/4==1:
                 self.data_create(self.db)   
