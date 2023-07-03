@@ -250,9 +250,17 @@ else
   allocator_macro=""
 fi
 
-[ -z "${cusName}" ] && cusName="TDengine"
-[ -z "${cusPrompt}" ] && cusPrompt="taos"
-[ -z "${cusEmail}" ] && cusEmail="support@taosdata.com"
+if [[ -z "${cusName}" ]] && [[  -z "${cusPrompt}" ]] && [[ -z "${cusEmail}" ]]; then
+  cusName="TDengine"
+  cusPrompt="taos"
+  cusEmail="support@taosdata.com"
+  BUILD_TAOSX=false
+  BUILD_EXPLORER=false  
+else
+  BUILD_TAOSX=true
+  BUILD_EXPLORER=true
+fi
+  
 
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
@@ -265,7 +273,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=true ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=${BUILD_TAOSX} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"

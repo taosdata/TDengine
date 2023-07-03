@@ -37,7 +37,7 @@ if [ ! -d $communityDir ]; then
   cd debug
 
   if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
-    cmake .. -DBUILD_TAOSX=true
+    cmake .. -DBUILD_TAOSX=false
   else
     if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
       cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
