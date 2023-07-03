@@ -756,6 +756,7 @@ impl LushMessageInsert {
                     // sql.push_str(format!("{} VALUES (", &table_name, ).as_str());
                     let mut insert_columns = String::new();
                     let mut insert_values = String::new();
+                    let mut index = 0;
                     for (n, cv) in data.iter().enumerate() {
                         if n == i {
                             // is table_name
@@ -764,13 +765,14 @@ impl LushMessageInsert {
                         let temp_cv = cv.slice(j..j+1).unwrap();
                         if let Some(v) = temp_cv.get(0) {
                             if !v.is_null() {
-                                insert_columns.push_str(format!("`{}`,", columns[n]).as_str());
+                                insert_columns.push_str(format!("`{}`,", columns[index]).as_str());
                                 insert_values.push_str(format!("{},", v.to_sql_value()).as_str());
                             } else {
                                 // ignore null columnview
-                                log::trace!("column view {} is null", columns[n]);
+                                log::trace!("column view {} is null", columns[index]);
                             }
                         }
+                        index += 1;
                     }
                     insert_columns.pop();
                     insert_values.pop();
