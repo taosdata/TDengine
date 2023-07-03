@@ -523,7 +523,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
     pOptr = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
-    pOptr = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo);
+    //pOptr = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = terrno;
@@ -593,9 +593,15 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
 }
 
 void *getOperatorParam(int32_t opType, SOperatorParam* param) {
-  if (NULL == param || opType != param->opType) {
+  if (NULL == param) {
     return NULL;
   }
-  return param->value;
+  for (int32_t i = 0; i < param->opNum; ++i) {
+    if (opType == param->pOpParams[i].opType) {
+      memcpy(&param->pOpParams[i], param, sizeof(param->basic));
+      return &param->pOpParams[i];
+    }
+  }
+  return NULL;
 }
 

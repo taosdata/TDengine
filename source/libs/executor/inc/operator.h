@@ -27,9 +27,19 @@ typedef struct SOperatorCostInfo {
 
 struct SOperatorInfo;
 
-typedef struct SOperatorParam {
+typedef struct SOperatorBasicParam {
+  bool newExec;
+} SOperatorBasicParam;
+
+typedef struct SOperatorSpecParam {
   int32_t opType;
   void*   value;
+} SOperatorSpecParam;
+
+typedef struct SOperatorParam {
+  SOperatorBasicParam basic;
+  int32_t             opNum;
+  SOperatorSpecParam* pOpParams;
 } SOperatorParam;
 
 typedef int32_t (*__optr_encode_fn_t)(struct SOperatorInfo* pOperator, char** result, int32_t* length);
@@ -150,6 +160,9 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo);
+
+SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo);
+
 // clang-format on
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,

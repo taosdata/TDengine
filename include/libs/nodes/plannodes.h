@@ -439,6 +439,7 @@ typedef struct SHashJoinPhysiNode {
 typedef struct SGroupCachePhysiNode {
   SPhysiNode node;
   bool       grpColsMayBeNull;
+  SArray*    pDownstreamKey;
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 

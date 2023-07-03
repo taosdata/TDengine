@@ -21,15 +21,20 @@ extern "C" {
 
 #define GROUP_CACHE_DEFAULT_PAGE_SIZE 10485760
 
-typedef struct SGcSessionRes {
-
-} SGcSessionRes;
+typedef struct SGcSessionCtx {
+  SOperatorInfo*  pDownstream;
+  bool            cacheHit;
+  bool            needCache;
+  SGcBlkBufInfo*  pLastBlk; 
+} SGcSessionCtx;
 
 typedef struct SGcOperatorParam {
-  int64_t sessionId;
-  bool    newFetch;
-  void*   pGroupValue;
-  int32_t groupValueSize;
+  SOperatorBasicParam basic;
+  int64_t             sessionId;
+  int32_t             downstreamKey;
+  bool                needCache;
+  void*               pGroupValue;
+  int32_t             groupValueSize;
 } SGcOperatorParam;
 
 #pragma pack(push, 1) 
@@ -66,13 +71,20 @@ typedef struct SGroupColsInfo {
   char*          pData;
 } SGroupColsInfo;
 
-typedef struct SGroupCacheOperatorInfo {
-  SSHashObj*       pSessionHash;  
-  SGroupColsInfo   groupColsInfo;
-  SArray*          pBlkBufs;
-  SSHashObj*       pBlkHash;  
+typedef struct SGcDownstreamInfo {
+  SSHashObj*       pKey2Idx;
   SOperatorInfo**  ppDownStream;
   int32_t          downStreamNum;
+} SGcDownstreamInfo;
+
+typedef struct SGroupCacheOperatorInfo {
+  SSHashObj*        pSessionHash;  
+  SGroupColsInfo    groupColsInfo;
+  SArray*           pBlkBufs;
+  SSHashObj*        pBlkHash;  
+  SGcDownstreamInfo downstreamInfo;
+  int64_t           pCurrentId;
+  SGcSessionCtx*    pCurrent;
 } SGroupCacheOperatorInfo;
 
 #ifdef __cplusplus
