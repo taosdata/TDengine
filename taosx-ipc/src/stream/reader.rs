@@ -14,7 +14,7 @@ use arrow::{
 };
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
-use tracing::{debug, error};
+use tracing::{debug, error, log};
 
 use crate::{
     ack::AckType,
@@ -737,6 +737,50 @@ impl LushMessageInsert {
         parse_column_view_with_types(&self.records.record, &ty)
     }
 
+    pub fn generate_insert_sql_from_tablename(&self, data: &Vec<ColumnView>, columns: &Vec<String>,) -> Option<String> {
+        let mut index = None;
+        for (i, f) in self.records.record.schema().fields().iter().enumerate() {
+            if f.name() == __TABLE_NAME__ {
+                index = Some(i);
+                break;
+            }
+        }
+        match index {
+            None => None,
+            Some(i) => {
+                let mut sql = format!("INSERT INTO ");
+                let c = data.get(i).unwrap();
+                debug_assert!(columns.len() == data.len() - 1);
+                for (j, bv) in c.into_iter().enumerate() {
+                    let table_name = bv.to_string().unwrap();
+                    // sql.push_str(format!("{} VALUES (", &table_name, ).as_str());
+                    let mut insert_columns = String::new();
+                    let mut insert_values = String::new();
+                    for (n, cv) in data.iter().enumerate() {
+                        if n == i {
+                            // is table_name
+                            continue;
+                        }
+                        let temp_cv = cv.slice(j..j+1).unwrap();
+                        if let Some(v) = temp_cv.get(0) {
+                            if !v.is_null() {
+                                insert_columns.push_str(format!("`{}`,", columns[n]).as_str());
+                                insert_values.push_str(format!("{},", v.to_sql_value()).as_str());
+                            } else {
+                                // ignore null columnview
+                                log::trace!("column view {} is null", columns[n]);
+                            }
+                        }
+                    }
+                    insert_columns.pop();
+                    insert_values.pop();
+                    sql.push_str(format!("`{table_name}` ({insert_columns}) VALUES ({insert_values})").as_str());
+                }
+                Some(sql)
+            }
+        }
+    }
+
     pub fn to_column_views_group_by_tablename(&self) -> HashMap<Option<String>, Vec<ColumnView>> {
         let mut index = None;
         for (i, f) in self.records.record.schema().fields().iter().enumerate() {
@@ -752,6 +796,7 @@ impl LushMessageInsert {
             }
             Some(i) => {
                 let c = data.get(i).unwrap();
+                let start = std::time::Instant::now();
                 for (j, bv) in c.into_iter().enumerate() {
                     let map_value = map.get_mut(&Some(bv.to_string().unwrap()));
                     match map_value {
@@ -768,6 +813,7 @@ impl LushMessageInsert {
                         Some(c) => {
                             // dbg!(&c);
                             let mut data_i = 0;
+
                             for (n, cv) in data.iter().enumerate() {
                                 if n == i {
                                     continue;
@@ -787,6 +833,8 @@ impl LushMessageInsert {
                         }
                     }
                 }
+                let duration = start.elapsed();
+                println!("for loop time cost: {:?}", duration);
             }
         }
         map
