@@ -335,6 +335,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     while (1) {
       if (streamTaskShouldPause(&pTask->status)) {
+        qDebug("s-task:%s task should pause, input blocks:%s", pTask->id.idStr, batchSize);
         if (batchSize > 1) {
           break;
         } else {
