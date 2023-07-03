@@ -21,7 +21,12 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 - 原生连接[支持的平台](../#支持的平台)和 TDengine 客户端支持的平台一致。
 - REST 连接支持所有能运行 Python 的平台。
 
-## 版本选择
+### 支持的功能
+
+- 原生连接支持 TDengine 的所有核心功能， 包括： 连接管理、执行 SQL、参数绑定、订阅、无模式写入（schemaless）。
+- REST 连接支持的功能包括：连接管理、执行 SQL。 (通过执行 SQL 可以： 管理数据库、管理表和超级表、写入数据、查询数据、创建连续查询等)。
+
+## 历史版本
 
 无论使用什么版本的 TDengine 都建议使用最新版本的 `taospy`。
 
@@ -65,12 +70,25 @@ Python Connector 的所有数据库操作如果出现异常，都会直接抛出
 {{#include docs/examples/python/handle_exception.py}}
 ```
 
-## 支持的功能
+TDengine DataType 和 Python DataType
 
-- 原生连接支持 TDengine 的所有核心功能， 包括： 连接管理、执行 SQL、参数绑定、订阅、无模式写入（schemaless）。
-- REST 连接支持的功能包括：连接管理、执行 SQL。 (通过执行 SQL 可以： 管理数据库、管理表和超级表、写入数据、查询数据、创建连续查询等)。
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对应类型转换如下：
 
-## 安装
+|TDengine DataType|Python DataType|
+|:---------------:|:-------------:|
+|TIMESTAMP|datetime|
+|INT|int|
+|BIGINT|int|
+|FLOAT|float|
+|DOUBLE|int|
+|SMALLINT|int|
+|TINYINT|int|
+|BOOL|bool|
+|BINARY|str|
+|NCHAR|str|
+|JSON|str|
+
+## 安装步骤
 
 ### 安装前准备
 
@@ -383,7 +401,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 </TabItem>
 <TabItem value="websocket" label="WebSocket 连接">
 
-#### Connection 类的使用
+##### Connection 类的使用
 
 `Connection` 类既包含对 PEP249 Connection 接口的实现(如：cursor方法和 close 方法)，也包含很多扩展功能（如： execute、 query、schemaless_insert 和 subscribe 方法。
 
@@ -547,7 +565,7 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 
 `Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API。
 
-#### 创建 Consumer
+##### 创建 Consumer
 
 创建 Consumer 语法为 `consumer = Consumer(configs)`，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
 
@@ -557,7 +575,7 @@ from taos.tmq import Consumer
 consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 ```
 
-#### 订阅 topics
+##### 订阅 topics
 
 Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
 
@@ -565,7 +583,7 @@ Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时�
 consumer.subscribe(['topic1', 'topic2'])
 ```
 
-#### 消费数据
+##### 消费数据
 
 Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
 
@@ -583,7 +601,7 @@ while True:
         print(block.fetchall())
 ```
 
-#### 获取消费进度
+##### 获取消费进度
 
 Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
 
@@ -591,7 +609,7 @@ Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 
 assignments = consumer.assignment()
 ```
 
-#### 重置消费进度
+##### 指定订阅 Offset
 
 Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置，方法参数类型为 TopicPartition。
 
@@ -600,7 +618,7 @@ tp = TopicPartition(topic='topic1', partition=0, offset=0)
 consumer.seek(tp)
 ```
 
-#### 结束消费
+##### 关闭订阅
 
 消费结束后，应当取消订阅，并关闭 Consumer。
 
@@ -609,13 +627,13 @@ consumer.unsubscribe()
 consumer.close()
 ```
 
-#### tmq 订阅示例代码
+##### 完整示例
 
 ```python
 {{#include docs/examples/python/tmq_example.py}}
 ```
 
-#### 获取和重置消费进度示例代码
+##### 获取和重置消费进度示例代码
 
 ```python
 {{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
@@ -629,7 +647,7 @@ consumer.close()
 
 taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。
 
-#### 创建 Consumer
+##### 创建 Consumer
 
 创建 Consumer 语法为 `consumer = Consumer(conf=configs)`，使用时需要指定 `td.connect.websocket.scheme` 参数值为 "ws"，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
 
@@ -639,7 +657,7 @@ import taosws
 consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
 ```
 
-#### 订阅 topics
+##### 订阅 topics
 
 Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
 
@@ -647,7 +665,7 @@ Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时�
 consumer.subscribe(['topic1', 'topic2'])
 ```
 
-#### 消费数据
+##### 消费数据
 
 Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
 
@@ -664,7 +682,7 @@ while True:
             print(row)
 ```
 
-#### 获取消费进度
+##### 获取消费进度
 
 Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
 
@@ -672,7 +690,7 @@ Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 
 assignments = consumer.assignment()
 ```
 
-#### 重置消费进度
+##### 重置消费进度
 
 Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置。
 
@@ -680,7 +698,7 @@ Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位�
 consumer.seek(topic='topic1', partition=0, offset=0)
 ```
 
-#### 结束消费
+##### 结束消费
 
 消费结束后，应当取消订阅，并关闭 Consumer。
 
@@ -689,7 +707,7 @@ consumer.unsubscribe()
 consumer.close()
 ```
 
-#### tmq 订阅示例代码
+##### tmq 订阅示例代码
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
@@ -697,7 +715,7 @@ consumer.close()
 
 连接器提供了 `assignment` 接口，用于获取 topic assignment 的功能，可以查询订阅的 topic 的消费进度，并提供 `seek` 接口，用于重置 topic 的消费进度。
 
-#### 获取和重置消费进度示例代码
+##### 获取和重置消费进度示例代码
 
 ```python
 {{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
@@ -713,19 +731,19 @@ consumer.close()
 <Tabs defaultValue="list">
 <TabItem value="list" label="List 写入">
 
-简单写入
+##### 简单写入
 
 ```python
 {{#include docs/examples/python/schemaless_insert.py}}
 ```
 
-带有 ttl 参数的写入
+##### 带有 ttl 参数的写入
 
 ```python
 {{#include docs/examples/python/schemaless_insert_ttl.py}}
 ```
 
-带有 req_id 参数的写入
+##### 带有 req_id 参数的写入
 
 ```python
 {{#include docs/examples/python/schemaless_insert_req_id.py}}
@@ -735,19 +753,19 @@ consumer.close()
 
 <TabItem value="raw" label="Raw 写入">
 
-简单写入
+##### 简单写入
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw.py}}
 ```
 
-带有 ttl 参数的写入
+##### 带有 ttl 参数的写入
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
 ```
 
-带有 req_id 参数的写入
+##### 带有 req_id 参数的写入
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
@@ -763,7 +781,7 @@ TDengine 的 Python 连接器支持参数绑定风格的 Prepare API 方式写�
 <Tabs>
 <TabItem value="native" label="原生连接">
 
-#### 创建 stmt
+##### 创建 stmt
 
 Python 连接器的 `Connection` 提供了 `statement` 方法用于创建参数绑定对象 stmt，该方法接收 sql 字符串作为参数，sql 字符串目前仅支持用 `?` 来代表绑定的参数。
 
@@ -774,7 +792,7 @@ conn = taos.connect()
 stmt = conn.statement("insert into log values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 ```
 
-#### 参数绑定
+##### 参数绑定
 
 调用 `new_multi_binds` 函数创建 params 列表，用于参数绑定。
 
@@ -804,7 +822,7 @@ params[15].timestamp([None, None, 1626861392591])
 stmt.bind_param_batch(params)
 ```
 
-#### 执行 sql
+##### 执行 sql
 
 调用 stmt 的 `execute` 方法执行 sql
 
@@ -812,7 +830,7 @@ stmt.bind_param_batch(params)
 stmt.execute()
 ```
 
-#### 关闭 stmt
+##### 关闭 stmt
 
 最后需要关闭 stmt。
 
@@ -820,7 +838,7 @@ stmt.execute()
 stmt.close()
 ```
 
-#### 示例代码
+##### 示例代码
 
 ```python
 {{#include docs/examples/python/stmt_example.py}}
@@ -829,7 +847,7 @@ stmt.close()
 
 <TabItem value="websocket" label="WebSocket 连接">
 
-#### 创建 stmt
+##### 创建 stmt
 
 Python WebSocket 连接器的 `Connection` 提供了 `statement` 方法用于创建参数绑定对象 stmt，该方法接收 sql 字符串作为参数，sql 字符串目前仅支持用 `?` 来代表绑定的参数。
 
@@ -840,7 +858,7 @@ conn = taosws.connect('taosws://localhost:6041/test')
 stmt = conn.statement()
 ```
 
-#### 解析 sql
+##### 解析 sql
 
 调用 stmt 的 `prepare` 方法来解析 insert 语句。
 
@@ -848,7 +866,7 @@ stmt = conn.statement()
 stmt.prepare("insert into t1 values (?, ?, ?, ?)")
 ```
 
-#### 参数绑定
+##### 参数绑定
 
 调用 stmt 的 `bind_param` 方法绑定参数。
 
@@ -867,7 +885,7 @@ stmt.bind_param([
 stmt.add_batch()
 ```
 
-#### 执行 sql
+##### 执行 sql
 
 调用 stmt 的 `execute` 方法执行 sql
 
@@ -875,7 +893,7 @@ stmt.add_batch()
 stmt.execute()
 ```
 
-#### 关闭 stmt
+##### 关闭 stmt
 
 最后需要关闭 stmt。
 
@@ -883,7 +901,7 @@ stmt.execute()
 stmt.close()
 ```
 
-#### 示例代码
+##### 示例代码
 
 ```python
 {{#include docs/examples/python/stmt_websocket_example.py}}
