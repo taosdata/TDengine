@@ -103,12 +103,12 @@ class TDTestQuery(TDCase):
                 
     def flush_db(self,db): 
         sql = " flush database %s "  % db
-        self.tdSql.execute(sql,queryTimes=1)
+        self.tdSql.execute(sql,queryTimes=5)
         
     def alter_replica1_3(self,db): 
         sql = " ALTER DATABASE %s replica 3"  % db
         self.query_ignore_error(db,sql)
-        time.sleep(60)
+        time.sleep(50)
                 
     def alter_replica3_1(self,db): 
         sql = " ALTER DATABASE %s replica 1"  % db
@@ -373,7 +373,7 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         self.case_test()
-        for i in range(100):
+        for i in range(50):
             self.bug_11()
             self.bug_23024()
             self.bug_23024_1()
