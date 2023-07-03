@@ -347,7 +347,7 @@ static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
       return TSDB_CODE_SUCCESS;
     }
 
-    if (pInput == NULL) {
+    if (*pInput == NULL) {
       ASSERT((*numOfBlocks) == 0);
       *pInput = qItem;
     } else {
@@ -358,7 +358,8 @@ static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         streamQueueProcessFail(pTask->inputQueue);
         return TSDB_CODE_SUCCESS;
       }
-      pInput = newRet;
+
+      *pInput = newRet;
     }
 
     *numOfBlocks += 1;
