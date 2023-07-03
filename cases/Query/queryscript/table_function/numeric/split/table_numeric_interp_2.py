@@ -32,6 +32,7 @@ class TDTestQuery(TDTestQuery):
                 
     def run(self):
         startTime = time.time() 
+        self.tdSql.query("alter local 'schedulePolicy' '2';") 
         
         self.data_create(self.db_2)
         
