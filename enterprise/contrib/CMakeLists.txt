@@ -30,11 +30,15 @@ ENDIF ()
 # ENDIF ()
 
 IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/taosx)
-        cat("${TD_SOURCE_DIR}/enterprise/cmake/taosx_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+        IF ("${BUILD_TAOSX}" MATCHES "true") 
+                cat("${TD_SOURCE_DIR}/enterprise/cmake/taosx_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+        ENDIF ()
 ENDIF ()
 
 IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/explorer)
-        cat("${TD_SOURCE_DIR}/enterprise/cmake/explorer_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+	IF ("${BUILD_EXPLORER}" MATCHES "true")
+                cat("${TD_SOURCE_DIR}/enterprise/cmake/explorer_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+        ENDIF ()
 ENDIF ()
 
 # download dependencies
