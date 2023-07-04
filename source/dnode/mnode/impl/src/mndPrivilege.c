@@ -36,7 +36,9 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = 1;
   pRsp->enable = pUser->enable;
+  pRsp->sysInfo = pUser->sysInfo;
   pRsp->version = pUser->authVersion;
+  pRsp->passVer = pUser->passVersion;
   return 0;
 }
 #endif
