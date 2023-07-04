@@ -1061,7 +1061,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   msg = pMsg->pCont;
 
-  SStreamMeta* pMeta = pTq->pStreamMeta;
+  SStreamMeta*           pMeta = pTq->pStreamMeta;
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)msg;
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
@@ -1107,7 +1107,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   if (pTask->info.fillHistory) {
     SVersionRange* pRange = NULL;
-    SStreamTask* pStreamTask = NULL;
+    SStreamTask*   pStreamTask = NULL;
 
     if (!pReq->igUntreated && !streamTaskRecoverScanStep1Finished(pTask)) {
       // 1. stop the related stream task, get the current scan wal version of stream task, ver.
@@ -1120,9 +1120,10 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       // wait for the stream task get ready for scan history data
       while (((pStreamTask->status.downstreamReady == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
-            pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-        tqDebug("s-task:%s level:%d related stream task:%s not ready for halt, wait for it continue and recheck in 100ms",
-                pTask->id.idStr, pTask->info.taskLevel, pStreamTask->id.idStr);
+             pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+        tqDebug(
+            "s-task:%s level:%d related stream task:%s not ready for halt, wait for it continue and recheck in 100ms",
+            pTask->id.idStr, pTask->info.taskLevel, pStreamTask->id.idStr);
         taosMsleep(100);
       }
 
@@ -1132,36 +1133,34 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
               pStreamTask->info.taskLevel, pId);
 
       // if it's an source task, extract the last version in wal.
-      int64_t ver = pTask->dataRange.range.maxVer + 1;
-      int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-      if (latestVer >= ver) {
-        ver = latestVer;
-      }
-
-      // 2. do secondary scan of the history data, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
       pRange = &pTask->dataRange.range;
+      int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+      ASSERT(latestVer >= pRange->maxVer);
 
-      pRange->minVer = pRange->maxVer + 1;
-      pRange->maxVer = ver;
-      if (pRange->minVer == pRange->maxVer) {
+      int64_t nextStartVer = pRange->maxVer + 1;
+      if (nextStartVer > latestVer - 1) {
+        // no input data yet. no need to execute the secondardy scan while stream task halt
         streamTaskRecoverSetAllStepFinished(pTask);
-        tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no new data ingest", pId);
+        tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no data ingest during secondary scan", pId);
+      } else {
+        // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
+        // [pTask->dataRange.range.maxVer, ver1]
+        pRange->minVer = nextStartVer;
+        pRange->maxVer = latestVer - 1;
       }
     }
-    
+
     if (!streamTaskRecoverScanStep1Finished(pTask)) {
       tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64
               " do secondary scan-history-data after halt the related stream task:%s",
               pId, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pStreamTask->id.idStr);
-
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
       st = taosGetTimestampMs();
       streamSetParamForStreamScannerStep2(pTask, pRange, &pTask->dataRange.window);
     }
 
-    if(!streamTaskRecoverScanStep2Finished(pTask)) {
-
+    if (!streamTaskRecoverScanStep2Finished(pTask)) {
       streamSourceScanHistoryData(pTask);
       if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
         tqDebug("s-task:%s is dropped or paused, abort recover in step1", pId);
@@ -1215,7 +1214,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
               pWindow->ekey);
     } else {
       tqDebug("s-task:%s history data scan completed, now start to scan data from wal, start ver:%" PRId64
-              ", window:%" PRId64 " - %" PRId64, pId, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
+              ", window:%" PRId64 " - %" PRId64,
+              pId, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
     }
 
     code = streamTaskScanHistoryDataComplete(pTask);

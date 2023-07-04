@@ -1783,28 +1783,28 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   SStreamScanInfo* pInfo = pOperator->info;
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
 
   qDebug("stream scan started, %s", id);
 
-  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
-      pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
+  if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE1 || pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-    memcpy(&pTSInfo->base.cond, &pTaskInfo->streamInfo.tableCond, sizeof(SQueryTableDataCond));
+    memcpy(&pTSInfo->base.cond, &pStreamInfo->tableCond, sizeof(SQueryTableDataCond));
 
-    if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1) {
-      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer.minVer;
-      pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer.maxVer;
+    if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE1) {
+      pTSInfo->base.cond.startVersion = pStreamInfo->fillHistoryVer.minVer;
+      pTSInfo->base.cond.endVersion = pStreamInfo->fillHistoryVer.maxVer;
 
-      pTSInfo->base.cond.twindows = pTaskInfo->streamInfo.fillHistoryWindow;
+      pTSInfo->base.cond.twindows = pStreamInfo->fillHistoryWindow;
       qDebug("stream recover step1, verRange:%" PRId64 "-%" PRId64 " window:%"PRId64"-%"PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey, pTSInfo->base.cond.twindows.ekey, id);
-      pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN1;
+      pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN1;
     } else {
-      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer.minVer;
-      pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer.maxVer;
+      pTSInfo->base.cond.startVersion = pStreamInfo->fillHistoryVer.minVer;
+      pTSInfo->base.cond.endVersion = pStreamInfo->fillHistoryVer.maxVer;
       qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, id);
-      pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN2;
+      pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN2;
     }
 
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
@@ -1814,11 +1814,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
-    pTaskInfo->streamInfo.recoverScanFinished = false;
+    pStreamInfo->recoverScanFinished = false;
   }
 
-  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN1 ||
-      pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN2) {
+  if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1 ||
+      pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN2) {
     if (pInfo->blockRecoverContiCnt > 100) {
       pInfo->blockRecoverTotCnt += pInfo->blockRecoverContiCnt;
       pInfo->blockRecoverContiCnt = 0;
@@ -1869,11 +1869,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pInfo->blockRecoverContiCnt++;
       calBlockTbName(pInfo, pInfo->pRecoverRes);
       if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
-        if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN1) {
+        if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
           TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
           pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
         } else {
-          pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pTaskInfo->streamInfo.fillHistoryVer.maxVer);
+          pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pStreamInfo->fillHistoryVer.maxVer);
           doCheckUpdate(pInfo, pInfo->pRecoverRes->info.window.ekey, pInfo->pRecoverRes);
         }
       }
@@ -1887,7 +1887,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->pRecoverRes, "scan recover");
       return pInfo->pRecoverRes;
     }
-    pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
+    pStreamInfo->recoverStep = STREAM_RECOVER_STEP__NONE;
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
 
@@ -1896,7 +1896,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTSInfo->base.cond.startVersion = -1;
     pTSInfo->base.cond.endVersion = -1;
 
-    pTaskInfo->streamInfo.recoverScanFinished = true;
+    pStreamInfo->recoverScanFinished = true;
     return NULL;
   }
 
@@ -1915,7 +1915,7 @@ FETCH_NEXT_BLOCK:
     SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
     SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.parTbName[0]) {
-      pAPI->stateStore.streamStatePutParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, pBlock->info.parTbName);
+      pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
     }
 
     // TODO move into scan
@@ -2097,7 +2097,7 @@ FETCH_NEXT_BLOCK:
         doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
 
         {  // do additional time window filter
-          STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
+          STimeWindow* pWindow = &pStreamInfo->fillHistoryWindow;
 
           if (pWindow->skey != INT64_MIN) {
             qDebug("%s filter for additional history window, skey:%"PRId64, id, pWindow->skey);
