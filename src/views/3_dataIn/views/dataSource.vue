@@ -48,7 +48,9 @@
         <el-table-column
           :label="$t('datasource.createat')"
           prop="created_at"
-        ></el-table-column>
+        >
+          <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
@@ -165,7 +167,7 @@ import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
-import { deepClone } from "@/utils";
+import { deepClone, parsinginZone } from "@/utils";
 export default {
   name: "DataSource",
   components: { AddDialog, Agents },
@@ -194,6 +196,7 @@ export default {
       dialog: false,
       topicList: [],
       requestIng: false,
+      parsinginZone
     };
   },
   methods: {

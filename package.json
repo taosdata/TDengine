@@ -37,6 +37,7 @@
     "mavon-editor": "^2.10.4",
     "mitt": "^3.0.0",
     "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43",
     "node-sass": "^8.0.0",
     "prismjs": "^1.29.0",
     "table": "^6.8.0",
