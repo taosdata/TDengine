@@ -57,3 +57,43 @@ async fn test_large_task_expand() {
     dbg!(&resp);
     assert!(resp.status().is_success());
 }
+
+#[actix_web::test]
+async fn test_rest_proxy_with_tz() {
+    tracing_subscriber::fmt()
+        .with_level(true)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_max_level(tracing::Level::DEBUG)
+        .compact()
+        .init();
+    let mut args = Args::default();
+    const EXPLORER_PORT: u16 = 6060;
+    const EXPLORER_CLUSTER: &str = "http://localhost:6041";
+    const EXPLORER_X_PAI: &str = "http://localhost:6050";
+    args.port.get_or_insert(EXPLORER_PORT);
+    args.profile
+        .cluster
+        .get_or_insert(EXPLORER_CLUSTER.to_string());
+    args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
+    let args = web::Data::new(args);
+    let app = test::init_service(
+        App::new()
+            .wrap(TracingLogger::default())
+            .app_data(web::Data::new(Client::new()))
+            .app_data(args.clone())
+            .route("/rest/{path:.*}", web::to(rest_proxy)),
+    )
+    .await;
+
+    let req = test::TestRequest::default()
+        .app_data(web::Data::new(Client::new()))
+        .app_data(args.clone())
+        .uri("/rest/sql?tz=Asia/Shanghai")
+        .method(Method::POST)
+        .set_payload("select * from test.meters limit 1")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    dbg!(&resp);
+    assert!(resp.status().is_success());
+}
