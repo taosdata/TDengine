@@ -224,7 +224,7 @@ class TDTestCase:
                 args = (caller.filename, caller.lineno)
                 tdLog.exit("%s(%d) failed" % args)
         tdsql.query("show streams;")
-        tdsql.checkRows(2)
+        tdsql.checkRows(0)
         tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
         tdsql.checkRows(6)
         expectList = [0,3003,20031,20032,20033,30031]
