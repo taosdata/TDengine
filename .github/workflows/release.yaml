@@ -3,7 +3,7 @@ name: Build Latest
 on:
   push:
     branches:
-      - fix/TD-24879-fix-commit-id-lost
+      - main
 
 jobs:
   centos:
@@ -45,28 +45,28 @@ jobs:
         with:
           name: taosx
           path: target/release/taosx-amd64
-  # release:
-  #   needs: centos
-  #   runs-on: ubuntu-latest
-  #   if: github.ref == 'refs/heads/main'
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - uses: actions/download-artifact@v3
-  #       with:
-  #         name: taosx
-  #     - uses: rickstaa/action-create-tag@v1
-  #       with:
-  #         tag: "latest"
-  #         message: "Latest"
-  #         force_push_tag: true
-  #     - run: |
-  #         chmod +x taosx-amd64
-  #     - name: Release
-  #       uses: softprops/action-gh-release@v1
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       with:
-  #         name: Latest
-  #         tag_name: latest
-  #         files: |
-  #           taosx-amd64
+  release:
+    needs: centos
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: taosx
+      - uses: rickstaa/action-create-tag@v1
+        with:
+          tag: "latest"
+          message: "Latest"
+          force_push_tag: true
+      - run: |
+          chmod +x taosx-amd64
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Latest
+          tag_name: latest
+          files: |
+            taosx-amd64
