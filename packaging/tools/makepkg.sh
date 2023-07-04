@@ -45,9 +45,9 @@ fi
 
 if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
   cd ${top_dir}/src/kit/taos-tools/packaging/deb
-  [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
+  taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+  [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
   taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -166,22 +166,22 @@ if [ -n "${taostools_bin_files}" ]; then
     cp ${taostools_bin_files} ${taostools_install_dir}/bin &&
     chmod a+x ${taostools_install_dir}/bin/* || :
 
-  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh ]; then
-    cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh \
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-tools.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-tools.sh \
       ${taostools_install_dir}/ >/dev/null &&
-      chmod a+x ${taostools_install_dir}/install-${toolsName}.sh ||
-      echo -e "failed to copy install-${toolsName}.sh"
+      chmod a+x ${taostools_install_dir}/install-tools.sh ||
+      echo -e "failed to copy install-tools.sh"
   else
-    echo -e "install-${toolsName}.sh not found"
+    echo -e "install-tools.sh not found"
   fi
 
-  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-${toolsName}.sh ]; then
-    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-${toolsName}.sh \
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-tools.sh \
       ${taostools_install_dir}/ >/dev/null &&
-      chmod a+x ${taostools_install_dir}/uninstall-${toolsName}.sh ||
-      echo -e "failed to copy uninstall-${toolsName}.sh"
+      chmod a+x ${taostools_install_dir}/uninstall-tools.sh ||
+      echo -e "failed to copy uninstall-tools.sh"
   else
-    echo -e "uninstall-${toolsName}.sh not found"
+    echo -e "uninstall-tools.sh not found"
   fi
 
   if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
@@ -319,7 +319,7 @@ if [ "$verMode" == "cluster" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-dotnet ${install_dir}/connector/dotnet
         rm -rf ${install_dir}/connector/dotnet/.git ||:
 
-        git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
+        git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
         # cp -r ${connector_dir}/python ${install_dir}/connector
         # cp -r ${connector_dir}/nodejs ${install_dir}/connector
@@ -336,7 +336,8 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
-taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}
+versionCompFirst=$(echo ${versionComp} | awk -F '.' '{print $1}')
+taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}-comp${versionCompFirst}
 
 # if [ "$verMode" == "cluster" ]; then
 #   pkg_name=${install_dir}-${osType}-${cpuType}

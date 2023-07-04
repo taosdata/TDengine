@@ -208,7 +208,7 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
 void     tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
 SSchema1 *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
 
-int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
+uint16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
 
 typedef struct SSrcColumnInfo {
   int32_t functionId;
@@ -227,8 +227,6 @@ tOrderDescriptor *tOrderDesCreate(const int32_t *orderColIdx, int32_t numOfOrder
 
 void tOrderDescDestroy(tOrderDescriptor *pDesc);
 
-void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn);
-
 void tColModelAppend(SColumnModel *dstModel, tFilePage *dstPage, void *srcData, int32_t srcStartRows,
                      int32_t numOfRowsToWrite, int32_t srcCapacity);
 
@@ -239,7 +237,7 @@ void tColDataQSort(tOrderDescriptor *, int32_t numOfRows, int32_t start, int32_t
 void tColDataMergeSort(tOrderDescriptor *, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType);
 
 
-void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn);
+int32_t taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn);
 
 int32_t compare_sa(tOrderDescriptor *, int32_t numOfRows, int32_t idx1, int32_t idx2, char *data);
 

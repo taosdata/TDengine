@@ -449,7 +449,7 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
   SRetrieveFuncMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->num = htonl(pInfo->num);
 
-  int32_t t = sizeof(SUdfFuncMsg) + (sizeof(SFunctionInfoMsg) + TSDB_FUNC_CODE_LEN) * pInfo->num + 16384;
+  int32_t t = sizeof(SUdfFuncMsg) + (sizeof(SFunctionInfoMsg) + TSDB_FUNC_CODE_LEN) * pInfo->num + 65519;
 
   SUdfFuncMsg *pFuncMsg = rpcMallocCont(t);
   pFuncMsg->num = htonl(pInfo->num);

@@ -196,6 +196,7 @@ typedef struct SQLFunctionCtx {
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int32_t      inputBytes;
+  bool         hasColDataInput;  // the input data block has column data
 
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type
@@ -209,7 +210,7 @@ typedef struct SQLFunctionCtx {
   int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
   int64_t      endTs;
   int32_t      numOfParams;
-  tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  tVariant     param[10];     // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t     *ptsList;       // corresponding timestamp array list
   void        *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SQLPreAggVal preAggVals;

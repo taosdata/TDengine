@@ -35,7 +35,7 @@ void doHistogramAddTest() {
       (int64_t)systemTime.tv_sec * 1000L + (uint64_t)systemTime.tv_usec / 1000;
   printf("total elapsed time: %ld\n", et - st);
 
-  printf("elements: %d, slot:%d \n", pHisto->numOfElems, pHisto->numOfEntries);
+  printf("elements: %ld, slot:%d \n", pHisto->numOfElems, pHisto->numOfEntries);
   tHistogramPrint(pHisto);
 
   printf("%ld\n", tHistogramSum(pHisto, 1.5));

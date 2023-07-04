@@ -212,4 +212,57 @@ if $data07 != 2.872281323 then
   return -1
 endi
 
+#for max_row
+sql select ts, 'aaa' a, 1 b, 1.1111 c, max_row(c001), *, 'bbb' a1, 2 b1, 2.1111 c1 from d1.t1
+
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07
+print $data08  $data09
+
+if $rows != 1 then
+  print =====rows=$rows;
+  return -1
+endi
+
+if $data01 != aaa then
+  print =====data01=$data01;
+  return -1
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02;
+  return -1
+endi
+
+if $data03 != 1.111100000 then
+  print =====data03=$data03;
+  return -1
+endi
+
+#for min_row
+sql select ts, 'aaa' a, 1 b, 1.1111 c, min_row(c001), *, 'bbb' a1, 2 b1, 2.1111 c1 from d1.t1
+
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07
+print $data08  $data09
+
+if $rows != 1 then
+  print =====rows=$rows;
+  return -1
+endi
+
+if $data01 != aaa then
+  print =====data01=$data01;
+  return -1
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02;
+  return -1
+endi
+
+if $data03 != 1.111100000 then
+  print =====data03=$data03;
+  return -1
+endi
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

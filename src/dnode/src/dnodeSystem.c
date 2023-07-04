@@ -27,6 +27,7 @@ static void   sigintHandler(int32_t signum, void *sigInfo, void *context);
 
 int32_t main(int32_t argc, char *argv[]) {
   int dump_config = 0;
+  int dump_cluster = 0;
 
   // Set global configuration file
   for (int32_t i = 1; i < argc; ++i) {
@@ -61,8 +62,10 @@ int32_t main(int32_t argc, char *argv[]) {
       printf("buildinfo: %s\n", buildinfo);
       exit(EXIT_SUCCESS);
     } else if (strcmp(argv[i], "-k") == 0) {
-      grantParseParameter();
+      grantParseParameter(argv[i]);
       exit(EXIT_SUCCESS);
+    } else if (strcmp(argv[i], "-u") == 0) {
+      dump_cluster = 1;
     } else if (strcmp(argv[i], "-A") == 0) {
       tsPrintAuth = 1;
     }
@@ -112,6 +115,23 @@ int32_t main(int32_t argc, char *argv[]) {
     }
 
     taosDumpGlobalCfg();
+    exit(EXIT_SUCCESS);
+  }
+
+  if (0 != dump_cluster) {
+    taosInitGlobalCfg();
+    if (!taosReadGlobalCfg()) {
+      printf("TDengine read global config failed\n");
+      exit(EXIT_FAILURE);
+    }
+    if (tsDiskCfgNum > 0) {
+      if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
+        printf("failed to init TFS since %s\n", tstrerror(terrno));
+        exit(EXIT_FAILURE);
+      }
+      strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
+    }
+    grantParseParameter("-u");
     exit(EXIT_SUCCESS);
   }
 

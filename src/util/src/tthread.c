@@ -31,6 +31,7 @@ pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param) {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
+    uError("failed to create thread code=%d  since %s", ret, strerror(ret));
     free(pthread);
     return NULL;
   }

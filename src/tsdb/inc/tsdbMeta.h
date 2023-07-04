@@ -20,8 +20,8 @@
 
 #pragma  pack (push,1)
 typedef struct jsonMapValue{
-  void* table;      // STable *
-  int16_t  colId;   // the json col ID.
+  void*   table;  // STable *
+  int16_t colId;  // the json col ID.
 }JsonMapValue;
 
 #pragma  pack (pop)

@@ -61,6 +61,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RPC_FQDN_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0015)  //"Unable to resolve FQDN"
 #define TSDB_CODE_RPC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0016)  //"Invalid app version"
 #define TSDB_CODE_RPC_SHORTCUT                  TAOS_DEF_ERROR_CODE(0, 0x0017)  //"Shortcut"
+#define TSDB_CODE_RPC_VGROUP_NOT_CONNECTED      TAOS_DEF_ERROR_CODE(0, 0x0018)  //"Vgroup could not be connected"
 
 //common & util
 #define TSDB_CODE_COM_OPS_NOT_SUPPORT           TAOS_DEF_ERROR_CODE(0, 0x0100)  //"Operation not supported"
@@ -119,7 +120,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_INVALID_SCHEMA_VERSION    TAOS_DEF_ERROR_CODE(0, 0x0228)  //"invalid table schema version")
 #define TSDB_CODE_TSC_TOO_MANY_SML_LINES        TAOS_DEF_ERROR_CODE(0, 0x0229)  //"too many lines in batch")
 #define TSDB_CODE_TSC_SEND_DATA_FAILED          TAOS_DEF_ERROR_CODE(0, 0x0230)  //"Client send request data error"
-
+#define TSDB_CODE_TSC_EXCEED_ROW_BYTES          TAOS_DEF_ERROR_CODE(0, 0x0231)  //"Columns total length exceeds row bytes
+#define TSDB_CODE_TSC_EXCEED_QUERY_TIME_RANGE   TAOS_DEF_ERROR_CODE(0, 0x0232)  //"Query time range exceeds max query time range"
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed"
 #define TSDB_CODE_MND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0301)  //"Message is progressing"

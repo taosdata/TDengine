@@ -1,0 +1,64 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+
+print =============== step1
+print ====maxQueryTimeRange is set to 3S
+$db = querytimerange
+$ts = 1679399468000
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table t (ts timestamp, f int)
+
+sql insert into t values ( $ts , 1)( $ts + 1s , 2)( $ts + 2s , 3)( $ts + 3s, 4)( $ts + 4s, 5)
+
+sql select * from t where ts >= $ts and ts <= $ts + 2999
+sql select * from t where ts >= $ts and ts <= $ts + 2999 order by ts desc
+sql select * from t where ts > $ts and ts <= $ts + 3000
+sql select * from t where ts > $ts and ts <= $ts + 3000 order by ts desc
+sql select * from t where ts > $ts and ts < $ts + 2999
+sql select * from t where ts > $ts and ts < $ts + 2999 order by ts desc
+sql select * from t where ts > $ts and ts <= $ts + 2999
+sql select * from t where ts > $ts and ts <= $ts + 2999 order by ts desc
+sql select * from t where ts >= $ts and ts < $ts + 2999
+sql select * from t where ts >= $ts and ts < $ts + 2999 order by ts desc
+sql select * from t where ts > $ts and ts < $ts + 2000
+sql select * from t where ts = $ts + 200
+sql select * from t where ts = $ts
+sql select * from t where ts > $ts and ts <= $ts + 3000
+sql select * from (select * from t where ts > $ts and ts <= $ts + 3000) where ts = $ts + 200
+
+sql_error select * from t
+sql_error select * from t order by ts desc
+sql_error select * from t where ts > $ts
+sql_error select * from t where ts > $ts order by ts desc
+sql_error select * from t where ts < $ts
+sql_error select * from t where ts < $ts order by ts desc
+
+sql_error select * from t where ts >= $ts and ts <= $ts + 3000
+sql_error select * from t where ts >= $ts and ts <= $ts + 3000 order by ts desc
+sql_error select * from t where ts >= $ts and ts <= $ts + 4000
+sql_error select * from t where ts >= $ts and ts <= $ts + 4000 order by ts desc
+
+sql_error select * from ( select * from t ) where ts >= $ts and ts <= $ts + 2000
+sql_error select * from ( select * from t ) where ts >= $ts and ts <= $ts + 2000 oder by ts desc
+sql_error select * from ( select * from t order by ts desc) where ts >= $ts and ts <= $ts + 2000 oder by ts desc
+
+sql_error select * from ( select * from t where ts > $ts and ts < $ts + 2999) where ts > $ts
+
+sql_error select * from ( select * from t where ts > $ts and ts < $ts + 4000) where ts > $ts
+
+print =============== clear
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then 
+#  return -1
+#endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

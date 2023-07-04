@@ -121,10 +121,10 @@ static int print_result(TAOS_RES* res, int32_t rows) {
 
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR: {
-          int32_t charLen = *(int16_t *)col[i];
+          int32_t charLen = *(uint16_t *)col[i];
           int32_t charBytes = (fields[i].type == TSDB_DATA_TYPE_BINARY) ? sizeof(char) : sizeof(wchar_t);
-          int32_t offset = k * (sizeof(int16_t) + fields[i].bytes * charBytes);
-          memcpy(str + len, (char *)col[i] + sizeof(int16_t) + offset, charLen);
+          int32_t offset = k * (sizeof(uint16_t) + fields[i].bytes * charBytes);
+          memcpy(str + len, (char *)col[i] + sizeof(uint16_t) + offset, charLen);
           len += charLen;
         } break;
 

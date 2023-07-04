@@ -229,7 +229,7 @@ SELECT _block_dist() FROM { tb_name | stb_name }
 
 ```text title="Result"
 summary:
-5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(Kb)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
+5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(KB)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
 ```
 
 **More explanation about above example**:
@@ -241,7 +241,7 @@ summary:
 - stddev of number of rows, i.e. Stddev=[2.17]
 - Total number of rows, i.e. Rows[2000]
 - Total number of data blocks, i.e. Blocks=[3]
-- Total disk size consumed, i.e. Size=[5.440(Kb)]
+- Total disk size consumed, i.e. Size=[5.440(KB)]
 - Compression ratio, which means the compressed size divided by original size, i.e. Comp=[0.23]
 - Total number of rows in memory, i.e. RowsInMem=[0], which means no rows in memory
 - The time spent on reading head file (to retrieve data block information), i.e. SeekHeaderTime=[1(us)], which means 1 microsecond.

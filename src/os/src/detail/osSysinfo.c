@@ -466,6 +466,13 @@ bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
 }
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *wbytes) {
+#if defined _TD_ARM_
+  if (rchars) *rchars = 0;
+  if (wchars) *wchars = 0;
+  if (rbytes) *rbytes = 0;
+  if (wbytes) *wbytes = 0;
+  return true;
+#else
   FILE *fp = fopen(tsProcIOFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsProcIOFile);
@@ -511,6 +518,7 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *
   }
 
   return true;
+#endif
 }
 
 bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {

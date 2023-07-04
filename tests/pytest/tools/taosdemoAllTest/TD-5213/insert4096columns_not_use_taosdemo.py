@@ -288,9 +288,9 @@ class TDTestCase:
         tdSql.checkRows(4*self.num)
         tdSql.checkCols(4096)
 
-        #define TSDB_MAX_BYTES_PER_ROW 49151[old:1024 && 16384]
+        #define TSDB_MAX_BYTES_PER_ROW 65531[old:1024 && 16384 && 49151]
         #ts:8\int:4\smallint:2\bigint:8\bool:1\float:4\tinyint:1\nchar:4*（）+2[offset]\binary:1*（）+2[offset]
-        tdLog.info('test regular_table max bytes per row 49151') 
+        tdLog.info('test regular_table max bytes per row 65531') 
         sql = "create table regular_table_5(ts timestamp, "
         for i in range(500):
             sql += "int_%d int, " % (i + 1)
@@ -312,12 +312,12 @@ class TDTestCase:
             sql += "binary_%d binary(34), " % (i + 1)
         for i in range(4090,4094):
             sql += "timestamp_%d timestamp, " % (i + 1)
-        sql += "col4095 binary(69))"       
+        sql += "col4095 binary(14085))"
         tdSql.execute(sql)
         tdSql.query("select * from regular_table_5")
         tdSql.checkCols(4096)
         # TD-5324
-        sql = "alter table regular_table_5 modify column col4095 binary(70); "
+        sql = "alter table regular_table_5 modify column col4095 binary(14086); "
         tdSql.error(sql)     
         
         # drop and add
@@ -326,16 +326,16 @@ class TDTestCase:
         sql = "select * from regular_table_5; "
         tdSql.query(sql)
         tdSql.checkCols(4095)
-        sql = "alter table regular_table_5 add column col4095 binary(70); "
+        sql = "alter table regular_table_5 add column col4095 binary(14086); "
         tdSql.error(sql) 
-        sql = "alter table regular_table_5 add column col4095 binary(69); "
+        sql = "alter table regular_table_5 add column col4095 binary(14085); "
         tdSql.execute(sql)
         sql = "select * from regular_table_5; "
         tdSql.query(sql)
         tdSql.checkCols(4096)  
 
-        #out TSDB_MAX_BYTES_PER_ROW 49151
-        tdLog.info('test regular_table max bytes per row out 49151') 
+        #out TSDB_MAX_BYTES_PER_ROW 65531
+        tdLog.info('test regular_table max bytes per row out 65531') 
         sql = "create table regular_table_6(ts timestamp, "
         for i in range(500):
             sql += "int_%d int, " % (i + 1)
@@ -357,7 +357,7 @@ class TDTestCase:
             sql += "binary_%d binary(34), " % (i + 1)
         for i in range(4090,4094):
             sql += "timestamp_%d timestamp, " % (i + 1)
-        sql += "col4095 binary(70))"  
+        sql += "col4095 binary(14086))"  
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
@@ -575,9 +575,9 @@ class TDTestCase:
         tdSql.checkRows(3*self.num)
         tdSql.checkCols(4092)
 
-        #define TSDB_MAX_BYTES_PER_ROW 49151   TSDB_MAX_TAGS_LEN 16384 
+        #define TSDB_MAX_BYTES_PER_ROW 65531   TSDB_MAX_TAGS_LEN 16384
         #ts:8\int:4\smallint:2\bigint:8\bool:1\float:4\tinyint:1\nchar:4*（）+2[offset]\binary:1*（）+2[offset]
-        tdLog.info('test super table max bytes per row 49151') 
+        tdLog.info('test super table max bytes per row 65531') 
         sql = "create table stable_4(ts timestamp, "
         for i in range(500):
             sql += "int_%d int, " % (i + 1)
@@ -597,7 +597,7 @@ class TDTestCase:
             sql += "nchar_%d nchar(20), " % (i + 1)
         for i in range(3800,4090):
             sql += "binary_%d binary(34), " % (i + 1)
-        sql += "col4091 binary(101))"  
+        sql += "col4091 binary(14117))"  
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.execute(sql)
         sql = '''create table table_40 using stable_4 
@@ -614,9 +614,9 @@ class TDTestCase:
         sql = "select * from stable_4; "
         tdSql.query(sql)
         tdSql.checkCols(4095)
-        sql = "alter table stable_4 add column col4091 binary(102); "
+        sql = "alter table stable_4 add column col4091 binary(14118); "
         tdSql.error(sql) 
-        sql = "alter table stable_4 add column col4091 binary(101); "
+        sql = "alter table stable_4 add column col4091 binary(14117); "
         tdSql.execute(sql)
         sql = "select * from stable_4; "
         tdSql.query(sql)
@@ -635,7 +635,7 @@ class TDTestCase:
         sql = "alter table stable_4 add tag loc1 nchar(10); "
         tdSql.error(sql) 
 
-        tdLog.info('test super table max bytes per row 49151') 
+        tdLog.info('test super table max bytes per row 65531') 
         sql = "create table stable_5(ts timestamp, "
         for i in range(500):
             sql += "int_%d int, " % (i + 1)
@@ -655,7 +655,7 @@ class TDTestCase:
             sql += "nchar_%d nchar(20), " % (i + 1)
         for i in range(3800,4090):
             sql += "binary_%d binary(34), " % (i + 1)
-        sql += "col4091 binary(102))"  
+        sql += "col4091 binary(14118))"  
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
@@ -686,7 +686,7 @@ class TDTestCase:
         sql = "alter table stable_1 add tag max int; "
         tdSql.error(sql)
         # TD-5324
-        sql = "alter table stable_4 modify column col4091 binary(102); "
+        sql = "alter table stable_4 modify column col4091 binary(14118); "
         tdSql.error(sql)
         sql = "alter table stable_4 modify tag loc nchar(20); "
         tdSql.query("select * from table_40")

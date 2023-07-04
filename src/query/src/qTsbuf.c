@@ -593,22 +593,22 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur->vgroupIndex == groupIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
-      (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
-    int32_t i = 0;
-    bool    decomp = false;
-    int32_t step = abs(blockIndex - pCur->blockIndex);
-    
-    while ((++i) <= step) {
-      if (readDataFromDisk(pTSBuf, pCur->order, decomp) == NULL) {
-        return;
-      }
-    }
-  } else {
+//  if (pCur->vgroupIndex == groupIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
+//      (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
+//    int32_t i = 0;
+//    bool    decomp = false;
+//    int32_t step = abs(blockIndex - pCur->blockIndex);
+//
+//    while ((++i) <= step) {
+//      if (readDataFromDisk(pTSBuf, pCur->order, decomp) == NULL) {
+//        return;
+//      }
+//    }
+//  } else {
     if (tsBufFindBlock(pTSBuf, pBlockInfo, blockIndex) == -1) {
       assert(false);
     }
-  }
+//  }
   
   STSBlock* pBlock = &pTSBuf->block;
   
@@ -651,13 +651,16 @@ static int32_t doUpdateGroupInfo(STSBuf* pTSBuf, int64_t offset, STSGroupBlockIn
   return 0;
 }
 
-STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id) {
-  int32_t j = tsBufFindGroupById(pTSBuf->pData, pTSBuf->numOfGroups, id);
-  if (j == -1) {
-    return NULL;
+SArray* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id) {
+  SArray* pList = taosArrayInit(4, sizeof(STSGroupBlockInfo));
+
+  for(int32_t i = 0; i < pTSBuf->numOfGroups; ++i) {
+    if (pTSBuf->pData[i].info.id == id) {
+      taosArrayPush(pList, &pTSBuf->pData[i].info);
+    }
   }
-  
-  return &pTSBuf->pData[j].info;
+
+  return pList;
 }
 
 int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
@@ -1099,23 +1102,54 @@ void tsBufGetGroupIdList(STSBuf* pTSBuf, int32_t* num, int32_t** id) {
   }
 }
 
-int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupIndex, void* buf, int32_t* len, int32_t* numOfBlocks) {
+int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupId, void* buf, int32_t* len, int32_t* numOfBlocks) {
+  SArray* pList = tsBufGetGroupBlockInfo(pTSBuf, groupId);
+
+  *len = 0;
+  *numOfBlocks = 0;
+
+  char* p = buf;
+  for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+    STSGroupBlockInfo* pBlockInfo = taosArrayGet(pList, i);
+
+    if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
+      int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+      //    qError("%p: fseek failed: %s", pSql, tstrerror(code));
+      return code;
+    }
+
+    size_t s = fread(p, 1, pBlockInfo->compLen, pTSBuf->f);
+    if (s != pBlockInfo->compLen) {
+      int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+      //    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
+      return code;
+    }
+
+    *len += pBlockInfo->compLen;
+    *numOfBlocks += pBlockInfo->numOfBlocks;
+    p += pBlockInfo->compLen;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dumpFileBlockByGroupIndex(STSBuf* pTSBuf, int32_t groupIndex, void* pBuf, int32_t* len, int32_t* numOfBlocks) {
   assert(groupIndex >= 0 && groupIndex < pTSBuf->numOfGroups);
-  STSGroupBlockInfo *pBlockInfo = &pTSBuf->pData[groupIndex].info;
+  STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[groupIndex].info;
 
   *len = 0;
   *numOfBlocks = 0;
 
   if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
     int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
-//    qError("%p: fseek failed: %s", pSql, tstrerror(code));
+    //    qError("%p: fseek failed: %s", pSql, tstrerror(code));
     return code;
   }
 
-  size_t s = fread(buf, 1, pBlockInfo->compLen, pTSBuf->f);
+  size_t s = fread(pBuf, 1, pBlockInfo->compLen, pTSBuf->f);
   if (s != pBlockInfo->compLen) {
     int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
-//    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
+    //    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
     return code;
   }
 

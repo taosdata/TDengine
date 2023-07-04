@@ -32,26 +32,25 @@ typedef struct SUdfInit{
  void (*destroyCtxFunc)(void *script_ctx);
 } SUdfInit;
 
-
 typedef struct SUdfInfo {
-  int32_t functionId;  // system assigned function id
-  int32_t funcType;    // scalar function or aggregate function
-  int8_t  resType;     // result type
-  int16_t resBytes;    // result byte
-  int32_t contLen;     // content length
-  int32_t bufSize;     //interbuf size
-  char   *name;        // function name
-  void   *handle;      // handle loaded in mem
-  void   *funcs[TSDB_UDF_FUNC_MAX_NUM];     // function ptr
+  int32_t  functionId;                    // system assigned function id
+  int32_t  funcType;                      // scalar function or aggregate function
+  int8_t   resType;                       // result type
+  uint16_t resBytes;                      // result byte
+  int32_t  contLen;                       // content length
+  int32_t  bufSize;                       // interbuf size
+  char*    name;                          // function name
+  void*    handle;                        // handle loaded in mem
+  void*    funcs[TSDB_UDF_FUNC_MAX_NUM];  // function ptr
 
   // for script like lua/javascript only
-  int    isScript;
-  void   *pScriptCtx;
+  int   isScript;
+  void* pScriptCtx;
 
   SUdfInit init;
-  char *content;
-  char *path;
-  bool  keep;
+  char*    content;
+  char*    path;
+  bool     keep;
 } SUdfInfo;
 
 //script 

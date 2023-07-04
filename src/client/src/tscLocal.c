@@ -168,12 +168,12 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   
   rowLen += ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE);
 
-  f.bytes = (int16_t)(typeColLength + VARSTR_HEADER_SIZE);
+  f.bytes = (uint16_t)(typeColLength + VARSTR_HEADER_SIZE);
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "Type", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, (int16_t)(typeColLength + VARSTR_HEADER_SIZE),
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, (uint16_t)(typeColLength + VARSTR_HEADER_SIZE),
       -1000, typeColLength, false);
   
   rowLen += typeColLength + VARSTR_HEADER_SIZE;
@@ -188,12 +188,12 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   
   rowLen += sizeof(int32_t);
 
-  f.bytes = (int16_t)(noteColLength + VARSTR_HEADER_SIZE);
+  f.bytes = (uint16_t)(noteColLength + VARSTR_HEADER_SIZE);
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "Note", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, (int16_t)(noteColLength + VARSTR_HEADER_SIZE),
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, (uint16_t)(noteColLength + VARSTR_HEADER_SIZE),
       -1000, noteColLength, false);
   
   rowLen += noteColLength + VARSTR_HEADER_SIZE;
@@ -414,31 +414,32 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
 
 // build 'show create table/database' result fields 
 static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const char *ddl) {
-  int32_t  rowLen = 0;
-  int16_t  ddlLen = (int16_t)strlen(ddl); 
+  int32_t      rowLen = 0;
+  uint16_t     ddlLen = (uint16_t)strlen(ddl);
   SColumnIndex idx = {0};
   pSql->cmd.numOfCols = 2;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   pQueryInfo->order.order = TSDB_ORDER_ASC;
 
-  TAOS_FIELD f; 
+  TAOS_FIELD f;
   if (type == SCREATE_BUILD_TABLE) {
-    f.type  = TSDB_DATA_TYPE_BINARY;
+    f.type = TSDB_DATA_TYPE_BINARY;
     f.bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
     tstrncpy(f.name, "Table", sizeof(f.name));
   } else {
-    f.type  = TSDB_DATA_TYPE_BINARY;
-    f.bytes =  (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+    f.type = TSDB_DATA_TYPE_BINARY;
+    f.bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
     tstrncpy(f.name, "Database", sizeof(f.name));
-  } 
+  }
 
-  SInternalField* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, f.bytes, -1000, f.bytes - VARSTR_HEADER_SIZE, false);
+  SInternalField *pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, f.bytes, -1000,
+                               f.bytes - VARSTR_HEADER_SIZE, false);
 
-  rowLen += f.bytes; 
+  rowLen += f.bytes;
 
-  f.bytes = (int16_t)(ddlLen + VARSTR_HEADER_SIZE);
+  f.bytes = (uint16_t)(ddlLen + VARSTR_HEADER_SIZE);
   f.type = TSDB_DATA_TYPE_BINARY;
   if (type == SCREATE_BUILD_TABLE) {
     tstrncpy(f.name, "Create Table", sizeof(f.name));
@@ -448,7 +449,7 @@ static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const 
 
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY,
-      (int16_t)(ddlLen + VARSTR_HEADER_SIZE), -1000, ddlLen, false);
+                               (uint16_t)(ddlLen + VARSTR_HEADER_SIZE), -1000, ddlLen, false);
 
   rowLen += ddlLen + VARSTR_HEADER_SIZE;
 
@@ -909,7 +910,7 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
     pSql->res.code = pHb->res.code;
   }
 
-  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pSql->res.code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
     taosReleaseRef(tscObjRef, pObj->hbrid);
     return pSql->res.code;
   }
@@ -919,7 +920,7 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
     taosReleaseRef(tscObjRef, pObj->hbrid);
   }
 
-  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pSql->res.code == TSDB_CODE_RPC_VGROUP_NOT_CONNECTED) {
     return pSql->res.code;
   }
 
@@ -943,7 +944,7 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   tscFieldInfoClear(&pQueryInfo->fieldsInfo);
   pQueryInfo->fieldsInfo.internalField = taosArrayInit(1, sizeof(SInternalField));
 
-  TAOS_FIELD f = tscCreateField((int8_t)type, columnName, (int16_t)valueLength);
+  TAOS_FIELD f = tscCreateField((int8_t)type, columnName, (uint16_t)valueLength);
   tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
   pSql->res.pMerger = tscInitResObjForLocalQuery(1, (int32_t)valueLength, pSql->self);

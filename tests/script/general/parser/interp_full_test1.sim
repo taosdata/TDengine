@@ -3,7 +3,6 @@ sql connect
 
 sql use db;
 
-sql_error SELECT INTERP(c7) FROM tb1;
 sql_error SELECT INTERP(c8) FROM tb1;
 sql_error SELECT INTERP(c9) FROM tb1;
 sql_error SELECT INTERP(c1,c8) FROM tb1;

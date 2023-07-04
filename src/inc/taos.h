@@ -69,7 +69,7 @@ typedef enum {
 typedef struct taosField {
   char     name[65];
   uint8_t  type;
-  int16_t  bytes;
+  uint16_t bytes;
 } TAOS_FIELD;
 
 typedef enum {

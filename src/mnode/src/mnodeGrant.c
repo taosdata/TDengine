@@ -22,7 +22,7 @@
 
 int32_t grantInit() { return TSDB_CODE_SUCCESS; }
 void    grantCleanUp() {}
-void    grantParseParameter() { mError("can't parsed parameter k"); }
+void    grantParseParameter(const char* param) { mError("can't parse parameter %s", param); }
 int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
 void    grantReset(EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}

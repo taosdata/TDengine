@@ -105,12 +105,11 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 
 ## Comparison with other databases
 
-- [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/2022/02/23/4975.html)
-- [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/2022/02/24/5120.html)
-- [TDengine vs InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse](https://www.tdengine.com/downloads/TDengine_Testing_Report_en.pdf)
-- [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
-- [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
-- [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)
+- [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/performance-comparison-of-tdengine-and-influxdb/)
+- [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/query-performance-comparison-test-report-tdengine-vs-influxdb/)
+- [TDengine vs OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
+- [TDengine vs Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
+- [TDengine vs InfluxDB](https://tdengine.com/performance-tdengine-vs-influxdb/)
 
 
-If you want to learn some basics about time-series databases, please check [here](https://tdengine.com/tsdb).
+If you want to learn some basics about time-series databases, please check [here](https://tdengine.com/tsdb/).

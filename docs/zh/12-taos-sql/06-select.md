@@ -240,7 +240,7 @@ SELECT _block_dist() FROM { tb_name | stb_name }
 
 ```txt title="返回结果"
 summary:
-5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(Kb)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
+5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(KB)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
 ```
 
 **上述信息的说明如下**:
@@ -252,7 +252,7 @@ summary:
 - 所有数据块中行数分布的均方差为 2.17 ( stddev ）。
 - 数据块包含的行的总数为 2000 行（Rows）。
 - 数据块总数是 3 个数据块 （Blocks）。
-- 数据块占用磁盘空间大小 5.44 Kb （size）。
+- 数据块占用磁盘空间大小 5.44 KB （size）。
 - 压缩后的数据块的大小除以原始数据的所获得的压缩比例： 23%（Comp），及压缩后的数据规模是原始数据规模的 23%。
 - 内存中存在的数据行数是 0，表示内存中没有数据缓存。
 - 获取数据块信息的过程中读取头文件的时间开销 1 微秒（SeekHeaderTime）。

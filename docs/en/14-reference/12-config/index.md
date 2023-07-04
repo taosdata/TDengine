@@ -186,6 +186,16 @@ TDengine uses 13 continuous ports, both TCP and UDP, starting with the port spec
 | Default Value | 100,000                                      |
 | Note          | After version 2.3.0.0                        |
 
+### maxSqlGroups
+
+| 属性     | 说明                             |
+| -------- | -------------------------------- | --- |
+| 适用范围 | Server and Client                     |
+| 含义     | The maximus number of groups when group by or interval |
+| 取值范围 | [500,000 - 10,000,000]    |
+| 缺省值   | 1,000,000                            |
+| 补充说明 | After version 2.6.0.21                   |     |
+
 ## Locale Parameters
 
 ### timezone

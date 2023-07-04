@@ -189,13 +189,13 @@ typedef struct {
   bool    kPointsMeet;
 } SMovingAvgInfo;
 
-typedef struct  {
-  int32_t totalPoints;
-  int32_t numSampled;
-  int16_t colBytes;
-  char *values;
+typedef struct {
+  int32_t  totalPoints;
+  int32_t  numSampled;
+  uint16_t colBytes;
+  char    *values;
   int64_t *timeStamps;
-  char  *taglists;
+  char    *taglists;
 } SSampleFuncInfo;
 
 typedef struct SElapsedInfo {
@@ -448,7 +448,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_BLKINFO) {
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = 16384;
+    *bytes = TSDB_MAX_FIELD_LEN;
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
@@ -700,8 +700,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *bytes = sizeof(double);
     *interBytes = sizeof(SSpreadInfo);
   } else if (functionId == TSDB_FUNC_PERCT) {
-    *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
-    *bytes = sizeof(double);
+    if (param > 1) {
+      *type = (int16_t)TSDB_DATA_TYPE_BINARY;
+      *bytes = 512;
+    } else {
+      *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
+      *bytes = sizeof(double);
+    }
     *interBytes = sizeof(SPercentileInfo);
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
@@ -3096,7 +3101,7 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
 }
 
 static void percentile_finalizer(SQLFunctionCtx *pCtx) {
-  double v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+  double v = 0;
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
@@ -3107,7 +3112,25 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
       assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
-    SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
+    if (pCtx->numOfParams > 1) {
+      ((char *)varDataVal(pCtx->pOutput))[0] = '[';
+      size_t len = 1;
+      size_t maxBufLen = 512;
+
+      for (int32_t i = 0; i < pCtx->numOfParams; ++i) {
+        v = pCtx->param[i].nType == TSDB_DATA_TYPE_INT ? pCtx->param[i].i64 : pCtx->param[i].dKey;
+
+        if (i == pCtx->numOfParams - 1) {
+          len += snprintf((char *)varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf]", getPercentile(pMemBucket, v));
+        } else {
+          len += snprintf((char *)varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf, ", getPercentile(pMemBucket, v));
+        }
+      }
+      varDataSetLen(pCtx->pOutput, len);
+    } else {
+      v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+      SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
+    }
   }
 
   tMemBucketDestroy(pMemBucket);
@@ -5085,7 +5108,7 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
                    "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
-                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], SmallBlocks=[%d], Size=[%.3f(Kb)] Comp=[%.5g]\n\t "
+                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], SmallBlocks=[%d], Size=[%.3f(KB)] Comp=[%.5g]\n\t "
                    "RowsInMem=[%d] \n\t",
                    percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
@@ -5271,7 +5294,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
 //////////////////////////////////////////////////////////////////////////////////
 // Sample function with reservoir sampling algorithm
 
-static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t idx, int64_t ts, void *pData, uint16_t type, int16_t bytes, char *inputTags) {
+static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t idx, int64_t ts, void *pData, uint16_t type, uint16_t bytes, char *inputTags) {
   assignVal(pInfo->values + idx*bytes, pData, bytes, type);
   *(pInfo->timeStamps + idx) = ts;
 
@@ -5296,7 +5319,7 @@ static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int
   }
 }
 
-static void do_reservoir_sample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t samplesK, int64_t ts, void *pData,  uint16_t type, int16_t bytes) {
+static void do_reservoir_sample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t samplesK, int64_t ts, void *pData,  uint16_t type, uint16_t bytes) {
   pInfo->totalPoints++;
   if (pInfo->numSampled < samplesK) {
     assignResultSample(pCtx, pInfo, pInfo->numSampled, ts, pData, type, bytes, NULL);

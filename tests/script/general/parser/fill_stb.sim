@@ -430,6 +430,20 @@ if $data69 != 6 then
   return -1
 endi
 
+## TD-2679
+print ============== td2679
+sql create database td2679
+sql use td2679
+sql create table st(ts timestamp, f int) tags (t int)
+$ts = 1676768465000
+sql insert into ct1 using st tags(1) values($ts , null)($ts + 1s, 1)($ts + 2s, null)
+sql insert into ct2 using st tags(2) values($ts + 3s, null)($ts + 4s, 4)($ts + 5s, null)
+sql select max(f) from st  where ts>='2023-02-19 09:01:04.000' and ts <= '2023-02-19 09:01:10.000' interval(1s) fill(linear) group by tbname;
+print $rows , $data60 , $data61 , $data70 , $data71
+if $data71 != NULL then
+  return -1
+endi
+sql drop database td2679
 print =============== clear
 sql drop database $db
 sql show databases

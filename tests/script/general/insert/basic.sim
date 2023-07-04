@@ -39,6 +39,9 @@ while $x < 5
   $x = $x + 1
 endw 
 
+print =============== step 3 (TS-2405 NULL timestamp)
+sql_error insert into $tb values (9223372036854775808 , 100) 
+
 sql select * from $tb
 
 print $rows points data are retrieved

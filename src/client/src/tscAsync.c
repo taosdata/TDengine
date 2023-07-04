@@ -259,13 +259,14 @@ static inline char *insertTags(char *sql, char *tags) {
 
     // nest call
     part2 = insertTags(sub_sql, tags);
-    free(sub_sql);
     if (part2 == NULL) {
       // unknown format, can not insert tags
       tscError("TAGS insertTags sub select sql failed. subsql=%s sql=%s", sub_sql, sql);
+      free(sub_sql);
       free(buf);
       return NULL;
     }
+    free(sub_sql);
 
     // new string is part1 + part2 + part 3
     strncpy(buf, p, part1_end - p + 1);

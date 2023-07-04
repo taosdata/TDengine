@@ -3732,7 +3732,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
 
     SFilterRange tra;
     filterGetRangeRes(prev, &tra);
-    win->skey = tra.s; 
+    win->skey = tra.s;
     win->ekey = tra.e;
   }
 
@@ -3786,7 +3786,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
       }
 
       fi->data = nfi.data;
-      
+
       *gotNchar = true;
     }
   }
@@ -3820,22 +3820,27 @@ int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res) 
   CHK_JMP(FILTER_GET_COL_FIELD_ID(FILTER_GET_COL_FIELD(info, 0)) != idxId);
 
   int32_t optr = FILTER_UNIT_OPTR(info->units);
-  
+
   CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN || optr == TSDB_RELATION_MATCH 
        || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL || optr == TSDB_RELATION_CONTAINS);
 
   *res = true;
 
   return TSDB_CODE_SUCCESS;
-  
+
 _return:
   *res = false;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
 
 int32_t filterGetIndexedColumnInfo(SFilterInfo* info, char** val, int32_t *order, int32_t *flag) {
+  if (FILTER_GET_FLAG(info->status, FI_STATUS_EMPTY)) {
+    *order = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SFilterComUnit *cunit = info->cunits;
   uint8_t optr = cunit->optr;
 
@@ -3853,7 +3858,7 @@ int32_t filterGetIndexedColumnInfo(SFilterInfo* info, char** val, int32_t *order
   if (cunit->valData2 == cunit->valData && optr != TSDB_RELATION_EQUAL) {
     FILTER_SET_FLAG(*flag, FI_ACTION_NO_NEED);
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 

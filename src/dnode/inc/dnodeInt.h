@@ -24,6 +24,7 @@ extern "C" {
 #include "tlog.h"
 #include "trpc.h"
 #include "tglobal.h"
+#include "tfs.h"
 #include "dnode.h"
 #include "vnode.h"
 

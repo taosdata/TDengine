@@ -291,13 +291,13 @@ void tdigestTest() {
         for (int32_t j = 0; j < typeTimes; ++j) {
           printf("DMode:%d,Type:%d,randP:%d -", dataMode[i], dataTypes[j], randPers[p]);
           for (int32_t m = 0; m < numTimes; ++m) {          
-            printf(" %d:%f", totalNum[m], useTime[0][i][j][m][p]);
+            printf(" %ld:%f", totalNum[m], useTime[0][i][j][m][p]);
           }
           printf("\n");
 
           printf("HMode:%d,Type:%d,randP:%d -", dataMode[i], dataTypes[j], randPers[p]);
           for (int32_t m = 0; m < numTimes; ++m) {          
-            printf(" %d:%f", totalNum[m], useTime[1][i][j][m][p]);
+            printf(" %ld:%f", totalNum[m], useTime[1][i][j][m][p]);
           }
           printf("\n");          
         }
@@ -307,13 +307,13 @@ void tdigestTest() {
         for (int32_t j = 0; j < typeTimes; ++j) {
           printf("DMode:%d,Type:%d,randL:%d -", dataMode[i], dataTypes[j], randLimits[p]);
           for (int64_t m = 0; m < numTimes; ++m) {
-            printf(" %d:%f", totalNum[m], useTime[0][i][j][m][p]);
+            printf(" %ld:%f", totalNum[m], useTime[0][i][j][m][p]);
           }
           printf("\n");
 
           printf("HMode:%d,Type:%d,randL:%d -", dataMode[i], dataTypes[j], randLimits[p]);
           for (int64_t m = 0; m < numTimes; ++m) {
-            printf(" %d:%f", totalNum[m], useTime[1][i][j][m][p]);
+            printf(" %ld:%f", totalNum[m], useTime[1][i][j][m][p]);
           }
           printf("\n");          
         }
@@ -322,13 +322,13 @@ void tdigestTest() {
       for (int32_t j = 0; j < typeTimes; ++j) {
         printf("DMode:%d,Type:%d -", dataMode[i], dataTypes[j]);
         for (int64_t m = 0; m < numTimes; ++m) {
-          printf(" %d:%f", totalNum[m], useTime[0][i][j][m][0]);
+          printf(" %ld:%f", totalNum[m], useTime[0][i][j][m][0]);
         }
         printf("\n");
 
         printf("HMode:%d,Type:%d -", dataMode[i], dataTypes[j]);
         for (int64_t m = 0; m < numTimes; ++m) {
-          printf(" %d:%f", totalNum[m], useTime[1][i][j][m][0]);
+          printf(" %ld:%f", totalNum[m], useTime[1][i][j][m][0]);
         }
         printf("\n");        
       }

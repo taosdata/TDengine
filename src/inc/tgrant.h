@@ -38,7 +38,7 @@ typedef enum {
 
 int32_t grantInit();
 void    grantCleanUp();
-void    grantParseParameter();
+void    grantParseParameter(const char* param);
 int32_t grantCheck(EGrantType grant);
 void    grantReset(EGrantType grant, uint64_t value);
 void    grantAdd(EGrantType grant, uint64_t value);

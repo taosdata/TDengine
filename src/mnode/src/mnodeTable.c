@@ -265,9 +265,13 @@ static void mnodeTableActionUpdateTimeSeries(const char *tableId, int64_t diffCo
     };
     if (!(pAcct = mnodeGetAcct(pDb->acct))) {
       mWarn("table:%s, acct:%s not exist to update timeseries", tableId, pDb->acct);
+      mnodeDecDbRef(pDb);
       return;
     }
     if (pAcct) pAcct->acctInfo.numOfTimeSeries += diffCols;
+    
+    mnodeDecAcctRef(pAcct);
+    mnodeDecDbRef(pDb);
   }
 }
 
@@ -1596,10 +1600,14 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg) {
   }
 
   // check exceed max row bytes
-  int32_t i;
+  int32_t  i;
   uint32_t nLen = 0;
   for (i = 0; i < pStable->numOfColumns; ++i) {
-    nLen += (pStable->schema[i].colId == col) ? pAlter->schema[0].bytes : pStable->schema[i].bytes;
+    SSchema *pSchema = pStable->schema + i;
+    nLen += (pSchema->colId == col) ? pAlter->schema[0].bytes : pSchema->bytes;
+    if (IS_VAR_DATA_TYPE(pSchema->type)) {
+      nLen += sizeof(VarDataOffsetT);
+    }
   }
   if (nLen > TSDB_MAX_BYTES_PER_ROW) {
     mError("msg:%p, app:%p stable:%s, change column, name:%s exceed max row bytes", pMsg, pMsg->rpcMsg.ahandle,

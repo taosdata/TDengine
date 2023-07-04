@@ -91,7 +91,7 @@
             "batch_create_tbl_num": 100,
             "data_source": "rand",
             "insert_mode": "sml",
-            "line_protocol": "json" , 
+            "line_protocol": "taosjson" , 
             "insert_rows":50,
             "childtable_limit": -1,
             "childtable_offset":0,

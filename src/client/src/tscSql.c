@@ -145,7 +145,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     tstrncpy(tmp, db, sizeof(tmp));
 
     stringProcess(tmp, (int32_t)strlen(tmp));
-    strtolower(pObj->db, tmp);
+    tstrncpy(pObj->db, tmp, sizeof(pObj->db));
   }
 
   pthread_mutex_init(&pObj->mutex, NULL);
@@ -628,7 +628,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  if (pRes == NULL || pRes->qId == 0) {
+  if (pRes == NULL || pRes->qId == 0 || (pRes->qId == 0x1 && pCmd->payloadLen == 0)) {
     return true;
   }
 
