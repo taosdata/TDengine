@@ -37,6 +37,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 5   |       id       | SMALLINT     | dnode id                  |
 | 6   |    endpoint    | BINARY(134)  | dnode 的地址              |
 | 7   |     create     | TIMESTAMP    | 创建时间                  |
+| 8   |   reboot_time  | TIMESTAMP    | 上一次重启时间            |
 
 ## INS_MNODES
 
