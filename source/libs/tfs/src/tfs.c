@@ -315,9 +315,9 @@ int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
 
-  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+  for (int32_t level = pTfs->nlevel - 1; level >= 0; level--) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
-    for (int32_t id = 0; id < pTier->ndisk; id++) {
+    for (int32_t id = pTier->ndisk - 1; id >= 0; id--) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
       snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
