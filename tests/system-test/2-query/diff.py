@@ -23,7 +23,7 @@ class TDTestCase:
         tdSql.execute(
             f"create table {dbname}.ntb(ts timestamp,c1 int,c2 double,c3 float)")
         tdSql.execute(
-            f"insert into {dbname}.ntb values(now,1,1.0,10.5)(now+1s,10,-100.0,5.1)(now+10s,-1,15.1,5.0)")
+                f"insert into {dbname}.ntb values('2023-01-01 00:00:01',1,1.0,10.5)('2023-01-01 00:00:02',10,-100.0,5.1)('2023-01-01 00:00:03',-1,15.1,5.0)")
 
         tdSql.query(f"select diff(c1,0) from {dbname}.ntb")
         tdSql.checkRows(2)
@@ -232,6 +232,40 @@ class TDTestCase:
         tdSql.query(f"select diff(col1,1) from  {dbname}.stb1_1")
         tdSql.checkRows(19)
         tdSql.checkData(0,0,None)
+
+        # TD-25098
+
+        tdSql.query(f"select ts, diff(c1) from  {dbname}.ntb order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-01-01 00:00:02.000')
+        tdSql.checkData(1, 0, '2023-01-01 00:00:03.000')
+
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, -11)
+
+        tdSql.query(f"select ts, diff(c1) from  {dbname}.ntb order by ts desc")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-01-01 00:00:03.000')
+        tdSql.checkData(1, 0, '2023-01-01 00:00:02.000')
+
+        tdSql.checkData(0, 1, -11)
+        tdSql.checkData(1, 1, 9)
+
+        tdSql.query(f"select ts, diff(c1) from (select * from {dbname}.ntb order by ts)")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-01-01 00:00:02.000')
+        tdSql.checkData(1, 0, '2023-01-01 00:00:03.000')
+
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, -11)
+
+        tdSql.query(f"select ts, diff(c1) from (select * from {dbname}.ntb order by ts desc)")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-01-01 00:00:02.000')
+        tdSql.checkData(1, 0, '2023-01-01 00:00:01.000')
+
+        tdSql.checkData(0, 1, 11)
+        tdSql.checkData(1, 1, -9)
 
     def stop(self):
         tdSql.close()
