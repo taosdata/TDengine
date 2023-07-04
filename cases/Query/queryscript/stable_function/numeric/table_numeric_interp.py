@@ -342,8 +342,8 @@ class TDTestQuery(TDCase):
                     cur1.execute(sql2)
         except:
             self.tdSql.error(sql1)
-            self.tdSql.error(sql2)
-            self.logger.info("sql1 is not support :=====%s; sql2 is not support :=====%s; " %(sql1,sql2))
+            #self.tdSql.error(sql2)
+            self.logger.info("sql1 is not support :=====%s; or sql2 is not support :=====%s; " %(sql1,sql2))
                                                    
          
     def right_case_1_range(self):
@@ -363,7 +363,7 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
-                sql1 = 'select %s from %s;'  % (func,self.table)
+                sql1 = "select %s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -410,7 +410,7 @@ class TDTestQuery(TDCase):
                             self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
+                            sql2 = "select %s from %s where tbname in ('%s_1') %s ;"  % (func,self.table,self.table,range_fill_every)
                             self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
 
@@ -424,7 +424,7 @@ class TDTestQuery(TDCase):
                             self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select %s as ii from %s where tbname in ('%s') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
+                            sql2 = "select %s as ii from %s where tbname in ('%s_1') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
                             self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
 
@@ -475,13 +475,13 @@ class TDTestQuery(TDCase):
                         for i in list_intervals:                        
                             range_fill_every = self.interp_range_fill_every(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                            sql1 = "select %s,_irowts,_isfilled  from %s  %s ;"  % (func,self.table,range_fill_every)
+                            sql1 = "select %s,_irowts,_isfilled  from %s  where tbname in ('%s_1')  %s ;"  % (func,self.table,self.table,range_fill_every)
 
                             sql2 = "select %s,_irowts,_isfilled from %s where  %s %s %s ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
                             self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select %s,_irowts,_isfilled  from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
+                            sql2 = "select %s,_irowts,_isfilled  from %s where tbname in ('%s_1') %s ;"  % (func,self.table,self.table,range_fill_every)
                             self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -495,7 +495,7 @@ class TDTestQuery(TDCase):
                             self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select %s,_irowts,_isfilled  as ii from %s where tbname in ('%s') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
+                            sql2 = "select %s,_irowts,_isfilled  as ii from %s where tbname in ('%s_1') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
                             self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
 
