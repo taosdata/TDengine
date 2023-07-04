@@ -131,10 +131,10 @@ static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2,
 
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
-  TMQ_MSG_TYPE__POLL_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_RSP,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
-  TMQ_MSG_TYPE__TAOSX_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };

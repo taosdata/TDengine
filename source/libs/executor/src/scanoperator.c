@@ -2154,7 +2154,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   qDebug("tmqsnap doRawScan called");
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     bool hasNext = false;
-    if (pInfo->dataReader) {
+    if (pInfo->dataReader && pInfo->sContext->withMeta != ONLY_META) {
       code = pAPI->tsdReader.tsdNextDataBlock(pInfo->dataReader, &hasNext);
       if (code) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->dataReader);
@@ -2180,7 +2180,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
     SMetaTableInfo mtInfo = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext);
     STqOffsetVal   offset = {0};
-    if (mtInfo.uid == 0) {  // read snapshot done, change to get data from wal
+    if (mtInfo.uid == 0 || pInfo->sContext->withMeta == ONLY_META) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
       tqOffsetResetToLog(&offset, pInfo->sContext->snapVersion);
     } else {
