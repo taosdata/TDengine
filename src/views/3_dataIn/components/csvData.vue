@@ -66,14 +66,20 @@ export default {
 <style lang="scss" scoped>
 .csv-data {
   border: 1px solid #dfe4ed;
-  width:500px;
+  width:600px;
+  padding: 20px;
+  box-sizing: border-box;
   .upload-file {
     display: flex;
     .label{
         color:#4d6992;
         width:150px;
+        font-weight: 500;
         font-size: 16px;
         text-align: right;
+    }
+    .el-input{
+        flex: 1;
     }
   }
 }
