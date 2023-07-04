@@ -26,6 +26,17 @@ public interface InfluxdbService {
     JSONObject fetchSchemaInfo(String url, String token) throws ArtificialException;
 
     /**
+     * 单次连接，查询指定influxdb中schema信息，适用于v1.7/1.8
+     *
+     * @param url
+     * @param username
+     * @param password
+     * @return
+     * @throws ArtificialException
+     */
+    JSONObject fetchSchemaInfoV1(String url, String username, String password) throws ArtificialException;
+
+    /**
      * 获取influxdb中所有bucket
      *
      * @return
