@@ -6,7 +6,7 @@ use log::LevelFilter;
 use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
 use taos::*;
 use tracing::{info, instrument, Level};
-use tracing_actix_web::{RequestId, TracingLogger};
+use tracing_actix_web::TracingLogger;
 use tracing_awc::Tracing;
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -194,8 +194,13 @@ async fn rest_proxy(
 ) -> impl Responder {
     let (url,) = path.into_inner();
     let x = args.profile.cluster.as_deref().unwrap();
-    let url = format!("{x}/rest/{url}");
     let method = req.method();
+    let query = req.query_string();
+    let url = if query.is_empty() {
+        format!("{x}/rest/{url}")
+    } else {
+        format!("{x}/rest/{url}?{query}")
+    };
     let builder = client.request(method.clone(), url);
     let mut builder = builder.timeout(Duration::from_secs(std::u64::MAX));
     *builder.headers_mut() = req.headers().clone();
@@ -231,12 +236,11 @@ impl error::ResponseError for Error {}
 #[instrument(skip(req, body))]
 async fn x_api(
     req: HttpRequest,
-    req_id: RequestId,
+    // req_id: RequestId,
     api: web::Path<String>,
     args: web::Data<Args>,
     mut body: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    req.method();
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
@@ -246,26 +250,34 @@ async fn x_api(
     }
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
-    let client = awc::Client::builder().wrap(Tracing).finish();
+    let client = awc::Client::builder()
+        .disable_timeout()
+        .wrap(Tracing)
+        .finish();
     let method = req.method();
-    let client = client
-        .request(method.clone(), url)
-        .timeout(Duration::from_secs(std::u64::MAX));
+    let mut client = client.request(method.clone(), url);
+    *client.headers_mut() = req.headers().clone();
+    let info = req.connection_info();
+    if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
+        client = client
+            .insert_header(("X-Forward-For", addr))
+            .insert_header(("X-Real-IP", addr));
+    }
     let mut resp = client
         .content_type(req.content_type())
         .send_body(bytes)
         .await?;
-    // match resp {
-    //     Ok(mut ok) =>
-    //         match ok.body().limit(1024 * 1024 * 1024).await {
-    //             Ok(data) => Ok(HttpResponseBuilder::new(ok.status()).body(data)),
-    //             Err(err) => Err(Error::PayloadError(err)),
-    //         },
-    //     Err(err) => Err(Error::XError(err)),
-    // }
-    Ok(HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .body(resp.body().await?))
+
+    let mut builder = HttpResponse::Ok();
+
+    for e in resp.headers() {
+        builder.insert_header(e);
+    }
+
+    Ok(builder
+        .content_type(resp.content_type())
+        // .streaming(resp); // streaming is also ok.
+        .body(resp.body().limit(std::usize::MAX).await?))
 }
 
 async fn x_api_doc(
@@ -294,7 +306,7 @@ async fn x_api_doc(
         if let serde_json::Value::Object(paths) = paths {
             *paths = paths
                 .into_iter()
-                .map(|(k, v)| (format!("/x{k}"), v.clone()))
+                .map(|(k, v)| (format!("/api/x{k}"), v.clone()))
                 .collect();
         }
     }
@@ -305,7 +317,7 @@ async fn x_api_doc(
 #[folder = "../dist/"]
 struct StaticAssets;
 
-#[derive(Parser, Debug, Clone, Deserialize, Serialize)]
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 struct Profile {
     /// Cluster endpoint. Use taosAdapter endpoint like `http://192.168.0.201:16041`.
     #[clap(short, long, env = "EXPLORER_CLUSTER")]
@@ -356,7 +368,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main"
     )
 };
 
-#[derive(Parser, Debug, Clone, Deserialize)]
+#[derive(Parser, Debug, Clone, Deserialize, Default)]
 #[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
@@ -526,3 +538,6 @@ impl From<taos::Error> for RestErrResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

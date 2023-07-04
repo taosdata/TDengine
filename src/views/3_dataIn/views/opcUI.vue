@@ -9,7 +9,7 @@
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
-      <!-- <div class="source-name">
+      <div class="source-name" v-if="isEditable">
         <div class="block-title">
           <span>数据源名称</span>
         </div>
@@ -21,7 +21,7 @@
             style="width: 200px"
           ></el-input>
         </div>
-      </div> -->
+      </div>
       <section class="basics">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
@@ -625,10 +625,10 @@ export default {
     opcConnector,
   },
   props: {
-    sourceName: {
-      type: String,
-      default: "",
-    },
+    // sourceName: {
+    //   type: String,
+    //   default: "",
+    // },
     echoData: {
       type: Array,
       default: () => {
@@ -682,6 +682,7 @@ export default {
   },
   data() {
     return {
+      sourceName:localStorage.getItem('datainName'),
       openSSL: false,
       constmqttCols: [],
       textareas: ["ca", "cert", "cert_key", "certificate"],
@@ -1122,7 +1123,8 @@ export default {
             //     : "+"
             //   : "") +
             dns,
-          name: localStorage.getItem("datainName"),
+          name: this.sourceName,
+          //localStorage.getItem("datainName"),
           to:
             "taos+" +
             localStorage.getItem("base_url") +

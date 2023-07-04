@@ -287,7 +287,7 @@ export default {
           if (res) {
             this.topicList = res.map((item) => {
               (item["taskid"] = item.id),
-                (item["localname"] = item.name ? item.name : "tmq+" + item.id);
+                (item["localname"] = item.name);
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
               item["created_at"] = item.created_at
@@ -359,7 +359,7 @@ export default {
         let index=this.topicList.findIndex(item=>item.taskid==data.taskid)
         this.topicList.splice(index,1,[].concat(result).map((item) => {
               (item["taskid"] = item.id),
-                (item["localname"] = item.name ? item.name : "tmq+" + item.id);
+                (item["localname"] = item.name);
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
               item["created_at"] = item.created_at
