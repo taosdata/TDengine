@@ -2,9 +2,9 @@
   <div class="layout_wrapper" :class="sider_style">
     <Sider class="sider"></Sider>
     <div class="main">
-      <LayoutHeader></LayoutHeader>
+      <LayoutHeader :reload="reload"></LayoutHeader>
       <main class="main_content">
-        <router-view></router-view>
+        <router-view v-if="isRouterAlive"></router-view>
       </main>
     </div>
     <UpgradeDialog />
@@ -25,6 +25,11 @@
       ContactDialog,
     },
     mixins: [ResizeMixin],
+    data() {
+      return {
+        isRouterAlive: true,
+      }
+    },
     computed: {
       sider_style() {
         return this.$store.state.sidebar.opened ? "sider_unfold" : "sider_fold";
@@ -37,9 +42,24 @@
           this.$store.commit("SET_CONTACT_DIALOG_VISIBLE", val);
         },
       },
+      timezone() {
+        return this.$store.state.app.timeZone
+      }
     },
     mounted() {},
-    methods: {},
+    methods: {
+      reload() {
+        this.isRouterAlive = false
+        this.$nextTick(() => {
+          this.isRouterAlive = true
+        })
+      }
+    },
+    watch: {
+      timezone() {
+        this.reload()
+      }
+    }
   };
 </script>
 

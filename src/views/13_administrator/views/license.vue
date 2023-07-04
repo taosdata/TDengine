@@ -24,7 +24,7 @@
       :column="3"
     >
       <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
-        <span style="color:#333;"> {{item.value}}</span>
+        <span style="color:#333;"> {{item.key == 'expire_time'? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
       </el-descriptions-item>
     </el-descriptions>
     <p class="title">
@@ -121,7 +121,8 @@
 <script>
 import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
-import { activeLicence } from '@/api/explorer/licence'
+import { activeLicence } from '@/api/explorer/licence';
+import { parsinginZone } from '@/utils';
 export default {
   data() {
     return {
@@ -149,6 +150,7 @@ export default {
       licenseList: [],
       columns: [],
       tableData: [],
+      parsinginZone
     };
   },
   computed: {
@@ -236,7 +238,7 @@ export default {
       }
     }, 
     expireTime(data){
-      return moment(Number(data) * 24 * 60 * 60 * 1000).format('YYYY-MM-DD')
+      return parsinginZone(Number(data) * 24 * 60 * 60 * 1000,'YYYY-MM-DD')
     }
   },
 };

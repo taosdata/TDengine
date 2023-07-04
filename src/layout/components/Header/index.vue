@@ -27,6 +27,7 @@
         </router-link>
       </el-tooltip>
       <Help></Help> -->
+      <Timezone></Timezone>
       <Avatar></Avatar>
     </div>
   </div>
@@ -34,9 +35,9 @@
 
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
-import { Avatar, ClusterSelector, Help, Support, Document } from "./components";
+import { Avatar, ClusterSelector, Help, Support, Document, Timezone } from "./components";
 export default {
-  components: { Avatar, ClusterSelector, Help, Support, Document },
+  components: { Avatar, ClusterSelector, Help, Support, Document, Timezone },
   data() {
     return {
       issueTypeList: [],
