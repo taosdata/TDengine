@@ -9,7 +9,7 @@
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
-      <!-- <div class="source-name">
+      <div class="source-name">
         <div class="block-title">
           <span>数据源名称</span>
         </div>
@@ -21,7 +21,7 @@
             style="width: 200px"
           ></el-input>
         </div>
-      </div> -->
+      </div>
       <section class="basics">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
