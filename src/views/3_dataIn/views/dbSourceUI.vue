@@ -9,7 +9,7 @@
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
-      <div class="source-name">
+      <div class="source-name" v-if="isEditable">
         <div class="block-title">
           <span>数据源名称</span>
         </div>
@@ -610,10 +610,10 @@ import { debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
-    sourceName: {
-      type: String,
-      default: "",
-    },
+    // sourceName: {
+    //   type: String,
+    //   default: "",
+    // },
     tagName: {
       type: String,
       default: "datasource",
@@ -680,6 +680,7 @@ export default {
       }
     };
     return {
+      sourceName:localStorage.getItem('datainName'),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -986,7 +987,7 @@ export default {
                 : "+"
               : "") +
             dns,
-          name: localStorage.getItem("datainName"),
+          name: this.sourceName,
           to:
             "taos+" +
             localStorage.getItem("base_url") +
@@ -1022,7 +1023,7 @@ export default {
               this.tagName == "influxdb"
                 ? "influxdb" + dns
                 : this.tagName + dns,
-            name: localStorage.getItem("datainName"),
+            name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
             to:
