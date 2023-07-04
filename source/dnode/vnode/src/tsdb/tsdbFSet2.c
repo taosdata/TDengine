@@ -22,11 +22,14 @@ int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
   return 0;
 }
 
-static void    tsdbSttLvlClearFObj(void *data) { tsdbTFileObjUnref(*(STFileObj **)data); }
-static int32_t tsdbSttLvlClear(SSttLvl **lvl) {
-  TARRAY2_DESTROY(lvl[0]->fobjArr, tsdbSttLvlClearFObj);
-  taosMemoryFree(lvl[0]);
-  lvl[0] = NULL;
+static void tsdbSttLvlClearFObj(void *data) { tsdbTFileObjUnref(*(STFileObj **)data); }
+
+int32_t tsdbSttLvlClear(SSttLvl **lvl) {
+  if (lvl[0] != NULL) {
+    TARRAY2_DESTROY(lvl[0]->fobjArr, tsdbSttLvlClearFObj);
+    taosMemoryFree(lvl[0]);
+    lvl[0] = NULL;
+  }
   return 0;
 }
 
