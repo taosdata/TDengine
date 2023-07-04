@@ -3151,10 +3151,9 @@ class StreamComputingTest(TDCase):
 
 
             # pause/resume
-            # ! TD-24739	
-            # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=False)
-            # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=True)
-            # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False)
+            self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=False)
+            self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=True)
+            self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False)
 
             # ! TD-23905
             # self.json_function(partition="tbname", delete=True, fill_history_value=1)

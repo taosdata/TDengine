@@ -1,0 +1,3 @@
+
+# need long time to finish
+taostest --setup=54_58_stability_jenkins.yaml --case=manager/splitVGroupFull.py --keep --containers --log-level=info

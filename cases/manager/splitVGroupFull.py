@@ -89,8 +89,8 @@ def restartThread():
     # kill seconds interval
     global needQuit
     killLoop = 5
-    minKill = 2
-    maxKill = 20
+    minKill = 1
+    maxKill = 2
     i = 0
     while needQuit == False and i < killLoop :
         i += 1
@@ -258,7 +258,7 @@ class SplitVGroup(TDCase):
     def prepareEnv(self):
         # init                
         self.ts = 1680000000000
-        self.childCnt = 1000
+        self.childCnt = 10000000
         self.childRow = 10000
         self.batchSize = 5000
         self.vgroups1  = 20
@@ -354,11 +354,15 @@ class SplitVGroup(TDCase):
         self.queryDouble(sql)
 
         # check row value is ok
-        sql = "select * from @db_name.st order by ts"
+        sql = "select * from @db_name.st order by ts limit 100000"
         self.queryDouble(sql)
-        
+
+        # check row value is ok
+        sql = "select count(*) from @db_name.st"
+        self.queryDouble(sql)
+
         # where
-        sql = "select *,tbname from @db_name.st where c1 < 1000 order by ts"
+        sql = "select *,tbname from @db_name.st where c1 < 1000 order by ts limit 100000"
         self.queryDouble(sql)
 
         # max
