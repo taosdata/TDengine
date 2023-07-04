@@ -4,11 +4,13 @@ using OSIsoft.AF.EventFrame;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using log4net;
 
 namespace TDPIConnector.PI
 {
     public class AFAttributeWrapper
     {
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         internal AFAttribute AFSDKObject { get; private set; }
         internal AFAttributeWrapper(AFAttribute attribute)
         {
@@ -41,11 +43,19 @@ namespace TDPIConnector.PI
         {
             get
             {
-                if (AFSDKObject.PIPoint == null)
+                try
                 {
+                    if (AFSDKObject.PIPoint == null)
+                    {
+                        return null;
+                    }
+                    return new PIPointWrapper(this.AFSDKObject.PIPoint);
+                }
+                catch (Exception e)
+                {
+                    log.Warn($"Not Found Point, {e.Message}");
                     return null;
                 }
-                return new PIPointWrapper(this.AFSDKObject.PIPoint);
             }
         }
 
