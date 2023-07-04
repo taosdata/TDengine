@@ -194,8 +194,13 @@ async fn rest_proxy(
 ) -> impl Responder {
     let (url,) = path.into_inner();
     let x = args.profile.cluster.as_deref().unwrap();
-    let url = format!("{x}/rest/{url}");
     let method = req.method();
+    let query = req.query_string();
+    let url = if query.is_empty() {
+        format!("{x}/rest/{url}")
+    } else {
+        format!("{x}/rest/{url}?{query}")
+    };
     let builder = client.request(method.clone(), url);
     let mut builder = builder.timeout(Duration::from_secs(std::u64::MAX));
     *builder.headers_mut() = req.headers().clone();
