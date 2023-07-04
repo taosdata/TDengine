@@ -74,39 +74,46 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       continue;
     }
 
-    SClientHbReq *pReq = NULL;
+    SClientHbReq    *pReq = NULL;
+    SGetUserAuthRsp *pRsp = NULL;
     while ((pReq = taosHashIterate(hbMgr->activeInfo, pReq))) {
       STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);
       if (!pTscObj) {
         continue;
       }
-      for (int32_t j = 0; j < TARRAY_SIZE(batchRsp->pArray); ++j) {
-        SGetUserAuthRsp *rsp = TARRAY_GET_ELEM(batchRsp->pArray, j);
 
-        if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
-          pTscObj->authVer = rsp->version;
-
-#if 0  // make jenkins happy temporarily. After PR pass, enable these lines again.
-          if (pTscObj->sysInfo != rsp->sysInfo) {
-            tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, rsp->user,
-                     pTscObj->sysInfo, rsp->sysInfo, pTscObj->id);
-            pTscObj->sysInfo = rsp->sysInfo;
+      if (!pRsp) {
+        for (int32_t j = 0; j < TARRAY_SIZE(batchRsp->pArray); ++j) {
+          SGetUserAuthRsp *rsp = TARRAY_GET_ELEM(batchRsp->pArray, j);
+          if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
+            pRsp = rsp;
+            break;
           }
-#endif
-          if (pTscObj->passInfo.fp) {
-            SPassInfo *passInfo = &pTscObj->passInfo;
-            int32_t    oldVer = atomic_load_32(&passInfo->ver);
-            if (oldVer < rsp->passVer) {
-              atomic_store_32(&passInfo->ver, rsp->passVer);
-              if (passInfo->fp) {
-                (*passInfo->fp)(passInfo->param, &rsp->passVer, TAOS_NOTIFY_PASSVER);
-              }
-              tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, rsp->user, oldVer,
-                       atomic_load_32(&passInfo->ver), pTscObj->id);
-            }
-          }
-
+        }
+        if (!pRsp) {
+          releaseTscObj(pReq->connKey.tscRid);
           break;
+        }
+      }
+
+      pTscObj->authVer = pRsp->version;
+
+      if (pTscObj->sysInfo != pRsp->sysInfo) {
+        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, pRsp->user,
+                 pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
+        pTscObj->sysInfo = pRsp->sysInfo;
+      }
+
+      if (pTscObj->passInfo.fp) {
+        SPassInfo *passInfo = &pTscObj->passInfo;
+        int32_t    oldVer = atomic_load_32(&passInfo->ver);
+        if (oldVer < pRsp->passVer) {
+          atomic_store_32(&passInfo->ver, pRsp->passVer);
+          if (passInfo->fp) {
+            (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
+          }
+          tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, pRsp->user, oldVer,
+                   atomic_load_32(&passInfo->ver), pTscObj->id);
         }
       }
       releaseTscObj(pReq->connKey.tscRid);

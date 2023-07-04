@@ -32,7 +32,7 @@
 #define nRoot    10
 #define nUser    10
 #define USER_LEN 24
-#define BUF_LEN  256
+#define BUF_LEN  1024
 
 typedef uint16_t VarDataLenT;
 
@@ -46,7 +46,7 @@ typedef uint16_t VarDataLenT;
 
 void createUsers(TAOS *taos, const char *host, char *qstr);
 void passVerTestMulti(const char *host, char *qstr);
-void sysInfoTest(const char *host, char *qstr);
+void sysInfoTest(TAOS *taos, const char *host, char *qstr);
 
 int   nPassVerNotified = 0;
 TAOS *taosu[nRoot] = {0};
@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
-  sysInfoTest(argv[1], qstr);
+  sysInfoTest(taos, argv[1], qstr);
 
   taos_close(taos);
   taos_cleanup();
@@ -299,26 +299,25 @@ void passVerTestMulti(const char *host, char *qstr) {
   // sleep(300);
 }
 
-void sysInfoTest(const char *host, char *qstr) {
-  // root
+void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
   TAOS *taos[nRoot] = {0};
-  char  userName[USER_LEN] = "root";
+  char  userName[USER_LEN] = "user0";
 
   for (int i = 0; i < nRoot; ++i) {
-    taos[i] = taos_connect(host, "root", "taos", NULL, 0);
+    taos[i] = taos_connect(host, "user0", "taos", NULL, 0);
     if (taos[i] == NULL) {
       fprintf(stderr, "failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
       exit(1);
     }
   }
 
-  queryDB(taos[0], "create database if not exists demo11 vgroups 1 minrows 10");
-  queryDB(taos[0], "create database if not exists demo12 vgroups 1 minrows 10");
-  queryDB(taos[0], "create database if not exists demo13 vgroups 1 minrows 10");
+  queryDB(taosRoot, "create database if not exists demo11 vgroups 1 minrows 10");
+  queryDB(taosRoot, "create database if not exists demo12 vgroups 1 minrows 10");
+  queryDB(taosRoot, "create database if not exists demo13 vgroups 1 minrows 10");
 
-  queryDB(taos[0], "create table demo11.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taos[0], "create table demo12.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taos[0], "create table demo13.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taosRoot, "create table demo11.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taosRoot, "create table demo12.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taosRoot, "create table demo13.stb (ts timestamp, c1 int) tags(t1 int)");
 
   sprintf(qstr, "show grants");
   char      output[BUF_LEN];
@@ -340,7 +339,7 @@ _REP:
     exit(EXIT_FAILURE);
   }
 
-  queryDB(taos[0], "alter user root sysinfo 0");
+  queryDB(taosRoot, "alter user user0 sysinfo 0");
 
   fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
   for (int i = 1; i <= 2; ++i) {
@@ -357,7 +356,7 @@ _REP:
   }
   taos_free_result(res);
 
-  queryDB(taos[0], "alter user root sysinfo 1");
+  queryDB(taosRoot, "alter user user0 sysinfo 1");
   fprintf(stderr, "%s:%d sleep 2 seconds to wait HB take effect\n", __func__, __LINE__);
   for (int i = 1; i <= 2; ++i) {
     sleep(1);
