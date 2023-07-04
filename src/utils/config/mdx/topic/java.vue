@@ -85,12 +85,22 @@ export default {
     topic: {
       type: String,
       default: ''
+    },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
     }
   },
   computed: {
     tmq() {
-      const tokenStr = this.token;
-      return `jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=${tokenStr}`;
+      const useSSL = this.url.startsWith("https") ? "useSSL=true&" : '';
+      const uri = this.url.replace(/https?:\/\//, "");
+      // const tokenStr = this.token;
+      return `jdbc:TAOS-RS://${uri}/rest/tmq?${useSSL}user=${this.user}&password=${this.password}`
     },
     topicName() {
       return this.topic ? this.topic : this.$t('docs.topic.defaultTopic');

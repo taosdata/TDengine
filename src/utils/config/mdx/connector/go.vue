@@ -88,15 +88,24 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   computed: {
     endpoint() {
+      // root:taosdata@http(localhost:6041)/test?readBufferSize=52428800
       let uri = this.url.replace(/(https?):\/\//, "$1(");
-      const tokenStr = this.token;
+      // const tokenStr = this.token;
       if (this.url.startsWith("https") && uri.indexOf(":") < 0) {
         uri += ":443";
       }
-      return `${uri})/?token=${tokenStr}`;
+      return `${this.user}:${this.password}@${uri})`;
     },
     urlPart() {
       return navigator.language.includes('en') ?"tdengine": "taosdata";
