@@ -1712,7 +1712,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
       varDataSetLen(buf, len);
-      colDataAppend(pCol, pBlock->info.rows, buf, false);
+      colDataSetVal(pCol, pBlock->info.rows, buf, false);
 
       tMemBucketDestroy(pMemBucket);
       return pResInfo->numOfRes;
@@ -2415,6 +2415,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 }
 
 static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+  if (!pInput->hasResult) {
+    return TSDB_CODE_FAILED;
+  }
+
   if (pOutput->hasResult) {
     if (isFirst) {
       if (pInput->ts > pOutput->ts) {
