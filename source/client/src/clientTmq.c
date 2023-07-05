@@ -2565,15 +2565,15 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   }
 
   bool needFetch = false;
-
+  int32_t index = 0;
   for (int32_t j = 0; j < (*numOfAssignment); ++j) {
     SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, j);
     if (!pClientVg->receivedInfoFromVnode) {
       needFetch = true;
-      break;
+      continue;
     }
 
-    tmq_topic_assignment* pAssignment = &(*assignment)[j];
+    tmq_topic_assignment* pAssignment = &(*assignment)[index++];
     if (pClientVg->offsetInfo.currentOffset.type == TMQ_OFFSET__LOG) {
       pAssignment->currentOffset = pClientVg->offsetInfo.currentOffset.version;
     } else {
@@ -2603,7 +2603,9 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     for (int32_t i = 0; i < (*numOfAssignment); ++i) {
       SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
-
+      if (pClientVg->receivedInfoFromVnode) {
+        continue;
+      }
       SMqVgWalInfoParam* pParam = taosMemoryMalloc(sizeof(SMqVgWalInfoParam));
       if (pParam == NULL) {
         destroyCommonInfo(pCommon);
@@ -2674,11 +2676,11 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     } else {
       int32_t num = taosArrayGetSize(pCommon->pList);
       for(int32_t i = 0; i < num; ++i) {
-        (*assignment)[i] = *(tmq_topic_assignment*)taosArrayGet(pCommon->pList, i);
+        (*assignment)[index++] = *(tmq_topic_assignment*)taosArrayGet(pCommon->pList, i);
         tscInfo("consumer:0x%" PRIx64 " get assignment from server:%d->%" PRId64, tmq->consumerId,
                 (*assignment)[i].vgId, (*assignment)[i].currentOffset);
       }
-      *numOfAssignment = num;
+      *numOfAssignment = index;
     }
 
 //    for (int32_t j = 0; j < (*numOfAssignment); ++j) {
