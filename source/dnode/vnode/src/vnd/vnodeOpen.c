@@ -371,6 +371,10 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+  if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+    vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
+  }
+
   // open tsdb
   if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -413,11 +417,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   if (vnodeBegin(pVnode) < 0) {
     vError("vgId:%d, failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  if (metaPostOpen(pVnode, &pVnode->pMeta) < 0) {
-    vError("vgId:%d, failed to post open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
