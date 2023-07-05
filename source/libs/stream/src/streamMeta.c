@@ -15,7 +15,7 @@
 
 #include "executor.h"
 #include "streamBackendRocksdb.h"
-#include "streamInc.h"
+#include "streamInt.h"
 #include "tref.h"
 #include "ttimer.h"
 
