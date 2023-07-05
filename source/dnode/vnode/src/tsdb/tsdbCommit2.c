@@ -108,6 +108,7 @@ static int32_t tsdbCommitCloseWriter(SCommitter2 *committer) {
 static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   int32_t   code = 0;
   int32_t   lino = 0;
+  int64_t   numOfRow = 0;
   SMetaInfo info;
 
   committer->ctx->hasTSData = false;
@@ -135,6 +136,7 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
     }
 
     committer->ctx->hasTSData = true;
+    numOfRow++;
 
     code = tsdbFSetWriteRow(committer->writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -146,6 +148,8 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+  } else {
+    tsdbDebug("vgId:%d fid:%d commit %" PRId64 " rows", TD_VID(committer->tsdb->pVnode), committer->ctx->fid, numOfRow);
   }
   return code;
 }
@@ -153,6 +157,7 @@ _exit:
 static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int32_t   code = 0;
   int32_t   lino = 0;
+  int64_t   numRecord = 0;
   SMetaInfo info;
 
   if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
@@ -187,6 +192,7 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
     record->skey = TMAX(record->skey, committer->ctx->minKey);
     record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 
+    numRecord++;
     code = tsdbFSetWriteTombRecord(committer->writer, record);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -198,6 +204,9 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+  } else {
+    tsdbDebug("vgId:%d fid:%d commit %" PRId64 " tomb records", TD_VID(committer->tsdb->pVnode), committer->ctx->fid,
+              numRecord);
   }
   return code;
 }
