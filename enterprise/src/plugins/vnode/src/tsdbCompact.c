@@ -692,7 +692,7 @@ typedef struct {
   int32_t        minFid;
   int32_t        maxFid;
   TFileSetArray *fsetArr;
-  TFileOpArray  *fopArr;
+  TFileOpArray   fopArr[1];
 
   struct {
     STFileSet *fset;
