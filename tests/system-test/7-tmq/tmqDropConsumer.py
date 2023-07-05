@@ -237,6 +237,7 @@ class TDTestCase:
         
         # kill taosBenchmark        
         tmqCom.killProcesser("taosBenchmark")
+        tdLog.info("kill taosBenchmak end")
         
         # wait the status to "lost"
         while (1):
@@ -252,10 +253,13 @@ class TDTestCase:
             if (1 == exitFlag):
                 break
         
+        tdLog.info("all consumers status into 'lost'")
+        
         # drop consumer groups
         for i in range(len(groupIdList)): 
             for j in range(len(topicNameList)): 
                 sqlCmd = f"drop consumer group `%s` on %s"%(groupIdList[i], topicNameList[j])
+                tdLog.info("drop consumer cmd: %s"%(sqlCmd))
                 tdSql.execute(sqlCmd)
                 
         tmqCom.g_end_insert_flag = 1
