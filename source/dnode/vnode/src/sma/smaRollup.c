@@ -14,6 +14,7 @@
  */
 
 #include "sma.h"
+#include "tq.h"
 
 #define RSMA_QTASKEXEC_SMOOTH_SIZE (100)     // cnt
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)    // cnt
@@ -269,7 +270,10 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       }
       taosMemoryFree(s);
     }
-    pStreamState = streamStateOpen(taskInfDir, NULL, true, -1, -1);
+
+    SStreamTask task = {.id.taskId = 0, .id.streamId = 0};  // TODO: assign value
+    task.pMeta = pVnode->pTq->pStreamMeta;
+    pStreamState = streamStateOpen(taskInfDir, &task, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
       return TSDB_CODE_FAILED;
