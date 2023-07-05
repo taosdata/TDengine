@@ -867,8 +867,9 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   const TBrinBlkArray* pBlkArray = NULL;
   int32_t              code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
 
-  LRUHandle* handle = NULL;
 #if 0
+  LRUHandle* handle = NULL;
+
   int32_t    code = tsdbCacheGetBlockIdx(pFileReader->pTsdb->biCache, pFileReader, &handle);
   if (code != TSDB_CODE_SUCCESS || handle == NULL) {
     goto _end;
@@ -890,9 +891,9 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   STableUidList* pList = &pReader->status.uidList;
 
   bool newBlk = false;
-  int32_t i = 0, j = 0;
+  int32_t i = 0;
 
-  while (i < pBlkArray->size && j < numOfTables) {
+  while (i < TARRAY2_SIZE(pBlkArray)) {
     pBrinBlk = &pBlkArray->data[i];
     if (pBrinBlk->maxTbid.suid < pReader->suid) {
       i += 1;
@@ -906,16 +907,14 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
 
     ASSERT(pBrinBlk->minTbid.suid <= pReader->suid && pBrinBlk->maxTbid.suid >= pReader->suid);
 
-    // this block belongs to a table that is not queried.
-    STableBlockScanInfo* pScanInfo =
-        getTableBlockScanInfo(pReader->status.pTableMap, pList->tableUidList[j], pReader->idStr);
-    if (pScanInfo == NULL) {
-      //        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
-      return terrno;
+    if (pBrinBlk->maxTbid.uid < pList->tableUidList[0]) {
+      i += 1;
+      newBlk = true;
+      continue;
     }
 
-    if (pScanInfo->pBlockList == NULL) {
-      pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBrinRecord));
+    if (pBrinBlk->minTbid.uid > pList->tableUidList[numOfTables - 1]) {
+      break;
     }
 
     if (taosArrayGetSize(pIndexList) == 0) {
@@ -926,8 +925,6 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
       }
       newBlk = false;
     }
-
-    j += 1;
   }
 
   int64_t et2 = taosGetTimestampUs();
