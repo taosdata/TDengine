@@ -107,6 +107,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
   merger->ctx->toData = true;
   merger->ctx->level = 0;
 
+  // TODO: optimize merge strategy
   for (int32_t i = 0;; ++i) {
     if (i >= TARRAY2_SIZE(merger->ctx->fset->lvlArr)) {
       merger->ctx->lvl = NULL;
@@ -150,6 +151,8 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
 
       code = TARRAY2_APPEND(merger->sttReaderArr, reader);
       TSDB_CHECK_CODE(code, lino, _exit);
+
+      numFile++;
     }
   }
 
@@ -354,10 +357,9 @@ static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
   }
 
   // tomb
-  STombRecord *record;
   merger->ctx->tbid->suid = 0;
   merger->ctx->tbid->uid = 0;
-  while ((record = tsdbIterMergerGetTombRecord(merger->tombIterMerger)) != NULL) {
+  for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(merger->tombIterMerger)) != NULL;) {
     if (record->uid != merger->ctx->tbid->uid) {
       merger->ctx->tbid->uid = record->uid;
       merger->ctx->tbid->suid = record->suid;

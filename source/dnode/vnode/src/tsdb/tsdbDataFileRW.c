@@ -703,6 +703,15 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     *fileSize += brinBlk->size[j];
   }
 
+#if 0
+  SBrinRecord record;
+  for (int32_t i = 0; i < BRIN_BLOCK_SIZE(brinBlock); i++) {
+    tBrinBlockGet(brinBlock, i, &record);
+    tsdbInfo("write brin block, block num:%04d, idx:%04d suid:%ld, uid:%ld, offset:%ld, numRow:%d, count:%d",
+             TARRAY2_SIZE(brinBlkArray), i, record.suid, record.uid, record.blockOffset, record.numRow, record.count);
+  }
+#endif
+
   // append to brinBlkArray
   code = TARRAY2_APPEND_PTR(brinBlkArray, brinBlk);
   if (code) return code;
