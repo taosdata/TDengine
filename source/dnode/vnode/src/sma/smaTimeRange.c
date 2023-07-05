@@ -447,7 +447,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if ((terrno = tsmaProcessDelReq(pSma, indexUid, &deleteReq)) != 0) {
-    goto _err;
+    goto _exit;
   }
 
 #if 0
