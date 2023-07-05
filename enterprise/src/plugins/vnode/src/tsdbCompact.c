@@ -1132,6 +1132,7 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
   int32_t lino = 0;
 
   SMetaInfo info;
+  int64_t   numOfRow = 0;
   for (SRowInfo *row; (row = tsdbIterMergerGetData(compactor->ctx->dataIterMerger)) != NULL;) {
     if (row->uid != compactor->ctx->tbid->uid) {
       code = tsdbCompactFSetTableDataEnd(compactor);
@@ -1150,6 +1151,7 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
     if (compactor->ctx->pDKey == NULL || !tsdbRowIsDeleted(compactor, &row->row)) {
       code = tsdbFSetWriteRow(compactor->ctx->writer, row);
       TSDB_CHECK_CODE(code, lino, _exit);
+      numOfRow++;
     }
     code = tsdbIterMergerNext(compactor->ctx->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1158,6 +1160,8 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+  } else {
+    tsdbInfo("vgId:%d fid:%d compact %" PRId64 " rows", TD_VID(compactor->tsdb->pVnode), numOfRow);
   }
   return code;
 }
