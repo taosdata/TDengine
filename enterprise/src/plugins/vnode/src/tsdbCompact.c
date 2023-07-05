@@ -1035,7 +1035,7 @@ static int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLE
   SArray *delDataArr = NULL;
 
   for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(compactor->ctx->tombIterMerger)) != NULL;) {
-    if (record->suid > tbid->uid || (record->suid == tbid->uid && record->uid > tbid->uid)) {
+    if (record->suid > tbid->suid || (record->suid == tbid->suid && record->uid > tbid->uid)) {
       break;
     } else {
       if (record->uid == tbid->uid) {
@@ -1070,6 +1070,7 @@ static int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLE
     code = tsdbBuildDeleteSkyline(delDataArr, 0, taosArrayGetSize(delDataArr) - 1, compactor->ctx->aSkyLine);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    compactor->ctx->iSkyLine = 0;
     TSDBKEY *pKey = (TSDBKEY *)taosArrayGet(compactor->ctx->aSkyLine, compactor->ctx->iSkyLine);
     compactor->ctx->dKey.version = 0;
     compactor->ctx->dKey.ts = pKey->ts;
