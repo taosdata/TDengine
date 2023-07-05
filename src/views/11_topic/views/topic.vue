@@ -6,7 +6,7 @@
       }}</el-button>
       <el-button class="big-button" plain @click="dialog = true" size="small" icon="el-icon-plus">{{ $t("topic.createTopic") }}</el-button>
     </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
+    <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
       <el-table-column width="200" :label="$t('createTime')" prop="create_time"></el-table-column>
