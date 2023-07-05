@@ -1079,6 +1079,10 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       continue;
     }
 
+    if (pScanInfo->pBlockList == NULL) {
+      pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBrinRecord));
+    }
+
     void* p1 = taosArrayPush(pScanInfo->pBlockList, pRecord);
     if (p1 == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
