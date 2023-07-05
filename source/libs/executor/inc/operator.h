@@ -50,6 +50,7 @@ typedef int32_t (*__optr_explain_fn_t)(struct SOperatorInfo* pOptr, void** pOptr
 typedef int32_t (*__optr_reqBuf_fn_t)(struct SOperatorInfo* pOptr);
 typedef SSDataBlock* (*__optr_get_ext_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param);
 typedef SSDataBlock* (*__optr_notify_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param);
+typedef void (*__optr_state_fn_t)(struct SOperatorInfo* pOptr);
 
 typedef struct SOperatorFpSet {
   __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
@@ -62,6 +63,8 @@ typedef struct SOperatorFpSet {
   __optr_explain_fn_t getExplainFn;
   __optr_get_ext_fn_t getNextExtFn;
   __optr_notify_fn_t  notifyFn;
+  __optr_state_fn_t   releaseStreamStateFn;
+  __optr_state_fn_t   reloadStreamStateFn;
 } SOperatorFpSet;
 
 enum {
@@ -147,13 +150,13 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
 SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,         SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle);
 
-SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
+SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild, SReadHandle* pHandle);
 
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle);
 
 SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 
@@ -168,6 +171,7 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
                                    __optr_explain_fn_t explain, __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn);
+void           setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn);
 int32_t        optrDummyOpenFn(SOperatorInfo* pOperator);
 int32_t        appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 void           setOperatorCompleted(SOperatorInfo* pOperator);

@@ -392,7 +392,7 @@ static int32_t setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock
   int32_t          status = 0;
   int32_t          code = getAliveStatusFromApi(pConnId, dbName, &status);
   if (code == TSDB_CODE_SUCCESS) {
-    colDataAppend(pCol1, 0, (const char*)&status, false);
+    colDataSetVal(pCol1, 0, (const char*)&status, false);
   }
   return code;
 }

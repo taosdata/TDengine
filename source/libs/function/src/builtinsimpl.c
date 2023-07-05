@@ -1712,7 +1712,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
       varDataSetLen(buf, len);
-      colDataAppend(pCol, pBlock->info.rows, buf, false);
+      colDataSetVal(pCol, pBlock->info.rows, buf, false);
 
       tMemBucketDestroy(pMemBucket);
       return pResInfo->numOfRes;

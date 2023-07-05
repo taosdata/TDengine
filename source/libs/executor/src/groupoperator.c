@@ -1036,7 +1036,7 @@ void appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup
     }
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
-    colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
+    colDataSetVal(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
   } else {
@@ -1324,6 +1324,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamHashPartition, NULL,
                                          destroyStreamPartitionOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup);
   code = appendDownstream(pOperator, &downstream, 1);

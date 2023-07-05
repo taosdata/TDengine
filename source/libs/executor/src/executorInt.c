@@ -540,140 +540,12 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
   }
 
   int8_t* pIndicator = (int8_t*)p->pData;
-  int32_t totalRows = pBlock->info.rows;
-
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
   } else {
-    int32_t bmLen = BitmapLen(totalRows);
-    char*   pBitmap = NULL;
-    int32_t maxRows = 0;
-
-    size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
-      // it is a reserved column for scalar function, and no data in this column yet.
-      if (pDst->pData == NULL) {
-        continue;
-      }
-
-      int32_t numOfRows = 0;
-      if (IS_VAR_DATA_TYPE(pDst->info.type)) {
-        int32_t j = 0;
-
-        while (j < totalRows) {
-          if (pIndicator[j] == 0) {
-            j += 1;
-            continue;
-          }
-
-          if (colDataIsNull_var(pDst, j)) {
-            colDataSetNull_var(pDst, numOfRows);
-          } else {
-            char* p1 = colDataGetVarData(pDst, j);
-            colDataReassignVal(pDst, numOfRows, j, p1);
-          }
-          numOfRows += 1;
-          j += 1;
-        }
-
-        if (maxRows < numOfRows) {
-          maxRows = numOfRows;
-        }
-      } else {
-        if (pBitmap == NULL) {
-          pBitmap = taosMemoryCalloc(1, bmLen);
-        }
-
-        memcpy(pBitmap, pDst->nullbitmap, bmLen);
-        memset(pDst->nullbitmap, 0, bmLen);
-
-        int32_t j = 0;
-
-        switch (pDst->info.type) {
-          case TSDB_DATA_TYPE_BIGINT:
-          case TSDB_DATA_TYPE_UBIGINT:
-          case TSDB_DATA_TYPE_DOUBLE:
-          case TSDB_DATA_TYPE_TIMESTAMP:
-            while (j < totalRows) {
-              if (pIndicator[j] == 0) {
-                j += 1;
-                continue;
-              }
-
-              if (colDataIsNull_f(pBitmap, j)) {
-                colDataSetNull_f(pDst->nullbitmap, numOfRows);
-              } else {
-                ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
-              }
-              numOfRows += 1;
-              j += 1;
-            }
-            break;
-          case TSDB_DATA_TYPE_FLOAT:
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_UINT:
-            while (j < totalRows) {
-              if (pIndicator[j] == 0) {
-                j += 1;
-                continue;
-              }
-              if (colDataIsNull_f(pBitmap, j)) {
-                colDataSetNull_f(pDst->nullbitmap, numOfRows);
-              } else {
-                ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
-              }
-              numOfRows += 1;
-              j += 1;
-            }
-            break;
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-            while (j < totalRows) {
-              if (pIndicator[j] == 0) {
-                j += 1;
-                continue;
-              }
-              if (colDataIsNull_f(pBitmap, j)) {
-                colDataSetNull_f(pDst->nullbitmap, numOfRows);
-              } else {
-                ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
-              }
-              numOfRows += 1;
-              j += 1;
-            }
-            break;
-          case TSDB_DATA_TYPE_BOOL:
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_UTINYINT:
-            while (j < totalRows) {
-              if (pIndicator[j] == 0) {
-                j += 1;
-                continue;
-              }
-              if (colDataIsNull_f(pBitmap, j)) {
-                colDataSetNull_f(pDst->nullbitmap, numOfRows);
-              } else {
-                ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
-              }
-              numOfRows += 1;
-              j += 1;
-            }
-            break;
-        }
-      }
-
-      if (maxRows < numOfRows) {
-        maxRows = numOfRows;
-      }
-    }
-
-    pBlock->info.rows = maxRows;
-    if (pBitmap != NULL) {
-      taosMemoryFree(pBitmap);
-    }
+    trimDataBlock(pBlock, pBlock->info.rows, (bool*) pIndicator);
   }
 }
 
@@ -1105,9 +977,11 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     int32_t      size = 0;
     void*        pVal = NULL;
     int32_t      code = pAPI->stateStore.streamStateSessionGet(pState, pKey, &pVal, &size);
-    ASSERT(code == 0);
+    // ASSERT(code == 0);
     if (code == -1) {
-      // coverity scan
+      // for history
+      qWarn("===stream===not found session result key:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, pKey->win.skey,
+            pKey->win.ekey, pKey->groupId);
       pGroupResInfo->index += 1;
       continue;
     }
@@ -1177,40 +1051,16 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
   return TSDB_CODE_SUCCESS;
 }
 
-void qStreamCloseTsdbReader(void* task) {
-  if (task == NULL) {
-    return;
+void streamOpReleaseState(SOperatorInfo* pOperator) {
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.releaseStreamStateFn) {
+    downstream->fpSet.releaseStreamStateFn(downstream);
   }
+}
 
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
-  SOperatorInfo* pOp = pTaskInfo->pRoot;
-
-  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.currentOffset.uid,
-         pTaskInfo->streamInfo.currentOffset.ts);
-
-  // todo refactor, other thread may already use this read to extract data.
-  pTaskInfo->streamInfo.currentOffset = (STqOffsetVal){0};
-  while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
-    SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
-    if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      SStreamScanInfo* pInfo = pDownstreamOp->info;
-      if (pInfo->pTableScanOp) {
-        STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-
-        setOperatorCompleted(pInfo->pTableScanOp);
-        while (pTaskInfo->owner != 0) {
-          taosMsleep(100);
-          qDebug("wait for the reader stopping");
-        }
-
-        pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
-        pTSInfo->base.dataReader = NULL;
-
-        // restore the status, todo refactor.
-        pInfo->pTableScanOp->status = OP_OPENED;
-        pTaskInfo->status = TASK_NOT_COMPLETED;
-        return;
-      }
-    }
-  }
+void streamOpReloadState(SOperatorInfo* pOperator) {
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.reloadStreamStateFn) {
+    downstream->fpSet.reloadStreamStateFn(downstream);
+  } 
 }

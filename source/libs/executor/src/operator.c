@@ -39,10 +39,17 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
       .reqBufFn = reqBufFn,
       .getExplainFn = explain,
       .getNextExtFn = nextExtFn,
-      .notifyFn = notifyFn
+      .notifyFn = notifyFn,
+      .releaseStreamStateFn = NULL,
+      .reloadStreamStateFn = NULL,
   };
 
   return fpSet;
+}
+
+void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn) {
+  pOperator->fpSet.releaseStreamStateFn = relaseFn;
+  pOperator->fpSet.reloadStreamStateFn = reloadFn;
 }
 
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
@@ -500,13 +507,13 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
     pOptr = createSessionAggOperatorInfo(ops[0], pSessionNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
-    pOptr = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
+    pOptr = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION == type) {
     int32_t children = 0;
-    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
+    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION == type) {
     int32_t children = pHandle->numOfVgroups;
-    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
+    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     pOptr = createPartitionOperatorInfo(ops[0], (SPartitionPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION == type) {
@@ -515,7 +522,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
     pOptr = createStatewindowOperatorInfo(ops[0], pStateNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
-    pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
+    pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     pOptr = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
