@@ -69,7 +69,7 @@ Provides information about SQL queries currently running. Similar to SHOW QUERIE
 | 1   |  consumer_id   | BIGINT       | Consumer ID                                             |
 | 2   | consumer_group | BINARY(192)  | Consumer group                                                    |
 | 3   |   client_id    | BINARY(192)  | Client ID (user-defined) |
-| 4   |     status     | BINARY(20)   | Consumer status                                              |
+| 4   |     status     | BINARY(20)   | Consumer status. All possible status include: ready(consumer is in normal state), lost(the connection between consumer and mnode is broken), rebalance(the redistribution of vgroups that belongs to current consumer is now in progress), unknown(consumer is in invalid state)
 | 5   |     topics     | BINARY(204)  | Subscribed topic. Returns one row for each topic.              |
 | 6   |    up_time     | TIMESTAMP    | Time of first connection to TDengine Server                                     |
 | 7   | subscribe_time | TIMESTAMP    | Time of first subscription                                        |

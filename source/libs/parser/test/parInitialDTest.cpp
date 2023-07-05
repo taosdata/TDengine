@@ -94,15 +94,17 @@ TEST_F(ParserInitialDTest, dropDnode) {
 
   auto clearDropDnodeReq = [&]() { memset(&expect, 0, sizeof(SDropDnodeReq)); };
 
-  auto setDropDnodeReqById = [&](int32_t dnodeId, bool force = false) {
+  auto setDropDnodeReqById = [&](int32_t dnodeId, bool force = false, bool unsafe = false) {
     expect.dnodeId = dnodeId;
     expect.force = force;
+    expect.unsafe = unsafe;
   };
 
-  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port = tsServerPort, bool force = false) {
+  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port = tsServerPort, bool force = false, bool unsafe = false) {
     strcpy(expect.fqdn, pFqdn);
     expect.port = port;
     expect.force = force;
+    expect.unsafe = unsafe;
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -114,6 +116,7 @@ TEST_F(ParserInitialDTest, dropDnode) {
     ASSERT_EQ(std::string(req.fqdn), std::string(expect.fqdn));
     ASSERT_EQ(req.port, expect.port);
     ASSERT_EQ(req.force, expect.force);
+    ASSERT_EQ(req.unsafe, expect.unsafe);
   });
 
   setDropDnodeReqById(1);
@@ -124,6 +127,10 @@ TEST_F(ParserInitialDTest, dropDnode) {
   run("DROP DNODE 2 FORCE");
   clearDropDnodeReq();
 
+  setDropDnodeReqById(2, false, true);
+  run("DROP DNODE 2 UNSAFE");
+  clearDropDnodeReq();
+
   setDropDnodeReqByEndpoint("host1", 7030);
   run("DROP DNODE 'host1:7030'");
   clearDropDnodeReq();
@@ -132,12 +139,20 @@ TEST_F(ParserInitialDTest, dropDnode) {
   run("DROP DNODE 'host2:8030' FORCE");
   clearDropDnodeReq();
 
+  setDropDnodeReqByEndpoint("host2", 8030, false, true);
+  run("DROP DNODE 'host2:8030' UNSAFE");
+  clearDropDnodeReq();
+
   setDropDnodeReqByEndpoint("host1");
   run("DROP DNODE host1");
   clearDropDnodeReq();
 
   setDropDnodeReqByEndpoint("host2", tsServerPort, true);
   run("DROP DNODE host2 FORCE");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host2", tsServerPort, false, true);
+  run("DROP DNODE host2 UNSAFE");
   clearDropDnodeReq();
 }
 

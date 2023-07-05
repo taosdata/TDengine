@@ -126,6 +126,9 @@ void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
     case TSDB_DATA_TYPE_JSON:
       printf("JSON ");
       break;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      printf("GEOMETRY ");
+      break;
     case TSDB_DATA_TYPE_VARBINARY:
       printf("VARBIN ");
       break;
@@ -353,7 +356,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
           }
         } else {
           varDataLen += sizeof(VarDataLenT);
-          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR) {
+          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR || pTColumn->type == TSDB_DATA_TYPE_GEOMETRY) {
             varDataLen += CHAR_BYTES;
             if (maxVarDataLen < CHAR_BYTES + sizeof(VarDataLenT)) {
               maxVarDataLen = CHAR_BYTES + sizeof(VarDataLenT);

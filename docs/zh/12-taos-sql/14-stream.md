@@ -15,6 +15,7 @@ stream_options: {
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
  FILL_HISTORY   [0|1]
+ IGNORE UPDATE  [0|1]
 }
 
 ```
@@ -169,7 +170,7 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 在 window_close 或 max_delay 模式下，窗口关闭直接影响推送结果。在 at_once 模式下，窗口关闭只与内存占用有关。
 
 
-## 流式计算的过期数据处理策略
+## 流式计算对于过期数据的处理策略
 
 对于已关闭的窗口，再次落入该窗口中的数据被标记为过期数据.
 
@@ -177,10 +178,19 @@ TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项�
 
 1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
 
-2. 直接丢弃, 即 IGNORE EXPIRED 1：默认配置，忽略过期数据
+2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
 
 
 无论在哪种模式下，watermark 都应该被妥善设置，来得到正确结果（直接丢弃模式）或避免频繁触发重算带来的性能开销（重新计算模式）。
+
+## 流式计算对于修改数据的处理策略
+
+TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项指定：
+
+1. 检查数据是否被修改，即 IGNORE UPDATE 0：默认配置，如果被修改，则重新计算对应窗口。
+
+2. 不检查数据是否被修改，全部按增量数据计算，即 IGNORE UPDATE 1。
+
 
 ## 写入已存在的超级表
 ```sql
@@ -213,3 +223,29 @@ DELETE_MARK    time
 ```
 DELETE_MARK用于删除缓存的窗口状态，也就是删除流计算的中间结果。如果不设置，默认值是10年
 T = 最新事件时间 - DELETE_MARK
+
+## 流式计算支持的函数
+
+1. 所有的 [单行函数](../function/#单行函数) 均可用于流计算。
+2. 以下 19 个聚合/选择函数 <b>不能</b> 应用在创建流计算的 SQL 语句。此外的其他类型的函数均可用于流计算。
+
+- [leastsquares](../function/#leastsquares)
+- [percentile](../function/#percentile)
+- [top](../function/#top)
+- [bottom](../function/#bottom)
+- [elapsed](../function/#elapsed)
+- [interp](../function/#interp)
+- [derivative](../function/#derivative)
+- [irate](../function/#irate)
+- [twa](../function/#twa)
+- [histogram](../function/#histogram)
+- [diff](../function/#diff)
+- [statecount](../function/#statecount)
+- [stateduration](../function/#stateduration)
+- [csum](../function/#csum)
+- [mavg](../function/#mavg)
+- [sample](../function/#sample)
+- [tail](../function/#tail)
+- [unique](../function/#unique)
+- [mode](../function/#mode)
+

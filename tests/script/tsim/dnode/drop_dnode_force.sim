@@ -209,7 +209,8 @@ endi
 
 print =============== step5a: drop dnode 3
 sql_error drop dnode 3
-sql drop dnode 3 force
+sql_error drop dnode 3 force
+sql drop dnode 3 unsafe
 
 print select * from information_schema.ins_dnodes; 
 sql select * from information_schema.ins_dnodes;

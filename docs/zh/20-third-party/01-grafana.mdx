@@ -200,6 +200,12 @@ docker run -d \
 - Group by column name(s)： **半角**逗号分隔的 `group by` 或 `partition by` 列名。如果是 `group by` or `partition by` 查询语句，设置 `Group by` 列，可以展示多维数据。例如：INPUT SQL 为 `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)`，设置 Group by 列名为 `dnode_ep`，可以按 `dnode_ep` 展示数据。
 - Format to： Group by 或 Partition by 场景下多维数据 legend 格式化格式。例如上述 INPUT SQL，将 Format to 设置为 `mem_system_{{dnode_ep}}`，展示的 legend 名字为格式化的列名。
 
+:::note
+
+由于 REST 接口无状态， 不能使用 `use db` 语句来切换数据库。Grafana 插件中 SQL 语句中可以使用 <db_name>.<table_name> 来指定数据库。
+
+:::
+
 按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
 ![TDengine Database Grafana plugin create dashboard](./create_dashboard2.webp)

@@ -63,6 +63,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
+  int32_t passKeyCnt;   // with passVer call back
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -126,6 +127,12 @@ typedef struct SAppInfo {
   TdThreadMutex mutex;
 } SAppInfo;
 
+typedef struct {
+  int32_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
+} SPassInfo;
+
 typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
@@ -141,6 +148,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
+  SPassInfo     passInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -219,6 +227,12 @@ typedef struct {
   STaosxRsp      rsp;
 } SMqTaosxRspObj;
 
+typedef struct SReqRelInfo {
+  uint64_t userRefId;
+  uint64_t prevRefId;
+  uint64_t nextRefId;
+} SReqRelInfo;
+
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
   uint64_t             requestId;
@@ -242,10 +256,14 @@ typedef struct SRequestObj {
   bool                 validateOnly;  // todo refactor
   bool                 killed;
   bool                 inRetry;
+  bool                 isSubReq;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
   SQuery*              pQuery;
+  void*                pPostPlan;
+  SReqRelInfo          relation;
+  void*                pWrapper;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -271,6 +289,7 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
+void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
@@ -354,12 +373,13 @@ void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
-void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
+void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;
   SCatalogReq*   pCatalogReq;
   SRequestObj*   pRequest;
+  void*          pPlanInfo;
 } SSqlCallbackWrapper;
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
@@ -374,6 +394,12 @@ int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool    qnodeRequired(SRequestObj* pRequest);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
+void    handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code);
+void    restartAsyncQuery(SRequestObj *pRequest, int32_t code);
+int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj** pNewRequest);
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
+void    returnToUser(SRequestObj* pRequest);
+void    stopAllQueries(SRequestObj *pRequest);
 
 #ifdef __cplusplus
 }

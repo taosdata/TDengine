@@ -47,7 +47,7 @@ OpenTSDB JSON 格式协议采用一个 JSON 字符串表示一行或多行数据
 :::note
 
 - 对于 JSON 格式协议，TDengine 并不会自动把所有标签转成 NCHAR 类型， 字符串将将转为 NCHAR 类型， 数值将同样转换为 DOUBLE 类型。
-- 默认生成的子表名是根据规则生成的唯一 ID 值。用户也可以通过在 taos.cfg 里配置 smlChildTableName 参数来指定某个标签值作为子表名。该标签值应该具有全局唯一性。举例如下：假设有个标签名为tname, 配置 smlChildTableName=tname, 插入数据为 `"tags": { "host": "web02","dc": "lga","tname":"cpu1"}` 则创建的子表名为 cpu1。注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
+- 默认生成的子表名是根据规则生成的唯一 ID 值。用户也可以通过在client端的 taos.cfg 里配置 smlChildTableName 参数来指定某个标签值作为子表名。该标签值应该具有全局唯一性。举例如下：假设有个标签名为tname, 配置 smlChildTableName=tname, 插入数据为 `"tags": { "host": "web02","dc": "lga","tname":"cpu1"}` 则创建的子表名为 cpu1。注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
 :::
 
 ## 示例代码

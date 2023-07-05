@@ -33,7 +33,7 @@ There are two ways for a connector to establish connections to TDengine:
 
 For REST and native connections, connectors provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
 
-Key differences：
+Key differences:
 
 3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
 1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc.
@@ -83,7 +83,7 @@ If `maven` is used to manage the projects, what needs to be done is only adding 
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.0.0</version>
+  <version>3.2.1</version>
 </dependency>
 ```
 
@@ -198,7 +198,7 @@ The sample code below are based on dotnet6.0, they may need to be adjusted if yo
 <TabItem label="R" value="r">
 
 1. Download [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.0.0/).
-2. Install the dependency package `RJDBC`：
+2. Install the dependency package `RJDBC`:
 
 ```R
 install.packages("RJDBC")
@@ -213,7 +213,7 @@ If the client driver (taosc) is already installed, then the C connector is alrea
 </TabItem>
 <TabItem label="PHP" value="php">
 
-**Download Source Code Package and Unzip：**
+**Download Source Code Package and Unzip: **
 
 ```shell
 curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
@@ -223,13 +223,13 @@ curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive
 
 > Version number `v1.0.2` is only for example, it can be replaced to any newer version, please check available version from [TDengine PHP Connector Releases](https://github.com/Yurunsoft/php-tdengine/releases).
 
-**Non-Swoole Environment：**
+**Non-Swoole Environment: **
 
 ```shell
 phpize && ./configure && make -j && make install
 ```
 
-**Specify TDengine Location：**
+**Specify TDengine Location: **
 
 ```shell
 phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
@@ -238,7 +238,7 @@ phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && 
 > `--with-tdengine-dir=` is followed by the TDengine installation location.
 > This way is useful in case TDengine location can't be found automatically or macOS.
 
-**Swoole Environment：**
+**Swoole Environment: **
 
 ```shell
 phpize && ./configure --enable-swoole && make -j && make install
@@ -288,6 +288,6 @@ Prior to establishing connection, please make sure TDengine is already running a
 </Tabs>
 
 :::tip
-If the connection fails, in most cases it's caused by improper configuration for FQDN or firewall. Please refer to the section "Unable to establish connection" in [FAQ](https://docs.tdengine.com/train-faq/faq).
+If the connection fails, in most cases it's caused by improper configuration for FQDN or firewall. Please refer to the section "Unable to establish connection" in [FAQ](../../train-faq/faq).
 
 :::

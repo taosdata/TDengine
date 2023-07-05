@@ -22,11 +22,20 @@ sql create stream stream1 trigger window_close into streamt as select  _wstart, 
 
 sql insert into tu1 values(now, 1);
 
-sleep 500
+$loop_count = 0
+
+loop0:
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt;
+
 if $rows != 0 then
   print ======$rows
-  return -1
+  goto loop0
 endi
 
 
@@ -57,10 +66,10 @@ $loop_count = 0
 
 loop1:
 
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 20 then
   return -1
 endi
 

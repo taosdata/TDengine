@@ -81,7 +81,7 @@ Provides information about user-created databases. Similar to SHOW DATABASES.
 | 3   |       ntables        | INT              | Number of standard tables and subtables (not including supertables) |
 | 4   |       vgroups        | INT              | Number of vgroups. It should be noted that `vnodes` is a TDengine keyword and needs to be escaped with ` when used as a column name.                            |
 | 6   |       replica        | INT              | Number of replicas. It should be noted that `replica` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                            |
-| 7   |        strict        | BINARY(3)        | Strong consistency. It should be noted that `strict` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                          |
+| 7   |        strict        | BINARY(4)        | Obsoleted |
 | 8   |       duration       | INT              | Duration for storage of single files. It should be noted that `duration` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
 | 9   |         keep         | INT              | Data retention period. It should be noted that `keep` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                      |
 | 10  |        buffer        | INT              | Write cache size per vnode, in MB. It should be noted that `buffer` is a TDengine keyword and needs to be escaped with ` when used as a column name.            |
@@ -120,6 +120,9 @@ Provides information about user-defined functions.
 | 5   | create_time | TIMESTAMP    | Creation time       |
 | 6   |  code_len   | INT          | Length of the source code       |
 | 7   |   bufsize   | INT          | Buffer size    |
+| 8   | func_language | BINARY(31) | UDF programming language |
+| 9   | func_body     | BINARY(16384) | UDF function body |
+| 10  | func_version  | INT           | UDF function version. starting from 0. Increasing by 1 each time it is updated|
 
 ## INS_INDEXES
 
@@ -181,7 +184,7 @@ Provides information about standard tables and subtables.
 
 ## INS_COLUMNS
 
-| #   |  **列名**   | **数据类型**  | **说明**               |
+| #   |  **Column**   | **Data Type**  | **Description**               |
 | --- | :---------: | ------------- | ---------------------- |
 | 1   | table_name  | BINARY(192)   | Table name                   |
 | 2   |   db_name   | BINARY(64)    | Database name |

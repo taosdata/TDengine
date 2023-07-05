@@ -112,9 +112,6 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
     pVnode->blocked = true;
     pVnode->blockSec = taosGetTimestampSec();
     pVnode->blockSeq = seq;
-#if 0
-    pVnode->blockInfo = pMsg->info;
-#endif
   }
   taosThreadMutexUnlock(&pVnode->lock);
 
@@ -157,8 +154,6 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
   } else {
     tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
-
-  vnodeUpdCommitSched(pVnode);
 }
 
 #if BATCH_ENABLE
@@ -436,7 +431,7 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
   return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
 
-static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (pMsg->code == 0) {
     return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
@@ -456,7 +451,7 @@ static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFs
   return 0;
 }
 
-static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
     return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
@@ -468,7 +463,7 @@ static SyncIndex vnodeSyncAppliedIndex(const SSyncFSM *pFSM) {
   return atomic_load_64(&pVnode->state.applied);
 }
 
-static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
          pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
@@ -556,10 +551,10 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   // start to restore all stream tasks
   if (tsDisableStream) {
-    vInfo("vgId:%d, not restore stream tasks, since disabled", pVnode->config.vgId);
+    vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", pVnode->config.vgId);
   } else {
-    vInfo("vgId:%d start to restore stream tasks", pVnode->config.vgId);
-    tqStartStreamTasks(pVnode->pTq);
+    vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
+    tqCheckStreamStatus(pVnode->pTq);
   }
 }
 
@@ -571,6 +566,19 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+}
+
+static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vInfo("vgId:%d, become learner", pVnode->config.vgId);
+
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    pVnode->blocked = false;
+    vDebug("vgId:%d, become learner and post block", pVnode->config.vgId);
     tsem_post(&pVnode->syncSem);
   }
   taosThreadMutexUnlock(&pVnode->lock);
@@ -617,6 +625,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
+  pFsm->FpBecomeLearnerCb = vnodeBecomeLearner;
   pFsm->FpReConfigCb = NULL;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -649,7 +658,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);

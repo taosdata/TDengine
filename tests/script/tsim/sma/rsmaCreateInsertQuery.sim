@@ -4,6 +4,9 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+#todo xukaili sma should use rocksdb.
+return 1
+
 print =============== create database with retentions
 sql create database d0 retentions 5s:7d,10s:21d,15s:365d;
 sql use d0

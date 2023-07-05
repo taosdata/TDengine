@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tsched.h"
 #include "tdef.h"
+#include "tgeosctx.h"
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -163,6 +164,8 @@ void *taosProcessSchedQueue(void *scheduler) {
     else if (msg.tfp)
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
+
+  destroyThreadLocalGeosCtx();
 
   return NULL;
 }

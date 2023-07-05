@@ -200,7 +200,8 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
             for (int f = 0; f < num_fields; f++) {
                 if ((fields[f].type != TSDB_DATA_TYPE_VARCHAR)
                         && (fields[f].type != TSDB_DATA_TYPE_NCHAR)
-                        && (fields[f].type != TSDB_DATA_TYPE_JSON)) {
+                        && (fields[f].type != TSDB_DATA_TYPE_JSON)
+                        && (fields[f].type != TSDB_DATA_TYPE_GEOMETRY)) {
                     printf("col%d type is %d, no need get offset\n",
                             f, fields[f].type);
                     for (int64_t c = 0; c < rows; c++) {

@@ -474,8 +474,8 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
     }
 
     ASSERTS(total <= numOfElem && total + pHisto->elems[j + 1].num > numOfElem,
-            "tHistogramUniform Error, total:%d, numOfElem:%d, elems[%d].num:%d",
-            total, numOfElem, j + 1, pHisto->elems[j + 1].num);
+            "tHistogramUniform Error, total:%ld, numOfElem:%ld, elems[%d].num:%ld",
+            total, (int64_t)numOfElem, j + 1, pHisto->elems[j + 1].num);
 
     double delta = numOfElem - total;
     if (fabs(delta) < FLT_EPSILON) {

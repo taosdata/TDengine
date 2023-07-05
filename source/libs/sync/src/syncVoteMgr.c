@@ -30,7 +30,7 @@ SVotesGranted *voteGrantedCreate(SSyncNode *pNode) {
     return NULL;
   }
 
-  pVotesGranted->replicas = &pNode->replicasId;
+  pVotesGranted->replicas = (void*)&pNode->replicasId;
   pVotesGranted->replicaNum = pNode->replicaNum;
   voteGrantedClearVotes(pVotesGranted);
 
@@ -49,7 +49,7 @@ void voteGrantedDestroy(SVotesGranted *pVotesGranted) {
 }
 
 void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pNode) {
-  pVotesGranted->replicas = &pNode->replicasId;
+  pVotesGranted->replicas = (void*)&pNode->replicasId;
   pVotesGranted->replicaNum = pNode->replicaNum;
   voteGrantedClearVotes(pVotesGranted);
 
@@ -115,7 +115,7 @@ SVotesRespond *votesRespondCreate(SSyncNode *pNode) {
     return NULL;
   }
 
-  pVotesRespond->replicas = &pNode->replicasId;
+  pVotesRespond->replicas = (void*)&pNode->replicasId;
   pVotesRespond->replicaNum = pNode->replicaNum;
   pVotesRespond->term = 0;
   pVotesRespond->pNode = pNode;
@@ -130,7 +130,7 @@ void votesRespondDestory(SVotesRespond *pVotesRespond) {
 }
 
 void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pNode) {
-  pVotesRespond->replicas = &pNode->replicasId;
+  pVotesRespond->replicas = (void*)&pNode->replicasId;
   pVotesRespond->replicaNum = pNode->replicaNum;
   pVotesRespond->term = 0;
   pVotesRespond->pNode = pNode;

@@ -15,7 +15,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 
-简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
@@ -68,14 +68,14 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
+sudo dnf install -y gcc gcc-c++ gflags make cmake epel-release git openssl-devel
 ```
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
@@ -88,7 +88,7 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
-#### CentOS 8/Rocky Linux 
+#### CentOS 8/Fedora/Rocky Linux 
 
 ```
 sudo yum install -y epel-release
@@ -101,7 +101,7 @@ sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson
 
 若 powertools 安装失败，可以尝试改用：
 ```
-sudo yum config-manager --set-enabled Powertools
+sudo yum config-manager --set-enabled powertools
 ```
 
 #### CentOS + devtoolset
@@ -117,7 +117,7 @@ scl enable devtoolset-9 -- bash
 ### macOS
 
 ```
-brew install argp-standalone pkgconfig
+brew install argp-standalone gflags pkgconfig
 ```
 
 ### 设置 golang 开发环境

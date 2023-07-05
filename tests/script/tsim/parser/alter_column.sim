@@ -48,7 +48,7 @@ sql_error alter table tb modify column c2 binary(10);
 sql_error alter table tb modify column c2 binary(9);
 sql_error alter table tb modify column c2 binary(-9);
 sql_error alter table tb modify column c2 binary(0);
-sql_error alter table tb modify column c2 binary(17000);
+sql_error alter table tb modify column c2 binary(65436);
 sql_error alter table tb modify column c2 nchar(30);
 sql_error alter table tb modify column c3 double;
 sql_error alter table tb modify column c3 nchar(10);

@@ -24,12 +24,13 @@ extern "C" {
 
 // SIndexMgr -----------------------------
 typedef struct SSyncIndexMgr {
-  SRaftId (*replicas)[TSDB_MAX_REPLICA];
-  SyncIndex  index[TSDB_MAX_REPLICA];
-  SyncTerm   privateTerm[TSDB_MAX_REPLICA];  // for advanced function
-  int64_t    startTimeArr[TSDB_MAX_REPLICA];
-  int64_t    recvTimeArr[TSDB_MAX_REPLICA];
+  SRaftId (*replicas)[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncIndex  index[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncTerm   privateTerm[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];  // for advanced function
+  int64_t    startTimeArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  int64_t    recvTimeArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   int32_t    replicaNum;
+  int32_t    totalReplicaNum;
   SSyncNode *pNode;
 } SSyncIndexMgr;
 

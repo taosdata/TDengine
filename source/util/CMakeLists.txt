@@ -4,6 +4,7 @@ add_library(util STATIC ${UTIL_SRC})
 if (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
+
 target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"
@@ -15,10 +16,9 @@ target_link_libraries(
     util
     PUBLIC os
     PUBLIC lz4_static
-    PUBLIC api cjson
+    PUBLIC api cjson geos_c
 )
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
-

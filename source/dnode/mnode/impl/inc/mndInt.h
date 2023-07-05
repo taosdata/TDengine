@@ -92,8 +92,11 @@ typedef struct {
   int64_t       transSeq;
   TdThreadMutex lock;
   int8_t        selfIndex;
+  int8_t        numOfTotalReplicas;
   int8_t        numOfReplicas;
-  SReplica      replicas[TSDB_MAX_REPLICA];
+  SReplica      replicas[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  ESyncRole     nodeRoles[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncIndex     lastIndex;
 } SSyncMgmt;
 
 typedef struct {

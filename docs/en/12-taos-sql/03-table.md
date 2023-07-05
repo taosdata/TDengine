@@ -45,7 +45,7 @@ table_option: {
 
 1. The first column of a table MUST be of type TIMESTAMP. It is automatically set as the primary key.
 2. The maximum length of the table name is 192 bytes.
-3. The maximum length of each row is 48k bytes, please note that the extra 2 bytes used by each BINARY/NCHAR column are also counted.
+3. The maximum length of each row is 48k(64k since version 3.0.5.0) bytes, please note that the extra 2 bytes used by each BINARY/NCHAR column are also counted.
 4. The name of the subtable can only consist of characters from the English alphabet, digits and underscore. Table names can't start with a digit. Table names are case insensitive.
 5. The maximum length in bytes must be specified when using BINARY or NCHAR types.
 6. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for the name length is still valid. The table names specified using escape character are case sensitive.

@@ -232,9 +232,9 @@ int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *
 int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
 //SArray       *smlJsonParseTags(char *start, char *end);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
-void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
-int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
-int           nodeListSize(NodeList* list);
+//void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
+//int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
+//int           nodeListSize(NodeList* list);
 bool          smlDoubleToInt64OverFlow(double num);
 int32_t       smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 bool          smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
@@ -251,7 +251,7 @@ int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
 uint8_t           smlGetTimestampLen(int64_t num);
 void              clearColValArray(SArray* pCols);
-void              smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag);
+void              smlDestroyTableInfo(void *para);
 
 void freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);

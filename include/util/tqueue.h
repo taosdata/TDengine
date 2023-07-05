@@ -84,6 +84,8 @@ struct STaosQueue {
   int64_t       memOfItems;
   int32_t       numOfItems;
   int64_t       threadId;
+  int64_t       memLimit;
+  int64_t       itemLimit;
 };
 
 struct STaosQset {
@@ -106,12 +108,14 @@ void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
 void       *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize);
 void        taosFreeQitem(void *pItem);
-void        taosWriteQitem(STaosQueue *queue, void *pItem);
+int32_t     taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
 bool        taosQueueEmpty(STaosQueue *queue);
 void        taosUpdateItemSize(STaosQueue *queue, int32_t items);
 int32_t     taosQueueItemSize(STaosQueue *queue);
 int64_t     taosQueueMemorySize(STaosQueue *queue);
+void        taosSetQueueCapacity(STaosQueue *queue, int64_t size);
+void        taosSetQueueMemoryCapacity(STaosQueue *queue, int64_t mem);
 
 STaosQall *taosAllocateQall();
 void       taosFreeQall(STaosQall *qall);

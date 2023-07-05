@@ -6,7 +6,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 #==system sh/exec.sh -n dnode1 -s start -v
 
-sleep 200
+sleep 1000
 sql connect
 
 sql drop stream if exists streams1;
@@ -15,8 +15,8 @@ sql drop database if exists test1;
 sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt2 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
 sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
 sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
 
@@ -24,7 +24,7 @@ sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 sql use test1;
 sql select * from streamt1 order by ts;
 
@@ -263,15 +263,15 @@ sql drop database if exists test5;
 sql create database test5  vgroups 1;
 sql use test5;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
-sql create stream streams5 trigger at_once IGNORE EXPIRED 0  into streamt5 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
-sql create stream streams6 trigger at_once IGNORE EXPIRED 0  into streamt6 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt5 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt6 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
 sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
 sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
 
 $loop_count = 0
 
 loop5:
-sleep 200
+sleep 1000
 sql select * from streamt5 order by ts;
 
 $loop_count = $loop_count + 1
@@ -403,7 +403,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 200
+sleep 1000
 
 sql select * from streamt6 order by ts;
 

@@ -32,7 +32,7 @@ OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB �
 meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 ```
 
-- 默认生产的子表名是根据规则生成的唯一 ID 值。用户也可以通过在 taos.cfg 里配置 smlChildTableName 参数来指定某个标签值作为子表名。该标签值应该具有全局唯一性。举例如下：假设有个标签名为tname, 配置 smlChildTableName=tname, 插入数据为 meters.current 1648432611250 11.3 tname=cpu1 location=California.LosAngeles groupid=3 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
+- 默认生产的子表名是根据规则生成的唯一 ID 值。用户也可以通过在client端的 taos.cfg 里配置 smlChildTableName 参数来指定某个标签值作为子表名。该标签值应该具有全局唯一性。举例如下：假设有个标签名为tname, 配置 smlChildTableName=tname, 插入数据为 meters.current 1648432611250 11.3 tname=cpu1 location=California.LosAngeles groupid=3 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
   参考 [OpenTSDB Telnet API 文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
 
 ## 示例代码

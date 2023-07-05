@@ -9,13 +9,13 @@ When a TDengine client is unable to access a TDengine server, the network connec
 
 Diagnostics for network connections can be executed between Linux/Windows/macOS.
 
-Diagnostic steps：
+Diagnostic steps:
 
 1. If the port range to be diagnosed is being occupied by a `taosd` server process, please first stop `taosd.
 2. On the server side, execute command `taos -n server -P <port> -l <pktlen>` to monitor the port range starting from the port specified by `-P` parameter with the role of "server".
 3. On the client side, execute command `taos -n client -h <fqdn of server> -P <port> -l <pktlen>` to send a testing package to the specified server and port.
 
--l <pktlen\>： The size of the testing package, in bytes. The value range is [11, 64,000] and default value is 1,000.
+-l <pktlen\>: The size of the testing package, in bytes. The value range is [11, 64,000] and default value is 1,000.
 Please note that the package length must be same in the above 2 commands executed on server side and client side respectively.
 
 Output of the server side for the example is below:

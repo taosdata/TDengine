@@ -17,7 +17,10 @@
 #define _STREAM_INC_H_
 
 #include "executor.h"
+#include "query.h"
 #include "tstream.h"
+
+#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,23 +31,31 @@ typedef struct {
   void*  timer;
 } SStreamGlobalEnv;
 
-static SStreamGlobalEnv streamEnv;
+extern SStreamGlobalEnv streamEnv;
 
-int32_t streamDispatch(SStreamTask* pTask);
-int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
+void    streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
+int32_t streamDispatchStreamBlock(SStreamTask* pTask);
+
+SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
+SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
+                                               SArray* pRes);
+void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
+
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
-int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* data);
-
 int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock);
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
+int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData);
 int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
-int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
-                                          SEpSet* pEpSet);
+int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
+                                             SEpSet* pEpSet);
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
+
+extern int32_t streamBackendId;
+extern int32_t streamBackendCfWrapperId;
 
 #ifdef __cplusplus
 }

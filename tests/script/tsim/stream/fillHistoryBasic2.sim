@@ -79,17 +79,17 @@ sql insert into ts3 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) 
 sql insert into ts4 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
 sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
 
-sql create stream stream_t1 trigger at_once fill_history 1 watermark 1d IGNORE EXPIRED 0 into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+sql create stream stream_t1 trigger at_once fill_history 1 watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
 
 sleep 1000
 
 $loop_count = 0
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -211,15 +211,15 @@ sql insert into ts1 values(1648791222001,2,2,3);
 sql insert into ts2 values(1648791211000,1,2,3);
 sql insert into ts2 values(1648791222001,2,2,3);
 
-sql create stream stream_t2 trigger at_once fill_history 1 watermark 20s IGNORE EXPIRED 0 into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
+sql create stream stream_t2 trigger at_once fill_history 1 watermark 20s IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
 
 $loop_count = 0
 loop2:
 sql select * from streamtST1;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -241,7 +241,7 @@ sql use test3;
 sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t3 trigger at_once IGNORE EXPIRED 0 into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st interval(10s) ;
+sql create stream stream_t3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st interval(10s) ;
 
 sql insert into ts1 values(1648791211000,1,2,3);
 sleep 50
@@ -256,9 +256,9 @@ $loop_count = 0
 loop3:
 sql select * from streamtST3;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 

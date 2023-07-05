@@ -235,7 +235,8 @@ int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
     case TSDB_DATA_TYPE_DOUBLE:
       printf("%lf ", cv->value.d);
       break;
-    case TSDB_DATA_TYPE_VARCHAR: {
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       char tv[15] = {0};
       snprintf(tv, 15, "%s", cv->value.pData);
       printf("%s ", tv);
@@ -337,7 +338,8 @@ static int32_t checkSColVal(const char *rawVal, SColVal *cv, int8_t type) {
       sscanf(rawVal, "%lf", &rawSVal.d);
       EXPECT_DOUBLE_EQ(cv->value.d, rawSVal.d);
     } break;
-    case TSDB_DATA_TYPE_VARCHAR: {
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       EXPECT_STRCASEEQ(rawVal, (const char *)cv->value.pData);
     } break;
     case TSDB_DATA_TYPE_TIMESTAMP: {

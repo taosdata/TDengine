@@ -13,27 +13,34 @@ description: 使用 UDF 的详细指南
 
 - 创建标量函数
 ```sql
-CREATE FUNCTION function_name AS library_path OUTPUTTYPE output_type;
+CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_type [LANGUAGE 'C|Python'];
 ```
-
-  - function_name：标量函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udf 的实际名称一致；
-  - library_path：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
+  - OR REPLACE: 如果函数已经存在，会修改已有的函数属性。
+  - function_name：标量函数未来在 SQL 中被调用时的函数名；
+  - LANGUAGE 'C|Python'：函数编程语言，目前支持C语言和Python语言。 如果这个从句忽略，编程语言是C语言 
+  - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是Python，路径是包含 UDF 函数实现的Python文件路径。这个路径需要用英文单引号或英文双引号括起来；
   - output_type：此函数计算结果的数据类型名称；
 
-  例如，如下语句可以把 libbitand.so 创建为系统中可用的 UDF：
+例如，如下语句可以把 libbitand.so 创建为系统中可用的 UDF：
 
   ```sql
   CREATE FUNCTION bit_and AS "/home/taos/udf_example/libbitand.so" OUTPUTTYPE INT;
   ```
 
+例如，使用以下语句可以修改已经定义的 bit_and 函数，输出类型是 BIGINT，使用Python语言实现。
+
+  ```sql
+  CREATE OR REPLACE FUNCTION bit_and AS "/home/taos/udf_example/bit_and.py" OUTPUTTYPE BIGINT LANGUAGE 'Python';
+  ```
 - 创建聚合函数：
 ```sql
-CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [ BUFSIZE buffer_size ];
+CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [ BUFSIZE buffer_size ] [LANGUAGE 'C|Python'];
 ```
-
+  - OR REPLACE: 如果函数已经存在，会修改已有的函数属性。
   - function_name：聚合函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  - library_path：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
-  - output_type：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
+  - LANGUAGE 'C|Python'：函数编程语言，目前支持C语言和Python语言（v3.7+）。
+  - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是Python，路径是包含 UDF 函数实现的Python文件路径。这个路径需要用英文单引号或英文双引号括起来；；
+  - output_type：此函数计算结果的数据类型名称；
   - buffer_size：中间计算结果的缓冲区大小，单位是字节。如果不使用可以不设置。
 
   例如，如下语句可以把 libl2norm.so 创建为系统中可用的 UDF：
@@ -41,6 +48,11 @@ CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [
   ```sql
   CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
   ```
+  例如，使用以下语句可以修改已经定义的 l2norm 函数的缓冲区大小为64。
+  ```sql
+  CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
+  ```  
+
 关于如何开发自定义函数，请参考 [UDF使用说明](/develop/udf)。
 
 ## 管理 UDF

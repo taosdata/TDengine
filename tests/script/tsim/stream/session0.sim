@@ -17,7 +17,7 @@ sql use test;
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double,id int);
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt as select  _wstart, count(*) c1,  sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 session(ts,10s);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1,  sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 session(ts,10s);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL,1);
 sql insert into t1 values(1648791223001,10,2,3,1.1,2);
 sql insert into t1 values(1648791233002,3,2,3,2.1,3);
@@ -27,7 +27,7 @@ sql insert into t1 values(1648791213002,NULL,NULL,NULL,NULL,5) (1648791233012,NU
 $loop_count = 0
 loop0:
 
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc;
 
 $loop_count = $loop_count + 1
@@ -127,7 +127,7 @@ sql insert into t1 values(1648791213002,4,2,3,4.1,12) (1648791223009,4,2,3,4.1,1
 
 $loop_count = 0
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc ;
 
 $loop_count = $loop_count + 1
@@ -179,7 +179,7 @@ endi
 sql create database test2 vgroups 1;
 sql use test2;
 sql create table t2(ts timestamp, a int, b int , c int, d double, id int);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  watermark 1d into streamt2 as select  _wstart,apercentile(a,30) c1, apercentile(a,70), apercentile(a,20,"t-digest") c2, apercentile(a,60,"t-digest") c3, max(id) c4 from t2 session(ts,10s);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   watermark 1d into streamt2 as select  _wstart,apercentile(a,30) c1, apercentile(a,70), apercentile(a,20,"t-digest") c2, apercentile(a,60,"t-digest") c3, max(id) c4 from t2 session(ts,10s);
 sql insert into t2 values(1648791213001,1,1,3,1.0,1);
 sql insert into t2 values(1648791213002,2,2,6,3.4,2);
 sql insert into t2 values(1648791213003,4,9,3,4.8,3);
@@ -192,7 +192,7 @@ sql insert into t2 values(1648791223003,20,7,3,10.1,7);
 
 $loop_count = 0
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamt2 where c4=7;
 
 $loop_count = $loop_count + 1
@@ -229,13 +229,13 @@ endi
 sql create database test3 vgroups 1;
 sql use test3;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams3 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt3 as select  _wstart, min(b), a,c from t1 session(ts,10s);
-sql create stream streams4 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt4 as select  _wstart, max(b), a,c from t1 session(ts,10s);
-# sql create stream streams5 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt5 as select  _wstart, top(b,3), a,c from t1 session(ts,10s);
-# sql create stream streams6 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt6 as select  _wstart, bottom(b,3), a,c from t1 session(ts,10s);
-# sql create stream streams7 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt7 as select  _wstart, spread(a), elapsed(ts), hyperloglog(a) from t1 session(ts,10s);
-sql create stream streams7 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt7 as select  _wstart, spread(a), hyperloglog(a) from t1 session(ts,10s);
-# sql create stream streams8 trigger at_once  watermark 1d IGNORE EXPIRED 0 into streamt8 as select  _wstart, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
+sql create stream streams3 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt3 as select  _wstart, min(b), a,c from t1 session(ts,10s);
+sql create stream streams4 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, max(b), a,c from t1 session(ts,10s);
+# sql create stream streams5 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt5 as select  _wstart, top(b,3), a,c from t1 session(ts,10s);
+# sql create stream streams6 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 as select  _wstart, bottom(b,3), a,c from t1 session(ts,10s);
+# sql create stream streams7 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt7 as select  _wstart, spread(a), elapsed(ts), hyperloglog(a) from t1 session(ts,10s);
+sql create stream streams7 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt7 as select  _wstart, spread(a), hyperloglog(a) from t1 session(ts,10s);
+# sql create stream streams8 trigger at_once  watermark 1d IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt8 as select  _wstart, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
 sql insert into t1 values(1648791213001,1,1,1,1.0);
 sql insert into t1 values(1648791213002,2,3,2,3.4);
 sql insert into t1 values(1648791213003,4,9,3,4.8);
@@ -251,7 +251,7 @@ sql insert into t1 values(1648791223004,20,7,9,10.1);
 
 $loop_count = 0
 loop3:
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

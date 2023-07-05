@@ -891,8 +891,10 @@ static int32_t tsdbSnapWriteFileDataStart(STsdbSnapWriter* pWriter, int32_t fid)
   if (pSet) {
     diskId = pSet->diskId;
   } else {
-    tfsAllocDisk(pTsdb->pVnode->pTfs, 0 /*TODO*/, &diskId);
-    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, diskId);
+    code = tfsAllocDisk(pTsdb->pVnode->pTfs, 0 /*TODO*/, &diskId);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, diskId);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   SDFileSet wSet = {.diskId = diskId,
                     .fid = fid,
@@ -1166,7 +1168,7 @@ static int32_t tsdbSnapWriteDelTableDataStart(STsdbSnapWriter* pWriter, TABLEID*
 
       int32_t c = tTABLEIDCmprFn(pDelIdx, &pWriter->tbid);
       if (c < 0) {
-        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->pTIter->tIter.aDelData);
+        code = tsdbReadDelDatav1(pWriter->pDelFReader, pDelIdx, pWriter->pTIter->tIter.aDelData, INT64_MAX);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         SDelIdx* pDelIdxNew = taosArrayReserve(pWriter->aDelIdx, 1);
@@ -1183,7 +1185,7 @@ static int32_t tsdbSnapWriteDelTableDataStart(STsdbSnapWriter* pWriter, TABLEID*
 
         pWriter->pTIter->tIter.iDelIdx++;
       } else if (c == 0) {
-        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
+        code = tsdbReadDelDatav1(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, INT64_MAX);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         pWriter->pTIter->tIter.iDelIdx++;

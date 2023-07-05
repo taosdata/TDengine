@@ -6,8 +6,8 @@ sql connect
 $dbPrefix = join_m_db
 $tbPrefix = join_tb
 $mtPrefix = join_mt
-$tbNum = 3
-$rowNum = 2000
+$tbNum = 20
+$rowNum = 200
 $totalNum = $tbNum * $rowNum
 
 print =============== join_manyBlocks.sim
@@ -78,8 +78,8 @@ print ==============> td-3313
 sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;
 
 print $row
-if $row != 6000 then
-  print expect 6000, actual: $row
+if $row != 4000 then
+  print expect 4000, actual: $row
   return -1
 endi
 

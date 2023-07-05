@@ -64,11 +64,11 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
-    def insertData(self,dbname,tableCount,rowsPerCount):
+    def insertData(self,dbname,tableCount,rowsPerCount,vgroups):
         # tableCount : create table number
         # rowsPerCount :  rows per table
         # fisrt add data : db\stable\childtable\general table
-        os.system(f"taosBenchmark  -d {dbname} -n {tableCount} -t {rowsPerCount}  -z 1 -k 10000 -y ")
+        os.system(f"taosBenchmark  -d {dbname} -n {tableCount} -t {rowsPerCount} -v {vgroups} -z 1 -k 10000 -y ")
 
 
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
@@ -76,10 +76,10 @@ class TDTestCase:
         paraDict = {'dbName':     'db0_0',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    4,
+                    'vgroups':    6,
                     'replica':    1,
-                    'stbName':    'stb',
-                    'stbNumbers': 2,
+                    'stbName':    'meters',
+                    'stbNumbers': 1,
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
@@ -124,7 +124,7 @@ class TDTestCase:
         threads=[]
 
         # create stable:stb_0
-        threads.append(threading.Thread(target=self.insertData, args=(paraDict["dbName"],paraDict["ctbNum"],paraDict["rowsPerTbl"])))
+        threads.append(threading.Thread(target=self.insertData, args=(paraDict["dbName"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["vgroups"])))
         for tr in threads:
             tr.start()
         TdSqlEx=tdCom.newTdSql()
@@ -174,10 +174,13 @@ class TDTestCase:
         # tdSql.execute("use %s" %(paraDict["dbName"]))
         tdSql.query("show %s.stables"%(paraDict["dbName"]))
         tdSql.checkRows(paraDict["stbNumbers"])
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
-            tdSql.query("select count(*) from %s"%stableName)
-            tdSql.checkData(0,0,rowsPerStb)
+        # for i in range(paraDict['stbNumbers']):
+        #     stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
+        #     tdSql.query("select count(*) from %s"%stableName)
+        #     tdSql.checkData(0,0,rowsPerStb)
+        stableName= '%s.%s'%(paraDict["dbName"],paraDict['stbName'])
+        tdSql.query("select count(*) from %s"%stableName)
+        tdSql.checkData(0,0,rowsall)
         clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=3,db_name=paraDict["dbName"],count_number=240)             
     def run(self):
         # print(self.master_dnode.cfgDict)

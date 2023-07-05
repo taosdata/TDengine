@@ -4,7 +4,7 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 200
+sleep 1000
 sql connect
 
 sql drop stream if exists streams1;
@@ -18,11 +18,11 @@ sql use test1;
 sql create stable st(ts timestamp, a int, b int , c int, d double, s varchar(20)) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(NULL);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt2 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(value,100,200,300);
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0  into streamt3 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(next);
-sql create stream streams4 trigger at_once IGNORE EXPIRED 0  into streamt4 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(prev);
-sql create stream streams5 trigger at_once IGNORE EXPIRED 0  into streamt5 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(linear);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(NULL);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(value,100,200,300);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(next);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(prev);
+sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt5 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(linear);
 
 sql insert into t1 values(1648791210000,0,0,0,0.0,'aaa');
 sql insert into t1 values(1648791213000,1,1,1,1.0,'bbb');
@@ -36,10 +36,10 @@ sql insert into t2 values(1648791216000,10,6,6,6.0,'ddd');
 $loop_count = 0
 
 loop2:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -76,6 +76,21 @@ sql select * from streamt5 order by group_id, ts;
 
 if $rows != 14 then
   print ====streamt5=rows5=$rows
+  print $data00,$data01,$data02,$data03
+  print $data10,$data11,$data12,$data13
+  print $data20,$data21,$data22,$data23
+  print $data30,$data31,$data32,$data33
+  print $data40,$data41,$data42,$data43
+  print $data50,$data51,$data52,$data53
+  print $data60,$data61,$data62,$data63
+  print $data70,$data71,$data72,$data73
+  print $data80,$data81,$data82,$data83
+  print $data90,$data91,$data92,$data93
+  print $data[10][0],$data[10][1],$data[10][2],$data[10][3]
+  print $data[11][0],$data[11][1],$data[10][2],$data[10][3]
+  print $data[12][0],$data[12][1],$data[10][2],$data[10][3]
+  print $data[13][0],$data[13][1],$data[10][2],$data[10][3]
+  print $data[14][0],$data[14][1],$data[10][2],$data[10][3]
   goto loop2
 endi
 
@@ -85,10 +100,10 @@ print ======delete from t1 where ts = 1648791216000;
 $loop_count = 0
 
 loop3:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -132,10 +147,10 @@ sql insert into t2 values(1648791217000,11,11,11,11.0,'eee') (1648791219000,11,1
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 

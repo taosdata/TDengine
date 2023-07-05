@@ -87,6 +87,18 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
+  // taosIgnSignal(SIGTERM);
+  // taosIgnSignal(SIGHUP);
+  // taosIgnSignal(SIGINT);
+  // taosIgnSignal(SIGBREAK);
+
+#ifndef WINDOWS
+  taosIgnSignal(SIGBUS);
+#endif
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;

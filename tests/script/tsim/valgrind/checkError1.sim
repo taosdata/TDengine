@@ -20,7 +20,7 @@ sql_error alter user u2 sysinfo 0
 print =============== step2 create drop dnode
 sql create dnode $hostname port 7200
 sql create dnode $hostname port 7300
-sql drop dnode 3
+sql drop dnode 3 force
 sql alter dnode 1 'debugflag 131'
 
 print =============== step3: select * from information_schema.ins_dnodes

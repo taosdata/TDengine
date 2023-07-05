@@ -29,6 +29,10 @@ void       mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj);
 bool       mndIsMnode(SMnode *pMnode, int32_t dnodeId);
 void       mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
 int32_t    mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj, bool force);
+int32_t    mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj);
+int32_t    mndSetCreateMnodeCommitLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj);
+int32_t    mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj);
+int32_t    mndSetRestoreCreateMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj);
 
 #ifdef __cplusplus
 }

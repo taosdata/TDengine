@@ -251,17 +251,17 @@ class ClusterComCheck:
                 count+=1
             elif self.db_replica == 3 :
                 vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
-                
+
                 vgroup_status_last=[tdSql.queryResult[last_number][4],tdSql.queryResult[last_number][6],tdSql.queryResult[last_number][8]]
                 if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
                     if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
                         ready_time= (count + 1)
-                        tdLog.success(f"all vgroups of {db_name} are ready in {ready_time} s")
+                        tdLog.success(f"elections of {db_name} all vgroups are ready in {ready_time} s")
                         return True
                 count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.notice(f"all vgroups  leader of {db_name} is selected {count}s ")
+            tdLog.notice(f"elections of {db_name} all vgroups are failed in{count}s ")
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno)
             tdLog.exit("%s(%d) failed " % args)

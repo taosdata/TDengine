@@ -36,7 +36,7 @@ SHOW CONNECTIONS;
 SHOW CONSUMERS;
 ```
 
-显示当前数据库下所有活跃的消费者的信息。
+显示当前数据库下所有消费者的信息。
 
 ## SHOW CREATE DATABASE
 
@@ -128,6 +128,14 @@ SHOW QNODES;
 ```
 
 显示当前系统中 QNODE （查询节点）的信息。
+
+## SHOW QUERIES
+
+```sql
+SHOW QUERIES;
+```
+
+显示当前系统中正在进行的查询。
 
 ## SHOW SCORES
 

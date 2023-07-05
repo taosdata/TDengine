@@ -26,7 +26,11 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
 static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
 int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
-  int32_t code = tdProcessTSmaInsertImpl(pSma, indexUid, msg);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if ((code = tdProcessTSmaInsertImpl(pSma, indexUid, msg)) < 0) {
+    smaError("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(code));
+  }
 
   return code;
 }
@@ -242,7 +246,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
+      tqBuildDeleteReq(stbFullName, pDataBlock, pDeleteReq, "");
       continue;
     }
 
@@ -343,6 +347,43 @@ _exit:
   return code;
 }
 
+static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *pDelReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (taosArrayGetSize(pDelReq->deleteReqs) > 0) {
+    int32_t len = 0;
+    tEncodeSize(tEncodeSBatchDeleteReq, pDelReq, len, code);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    void *pBuf = rpcMallocCont(len + sizeof(SMsgHead));
+    if (!pBuf) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    SEncoder encoder;
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len);
+    tEncodeSBatchDeleteReq(&encoder, pDelReq);
+    tEncoderClear(&encoder);
+
+    ((SMsgHead *)pBuf)->vgId = TD_VID(pSma->pVnode);
+
+    SRpcMsg delMsg = {.msgType = TDMT_VND_BATCH_DEL, .pCont = pBuf, .contLen = len + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &delMsg);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  taosArrayDestroy(pDelReq->deleteReqs);
+  if (code) {
+    smaError("vgId:%d, failed at line %d to process delete req for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), lino,
+             indexUid, tstrerror(code));
+  }
+
+  return code;
+}
+
 /**
  * @brief Insert/Update Time-range-wise SMA data.
  *
@@ -405,8 +446,18 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
                           pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq, &pSubmitReq, &contLen);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // TODO deleteReq
-  taosArrayDestroy(deleteReq.deleteReqs);
+  if ((terrno = tsmaProcessDelReq(pSma, indexUid, &deleteReq)) != 0) {
+    goto _err;
+  }
+
+#if 0
+  if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
+    terrno = TSDB_CODE_APP_ERROR;
+    smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 " failed since %s, %s", SMA_VID(pSma), indexUid,
+             pTsmaStat->pTSma->indexUid, tstrerror(terrno), pTsmaStat->pTSma->dstTbName);
+    goto _err;
+  }
+#endif
 
   SRpcMsg submitReqMsg = {
       .msgType = TDMT_VND_SUBMIT,

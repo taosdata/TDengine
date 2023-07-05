@@ -4,7 +4,7 @@ if(${BUILD_DOCS})
     find_package(Doxygen)
     if (DOXYGEN_FOUND)
         # Build the doc
-        set(DOXYGEN_IN ${TD_SOURCE_DIR}/docs/Doxyfile.in)
+        set(DOXYGEN_IN ${TD_SOURCE_DIR}/docs/doxgen/Doxyfile.in)
         set(DOXYGEN_OUT ${CMAKE_BINARY_DIR}/Doxyfile)
 
         configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)

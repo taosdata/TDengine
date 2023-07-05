@@ -6,7 +6,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 #==system sh/exec.sh -n dnode1 -s start -v
 
-sleep 200
+sleep 1000
 sql connect
 
 
@@ -16,8 +16,8 @@ sql drop database if exists test7;
 sql create database test7  vgroups 1;
 sql use test7;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
-sql create stream streams7 trigger at_once IGNORE EXPIRED 0  into streamt7 as select  _wstart as ts, max(a), b+c, s  from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(prev);
-sql create stream streams8 trigger at_once IGNORE EXPIRED 0  into streamt8 as select  _wstart as ts, max(a), 1, b+1 from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt7 as select  _wstart as ts, max(a), b+c, s  from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt8 as select  _wstart as ts, max(a), 1, b+1 from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(next);
 sql insert into t1 values(1648791215000,1,1,1,1.0,'aaa');
 sql insert into t1 values(1648791217000,2,2,2,2.0,'bbb');
 sql insert into t1 values(1648791211000,3,3,3,3.0,'ccc');
@@ -27,7 +27,7 @@ sql insert into t1 values(1648791213000,4,4,4,4.0,'ddd');
 $loop_count = 0
 
 loop7:
-sleep 300
+sleep 1000
 sql select * from streamt7 order by ts;
 
 $loop_count = $loop_count + 1
@@ -143,7 +143,7 @@ endi
 loop71:
 
 $loop_count = 0
-sleep 300
+sleep 1000
 
 sql select * from streamt8 order by ts;
 
@@ -262,7 +262,7 @@ sql insert into t1 values(1648791207000,6,6,6,6.0,'fff') (1648791209000,7,7,7,7.
 $loop_count = 0
 
 loop8:
-sleep 200
+sleep 1000
 sql select * from streamt7 order by ts;
 
 $loop_count = $loop_count + 1

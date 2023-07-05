@@ -16,7 +16,6 @@ debug/
 release/
 target/
 debs/
-deps/
 rpms/
 mac/
 *.pyc
@@ -131,3 +130,4 @@ tools/BUGS
 tools/taos-tools
 tools/taosws-rs
 tags
+.clangd

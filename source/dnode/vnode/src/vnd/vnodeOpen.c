@@ -76,19 +76,41 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   }
 
   SSyncCfg *pCfg = &info.config.syncCfg;
-  pCfg->myIndex = pReq->selfIndex;
-  pCfg->replicaNum = pReq->replica;
+ 
+  pCfg->replicaNum = 0;
+  pCfg->totalReplicaNum = 0;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
 
-  vInfo("vgId:%d, save config while alter, replicas:%d selfIndex:%d", pReq->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int i = 0; i < pReq->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
     (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
+    pCfg->replicaNum++;
   }
+  if(pReq->selfIndex != -1){
+    pCfg->myIndex = pReq->selfIndex;
+  }
+  for (int i = pCfg->replicaNum; i < pReq->replica + pReq->learnerReplica; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    pNode->nodeId = pReq->learnerReplicas[pCfg->totalReplicaNum].id;
+    pNode->nodePort = pReq->learnerReplicas[pCfg->totalReplicaNum].port;
+    pNode->nodeRole = TAOS_SYNC_ROLE_LEARNER;
+    tstrncpy(pNode->nodeFqdn, pReq->learnerReplicas[pCfg->totalReplicaNum].fqdn, sizeof(pNode->nodeFqdn));
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
+    pCfg->totalReplicaNum++;
+  }
+  pCfg->totalReplicaNum += pReq->replica;
+  if(pReq->learnerSelfIndex != -1){
+    pCfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
+  }
+
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d", 
+            pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex);
 
   info.config.syncCfg = *pCfg;
   ret = vnodeSaveInfo(dir, &info);
@@ -107,16 +129,22 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   return 0;
 }
 
+static int32_t vnodeVgroupIdLen(int32_t vgId) {
+  char tmp[TSDB_FILENAME_LEN];
+  sprintf(tmp, "%d", vgId);
+  return strlen(tmp);
+}
+
 int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
-  int32_t ret = tfsRename(pTfs, srcPath, dstPath);
-  if (ret != 0) return ret;
+  int32_t ret = 0;
 
   char oldRname[TSDB_FILENAME_LEN] = {0};
   char newRname[TSDB_FILENAME_LEN] = {0};
   char tsdbPath[TSDB_FILENAME_LEN] = {0};
   char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
-  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", dstPath, TD_DIRSEP);
+  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
   snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+  int32_t prefixLen = strlen(tsdbFilePrefix);
 
   STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
   if (tsdbDir == NULL) return 0;
@@ -130,18 +158,17 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
+    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + prefixLen);
     if (tsdbFileVgId == srcVgId) {
-      char *tsdbFileSurfixPos = strstr(tsdbFilePrefixPos, "f");
-      if (tsdbFileSurfixPos == NULL) continue;
+      char *tsdbFileSurfixPos = tsdbFilePrefixPos + prefixLen + vnodeVgroupIdLen(srcVgId);
 
-      tsdbFilePrefixPos[6] = 0;
+      tsdbFilePrefixPos[prefixLen] = 0;
       snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
       vInfo("vgId:%d, rename file from %s to %s", dstVgId, tsdbFile->rname, newRname);
 
       ret = tfsRename(pTfs, tsdbFile->rname, newRname);
       if (ret != 0) {
-        vInfo("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
+        vError("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
         tfsClosedir(tsdbDir);
         return ret;
       }
@@ -149,6 +176,21 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   }
 
   tfsClosedir(tsdbDir);
+
+  vInfo("vgId:%d, rename dir from %s to %s", dstVgId, srcPath, dstPath);
+  ret = tfsRename(pTfs, srcPath, dstPath);
+  if (ret != 0) {
+    vError("vgId:%d, failed to rename dir from %s to %s since %s", dstVgId, srcPath, dstPath, terrstr());
+  }
+  return ret;
+}
+
+int32_t vnodeGetAbsDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
+  if (pTfs) {
+    snprintf(buf, bufLen, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
+  } else {
+    snprintf(buf, bufLen, "%s", relPath);
+  }
   return 0;
 }
 
@@ -157,13 +199,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, srcPath);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", srcPath);
-  }
-
-  // todo add stat file to handle exception while vnode open
+  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -176,11 +212,13 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   info.config.vgId = pReq->dstVgId;
   info.config.hashBegin = pReq->hashBegin;
   info.config.hashEnd = pReq->hashEnd;
+  info.config.hashChange = true;
   info.config.walCfg.vgId = pReq->dstVgId;
 
   SSyncCfg *pCfg = &info.config.syncCfg;
   pCfg->myIndex = 0;
   pCfg->replicaNum = 1;
+  pCfg->totalReplicaNum = 1;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
 
   vInfo("vgId:%d, alter vnode replicas to 1", pReq->srcVgId);
@@ -212,10 +250,44 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  // todo vnode compact here
-
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
+}
+
+int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetAbsDir(dstPath, pTfs, dir, TSDB_FILENAME_LEN);
+  if (vnodeLoadInfo(dir, &info) == 0) {
+    if (info.config.vgId != dstVgId) {
+      vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
+      return -1;
+    }
+    return dstVgId;
+  }
+
+  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
+  if (vnodeLoadInfo(dir, &info) < 0) {
+    vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
+    return -1;
+  }
+
+  if (info.config.vgId == srcVgId) {
+    vInfo("vgId:%d, rollback alter hashrange", srcVgId);
+    return srcVgId;
+  } else if (info.config.vgId != dstVgId) {
+    vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
+    return -1;
+  }
+
+  vInfo("vgId:%d, rename %s to %s", dstVgId, srcPath, dstPath);
+  if (vnodeRenameVgroupId(srcPath, dstPath, srcVgId, dstVgId, pTfs) < 0) {
+    vError("vgId:%d, failed to rename vnode from %s to %s since %s", dstVgId, srcPath, dstPath, tstrerror(terrno));
+    return -1;
+  }
+
+  return dstVgId;
 }
 
 void vnodeDestroy(const char *path, STfs *pTfs) {
@@ -248,7 +320,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // save vnode info on dnode ep changed
   bool      updated = false;
   SSyncCfg *pCfg = &info.config.syncCfg;
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
       updated = true;
@@ -285,8 +357,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   tsem_init(&(pVnode->canCommit), 0, 1);
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
-
-  vnodeUpdCommitSched(pVnode);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -405,6 +475,14 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
+
+int32_t vnodeIsCatchUp(SVnode *pVnode){
+  return syncIsCatchUp(pVnode->sync);
+}
+
+ESyncRole vnodeGetRole(SVnode *pVnode){
+  return syncGetRole(pVnode->sync);
+}
 
 void vnodeStop(SVnode *pVnode) {}
 

@@ -29,65 +29,80 @@ REST connections are supported on all platforms that can run Go.
 
 ## Version support
 
-Please refer to [version support list](/reference/connector#version-support)
+Please refer to [version support list](https://github.com/taosdata/driver-go#remind)
 
-## Supported features
+## Handling exceptions
 
-### Native connections
+If it is a TDengine error, you can get the error code and error information in the following ways.
+```go
+// import "github.com/taosdata/driver-go/v3/errors"
+    if err != nil {
+        tError, is := err.(*errors.TaosError)
+        if is {
+            fmt.Println("errorCode:", int(tError.Code))
+            fmt.Println("errorMessage:", tError.ErrStr)
+        } else {
+            fmt.Println(err.Error())
+        }
+    }
+```
 
-A "native connection" is established by the connector directly to the TDengine instance via the TDengine client driver (taosc). The supported functional features are:
+## TDengine DataType vs. Go DataType
 
-* Normal queries
-* Continuous queries
-* Subscriptions
-* Schemaless interface
-* Parameter binding interface
+| TDengine DataType | Go Type   |
+|-------------------|-----------|
+| TIMESTAMP         | time.Time |
+| TINYINT           | int8      |
+| SMALLINT          | int16     |
+| INT               | int32     |
+| BIGINT            | int64     |
+| TINYINT UNSIGNED  | uint8     |
+| SMALLINT UNSIGNED | uint16    |
+| INT UNSIGNED      | uint32    |
+| BIGINT UNSIGNED   | uint64    |
+| FLOAT             | float32   |
+| DOUBLE            | float64   |
+| BOOL              | bool      |
+| BINARY            | string    |
+| NCHAR             | string    |
+| JSON              | []byte    |
 
-### REST connection
-
-A "REST connection" is a connection between the application and the TDengine instance via the REST API provided by the taosAdapter component. The following features are supported:
-
-* Normal queries
-* Continuous queries
+**Note**: Only TAG supports JSON types
 
 ## Installation Steps
 
 ### Pre-installation preparation
 
 * Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
-- If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector/#install-client-driver) for specific steps
+* If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector/#install-client-driver) for specific steps
 
 Configure the environment variables and check the command.
 
 * ```go env```
 * ```gcc -v```
 
-### Use go get to install
-
-`go get -u github.com/taosdata/driver-go/v3@latest`
-
-### Manage with go mod
+### Install the connectors
 
 1. Initialize the project with the `go mod` command.
 
-  ```text
-  go mod init taos-demo
-  ```
+   ```text
+   go mod init taos-demo
+   ```
 
 2. Introduce taosSql
 
-  ```go
-  import (
-    "database/sql"
-    _ "github.com/taosdata/driver-go/v3/taosSql"
-  )
-  ```
+   ```go
+   import (
+     "database/sql"
+     _ "github.com/taosdata/driver-go/v3/taosSql"
+   )
+   ```
 
 3. Update the dependency packages with `go mod tidy`.
 
-  ```text
-  go mod tidy
-  ```
+   ```text
+   go mod tidy
+   ```
 
 4. Run the program with `go run taos-demo` or compile the binary with the `go build` command.
 
@@ -97,8 +112,6 @@ Configure the environment variables and check the command.
   ```
 
 ## Establishing a connection
-
-### Data source name (DSN)
 
 Data source names have a standard format, e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php), but no type prefix (square brackets indicate optionally):
 
@@ -111,9 +124,7 @@ DSN in full form.
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
-### Connecting via connector
-
-<Tabs defaultValue="rest">
+<Tabs defaultValue="rest" groupId="connect">
 <TabItem value="native" label="native connection">
 
 _taosSql_ implements Go's `database/sql/driver` interface via cgo. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
@@ -209,42 +220,165 @@ func main() {
 </TabItem>
 </Tabs>
 
+### Specify the URL and Properties to get the connection
+
+The Go connector does not support this feature
+
+### Priority of configuration parameters
+
+The Go connector does not support this feature
+
 ## Usage examples
 
-### Write data
+### Create database and tables
 
-#### SQL Write
+```go
+var taosDSN = "root:taosdata@tcp(localhost:6030)/"
+taos, err := sql.Open("taosSql", taosDSN)
+if err != nil {
+    log.Fatalln("failed to connect TDengine, err:", err)
+}
+defer taos.Close()
+_, err := taos.Exec("CREATE DATABASE power")
+if err != nil {
+    log.Fatalln("failed to create database, err:", err)
+}
+_, err = taos.Exec("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)")
+if err != nil {
+    log.Fatalln("failed to create stable, err:", err)
+}
+```
+
+### Insert data
 
 <GoInsert />
 
-#### InfluxDB line protocol write
-
-<GoInfluxLine />
-
-#### OpenTSDB Telnet line protocol write
-
-<GoOpenTSDBTelnet />
-
-#### OpenTSDB JSON line protocol write
-
-<GoOpenTSDBJson />
-
-### Query data
+### Querying data
 
 <GoQuery />
 
-### More sample programs
+### execute SQL with reqId
 
-* [sample program](https://github.com/taosdata/driver-go/tree/3.0/examples)
+This reqId can be used to request link tracing.
 
+```go
+db, err := sql.Open("taosSql", "root:taosdata@tcp(localhost:6030)/")
+if err != nil {
+    panic(err)
+}
+defer db.Close()
+ctx := context.WithValue(context.Background(), common.ReqIDKey, common.GetReqID())
+_, err = db.ExecContext(ctx, "create database if not exists example_taos_sql")
+if err != nil {
+    panic(err)
+}
+```
 
-## Usage limitations
+### Writing data via parameter binding
 
-Since the REST interface is stateless, the `use db` syntax will not work. You need to put the db name into the SQL command, e.g. `create table if not exists tb1 (ts timestamp, a int)` to `create table if not exists test.tb1 (ts timestamp, a int)` otherwise it will report the error `[0x217] Database not specified or available`.
+<Tabs defaultValue="native" groupId="connect">
+<TabItem value="native" label="native connection">
 
-You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
+```go
+package main
 
-The complete example is as follows.
+import (
+    "time"
+
+    "github.com/taosdata/driver-go/v3/af"
+    "github.com/taosdata/driver-go/v3/common"
+    "github.com/taosdata/driver-go/v3/common/param"
+)
+
+func main() {
+    db, err := af.Open("", "root", "taosdata", "", 0)
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    _, err = db.Exec("create database if not exists example_stmt")
+    if err != nil {
+        panic(err)
+    }
+    _, err = db.Exec("create table if not exists example_stmt.tb1(ts timestamp," +
+        "c1 bool," +
+        "c2 tinyint," +
+        "c3 smallint," +
+        "c4 int," +
+        "c5 bigint," +
+        "c6 tinyint unsigned," +
+        "c7 smallint unsigned," +
+        "c8 int unsigned," +
+        "c9 bigint unsigned," +
+        "c10 float," +
+        "c11 double," +
+        "c12 binary(20)," +
+        "c13 nchar(20)" +
+        ")")
+    if err != nil {
+        panic(err)
+    }
+    stmt := db.InsertStmt()
+    err = stmt.Prepare("insert into example_stmt.tb1 values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    if err != nil {
+        panic(err)
+    }
+    now := time.Now()
+    params := make([]*param.Param, 14)
+    params[0] = param.NewParam(2).
+        AddTimestamp(now, common.PrecisionMilliSecond).
+        AddTimestamp(now.Add(time.Second), common.PrecisionMilliSecond)
+    params[1] = param.NewParam(2).AddBool(true).AddNull()
+    params[2] = param.NewParam(2).AddTinyint(2).AddNull()
+    params[3] = param.NewParam(2).AddSmallint(3).AddNull()
+    params[4] = param.NewParam(2).AddInt(4).AddNull()
+    params[5] = param.NewParam(2).AddBigint(5).AddNull()
+    params[6] = param.NewParam(2).AddUTinyint(6).AddNull()
+    params[7] = param.NewParam(2).AddUSmallint(7).AddNull()
+    params[8] = param.NewParam(2).AddUInt(8).AddNull()
+    params[9] = param.NewParam(2).AddUBigint(9).AddNull()
+    params[10] = param.NewParam(2).AddFloat(10).AddNull()
+    params[11] = param.NewParam(2).AddDouble(11).AddNull()
+    params[12] = param.NewParam(2).AddBinary([]byte("binary")).AddNull()
+    params[13] = param.NewParam(2).AddNchar("nchar").AddNull()
+
+    paramTypes := param.NewColumnType(14).
+        AddTimestamp().
+        AddBool().
+        AddTinyint().
+        AddSmallint().
+        AddInt().
+        AddBigint().
+        AddUTinyint().
+        AddUSmallint().
+        AddUInt().
+        AddUBigint().
+        AddFloat().
+        AddDouble().
+        AddBinary(6).
+        AddNchar(5)
+    err = stmt.BindParam(params, paramTypes)
+    if err != nil {
+        panic(err)
+    }
+    err = stmt.AddBatch()
+    if err != nil {
+        panic(err)
+    }
+    err = stmt.Execute()
+    if err != nil {
+        panic(err)
+    }
+    err = stmt.Close()
+    if err != nil {
+        panic(err)
+    }
+    // select * from example_stmt.tb1
+}
+```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
 
 ```go
 package main
@@ -254,277 +388,734 @@ import (
     "fmt"
     "time"
 
+    "github.com/taosdata/driver-go/v3/common"
+    "github.com/taosdata/driver-go/v3/common/param"
     _ "github.com/taosdata/driver-go/v3/taosRestful"
+    "github.com/taosdata/driver-go/v3/ws/stmt"
 )
 
 func main() {
-    var taosDSN = "root:taosdata@http(localhost:6041)/test"
-    taos, err := sql.Open("taosRestful", taosDSN)
+    db, err := sql.Open("taosRestful", "root:taosdata@http(localhost:6041)/")
     if err != nil {
-        fmt.Println("failed to connect TDengine, err:", err)
-        return
+        panic(err)
     }
-    defer taos.Close()
-    taos.Exec("create database if not exists test")
-    taos.Exec("create table if not exists tb1 (ts timestamp, a int)")
-    _, err = taos.Exec("insert into tb1 values(now, 0)(now+1s,1)(now+2s,2)(now+3s,3)")
-    if err != nil {
-        fmt.Println("failed to insert, err:", err)
-        return
-    }
-    rows, err := taos.Query("select * from tb1")
-    if err != nil {
-        fmt.Println("failed to select from table, err:", err)
-        return
-    }
+    defer db.Close()
+    prepareEnv(db)
 
-    defer rows.Close()
-    for rows.Next() {
-        var r struct {
-            ts time.Time
-            a  int
-        }
-        err := rows.Scan(&r.ts, &r.a)
+    config := stmt.NewConfig("ws://127.0.0.1:6041/rest/stmt", 0)
+    config.SetConnectUser("root")
+    config.SetConnectPass("taosdata")
+    config.SetConnectDB("example_ws_stmt")
+    config.SetMessageTimeout(common.DefaultMessageTimeout)
+    config.SetWriteWait(common.DefaultWriteWait)
+    config.SetErrorHandler(func(connector *stmt.Connector, err error) {
+        panic(err)
+    })
+    config.SetCloseHandler(func() {
+        fmt.Println("stmt connector closed")
+    })
+
+    connector, err := stmt.NewConnector(config)
+    if err != nil {
+        panic(err)
+    }
+    now := time.Now()
+    {
+        stmt, err := connector.Init()
         if err != nil {
-            fmt.Println("scan error:\n", err)
-            return
+            panic(err)
         }
-        fmt.Println(r.ts, r.a)
+        err = stmt.Prepare("insert into ? using all_json tags(?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.SetTableName("tb1")
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.SetTags(param.NewParam(1).AddJson([]byte(`{"tb":1}`)), param.NewColumnType(1).AddJson(0))
+        if err != nil {
+            panic(err)
+        }
+        params := []*param.Param{
+            param.NewParam(3).AddTimestamp(now, 0).AddTimestamp(now.Add(time.Second), 0).AddTimestamp(now.Add(time.Second*2), 0),
+            param.NewParam(3).AddBool(true).AddNull().AddBool(true),
+            param.NewParam(3).AddTinyint(1).AddNull().AddTinyint(1),
+            param.NewParam(3).AddSmallint(1).AddNull().AddSmallint(1),
+            param.NewParam(3).AddInt(1).AddNull().AddInt(1),
+            param.NewParam(3).AddBigint(1).AddNull().AddBigint(1),
+            param.NewParam(3).AddUTinyint(1).AddNull().AddUTinyint(1),
+            param.NewParam(3).AddUSmallint(1).AddNull().AddUSmallint(1),
+            param.NewParam(3).AddUInt(1).AddNull().AddUInt(1),
+            param.NewParam(3).AddUBigint(1).AddNull().AddUBigint(1),
+            param.NewParam(3).AddFloat(1).AddNull().AddFloat(1),
+            param.NewParam(3).AddDouble(1).AddNull().AddDouble(1),
+            param.NewParam(3).AddBinary([]byte("test_binary")).AddNull().AddBinary([]byte("test_binary")),
+            param.NewParam(3).AddNchar("test_nchar").AddNull().AddNchar("test_nchar"),
+        }
+        paramTypes := param.NewColumnType(14).
+            AddTimestamp().
+            AddBool().
+            AddTinyint().
+            AddSmallint().
+            AddInt().
+            AddBigint().
+            AddUTinyint().
+            AddUSmallint().
+            AddUInt().
+            AddUBigint().
+            AddFloat().
+            AddDouble().
+            AddBinary(0).
+            AddNchar(0)
+        err = stmt.BindParam(params, paramTypes)
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.AddBatch()
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.Exec()
+        if err != nil {
+            panic(err)
+        }
+        affected := stmt.GetAffectedRows()
+        fmt.Println("all_json affected rows:", affected)
+        err = stmt.Close()
+        if err != nil {
+            panic(err)
+        }
+    }
+    {
+        stmt, err := connector.Init()
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.Prepare("insert into ? using all_all tags(?,?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        err = stmt.SetTableName("tb1")
+        if err != nil {
+            panic(err)
+        }
+
+        err = stmt.SetTableName("tb2")
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.SetTags(
+            param.NewParam(14).
+                AddTimestamp(now, 0).
+                AddBool(true).
+                AddTinyint(2).
+                AddSmallint(2).
+                AddInt(2).
+                AddBigint(2).
+                AddUTinyint(2).
+                AddUSmallint(2).
+                AddUInt(2).
+                AddUBigint(2).
+                AddFloat(2).
+                AddDouble(2).
+                AddBinary([]byte("tb2")).
+                AddNchar("tb2"),
+            param.NewColumnType(14).
+                AddTimestamp().
+                AddBool().
+                AddTinyint().
+                AddSmallint().
+                AddInt().
+                AddBigint().
+                AddUTinyint().
+                AddUSmallint().
+                AddUInt().
+                AddUBigint().
+                AddFloat().
+                AddDouble().
+                AddBinary(0).
+                AddNchar(0),
+        )
+        if err != nil {
+            panic(err)
+        }
+        params := []*param.Param{
+            param.NewParam(3).AddTimestamp(now, 0).AddTimestamp(now.Add(time.Second), 0).AddTimestamp(now.Add(time.Second*2), 0),
+            param.NewParam(3).AddBool(true).AddNull().AddBool(true),
+            param.NewParam(3).AddTinyint(1).AddNull().AddTinyint(1),
+            param.NewParam(3).AddSmallint(1).AddNull().AddSmallint(1),
+            param.NewParam(3).AddInt(1).AddNull().AddInt(1),
+            param.NewParam(3).AddBigint(1).AddNull().AddBigint(1),
+            param.NewParam(3).AddUTinyint(1).AddNull().AddUTinyint(1),
+            param.NewParam(3).AddUSmallint(1).AddNull().AddUSmallint(1),
+            param.NewParam(3).AddUInt(1).AddNull().AddUInt(1),
+            param.NewParam(3).AddUBigint(1).AddNull().AddUBigint(1),
+            param.NewParam(3).AddFloat(1).AddNull().AddFloat(1),
+            param.NewParam(3).AddDouble(1).AddNull().AddDouble(1),
+            param.NewParam(3).AddBinary([]byte("test_binary")).AddNull().AddBinary([]byte("test_binary")),
+            param.NewParam(3).AddNchar("test_nchar").AddNull().AddNchar("test_nchar"),
+        }
+        paramTypes := param.NewColumnType(14).
+            AddTimestamp().
+            AddBool().
+            AddTinyint().
+            AddSmallint().
+            AddInt().
+            AddBigint().
+            AddUTinyint().
+            AddUSmallint().
+            AddUInt().
+            AddUBigint().
+            AddFloat().
+            AddDouble().
+            AddBinary(0).
+            AddNchar(0)
+        err = stmt.BindParam(params, paramTypes)
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.AddBatch()
+        if err != nil {
+            panic(err)
+        }
+        err = stmt.Exec()
+        if err != nil {
+            panic(err)
+        }
+        affected := stmt.GetAffectedRows()
+        fmt.Println("all_all affected rows:", affected)
+        err = stmt.Close()
+        if err != nil {
+            panic(err)
+        }
+
+    }
+}
+
+func prepareEnv(db *sql.DB) {
+    steps := []string{
+        "create database example_ws_stmt",
+        "create table example_ws_stmt.all_json(ts timestamp," +
+            "c1 bool," +
+            "c2 tinyint," +
+            "c3 smallint," +
+            "c4 int," +
+            "c5 bigint," +
+            "c6 tinyint unsigned," +
+            "c7 smallint unsigned," +
+            "c8 int unsigned," +
+            "c9 bigint unsigned," +
+            "c10 float," +
+            "c11 double," +
+            "c12 binary(20)," +
+            "c13 nchar(20)" +
+            ")" +
+            "tags(t json)",
+        "create table example_ws_stmt.all_all(" +
+            "ts timestamp," +
+            "c1 bool," +
+            "c2 tinyint," +
+            "c3 smallint," +
+            "c4 int," +
+            "c5 bigint," +
+            "c6 tinyint unsigned," +
+            "c7 smallint unsigned," +
+            "c8 int unsigned," +
+            "c9 bigint unsigned," +
+            "c10 float," +
+            "c11 double," +
+            "c12 binary(20)," +
+            "c13 nchar(20)" +
+            ")" +
+            "tags(" +
+            "tts timestamp," +
+            "tc1 bool," +
+            "tc2 tinyint," +
+            "tc3 smallint," +
+            "tc4 int," +
+            "tc5 bigint," +
+            "tc6 tinyint unsigned," +
+            "tc7 smallint unsigned," +
+            "tc8 int unsigned," +
+            "tc9 bigint unsigned," +
+            "tc10 float," +
+            "tc11 double," +
+            "tc12 binary(20)," +
+            "tc13 nchar(20))",
+    }
+    for _, step := range steps {
+        _, err := db.Exec(step)
+        if err != nil {
+            panic(err)
+        }
+    }
+}
+
+```
+
+</TabItem>
+</Tabs>
+
+
+### Schemaless Writing
+
+<Tabs defaultValue="native" groupId="connect">
+<TabItem value="native" label="native connection">
+
+```go
+import (
+    "fmt"
+
+    "github.com/taosdata/driver-go/v3/af"
+)
+
+func main() {
+    conn, err := af.Open("localhost", "root", "taosdata", "", 6030)
+    if err != nil {
+        fmt.Println("fail to connect, err:", err)
+    }
+    defer conn.Close()
+    _, err = conn.Exec("create database if not exists example")
+    if err != nil {
+        panic(err)
+    }
+    _, err = conn.Exec("use example")
+    if err != nil {
+        panic(err)
+    }
+    influxdbData := "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000"
+    err = conn.InfluxDBInsertLines([]string{influxdbData}, "ns")
+    if err != nil {
+        panic(err)
+    }
+    telnetData := "stb0_0 1626006833 4 host=host0 interface=eth0"
+    err = conn.OpenTSDBInsertTelnetLines([]string{telnetData})
+    if err != nil {
+        panic(err)
+    }
+    jsonData := "{\"metric\": \"meter_current\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}"
+    err = conn.OpenTSDBInsertJsonPayload(jsonData)
+    if err != nil {
+        panic(err)
+    }
+}    
+```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+```go
+import (
+    "database/sql"
+    "log"
+    "time"
+
+    "github.com/taosdata/driver-go/v3/common"
+    _ "github.com/taosdata/driver-go/v3/taosWS"
+    "github.com/taosdata/driver-go/v3/ws/schemaless"
+)
+
+func main() {
+    db, err := sql.Open("taosWS", "root:taosdata@ws(localhost:6041)/")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+    _, err = db.Exec("create database if not exists schemaless_ws")
+    if err != nil {
+        log.Fatal(err)
+    }
+    s, err := schemaless.NewSchemaless(schemaless.NewConfig("ws://localhost:6041/rest/schemaless", 1,
+        schemaless.SetDb("schemaless_ws"),
+        schemaless.SetReadTimeout(10*time.Second),
+        schemaless.SetWriteTimeout(10*time.Second),
+        schemaless.SetUser("root"),
+        schemaless.SetPassword("taosdata"),
+        schemaless.SetErrorHandler(func(err error) {
+            log.Fatal(err)
+        }),
+    ))
+    if err != nil {
+        panic(err)
+    }
+    influxdbData := "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000"
+    telnetData := "stb0_0 1626006833 4 host=host0 interface=eth0"
+    jsonData := "{\"metric\": \"meter_current\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}"
+
+    err = s.Insert(influxdbData, schemaless.InfluxDBLineProtocol, "ns", 0, common.GetReqID())
+    if err != nil {
+        panic(err)
+    }
+    err = s.Insert(telnetData, schemaless.OpenTSDBTelnetLineProtocol, "ms", 0, common.GetReqID())
+    if err != nil {
+        panic(err)
+    }
+    err = s.Insert(jsonData, schemaless.OpenTSDBJsonFormatProtocol, "ms", 0, common.GetReqID())
+    if err != nil {
+        panic(err)
     }
 }
 ```
+
+</TabItem>
+</Tabs>
+
+
+### Schemaless with reqId
+
+```go
+func (s *Schemaless) Insert(lines string, protocol int, precision string, ttl int, reqID int64) error
+```
+
+You can get the unique id by `common.GetReqID()`.
+
+### Data Subscription
+
+The TDengine Go Connector supports subscription functionality with the following application API.
+
+#### Create a Topic
+
+```go
+    db, err := af.Open("", "root", "taosdata", "", 0)
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    _, err = db.Exec("create database if not exists example_tmq WAL_RETENTION_PERIOD 86400")
+    if err != nil {
+        panic(err)
+    }
+    _, err = db.Exec("create topic if not exists example_tmq_topic as DATABASE example_tmq")
+    if err != nil {
+        panic(err)
+    }
+```
+
+#### Create a Consumer
+
+```go
+    consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
+        "group.id":                     "test",
+        "auto.offset.reset":            "earliest",
+        "td.connect.ip":                "127.0.0.1",
+        "td.connect.user":              "root",
+        "td.connect.pass":              "taosdata",
+        "td.connect.port":              "6030",
+        "client.id":                    "test_tmq_client",
+        "enable.auto.commit":           "false",
+        "msg.with.table.name":          "true",
+    })
+    if err != nil {
+        panic(err)
+    }
+```
+
+#### Subscribe to consume data
+
+```go
+    err = consumer.Subscribe("example_tmq_topic", nil)
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < 5; i++ {
+        ev := consumer.Poll(500)
+        if ev != nil {
+            switch e := ev.(type) {
+            case *tmqcommon.DataMessage:
+                fmt.Printf("get message:%v\n", e)
+            case tmqcommon.Error:
+                fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+                panic(e)
+            }
+            consumer.Commit()
+        }
+    }
+```
+
+#### Assignment subscription Offset
+
+```go
+    partitions, err := consumer.Assignment()
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < len(partitions); i++ {
+        fmt.Println(partitions[i])
+        err = consumer.Seek(tmqcommon.TopicPartition{
+            Topic:     partitions[i].Topic,
+            Partition: partitions[i].Partition,
+            Offset:    0,
+        }, 0)
+        if err != nil {
+            panic(err)
+        }
+    }
+```
+
+#### Close subscriptions
+
+```go
+    err = consumer.Close()
+    if err != nil {
+        panic(err)
+    }
+```
+
+#### Full Sample Code
+
+<Tabs defaultValue="native" groupId="connect">
+<TabItem value="native" label="native connection">
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/taosdata/driver-go/v3/af"
+    "github.com/taosdata/driver-go/v3/af/tmq"
+    tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
+)
+
+func main() {
+    db, err := af.Open("", "root", "taosdata", "", 0)
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    _, err = db.Exec("create database if not exists example_tmq WAL_RETENTION_PERIOD 86400")
+    if err != nil {
+        panic(err)
+    }
+    _, err = db.Exec("create topic if not exists example_tmq_topic as DATABASE example_tmq")
+    if err != nil {
+        panic(err)
+    }
+    if err != nil {
+        panic(err)
+    }
+    consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
+        "group.id":                     "test",
+        "auto.offset.reset":            "earliest",
+        "td.connect.ip":                "127.0.0.1",
+        "td.connect.user":              "root",
+        "td.connect.pass":              "taosdata",
+        "td.connect.port":              "6030",
+        "client.id":                    "test_tmq_client",
+        "enable.auto.commit":           "false",
+        "msg.with.table.name":          "true",
+    })
+    if err != nil {
+        panic(err)
+    }
+    err = consumer.Subscribe("example_tmq_topic", nil)
+    if err != nil {
+        panic(err)
+    }
+    _, err = db.Exec("create table example_tmq.t1 (ts timestamp,v int)")
+    if err != nil {
+        panic(err)
+    }
+    _, err = db.Exec("insert into example_tmq.t1 values(now,1)")
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < 5; i++ {
+        ev := consumer.Poll(500)
+        if ev != nil {
+            switch e := ev.(type) {
+            case *tmqcommon.DataMessage:
+                fmt.Printf("get message:%v\n", e)
+            case tmqcommon.Error:
+                fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+                panic(e)
+            }
+            consumer.Commit()
+        }
+    }
+    partitions, err := consumer.Assignment()
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < len(partitions); i++ {
+        fmt.Println(partitions[i])
+        err = consumer.Seek(tmqcommon.TopicPartition{
+            Topic:     partitions[i].Topic,
+            Partition: partitions[i].Partition,
+            Offset:    0,
+        }, 0)
+        if err != nil {
+            panic(err)
+        }
+    }
+
+    partitions, err = consumer.Assignment()
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < len(partitions); i++ {
+        fmt.Println(partitions[i])
+    }
+
+    err = consumer.Close()
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    "github.com/taosdata/driver-go/v3/common"
+    tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
+    _ "github.com/taosdata/driver-go/v3/taosRestful"
+    "github.com/taosdata/driver-go/v3/ws/tmq"
+)
+
+func main() {
+    db, err := sql.Open("taosRestful", "root:taosdata@http(localhost:6041)/")
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    prepareEnv(db)
+    consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
+        "ws.url":                "ws://127.0.0.1:6041/rest/tmq",
+        "ws.message.channelLen": uint(0),
+        "ws.message.timeout":    common.DefaultMessageTimeout,
+        "ws.message.writeWait":  common.DefaultWriteWait,
+        "td.connect.user":       "root",
+        "td.connect.pass":       "taosdata",
+        "group.id":              "example",
+        "client.id":             "example_consumer",
+        "auto.offset.reset":     "earliest",
+    })
+    if err != nil {
+        panic(err)
+    }
+    err = consumer.Subscribe("example_ws_tmq_topic", nil)
+    if err != nil {
+        panic(err)
+    }
+    go func() {
+        _, err := db.Exec("create table example_ws_tmq.t_all(ts timestamp," +
+            "c1 bool," +
+            "c2 tinyint," +
+            "c3 smallint," +
+            "c4 int," +
+            "c5 bigint," +
+            "c6 tinyint unsigned," +
+            "c7 smallint unsigned," +
+            "c8 int unsigned," +
+            "c9 bigint unsigned," +
+            "c10 float," +
+            "c11 double," +
+            "c12 binary(20)," +
+            "c13 nchar(20)" +
+            ")")
+        if err != nil {
+            panic(err)
+        }
+        _, err = db.Exec("insert into example_ws_tmq.t_all values(now,true,2,3,4,5,6,7,8,9,10.123,11.123,'binary','nchar')")
+        if err != nil {
+            panic(err)
+        }
+    }()
+    for i := 0; i < 5; i++ {
+        ev := consumer.Poll(500)
+        if ev != nil {
+            switch e := ev.(type) {
+            case *tmqcommon.DataMessage:
+                fmt.Printf("get message:%v\n", e)
+            case tmqcommon.Error:
+                fmt.Printf("%% Error: %v: %v\n", e.Code(), e)
+                panic(e)
+            }
+            consumer.Commit()
+        }
+    }
+    partitions, err := consumer.Assignment()
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < len(partitions); i++ {
+        fmt.Println(partitions[i])
+        err = consumer.Seek(tmqcommon.TopicPartition{
+            Topic:     partitions[i].Topic,
+            Partition: partitions[i].Partition,
+            Offset:    0,
+        }, 0)
+        if err != nil {
+            panic(err)
+        }
+    }
+
+    partitions, err = consumer.Assignment()
+    if err != nil {
+        panic(err)
+    }
+    for i := 0; i < len(partitions); i++ {
+        fmt.Println(partitions[i])
+    }
+
+    err = consumer.Close()
+    if err != nil {
+        panic(err)
+    }
+}
+
+func prepareEnv(db *sql.DB) {
+    _, err := db.Exec("create database example_ws_tmq WAL_RETENTION_PERIOD 86400")
+    if err != nil {
+        panic(err)
+    }
+    _, err = db.Exec("create topic example_ws_tmq_topic as database example_ws_tmq")
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+### More sample programs
+
+* [sample program](https://github.com/taosdata/driver-go/tree/3.0/examples)
+
 
 ## Frequently Asked Questions
 
 1. bind interface in database/sql crashes
 
-  REST does not support parameter binding related interface. It is recommended to use `db.Exec` and `db.Query`.
+   REST does not support parameter binding related interface. It is recommended to use `db.Exec` and `db.Query`.
 
 2. error `[0x217] Database not specified or available` after executing other statements with `use db` statement
 
-  The execution of SQL command in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
+   The execution of SQL command in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
 
 3. use `taosSql` without error but use `taosRestful` with error `[0x217] Database not specified or available`
 
-  Because the REST interface is stateless, using the `use db` statement will not take effect. See the usage restrictions section above.
+   Because the REST interface is stateless, using the `use db` statement will not take effect. See the usage restrictions section above.
 
 4. `readBufferSize` parameter has no significant effect after being increased
 
-  Increasing `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve performance significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value based on the actual situation to achieve the best query performance.
+   Increasing `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve performance significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value based on the actual situation to achieve the best query performance.
 
 5. `disableCompression` parameter is set to `false` when the query efficiency is reduced
 
-  When set `disableCompression` parameter to `false`, the query result will be compressed by `gzip` and then transmitted, so you have to decompress the data by `gzip` after getting it.
+   When set `disableCompression` parameter to `false`, the query result will be compressed by `gzip` and then transmitted, so you have to decompress the data by `gzip` after getting it.
 
 6. `go get` command can't get the package, or timeout to get the package
 
-  Set Go proxy `go env -w GOPROXY=https://goproxy.cn,direct`.
-
-## Common APIs
-
-### database/sql API
-
-* `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
-
-  Use This API to open a DB, returning an object of type \*DB.
-
-:::info
-This API is created successfully without checking permissions, but only when you execute a Query or Exec, and check if user/password/host/port is legal.
-:::
-
-* `func (db *DB) Exec(query string, args ...interface{}) (Result, error)`
-
-  `sql.Open` built-in method to execute non-query related SQL.
-
-* `func (db *DB) Query(query string, args ...interface{}) (*Rows, error)`
-
-  `sql.Open` Built-in method to execute query statements.
-
-### Advanced functions (af) API
-
-The `af` package encapsulates TDengine advanced functions such as connection management, subscriptions, schemaless, parameter binding, etc.
-
-#### Connection management
-
-* `af.Open(host, user, pass, db string, port int) (*Connector, error)`
-
-  This API creates a connection to taosd via cgo.
-
-* `func (conn *Connector) Close() error`
-
-  Closes the connection.
-
-#### Subscribe
-
-* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
-
-Creates consumer group.
-
-* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
-Note: `rebalanceCb` is reserved for compatibility purpose
-
-Subscribes a topic.
-
-* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
-Note: `rebalanceCb` is reserved for compatibility purpose
-
-Subscribes to topics.
-
-* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
-
-Polling information.
-
-* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
-Note: `tmq.TopicPartition` is reserved for compatibility purpose
-
-Commit information.
-
-* `func (c *Consumer) Unsubscribe() error`
-
-Unsubscribe.
-
-* `func (c *Consumer) Close() error`
-
-Close consumer.
-
-#### schemaless
-
-* `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
-
-  Write to InfluxDB line protocol.
-
-* `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
-
-  Write OpenTDSB telnet protocol data.
-
-* `func (conn *Connector) OpenTSDBInsertJsonPayload(payload string) error`
-
-  Writes OpenTSDB JSON protocol data.
-
-#### parameter binding
-
-* `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
-
-  Parameter bound single row insert.
-
-* `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
-
-  Initialize the parameters.
-
-* `func (stmt *InsertStmt) Prepare(sql string) error`
-
-  Parameter binding preprocessing SQL statement.
-
-* `func (stmt *InsertStmt) SetTableName(name string) error`
-
-  Bind the table name parameter.
-
-* `func (stmt *InsertStmt) SetSubTableName(name string) error`
-
-  Parameter binding to set the sub table name.
-
-* `func (stmt *InsertStmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
-
-  Parameter bind multiple rows of data.
-
-* `func (stmt *InsertStmt) AddBatch() error`
-
-  Add to a parameter-bound batch.
-
-* `func (stmt *InsertStmt) Execute() error`
-
-  Execute a parameter binding.
-
-* `func (stmt *InsertStmt) GetAffectedRows() int`
-
-  Gets the number of affected rows inserted by the parameter binding.
-
-* `func (stmt *InsertStmt) Close() error`
-
-  Closes the parameter binding.
-
-### Subscribe via WebSocket
-
-* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
-
-Creates consumer group.
-
-* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
-Note: `rebalanceCb` is reserved for compatibility purpose
-
-Subscribes a topic.
-
-* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
-Note: `rebalanceCb` is reserved for compatibility purpose
-
-Subscribes to topics.
-
-* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
-
-Polling information.
-
-* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
-Note: `tmq.TopicPartition` is reserved for compatibility purpose
-
-Commit information.
-
-* `func (c *Consumer) Unsubscribe() error`
-
-Unsubscribe.
-
-* `func (c *Consumer) Close() error`
-
-Close consumer.
-
-For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
-
-### parameter binding via WebSocket
-
-* `func NewConnector(config *Config) (*Connector, error)`
-
-  Create a connection.
-
-* `func (c *Connector) Init() (*Stmt, error)`
-
-  Initialize the parameters.
-
-* `func (c *Connector) Close() error`
-
-  Close the connection.
-
-* `func (s *Stmt) Prepare(sql string) error`
-
-  Parameter binding preprocessing SQL statement.
-
-* `func (s *Stmt) SetTableName(name string) error`
-
-  Bind the table name parameter.
-
-* `func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType) error`
-
-  Set tags.
-
-* `func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
-
-  Parameter bind multiple rows of data.
-
-* `func (s *Stmt) AddBatch() error`
-
-  Add to a parameter-bound batch.
-
-* `func (s *Stmt) Exec() error`
-
-  Execute a parameter binding.
-
-* `func (s *Stmt) GetAffectedRows() int`
-
-  Gets the number of affected rows inserted by the parameter binding.
-
-* `func (s *Stmt) Close() error`
-
-  Closes the parameter binding.
-
-For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
+   Set Go proxy `go env -w GOPROXY=https://goproxy.cn,direct`.
 
 ## API Reference
 

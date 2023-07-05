@@ -523,7 +523,7 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-    if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type) || ((pColData->flag & HAS_VALUE) == 0)) continue;
+    if ((!pColData->smaOn) || ((pColData->flag & HAS_VALUE) == 0)) continue;
 
     SColumnDataAgg sma = {.colId = pColData->cid};
     tColDataCalcSMA[pColData->type](pColData, &sma.sum, &sma.max, &sma.min, &sma.numOfNull);
@@ -1489,6 +1489,10 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {
+    return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
+}
+
+int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
   int32_t code = 0;
   int64_t offset = pDelIdx->offset;
   int64_t size = pDelIdx->size;
@@ -1510,11 +1514,15 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
     SDelData delData;
     n += tGetDelData(pReader->aBuf[0] + n, &delData);
 
-    if (taosArrayPush(aDelData, &delData) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+    if (delData.version > maxVer) {
+      continue;
     }
+      if (taosArrayPush(aDelData, &delData) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
   }
+
   ASSERT(n == size);
 
   return code;

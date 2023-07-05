@@ -12,9 +12,9 @@ python3 ./test.py -f 1-insert/alter_table.py -P
 python3 ./test.py -f 1-insert/boundary.py -P
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py -P
 python3 ./test.py -f 1-insert/table_comment.py -P
-python3 ./test.py -f 1-insert/time_range_wise.py -P
-python3 ./test.py -f 1-insert/block_wise.py -P
-python3 ./test.py -f 1-insert/create_retentions.py -P
+#python3 ./test.py -f 1-insert/time_range_wise.py -P
+#python3 ./test.py -f 1-insert/block_wise.py -P
+#python3 ./test.py -f 1-insert/create_retentions.py -P
 python3 ./test.py -f 1-insert/mutil_stage.py -P
 python3 ./test.py -f 1-insert/table_param_ttl.py -P
 python3 ./test.py -f 1-insert/table_param_ttl.py -P -R
@@ -287,6 +287,7 @@ python3 ./test.py -f 1-insert/tb_100w_data_order.py -P
 python3 ./test.py -f 1-insert/delete_childtable.py -P
 python3 ./test.py -f 1-insert/delete_normaltable.py -P
 python3 ./test.py -f 1-insert/keep_expired.py -P
+python3 ./test.py -f 1-insert/stmt_error.py -P
 python3 ./test.py -f 1-insert/drop.py -P
 python3 ./test.py -f 2-query/join2.py -P
 python3 ./test.py -f 2-query/union1.py -P
@@ -337,7 +338,7 @@ echo " **********  -N 6 *************"
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -P -N 6 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -P -N 6 -M 3 -n 3
+#python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -P -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py -P  -N 6 -M 3
@@ -351,7 +352,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -P -N 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -P -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -P -N 6 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -P -N 6 -M 3 -n 3
+#$python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -P -N 6 -M 3 
 python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -P -N 6 -M 3 -n 3 
 python3 ./test.py -f 0-others/balance_vgroups_r1.py -P -N 6

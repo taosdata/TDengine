@@ -81,7 +81,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 3   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
 | 4   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
 | 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                           |
-| 7   |        strict        | BINARY(3)        | 强一致性。需要注意，`strict` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
+| 7   |        strict        | BINARY(4)        | 废弃参数 |
 | 8   |       duration       | INT              | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
 | 9   |         keep         | INT              | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
 | 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
@@ -120,6 +120,10 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 5   | create_time | TIMESTAMP    | 创建时间       |
 | 6   |  code_len   | INT          | 代码长度       |
 | 7   |   bufsize   | INT          | buffer 大小    |
+| 8   | func_language | BINARY(31) | 自定义函数编程语言 |
+| 9   | func_body     | BINARY(16384) | 函数体定义 |
+| 10  | func_version  | INT           | 函数版本号。初始版本为0，每次替换更新，版本号加1。|
+
 
 ## INS_INDEXES
 

@@ -296,7 +296,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.nType, sizeof(pBlock->tag.nType));
 
   int32_t trueLen = pBlock->tag.nLen;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR || pBlock->tag.nType == TSDB_DATA_TYPE_GEOMETRY) {
     metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.nLen, sizeof(pBlock->tag.nLen));
     metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, pBlock->tag.pz, (size_t)pBlock->tag.nLen);
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
@@ -378,7 +378,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
   // NOTE: mix types tags are not supported
   size_t sz = 0;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR || pBlock->tag.nType == TSDB_DATA_TYPE_GEOMETRY) {
     char* tp = taosMemoryRealloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
     ASSERT(tp != NULL);
 

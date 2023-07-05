@@ -14,4 +14,7 @@ target_link_libraries(
     PRIVATE qworker
     PRIVATE qcom
     PRIVATE executor
+    PRIVATE tdb
+    PRIVATE wal
+    PRIVATE index
 )

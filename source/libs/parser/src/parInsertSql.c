@@ -18,6 +18,7 @@
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "geosWrapper.h"
 
 #define NEXT_TOKEN_WITH_PREV(pSql, token)           \
   do {                                              \
@@ -305,11 +306,32 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
   return TSDB_CODE_SUCCESS;
 }
 
+// need to call geosFreeBuffer(*output) later
+static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  //[ToDo] support to parse WKB as well as WKT
+  if (pToken->type == TK_NK_STRING) {
+    code = initCtxGeomFromText();
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doGeomFromText(pToken->z, output, size);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
                              SMsgBuf* pMsgBuf) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
+  int32_t  code = TSDB_CODE_SUCCESS;
 
   if (isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
@@ -456,6 +478,30 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       break;
     }
 
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      unsigned char* output = NULL;
+      size_t         size = 0;
+
+      code = parseGeometry(pToken, &output, &size);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = buildSyntaxErrMsg(pMsgBuf, getThreadLocalGeosCtx()->errMsg, pToken->z);
+      } else if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        // Too long values will raise the invalid sql error message
+        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      } else {
+        val->pData = taosMemoryMalloc(size);
+        if (NULL == val->pData) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        } else {
+          memcpy(val->pData, output, size);
+          val->nData = size;
+        }
+      }
+
+      geosFreeBuffer(output);
+      break;
+    }
+
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t output = 0;
       void*   p = taosMemoryCalloc(1, pSchema->bytes - VARSTR_HEADER_SIZE);
@@ -486,7 +532,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 // input pStmt->pSql:  [(tag1_name, ...)] TAGS (tag1_value, ...) ...
@@ -1350,6 +1396,37 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       pVal->value.nData = pToken->n;
       break;
     }
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      int32_t code = TSDB_CODE_FAILED;
+      unsigned char *output = NULL;
+      size_t size = 0;
+
+      code = parseGeometry(pToken, &output, &size);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = buildSyntaxErrMsg(&pCxt->msg, getThreadLocalGeosCtx()->errMsg, pToken->z);
+      }
+      // Too long values will raise the invalid sql error message
+      else if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+      else {
+        pVal->value.pData = taosMemoryMalloc(size);
+        if (NULL == pVal->value.pData) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+        else {
+          memcpy(pVal->value.pData, output, size);
+          pVal->value.nData = size;
+        }
+      }
+
+      geosFreeBuffer(output);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      break;
+    }
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (parseTime(pSql, pToken, timePrec, &pVal->value.val, &pCxt->msg) != TSDB_CODE_SUCCESS) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid timestamp", pToken->z);
@@ -1552,7 +1629,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       (*pNumOfRows)++;
     }
 
-    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxMemUsedByInsert * 1024 * 1024) {
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
       break;
     }
@@ -1560,6 +1637,8 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     firstLine = false;
   }
   taosMemoryFree(pLine);
+
+  parserDebug("0x%" PRIx64 " %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
   if (TSDB_CODE_SUCCESS == code && 0 == (*pNumOfRows) &&
       (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) && !pStmt->fileProcessing) {

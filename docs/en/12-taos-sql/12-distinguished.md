@@ -21,7 +21,7 @@ part_list can be any scalar expression, such as a column, constant, scalar funct
 A PARTITION BY clause is processed as follows:
 
 - The PARTITION BY clause must occur after the WHERE clause
-- The PARTITION BY caluse partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
+- The PARTITION BY clause partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
 - The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql
@@ -69,19 +69,20 @@ These pseudocolumns occur after the aggregation clause.
 `FILL` clause is used to specify how to fill when there is data missing in any window, including:
 
 1. NONE: No fill (the default fill mode)
-2. VALUE：Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.
-3. PREV：Fill with the previous non-NULL value, `FILL(PREV)`
-4. NULL：Fill with NULL, `FILL(NULL)`
-5. LINEAR：Fill with the closest non-NULL value, `FILL(LINEAR)`
-6. NEXT：Fill with the next non-NULL value, `FILL(NEXT)`
+2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.
+3. PREV: Fill with the previous non-NULL value, `FILL(PREV)`
+4. NULL: Fill with NULL, `FILL(NULL)`
+5. LINEAR: Fill with the closest non-NULL value, `FILL(LINEAR)`
+6. NEXT: Fill with the next non-NULL value, `FILL(NEXT)`
 
 In the above filling modes, except for `NONE` mode, the `fill` clause will be ignored if there is no data in the defined time range, i.e. no data would be filled and the query result would be empty. This behavior is reasonable when the filling mode is `PREV`, `NEXT`, `LINEAR`, because filling can't be performed if there is not any data. For filling modes `NULL` and `VALUE`, however, filling can be performed even though there is not any data, filling or not depends on the choice of user's application.  To accomplish the need of this force filling behavior and not break the behavior of existing filling modes, TDengine added two new filling modes since version 3.0.3.0. 
 
 1. NULL_F: Fill `NULL` by force
 2. VALUE_F: Fill `VALUE` by force
 
-The detailed beaviors of `NULL`, `NULL_F`, `VALUE`, and VALUE_F are described below：
-- When used with `INTERVAL`: `NULL_F` and `VALUE_F` are filling by force；`NULL` and `VALUE`  don't fill by force. The behavior of each filling mode is exactly same as what the name suggests.
+The detailed beaviors of `NULL`, `NULL_F`, `VALUE`, and VALUE_F are described below:
+
+- When used with `INTERVAL`: `NULL_F` and `VALUE_F` are filling by force; `NULL` and `VALUE`  don't fill by force. The behavior of each filling mode is exactly same as what the name suggests.
 - When used with `INTERVAL` in stream processing: `NULL_F` and `NULL` are same, i.e. don't fill by force; `VALUE_F` and `VALUE` and same, i.e. don't fill by force. It's suggested that there is no filling by force in stream processing.
 - When used with `INTERP`: `NULL` and `NULL_F` and same, i.e. filling by force; `VALUE` and `VALUE_F` are same, i.e. filling by force. It's suggested that there is always filling by force when used with `INTERP`.
 
@@ -97,7 +98,7 @@ The detailed beaviors of `NULL`, `NULL_F`, `VALUE`, and VALUE_F are described be
 
 There are two kinds of time windows: sliding window and flip time/tumbling window.
 
-The `INTERVAL` clause is used to generate time windows of the same time interval. The `SLIDING` parameter is used to specify the time step for which the time window moves forward. The query is performed on one time window each time, and the time window moves forward with time. When defining a continuous query, both the size of the time window and the step of forward sliding time need to be specified. As shown in the figure blow, [t0s, t0e] ，[t1s , t1e]， [t2s, t2e] are respectively the time ranges of three time windows on which continuous queries are executed. The time step for which time window moves forward is marked by `sliding time`. Query, filter and aggregate operations are executed on each time window respectively. When the time step specified by `SLIDING` is same as the time interval specified by `INTERVAL`, the sliding time window is actually a flip time/tumbling window.
+The `INTERVAL` clause is used to generate time windows of the same time interval. The `SLIDING` parameter is used to specify the time step for which the time window moves forward. The query is performed on one time window each time, and the time window moves forward with time. When defining a continuous query, both the size of the time window and the step of forward sliding time need to be specified. As shown in the figure blow, [t0s, t0e], [t1s, t1e], [t2s, t2e] are respectively the time ranges of three time windows on which continuous queries are executed. The time step for which time window moves forward is marked by `sliding time`. Query, filter and aggregate operations are executed on each time window respectively. When the time step specified by `SLIDING` is same as the time interval specified by `INTERVAL`, the sliding time window is actually a flip time/tumbling window.
 
 ![TDengine Database Time Window](./timewindow-1.webp)
 
@@ -121,7 +122,7 @@ Please note that the `timezone` parameter should be configured to be the same va
 
 ### State Window
 
-In case of using integer, bool, or string to represent the status of a device at any given moment, continuous rows with the same status belong to a status window. Once the status changes, the status window closes. As shown in the following figure, there are two state windows according to status, [2019-04-28 14:22:07，2019-04-28 14:22:10] and [2019-04-28 14:22:11，2019-04-28 14:22:12]. 
+In case of using integer, bool, or string to represent the status of a device at any given moment, continuous rows with the same status belong to a status window. Once the status changes, the status window closes. As shown in the following figure, there are two state windows according to status, [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
 ![TDengine Database Status Window](./timewindow-3.webp)
 
@@ -145,7 +146,7 @@ SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 
 
 ### Session Window
 
-The primary key, i.e. timestamp, is used to determine which session window a row belongs to. As shown in the figure below, if the limit of time interval for the session window is specified as 12 seconds, then the 6 rows in the figure constitutes 2 time windows, [2019-04-28 14:22:10，2019-04-28 14:22:30] and [2019-04-28 14:23:10，2019-04-28 14:23:30] because the time difference between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, which exceeds the time interval limit of 12 seconds.
+The primary key, i.e. timestamp, is used to determine which session window a row belongs to. As shown in the figure below, if the limit of time interval for the session window is specified as 12 seconds, then the 6 rows in the figure constitutes 2 time windows, [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30] because the time difference between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, which exceeds the time interval limit of 12 seconds.
 
 ![TDengine Database Session Window](./timewindow-2.webp)
 
@@ -178,7 +179,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ### Examples
 
-A table of intelligent meters can be created by the SQL statement below：
+A table of intelligent meters can be created by the SQL statement below:
 
 ```
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);

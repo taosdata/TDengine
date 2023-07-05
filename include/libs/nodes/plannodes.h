@@ -53,6 +53,8 @@ typedef struct SLogicNode {
   EDataOrderLevel    requireDataOrder;  // requirements for input data
   EDataOrderLevel    resultDataOrder;   // properties of the output data
   EGroupAction       groupAction;
+  EOrder             inputTsOrder;
+  EOrder             outputTsOrder;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -111,7 +113,7 @@ typedef struct SJoinLogicNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
-  EOrder     inputTsOrder;
+  SNode*     pColEqualOnConditions;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -185,6 +187,7 @@ typedef struct SMergeLogicNode {
   int32_t    numOfChannels;
   int32_t    srcGroupId;
   bool       groupSort;
+  bool       ignoreGroupId;
 } SMergeLogicNode;
 
 typedef enum EWindowType {
@@ -227,8 +230,6 @@ typedef struct SWindowLogicNode {
   int8_t           igExpired;
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
-  EOrder           inputTsOrder;
-  EOrder           outputTsOrder;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -239,13 +240,13 @@ typedef struct SFillLogicNode {
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
-  EOrder      inputTsOrder;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
   bool       groupSort;
+  int64_t    maxRows;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -308,6 +309,8 @@ typedef struct SDataBlockDescNode {
 
 typedef struct SPhysiNode {
   ENodeType           type;
+  EOrder              inputTsOrder;
+  EOrder              outputTsOrder;
   SDataBlockDescNode* pOutputDataBlockDesc;
   SNode*              pConditions;
   SNodeList*          pChildren;
@@ -404,7 +407,7 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
-  EOrder     inputTsOrder;
+  SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {
@@ -444,9 +447,10 @@ typedef struct SMergePhysiNode {
   int32_t    numOfChannels;
   int32_t    srcGroupId;
   bool       groupSort;
+  bool       ignoreGroupId;
 } SMergePhysiNode;
 
-typedef struct SWinodwPhysiNode {
+typedef struct SWindowPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
   SNodeList* pFuncs;
@@ -456,13 +460,11 @@ typedef struct SWinodwPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
-  EOrder     inputTsOrder;
-  EOrder     outputTsOrder;
   bool       mergeDataBlock;
-} SWinodwPhysiNode;
+} SWindowPhysiNode;
 
 typedef struct SIntervalPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   int64_t          interval;
   int64_t          offset;
   int64_t          sliding;
@@ -484,7 +486,6 @@ typedef struct SFillPhysiNode {
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
   STimeWindow timeRange;
-  EOrder      inputTsOrder;
 } SFillPhysiNode;
 
 typedef SFillPhysiNode SStreamFillPhysiNode;
@@ -495,7 +496,7 @@ typedef struct SMultiTableIntervalPhysiNode {
 } SMultiTableIntervalPhysiNode;
 
 typedef struct SSessionWinodwPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
@@ -504,14 +505,14 @@ typedef SSessionWinodwPhysiNode SStreamSemiSessionWinodwPhysiNode;
 typedef SSessionWinodwPhysiNode SStreamFinalSessionWinodwPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   SNode*           pStateKey;
 } SStateWinodwPhysiNode;
 
 typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
 
 typedef struct SEventWinodwPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   SNode*           pStartCond;
   SNode*           pEndCond;
 } SEventWinodwPhysiNode;
@@ -523,6 +524,7 @@ typedef struct SSortPhysiNode {
   SNodeList* pExprs;     // these are expression list of order_by_clause and parameter expression of aggregate function
   SNodeList* pSortKeys;  // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
   SNodeList* pTargets;
+  int64_t    maxRows;
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;
@@ -613,6 +615,7 @@ typedef struct SQueryPlan {
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
+  void*        pPostPlan;
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

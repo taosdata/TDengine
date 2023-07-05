@@ -53,6 +53,8 @@ int32_t sndStopTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 int32_t sndResumeTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 #endif
 
+void initStreamStateAPI(SStorageAPI* pAPI);
+
 #ifdef __cplusplus
 }
 #endif

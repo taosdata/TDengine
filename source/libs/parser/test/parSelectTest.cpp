@@ -117,6 +117,15 @@ TEST_F(ParserSelectTest, timelineFunc) {
   run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
 
   run("SELECT diff(c1) FROM t1");
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) WHERE t1.ts = t2.ts", TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
+
 }
 
 TEST_F(ParserSelectTest, selectFunc) {
@@ -239,6 +248,19 @@ TEST_F(ParserSelectTest, groupBySemanticCheck) {
   run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 GROUP BY c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 }
 
+TEST_F(ParserSelectTest, havingCheck) {
+  useDb("root", "test");
+
+  run("select tbname,count(*) from st1 partition by tbname having c1>0", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
+
+  run("select tbname,count(*) from st1 group by tbname having c1>0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+
+  run("select max(c1) from st1 group by tbname having c1>0");
+
+  run("select max(c1) from st1 partition by tbname having c1>0");
+}
+
+
 TEST_F(ParserSelectTest, orderBy) {
   useDb("root", "test");
 
@@ -311,6 +333,10 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m) ORDER BY _WSTART) "
       "INTERVAL(1n)");
+
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag1");
+
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag2", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
@@ -459,6 +485,8 @@ TEST_F(ParserSelectTest, joinSemanticCheck) {
 
   run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1",
       TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+
+  run("SELECT count(*) FROM t1 a join t1 b on a.ts=b.ts where a.ts=b.ts");
 }
 
 }  // namespace ParserTest

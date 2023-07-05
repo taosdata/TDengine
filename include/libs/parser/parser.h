@@ -74,6 +74,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
                             const struct SMetaData* pMetaData, SQuery* pQuery);
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery);
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pResRow);
 
 void qDestroyParseContext(SParseContext* pCxt);
 
@@ -114,7 +115,7 @@ STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta);
 
 int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
-                    char* msgBuf, int16_t msgBufLen);
+                    char* msgBuf, int32_t msgBufLen);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
 int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD *fields, int numFields, bool needChangeLength);
 

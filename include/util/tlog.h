@@ -83,6 +83,12 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 #endif
     ;
 
+void taosPrintSlowLog(const char *format, ...)
+#ifdef __GNUC__
+      __attribute__((format(printf, 1, 2)))
+#endif
+      ;
+
 bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
 bool taosAssertRelease(bool condition);
 

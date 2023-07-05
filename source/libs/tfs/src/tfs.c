@@ -227,6 +227,9 @@ int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
   char      aname[TMPNAME_LEN];
 
+  if (pDisk == NULL) {
+    return -1;
+  }
   snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   if (taosMkDir(aname) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -283,6 +286,14 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
   return 0;
 }
 
+bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId) {
+  STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
+  char      aname[TMPNAME_LEN];
+
+  snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
+  return taosDirExist(aname);
+}
+
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   if (rname[0] == 0) {
     return 0;
@@ -307,9 +318,9 @@ int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
 
-  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+  for (int32_t level = pTfs->nlevel - 1; level >= 0; level--) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
-    for (int32_t id = 0; id < pTier->ndisk; id++) {
+    for (int32_t id = pTier->ndisk - 1; id >= 0; id--) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
       snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);

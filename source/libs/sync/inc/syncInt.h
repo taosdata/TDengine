@@ -54,13 +54,13 @@ typedef struct SSyncLogReplMgr        SSyncLogReplMgr;
 #define MAX_CONFIG_INDEX_COUNT 256
 
 typedef struct SRaftCfg {
-  SSyncCfg  cfg;
-  int32_t   batchSize;
-  int8_t    isStandBy;
-  int8_t    snapshotStrategy;
-  SyncIndex lastConfigIndex;
-  int32_t   configIndexCount;
-  SyncIndex configIndexArr[MAX_CONFIG_INDEX_COUNT];
+  SSyncCfg          cfg;
+  int32_t           batchSize;
+  int8_t            isStandBy;
+  int8_t            snapshotStrategy;
+  SyncIndex         lastConfigIndex;
+  int32_t           configIndexCount;
+  SyncIndex         configIndexArr[MAX_CONFIG_INDEX_COUNT];
 } SRaftCfg;
 
 typedef struct SRaftId {
@@ -127,12 +127,13 @@ typedef struct SSyncNode {
   SRaftId   myRaftId;
 
   int32_t   peersNum;
-  SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA];
-  SEpSet    peersEpset[TSDB_MAX_REPLICA];
-  SRaftId   peersId[TSDB_MAX_REPLICA];
+  SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SEpSet    peersEpset[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SRaftId   peersId[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   int32_t replicaNum;
-  SRaftId replicasId[TSDB_MAX_REPLICA];
+  int32_t totalReplicaNum;
+  SRaftId replicasId[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   // raft algorithm
   SSyncFSM* pFsm;
@@ -188,7 +189,7 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerCounter;
 
   // peer heartbeat timer
-  SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA];
+  SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   // tools
   SSyncRespMgr* pSyncRespMgr;
@@ -196,13 +197,13 @@ typedef struct SSyncNode {
   // restore state
   bool restoreFinish;
   // SSnapshot*             pSnapshot;
-  SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
+  SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
 
   // log replication mgr
-  SSyncLogReplMgr* logReplMgrs[TSDB_MAX_REPLICA];
+  SSyncLogReplMgr* logReplMgrs[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
-  SPeerState peerStates[TSDB_MAX_REPLICA];
+  SPeerState peerStates[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   // is config changing
   bool changing;
@@ -275,6 +276,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
 void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
+void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode);

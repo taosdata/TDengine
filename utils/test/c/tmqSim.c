@@ -542,7 +542,8 @@ static void shellDumpFieldToFile(TdFilePtr pFile, const char* val, TAOS_FIELD* f
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON: {
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t bufIndex = 0;
       for (int32_t i = 0; i < length; i++) {
         buf[bufIndex] = val[i];

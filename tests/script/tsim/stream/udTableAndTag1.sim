@@ -20,8 +20,8 @@ sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-#sql_error create stream streams1 trigger at_once IGNORE EXPIRED 0 into result.streamt SUBTABLE("aaa") as select  _wstart, count(*) c1 from st interval(10s);
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0 into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) )  ) as select  _wstart, count(*) c1 from st partition by a interval(10s);
+#sql_error create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into result.streamt SUBTABLE("aaa") as select  _wstart, count(*) c1 from st interval(10s);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into result.streamt SUBTABLE( concat("aaa-", cast(a as varchar(10) ) )  ) as select  _wstart, count(*) c1 from st partition by a interval(10s);
 print ===== insert into 1
 sql insert into t1 values(1648791213000,1,2,3);
 sql insert into t2 values(1648791213000,2,2,3);
@@ -29,7 +29,7 @@ sql insert into t2 values(1648791213000,2,2,3);
 $loop_count = 0
 loop0:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -58,7 +58,7 @@ endi
 $loop_count = 0
 loop1:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -87,7 +87,7 @@ sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0 into result2.streamt2 TAGS(cc varchar(100)) as select  _wstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as cc interval(10s);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into result2.streamt2 TAGS(cc varchar(100)) as select  _wstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as cc interval(10s);
 print ===== insert into 2
 sql insert into t1 values(1648791213000,1,2,3);
 sql insert into t2 values(1648791213000,2,2,3);
@@ -96,7 +96,7 @@ sql insert into t2 values(1648791213000,2,2,3);
 $loop_count = 0
 loop2:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -142,7 +142,7 @@ endi
 $loop_count = 0
 loop3:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -171,7 +171,7 @@ sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0 into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  cast(a as varchar(10) ) ) ) as select  _wstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into result3.streamt3 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-",  cast(a as varchar(10) ) ) ) as select  _wstart, count(*) c1 from st partition by concat("col-", cast(a as varchar(10) ) ) as dd, a interval(10s);
 print ===== insert into 3
 sql insert into t1 values(1648791213000,1,2,3);
 sql insert into t2 values(1648791213000,2,2,3);
@@ -180,7 +180,7 @@ sql insert into t2 values(1648791213000,2,2,3);
 $loop_count = 0
 loop4:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -226,7 +226,7 @@ endi
 $loop_count = 0
 loop5:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -244,7 +244,7 @@ endi
 $loop_count = 0
 loop6:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -283,14 +283,14 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(3,3,3);
 
-sql create stream streams4 trigger at_once IGNORE EXPIRED 0 into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", dd)) as select  _wstart, count(*) c1 from st partition by concat("t", cast(a as varchar(10) ) ) as dd interval(10s);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into result4.streamt4 TAGS(dd varchar(100)) SUBTABLE(concat("tbn-", dd)) as select  _wstart, count(*) c1 from st partition by concat("t", cast(a as varchar(10) ) ) as dd interval(10s);
 sql insert into t1 values(1648791213000,1,1,1) t2 values(1648791213000,2,2,2) t3 values(1648791213000,3,3,3);
 
 
 $loop_count = 0
 loop7:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -323,7 +323,7 @@ endi
 $loop_count = 0
 loop8:
 
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

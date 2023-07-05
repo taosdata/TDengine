@@ -16,8 +16,21 @@
 #include "tq.h"
 #include "vnd.h"
 
-int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
+  if (taosHashGetSize(pTq->pPushMgr) <= 0) {
+    return 0;
+  }
+  SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME_PUSH};
+  msg.pCont = rpcMallocCont(sizeof(SMsgHead));
+  msg.contLen = sizeof(SMsgHead);
+  SMsgHead *pHead = msg.pCont;
+  pHead->vgId = TD_VID(pTq->pVnode);
+  pHead->contLen = msg.contLen;
+  tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+  return 0;
+}
 
+int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType == TDMT_VND_SUBMIT) {
     tqProcessSubmitReqForSubscribe(pTq);
   }
@@ -34,12 +47,8 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
       return 0;
     }
 
-    if (msgType == TDMT_VND_SUBMIT) {
+    if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE) {
       tqStartStreamTasks(pTq);
-    }
-
-    if (msgType == TDMT_VND_DELETE) {
-      tqProcessDelReq(pTq, POINTER_SHIFT(msg, sizeof(SMsgHead)), msgLen - sizeof(SMsgHead), ver);
     }
   }
 
@@ -55,7 +64,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
   } else {
-    tqPushDataRsp(pTq, pHandle);
+    tqPushDataRsp(pHandle, vgId);
     void* tmp = pHandle->msg->pCont;
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = tmp;
@@ -73,11 +82,14 @@ int32_t tqUnregisterPushHandle(STQ* pTq, void *handle) {
   STqHandle *pHandle = (STqHandle*)handle;
   int32_t    vgId = TD_VID(pTq->pVnode);
 
+  if(taosHashGetSize(pTq->pPushMgr) <= 0) {
+    return 0;
+  }
   int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
-  tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
+  tqDebug("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
 
   if(pHandle->msg != NULL) {
-    tqPushDataRsp(pTq, pHandle);
+    tqPushDataRsp(pHandle, vgId);
 
     rpcFreeCont(pHandle->msg->pCont);
     taosMemoryFree(pHandle->msg);
