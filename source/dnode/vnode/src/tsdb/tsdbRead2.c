@@ -472,8 +472,6 @@ static void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t 
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
 
     pInfo->iterInit = false;
-//    pInfo->skylineBuilt = false;
-
     pInfo->iter.hasVal = false;
     pInfo->iiter.hasVal = false;
 
