@@ -360,7 +360,7 @@ static int32_t tsdbSnapCmprTombData(STsdbSnapReader* reader, uint8_t** data) {
   hdr->size = size;
 
   uint8_t* tdata = hdr->data;
-  for (int32_t i = 0; i < TARRAY_SIZE(reader->tombBlock->dataArr); i++) {
+  for (int32_t i = 0; i < ARRAY_SIZE(reader->tombBlock->dataArr); i++) {
     memcpy(tdata, TARRAY2_DATA(reader->tombBlock->dataArr + i), TARRAY2_DATA_LEN(reader->tombBlock->dataArr + i));
     tdata += TARRAY2_DATA_LEN(reader->tombBlock->dataArr + i);
   }
