@@ -577,6 +577,20 @@ class TMQCom:
         tdLog.info(tsql.queryResult)
         tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
+    def killProcesser(self, processerName):
+        killCmd = (
+            "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+            % processerName
+        )
+
+        psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
+        processID = subprocess.check_output(psCmd, shell=True)
+
+        while processID:
+            os.system(killCmd)
+            time.sleep(1)
+            processID = subprocess.check_output(psCmd, shell=True)
+
     def close(self):
         self.cursor.close()
 
