@@ -30,11 +30,11 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
 
-  if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->fillHistory) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->conf.igExpired) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->conf.trigger) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->conf.fillHistory) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->conf.triggerParam) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->conf.watermark) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pObj->sourceDbUid) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->targetDbUid) < 0) return -1;
@@ -97,11 +97,11 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
 
-  if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->fillHistory) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->conf.igExpired) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->conf.trigger) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->conf.fillHistory) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->conf.triggerParam) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->conf.watermark) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pObj->sourceDbUid) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->targetDbUid) < 0) return -1;
@@ -154,18 +154,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   return 0;
 }
 
-void tFreeStreamObj(SStreamObj *pStream) {
-  taosMemoryFree(pStream->sql);
-  taosMemoryFree(pStream->ast);
-  taosMemoryFree(pStream->physicalPlan);
-
-  if (pStream->outputSchema.nCols) {
-    taosMemoryFree(pStream->outputSchema.pSchema);
-  }
-
-  int32_t sz = taosArrayGetSize(pStream->tasks);
-  for (int32_t i = 0; i < sz; i++) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+static void* freeStreamTasks(SArray* pTaskLevel) {
+  int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
+  for (int32_t i = 0; i < numOfLevel; i++) {
+    SArray *pLevel = taosArrayGetP(pTaskLevel, i);
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
@@ -175,7 +167,20 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosArrayDestroy(pLevel);
   }
 
-  taosArrayDestroy(pStream->tasks);
+  return taosArrayDestroy(pTaskLevel);
+}
+
+void tFreeStreamObj(SStreamObj *pStream) {
+  taosMemoryFree(pStream->sql);
+  taosMemoryFree(pStream->ast);
+  taosMemoryFree(pStream->physicalPlan);
+
+  if (pStream->outputSchema.nCols || pStream->outputSchema.pSchema) {
+    taosMemoryFree(pStream->outputSchema.pSchema);
+  }
+
+  pStream->tasks = freeStreamTasks(pStream->tasks);
+  pStream->pHTasksList = freeStreamTasks(pStream->pHTasksList);
 
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {

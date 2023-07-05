@@ -144,6 +144,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
   snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
   snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+  int32_t prefixLen = strlen(tsdbFilePrefix);
 
   STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
   if (tsdbDir == NULL) return 0;
@@ -157,11 +158,11 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
+    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + prefixLen);
     if (tsdbFileVgId == srcVgId) {
-      char *tsdbFileSurfixPos = tsdbFilePrefixPos + 6 + vnodeVgroupIdLen(srcVgId);
+      char *tsdbFileSurfixPos = tsdbFilePrefixPos + prefixLen + vnodeVgroupIdLen(srcVgId);
 
-      tsdbFilePrefixPos[6] = 0;
+      tsdbFilePrefixPos[prefixLen] = 0;
       snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
       vInfo("vgId:%d, rename file from %s to %s", dstVgId, tsdbFile->rname, newRname);
 

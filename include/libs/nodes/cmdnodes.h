@@ -362,7 +362,7 @@ typedef struct SCreateTopicStmt {
   char      subDbName[TSDB_DB_NAME_LEN];
   char      subSTbName[TSDB_TABLE_NAME_LEN];
   bool      ignoreExists;
-  bool      withMeta;
+  int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
 } SCreateTopicStmt;
