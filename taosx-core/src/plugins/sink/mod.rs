@@ -294,16 +294,10 @@ async fn consume_lush_record(
                 // RawBlock
                 // taos.write_raw_block()
                 // dbg!(&map_data);
-                let start = Instant::now();
                 let sql = record.generate_insert_sql_from_tablename(&data, columns);
-                let duration = start.elapsed();
-                log::info!("generate sql time cost: {:?}", duration);
                 if let Some(sql) = sql {
-                    // log::info!("gene sql: {sql}");
-                    let start = Instant::now();
+                    log::debug!("insert sql: {sql}");
                     let res = taos.exec(sql).await;
-                    let duration = start.elapsed();
-                    log::info!("exec sql time cost: {:?}", duration);
                     let mut count = 0;
                     match res {
                         Ok(num) => {
