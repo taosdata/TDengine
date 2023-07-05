@@ -114,7 +114,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     }
 
     SMetaReader mr = {0};
-    metaReaderInit(&mr, pHandle->execHandle.pTqReader->pVnodeMeta, 0);
+    metaReaderDoInit(&mr, pHandle->execHandle.pTqReader->pVnodeMeta, 0);
 
     if (metaGetTableEntryByName(&mr, req.tbName) < 0) {
       metaReaderClear(&mr);
@@ -1109,7 +1109,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
       if (code != 0) {
         tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);

@@ -1063,7 +1063,7 @@ static STupleHandle* tsortPQSortNextTuple(SSortHandle* pHandle) {
       if (!pData) {
         colDataSetNULL(bdGetColumnInfoData(pHandle->pDataBlock, i), 0);
       } else {
-        colDataAppend(bdGetColumnInfoData(pHandle->pDataBlock, i), 0, pData, false);
+        colDataSetVal(bdGetColumnInfoData(pHandle->pDataBlock, i), 0, pData, false);
       }
     }
     pHandle->pDataBlock->info.rows++;

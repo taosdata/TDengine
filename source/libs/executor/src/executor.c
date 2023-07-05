@@ -92,6 +92,7 @@ static int32_t doSetStreamOpOpen(SOperatorInfo* pOperator, char* id) {
       qError("join not supported for stream block scan, %s" PRIx64, id);
       return TSDB_CODE_APP_ERROR;
     }
+
     pOperator->status = OP_NOT_OPENED;
     return doSetStreamOpOpen(pOperator->pDownstream[0], id);
   }
@@ -115,6 +116,16 @@ void resetTaskInfo(qTaskInfo_t tinfo) {
   clearStreamBlock(pTaskInfo->pRoot);
 }
 
+void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+  if (pTaskInfo == NULL) {
+    return;
+  }
+
+  qDebug("%s set fill history start key:%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN);
+  pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
+}
+
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -130,10 +141,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     return doSetStreamBlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
   } else {
     pOperator->status = OP_NOT_OPENED;
-
     SStreamScanInfo* pInfo = pOperator->info;
 
-    qDebug("s-task:%s in this batch, all %d blocks need to be processed and dump results", id, (int32_t)numOfBlocks);
+    qDebug("s-task:%s in this batch, %d blocks need to be processed", id, (int32_t)numOfBlocks);
     ASSERT(pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
@@ -265,6 +275,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
+
     pTaskInfo->pRoot = createRawScanOperatorInfo(pReaderHandle, pTaskInfo);
     if (NULL == pTaskInfo->pRoot) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -314,8 +325,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
     return NULL;
   }
 
-  struct SSubplan* pPlan = NULL;
-  int32_t          code = qStringToSubplan(msg, &pPlan);
+  SSubplan* pPlan = NULL;
+  int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
@@ -869,19 +880,41 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver) {
+int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  pTaskInfo->streamInfo.fillHistoryVer1 = ver;
-  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE1;
+
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+
+  pStreamInfo->fillHistoryVer = *pVerRange;
+  pStreamInfo->fillHistoryWindow = *pWindow;
+  pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE1;
+  pStreamInfo->recoverStep1Finished = false;
+  pStreamInfo->recoverStep2Finished = false;
+
+  qDebug("%s step 1. set param for stream scanner for scan history data, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
+         " - %" PRId64,
+         GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
+         pWindow->ekey);
   return 0;
 }
 
-int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver) {
+int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  pTaskInfo->streamInfo.fillHistoryVer2 = ver;
-  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE2;
+
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+
+  pStreamInfo->fillHistoryVer = *pVerRange;
+  pStreamInfo->fillHistoryWindow = *pWindow;
+  pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE2;
+  pStreamInfo->recoverStep1Finished = true;
+  pStreamInfo->recoverStep2Finished = false;
+
+  qDebug("%s step 2. set param for stream scanner for scan history data, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
+         " - %" PRId64,
+         GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
+         pWindow->ekey);
   return 0;
 }
 
@@ -892,55 +925,58 @@ int32_t qStreamRecoverFinish(qTaskInfo_t tinfo) {
   return 0;
 }
 
-int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
+int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
 
   while (1) {
-    if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL ||
-        pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
-        pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
+    int32_t type = pOperator->operatorType;
+    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
+        type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
       SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
-             pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
+      STimeWindowAggSupp* pSup = &pInfo->twAggSup;
 
-      qInfo("save stream param for interval: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
+      ASSERT(pSup->calTrigger == STREAM_TRIGGER_AT_ONCE || pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      ASSERT(pSup->calTriggerSaved == 0 && pSup->deleteMarkSaved == 0);
 
-      pInfo->twAggSup.calTriggerSaved = pInfo->twAggSup.calTrigger;
-      pInfo->twAggSup.deleteMarkSaved = pInfo->twAggSup.deleteMark;
-      pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pInfo->twAggSup.deleteMark = INT64_MAX;
+      qInfo("save stream param for interval: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
+
+      pSup->calTriggerSaved = pSup->calTrigger;
+      pSup->deleteMarkSaved = pSup->deleteMark;
+      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      pSup->deleteMark = INT64_MAX;
       pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
       pInfo->ignoreExpiredData = false;
-    } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-               pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-               pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
+    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
+               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
+               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
       SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
-             pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      STimeWindowAggSupp* pSup = &pInfo->twAggSup;
 
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
-      qInfo("save stream param for session: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
+      ASSERT(pSup->calTrigger == STREAM_TRIGGER_AT_ONCE || pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      ASSERT(pSup->calTriggerSaved == 0 && pSup->deleteMarkSaved == 0);
 
-      pInfo->twAggSup.calTriggerSaved = pInfo->twAggSup.calTrigger;
-      pInfo->twAggSup.deleteMarkSaved = pInfo->twAggSup.deleteMark;
-      pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pInfo->twAggSup.deleteMark = INT64_MAX;
+      qInfo("save stream param for session: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
+
+      pSup->calTriggerSaved = pSup->calTrigger;
+      pSup->deleteMarkSaved = pSup->deleteMark;
+      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      pSup->deleteMark = INT64_MAX;
       pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
       pInfo->ignoreExpiredData = false;
-    } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
+    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-      ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
-             pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
+      STimeWindowAggSupp* pSup = &pInfo->twAggSup;
 
-      qInfo("save stream param for state: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
+      ASSERT(pSup->calTrigger == STREAM_TRIGGER_AT_ONCE || pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      ASSERT(pSup->calTriggerSaved == 0 && pSup->deleteMarkSaved == 0);
 
-      pInfo->twAggSup.calTriggerSaved = pInfo->twAggSup.calTrigger;
-      pInfo->twAggSup.deleteMarkSaved = pInfo->twAggSup.deleteMark;
-      pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pInfo->twAggSup.deleteMark = INT64_MAX;
+      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
+
+      pSup->calTriggerSaved = pSup->calTrigger;
+      pSup->deleteMarkSaved = pSup->deleteMark;
+      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      pSup->deleteMark = INT64_MAX;
       pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
       pInfo->ignoreExpiredData = false;
     }
@@ -961,7 +997,7 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
   return 0;
 }
 
-int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
+int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
 
@@ -1007,6 +1043,26 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
 bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
+}
+
+bool qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.recoverStep1Finished;
+}
+
+bool qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.recoverStep2Finished;
+}
+
+int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  pTaskInfo->streamInfo.recoverStep1Finished = true;
+  pTaskInfo->streamInfo.recoverStep2Finished = true;
+
+  // reset the time window
+  pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
+  return 0;
 }
 
 void* qExtractReaderFromStreamScanner(void* scanner) {
@@ -1323,4 +1379,16 @@ SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   extractTableList(pArray, pOperator);
   return pArray;
+}
+
+int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tInfo;
+  pTaskInfo->pRoot->fpSet.releaseStreamStateFn(pTaskInfo->pRoot);
+  return 0;
+}
+
+int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tInfo;
+  pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
+  return 0;
 }
