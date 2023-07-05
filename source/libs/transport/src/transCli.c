@@ -984,11 +984,10 @@ void cliSendBatch(SCliConn* pConn) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  SCliBatch*     pBatch = pConn->pBatch;
-  SCliBatchList* pList = pBatch->pList;
-  pList->connCnt += 1;
+  SCliBatch* pBatch = pConn->pBatch;
+  int32_t    wLen = pBatch->wLen;
 
-  int32_t wLen = pBatch->wLen;
+  pBatch->pList->connCnt += 1;
 
   uv_buf_t* wb = taosMemoryCalloc(wLen, sizeof(uv_buf_t));
   int       i = 0;
@@ -1018,6 +1017,8 @@ void cliSendBatch(SCliConn* pConn) {
       memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
       pHead->traceId = pMsg->info.traceId;
       pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+      pHead->version = TRANS_VER;
+      pHead->compatibilityVer = htonl(pTransInst->compatibilityVer);
     }
     pHead->timestamp = taosHton64(taosGetTimestampUs());
 
@@ -1074,6 +1075,8 @@ void cliSend(SCliConn* pConn) {
     memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
     pHead->traceId = pMsg->info.traceId;
     pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+    pHead->version = TRANS_VER;
+    pHead->compatibilityVer = htonl(pTransInst->compatibilityVer);
   }
   pHead->timestamp = taosHton64(taosGetTimestampUs());
 
