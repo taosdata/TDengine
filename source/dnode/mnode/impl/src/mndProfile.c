@@ -819,6 +819,9 @@ static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBloc
     colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
