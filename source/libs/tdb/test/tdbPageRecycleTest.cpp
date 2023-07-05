@@ -766,3 +766,70 @@ TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_nocommit) {
 
   system("ls -l ./tdb");
 }
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_delete_interior_ofp_nocommit) {
+TEST(TdbPageRecycleTest, recycly_delete_interior_ofp_nocommit) {
+  clearDb("tdb");
+
+  // open Env
+  int       ret = 0;
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = NULL;  // tKeyCmpr;
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  char key[1024] = {0};
+  int  count = sizeof(key) / sizeof(key[0]);
+  for (int i = 0; i < count - 1; ++i) {
+    key[i] = 'a';
+  }
+
+  // insert n ofp keys to form 2-layer btree
+  {
+    for (int i = 0; i < 7; ++i) {
+      // sprintf(&key[count - 2], "%c", i);
+      key[count - 2] = '0' + i;
+
+      ret = tdbTbInsert(pDb, key, count, NULL, NULL, txn);
+      GTEST_ASSERT_EQ(ret, 0);
+    }
+  }
+  /*
+  // delete one interior key
+  {
+    sprintf(&key[count - 2], "%c", 2);
+    key[count - 2] = '0' + 2;
+
+    ret = tdbTbDelete(pDb, key, strlen(key) + 1, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+  */
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  system("ls -l ./tdb");
+}

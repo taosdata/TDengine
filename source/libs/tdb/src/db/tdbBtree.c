@@ -608,7 +608,30 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     for (int i = 0; i < nOlds; i++) {
       nCells = TDB_PAGE_TOTAL_CELLS(pParent);
       if (sIdx < nCells) {
+        bool destroyOfps = false;
+        if (!childNotLeaf) {
+          if (!pParent->pPager->ofps) {
+            pParent->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+            destroyOfps = true;
+          }
+        }
+
         tdbPageDropCell(pParent, sIdx, pTxn, pBt);
+
+        if (!childNotLeaf) {
+          SArray *ofps = pParent->pPager->ofps;
+          if (ofps) {
+            for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+              SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+              tdbPagerInsertFreePage(pParent->pPager, ofp, pTxn);
+            }
+
+            if (destroyOfps) {
+              taosArrayDestroy(ofps);
+              pParent->pPager->ofps = NULL;
+            }
+          }
+        }
       } else {
         ((SIntHdr *)pParent->pData)->pgno = 0;
       }
@@ -1372,6 +1395,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       // load left key & val to ovpages
       while (pgno != 0) {
         tdbTrace("tdb decode-ofp, pTxn: %p, pgno:%u by cell:%p", pTxn, pgno, pCell);
+        // printf("tdb decode-ofp, pTxn: %p, pgno:%u by cell:%p\n", pTxn, pgno, pCell);
         ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
         if (ret < 0) {
           return -1;
@@ -2122,9 +2146,26 @@ int tdbBtcDelete(SBTC *pBtc) {
     return -1;
   }
 
-  pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+  bool destroyOfps = false;
+  if (!pBtc->pPage->pPager->ofps) {
+    pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+    destroyOfps = true;
+  }
 
   tdbPageDropCell(pBtc->pPage, idx, pBtc->pTxn, pBtc->pBt);
+
+  SArray *ofps = pBtc->pPage->pPager->ofps;
+  if (ofps) {
+    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
+    }
+
+    if (destroyOfps) {
+      taosArrayDestroy(ofps);
+      pBtc->pPage->pPager->ofps = NULL;
+    }
+  }
 
   // update interior page or do balance
   if (idx == nCells - 1) {
@@ -2177,17 +2218,6 @@ int tdbBtcDelete(SBTC *pBtc) {
         return -1;
       }
     }
-  }
-
-  SArray *ofps = pBtc->pPage->pPager->ofps;
-  if (ofps) {
-    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
-      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
-    }
-
-    taosArrayDestroy(ofps);
-    pBtc->pPage->pPager->ofps = NULL;
   }
 
   return 0;
@@ -2250,7 +2280,13 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
     tdbError("tdb/btc-upsert: page insert/update cell failed with ret: %d.", ret);
     return -1;
   }
-
+  /*
+  bool destroyOfps = false;
+  if (!pBtc->pPage->pPager->ofps) {
+    pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+    destroyOfps = true;
+  }
+  */
   // check balance
   if (pBtc->pPage->nOverflow > 0) {
     ret = tdbBtreeBalance(pBtc);
@@ -2259,7 +2295,20 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
       return -1;
     }
   }
+  /*
+  SArray *ofps = pBtc->pPage->pPager->ofps;
+  if (ofps) {
+    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
+    }
 
+    if (destroyOfps) {
+      taosArrayDestroy(ofps);
+      pBtc->pPage->pPager->ofps = NULL;
+    }
+  }
+  */
   return 0;
 }
 
