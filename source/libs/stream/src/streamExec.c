@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInc.h"
+#include "streamInt.h"
 
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_EXEC_BATCH_NUM 32
@@ -358,7 +358,8 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
-  // here we need to wait for the stream task handle all data in the input queue.
+  // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
+  // for the step 2. For a agg task
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__HALT);
   } else {
@@ -369,21 +370,18 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   // wait for the stream task to be idle
   waitForTaskIdle(pTask, pStreamTask);
 
+  // In case of sink tasks, no need to be halted for them.
+  // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
+  // start the task state transfer procedure.
+  // When a task is idle with halt status, all data in inputQ are consumed.
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // update the scan data range for source task.
     qDebug("s-task:%s level:%d stream task window %" PRId64 " - %" PRId64 " update to %" PRId64 " - %" PRId64
            ", status:%s, sched-status:%d",
            pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
            pTimeWindow->ekey, streamGetTaskStatusStr(TASK_STATUS__NORMAL), pStreamTask->status.schedStatus);
-
-    // todo transfer state
   } else {
-    // for sink tasks, they are continue to execute, no need to be halt.
-    // the process should be stopped for a while, during the term of transfer task state.
-    // OR wait for the inputQ && outputQ of agg tasks are all consumed, and then start the state transfer
-    qDebug("s-task:%s no need to update time window, for non-source task", pStreamTask->id.idStr);
-
-    // todo transfer state
+    qDebug("s-task:%s no need to update time window for non-source task", pStreamTask->id.idStr);
   }
 
   // expand the query time window for stream scanner

@@ -18,7 +18,7 @@
 #include "osMemory.h"
 #include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
-#include "streamInc.h"
+#include "streamInt.h"
 #include "tcoding.h"
 #include "tcommon.h"
 #include "tcompare.h"
