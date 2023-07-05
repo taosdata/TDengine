@@ -20,6 +20,7 @@ import com.taosdata.threads.*;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
+import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +65,9 @@ public class PreLoading implements CommandLineRunner {
     private InfluxdbPoolAutoConfig influxdbPool;
 
     @Resource
+    private InfluxdbV1PoolAutoConfig influxdbV1Pool;
+
+    @Resource
     private InfluxdbService influxdbService;
 
     @Resource
@@ -87,19 +91,37 @@ public class PreLoading implements CommandLineRunner {
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
                 System.exit(0);
-            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 3) {
-                // 获取连接参数
-                String url = args[1];
-                String token = args[2];
-                // 查询并输出查询结果
-                System.out.println(influxdbService.fetchSchemaInfo(url, token));
-                System.exit(0);
+            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 2) {
+                // 获取并判断版本
+                if (args[1].matches("1.*") && args.length >= 5) {
+                    // 获取连接参数
+                    String url = args[2];
+                    String username = args[3];
+                    String password = args[4];
+                    // 查询并输出查询结果
+                    System.out.println(influxdbService.fetchSchemaInfoV1(url, username, password));
+                    System.exit(0);
+                } else if (args[1].matches("2.*") && args.length >= 4) {
+                    // 获取连接参数
+                    String url = args[2];
+                    String token = args[3];
+                    // 查询并输出查询结果
+                    System.out.println(influxdbService.fetchSchemaInfo(url, token));
+                    System.exit(0);
+                } else {
+                    logger.info("查询参数错误，查询失败");
+                    System.exit(1);
+                }
             } else {
                 // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
                 loadToml(args[0].trim());
             }
             // 创建influxdb连接池
-            this.influxdbPool.createInluxdbClientPool();
+            if (StringUtils.isEmpty(this.influxdbConfig.getVersion()) || this.influxdbConfig.getVersion().matches("2.*")) {
+                this.influxdbPool.createInluxdbClientPool();
+            } else {
+                this.influxdbV1Pool.createInluxdbV1ClientPool();
+            }
             // 启动线程MonitorThread
             MonitorThread monitor = new MonitorThread();
             Thread monitorThread = new Thread(monitor);
