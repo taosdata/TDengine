@@ -4,11 +4,12 @@ use actix_web::{
     get,
     http::header::ContentType,
     post,
-    web::{Data, Json, Query},
+    web::{self, Data, Json, Query},
     HttpResponse, Responder,
 };
 use serde::{Deserialize, Serialize};
 
+use taos::Code;
 use taosx_core::{list_datasets_from, DataSetsReq};
 use utoipa::*;
 
@@ -133,6 +134,39 @@ pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
         })
 }
 
+/// Get data source definition by name(id).
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "Data source definition of some", body = DataSourceDefinition),
+    ),
+    params(
+        LangQuery,
+    ),
+)]
+#[get("/ds/in/{name}")]
+pub(super) async fn data_sources_in_one(
+    name: web::Path<String>,
+    lang: Query<LangQuery>,
+) -> impl Responder {
+    let name = name.as_str();
+    match if lang.is_cn() {
+        super::controller::DATA_SOURCE_DEFINITIONS_CN.get(name)
+    } else {
+        super::controller::DATA_SOURCE_DEFINITIONS.get(name)
+    } {
+        Some(ds) => HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .json(ds),
+        None => HttpResponse::NotFound()
+            .content_type(ContentType::json())
+            .json(Failed {
+                code: Code::new(-1),
+                message: "Data source not found".into(),
+            }),
+    }
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSets {
     id: String,
@@ -171,8 +205,12 @@ pub(super) async fn data_source_collection(
             dbg!(&err.root_cause());
             HttpResponse::InternalServerError().json(Failed {
                 code: 0xFFFF.into(),
-                message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+                message: format!(
+                    "err: {}, cause: {}",
+                    err.to_string(),
+                    err.root_cause().to_string()
+                ),
             })
-        },
+        }
     }
 }

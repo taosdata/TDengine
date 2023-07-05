@@ -2,20 +2,20 @@
 id: pibackfill
 name: PIBACKFILL
 description: |
-  The PI System is a suite of software products that are used  
-  for data collection, historicizing, finding, analyzing,  
-  delivering, and visualizing. It is marketed as an enterprise  
-  infrastructure for management of real-time data and  
-  events.  
-  The term PI System is often used to refer to the PI Server 
-  but the two are not the same. The PI  System refers to all  
-  OSIsoft software products whereas the PI Server is the  
-  core product of the PI System. Data can be automatically  
-  collected from many sources (control systems, lab  
-  equipment, calculations, manual entry or custom  
+  The PI System is a suite of software products that are used
+  for data collection, historicizing, finding, analyzing,
+  delivering, and visualizing. It is marketed as an enterprise
+  infrastructure for management of real-time data and
+  events.
+  The term PI System is often used to refer to the PI Server
+  but the two are not the same. The PI  System refers to all
+  OSIsoft software products whereas the PI Server is the
+  core product of the PI System. Data can be automatically
+  collected from many sources (control systems, lab
+  equipment, calculations, manual entry or custom
   software).
 
-  taosX could pull history data from PI System by a PIBACKFILL  
+  taosX could pull history data from PI System by a PIBACKFILL
   connector plugin.
 type: uri
 options:
@@ -41,20 +41,6 @@ groups:
       PI System name, leave it empty to use the same hostname with **Server**.
     hint:
       type: str
-  - name: PIDataPipesInstances
-    display: PI Data Pipes Instances
-    hint:
-      type: integer
-    description: |
-      Default 1.
-    placeholder: 1
-  - name: AFDataPipesInstances
-    display: AF Data Pipes Instances
-    hint:
-      type: integer
-    description: |
-      Default 1.
-    placeholder: 1
 
 - name: Backfill
   display_order: 3
@@ -77,7 +63,7 @@ groups:
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start  
+      The start time for backfilling data. If not provided, the start
       time will be the earliest time available.
     placeholder: "YYYY-MM-DD HH:mm:ss"
   - name: BackfillEndTime
@@ -85,7 +71,7 @@ groups:
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start  
+      The start time for backfilling data. If not provided, the start
       time will be the earliest time available.
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
