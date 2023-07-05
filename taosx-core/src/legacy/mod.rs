@@ -1194,9 +1194,6 @@ async fn sync_specified_tables_with_workers(
             Ok(_) => {}
             Err(err) => {
                 log::error!("Syncing error: {err:?}",);
-                if err.to_string().contains("0xE00") {
-                    Err(err)?;
-                }
                 fails += 1;
             }
         }
@@ -1797,6 +1794,7 @@ pub async fn legacy_to_taos(
 
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
+    tracing::debug!("Validating enterprise license...");
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !from_builder.is_enterprise_edition().await? && !to_builder.is_enterprise_edition().await? {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
@@ -1804,10 +1802,14 @@ pub async fn legacy_to_taos(
 
     let target_opts = TargetOpts::from_params(&mut to)?;
     let connect_timeout = Duration::from_secs(10);
-    let from_pool = TaosBuilder::from_dsn(&from)?.pool()?;
-    let from = from_pool.get().await?;
+    tracing::debug!("Building source connection pool...");
+    let from_pool = from_builder
+        .pool()
+        .context("Source connection pool error")?;
+    tracing::debug!("Getting connection from source connection pool...");
+    let source_taos = from_pool.get().await.context("Source connection error")?;
 
-    let source_taos = from_pool.get().await?;
+    // let source_taos = from_pool.get().await.context("Target connection error")?;
     if target_opts.assert {
         // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
         if let Some(db) = target_db {
@@ -1872,18 +1874,30 @@ pub async fn legacy_to_taos(
         to.subject = target_db;
     }
 
+    tracing::debug!("Building target connection pool...");
     let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    let to = to_pool.get().await?;
+    tracing::debug!("Getting connection from target connection pool...");
+    let target_taos = to_pool.get().await?;
 
-    let precision_of_from = from.query("select 1").await?.precision();
-    let precision_of_to = to.query("select 1").await?.precision();
+    tracing::debug!("Checking precisions...");
+    let precision_of_from = source_taos
+        .query("select 1")
+        .await
+        .context("Get precision from source error")?
+        .precision();
+    let precision_of_to = target_taos
+        .query("select 1")
+        .await
+        .context("Get precision from target error")?
+        .precision();
     if precision_of_from != precision_of_to {
         anyhow::bail!("from and to databases have different precision");
     }
+    tracing::debug!("Use precision: {}", precision_of_from);
 
-    let v1: String = from.server_version().await?.to_string();
+    let v1: String = source_taos.server_version().await?.to_string();
     let source_is_v3 = !v1.starts_with("2");
-    let v2: String = to.server_version().await?.to_string();
+    let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
     metrics.workers.store(concurrent as _, Ordering::SeqCst);
@@ -2008,8 +2022,8 @@ pub async fn legacy_to_taos(
             realtime(
                 &scheduler,
                 Utc::now(),
-                &from,
-                &to,
+                &source_taos,
+                &target_taos,
                 &source_opts.table,
                 source_is_v3,
                 target_is_v3,
@@ -2064,8 +2078,8 @@ pub async fn legacy_to_taos(
             realtime(
                 &scheduler,
                 Utc::now(),
-                &from,
-                &to,
+                &source_taos,
+                &target_taos,
                 &source_opts.table,
                 source_is_v3,
                 target_is_v3,
