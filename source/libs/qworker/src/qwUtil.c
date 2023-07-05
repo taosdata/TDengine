@@ -401,7 +401,28 @@ _return:
   QW_RET(code);
 }
 
+int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
+  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, tId, eId);
+  SQWTaskCtx octx;
+
+  SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
+  if (NULL == ctx) {
+    QW_TASK_DLOG_E("task ctx not exist, may be dropped");
+    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
+  }
+
+  if (!qIsDynamicExecTask(ctx->taskHandle)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  qwHandleTaskComplete(QW_FPARAMS_DEF, ctx);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwDropTask(QW_FPARAMS_DEF) {
+  QW_ERR_RET(qwHandleDynamicTaskEnd(QW_FPARAMS()));
   QW_ERR_RET(qwDropTaskStatus(QW_FPARAMS()));
   QW_ERR_RET(qwDropTaskCtx(QW_FPARAMS()));
 

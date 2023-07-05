@@ -96,7 +96,7 @@ int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
 
 SSDataBlock* optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
   pOperator->pOperatorParam = getOperatorParam(pOperator->operatorType, pParam, 0);
-  int32_t code = setOperatorParams(pOperator, pOperator->pOperatorParam ? pOperator->pOperatorParam->pChild : NULL);
+  int32_t code = setOperatorParams(pOperator, pOperator->pOperatorParam ? pOperator->pOperatorParam->pChild : pParam);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
@@ -292,7 +292,6 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     SOperatorInfo* pOperator = NULL;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-
       // NOTE: this is an patch to fix the physical plan
       // TODO remove it later
       if (pTableScanNode->scan.node.pLimit != NULL) {
@@ -300,21 +299,25 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       }
 
       STableListInfo* pTableListInfo = tableListCreate();
-      int32_t         code =
-          createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
-                                  pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+
+      int32_t code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
       if (code) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
         return NULL;
       }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return NULL;
+      if (pTableScanNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+      } else {
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
+                                    pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
+          return NULL;
+        }
       }
 
       pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo);
@@ -657,6 +660,12 @@ FORCE_INLINE SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOper
   }
   
   return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+}
+
+void destroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
 }
 
 

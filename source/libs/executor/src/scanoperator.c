@@ -784,10 +784,22 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   return NULL;
 }
 
+static int32_t createTableListInfoFromParam(STableScanInfo* pInfo, STableScanOperatorParam* pParam) {
+
+}
+
 static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+
+  if (pOperator->pOperatorParam) {
+    int32_t code = createTableListInfoFromParam(pInfo, (STableScanOperatorParam*)pOperator->pOperatorParam);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+  }
 
   // scan table one by one sequentially
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {

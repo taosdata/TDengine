@@ -132,6 +132,8 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
  */
 int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
 
+bool   qIsDynamicExecTask(qTaskInfo_t tinfo);
+
 /**
  * Create the exec task object according to task json
  * @param readHandle

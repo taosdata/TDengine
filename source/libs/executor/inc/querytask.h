@@ -94,6 +94,9 @@ struct SExecTaskInfo {
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo
   SStorageAPI           storageAPI;
+  int8_t                dynamicTask;
+  SOperatorParam*       pOpParam;
+  bool                  paramSet;
 };
 
 void           buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

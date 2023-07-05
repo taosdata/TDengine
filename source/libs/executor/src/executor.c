@@ -512,6 +512,16 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
   return 0;
 }
 
+bool qIsDynamicExecTask(qTaskInfo_t tinfo) {
+  return ((SExecTaskInfo*)tinfo)->dynamicTask;
+}
+
+void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+  destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
+  ((SExecTaskInfo*)tinfo)->pOpParam = pParam;
+  ((SExecTaskInfo*)tinfo)->paramSet = false;
+}
+
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
@@ -602,8 +612,15 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   int64_t st = taosGetTimestampUs();
 
+  if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
+    pTaskInfo->paramSet = true;
+    pRes = pTaskInfo->pRoot->fpSet.getNextExtFn(pTaskInfo->pRoot, pTaskInfo->pOpParam);
+  } else {
+    pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+  }
+  
   int32_t blockIndex = 0;
-  while ((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
+  while (pRes != NULL) {
     SSDataBlock* p = NULL;
     if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
       SSDataBlock* p1 = createOneDataBlock(pRes, true);
@@ -623,6 +640,8 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     if (current >= 4096) {
       break;
     }
+
+    pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   }
 
   *hasMore = (pRes != NULL);

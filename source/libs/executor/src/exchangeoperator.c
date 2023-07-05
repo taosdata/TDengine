@@ -40,7 +40,8 @@ typedef struct SSourceDataInfo {
   int32_t            code;
   EX_SOURCE_STATUS   status;
   const char*        taskId;
-  SArray*            pUidList;
+  SArray*            pSrcUidList;
+  int32_t            srcOpType;
 } SSourceDataInfo;
 
 static void  destroyExchangeOperatorInfo(void* param);
@@ -416,6 +417,37 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType) {
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  if (NULL == *ppRes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*ppRes)->pOpParams = taosArrayInit(1, sizeof(SOperatorSpecParam));
+  if (NULL == *ppRes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+  if (NULL == pScan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pScan->pChild = NULL;
+  pScan->pUidList = taosArrayDup(pUidList, NULL);
+  if (NULL == pScan->pUidList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  SOperatorSpecParam specParam;
+  specParam.opType = srcOpType;
+  specParam.value = pScan;
+
+  taosArrayPush((*ppRes)->pOpParams, &specParam);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
   if (EX_SOURCE_DATA_NOT_READY != pDataInfo->status) {
@@ -445,10 +477,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
-    if (pDataInfo->pUidList) {
-      req.opParam = buildTableScanOperatorParam(pDataInfo->pUidList);
+    if (pDataInfo->pSrcUidList) {
+      int32_t code = buildTableScanOperatorParam(&req.opParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        taosMemoryFree(pWrapper);
+        return pTaskInfo->code;
+      }
     }
-
+    
     int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
     if (msgSize < 0) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -726,7 +763,8 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   dataInfo.status = EX_SOURCE_DATA_NOT_READY;
   dataInfo.taskId = GET_TASKID(pOperator->pTaskInfo);
   dataInfo.index = *pIdx;
-  dataInfo.pUidList = taosArrayDup(pParam->uidList, NULL);
+  dataInfo.pSrcUidList = taosArrayDup(pParam->uidList, NULL);
+  dataInfo.srcOpType = pParam->srcOpType;
   taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
 }
 

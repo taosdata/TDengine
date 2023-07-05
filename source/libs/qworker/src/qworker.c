@@ -203,15 +203,24 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     }
 
     if (numOfResBlock == 0 || (hasMore == false)) {
-      if (numOfResBlock == 0) {
-        QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
+      if (!qIsDynamicExecTask(taskHandle)) {
+        if (numOfResBlock == 0) {
+          QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
+        } else {
+          QW_TASK_DLOG("qExecTask done, useconds:%" PRIu64, useconds);
+        }
+
+        QW_ERR_JRET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
       } else {
-        QW_TASK_DLOG("qExecTask done, useconds:%" PRIu64, useconds);
+        if (numOfResBlock == 0) {
+          QW_TASK_DLOG("dyn task qExecTask end with empty res, useconds:%" PRIu64, useconds);
+        } else {
+          QW_TASK_DLOG("dyn task qExecTask done, useconds:%" PRIu64, useconds);
+        }
       }
 
       dsEndPut(sinkHandle, useconds);
-      QW_ERR_JRET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
-
+      
       if (queryStop) {
         *queryStop = true;
       }
@@ -729,8 +738,11 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
   qwSaveTbVersionInfo(pTaskInfo, ctx);
-  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
 
+  if (!qIsDynamicExecTask(pTaskInfo)) {
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+  }
+  
 _return:
 
   taosMemoryFree(sql);
@@ -848,6 +860,10 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   ctx->fetchMsgType = qwMsg->msgType;
   ctx->dataConnInfo = qwMsg->connInfo;
+
+  if (qwMsg->msg) {
+    qUpdateOperatorParam(ctx->taskHandle);
+  }
 
   SOutputData sOutput = {0};
   QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));

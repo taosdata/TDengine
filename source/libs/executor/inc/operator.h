@@ -27,19 +27,6 @@ typedef struct SOperatorCostInfo {
 
 struct SOperatorInfo;
 
-typedef struct SOperatorSpecParam {
-  int32_t         opType;
-  void*           value;
-} SOperatorSpecParam;
-
-typedef struct SOperatorBaseParam {
-  SOperatorParam* pChild;
-} SOperatorBaseParam;
-
-typedef struct SOperatorParam {
-  SArray*             pOpParams; //SArray<SOperatorSpecParam>
-} SOperatorParam;
-
 typedef int32_t (*__optr_encode_fn_t)(struct SOperatorInfo* pOperator, char** result, int32_t* length);
 typedef int32_t (*__optr_decode_fn_t)(struct SOperatorInfo* pOperator, char* result);
 

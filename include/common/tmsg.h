@@ -1842,13 +1842,32 @@ typedef struct {
   int32_t tversion;
 } SResReadyRsp;
 
+typedef struct SOperatorSpecParam {
+  int32_t         opType;
+  void*           value;
+} SOperatorSpecParam;
+
+typedef struct SOperatorBaseParam {
+  SOperatorParam* pChild;
+} SOperatorBaseParam;
+
+typedef struct SOperatorParam {
+  SArray*             pOpParams; //SArray<SOperatorSpecParam>
+} SOperatorParam;
+
+typedef struct STableScanOperatorParam {
+  SOperatorParam*     pChild;
+  SArray*             pUidList;
+} STableScanOperatorParam;
+
+
 typedef struct {
-  SMsgHead header;
-  uint64_t sId;
-  uint64_t queryId;
-  uint64_t taskId;
-  int32_t  execId;
-  void*    opParam;
+  SMsgHead        header;
+  uint64_t        sId;
+  uint64_t        queryId;
+  uint64_t        taskId;
+  int32_t         execId;
+  SOperatorParam* pOpParam;
 } SResFetchReq;
 
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);

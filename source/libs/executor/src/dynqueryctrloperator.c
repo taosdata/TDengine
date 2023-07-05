@@ -49,6 +49,7 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pGc->pChild = pChild;
   pGc->sessionId = atomic_add_fetch_64(&gSessionId, 1);
   pGc->downstreamIdx = downstreamIdx;
   pGc->needCache = needCache;
