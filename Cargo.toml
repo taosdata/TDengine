@@ -15,9 +15,12 @@ tonic = "0.9"
 taos = { version = "0.8.15", default-features = false, features = ["ws", "deadpool"] }
 taos-query = { version = "0.8.15", default-features = false, features = ["deadpool"] }
 
+[workspace.package]
+version = "1.0.1"
+
 [package]
 name = "taosx"
-version = "1.0.0"
+version.workspace = true
 build = "build.rs"
 edition = "2021"
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
