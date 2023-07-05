@@ -147,7 +147,8 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SGcOperato
 
 static void getFromSessionCache(struct SOperatorInfo* pOperator, SGroupCacheOperatorInfo* pGCache, SGcOperatorParam* pParam, SSDataBlock** ppRes, SGcSessionCtx** ppSession) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (pParam->basic.newExec) {
+  SGcSessionCtx* pCtx = tSimpleHashGet(pGCache->pSessionHash, &pParam->sessionId, sizeof(pParam->sessionId));
+  if (NULL == pCtx) {
     int32_t code = initGroupCacheSession(pOperator, pParam, ppSession);
     if (TSDB_CODE_SUCCESS != code) {
       pTaskInfo->code = code;
@@ -160,13 +161,7 @@ static void getFromSessionCache(struct SOperatorInfo* pOperator, SGroupCacheOper
     }
     return;
   }
-  
-  SGcSessionCtx* pCtx = tSimpleHashGet(pGCache->pSessionHash, &pParam->sessionId, sizeof(pParam->sessionId));
-  if (NULL == pCtx) {
-    qError("session %" PRIx64 " not exists", pParam->sessionId);
-    pTaskInfo->code = TSDB_CODE_INVALID_PARA;
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-  }
+
   *ppSession = pCtx;
   
   if (pCtx->cacheHit) {
@@ -198,16 +193,13 @@ static void addBlkToGroupCache(struct SOperatorInfo* pOperator, SSDataBlock* pBl
   *ppRes = pBlock;
 }
 
-static SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator, SOperatorParam* param) {
+SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator) {
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SGcOperatorParam* pParam = (SGcOperatorParam*)pOperator->pOperatorParam;
   SGcSessionCtx* pSession = NULL;
   SSDataBlock* pRes = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  SGcOperatorParam* pParam = getOperatorParam(pOperator->operatorType, param);
-  if (NULL == pParam) {
-    return NULL;
-  }
   
   getFromSessionCache(pOperator, pGCache, pParam, &pRes, &pSession);
   pGCache->pCurrent = pSession;
@@ -274,7 +266,7 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
     goto _error;
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, NULL, NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL, getFromGroupCache, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getFromGroupCache, NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   return pOperator;
 

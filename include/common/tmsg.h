@@ -1848,6 +1848,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int32_t  execId;
+  void*    opParam;
 } SResFetchReq;
 
 int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);

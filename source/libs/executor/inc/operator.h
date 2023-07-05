@@ -27,19 +27,17 @@ typedef struct SOperatorCostInfo {
 
 struct SOperatorInfo;
 
-typedef struct SOperatorBasicParam {
-  bool newExec;
-} SOperatorBasicParam;
-
 typedef struct SOperatorSpecParam {
-  int32_t opType;
-  void*   value;
+  int32_t         opType;
+  void*           value;
 } SOperatorSpecParam;
 
+typedef struct SOperatorBaseParam {
+  SOperatorParam* pChild;
+} SOperatorBaseParam;
+
 typedef struct SOperatorParam {
-  SOperatorBasicParam basic;
-  int32_t             opNum;
-  SOperatorSpecParam* pOpParams;
+  SArray*             pOpParams; //SArray<SOperatorSpecParam>
 } SOperatorParam;
 
 typedef int32_t (*__optr_encode_fn_t)(struct SOperatorInfo* pOperator, char** result, int32_t* length);
@@ -84,6 +82,8 @@ typedef struct SOperatorInfo {
   SExecTaskInfo*         pTaskInfo;
   SOperatorCostInfo      cost;
   SResultInfo            resultInfo;
+  SOperatorBaseParam*    pOperatorParam;
+  SOperatorParam**       pDownstreamParams;
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   SOperatorFpSet         fpSet;
@@ -174,6 +174,7 @@ void           setOperatorCompleted(SOperatorInfo* pOperator);
 void           setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status,
                                void* pInfo, SExecTaskInfo* pTaskInfo);
 int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
+SSDataBlock*   optrDefaultGetExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 
 SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname);
@@ -183,7 +184,7 @@ SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, con
 int32_t        getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder);
 int32_t        stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SStorageAPI* pAPI);
 int32_t        getOperatorExplainExecInfo(struct SOperatorInfo* operatorInfo, SArray* pExecInfoList);
-void *         getOperatorParam(int32_t opType, SOperatorParam* param);
+void *         getOperatorParam(int32_t opType, SOperatorParam* param, int32_t idx);
 
 #ifdef __cplusplus
 }

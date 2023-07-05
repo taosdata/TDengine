@@ -188,6 +188,9 @@ static void setHJoinBuildAndProbeTable(SHJoinOperatorInfo* pInfo, SHashJoinPhysi
   
   pInfo->pBuild = &pInfo->tbs[buildIdx];
   pInfo->pProbe = &pInfo->tbs[probeIdx];
+  
+  pInfo->pBuild->downStreamIdx = buildIdx;
+  pInfo->pProbe->downStreamIdx = probeIdx;
 }
 
 static int32_t buildHJoinResColMap(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNode* pJoinNode) {
@@ -630,12 +633,13 @@ static int32_t addBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* pJoin
   return code;
 }
 
-static int32_t buildHJoinKeyHash(SHJoinOperatorInfo* pJoin) {
+static int32_t buildHJoinKeyHash(struct SOperatorInfo* pOperator) {
+  SHJoinOperatorInfo* pJoin = pOperator->info;
   SSDataBlock* pBlock = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   
   while (true) {
-    pBlock = pJoin->pBuild->downStream->fpSet.getNextFn(pJoin->pBuild->downStream);
+    pBlock = getNextBlockFromDownstream(pOperator, pJoin->pBuild->downStreamIdx)
     if (NULL == pBlock) {
       break;
     }
@@ -690,7 +694,7 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
   }
   
   if (NULL == pJoin->pKeyHash) {
-    code = buildHJoinKeyHash(pJoin);
+    code = buildHJoinKeyHash(pOperator);
     if (code) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
@@ -714,7 +718,7 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
   }
 
   while (true) {
-    SSDataBlock* pBlock = pJoin->pProbe->downStream->fpSet.getNextFn(pJoin->pProbe->downStream);
+    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, pJoin->pProbe->downStreamIdx);
     if (NULL == pBlock) {
       setHJoinDone(pOperator);
       break;
@@ -815,7 +819,7 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
     goto _error;
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doHashJoin, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, NULL, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doHashJoin, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   return pOperator;
 

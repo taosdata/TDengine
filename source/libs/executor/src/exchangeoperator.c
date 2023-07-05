@@ -40,6 +40,7 @@ typedef struct SSourceDataInfo {
   int32_t            code;
   EX_SOURCE_STATUS   status;
   const char*        taskId;
+  SArray*            pUidList;
 } SSourceDataInfo;
 
 static void  destroyExchangeOperatorInfo(void* param);
@@ -244,6 +245,10 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (pInfo->dynamicOp) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
@@ -272,9 +277,17 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (pExNode->node.dynamicOp) {
+    pInfo->pHashSources = tSimpleHashInit(numOfSources * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (NULL == pInfo->pHashSources) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   for (int32_t i = 0; i < numOfSources; ++i) {
     SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
     taosArrayPush(pInfo->pSources, pNode);
+    tSimpleHashPut(pInfo->pHashSources, &pNode->addr.nodeId, sizeof(pNode->addr.nodeId), &i, sizeof(i));
   }
 
   initLimitInfo(pExNode->node.pLimit, pExNode->node.pSlimit, &pInfo->limitInfo);
@@ -290,6 +303,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
     goto _error;
   }
 
+  pInfo->dynamicOp = pExNode->node.dynamicOp;
   int32_t code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -316,7 +330,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   }
 
   pOperator->fpSet =
-      createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, optrDefaultBufFn, NULL, NULL, NULL);
+      createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   return pOperator;
 
 _error:
@@ -403,13 +417,15 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
-  size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
-
-  SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
   SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
-  pDataInfo->startTime = taosGetTimestampUs();
+  if (EX_SOURCE_DATA_NOT_READY != pDataInfo->status) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-  ASSERT(pDataInfo->status == EX_SOURCE_DATA_NOT_READY);
+  pDataInfo->status = EX_SOURCE_DATA_STARTED;
+  SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
+  pDataInfo->startTime = taosGetTimestampUs();
+  size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
   pWrapper->exchangeId = pExchangeInfo->self;
@@ -429,6 +445,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
+    if (pDataInfo->pUidList) {
+      req.opParam = buildTableScanOperatorParam(pDataInfo->pUidList);
+    }
 
     int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
     if (msgSize < 0) {
@@ -560,7 +579,7 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSources);
+  size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
   int64_t startTs = taosGetTimestampUs();
 
   // Asynchronously send all fetch requests to all sources.
@@ -693,14 +712,41 @@ _error:
   return code;
 }
 
+int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperator->pOperatorParam;
+  int32_t* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pParam->vgId, sizeof(pParam->vgId));
+  if (NULL == pIdx) {
+    qError("No exchange source for vgId: %d", pParam->vgId);
+    pOperator->pTaskInfo->code = TSDB_CODE_INVALID_PARA;
+    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  }
+
+  SSourceDataInfo dataInfo = {0};
+  dataInfo.status = EX_SOURCE_DATA_NOT_READY;
+  dataInfo.taskId = GET_TASKID(pOperator->pTaskInfo);
+  dataInfo.index = *pIdx;
+  dataInfo.pUidList = taosArrayDup(pParam->uidList, NULL);
+  taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
+}
+
+
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
-  if (OPTR_IS_OPENED(pOperator)) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (pExchangeInfo->dynamicOp) {
+    code = addDynamicExchangeSource(pOperator);
+    if (code) {
+      return code;
+    }
   }
 
   int64_t st = taosGetTimestampUs();
 
-  SExchangeInfo* pExchangeInfo = pOperator->info;
   if (!pExchangeInfo->seqLoadData) {
     int32_t code = prepareConcurrentlyLoad(pOperator);
     if (code != TSDB_CODE_SUCCESS) {

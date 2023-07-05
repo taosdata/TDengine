@@ -64,6 +64,7 @@ typedef struct SGroupData {
 } SGroupData;
 
 typedef struct SHJoinTableInfo {
+  int32_t        downStreamIdx;
   SOperatorInfo* downStream;
   int32_t        blkId;
   SQueryStat     inputStat;

@@ -108,6 +108,7 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
   pExchange->srcStartGroupId = pCxt->groupId;
   pExchange->srcEndGroupId = pCxt->groupId;
   pExchange->node.precision = pChild->precision;
+  pExchange->node.dynamicOp = pChild->dynamicOp;
   pExchange->node.pTargets = nodesCloneList(pChild->pTargets);
   if (NULL == pExchange->node.pTargets) {
     return TSDB_CODE_OUT_OF_MEMORY;

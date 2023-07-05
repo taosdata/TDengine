@@ -19,8 +19,30 @@
 extern "C" {
 #endif
 
+typedef struct SStbJoinPrevJoinCtx {
+  SSDataBlock* pLastBlk;
+  int32_t      lastRow;
+} SStbJoinPrevJoinCtx;
+
+typedef struct SStbJoinPostJoinCtx {
+  bool isStarted;
+} SStbJoinPostJoinCtx;
+
+typedef struct SStbJoinDynCtrlCtx {
+  SStbJoinPrevJoinCtx prev;
+  SStbJoinPostJoinCtx post;
+} SStbJoinDynCtrlCtx;
+
+typedef struct SStbJoinDynCtrlInfo {
+  SStbJoinDynCtrlBasic basic;
+  SStbJoinDynCtrlCtx   ctx;
+} SStbJoinDynCtrlInfo;
+
 typedef struct SDynQueryCtrlOperatorInfo {
-  SStbJoinDynCtrlInfo ctrlInfo;
+  EDynQueryType qType;
+  union {
+    SStbJoinDynCtrlInfo stbJoin;
+  };
 } SDynQueryCtrlOperatorInfo;
 
 #ifdef __cplusplus

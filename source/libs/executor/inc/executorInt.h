@@ -115,8 +115,9 @@ typedef struct SExprSupp {
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
-  EX_SOURCE_DATA_READY = 0x2,
-  EX_SOURCE_DATA_EXHAUSTED = 0x3,
+  EX_SOURCE_DATA_STARTED,
+  EX_SOURCE_DATA_READY,
+  EX_SOURCE_DATA_EXHAUSTED,
 } EX_SOURCE_STATUS;
 
 #define COL_MATCH_FROM_COL_ID  0x1
@@ -138,11 +139,22 @@ typedef struct SLimitInfo {
   int64_t  numOfOutputRows;
 } SLimitInfo;
 
+typedef struct SSortMergeJoinOperatorParam {
+  SOperatorParam* pChild;
+} SSortMergeJoinOperatorParam;
+
+typedef struct SExchangeOperatorParam {
+  SOperatorParam* pChild;
+  int32_t         vgId;
+  SArray*         uidList;
+} SExchangeOperatorParam;
+
 typedef struct SExchangeInfo {
-  SArray* pSources;
-  SArray* pSourceDataInfo;
-  tsem_t  ready;
-  void*   pTransporter;
+  SArray*    pSources;
+  SSHashObj* pHashSources;
+  SArray*    pSourceDataInfo;
+  tsem_t     ready;
+  void*      pTransporter;
 
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
@@ -150,6 +162,7 @@ typedef struct SExchangeInfo {
   SArray*      pRecycledBlocks;  // build a pool for small data block to avoid to repeatly create and then destroy.
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
+  bool         dynamicOp;
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;

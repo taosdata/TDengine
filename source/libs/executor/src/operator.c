@@ -87,6 +87,16 @@ int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   }
 }
 
+SSDataBlock* optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
+  pOperator->pOperatorParam = getOperatorParam(pOperator->operatorType, pParam, 0);
+  int32_t code = setOperatorParams(pOperator, pOperator->pOperatorParam ? pOperator->pOperatorParam->pChild : NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  }
+  return pOperator->fpSet.getNextFn(pOperator);
+}
+
 static int64_t getQuerySupportBufSize(size_t numOfTables) {
   size_t s1 = sizeof(STableQueryInfo);
   //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
@@ -592,16 +602,54 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   return TSDB_CODE_SUCCESS;
 }
 
-void *getOperatorParam(int32_t opType, SOperatorParam* param) {
+void *getOperatorParam(int32_t opType, SOperatorParam* param, int32_t idx) {
   if (NULL == param) {
     return NULL;
   }
-  for (int32_t i = 0; i < param->opNum; ++i) {
-    if (opType == param->pOpParams[i].opType) {
-      memcpy(&param->pOpParams[i], param, sizeof(param->basic));
-      return &param->pOpParams[i];
-    }
+  int32_t opNum = taosArrayGetSize(param->pOpParams);
+  if (idx >= opNum) {
+    return NULL;
+  }
+  SOperatorSpecParam *pSpecParam = taosArrayGet(param->pOpParams, idx);
+  if (opType == pSpecParam->opType) {
+    return pSpecParam->value;
   }
   return NULL;
 }
+
+int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    taosMemoryFreeClear(pOperator->pDownstreamParams);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (NULL == pOperator->pDownstreamParams) {
+    pOperator->pDownstreamParams = taosMemoryCalloc(pOperator->numOfDownstream, POINTER_BYTES);
+    if (NULL == pOperator->pDownstreamParams) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  
+  SOperatorBaseParam* pBaseParam = NULL;
+
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    pBaseParam = getOperatorParam(pOperator->operatorType, pParam, i);
+    if (pBaseParam) {
+      pOperator->pDownstreamParams[i] = pBaseParam->pChild;
+    } else {
+      pOperator->pDownstreamParams[i] = pParam;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+FORCE_INLINE SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
+  if (pOperator->pDownstreamParams && pOperator->pDownstreamParams[idx]) {
+    return pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamParams[idx]);
+  }
+  
+  return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+}
+
 

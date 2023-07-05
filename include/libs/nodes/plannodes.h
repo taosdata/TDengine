@@ -444,16 +444,16 @@ typedef struct SGroupCachePhysiNode {
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 
-typedef struct SStbJoinDynCtrlInfo {
+typedef struct SStbJoinDynCtrlBasic {
   int32_t  vgSlot[2];
   int32_t  uidSlot[2];
-} SStbJoinDynCtrlInfo;
+} SStbJoinDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
   union {
-    SStbJoinDynCtrlInfo stbJoin;
+    SStbJoinDynCtrlBasic stbJoin;
   };
 } SDynQueryCtrlPhysiNode;
 

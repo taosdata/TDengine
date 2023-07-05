@@ -22,7 +22,7 @@ extern "C" {
 #define GROUP_CACHE_DEFAULT_PAGE_SIZE 10485760
 
 typedef struct SGcOperatorParam {
-  SOperatorBasicParam basic;
+  SOperatorParam*     pChild;
   int64_t             sessionId;
   int32_t             downstreamIdx;
   bool                needCache;

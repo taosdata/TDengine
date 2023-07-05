@@ -271,7 +271,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->rightBuildTable = tSimpleHashInit(256,  hashFn);
   }
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL, NULL, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -416,7 +416,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
   mergeJoinGetBlockRowsEqualTs(dataBlock, tsSlotId, startPos, timestamp, &endPos, rowLocations, createdBlocks);
   while (endPos == dataBlock->info.rows) {
     SOperatorInfo* ds = pOperator->pDownstream[whichChild];
-    dataBlock = ds->fpSet.getNextFn(ds);
+    dataBlock = getNextBlockFromDownstream(pOperator, whichChild);
     if (whichChild == 0) {
       pJoinInfo->leftPos = 0;
       pJoinInfo->pLeft = dataBlock;
@@ -616,8 +616,7 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   SMJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
-    SOperatorInfo* ds1 = pOperator->pDownstream[0];
-    pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1);
+    pJoinInfo->pLeft = getNextBlockFromDownstream(pOperator, 0);
 
     pJoinInfo->leftPos = 0;
     if (pJoinInfo->pLeft == NULL) {
@@ -627,8 +626,7 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   }
 
   if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
-    SOperatorInfo* ds2 = pOperator->pDownstream[1];
-    pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2);
+    pJoinInfo->pRight = getNextBlockFromDownstream(pOperator, 1);
 
     pJoinInfo->rightPos = 0;
     if (pJoinInfo->pRight == NULL) {
@@ -715,3 +713,6 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   }
   return (pRes->info.rows > 0) ? pRes : NULL;
 }
+
+
+
