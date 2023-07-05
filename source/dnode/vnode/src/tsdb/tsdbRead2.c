@@ -104,7 +104,6 @@ typedef struct SIOCostSummary {
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
-  SArray*        pColAgg;   // todo remove it
   TColumnDataAggArray colAggArray;
   SColumnDataAgg tsColAgg;
   int16_t*       colId;
@@ -816,12 +815,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   // allocate buffer in order to load data blocks from file
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
-  pSup->pColAgg = taosArrayInit(pCond->numOfCols, sizeof(SColumnDataAgg));
-  if (pSup->pColAgg == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
-
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
 
@@ -865,7 +858,8 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   }
 
   const TBrinBlkArray* pBlkArray = NULL;
-  int32_t              code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
+
+  int32_t code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
 
 #if 0
   LRUHandle* handle = NULL;
@@ -890,14 +884,12 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   SBrinBlk*      pBrinBlk = NULL;
   STableUidList* pList = &pReader->status.uidList;
 
-  bool newBlk = false;
   int32_t i = 0;
 
   while (i < TARRAY2_SIZE(pBlkArray)) {
     pBrinBlk = &pBlkArray->data[i];
     if (pBrinBlk->maxTbid.suid < pReader->suid) {
       i += 1;
-      newBlk = true;
       continue;
     }
 
@@ -906,14 +898,12 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
     }
 
     ASSERT(pBrinBlk->minTbid.suid <= pReader->suid && pBrinBlk->maxTbid.suid >= pReader->suid);
-
-    if (pBrinBlk->maxTbid.uid < pList->tableUidList[0]) {
+    if (pBrinBlk->maxTbid.suid == pReader->suid && pBrinBlk->maxTbid.uid < pList->tableUidList[0]) {
       i += 1;
-      newBlk = true;
       continue;
     }
 
-    if (pBrinBlk->minTbid.uid > pList->tableUidList[numOfTables - 1]) {
+    if (pBrinBlk->minTbid.suid == pReader->suid && pBrinBlk->minTbid.uid > pList->tableUidList[numOfTables - 1]) {
       break;
     }
 
@@ -2860,12 +2850,7 @@ static int32_t loadTombRecordInfoFromSttFiles(SArray* pLDataIterList, uint64_t s
 }
 
 static int32_t loadTombRecordsFromDataFiles(STsdbReader* pReader, int32_t numOfTables) {
-  if (pReader->status.pCurrentFileset == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STFileObj* pTombFileObj = pReader->status.pCurrentFileset->farr[3];
-  if (pTombFileObj == NULL) {
+  if (pReader->status.pCurrentFileset == NULL || pReader->status.pCurrentFileset->farr[3] == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3418,7 +3403,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
     if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pScanInfo->uid, sizeof(pScanInfo->uid))) {
       // reset the index in last block when handing a new file
-      doCleanupTableScanInfo(pScanInfo);
+//      doCleanupTableScanInfo(pScanInfo);
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
@@ -3428,7 +3413,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
     }
 
     // reset the index in last block when handing a new file
-    doCleanupTableScanInfo(pScanInfo);
+//    doCleanupTableScanInfo(pScanInfo);
 
     bool hasDataInLastFile = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasDataInLastFile) {
@@ -4864,8 +4849,6 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   TARRAY2_DESTROY(&pSupInfo->colAggArray, NULL);
-
-  taosArrayDestroy(pSupInfo->pColAgg);
   for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {
     if (pSupInfo->buildBuf[i] != NULL) {
       taosMemoryFreeClear(pSupInfo->buildBuf[i]);
@@ -5280,16 +5263,15 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
   return code;
 }
 
-static bool doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols, SColumnDataAgg* pTsAgg) {
-  bool hasNullSMA = false;
+static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols, SColumnDataAgg* pTsAgg) {
   // do fill all null column value SMA info
   int32_t i = 0, j = 0;
-  int32_t size = (int32_t)taosArrayGetSize(pSup->pColAgg);
-  taosArrayInsert(pSup->pColAgg, 0, pTsAgg);
+  int32_t size = (int32_t)TARRAY2_SIZE(&pSup->colAggArray);
+  TARRAY2_INSERT_PTR(&pSup->colAggArray, 0, pTsAgg);
   size++;
 
   while (j < numOfCols && i < size) {
-    SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
+    SColumnDataAgg* pAgg = &pSup->colAggArray.data[i];
     if (pAgg->colId == pSup->colId[j]) {
       i += 1;
       j += 1;
@@ -5298,10 +5280,9 @@ static bool doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
     } else if (pSup->colId[j] < pAgg->colId) {
       if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
-        taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
+        TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
         i += 1;
         size++;
-        hasNullSMA = true;
       }
       j += 1;
     }
@@ -5310,14 +5291,11 @@ static bool doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
   while (j < numOfCols) {
     if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
       SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
-      taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
+      TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
       i += 1;
-      hasNullSMA = true;
     }
     j++;
   }
-
-  return hasNullSMA;
 }
 
 int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool *hasNullSMA) {
@@ -5339,7 +5317,8 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   SFileDataBlockInfo* pFBlock = getCurrentBlockInfo(&pReader->status.blockIter);
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
 
-  if (pReader->resBlockInfo.pResBlock->info.id.uid != pFBlock->uid) {
+  SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
+  if (pResBlock->info.id.uid != pFBlock->uid) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5365,29 +5344,19 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
 
   pTsAgg->numOfNull = 0;
   pTsAgg->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  pTsAgg->min = pReader->resBlockInfo.pResBlock->info.window.skey;
-  pTsAgg->max = pReader->resBlockInfo.pResBlock->info.window.ekey;
+  pTsAgg->min = pResBlock->info.window.skey;
+  pTsAgg->max = pResBlock->info.window.ekey;
 
   // update the number of NULL data rows
   size_t numOfCols = pSup->numOfCols;
 
-  // ensure capacity
-  if (pDataBlock->pDataBlock) {
-    size_t colsNum = taosArrayGetSize(pDataBlock->pDataBlock);
-    taosArrayEnsureCap(pSup->pColAgg, colsNum);
-  }
-
-  SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
     pResBlock->pBlockAgg = taosMemoryCalloc(num, POINTER_BYTES);
   }
 
   // do fill all null column value SMA info
-  if (doFillNullColSMA(pSup, pFBlock->record.numRow, numOfCols, pTsAgg)) {
-    *hasNullSMA = true;
-    return TSDB_CODE_SUCCESS;
-  }
+  doFillNullColSMA(pSup, pFBlock->record.numRow, numOfCols, pTsAgg);
 
   size_t size = pSup->colAggArray.size;
 
