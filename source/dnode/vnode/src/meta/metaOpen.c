@@ -186,18 +186,35 @@ _err:
   return -1;
 }
 
-int metaPostOpen(SVnode *pVnode, SMeta **ppMeta) {
+int metaUpgrade(SVnode *pVnode, SMeta **ppMeta) {
+  int    code = TSDB_CODE_SUCCESS;
   SMeta *pMeta = *ppMeta;
-  if (ttlMgrPostOpen(pMeta->pTtlMgr, pMeta) < 0) {
-    metaError("vgId:%d, failed to post open meta ttl since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
+
+  if (ttlMgrNeedUpgrade(pMeta->pEnv)) {
+    code = metaBegin(pMeta, META_BEGIN_HEAP_OS);
+    if (code < 0) {
+      metaError("vgId:%d, failed to upgrade meta, meta begin failed since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
+
+    code = ttlMgrUpgrade(pMeta->pTtlMgr, pMeta);
+    if (code < 0) {
+      metaError("vgId:%d, failed to upgrade meta ttl since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
+
+    code = metaCommit(pMeta, pMeta->txn);
+    if (code < 0) {
+      metaError("vgId:%d, failed to upgrade meta ttl, meta commit failed since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 
 _err:
   metaCleanup(ppMeta);
-  return -1;
+  return code;
 }
 
 int metaClose(SMeta **ppMeta) {
