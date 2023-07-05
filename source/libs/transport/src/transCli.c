@@ -391,6 +391,7 @@ void cliHandleResp(SCliConn* conn) {
   transMsg.info.ahandle = NULL;
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.hasEpSet = pHead->hasEpSet;
+  transMsg.info.cliVer = pHead->compatibilityVer;
 
   SCliMsg*       pMsg = NULL;
   STransConnCtx* pCtx = NULL;

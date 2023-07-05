@@ -77,6 +77,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t svrVer = 0;
   taosVersionStrToInt(version, &svrVer);
   if (0 != taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) {
+    dError("msg ver: %d, curr ver: %d", pRpc->info.cliVer, svrVer);
     goto _OVER;
   }
 

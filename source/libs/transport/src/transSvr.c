@@ -196,6 +196,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
     return false;
   }
+  tDebug("head version: %d 2", pHead->version);
 
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
@@ -411,7 +412,7 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
-  pHead->compatibilityVer = 0;
+  pHead->compatibilityVer = ((STrans*)pConn->pTransInst)->compatibilityVer;
   pHead->version = TRANS_VER;
 
   // handle invalid drop_task resp, TD-20098
