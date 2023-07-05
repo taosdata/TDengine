@@ -2583,6 +2583,8 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     pAssignment->begin = pClientVg->offsetInfo.walVerBegin;
     pAssignment->end = pClientVg->offsetInfo.walVerEnd;
     pAssignment->vgId = pClientVg->vgId;
+    tscInfo("consumer:0x%" PRIx64 " get assignment from local:%d->%" PRId64, tmq->consumerId,
+            pAssignment->vgId, pAssignment->currentOffset);
   }
 
   if (needFetch) {
@@ -2673,34 +2675,36 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       int32_t num = taosArrayGetSize(pCommon->pList);
       for(int32_t i = 0; i < num; ++i) {
         (*assignment)[i] = *(tmq_topic_assignment*)taosArrayGet(pCommon->pList, i);
+        tscInfo("consumer:0x%" PRIx64 " get assignment from server:%d->%" PRId64, tmq->consumerId,
+                (*assignment)[i].vgId, (*assignment)[i].currentOffset);
       }
       *numOfAssignment = num;
     }
 
-    for (int32_t j = 0; j < (*numOfAssignment); ++j) {
-      tmq_topic_assignment* p = &(*assignment)[j];
-
-      for(int32_t i = 0; i < taosArrayGetSize(pTopic->vgs); ++i) {
-        SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
-        if (pClientVg->vgId != p->vgId) {
-          continue;
-        }
-
-        SVgOffsetInfo* pOffsetInfo = &pClientVg->offsetInfo;
-
-        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
-
-        char offsetBuf[TSDB_OFFSET_LEN] = {0};
-        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
-
-        tscInfo("vgId:%d offset is update to:%s", p->vgId, offsetBuf);
-
-        pOffsetInfo->walVerBegin = p->begin;
-        pOffsetInfo->walVerEnd = p->end;
-        pOffsetInfo->currentOffset.version = p->currentOffset;
-        pOffsetInfo->committedOffset.version = p->currentOffset;
-      }
-    }
+//    for (int32_t j = 0; j < (*numOfAssignment); ++j) {
+//      tmq_topic_assignment* p = &(*assignment)[j];
+//
+//      for(int32_t i = 0; i < taosArrayGetSize(pTopic->vgs); ++i) {
+//        SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
+//        if (pClientVg->vgId != p->vgId) {
+//          continue;
+//        }
+//
+//        SVgOffsetInfo* pOffsetInfo = &pClientVg->offsetInfo;
+//
+//        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+//
+//        char offsetBuf[80] = {0};
+//        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
+//
+//        tscDebug("vgId:%d offset is update to:%s", p->vgId, offsetBuf);
+//
+//        pOffsetInfo->walVerBegin = p->begin;
+//        pOffsetInfo->walVerEnd = p->end;
+//        pOffsetInfo->currentOffset.version = p->currentOffset;
+//        pOffsetInfo->committedOffset.version = p->currentOffset;
+//      }
+//    }
 
     destroyCommonInfo(pCommon);
     return code;
