@@ -235,28 +235,28 @@ class TDTestCase:
             if (0 == existFlag):
                 groupIdList.append(groupId)
         
-        # kill taosBenchmark        
-        os.system("pkill -9 taosBenchmark")
+        # # kill taosBenchmark        
+        # os.system("pkill -9 taosBenchmark")
         
-        # wait the status to "lost"
-        while (1):
-            exitFlag = 1
-            tdSql.query('show consumers;')
-            consumerNUm = tdSql.queryRows 
-            for i in range(consumerNUm): 
-                status = tdSql.getData(i,3)
-                if (status != "lost"):
-                    exitFlag = 0
-                    time.sleep(2)
-                    break
-            if (1 == exitFlag):
-                break
+        # # wait the status to "lost"
+        # while (1):
+        #     exitFlag = 1
+        #     tdSql.query('show consumers;')
+        #     consumerNUm = tdSql.queryRows 
+        #     for i in range(consumerNUm): 
+        #         status = tdSql.getData(i,3)
+        #         if (status != "lost"):
+        #             exitFlag = 0
+        #             time.sleep(2)
+        #             break
+        #     if (1 == exitFlag):
+        #         break
         
-        # drop consumer groups
-        for i in range(len(groupIdList)): 
-            for j in range(len(topicNameList)): 
-                sqlCmd = f"drop consumer group `%s` on %s"%(groupIdList[i], topicNameList[j])
-                tdSql.execute(sqlCmd)
+        # # drop consumer groups
+        # for i in range(len(groupIdList)): 
+        #     for j in range(len(topicNameList)): 
+        #         sqlCmd = f"drop consumer group `%s` on %s"%(groupIdList[i], topicNameList[j])
+        #         tdSql.execute(sqlCmd)
                 
         tmqCom.g_end_insert_flag = 1
         tdLog.debug("notify sub-thread to stop insert data")
