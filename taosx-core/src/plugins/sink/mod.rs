@@ -543,7 +543,7 @@ async fn consume_point_record(
                 .to_sql_value();
             insert_sql.push_str(
                 format!(
-                    " USING `{stable_name}` TAGS (\"{id}\", {}) ({columns})",
+                    " USING `{stable_name}` (`point_id`, `point_name`) TAGS (\"{id}\", {}) ({columns})",
                     &point_name
                 )
                 .as_str(),
