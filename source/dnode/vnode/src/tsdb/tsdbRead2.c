@@ -917,14 +917,16 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
       break;
     }
 
-    if (taosArrayGetSize(pIndexList) == 0) {
+//    if (taosArrayGetSize(pIndexList) == 0) {
       taosArrayPush(pIndexList, pBrinBlk);
-    } else {
-      if (newBlk) {
-        taosArrayPush(pIndexList, pBrinBlk);
-      }
-      newBlk = false;
-    }
+//    } else {
+//      if (newBlk) {
+//        taosArrayPush(pIndexList, pBrinBlk);
+//      }
+//      newBlk = false;
+//    }
+
+    i += 1;
   }
 
   int64_t et2 = taosGetTimestampUs();
@@ -942,7 +944,6 @@ _end:
 static void doCleanupTableScanInfo(STableBlockScanInfo* pScanInfo) {
   // reset the index in last block when handing a new file
   taosArrayClear(pScanInfo->pBlockList);
-  taosArrayClear(pScanInfo->delSkyline);      // built delete skyline for each fileset
   taosArrayClear(pScanInfo->pfileDelData);    // del data from each file set
 }
 
@@ -3254,22 +3255,25 @@ int32_t getInitialDelIndex(const SArray* pDelSkyline, int32_t order) {
 int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader) {
   int32_t code = 0;
   int32_t newDelDataInFile = taosArrayGetSize(pBlockScanInfo->pfileDelData);
-  if (newDelDataInFile == 0) {
+  if (newDelDataInFile == 0 &&
+      ((pBlockScanInfo->delSkyline != NULL) || (taosArrayGetSize(pBlockScanInfo->pMemDelData) == 0))) {
     return code;
   }
 
-  int32_t delInFile = taosArrayGetSize(pBlockScanInfo->pfileDelData);
-  if (delInFile > 0) {
-    if (pBlockScanInfo->delSkyline != NULL) {
-      taosArrayClear(pBlockScanInfo->delSkyline);
-    } else {
-      pBlockScanInfo->delSkyline = taosArrayInit(4, sizeof(TSDBKEY));
-    }
+  if (pBlockScanInfo->delSkyline != NULL) {
+    taosArrayClear(pBlockScanInfo->delSkyline);
+  } else {
+    pBlockScanInfo->delSkyline = taosArrayInit(4, sizeof(TSDBKEY));
   }
 
-  taosArrayAddAll(pBlockScanInfo->pfileDelData, pBlockScanInfo->pMemDelData);
-  int32_t total = taosArrayGetSize(pBlockScanInfo->pfileDelData);
-  code = tsdbBuildDeleteSkyline(pBlockScanInfo->pfileDelData, 0, total - 1, pBlockScanInfo->delSkyline);
+  SArray* pSource = pBlockScanInfo->pfileDelData;
+  if (pSource == NULL) {
+    pSource = pBlockScanInfo->pMemDelData;
+  } else {
+    taosArrayAddAll(pSource, pBlockScanInfo->pMemDelData);
+  }
+
+  code = tsdbBuildDeleteSkyline(pSource, 0, taosArrayGetSize(pSource) - 1, pBlockScanInfo->delSkyline);
   
   taosArrayClear(pBlockScanInfo->pfileDelData);
   int32_t index = getInitialDelIndex(pBlockScanInfo->delSkyline, pReader->order);
