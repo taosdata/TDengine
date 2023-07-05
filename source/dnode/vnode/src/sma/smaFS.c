@@ -16,7 +16,7 @@
 #include "sma.h"
 
 // =================================================================================================
-
+#if 0
 // static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **output);
 static int32_t tdQTaskInfCmprFn1(const void *p1, const void *p2);
 
@@ -640,3 +640,4 @@ _exit:
   }
   return code;
 }
+#endif 

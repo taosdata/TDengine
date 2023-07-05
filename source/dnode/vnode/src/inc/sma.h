@@ -223,21 +223,21 @@ int32_t smaPreClose(SSma *pSma);
 
 // rsma
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);
-void    tdRSmaFSClose(SRSmaFS *fs);
-int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew);
-int32_t tdRSmaFSCommit(SSma *pSma);
-int32_t tdRSmaFSFinishCommit(SSma *pSma);
-int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS);
-int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFS);
-int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS);
-void    tdRSmaFSUnRef(SSma *pSma, SRSmaFS *pFS);
-int32_t tdRSmaFSUpsertQTaskFile(SSma *pSma, SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t nSize);
-int32_t tdRSmaFSRollback(SSma *pSma);
+// int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);
+// void    tdRSmaFSClose(SRSmaFS *fs);
+// int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew);
+// int32_t tdRSmaFSCommit(SSma *pSma);
+// int32_t tdRSmaFSFinishCommit(SSma *pSma);
+// int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS);
+// int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFS);
+// int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS);
+// void    tdRSmaFSUnRef(SSma *pSma, SRSmaFS *pFS);
+// int32_t tdRSmaFSUpsertQTaskFile(SSma *pSma, SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t nSize);
+// int32_t tdRSmaFSRollback(SSma *pSma);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
-int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
+// int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback);
 void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName);
 void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path,

@@ -15,8 +15,8 @@
 
 #include "sma.h"
 
-static int32_t rsmaSnapReadQTaskInfo(SRSmaSnapReader* pReader, uint8_t** ppData);
-static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+// static int32_t rsmaSnapReadQTaskInfo(SRSmaSnapReader* pReader, uint8_t** ppData);
+// static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 
 // SRSmaSnapReader ========================================
 struct SRSmaSnapReader {
@@ -63,10 +63,10 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
   }
 
   // open qtaskinfo
-  taosRLockLatch(RSMA_FS_LOCK(pStat));
-  code = tdRSmaFSRef(pSma, &pReader->fs);
-  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // taosRLockLatch(RSMA_FS_LOCK(pStat));
+  // code = tdRSmaFSRef(pSma, &pReader->fs);
+  // taosRUnLockLatch(RSMA_FS_LOCK(pStat));
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   if (taosArrayGetSize(pReader->fs.aQTaskInf) > 0) {
     pReader->pQTaskFReader = taosMemoryCalloc(1, sizeof(SQTaskFReader));
@@ -249,7 +249,7 @@ int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
   int32_t          code = 0;
   SRSmaSnapReader* pReader = *ppReader;
 
-  tdRSmaFSUnRef(pReader->pSma, &pReader->fs);
+  // tdRSmaFSUnRef(pReader->pSma, &pReader->fs);
   taosMemoryFreeClear(pReader->pQTaskFReader);
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
@@ -300,8 +300,8 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWrit
   }
 
   // qtaskinfo
-  code = tdRSmaFSCopy(pSma, &pWriter->fs);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tdRSmaFSCopy(pSma, &pWriter->fs);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   // snapWriter
   *ppWriter = pWriter;
@@ -316,21 +316,21 @@ _exit:
   return code;
 }
 
-int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
-  int32_t code = 0;
-  int32_t lino = 0;
+// int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
+//   int32_t code = 0;
+//   int32_t lino = 0;
 
-  if (pWriter) {
-    code = tdRSmaFSPrepareCommit(pWriter->pSma, &pWriter->fs);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+//   if (pWriter) {
+//     code = tdRSmaFSPrepareCommit(pWriter->pSma, &pWriter->fs);
+//     TSDB_CHECK_CODE(code, lino, _exit);
+//   }
 
-_exit:
-  if (code) {
-    smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pWriter->pSma), __func__, lino, tstrerror(code));
-  }
-  return code;
-}
+// _exit:
+//   if (code) {
+//     smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pWriter->pSma), __func__, lino, tstrerror(code));
+//   }
+//   return code;
+// }
 
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   int32_t          code = 0;
@@ -364,9 +364,10 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
     }
   }
 
+#if 0
   // qtaskinfo
   if (rollback) {
-    tdRSmaFSRollback(pSma);
+    // tdRSmaFSRollback(pSma);
     // remove qTaskFiles
   } else {
     // sendFile from fname.Ver to fname
@@ -418,7 +419,7 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
     // unlock
     taosWUnLockLatch(RSMA_FS_LOCK(pStat));
   }
-
+#endif
   // rsma restore
   code = tdRSmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever, rollback);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -451,7 +452,7 @@ int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
     pHdr->type = SNAP_DATA_TSDB;
     code = tsdbSnapWrite(pWriter->pDataWriter[1], pHdr);
   } else if (pHdr->type == SNAP_DATA_QTASK) {
-    code = rsmaSnapWriteQTaskInfo(pWriter, pData, nData);
+    // code = rsmaSnapWriteQTaskInfo(pWriter, pData, nData);
   } else {
     code = TSDB_CODE_RSMA_FS_SYNC;
   }
@@ -466,7 +467,7 @@ _exit:
   }
   return code;
 }
-
+#if 0
 static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t       code = 0;
   int32_t       lino = 0;
@@ -516,8 +517,8 @@ static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, 
 
   taosCloseFile(&fp);
 
-  code = tdRSmaFSUpsertQTaskFile(pSma, &pWriter->fs, &qTaskFile, 1);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tdRSmaFSUpsertQTaskFile(pSma, &pWriter->fs, &qTaskFile, 1);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -531,3 +532,4 @@ _exit:
 
   return code;
 }
+#endif

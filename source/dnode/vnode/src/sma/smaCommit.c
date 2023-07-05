@@ -108,8 +108,8 @@ int32_t smaFinishCommit(SSma *pSma) {
   int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
 
-  code = tdRSmaFSFinishCommit(pSma);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tdRSmaFSFinishCommit(pSma);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -187,10 +187,10 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   if (!isCommit) goto _exit;
 
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
-  smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+  // smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
 #if 0  // consuming task of qTaskInfo clone 
   // step 4:  swap queue/qall and iQueue/iQall
@@ -246,8 +246,8 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
     goto _exit;
   }
 
-  code = tdRSmaFSCommit(pSma);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tdRSmaFSCommit(pSma);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbCommit(VND_RSMA1(pVnode), pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);

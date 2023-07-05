@@ -1185,9 +1185,9 @@ int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, 
   }
 
   // step 2: open SRSmaFS for qTaskFiles
-  if ((code = tdRSmaFSOpen(pSma, qtaskFileVer, rollback)) < 0) {
-    goto _err;
-  }
+  // if ((code = tdRSmaFSOpen(pSma, qtaskFileVer, rollback)) < 0) {
+  //   goto _err;
+  // }
 
   // step 3: iterate all stables to restore the rsma env
   if ((code = tdRSmaRestoreQTaskInfoInit(pSma, &nTables)) < 0) {
@@ -1205,7 +1205,7 @@ _err:
 
   return code;
 }
-
+#if 0
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -1315,7 +1315,7 @@ _exit:
   terrno = code;
   return code;
 }
-
+#endif
 /**
  * @brief trigger to get rsma result in async mode
  *

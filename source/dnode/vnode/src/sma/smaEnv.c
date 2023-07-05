@@ -288,7 +288,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 5:
-    tdRSmaFSClose(RSMA_FS(pStat));
+    // tdRSmaFSClose(RSMA_FS(pStat));
 
     // step 6: free pStat
     tsem_destroy(&(pStat->notEmpty));
