@@ -1077,7 +1077,7 @@ impl TaskController {
                 })*
             };
         }
-        add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
+        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
@@ -1095,7 +1095,7 @@ impl TaskController {
                 })*
             };
         }
-        bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
+        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         let res = query.execute(&self.pool).await?;
 
@@ -2390,6 +2390,8 @@ impl From<NewTask> for NewTaskV1 {
 #[serde(default)]
 #[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
 pub(super) struct UpdateTask {
+    /// Task name
+    name: Option<String>,
     /// Update trigger,
     trigger: Option<String>,
     /// *Deprecated*.
