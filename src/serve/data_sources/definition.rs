@@ -573,6 +573,25 @@ fn test_mqtt() {
     dbg!(&ds);
 }
 #[test]
+fn test_csv() {
+    use std::str::FromStr;
+    let json = include_str!("en/csv.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "csv:abc.csv?quote=\"";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    // assert_eq!(ds.groups[0].collapsed, Some(true));
+    let options = ds.options.as_ref().unwrap();
+    matches!(options, DataSourceOptions::Path { path: _ });
+    dbg!(&ds);
+}
+#[test]
 fn test_values() {
     use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";

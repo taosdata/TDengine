@@ -1,0 +1,35 @@
+---
+id: csv
+name: CSV
+description: |
+  Import a file or a collection of files in CSV format to TDengine.
+type: path
+options:
+  path:
+    required: true
+    display: Path
+    description: CSV file path or directory
+    placeholder: "Example: a.csv,b.csv"
+strict: true
+groups:
+  - name: CSV Options
+    display_order: 2
+    description: CSV reading options
+    params:
+      - name: quote
+        display: Quote escape char.
+        value: \"
+        hint: str
+      - name: sep
+        display: Separator character.
+        value: \,
+        hint: str
+  - name: Write Options
+    display_order: 2
+    description: Writing options
+    params:
+      - name: batch_size
+        display: Batch Size
+        value: 1000
+        short_description: Batch size.
+        description: Batch size.

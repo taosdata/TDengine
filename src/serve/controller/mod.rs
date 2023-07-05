@@ -1850,6 +1850,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
         def
     };
     pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
@@ -1861,6 +1862,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
         def
     };
     /// This is an example for using doc comment attributes
@@ -1873,6 +1875,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
     pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
@@ -1884,6 +1887,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
