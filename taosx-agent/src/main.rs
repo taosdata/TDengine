@@ -6,8 +6,9 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
 use time::macros::format_description;
+use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::LocalTime},
+    fmt::{format::FmtSpan, time::LocalTime, time::OffsetTime},
     prelude::__tracing_subscriber_SubscriberExt,
     util::SubscriberInitExt,
     Layer as _,
@@ -236,7 +237,9 @@ fn main() -> anyhow::Result<()> {
     //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
     // ));
 
-    let timer = LocalTime::new(format_description!(
+    let timer = OffsetTime::new(
+        UtcOffset::current_local_offset().unwrap(),
+        format_description!(
         "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"
     ));
     let level_filter =
