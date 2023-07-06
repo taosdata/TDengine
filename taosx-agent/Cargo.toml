@@ -36,7 +36,7 @@ tracing = { version = "0.1", features = ["log"] }
 
 taosx-core = { path = "../taosx-core" }
 
-time = { version = "0.3", features = ["formatting", "macros", "local-offset"] }
+time = { version = "0.3", features = ["formatting", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["time", "local-time",] }
 tracing-appender = "0.2"
 
