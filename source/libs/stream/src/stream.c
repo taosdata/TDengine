@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInc.h"
+#include "streamInt.h"
 #include "ttimer.h"
 
 #define STREAM_TASK_INPUT_QUEUE_CAPACITY          20480

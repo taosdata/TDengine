@@ -911,8 +911,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->recoverStep1Finished = true;
   pStreamInfo->recoverStep2Finished = false;
 
-  qDebug("%s step 2. set param for stream scanner for scan history data, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
-         " - %" PRId64,
+  qDebug("%s step 2. set param for stream scanner for scan history data, verRange:%" PRId64 " - %" PRId64
+         ", window:%" PRId64 " - %" PRId64,
          GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
          pWindow->ekey);
   return 0;
@@ -999,31 +999,35 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
 
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  const char*    id = GET_TASKID(pTaskInfo);
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
 
   while (1) {
-    if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL ||
-        pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
-        pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
+    uint16_t type = pOperator->operatorType;
+    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
+        type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
       SStreamIntervalOperatorInfo* pInfo = pOperator->info;
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
       pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
-      qInfo("restore stream param for interval: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
-    } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-               pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-               pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
+      qInfo("%s restore stream agg executors param for interval: %d,  %" PRId64, id, pInfo->twAggSup.calTrigger,
+            pInfo->twAggSup.deleteMark);
+    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
+               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
+               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
       SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
       pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
-      qInfo("restore stream param for session: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
-    } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
+      qInfo("%s restore stream agg executor param for session: %d,  %" PRId64, id, pInfo->twAggSup.calTrigger,
+            pInfo->twAggSup.deleteMark);
+    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
       pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
-      qInfo("restore stream param for state: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
+      qInfo("%s restore stream agg executor param for state: %d,  %" PRId64, id, pInfo->twAggSup.calTrigger,
+            pInfo->twAggSup.deleteMark);
     }
 
     // iterate operator tree
@@ -1037,7 +1041,6 @@ int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
       pOperator = pOperator->pDownstream[0];
     }
   }
-  return 0;
 }
 
 bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
