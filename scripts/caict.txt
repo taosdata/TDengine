@@ -1,2 +1,7 @@
-taostest --setup=10billion_timelines.yaml --case=Caict/performance/10billion_timelines.py --keep
-taostest --setup=100dnodes.yaml --case=Caict/performance/100dnodes.py --keep
+taostest --setup=Caict/10billion_timelines.yaml --case=Caict/performance/10billion_timelines.py --keep
+taostest --setup=Caict/100dnodes.yaml --case=Caict/performance/100dnodes.py --keep
+
+ taostest --setup=Caict/16C32G500W.yaml --case=Caict/performance/16C32G500W.py --keep
+ taostest --setup=Caict/1C4G3W.yaml --case=Caict/performance/1C4G3W.py --keep
+ taostest --setup=Caict/16C32G500W.yaml --case=Caict/performance/comp.py --keep
+
