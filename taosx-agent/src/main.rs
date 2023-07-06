@@ -8,10 +8,10 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
-use time::{macros::format_description, util::local_offset};
+use time::{macros::format_description};
 use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::LocalTime, time::OffsetTime},
+    fmt::{format::FmtSpan, time::OffsetTime},
     prelude::__tracing_subscriber_SubscriberExt,
     util::SubscriberInitExt,
     Layer as _,
