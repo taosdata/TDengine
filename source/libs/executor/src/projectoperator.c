@@ -38,7 +38,7 @@ typedef struct SIndefOperatorInfo {
   SSDataBlock*   pNextGroupRes;
 } SIndefOperatorInfo;
 
-static SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator);
+static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator);
 static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator);
 static SArray*      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols);
@@ -215,7 +215,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   if (newGroup) {
     resetLimitInfoForNextGroup(pLimitInfo);
   }
-  
+
   return PROJECT_RETRIEVE_CONTINUE;
 }
 
@@ -267,7 +267,12 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SLimitInfo*    pLimitInfo = &pProjectInfo->limitInfo;
 
   if (downstream == NULL) {
-    return doGenerateSourceData(pOperator);
+    code = doGenerateSourceData(pOperator);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    return (pRes->info.rows > 0) ? pRes : NULL;
   }
 
   while (1) {
@@ -616,7 +621,7 @@ SArray* setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols) {
   return pList;
 }
 
-SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
+int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
 
   SExprSupp*   pSup = &pOperator->exprSupp;
@@ -673,7 +678,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
         int32_t      code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
-          return NULL;
+          return code;
         }
 
         int32_t startOffset = pRes->info.rows;
@@ -683,6 +688,8 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
 
         taosArrayDestroy(pBlockList);
       }
+    } else {
+      return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
 
@@ -698,7 +705,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
-  return (pRes->info.rows > 0) ? pRes : NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, SArray* pPseudoList) {
