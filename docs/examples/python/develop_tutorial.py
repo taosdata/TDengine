@@ -10,7 +10,10 @@ import os
 url = os.environ["TDENGINE_CLOUD_URL"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
 
-conn = taosrest.connect(url=url, token=token)
+try:
+    conn = taosrest.connect(url=url, token=token)
+except Exception as e:
+    print(str(e))
 # ANCHOR_END: connect
 # ANCHOR: insert
 # create super table
