@@ -412,7 +412,7 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
-  pHead->compatibilityVer = ((STrans*)pConn->pTransInst)->compatibilityVer;
+  pHead->compatibilityVer = htonl(((STrans*)pConn->pTransInst)->compatibilityVer);
   pHead->version = TRANS_VER;
 
   // handle invalid drop_task resp, TD-20098
