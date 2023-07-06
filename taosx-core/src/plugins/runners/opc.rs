@@ -19,7 +19,7 @@ use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
+use crate::{plugins::sink, utils::{port_pool::PortPool, get_string_content_from_file_path}, Action, DataSet, DataSetsReq, Transferred};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -267,8 +267,16 @@ impl OPCConfig {
                 let security_policy = dsn.remove("security_policy").unwrap_or("None".to_string());
                 let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
 
-                let certificate = dsn.remove("certificate");
-                let private_key = dsn.remove("private_key");
+                let certificate = if let Some(cert) = dsn.remove("certificate") {
+                    get_string_content_from_file_path(&cert)
+                } else {
+                    None
+                };
+                let private_key = if let Some(private_key) = dsn.remove("private_key") {
+                    get_string_content_from_file_path(&private_key)
+                } else {
+                    None
+                };
 
                 let username = dsn.username.clone();
                 let password = dsn.password.clone();
