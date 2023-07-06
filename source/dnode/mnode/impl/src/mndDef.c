@@ -30,11 +30,11 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
 
-  if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->fillHistory) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->conf.igExpired) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->conf.trigger) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->conf.fillHistory) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->conf.triggerParam) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->conf.watermark) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pObj->sourceDbUid) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->targetDbUid) < 0) return -1;
@@ -100,11 +100,11 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
 
-  if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->fillHistory) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->conf.igExpired) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->conf.trigger) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->conf.fillHistory) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->conf.triggerParam) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->conf.watermark) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pObj->sourceDbUid) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->targetDbUid) < 0) return -1;
@@ -160,18 +160,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   return 0;
 }
 
-void tFreeStreamObj(SStreamObj *pStream) {
-  taosMemoryFree(pStream->sql);
-  taosMemoryFree(pStream->ast);
-  taosMemoryFree(pStream->physicalPlan);
-
-  if (pStream->outputSchema.nCols) {
-    taosMemoryFree(pStream->outputSchema.pSchema);
-  }
-
-  int32_t sz = taosArrayGetSize(pStream->tasks);
-  for (int32_t i = 0; i < sz; i++) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+static void* freeStreamTasks(SArray* pTaskLevel) {
+  int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
+  for (int32_t i = 0; i < numOfLevel; i++) {
+    SArray *pLevel = taosArrayGetP(pTaskLevel, i);
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
@@ -181,7 +173,20 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosArrayDestroy(pLevel);
   }
 
-  taosArrayDestroy(pStream->tasks);
+  return taosArrayDestroy(pTaskLevel);
+}
+
+void tFreeStreamObj(SStreamObj *pStream) {
+  taosMemoryFree(pStream->sql);
+  taosMemoryFree(pStream->ast);
+  taosMemoryFree(pStream->physicalPlan);
+
+  if (pStream->outputSchema.nCols || pStream->outputSchema.pSchema) {
+    taosMemoryFree(pStream->outputSchema.pSchema);
+  }
+
+  pStream->tasks = freeStreamTasks(pStream->tasks);
+  pStream->pHTasksList = freeStreamTasks(pStream->pHTasksList);
 
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {
@@ -224,7 +229,7 @@ void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   return (void *)buf;
 }
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]) {
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char* cgroup) {
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -255,16 +260,20 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
     return NULL;
   }
 
-  pConsumer->upTime = taosGetTimestampMs();
+  pConsumer->createTime = taosGetTimestampMs();
 
   return pConsumer;
 }
 
-void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer) {
+void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer, bool delete) {
+  if(pConsumer == NULL) return;
   taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
+  if(delete){
+    taosMemoryFree(pConsumer);
+  }
 }
 
 int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
@@ -279,7 +288,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
 
   tlen += taosEncodeFixedI32(buf, pConsumer->pid);
   tlen += taosEncodeSEpSet(buf, &pConsumer->ep);
-  tlen += taosEncodeFixedI64(buf, pConsumer->upTime);
+  tlen += taosEncodeFixedI64(buf, pConsumer->createTime);
   tlen += taosEncodeFixedI64(buf, pConsumer->subscribeTime);
   tlen += taosEncodeFixedI64(buf, pConsumer->rebalanceTime);
 
@@ -349,7 +358,7 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
 
   buf = taosDecodeFixedI32(buf, &pConsumer->pid);
   buf = taosDecodeSEpSet(buf, &pConsumer->ep);
-  buf = taosDecodeFixedI64(buf, &pConsumer->upTime);
+  buf = taosDecodeFixedI64(buf, &pConsumer->createTime);
   buf = taosDecodeFixedI64(buf, &pConsumer->subscribeTime);
   buf = taosDecodeFixedI64(buf, &pConsumer->rebalanceTime);
 

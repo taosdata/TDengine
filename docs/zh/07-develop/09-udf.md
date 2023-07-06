@@ -17,7 +17,7 @@ TDengine 支持通过 C/Python 语言进行 UDF 定义。接下来结合示例�
 - 聚合函数需要实现聚合接口函数 aggfn_start ， aggfn ， aggfn_finish。
 - 如果需要初始化，实现 udf_init；如果需要清理工作，实现udf_destroy。
 
-接口函数的名称是 UDF 名称，或者是 UDF 名称和特定后缀（_start, _finish, _init, _destroy)的连接。列表中的scalarfn，aggfn, udf需要替换成udf函数名。
+接口函数的名称是 UDF 名称，或者是 UDF 名称和特定后缀（`_start`, `_finish`, `_init`, `_destroy`)的连接。列表中的scalarfn，aggfn, udf需要替换成udf函数名。
 
 ### 用 C 语言实现标量函数
 标量函数实现模板如下

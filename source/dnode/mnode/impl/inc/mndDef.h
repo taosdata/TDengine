@@ -137,12 +137,12 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE__TOUCH = 1,  // rebalance req do not need change consume topic
-  CONSUMER_UPDATE__ADD,
-  CONSUMER_UPDATE__REMOVE,
-  CONSUMER_UPDATE__LOST,
-  CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__REBALANCE,  // subscribe req need change consume topic
+  CONSUMER_UPDATE_REB_MODIFY_NOTOPIC = 1,   // topic do not need modified after rebalance
+  CONSUMER_UPDATE_REB_MODIFY_TOPIC,         // topic need modified after rebalance
+  CONSUMER_UPDATE_REB_MODIFY_REMOVE,        // topic need removed after rebalance
+//  CONSUMER_UPDATE_TIMER_LOST,
+  CONSUMER_UPDATE_RECOVER,
+  CONSUMER_UPDATE_SUB_MODIFY,      // modify after subscribe req
 } ECsmUpdateType;
 
 typedef struct {
@@ -549,7 +549,7 @@ typedef struct {
   // data for display
   int32_t pid;
   SEpSet  ep;
-  int64_t upTime;
+  int64_t createTime;
   int64_t subscribeTime;
   int64_t rebalanceTime;
 
@@ -560,7 +560,7 @@ typedef struct {
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
+void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool delete);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
@@ -647,6 +647,14 @@ typedef struct {
 //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
+typedef struct SStreamConf {
+  int8_t  igExpired;
+  int8_t  trigger;
+  int8_t  fillHistory;
+  int64_t triggerParam;
+  int64_t watermark;
+} SStreamConf;
+
 typedef struct {
   char name[TSDB_STREAM_FNAME_LEN];
   // ctl
@@ -660,12 +668,7 @@ typedef struct {
   // info
   int64_t uid;
   int8_t  status;
-  // config
-  int8_t  igExpired;
-  int8_t  trigger;
-  int8_t  fillHistory;
-  int64_t triggerParam;
-  int64_t watermark;
+  SStreamConf conf;
   // source and target
   int64_t sourceDbUid;
   int64_t targetDbUid;
@@ -682,7 +685,11 @@ typedef struct {
   char*          sql;
   char*          ast;
   char*          physicalPlan;
-  SArray*        tasks;  // SArray<SArray<SStreamTask>>
+  SArray*        tasks;        // SArray<SArray<SStreamTask>>
+
+  SArray*        pHTasksList;   // generate the results for already stored ts data
+  int64_t        hTaskUid; // stream task for history ts data
+
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
 

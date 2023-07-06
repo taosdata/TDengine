@@ -20,9 +20,24 @@ The source code for the Python connector is hosted on [GitHub](https://github.co
 - The [supported platforms](/reference/connector/#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
 - REST connections are supported on all platforms that can run Python.
 
+### Supported features
+
+- Native connections support all the core features of TDengine, including connection management, SQL execution, bind interface, subscriptions, and schemaless writing.
+- REST connections support features such as connection management and SQL execution. (SQL execution allows you to: manage databases, tables, and supertables, write data, query data, create continuous queries, etc.).
+
 ## Version selection
 
 We recommend using the latest version of `taospy`, regardless of the version of TDengine.
+
+|Python Connector Version|major changes|
+|:-------------------:|:----:|
+|2.7.9|support for getting assignment and seek function on subscription|
+|2.7.8|add `execute_many` method|
+
+|Python Websocket Connector Version|major changes|
+|:----------------------------:|:-----:|
+|0.2.5|1. support for getting assignment and seek function on subscription <br/> 2. support schemaless <br/> 3. support STMT|
+|0.2.4|support `unsubscribe` on subscription|
 
 ## Handling Exceptions
 
@@ -54,10 +69,23 @@ All exceptions from the Python Connector are thrown directly. Applications shoul
 {{#include docs/examples/python/handle_exception.py}}
 ```
 
-## Supported features
+## TDengine DataType vs. Python DataType
 
-- Native connections support all the core features of TDengine, including connection management, SQL execution, bind interface, subscriptions, and schemaless writing.
-- REST connections support features such as connection management and SQL execution. (SQL execution allows you to: manage databases, tables, and supertables, write data, query data, create continuous queries, etc.).
+TDengine currently supports timestamp, number, character, Boolean type, and the corresponding type conversion with Python is as follows:
+
+|TDengine DataType|Python DataType|
+|:---------------:|:-------------:|
+|TIMESTAMP|datetime|
+|INT|int|
+|BIGINT|int|
+|FLOAT|float|
+|DOUBLE|int|
+|SMALLINT|int|
+|TINYINT|int|
+|BOOL|bool|
+|BINARY|str|
+|NCHAR|str|
+|JSON|str|
 
 ## Installation
 
@@ -534,7 +562,7 @@ Connector support data subscription. For more information about subscroption, pl
 
 The `consumer` in the connector contains the subscription api. 
 
-#### Create Consumer
+##### Create Consumer
 
 The syntax for creating a consumer is `consumer = Consumer(configs)`. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/).
 
@@ -544,7 +572,7 @@ from taos.tmq import Consumer
 consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 ```
 
-#### Subscribe topics
+##### Subscribe topics
 
 The `subscribe` function is used to subscribe to a list of topics.
 
@@ -552,7 +580,7 @@ The `subscribe` function is used to subscribe to a list of topics.
 consumer.subscribe(['topic1', 'topic2'])
 ```
 
-#### Consume
+##### Consume
 
 The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
 
@@ -570,7 +598,7 @@ while True:
         print(block.fetchall())
 ```
 
-#### assignment
+##### assignment
 
 The `assignment` function is used to get the assignment of the topic. 
 
@@ -578,7 +606,7 @@ The `assignment` function is used to get the assignment of the topic.
 assignments = consumer.assignment()
 ```
 
-#### Seek
+##### Seek
 
 The `seek` function is used to reset the assignment of the topic.
 
@@ -587,7 +615,7 @@ tp = TopicPartition(topic='topic1', partition=0, offset=0)
 consumer.seek(tp)
 ```
 
-#### After consuming data
+##### After consuming data
 
 You should unsubscribe to the topics and close the consumer after consuming.
 
@@ -596,13 +624,13 @@ consumer.unsubscribe()
 consumer.close()
 ```
 
-#### Tmq subscription example
+##### Tmq subscription example
 
 ```python
 {{#include docs/examples/python/tmq_example.py}}
 ```
 
-#### assignment and seek example
+##### assignment and seek example
 
 ```python
 {{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
@@ -614,7 +642,7 @@ consumer.close()
 
 In addition to native connections, the connector also supports subscriptions via websockets.
 
-#### Create Consumer
+##### Create Consumer
 
 The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/#create-a-consumer).
 
@@ -624,7 +652,7 @@ import taosws
 consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
 ```
 
-#### subscribe topics
+##### subscribe topics
 
 The `subscribe` function is used to subscribe to a list of topics.
 
@@ -632,7 +660,7 @@ The `subscribe` function is used to subscribe to a list of topics.
 consumer.subscribe(['topic1', 'topic2'])
 ```
 
-#### Consume
+##### Consume
 
 The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
 
@@ -649,7 +677,7 @@ while True:
             print(row)
 ```
 
-#### assignment
+##### assignment
 
 The `assignment` function is used to get the assignment of the topic. 
 
@@ -657,7 +685,7 @@ The `assignment` function is used to get the assignment of the topic.
 assignments = consumer.assignment()
 ```
 
-#### Seek
+##### Seek
 
 The `seek` function is used to reset the assignment of the topic.
 
@@ -665,7 +693,7 @@ The `seek` function is used to reset the assignment of the topic.
 consumer.seek(topic='topic1', partition=0, offset=0)
 ```
 
-#### After consuming data
+##### After consuming data
 
 You should unsubscribe to the topics and close the consumer after consuming.
 
@@ -674,13 +702,13 @@ consumer.unsubscribe()
 consumer.close()
 ```
 
-#### Subscription example
+##### Subscription example
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
 ```
 
-#### Assignment and seek example
+##### Assignment and seek example
 
 ```python
 {{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
@@ -696,19 +724,19 @@ Connector support schemaless insert.
 <Tabs defaultValue="list">
 <TabItem value="list" label="List Insert">
 
-Simple insert
+##### Simple insert
 
 ```python
 {{#include docs/examples/python/schemaless_insert.py}}
 ```
 
-Insert with ttl argument
+##### Insert with ttl argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_ttl.py}}
 ```
 
-Insert with req_id argument
+##### Insert with req_id argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_req_id.py}}
@@ -718,19 +746,19 @@ Insert with req_id argument
 
 <TabItem value="raw" label="Raw Insert">
 
-Simple insert
+##### Simple insert
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw.py}}
 ```
 
-Insert with ttl argument
+##### Insert with ttl argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
 ```
 
-Insert with req_id argument
+##### Insert with req_id argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
@@ -746,7 +774,7 @@ The Python connector provides a parameter binding api for inserting data. Simila
 <Tabs>
 <TabItem value="native" label="native connection">
 
-#### Create Stmt
+##### Create Stmt
 
 Call the `statement` method in `Connection` to create the `stmt` for parameter binding.
 
@@ -757,7 +785,7 @@ conn = taos.connect()
 stmt = conn.statement("insert into log values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 ```
 
-#### parameter binding
+##### parameter binding
 
 Call the `new_multi_binds` function to create the parameter list for parameter bindings.
 
@@ -787,7 +815,7 @@ Call the `bind_param` (for a single row) method or the `bind_param_batch` (for m
 stmt.bind_param_batch(params)
 ```
 
-#### execute sql
+##### execute sql
 
 Call `execute` method to execute sql.
 
@@ -795,13 +823,13 @@ Call `execute` method to execute sql.
 stmt.execute()
 ```
 
-#### Close Stmt
+##### Close Stmt
 
 ```
 stmt.close()
 ```
 
-#### Example
+##### Example
 
 ```python
 {{#include docs/examples/python/stmt_example.py}}
@@ -810,7 +838,7 @@ stmt.close()
 
 <TabItem value="websocket" label="WebSocket connection">
 
-#### Create Stmt
+##### Create Stmt
 
 Call the `statement` method in `Connection` to create the `stmt` for parameter binding.
 
@@ -821,7 +849,7 @@ conn = taosws.connect('taosws://localhost:6041/test')
 stmt = conn.statement()
 ```
 
-#### Prepare sql
+##### Prepare sql
 
 Call `prepare` method in stmt to prepare sql.
 
@@ -829,7 +857,7 @@ Call `prepare` method in stmt to prepare sql.
 stmt.prepare("insert into t1 values (?, ?, ?, ?)")
 ```
 
-#### parameter binding
+##### parameter binding
 
 Call the `bind_param` method to bind parameters.
 
@@ -848,7 +876,7 @@ Call the `add_batch` method to add parameters to the batch.
 stmt.add_batch()
 ```
 
-#### execute sql
+##### execute sql
 
 Call `execute` method to execute sql.
 
@@ -856,13 +884,13 @@ Call `execute` method to execute sql.
 stmt.execute()
 ```
 
-#### Close Stmt
+##### Close Stmt
 
 ```
 stmt.close()
 ```
 
-#### Example
+##### Example
 
 ```python
 {{#include docs/examples/python/stmt_websocket_example.py}}

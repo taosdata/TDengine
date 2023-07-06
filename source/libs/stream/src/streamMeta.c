@@ -21,10 +21,18 @@
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
-static void         streamMetaEnvInit() { streamBackendId = taosOpenRef(20, streamBackendCleanup); }
+int32_t             streamBackendCfWrapperId = 0;
+
+static void streamMetaEnvInit() {
+  streamBackendId = taosOpenRef(64, streamBackendCleanup);
+  streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
+}
 
 void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
-void streamMetaCleanup() { taosCloseRef(streamBackendId); }
+void streamMetaCleanup() {
+  taosCloseRef(streamBackendId);
+  taosCloseRef(streamBackendCfWrapperId);
+}
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   int32_t      code = -1;
@@ -93,6 +101,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
+  pMeta->pTaskBackendUnique =
+      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pMeta->checkpointSaved = taosArrayInit(4, sizeof(int64_t));
   pMeta->checkpointInUse = taosArrayInit(4, sizeof(int64_t));
   pMeta->checkpointCap = 4;
@@ -101,6 +111,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosMemoryFree(streamPath);
 
   taosInitRWLatch(&pMeta->lock);
+  taosThreadMutexInit(&pMeta->backendMutex, NULL);
+
   return pMeta;
 
 _err:
@@ -131,9 +143,14 @@ void streamMetaClose(SStreamMeta* pMeta) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->timer) {
-      taosTmrStop(pTask->timer);
-      pTask->timer = NULL;
+    if (pTask->schedTimer) {
+      taosTmrStop(pTask->schedTimer);
+      pTask->schedTimer = NULL;
+    }
+
+    if (pTask->launchTaskTimer) {
+      taosTmrStop(pTask->launchTaskTimer);
+      pTask->launchTaskTimer = NULL;
     }
 
     tFreeStreamTask(pTask);
@@ -143,6 +160,8 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
   pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
   taosMemoryFree(pMeta->path);
+  taosThreadMutexDestroy(&pMeta->backendMutex);
+  taosHashCleanup(pMeta->pTaskBackendUnique);
 
   taosArrayDestroy(pMeta->checkpointSaved);
   taosArrayDestroy(pMeta->checkpointInUse);
@@ -274,18 +293,53 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 }
 
 void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
-  taosWLockLatch(&pMeta->lock);
+  SStreamTask* pTask = NULL;
 
+  // pre-delete operation
+  taosWLockLatch(&pMeta->lock);
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
-    SStreamTask* pTask = *ppTask;
+    pTask = *ppTask;
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
+  } else {
+    qDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
+    taosWUnLockLatch(&pMeta->lock);
+    return;
+  }
+  taosWUnLockLatch(&pMeta->lock);
 
+  qDebug("s-task:0x%x set task status:%s", taskId, streamGetTaskStatusStr(TASK_STATUS__DROPPING));
+
+  while(1) {
+    taosRLockLatch(&pMeta->lock);
+    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+
+    if (ppTask) {
+      if ((*ppTask)->status.timerActive == 0) {
+        taosRUnLockLatch(&pMeta->lock);
+        break;
+      }
+
+      taosMsleep(10);
+      qDebug("s-task:%s wait for quit from timer", (*ppTask)->id.idStr);
+      taosRUnLockLatch(&pMeta->lock);
+    } else {
+      taosRUnLockLatch(&pMeta->lock);
+      break;
+    }
+  }
+
+  // let's do delete of stream task
+  taosWLockLatch(&pMeta->lock);
+  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  if (ppTask) {
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
 
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
-    int32_t num = taosArrayGetSize(pMeta->pTaskList);
+    ASSERT(pTask->status.timerActive == 0);
 
+    int32_t num = taosArrayGetSize(pMeta->pTaskList);
     qDebug("s-task:%s set the drop task flag, remain running s-task:%d", pTask->id.idStr, num - 1);
     for (int32_t i = 0; i < num; ++i) {
       int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
@@ -388,6 +442,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       taosMemoryFree(pTask);
       continue;
     }
+
     if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
@@ -396,10 +451,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
 
-    if (pTask->fillHistory) {
-      ASSERT(pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM);
-      streamTaskCheckDownstream(pTask, ver);
-    }
+    ASSERT(pTask->status.downstreamReady == 0);
   }
 
   tdbFree(pKey);

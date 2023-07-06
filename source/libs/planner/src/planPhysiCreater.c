@@ -1374,6 +1374,7 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   if (NULL == pSort) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pSort->maxRows = pSortLogicNode->maxRows;
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pSortKeys = NULL;
