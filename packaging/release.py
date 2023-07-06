@@ -509,7 +509,7 @@ def check_directory(path):
 
 def init_install_directory():
     print("initInstallDirectory {}...".format(release_info.InstallPath))
-    check_directory(release_info.InstallPath)
+    init_directory(release_info.InstallPath)
     check_directory(os.path.join(release_info.InstallPath, "config"))
 
     opc_install_path = os.path.join(release_info.InstallPath, "plugins", opc_connector)
