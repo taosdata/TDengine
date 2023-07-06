@@ -83,15 +83,15 @@ def get_taosx_version():
     cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
     with open(cargo_toml_path, 'r') as f:
         cargo_toml = toml.load(f)
-        version = cargo_toml['package']['version']
+        version = cargo_toml['workspace']['package']['version']
     return version
 
 def get_taosx_agent_version():
     version = ""
-    cargo_toml_path = os.path.join(taosx_dir, "taosx-agent", "Cargo.toml")
+    cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
     with open(cargo_toml_path, 'r') as f:
         cargo_toml = toml.load(f)
-        version = cargo_toml['package']['version']
+        version = cargo_toml['workspace']['package']['version']
     return version
 
 def get_install_path():
@@ -453,7 +453,7 @@ def build_and_install_taos_explorer(mode):
         copy_taos_explorer_on_windows(explorer_path)
 
 def package_on_windows():
-    os.chdir(script_dir) 
+    os.chdir(script_dir)
     target = taosx_name
     sub_directory = "taosX"
     app_before_install_txt = "info_before_install.txt"
@@ -574,7 +574,7 @@ if __name__ == '__main__':
     if test_process != "":
         test_handle(test_process)
         sys.exit()
-        
+
     if release_info.OS.lower() == 'linux':
         for task in sub_module:
             if taos_explorer_name == task.Name:

@@ -16,18 +16,22 @@ release.py 也可为 taos-agent 及连接器不依赖 taosx 独立打包，详�
 - 在运行release.py之前需要通过命令 pip install toml 来安装toml模块
 
 ## 版本号说明
+
 ### taosx
+
 taosx 版本号从 Cargo.toml 文件可以取到：
-~~~
-[package]
-name = "taosx"
+
+```toml
+[workspace.package]
 version = "1.0.0"
-~~~
+```
+
 其他子模块版本号各自维护，一般在启动时候 -v 参数可查看，或者通过日志查看。
 
 ## 参数说明
 
 支持参数：
+
 - -h: 查看本帮助信息
 - -c: cpu type [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...]
 - -o: package target [taosx | agent] taosx 安装包还是 taos-agent 安装包，默认 taosx
@@ -55,60 +59,64 @@ version = "1.0.0"
 - 命令窗口执行 ```sc start/stop taos-explorer``` 管理 taos-explorer 服务
 - 使用 uninstall_taosx.exe 卸载 taosx
 - windows 安装目录为```C:\Program Files\taosX```，目录结构如下：
-~~~
-├── bin
-│   ├── taosx.exe
-│   ├── taosx-agent.exe
-│   ├── taos-explorer.exe
-├── plugins
-│   ├── influxdb
-│   │   └── taosx-inflxdb.jar
-│   ├── mqtt
-│   │   └── taosx-mqtt.exe
-│   └── opc
-│       └── taosx-opc.exe
-│   └── pi
-│       └── taosx-pi.exe
-│       └── taosx-pi-backfill.exe
-│       └── ...
-└── config
-│   ├── agent.toml
-│   ├── explorer.toml
-├── uninstall_taosx.exe
-├── uninstall_taosx.dat
-~~~
+
+    ```text
+    ├── bin
+    │   ├── taosx.exe
+    │   ├── taosx-agent.exe
+    │   ├── taos-explorer.exe
+    ├── plugins
+    │   ├── influxdb
+    │   │   └── taosx-inflxdb.jar
+    │   ├── mqtt
+    │   │   └── taosx-mqtt.exe
+    │   └── opc
+    │       └── taosx-opc.exe
+    │   └── pi
+    │       └── taosx-pi.exe
+    │       └── taosx-pi-backfill.exe
+    │       └── ...
+    └── config
+    │   ├── agent.toml
+    │   ├── explorer.toml
+    ├── uninstall_taosx.exe
+    ├── uninstall_taosx.dat
+    ```
+
 - linux 下需要安装程序先解压，后安装使用，示例如下：
-``` bash
-# 解压文件
-tar -zxf taosx-1.0.0-linux-x64.tar.gz
-cd taosx-1.0.0-linux-x64
-# 安装
-sudo ./install.sh
-# 验证
-taosx -V 
-# taosx 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:00 +08:00)
-taosx-agent -V 
-# taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
 
-# start taosx and taosx-agent system service
-sudo systemctl start taosx
-sudo systemctl start taosx-agent
-sudo systemctl start taos-explorer
+    ```bash
+    # 解压文件
+    tar -zxf taosx-1.0.0-linux-x64.tar.gz
+    cd taosx-1.0.0-linux-x64
+    # 安装
+    sudo ./install.sh
+    # 验证
+    taosx -V
+    # taosx 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:00 +08:00)
+    taosx-agent -V
+    # taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
 
-# check status of tasx and taosx-agent serverice
-sudo systemctl status taosx
-sudo systemctl status taosx-agent
-sudo systemctl status taos-explorer
+    # start taosx and taosx-agent system service
+    sudo systemctl start taosx
+    sudo systemctl start taosx-agent
+    sudo systemctl start taos-explorer
 
-# stop taosx and taosx-agent
-sudo systemctl stop taosx
-sudo systemctl stop taosx-agent
-sudo systemctl stop taos-explorer
+    # check status of tasx and taosx-agent serverice
+    sudo systemctl status taosx
+    sudo systemctl status taosx-agent
+    sudo systemctl status taos-explorer
 
-# 卸载
-cd /usr/local/taosx
-sudo ./uninstall.sh
-```
+    # stop taosx and taosx-agent
+    sudo systemctl stop taosx
+    sudo systemctl stop taosx-agent
+    sudo systemctl stop taos-explorer
+
+    # 卸载
+    cd /usr/local/taosx
+    sudo ./uninstall.sh
+    ```
+
 - linux 下文件路径说明
   1. taosx, taosx-gent, taos-explorer: /usr/bin
   2. connectors: /usr/local/taosx/plugins
@@ -123,52 +131,56 @@ sudo ./uninstall.sh
     - windows:   taosx-agent-{version}-windows-installer.exe
     - linux:     taosx-agent-{version}-linux-x64.tar.gz
 - windows 使用安装程序进行安装，使用 uninstall_taosx-agent 进行卸载。taosx-agent 安装为服务
-- 命令窗口执行 ```sc start/stop taosx-agent``` 管理 taosx-agent 服务
-- windows 安装目录为```C:\Program Files\taosX```，目录结构如下：
-~~~
-├── bin
-│   ├── taosx-agent.exe
-│   ├── ...
-├── plugins
-│   ├── influxdb
-│   │   └── taosx-inflxdb.jar
-│   ├── mqtt
-│   │   └── taosx-mqtt.exe
-│   └── opc
-│       └── taosx-opc.exe
-│   └── pi
-│       └── taosx-pi.exe
-│       └── taosx-pi-backfill.exe
-│       └── ...
-└── config
-│   ├── agent.toml
-├── uninstall_taosx-agent.exe
-├── uninstall_taosx-agent.dat
-~~~
+- 命令窗口执行 `sc start/stop taosx-agent` 管理 taosx-agent 服务
+- windows 安装目录为 `C:\Program Files\taosX`，目录结构如下：
+
+  ```
+  ├── bin
+  │   ├── taosx-agent.exe
+  │   ├── ...
+  ├── plugins
+  │   ├── influxdb
+  │   │   └── taosx-inflxdb.jar
+  │   ├── mqtt
+  │   │   └── taosx-mqtt.exe
+  │   └── opc
+  │       └── taosx-opc.exe
+  │   └── pi
+  │       └── taosx-pi.exe
+  │       └── taosx-pi-backfill.exe
+  │       └── ...
+  └── config
+  │   ├── agent.toml
+  ├── uninstall_taosx-agent.exe
+  ├── uninstall_taosx-agent.dat
+  ```
+
 - linux 下需要安装程序先解压，后安装使用，示例如下：
-``` bash
-# 解压文件
-tar -zxf taosx-agent-1.0.0-linux-x64.tar.gz
-cd taosx-agent-1.0.0-linux-x64
-# 安装
-sudo ./install.sh
-# 验证
-taosx-agent -V 
-# taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
 
-# start taosx-agent system service
-sudo systemctl start taosx-agent
+  ``` bash
+  # 解压文件
+  tar -zxf taosx-agent-1.0.0-linux-x64.tar.gz
+  cd taosx-agent-1.0.0-linux-x64
+  # 安装
+  sudo ./install.sh
+  # 验证
+  taosx-agent -V
+  # taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
 
-# check status of taosx-agent serverice
-sudo systemctl status taosx-agent
+  # start taosx-agent system service
+  sudo systemctl start taosx-agent
 
-# stop taosx-agent
-sudo systemctl stop taosx-agent
+  # check status of taosx-agent serverice
+  sudo systemctl status taosx-agent
 
-# 卸载
-cd /usr/local/taosx
-sudo ./uninstall.sh
-```
+  # stop taosx-agent
+  sudo systemctl stop taosx-agent
+
+  # 卸载
+  cd /usr/local/taosx
+  sudo ./uninstall.sh
+  ```
+
 - linux 下文件路径说明
   1. taosx-gent: /usr/bin
   2. connectors: /usr/local/taosx/plugins
