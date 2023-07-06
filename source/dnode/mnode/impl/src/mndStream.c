@@ -1016,7 +1016,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
 
         void   *buf;
         int32_t tlen;
-        if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->nodeId, checkpointId) < 0) {
+        if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId) < 0) {
           mndReleaseVgroup(pMnode, pVgObj);
           taosRUnLockLatch(&pStream->lock);
           mndTransDrop(pTrans);
@@ -1364,7 +1364,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         // task id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-        char idstr[128] = {0};
+        char    idstr[128] = {0};
         int32_t len = tintToHex(pTask->id.taskId, &idstr[4]);
         idstr[2] = '0';
         idstr[3] = 'x';
@@ -1404,7 +1404,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
 
         // status
-        char status[20 + VARSTR_HEADER_SIZE] = {0};
+        char   status[20 + VARSTR_HEADER_SIZE] = {0};
         int8_t taskStatus = atomic_load_8(&pTask->status.taskStatus);
         if (taskStatus == TASK_STATUS__NORMAL) {
           memcpy(varDataVal(status), "normal", 6);
@@ -1470,7 +1470,7 @@ static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-int32_t mndPauseAllStreamTaskImpl(STrans *pTrans, SArray* tasks) {
+int32_t mndPauseAllStreamTaskImpl(STrans *pTrans, SArray *tasks) {
   int32_t size = taosArrayGetSize(tasks);
   for (int32_t i = 0; i < size; i++) {
     SArray *pTasks = taosArrayGetP(tasks, i);

@@ -401,12 +401,12 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   return 0;
 }
 int32_t streamBackendDoCheckpoint(void* arg, const char* path) {
-  SStreamMeta*    pMeta = arg;
-  int64_t         backendRid = pMeta->streamBackendRid;
-  int64_t         checkpointId = pMeta->checkpointTs;
-  int64_t         st = taosGetTimestampMs();
-  int32_t         code = -1;
-  SBackendHandle* pHandle = taosAcquireRef(streamBackendId, backendRid);
+  SStreamMeta*     pMeta = arg;
+  int64_t          backendRid = pMeta->streamBackendRid;
+  int64_t          checkpointId = pMeta->checkpointTs;
+  int64_t          st = taosGetTimestampMs();
+  int32_t          code = -1;
+  SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
 
   char checkpointDir[256] = {0};
   sprintf(checkpointDir, "%s/checkpoint_%" PRId64 "", path, checkpointId);
