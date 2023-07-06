@@ -179,6 +179,9 @@ public class PreLoading implements CommandLineRunner {
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置
             this.influxdbConfig.setUrl((String) tomlParseResult.get("influx.url"));
+            this.influxdbConfig.setVersion((String) tomlParseResult.get("influx.version"));
+            this.influxdbConfig.setUsername((String) tomlParseResult.get("influx.username"));
+            this.influxdbConfig.setPassword((String) tomlParseResult.get("influx.password"));
             this.influxdbConfig.setToken((String) tomlParseResult.get("influx.token"));
             this.influxdbConfig.setOrgId((String) tomlParseResult.get("influx.orgId"));
             this.nettyClientConfig.setHost((String) tomlParseResult.get("taosx.host"));
@@ -193,6 +196,7 @@ public class PreLoading implements CommandLineRunner {
             this.taskConfig.setMeasurements(measurements);
             this.taskConfig.setBeginTime((String) tomlParseResult.get("task.beginTime"));
             this.taskConfig.setEndTime((String) tomlParseResult.get("task.endTime"));
+            this.performanceConfig.setReadWindow((String) tomlParseResult.get("performance.readWindow"));
         } catch (Exception e) {
             logger.error("加载Toml文件过程中发生异常，启动失败", e);
             // 状态异常
