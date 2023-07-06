@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInc.h"
+#include "streamInt.h"
 #include "ttimer.h"
 #include "wal.h"
 
@@ -53,7 +53,7 @@ static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
   qDebug("s-task:%s vgId:%d status:%s, start scan-history-data task, verRange:%" PRId64 " - %" PRId64, pTask->id.idStr,
          pTask->info.nodeId, streamGetTaskStatusStr(pTask->status.taskStatus), pRange->minVer, pRange->maxVer);
 
-  streamSetParamForScanHistoryData(pTask);
+  streamSetParamForScanHistory(pTask);
   streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
 
   int32_t code = streamStartRecoverTask(pTask, 0);
@@ -72,8 +72,8 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     streamSetStatusNormal(pTask);
-    streamSetParamForScanHistoryData(pTask);
-    streamAggRecoverPrepare(pTask);
+    streamSetParamForScanHistory(pTask);
+    streamAggScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     streamSetStatusNormal(pTask);
     qDebug("s-task:%s sink task convert to normal immediately", pTask->id.idStr);
@@ -202,10 +202,10 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         pTask->checkReqIds = NULL;
 
         if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-          qDebug("s-task:%s all %d downstream tasks are ready, now enter into scan-history-data stage, status:%s", id, numOfReqs,
-                 streamGetTaskStatusStr(pTask->status.taskStatus));
+          qDebug("s-task:%s all %d downstream tasks are ready, now enter into scan-history-data stage, status:%s", id,
+                 numOfReqs, streamGetTaskStatusStr(pTask->status.taskStatus));
           streamTaskLaunchScanHistory(pTask);
-        } else {
+        } else {  // todo add assert, agg tasks?
           ASSERT(pTask->status.taskStatus == TASK_STATUS__NORMAL);
           qDebug("s-task:%s fixed downstream task is ready, now ready for data from wal, status:%s", id,
                  streamGetTaskStatusStr(pTask->status.taskStatus));
@@ -215,7 +215,8 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         qDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
                pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
       }
-    } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+    } else {
+      ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH);
       if (pRsp->reqId != pTask->checkReqId) {
         return -1;
       }
@@ -233,8 +234,6 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         qDebug("s-task:%s fixed downstream task is ready, ready for data from inputQ, status:%s", id,
                streamGetTaskStatusStr(pTask->status.taskStatus));
       }
-    } else {
-      ASSERT(0);
     }
   } else {  // not ready, wait for 100ms and retry
     qDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, wait for 100ms and retry", id, pRsp->downstreamTaskId,
@@ -248,7 +247,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 }
 
 // common
-int32_t streamSetParamForScanHistoryData(SStreamTask* pTask) {
+int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
   qDebug("s-task:%s set operator option for scan-history-data", pTask->id.idStr);
   return qSetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
 }
@@ -286,7 +285,7 @@ int32_t streamSourceScanHistoryData(SStreamTask* pTask) {
 }
 
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
-  SStreamRecoverFinishReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
+  SStreamScanHistoryFinishReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
@@ -314,7 +313,7 @@ static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferRe
   SRpcMsg msg = {0};
 
   int32_t tlen;
-  tEncodeSize(tEncodeStreamRecoverFinishReq, pReq, tlen, code);
+  tEncodeSize(tEncodeStreamScanHistoryFinishReq, pReq, tlen, code);
   if (code < 0) {
     return -1;
   }
@@ -330,7 +329,7 @@ static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferRe
 
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamRecoverFinishReq(&encoder, pReq)) < 0) {
+  if ((code = tEncodeStreamScanHistoryFinishReq(&encoder, pReq)) < 0) {
     if (buf) {
       rpcFreeCont(buf);
     }
@@ -375,7 +374,7 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
 }
 
 // agg
-int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
+int32_t streamAggScanHistoryPrepare(SStreamTask* pTask) {
   pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
   qDebug("s-task:%s agg task is ready and wait for %d upstream tasks complete scan-history procedure", pTask->id.idStr,
          pTask->numOfWaitingUpstream);
@@ -391,19 +390,19 @@ int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
   if (qStreamRecoverFinish(exec) < 0) {
     return -1;
   }
-
-//  streamSetStatusNormal(pTask);
   return 0;
 }
 
-int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t taskId, int32_t childId) {
+int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t taskId, int32_t childId) {
   if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     int32_t left = atomic_sub_fetch_32(&pTask->numOfWaitingUpstream, 1);
     ASSERT(left >= 0);
 
     if (left == 0) {
       int32_t numOfTasks = taosArrayGetSize(pTask->pUpstreamEpInfoList);
-      qDebug("s-task:%s all %d upstream tasks finish scan-history data", pTask->id.idStr, numOfTasks);
+      qDebug("s-task:%s all %d upstream tasks finish scan-history data, set param for agg task for stream data",
+             pTask->id.idStr, numOfTasks);
+
       streamAggUpstreamScanHistoryFinish(pTask);
     } else {
       qDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d",
@@ -411,6 +410,7 @@ int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t taskId, int32_
     }
 
   }
+
   return 0;
 }
 
@@ -467,8 +467,8 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
     if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
       const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
       qWarn(
-          "s-task:%s vgId:%d status:%s failed to launch history task:0x%x, since it may not be built, or have been "
-          "destroyed, or should stop exec",
+          "s-task:%s vgId:%d status:%s failed to launch history task:0x%x, since it may not be built, or may have been "
+          "destroyed, or should stop",
           pTask->id.idStr, pMeta->vgId, pStatus, pTask->historyTaskId.taskId);
 
       taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
@@ -493,7 +493,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
 // todo fix the bug: 2. race condition
 // an fill history task needs to be started.
-int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask) {
+int32_t streamCheckHistoryTaskDownstream(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
   int32_t      hTaskId = pTask->historyTaskId.taskId;
 
@@ -573,6 +573,27 @@ int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
   return qStreamRecoverSetAllStepFinished(exec);
 }
 
+void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask) {
+  SVersionRange* pRange = &pTask->dataRange.range;
+  int64_t latestVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
+  ASSERT(latestVer >= pRange->maxVer);
+
+  int64_t nextStartVer = pRange->maxVer + 1;
+  if (nextStartVer > latestVer - 1) {
+    // no input data yet. no need to execute the secondardy scan while stream task halt
+    streamTaskRecoverSetAllStepFinished(pTask);
+    qDebug(
+        "s-task:%s no need to perform secondary scan-history-data(step 2), since no data ingest during secondary scan",
+        pTask->id.idStr);
+  } else {
+    // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
+    // [pTask->dataRange.range.maxVer, ver1]
+    pRange->minVer = nextStartVer;
+    pRange->maxVer = latestVer - 1;
+  }
+}
+
+
 int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->reqId) < 0) return -1;
@@ -627,7 +648,7 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   return 0;
 }
 
-int32_t tEncodeStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq) {
+int32_t tEncodeStreamScanHistoryFinishReq(SEncoder* pEncoder, const SStreamScanHistoryFinishReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
@@ -635,7 +656,7 @@ int32_t tEncodeStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFi
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
-int32_t tDecodeStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq) {
+int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistoryFinishReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
@@ -652,12 +673,12 @@ void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
     // calculate the correct start time window, and start the handle the history data for the main task.
     if (pTask->historyTaskId.taskId != 0) {
       // check downstream tasks for associated scan-history-data tasks
-      streamCheckHistoryTaskDownstrem(pTask);
+      streamCheckHistoryTaskDownstream(pTask);
 
       // launch current task
       SHistDataRange* pRange = &pTask->dataRange;
-      int64_t ekey = pRange->window.ekey + 1;
-      int64_t ver = pRange->range.minVer;
+      int64_t         ekey = pRange->window.ekey + 1;
+      int64_t         ver = pRange->range.minVer;
 
       pRange->window.skey = ekey;
       pRange->window.ekey = INT64_MAX;
@@ -665,7 +686,7 @@ void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
       pRange->range.maxVer = ver;
 
       qDebug("s-task:%s level:%d fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
-                 ", ver range:%" PRId64 " - %" PRId64,
+             ", ver range:%" PRId64 " - %" PRId64,
              pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
              pRange->range.maxVer);
     } else {
