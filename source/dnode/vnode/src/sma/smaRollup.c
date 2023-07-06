@@ -647,7 +647,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
 
       output = taosArrayGetP(pResList, i);
-      smaDebug("vgId:%d, result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%d", SMA_VID(pSma),
+      smaDebug("vgId:%d, result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%" PRIi64, SMA_VID(pSma),
                output->info.id.uid, output->info.id.groupId, output->info.rows);
 
       STsdb       *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
