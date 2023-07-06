@@ -1,13 +1,14 @@
 use std::{path::PathBuf, time::Duration};
 
-use chrono::Utc;
+use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
 use time::macros::format_description;
+use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::LocalTime},
+    fmt::{format::FmtSpan, time::OffsetTime},
     prelude::__tracing_subscriber_SubscriberExt,
     util::SubscriberInitExt,
     Layer as _,
@@ -165,7 +166,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
-            for task in tasks.iter() {                
+            for task in tasks.iter() {
                 let status = TaskStatus::new(
                     *task.key(),
                     Utc::now(),
@@ -235,6 +236,18 @@ fn main() -> anyhow::Result<()> {
     // let timer = LocalTime::new(format_description!(
     //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
     // ));
+
+    let chrono_local = Local::now();
+    let timezone_offset = (chrono_local.offset().local_minus_utc()
+        / chrono::Duration::hours(1).num_seconds() as i32) as i8;
+
+    println!("local timezone offset: {}", timezone_offset);
+
+    let timer = OffsetTime::new(
+        UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
+    );
+
     let level_filter =
         tracing_subscriber::filter::LevelFilter::from_level(args.log_level.unwrap_or(Level::INFO));
 
@@ -242,6 +255,7 @@ fn main() -> anyhow::Result<()> {
 
     layers.push(
         tracing_subscriber::fmt::layer()
+            .with_timer(timer.clone())
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
@@ -255,6 +269,7 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         layers.push(
             tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
