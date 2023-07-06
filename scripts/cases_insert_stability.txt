@@ -6,3 +6,6 @@ taostest --setup=54_58_stability_jenkins.yaml --case=stability/insert/scenario_t
 # nevados
 taostest --setup=54_58_stability_jenkins.yaml --case=stability/insert/scenario_test/stream_stability_test.py --keep --disable_data_collection --case-param="--prepare-param-file=cases/stability/insert/scenario_test/nevados_prepare_data.json --insert-param-file=cases/stability/insert/scenario_test/nevados_stream_insert.json"
 
+# compact
+taostest --setup=54_58_stability_jenkins.yaml --case=stability/insert/scenario_test/compact_nblock_insert.py --keep --disable_data_collection
+
