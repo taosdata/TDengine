@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#define TARRAY_MIN_SIZE               8
+#define TARRAY_MIN_SIZE               4
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
 #define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
 
