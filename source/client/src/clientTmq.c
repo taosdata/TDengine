@@ -1928,7 +1928,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         // update the local offset value only for the returned values, only when the local offset is NOT updated
         // by tmq_offset_seek function
         if (!pVg->seekUpdated) {
-          tscDebug("consumer:0x%" PRIx64" local offset is update, since seekupdate not set", tmq->consumerId);
+          tscDebug("consumer:0x%" PRIx64" local offset is update, since seekupdate not set, rsp offset:%d,%"PRId64, tmq->consumerId, pDataRsp->rspOffset.type, pDataRsp->rspOffset.version);
           pVg->offsetInfo.currentOffset = pDataRsp->rspOffset;
         } else {
           tscDebug("consumer:0x%" PRIx64" local offset is NOT update, since seekupdate is set", tmq->consumerId);
