@@ -70,8 +70,7 @@ typedef struct SMJoinOperatorInfo {
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param);
-static void         extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t num,
-                                         SSortMergeJoinPhysiNode* pJoinNode, const char* idStr);
+static void         extractTimeCondition(SMJoinOperatorInfo* pInfo,        SSortMergeJoinPhysiNode* pJoinNode, const char* idStr);
 
 static void extractTimeCondition(SMJoinOperatorInfo* pInfo,        SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
   SNode* pPrimKeyCond = pJoinNode->pPrimKeyCond;
@@ -203,8 +202,8 @@ SOperatorInfo** buildMergeJoinDownstreams(SMJoinOperatorInfo* pInfo, SOperatorIn
   if (p) {
     p[0] = pDownstream[0];
     p[1] = pDownstream[0];
-    pInfo->downstreamResBlkId[0] = getOperatorResultBlockId(pDownstream[0], 0);
-    pInfo->downstreamResBlkId[1] = getOperatorResultBlockId(pDownstream[1], 1);
+    pInfo->downstreamResBlkId[0] = getOperatorResultBlockId(p[0], 0);
+    pInfo->downstreamResBlkId[1] = getOperatorResultBlockId(p[1], 1);
   }
 
   return p;

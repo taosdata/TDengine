@@ -21,15 +21,6 @@ extern "C" {
 
 #define GROUP_CACHE_DEFAULT_PAGE_SIZE 10485760
 
-typedef struct SGcOperatorParam {
-  SOperatorParam*     pChild;
-  int64_t             sessionId;
-  int32_t             downstreamIdx;
-  bool                needCache;
-  void*               pGroupValue;
-  int32_t             groupValueSize;
-} SGcOperatorParam;
-
 #pragma pack(push, 1) 
 typedef struct SGcBlkBufInfo {
   void*    next;

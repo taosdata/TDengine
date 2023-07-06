@@ -105,6 +105,15 @@ typedef struct SExchangeOpStopInfo {
   int64_t refId;
 } SExchangeOpStopInfo;
 
+typedef struct SGcOperatorParam {
+  SOperatorParam*     pChild;
+  int64_t             sessionId;
+  int32_t             downstreamIdx;
+  bool                needCache;
+  void*               pGroupValue;
+  int32_t             groupValueSize;
+} SGcOperatorParam;
+
 typedef struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator

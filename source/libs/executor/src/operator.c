@@ -535,7 +535,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
     pOptr = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
-    //pOptr = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo);
+    pOptr = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = terrno;
