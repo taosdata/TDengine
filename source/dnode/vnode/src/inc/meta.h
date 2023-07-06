@@ -17,6 +17,7 @@
 #define _TD_VNODE_META_H_
 
 #include "index.h"
+#include "metaTtl.h"
 #include "vnodeInt.h"
 
 #ifdef __cplusplus
@@ -89,10 +90,10 @@ struct SMeta {
   // ivt idx and idx
   void* pTagIvtIdx;
 
-  TTB* pTagIdx;
-  TTB* pTtlIdx;
+  TTB*        pTagIdx;
+  STtlManger* pTtlMgr;
 
-  TTB* pCtimeIdx;  // table created time idx
+  TTB* pBtimeIdx;  // table created time idx
   TTB* pNcolIdx;   // ncol of table idx, normal table only
 
   TTB* pSmaIdx;
@@ -139,19 +140,14 @@ typedef struct {
 #pragma pack(pop)
 
 typedef struct {
-  int64_t  dtime;
-  tb_uid_t uid;
-} STtlIdxKey;
-
-typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
 
 typedef struct {
-  int64_t  ctime;
+  int64_t  btime;
   tb_uid_t uid;
-} SCtimeIdxKey;
+} SBtimeIdxKey;
 
 typedef struct {
   int64_t  ncol;

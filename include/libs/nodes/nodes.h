@@ -328,6 +328,8 @@ void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* p
 SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index);
 void       nodesDestroyList(SNodeList* pList);
+bool       nodesListMatch(const SNodeList* pList, const SNodeList* pSubList);
+
 // Only clear the linked list structure, without releasing the elements inside
 void nodesClearList(SNodeList* pList);
 
@@ -346,6 +348,7 @@ void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pCon
 void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNode* a, const SNode* b);
+bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
 SNode*     nodesCloneNode(const SNode* pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);

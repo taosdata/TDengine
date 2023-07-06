@@ -106,7 +106,6 @@ enum {
   HEARTBEAT_KEY_DBINFO,
   HEARTBEAT_KEY_STBINFO,
   HEARTBEAT_KEY_TMQ,
-  HEARTBEAT_KEY_USER_PASSINFO,
 };
 
 typedef enum _mgmt_table {
@@ -636,6 +635,7 @@ typedef struct {
   SEpSet   epSet;
   int32_t  svrTimestamp;
   int32_t  passVer;
+  int32_t  authVer;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
 } SConnectRsp;
@@ -703,6 +703,7 @@ int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* 
 typedef struct {
   char      user[TSDB_USER_LEN];
   int32_t   version;
+  int32_t   passVer;
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
@@ -718,14 +719,6 @@ typedef struct {
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
-
-typedef struct SUserPassVersion {
-  char    user[TSDB_USER_LEN];
-  int32_t version;
-} SUserPassVersion;
-
-typedef SGetUserAuthReq SGetUserPassReq;
-typedef SUserPassVersion SGetUserPassRsp;
 
 /*
  * for client side struct, only column id, type, bytes are necessary
@@ -945,7 +938,7 @@ int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
-  int32_t timestamp;
+  int32_t timestampSec;
 } SVDropTtlTableReq;
 
 int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
@@ -1069,14 +1062,6 @@ typedef struct {
 int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
-
-typedef struct {
-  SArray* pArray;  // Array of SGetUserPassRsp
-} SUserPassBatchRsp;
-
-int32_t tSerializeSUserPassBatchRsp(void* buf, int32_t bufLen, SUserPassBatchRsp* pRsp);
-int32_t tDeserializeSUserPassBatchRsp(void* buf, int32_t bufLen, SUserPassBatchRsp* pRsp);
-void    tFreeSUserPassBatchRsp(SUserPassBatchRsp* pRsp);
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
@@ -1975,6 +1960,7 @@ typedef struct {
   SArray*  fillNullCols;  // array of SColLocation
   int64_t  deleteMark;
   int8_t   igUpdate;
+  int64_t  lastTs;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -2033,6 +2019,11 @@ typedef struct {
   char    cgroup[TSDB_CGROUP_LEN];
   char    clientId[256];
   SArray* topicNames;  // SArray<char**>
+
+  int8_t         withTbName;
+  int8_t         autoCommit;
+  int32_t        autoCommitInterval;
+  int8_t         resetOffsetCfg;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2047,6 +2038,12 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   for (int32_t i = 0; i < topicNum; i++) {
     tlen += taosEncodeString(buf, (char*)taosArrayGetP(pReq->topicNames, i));
   }
+
+  tlen += taosEncodeFixedI8(buf, pReq->withTbName);
+  tlen += taosEncodeFixedI8(buf, pReq->autoCommit);
+  tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
+  tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
+
   return tlen;
 }
 
@@ -2064,6 +2061,11 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
     buf = taosDecodeString(buf, &name);
     taosArrayPush(pReq->topicNames, &name);
   }
+
+  buf = taosDecodeFixedI8(buf, &pReq->withTbName);
+  buf = taosDecodeFixedI8(buf, &pReq->autoCommit);
+  buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
+  buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
   return buf;
 }
 
@@ -2261,7 +2263,7 @@ typedef struct SVCreateTbReq {
   int32_t  flags;
   char*    name;
   tb_uid_t uid;
-  int64_t  ctime;
+  int64_t  btime;
   int32_t  ttl;
   int32_t  commentLen;
   char*    comment;
@@ -2398,10 +2400,12 @@ typedef struct {
   int32_t newTTL;
   int32_t newCommentLen;
   char*   newComment;
+  int64_t ctimeMs; // fill by vnode
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
+int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
 
 typedef struct {
   int32_t        code;
@@ -2456,15 +2460,6 @@ typedef struct {
 } SMqAskEpReq;
 
 typedef struct {
-  int64_t consumerId;
-  int32_t epoch;
-} SMqHbReq;
-
-typedef struct {
-  int8_t reserved;
-} SMqHbRsp;
-
-typedef struct {
   int32_t key;
   int32_t valueLen;
   void*   value;
@@ -2487,6 +2482,7 @@ typedef struct {
   int64_t  stime;  // timestamp precision ms
   int64_t  reqRid;
   bool     stableQuery;
+  bool     isSubQuery;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>
@@ -2891,7 +2887,7 @@ int32_t tDecodeSMqCMCommitOffsetReq(SDecoder* decoder, SMqCMCommitOffsetReq* pRe
 // tqOffset
 enum {
   TMQ_OFFSET__RESET_NONE = -3,
-  TMQ_OFFSET__RESET_EARLIEAST = -2,
+  TMQ_OFFSET__RESET_EARLIEST = -2,
   TMQ_OFFSET__RESET_LATEST = -1,
   TMQ_OFFSET__LOG = 1,
   TMQ_OFFSET__SNAPSHOT_DATA = 2,
@@ -3365,6 +3361,16 @@ typedef struct{
   SArray*    offsetRows;
 }TopicOffsetRows;
 
+typedef struct {
+  int64_t consumerId;
+  int32_t epoch;
+  SArray* topics;
+} SMqHbReq;
+
+typedef struct {
+  int8_t reserved;
+} SMqHbRsp;
+
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -3416,6 +3422,7 @@ typedef struct SDeleteRes {
   int64_t  affectedRows;
   char     tableFName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
+  int64_t  ctimeMs; // fill by vnode
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
@@ -3434,10 +3441,12 @@ int32_t tDecodeSSingleDeleteReq(SDecoder* pCoder, SSingleDeleteReq* pReq);
 typedef struct {
   int64_t suid;
   SArray* deleteReqs;  // SArray<SSingleDeleteReq>
+  int64_t ctimeMs;     // fill by vnode
 } SBatchDeleteReq;
 
 int32_t tEncodeSBatchDeleteReq(SEncoder* pCoder, const SBatchDeleteReq* pReq);
 int32_t tDecodeSBatchDeleteReq(SDecoder* pCoder, SBatchDeleteReq* pReq);
+int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder* pDecoder, SBatchDeleteReq* pReq, int64_t ctimeMs);
 
 typedef struct {
   int32_t msgIdx;
@@ -3489,10 +3498,8 @@ int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
-int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
-int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
-int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
-int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
+int32_t tDeatroySMqHbReq(SMqHbReq* pReq);
+
 
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
@@ -3507,6 +3514,7 @@ typedef struct {
     SArray* aRowP;
     SArray* aCol;
   };
+  int64_t        ctimeMs;
 } SSubmitTbData;
 
 typedef struct {

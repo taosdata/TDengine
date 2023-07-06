@@ -52,6 +52,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
   bool      orderAlias;
   bool      asAlias;
+  bool      asParam;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -69,6 +70,7 @@ typedef struct SColumnNode {
   uint64_t    tableId;
   int8_t      tableType;
   col_id_t    colId;
+  uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
   bool        hasIndex;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -241,6 +243,12 @@ typedef enum EFillMode {
   FILL_MODE_NEXT
 } EFillMode;
 
+typedef enum ETimeLineMode {
+  TIME_LINE_NONE = 1,
+  TIME_LINE_MULTI,
+  TIME_LINE_GLOBAL,
+} ETimeLineMode;
+
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
@@ -263,50 +271,50 @@ typedef struct SCaseWhenNode {
 } SCaseWhenNode;
 
 typedef struct SSelectStmt {
-  ENodeType   type;  // QUERY_NODE_SELECT_STMT
-  bool        isDistinct;
-  SNodeList*  pProjectionList;
-  SNode*      pFromTable;
-  SNode*      pWhere;
-  SNodeList*  pPartitionByList;
-  SNodeList*  pTags;      // for create stream
-  SNode*      pSubtable;  // for create stream
-  SNode*      pWindow;
-  SNodeList*  pGroupByList;  // SGroupingSetNode
-  SNode*      pHaving;
-  SNode*      pRange;
-  SNode*      pEvery;
-  SNode*      pFill;
-  SNodeList*  pOrderByList;  // SOrderByExprNode
-  SLimitNode* pLimit;
-  SLimitNode* pSlimit;
-  STimeWindow timeRange;
-  char        stmtName[TSDB_TABLE_NAME_LEN];
-  uint8_t     precision;
-  int32_t     selectFuncNum;
-  int32_t     returnRows;  // EFuncReturnRows
-  bool        isEmptyResult;
-  bool        isTimeLineResult;
-  bool        isSubquery;
-  bool        hasAggFuncs;
-  bool        hasRepeatScanFuncs;
-  bool        hasIndefiniteRowsFunc;
-  bool        hasMultiRowsFunc;
-  bool        hasSelectFunc;
-  bool        hasSelectValFunc;
-  bool        hasOtherVectorFunc;
-  bool        hasUniqueFunc;
-  bool        hasTailFunc;
-  bool        hasInterpFunc;
-  bool        hasInterpPseudoColFunc;
-  bool        hasLastRowFunc;
-  bool        hasLastFunc;
-  bool        hasTimeLineFunc;
-  bool        hasUdaf;
-  bool        hasStateKey;
-  bool        onlyHasKeepOrderFunc;
-  bool        groupSort;
-  bool        tagScan;
+  ENodeType     type;  // QUERY_NODE_SELECT_STMT
+  bool          isDistinct;
+  SNodeList*    pProjectionList;
+  SNode*        pFromTable;
+  SNode*        pWhere;
+  SNodeList*    pPartitionByList;
+  SNodeList*    pTags;      // for create stream
+  SNode*        pSubtable;  // for create stream
+  SNode*        pWindow;
+  SNodeList*    pGroupByList;  // SGroupingSetNode
+  SNode*        pHaving;
+  SNode*        pRange;
+  SNode*        pEvery;
+  SNode*        pFill;
+  SNodeList*    pOrderByList;  // SOrderByExprNode
+  SLimitNode*   pLimit;
+  SLimitNode*   pSlimit;
+  STimeWindow   timeRange;
+  char          stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t       precision;
+  int32_t       selectFuncNum;
+  int32_t       returnRows;  // EFuncReturnRows
+  ETimeLineMode timeLineResMode;
+  bool          isEmptyResult;
+  bool          isSubquery;
+  bool          hasAggFuncs;
+  bool          hasRepeatScanFuncs;
+  bool          hasIndefiniteRowsFunc;
+  bool          hasMultiRowsFunc;
+  bool          hasSelectFunc;
+  bool          hasSelectValFunc;
+  bool          hasOtherVectorFunc;
+  bool          hasUniqueFunc;
+  bool          hasTailFunc;
+  bool          hasInterpFunc;
+  bool          hasInterpPseudoColFunc;
+  bool          hasLastRowFunc;
+  bool          hasLastFunc;
+  bool          hasTimeLineFunc;
+  bool          hasUdaf;
+  bool          hasStateKey;
+  bool          onlyHasKeepOrderFunc;
+  bool          groupSort;
+  bool          tagScan;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -321,6 +329,7 @@ typedef struct SSetOperator {
   SNode*           pLimit;
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
+  ETimeLineMode    timeLineResMode;  
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -434,7 +443,9 @@ typedef struct SQuery {
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
   bool            haveResultSet;
+  SNode*          pPrevRoot;
   SNode*          pRoot;
+  SNode*          pPostRoot;
   int32_t         numOfResCols;
   SSchema*        pResSchema;
   int8_t          precision;

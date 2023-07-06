@@ -99,15 +99,15 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   if (pOffset != NULL) {
     *pOffsetVal = pOffset->val;
 
-    char formatBuf[80];
-    tFormatOffset(formatBuf, 80, pOffsetVal);
+    char formatBuf[TSDB_OFFSET_LEN];
+    tFormatOffset(formatBuf, TSDB_OFFSET_LEN, pOffsetVal);
     tqDebug("tmq poll: consumer:0x%" PRIx64
             ", subkey %s, vgId:%d, existed offset found, offset reset to %s and continue. reqId:0x%" PRIx64,
             consumerId, pHandle->subKey, vgId, formatBuf, pRequest->reqId);
     return 0;
   } else {
     // no poll occurs in this vnode for this topic, let's seek to the right offset value.
-    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
+    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
       if (pRequest->useSnapshot) {
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey:%s, vgId:%d, (earliest) set offset to be snapshot",
                 consumerId, pHandle->subKey, vgId);
@@ -168,7 +168,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
-  if(code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
+  if (code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     goto end;
   }
 
@@ -177,20 +177,27 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     // lock
     taosWLockLatch(&pTq->lock);
     int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
-    if (pOffset->version >= ver || dataRsp.rspOffset.version >= ver){   //check if there are data again to avoid lost data
+    if (pOffset->version >= ver ||
+        dataRsp.rspOffset.version >= ver) {  // check if there are data again to avoid lost data
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
       goto end;
-    }else{
+    } else {
       taosWUnLockLatch(&pTq->lock);
     }
   }
 
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
 
-end :
+end : {
+  char buf[TSDB_OFFSET_LEN] = {0};
+  tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.rspOffset);
+  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64
+          " code:%d",
+          consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
   tDeleteMqDataRsp(&dataRsp);
   return code;
+  }
 }
 
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,

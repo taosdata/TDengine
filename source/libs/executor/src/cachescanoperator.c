@@ -208,6 +208,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
       pRes->info.rows = 1;
+      pRes->info.scanFlag = MAIN_SCAN;
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
       int32_t    code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes,

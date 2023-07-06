@@ -716,6 +716,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTableScanInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     pOperator->cost.totalCost = pTableScanInfo->base.readRecorder.elapsedTime;
+    pBlock->info.scanFlag = pTableScanInfo->base.scanFlag;
     return pBlock;
   }
   return NULL;
@@ -2373,6 +2374,10 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   if (pHandle->vnode) {
     SOperatorInfo*  pTableScanOp = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo);
+    if (pTableScanOp == NULL) {
+      qError("createTableScanOperatorInfo error, errorcode: %d", pTaskInfo->code);
+      goto _error;
+    }
     STableScanInfo* pTSInfo = (STableScanInfo*)pTableScanOp->info;
     if (pHandle->version > 0) {
       pTSInfo->base.cond.endVersion = pHandle->version;
@@ -2800,7 +2805,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   pInfo->sortBufSize = pInfo->bufPageSize * (kWay + 1);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
-                                             pInfo->pSortInputBlock, pTaskInfo->id.str);
+                                             pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlockImpl, NULL, NULL);
 

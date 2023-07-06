@@ -77,6 +77,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
+    tscError("version not compatible. client version: %s, server version: %s", version, connectRsp.sVer);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     goto End;
@@ -130,6 +131,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connType = connectRsp.connType;
   pTscObj->passInfo.ver = connectRsp.passVer;
+  pTscObj->authVer = connectRsp.authVer;
 
   hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
 
