@@ -345,7 +345,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     }
     *ppKey = pTKey;
     *pkLen = cd.kLen;
-    memcpy(*ppKey, cd.pKey, cd.kLen);
+    memcpy(*ppKey, cd.pKey, (size_t)cd.kLen);
   }
 
   if (ppVal) {
@@ -357,7 +357,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     }
     *ppVal = pTVal;
     *vLen = cd.vLen;
-    memcpy(*ppVal, cd.pVal, cd.vLen);
+    memcpy(*ppVal, cd.pVal, (size_t)cd.vLen);
   }
 
   if (TDB_CELLDECODER_FREE_KEY(&cd)) {
@@ -1793,7 +1793,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   *ppKey = pKey;
   *kLen = cd.kLen;
-  memcpy(pKey, cd.pKey, cd.kLen);
+  memcpy(pKey, cd.pKey, (size_t)cd.kLen);
 
   if (ppVal) {
     if (cd.vLen > 0) {
@@ -1852,7 +1852,7 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   *ppKey = pKey;
   *kLen = cd.kLen;
-  memcpy(pKey, cd.pKey, cd.kLen);
+  memcpy(pKey, cd.pKey, (size_t)cd.kLen);
 
   if (ppVal) {
     // TODO: vLen may be zero
@@ -1864,7 +1864,7 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
     *ppVal = pVal;
     *vLen = cd.vLen;
-    memcpy(pVal, cd.pVal, cd.vLen);
+    memcpy(pVal, cd.pVal, (size_t)cd.vLen);
   }
 
   ret = tdbBtcMoveToPrev(pBtc);
