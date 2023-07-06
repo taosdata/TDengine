@@ -997,18 +997,18 @@ void clearBrinBlockIter(SBrinRecordIter* pIter) {
 static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockNumber* pBlockNum, SArray* pTableScanInfoList) {
   size_t  sizeInDisk = 0;
   int64_t st = taosGetTimestampUs();
+
+  // clear info for the new file
   cleanupTableScanInfo(&pReader->status);
 
-  // set the flag for the new file
-  int32_t k = 0;
-  int32_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
-
-  int32_t     step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
-  STimeWindow w = pReader->window;
+  int32_t      k = 0;
+  int32_t      numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
+  int32_t      step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
+  STimeWindow  w = pReader->window;
+  SBrinRecord* pRecord = NULL;
 
   SBrinRecordIter iter = {0};
   initBrinRecordIter(&iter, pReader->pFileReader, pIndexList);
-  SBrinRecord* pRecord = NULL;
 
   while (k < numOfTables) {
     pRecord = getNextBrinRecord(&iter);
@@ -1138,7 +1138,7 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
 }
 
 static SFileDataBlockInfo* getCurrentBlockInfo(SDataBlockIter* pBlockIter) {
-  size_t num = taosArrayGetSize(pBlockIter->blockList);
+  size_t num = TARRAY_SIZE(pBlockIter->blockList);
   if (num == 0) {
     ASSERT(pBlockIter->numOfBlocks == num);
     return NULL;
@@ -1669,7 +1669,7 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
-    ASSERT(pTableScanInfo->pBlockList != NULL && taosArrayGetSize(pTableScanInfo->pBlockList) > 0);
+//    ASSERT(pTableScanInfo->pBlockList != NULL && taosArrayGetSize(pTableScanInfo->pBlockList) > 0);
 
     size_t num = taosArrayGetSize(pTableScanInfo->pBlockList);
     sup.numOfBlocksPerTable[sup.numOfTables] = num;
@@ -3251,7 +3251,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t orde
   int32_t code = 0;
   int32_t newDelDataInFile = taosArrayGetSize(pBlockScanInfo->pfileDelData);
   if (newDelDataInFile == 0 &&
-      ((pBlockScanInfo->delSkyline != NULL) || (taosArrayGetSize(pBlockScanInfo->pMemDelData) == 0))) {
+      ((pBlockScanInfo->delSkyline != NULL) || (TARRAY_SIZE(pBlockScanInfo->pMemDelData) == 0))) {
     return code;
   }
 
@@ -5332,7 +5332,7 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t st = taosGetTimestampUs();
+//  int64_t st = taosGetTimestampUs();
   TARRAY2_CLEAR(&pSup->colAggArray, 0);
 
   code = tsdbDataFileReadBlockSma(pReader->pFileReader, &pFBlock->record, &pSup->colAggArray);
@@ -5389,8 +5389,8 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   *pBlockSMA = pResBlock->pBlockAgg;
   pReader->cost.smaDataLoad += 1;
 
-  double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
-  pReader->cost.smaLoadTime += elapsedTime;
+//  double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
+  pReader->cost.smaLoadTime += 0;//elapsedTime;
 
   tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", %s", 0, pFBlock->uid, pReader->idStr);
   return code;
