@@ -159,11 +159,6 @@ struct SRSmaInfo {
   void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
   STaosQueue   *queue;                         // buffer queue of SubmitReq
   STaosQall    *qall;                          // buffer qall of SubmitReq
-#if 0
-  void         *iTaskInfo[TSDB_RETENTION_L2];  // immutable qTaskInfo_t
-  STaosQueue   *iQueue;                        // immutable buffer queue of SubmitReq
-  STaosQall    *iQall;                         // immutable buffer qall of SubmitReq
-#endif
 };
 
 #define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
@@ -223,27 +218,12 @@ int32_t smaPreClose(SSma *pSma);
 
 // rsma
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-// int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);
-// void    tdRSmaFSClose(SRSmaFS *fs);
-// int32_t tdRSmaFSPrepareCommit(SSma *pSma, SRSmaFS *pFSNew);
-// int32_t tdRSmaFSCommit(SSma *pSma);
-// int32_t tdRSmaFSFinishCommit(SSma *pSma);
-// int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS);
-// int32_t tdRSmaFSTakeSnapshot(SSma *pSma, SRSmaFS *pFS);
-// int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS);
-// void    tdRSmaFSUnRef(SSma *pSma, SRSmaFS *pFS);
-// int32_t tdRSmaFSUpsertQTaskFile(SSma *pSma, SRSmaFS *pFS, SQTaskFile *qTaskFile, int32_t nSize);
-// int32_t tdRSmaFSRollback(SSma *pSma);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
-// int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback);
 void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName);
-void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path,
-                                   char *outputName);
-void    tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName);
-void    tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName);
+void    tdRSmaQTaskInfoGetFullPath(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName);
 
 static FORCE_INLINE void tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int32_t ref = T_REF_INC(pRSmaInfo);
@@ -254,8 +234,7 @@ static FORCE_INLINE void tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   smaTrace("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
 
-void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t suid,
-                       int8_t level, int64_t version, char *outputName);
+
 void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus

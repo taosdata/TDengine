@@ -287,10 +287,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     // step 4: destroy the rsma info and associated fetch tasks
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
-    // step 5:
-    // tdRSmaFSClose(RSMA_FS(pStat));
-
-    // step 6: free pStat
+    // step 5: free pStat
     tsem_destroy(&(pStat->notEmpty));
     taosMemoryFreeClear(pStat);
   }

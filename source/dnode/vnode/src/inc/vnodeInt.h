@@ -318,7 +318,6 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
 // SRSmaSnapWriter ========================================
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter);
 int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-// int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter);
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback);
 
 typedef struct {
@@ -467,7 +466,7 @@ enum {
   SNAP_DATA_DEL = 3,
   SNAP_DATA_RSMA1 = 4,
   SNAP_DATA_RSMA2 = 5,
-  SNAP_DATA_QTASK = 6,
+  SNAP_DATA_QTASK = 6, // obsolete
   SNAP_DATA_TQ_HANDLE = 7,
   SNAP_DATA_TQ_OFFSET = 8,
   SNAP_DATA_STREAM_TASK = 9,
