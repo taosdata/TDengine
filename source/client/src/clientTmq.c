@@ -2488,6 +2488,9 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 static void destroyCommonInfo(SMqVgCommon* pCommon) {
+  if(pCommon == NULL){
+    return;
+  }
   taosArrayDestroy(pCommon->pList);
   tsem_destroy(&pCommon->rsp);
   taosThreadMutexDestroy(&pCommon->mutex);
