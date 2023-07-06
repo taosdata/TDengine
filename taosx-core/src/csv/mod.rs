@@ -94,8 +94,8 @@ pub async fn csv_to_taos(mut from: Dsn, mut to: Dsn) -> Result<()> {
 
 #[derive(Debug)]
 pub struct CsvHeader {
-    columns: usize,
-    headers: Vec<String>,
+    pub columns: usize,
+    pub headers: Vec<String>,
 }
 
 pub struct Col {
