@@ -542,6 +542,18 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_INDEX_STMT);
     SMCreateSmaReq req = {0};
+    ASSERT_TRUE(pQuery->pPrevRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pPrevRoot));
+
+    SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
+    SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
+    if (NULL == pCmdMsg) FAIL();
+    pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
+    pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
+    pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
+    if (!pCmdMsg->pMsg) FAIL();
+    tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq);
+    ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
