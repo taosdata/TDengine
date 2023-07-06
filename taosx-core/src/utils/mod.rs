@@ -4,6 +4,7 @@ use futures::TryStreamExt;
 use taos::*;
 
 pub mod port_pool;
+pub mod files;
 
 pub fn stop_thread<T>(handle: JoinHandle<T>) {
     #[cfg(windows)]

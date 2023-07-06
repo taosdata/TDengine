@@ -204,6 +204,9 @@ impl TaskOpts {
                     )
                     .await?;
                 }
+                ("csv", "taos") => {
+                    csv_to_taos(from.clone(), to.clone()).await?;
+                }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
             Ok(())
