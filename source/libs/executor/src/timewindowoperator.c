@@ -3124,6 +3124,8 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   tSimpleHashCleanup(pInfo->pStDeleted);
 
   taosArrayDestroy(pInfo->historyWins);
+  blockDataDestroy(pInfo->pCheckpointRes);
+
   taosMemoryFreeClear(param);
 }
 
@@ -4378,6 +4380,8 @@ void destroyStreamStateOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
   taosArrayDestroy(pInfo->historyWins);
   tSimpleHashCleanup(pInfo->pSeDeleted);
+  blockDataDestroy(pInfo->pCheckpointRes);
+
   taosMemoryFreeClear(param);
 }
 
