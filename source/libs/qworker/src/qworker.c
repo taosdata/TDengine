@@ -203,7 +203,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     }
 
     if (numOfResBlock == 0 || (hasMore == false)) {
-      if (!qIsDynamicExecTask(taskHandle)) {
+      if (!ctx->dynamicTask) {
         if (numOfResBlock == 0) {
           QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
         } else {
@@ -217,6 +217,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
         } else {
           QW_TASK_DLOG("dyn task qExecTask done, useconds:%" PRIu64, useconds);
         }
+        
+        ctx->queryExecDone = true;
       }
 
       dsEndPut(sinkHandle, useconds);
@@ -341,7 +343,10 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
         QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %" PRId64, pOutput->numOfBlocks,
                      pOutput->numOfRows);
 
-        qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
+        if (!ctx->dynamicTask) {
+          qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
+        }
+        
         if (NULL == rsp) {
           QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, len, &rsp));
           *pOutput = output;
@@ -480,6 +485,22 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg) {
+  if (!ctx->queryExecDone || !ctx->queryEnd) {
+    QW_TASK_ELOG("dynamic task prev exec not finished, execDone:%d, queryEnd:%d", ctx->queryExecDone, ctx->queryEnd);
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+  
+  qUpdateOperatorParam(ctx->taskHandle);
+
+  atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
+  
+  QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
   int32_t     code = 0;
@@ -734,13 +755,17 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   //qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
 
   ctx->level = plan->level;
+  ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo)
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
   qwSaveTbVersionInfo(pTaskInfo, ctx);
 
-  if (!qIsDynamicExecTask(pTaskInfo)) {
+  if (!ctx->dynamicTask) {
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+  } else {
+    ctx->queryExecDone = true;
+    ctx->queryEnd = true;
   }
   
 _return:
@@ -862,7 +887,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->dataConnInfo = qwMsg->connInfo;
 
   if (qwMsg->msg) {
-    qUpdateOperatorParam(ctx->taskHandle);
+    code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
+    goto _return;
   }
 
   SOutputData sOutput = {0};

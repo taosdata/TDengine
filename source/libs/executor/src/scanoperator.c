@@ -784,8 +784,33 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-static int32_t createTableListInfoFromParam(STableScanInfo* pInfo, STableScanOperatorParam* pParam) {
+static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
+  STableScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;  
+  int32_t code = 0;
+  STableListInfo* pListInfo = pInfo->base.pTableListInfo;
+  int32_t num = taosArrayGetSize(pOperator->pOperatorParam->pUidList);
+  if (num <= 0) {
+    qError("empty table scan uid list");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  qDebug("add total %d dynamic tables to scan", num);
+  for (int32_t i = 0; i < num; ++i) {
+    uint64_t* pUid = taosArrayGet(pOperator->pOperatorParam->pUidList, i);
+    STableKeyInfo info = {.uid = *pUid, .groupId = 0};
 
+    void* p = taosArrayPush(pListInfo->pTableList, &info);
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    taosHashPut(pListInfo->map, pUid, sizeof(uint64_t), &i, sizeof(int32_t));
+
+    qTrace("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+  }
+  
+  pOperator->pOperatorParam = NULL;
+  return code;
 }
 
 static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
@@ -794,7 +819,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
 
   if (pOperator->pOperatorParam) {
-    int32_t code = createTableListInfoFromParam(pInfo, (STableScanOperatorParam*)pOperator->pOperatorParam);
+    int32_t code = createTableListInfoFromParam(pOperator);
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);

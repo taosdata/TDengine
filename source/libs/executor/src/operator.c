@@ -309,6 +309,8 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
 
       if (pTableScanNode->scan.node.dynamicOp) {
         pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTableScanNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
       } else {
         code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
                                     pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);

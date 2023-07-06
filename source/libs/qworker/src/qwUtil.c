@@ -412,11 +412,13 @@ int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
-  if (!qIsDynamicExecTask(ctx->taskHandle)) {
+  if (!ctx->dynamicTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qwHandleTaskComplete(QW_FPARAMS_DEF, ctx);
+  qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
+
+  qwHandleTaskComplete(QW_FPARAMS(), ctx);
 
   return TSDB_CODE_SUCCESS;
 }
