@@ -165,7 +165,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
-            for task in tasks.iter() {                
+            for task in tasks.iter() {
                 let status = TaskStatus::new(
                     *task.key(),
                     Utc::now(),
@@ -235,6 +235,10 @@ fn main() -> anyhow::Result<()> {
     // let timer = LocalTime::new(format_description!(
     //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
     // ));
+
+    let timer = LocalTime::new(format_description!(
+        "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"
+    ));
     let level_filter =
         tracing_subscriber::filter::LevelFilter::from_level(args.log_level.unwrap_or(Level::INFO));
 
@@ -242,6 +246,7 @@ fn main() -> anyhow::Result<()> {
 
     layers.push(
         tracing_subscriber::fmt::layer()
+            .with_timer(timer)
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
@@ -255,6 +260,7 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         layers.push(
             tracing_subscriber::fmt::layer()
+                .with_timer(timer)
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
