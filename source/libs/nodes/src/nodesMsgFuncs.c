@@ -3570,7 +3570,11 @@ static int32_t msgToPhysiGroupCacheNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_DYN_QUERY_CTRL_CODE_BASE_NODE = 1,
-  PHY_DYN_QUERY_CTRL_CODE_QUERY_TYPE
+  PHY_DYN_QUERY_CTRL_CODE_QUERY_TYPE,
+  PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT0,
+  PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT1,
+  PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT0,
+  PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3579,6 +3583,25 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
   int32_t code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, PHY_DYN_QUERY_CTRL_CODE_QUERY_TYPE, pNode->qType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    switch (pNode->qType) {
+      case DYN_QTYPE_STB_HASH: {
+        code = tlvEncodeEnum(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT0, pNode->stbJoin.vgSlot[0]);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeEnum(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT1, pNode->stbJoin.vgSlot[1]);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeEnum(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT0, pNode->stbJoin.uidSlot[0]);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeEnum(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1, pNode->stbJoin.uidSlot[1]);
+        }
+        break;
+      }
+      default:
+        return TSDB_CODE_INVALID_PARA;
+    }
   }
   return code;
 }
@@ -3596,6 +3619,18 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_DYN_QUERY_CTRL_CODE_QUERY_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->qType, sizeof(pNode->qType));
         break;
+      case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT0:
+        code = tlvDecodeEnum(pTlv, &pNode->stbJoin.vgSlot[0], sizeof(pNode->stbJoin.vgSlot[0]));
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT1:
+        code = tlvDecodeEnum(pTlv, &pNode->stbJoin.vgSlot[1], sizeof(pNode->stbJoin.vgSlot[1]));
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT0:
+        code = tlvDecodeEnum(pTlv, &pNode->stbJoin.uidSlot[0], sizeof(pNode->stbJoin.uidSlot[0]));
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1:
+        code = tlvDecodeEnum(pTlv, &pNode->stbJoin.uidSlot[1], sizeof(pNode->stbJoin.uidSlot[1]));
+        break;      
       default:
         break;
     }

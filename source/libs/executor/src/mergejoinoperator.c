@@ -299,6 +299,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  pOperator->numOfRealDownstream = newDownstreams ? 1 : 2;
 
   return pOperator;
 

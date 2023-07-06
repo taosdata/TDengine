@@ -131,6 +131,11 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SGcOperato
     ctx.downstreamIdx = pParam->downstreamIdx;
     ctx.needCache = pParam->needCache;
   }
+
+  int32_t code = tSimpleHashPut(pGCache->pSessionHash, &pParam->sessionId, sizeof(pParam->sessionId), &ctx, sizeof(ctx));
+  if (TSDB_CODE_SUCCESS == code) {
+    *ppSession = tSimpleHashGet(pGCache->pSessionHash, &pParam->sessionId, sizeof(pParam->sessionId));
+  }
   
   return TSDB_CODE_SUCCESS;
 }
@@ -200,7 +205,7 @@ SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator) {
   }
 
   while (true) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, pSession->downstreamIdx);
+    SSDataBlock* pBlock = getNextBlockFromDownstreamOnce(pOperator, pSession->downstreamIdx);
     if (NULL == pBlock) {
       setCurrentGroupCacheDone(pOperator);
       break;

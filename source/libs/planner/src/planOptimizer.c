@@ -3339,6 +3339,26 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+
+  if (TSDB_CODE_SUCCESS == code) {  
+    pDynCtrl->pVgList = nodesMakeList();
+    if (NULL == pDynCtrl->pVgList) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {  
+    pDynCtrl->pUidList = nodesMakeList();
+    if (NULL == pDynCtrl->pUidList) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  SJoinLogicNode* pHJoin = (SJoinLogicNode*)pPrev;
+  nodesListStrictAppend(pDynCtrl->pUidList, nodesListGetNode(pHJoin->node.pTargets, 0));
+  nodesListStrictAppend(pDynCtrl->pUidList, nodesListGetNode(pHJoin->node.pTargets, 2));
+  nodesListStrictAppend(pDynCtrl->pVgList, nodesListGetNode(pHJoin->node.pTargets, 1));
+  nodesListStrictAppend(pDynCtrl->pVgList, nodesListGetNode(pHJoin->node.pTargets, 3));
   
   if (TSDB_CODE_SUCCESS == code) {
     nodesListStrictAppend(pDynCtrl->node.pChildren, (SNode*)pPrev);

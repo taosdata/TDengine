@@ -292,8 +292,25 @@ int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow,
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return colDataCopyAndReassign(pColumnInfoData, currentRow, pData, numOfRows);
   } else {
-    return doCopyNItems(pColumnInfoData, currentRow, pData, len, numOfRows, false);
+    int32_t colBytes = pColumnInfoData->info.bytes;
+    int32_t colOffset = currentRow * colBytes;
+    uint32_t num = 1;
+
+    void* pStart = pColumnInfoData->pData + colOffset;
+    memcpy(pStart, pData, colBytes);
+    colOffset += num * colBytes;
+    
+    while (num < numOfRows) {
+      int32_t maxNum = num << 1;
+      int32_t tnum = maxNum > numOfRows ? (numOfRows - num) : num;
+      
+      memcpy(pColumnInfoData->pData + colOffset, pStart, tnum * colBytes);
+      colOffset += tnum * colBytes;
+      num += tnum;
+    }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,

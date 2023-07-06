@@ -94,6 +94,7 @@ typedef struct SHJoinOperatorInfo {
   SArray*          pRowBufs;
   SNode*           pCond;
   SSHashObj*       pKeyHash;
+  bool             keyHashBuilt;
   SHJoinCtx        ctx;
 } SHJoinOperatorInfo;
 

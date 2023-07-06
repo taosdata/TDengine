@@ -166,6 +166,8 @@ typedef struct SGroupCacheLogicNode {
 typedef struct SDynQueryCtrlLogicNode {
   SLogicNode    node;
   EDynQueryType qType;
+  SNodeList*    pVgList;
+  SNodeList*    pUidList;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;

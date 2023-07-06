@@ -1009,11 +1009,33 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pDynCtrl->qType = pLogicNode->qType;
+  SDataBlockDescNode* pPrevDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
+  SNodeList* pVgList = NULL;
+  SNodeList* pUidList = NULL;
+  int32_t code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->pVgList, &pVgList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->pUidList, &pUidList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    int32_t i = 0;
+    FOREACH(pNode, pVgList) {
+      pDynCtrl->stbJoin.vgSlot[i] = ((SColumnNode*)pNode)->slotId;
+      ++i;
+    }
+    i = 0;
+    FOREACH(pNode, pUidList) {
+      pDynCtrl->stbJoin.uidSlot[i] = ((SColumnNode*)pNode)->slotId;
+      ++i;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pDynCtrl->qType = pLogicNode->qType;
 
-  *pPhyNode = (SPhysiNode*)pDynCtrl;
+    *pPhyNode = (SPhysiNode*)pDynCtrl;
+  }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 typedef struct SRewritePrecalcExprsCxt {

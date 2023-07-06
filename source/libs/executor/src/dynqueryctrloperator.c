@@ -30,7 +30,9 @@
 int64_t gSessionId = 0;
 
 static void destroyDynQueryCtrlOperator(void* param) {
-  SDynQueryCtrlOperatorInfo* pDynCtrlOperator = (SDynQueryCtrlOperatorInfo*)param;
+  SDynQueryCtrlOperatorInfo* pDyn = (SDynQueryCtrlOperatorInfo*)param;
+  qDebug("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64, 
+         pDyn->execInfo.prevBlkNum, pDyn->execInfo.prevBlkRows, pDyn->execInfo.postBlkNum, pDyn->execInfo.postBlkRows);
   taosMemoryFreeClear(param);
 }
 
@@ -82,6 +84,7 @@ static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, i
   
   pExc->pChild = pChild;
   pExc->vgId = *pVgId;
+  pExc->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pExc->uidList = taosArrayInit(1, sizeof(int64_t));
   if (NULL == pExc->uidList) {
     taosMemoryFree(pExc);
@@ -203,10 +206,13 @@ static void seqJoinContinueRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SStbJoinPostJoinCtx*       pPost = &pStbJoin->ctx.post;
 
   if (pPost->isStarted) {
+    qDebug("%s dynQueryCtrl retrieve block from post op", GET_TASKID(pOperator->pTaskInfo));
     *ppRes = getNextBlockFromDownstream(pOperator, 1);
     if (NULL == *ppRes) {
       pPost->isStarted = false;
     } else {
+      pInfo->execInfo.postBlkNum++;
+      pInfo->execInfo.postBlkRows += (*ppRes)->info.rows;
       return;
     }
   }
@@ -232,6 +238,9 @@ SSDataBlock* getResFromStbJoin(SOperatorInfo* pOperator) {
       break;
     }
 
+    pInfo->execInfo.prevBlkNum++;
+    pInfo->execInfo.prevBlkRows += pBlock->info.rows;
+    
     pStbJoin->ctx.prev.pLastBlk = pBlock;
     pStbJoin->ctx.prev.lastRow = -1;
     
@@ -264,7 +273,7 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
   pInfo->qType = pPhyciNode->qType;
   switch (pInfo->qType) {
     case DYN_QTYPE_STB_HASH:
-      memcpy(&pInfo->stbJoin, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
+      memcpy(&pInfo->stbJoin.basic, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
       nextFp = getResFromStbJoin;
       break;
     default:

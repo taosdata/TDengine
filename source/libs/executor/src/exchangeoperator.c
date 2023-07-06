@@ -161,7 +161,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
 
   pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-    return NULL;
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
@@ -455,7 +455,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   }
 
   pDataInfo->status = EX_SOURCE_DATA_STARTED;
-  SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
+  SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
   pDataInfo->startTime = taosGetTimestampUs();
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 

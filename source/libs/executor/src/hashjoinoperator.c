@@ -126,7 +126,7 @@ static int32_t initJoinValColsInfo(SHJoinTableInfo* pTable, SNodeList* pList) {
     }
   }
 
-  pTable->valBitMapSize = colNum / sizeof(int8_t) + ((colNum % sizeof(int8_t)) ? 1 : 0);
+  pTable->valBitMapSize = BitmapLen(colNum);
   pTable->valBufSize += pTable->valBitMapSize;
 
   return TSDB_CODE_SUCCESS;
@@ -330,7 +330,7 @@ static FORCE_INLINE int32_t copyHJoinResRowsToBlock(SHJoinOperatorInfo* pJoin, i
           buildValIdx++;
         }
         buildIdx++;
-      } else if (0 == i) {
+      } else if (0 == r) {
         SColumnInfoData* pSrc = taosArrayGet(pJoin->ctx.pProbeData->pDataBlock, pProbe->valCols[probeIdx].srcSlot);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pProbe->valCols[probeIdx].dstSlot);
     
@@ -369,6 +369,9 @@ static FORCE_INLINE void appendHJoinResToBlock(struct SOperatorInfo* pOperator, 
 
   pRes->info.rows = resNum;
   pCtx->rowRemains = pCtx->pBuildRow ? true : false;
+  if (!pCtx->rowRemains) {
+    pCtx->probeIdx++;
+  }
 }
 
 
@@ -415,7 +418,9 @@ static void doHashJoinImpl(struct SOperatorInfo* pOperator) {
 
   if (pJoin->ctx.pBuildRow) {
     appendHJoinResToBlock(pOperator, pRes);
-    return;
+    if (pRes->info.rows >= pRes->info.capacity) {
+      return;
+    }
   }
 
   for (int32_t i = pCtx->probeIdx; i < pCtx->pProbeData->info.rows; ++i) {
@@ -425,10 +430,12 @@ static void doHashJoinImpl(struct SOperatorInfo* pOperator) {
       pCtx->pBuildRow = pGroup->rows;
       appendHJoinResToBlock(pOperator, pRes);
       if (pRes->info.rows >= pRes->info.capacity) {
-        break;
+        return;
       }
     }
   }
+
+  pCtx->rowRemains = false;
 }
 
 static int32_t setKeyColsData(SSDataBlock* pBlock, SHJoinTableInfo* pTable) {
@@ -489,6 +496,7 @@ static FORCE_INLINE void copyValColsDataToBuf(SHJoinTableInfo* pTable, int32_t r
 
   char *pData = NULL;
   size_t bufLen = pTable->valBitMapSize;
+  memset(pTable->valData, 0, pTable->valBitMapSize);
   for (int32_t i = 0, m = 0; i < pTable->valNum; ++i) {
     if (pTable->valCols[i].keyCol) {
       continue;
@@ -693,7 +701,9 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
     return NULL;
   }
   
-  if (NULL == pJoin->pKeyHash) {
+  if (!pJoin->keyHashBuilt) {
+    pJoin->keyHashBuilt = true;
+    
     code = buildHJoinKeyHash(pOperator);
     if (code) {
       pTaskInfo->code = code;

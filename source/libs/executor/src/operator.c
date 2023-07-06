@@ -66,6 +66,7 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 
   memcpy(p->pDownstream, pDownstream, num * POINTER_BYTES);
   p->numOfDownstream = num;
+  p->numOfRealDownstream = num;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -561,7 +562,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
   }
 
   if (pOperator->pDownstream != NULL) {
-    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    for (int32_t i = 0; i < pOperator->numOfRealDownstream; ++i) {
       destroyOperator(pOperator->pDownstream[i]);
     }
 
@@ -646,12 +647,26 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pPara
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
+SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam) {
   if (pOperator->pDownstreamParams && pOperator->pDownstreamParams[idx]) {
-    return pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamParams[idx]);
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamParams[idx]);
+    if (clearParam) {
+      pOperator->pDownstreamParams[idx] = NULL;
+    }
+    return pBlock;
   }
   
   return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+}
+
+
+SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
+  return getNextBlockFromDownstreamImpl(pOperator, idx, false);
+}
+
+SSDataBlock* getNextBlockFromDownstreamOnce(struct SOperatorInfo* pOperator, int32_t idx) {
+  return getNextBlockFromDownstreamImpl(pOperator, idx, true);
 }
 
 

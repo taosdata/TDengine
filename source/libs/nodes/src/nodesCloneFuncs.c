@@ -361,6 +361,7 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   COPY_SCALAR_FIELD(groupAction);
   COPY_SCALAR_FIELD(inputTsOrder);
   COPY_SCALAR_FIELD(outputTsOrder);
+  COPY_SCALAR_FIELD(dynamicOp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -544,6 +545,8 @@ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCache
 static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQueryCtrlLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(qType);
+  CLONE_NODE_LIST_FIELD(pVgList);
+  CLONE_NODE_LIST_FIELD(pUidList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -562,6 +565,7 @@ static int32_t physiNodeCopy(const SPhysiNode* pSrc, SPhysiNode* pDst) {
   CLONE_NODE_LIST_FIELD(pChildren);
   COPY_SCALAR_FIELD(inputTsOrder);
   COPY_SCALAR_FIELD(outputTsOrder);
+  COPY_SCALAR_FIELD(dynamicOp);
   return TSDB_CODE_SUCCESS;
 }
 

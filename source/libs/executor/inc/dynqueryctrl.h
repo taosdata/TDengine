@@ -19,6 +19,13 @@
 extern "C" {
 #endif
 
+typedef struct SDynQueryCtrlExecInfo {
+  int64_t prevBlkNum;
+  int64_t prevBlkRows;
+  int64_t postBlkNum;
+  int64_t postBlkRows;
+} SDynQueryCtrlExecInfo;
+
 typedef struct SStbJoinPrevJoinCtx {
   SSDataBlock* pLastBlk;
   int32_t      lastRow;
@@ -39,7 +46,8 @@ typedef struct SStbJoinDynCtrlInfo {
 } SStbJoinDynCtrlInfo;
 
 typedef struct SDynQueryCtrlOperatorInfo {
-  EDynQueryType qType;
+  EDynQueryType         qType;
+  SDynQueryCtrlExecInfo execInfo;
   union {
     SStbJoinDynCtrlInfo stbJoin;
   };
