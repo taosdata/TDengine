@@ -647,27 +647,9 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       SqlFunctionCtx* pfCtx = &pSup->pCtx[k];
 
-      if (fmIsAggFunc(pfCtx->functionId)) {
-        // selective value output should be set during corresponding function execution
-        if (fmIsSelectValueFunc(pfCtx->functionId)) {
-          continue;
-        }
-
-        SColumnInfoData* pOutput = taosArrayGet(pRes->pDataBlock, outputSlotId);
-        int32_t          slotId = pfCtx->param[0].pCol->slotId;
-
-        // todo handle the json tag
-        //SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
-        //for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
-        //  bool isNull = colDataIsNull_s(pInput, f);
-        //  if (isNull) {
-        //    colDataSetNULL(pOutput, pRes->info.rows + f);
-        //  } else {
-        //    char* data = colDataGetData(pInput, f);
-        //    colDataSetVal(pOutput, pRes->info.rows + f, data, isNull);
-        //  }
-        //}
-      } else {
+      // UDF scalar functions will be calculated here, for example, select foo(n) from (select 1 n).
+      // UDF aggregate functions will be handled in agg operator.
+      if (fmIsScalarFunc(pfCtx->functionId)) {
         SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
         taosArrayPush(pBlockList, &pRes);
 
@@ -687,6 +669,8 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         colDataDestroy(&idata);
 
         taosArrayDestroy(pBlockList);
+      } else {
+        return TSDB_CODE_OPS_NOT_SUPPORT;
       }
     } else {
       return TSDB_CODE_OPS_NOT_SUPPORT;
