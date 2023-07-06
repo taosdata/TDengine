@@ -95,6 +95,7 @@ static void freeItem(void *param) {
   taosMemoryFree(pInfo->verboseInfo);
 }
 
+
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   qTaskInfo_t taskHandle = ctx->taskHandle;
 
@@ -492,7 +493,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
   
-  qUpdateOperatorParam(ctx->taskHandle);
+  qUpdateOperatorParam(ctx->taskHandle, qwMsg->msg);
 
   atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
   
@@ -755,7 +756,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   //qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
 
   ctx->level = plan->level;
-  ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo)
+  ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo);
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 

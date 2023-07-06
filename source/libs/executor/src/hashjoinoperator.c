@@ -639,7 +639,7 @@ static int32_t buildHJoinKeyHash(struct SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   while (true) {
-    pBlock = getNextBlockFromDownstream(pOperator, pJoin->pBuild->downStreamIdx)
+    pBlock = getNextBlockFromDownstream(pOperator, pJoin->pBuild->downStreamIdx);
     if (NULL == pBlock) {
       break;
     }

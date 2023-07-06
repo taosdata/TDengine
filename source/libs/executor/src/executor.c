@@ -516,6 +516,15 @@ bool qIsDynamicExecTask(qTaskInfo_t tinfo) {
   return ((SExecTaskInfo*)tinfo)->dynamicTask;
 }
 
+void destroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
+
+  //TODO
+}
+
+
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
   ((SExecTaskInfo*)tinfo)->pOpParam = pParam;

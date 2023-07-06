@@ -478,7 +478,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
     if (pDataInfo->pSrcUidList) {
-      int32_t code = buildTableScanOperatorParam(&req.opParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
+      int32_t code = buildTableScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
+      taosArrayDestroy(pDataInfo->pSrcUidList);
+      pDataInfo->pSrcUidList = NULL;
       if (TSDB_CODE_SUCCESS != code) {
         pTaskInfo->code = code;
         taosMemoryFree(pWrapper);
@@ -766,6 +768,8 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   dataInfo.pSrcUidList = taosArrayDup(pParam->uidList, NULL);
   dataInfo.srcOpType = pParam->srcOpType;
   taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 

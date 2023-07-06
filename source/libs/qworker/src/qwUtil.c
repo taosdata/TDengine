@@ -401,6 +401,7 @@ _return:
   QW_RET(code);
 }
 
+
 int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_QTID(id, qId, tId, eId);
@@ -416,9 +417,9 @@ int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
+  QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC));
 
-  qwHandleTaskComplete(QW_FPARAMS(), ctx);
+  QW_ERR_RET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
 
   return TSDB_CODE_SUCCESS;
 }

@@ -65,7 +65,7 @@ typedef struct SGroupColsInfo {
 } SGroupColsInfo;
 
 typedef struct SGcSessionCtx {
-  SOperatorInfo*  pDownstream;
+  int32_t         downstreamIdx;
   bool            cacheHit;
   bool            needCache;
   SGcBlkBufInfo*  pLastBlk; 

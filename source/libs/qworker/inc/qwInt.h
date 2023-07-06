@@ -396,6 +396,7 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type);
 void    qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch);
 int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch);
 void    qwFreeTaskCtx(SQWTaskCtx *ctx);
+int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 
 void    qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);

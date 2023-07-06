@@ -43,6 +43,7 @@ typedef struct SMJoinOperatorInfo {
   SSDataBlock* pRes;
   int32_t      joinType;
   int32_t      inputOrder;
+  int16_t      downstreamResBlkId[2];
 
   SSDataBlock* pLeft;
   int32_t      leftPos;
@@ -72,8 +73,7 @@ static void         destroyMergeJoinOperator(void* param);
 static void         extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t num,
                                          SSortMergeJoinPhysiNode* pJoinNode, const char* idStr);
 
-static void extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream,  int32_t num,
-                                 SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
+static void extractTimeCondition(SMJoinOperatorInfo* pInfo,        SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
   SNode* pPrimKeyCond = pJoinNode->pPrimKeyCond;
   if (nodeType(pPrimKeyCond) != QUERY_NODE_OPERATOR) {
     qError("not support this in join operator, %s", idStr);
@@ -89,13 +89,13 @@ static void extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDow
     leftTsCol = col1;
     rightTsCol = col2;
   } else {
-    if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
-      ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
+    if (col1->dataBlockId == pInfo->downstreamResBlkId[0]) {
+      ASSERT(col2->dataBlockId == pInfo->downstreamResBlkId[1]);
       leftTsCol = col1;
       rightTsCol = col2;
     } else {
-      ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
-      ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
+      ASSERT(col1->dataBlockId == pInfo->downstreamResBlkId[1]);
+      ASSERT(col2->dataBlockId == pInfo->downstreamResBlkId[0]);
       leftTsCol = col2;
       rightTsCol = col1;
     }
@@ -104,11 +104,11 @@ static void extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDow
   setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
 }
 
-static void extractEqualOnCondColsFromOper(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstreams, SOperatorNode* pOperNode,
+static void extractEqualOnCondColsFromOper(SMJoinOperatorInfo* pInfo, SOperatorNode* pOperNode,
                                        SColumn* pLeft, SColumn* pRight) {
   SColumnNode* pLeftNode = (SColumnNode*)pOperNode->pLeft;
   SColumnNode* pRightNode = (SColumnNode*)pOperNode->pRight;
-  if (pLeftNode->dataBlockId == pRightNode->dataBlockId || pLeftNode->dataBlockId == pDownstreams[0]->resultDataBlockId) {
+  if (pLeftNode->dataBlockId == pRightNode->dataBlockId || pLeftNode->dataBlockId == pInfo->downstreamResBlkId[0]) {
     *pLeft = extractColumnFromColumnNode((SColumnNode*)pOperNode->pLeft);
     *pRight = extractColumnFromColumnNode((SColumnNode*)pOperNode->pRight);
   } else {
@@ -117,7 +117,7 @@ static void extractEqualOnCondColsFromOper(SMJoinOperatorInfo* pInfo, SOperatorI
   }
 }
 
-static void extractEqualOnCondCols(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownStream, SNode* pEqualOnCondNode,
+static void extractEqualOnCondCols(SMJoinOperatorInfo* pInfo, SNode* pEqualOnCondNode,
                                     SArray* leftTagEqCols, SArray* rightTagEqCols) {
   SColumn left = {0};
   SColumn right = {0};
@@ -125,7 +125,7 @@ static void extractEqualOnCondCols(SMJoinOperatorInfo* pInfo, SOperatorInfo** pD
     SNode* pNode = NULL;
     FOREACH(pNode, ((SLogicConditionNode*)pEqualOnCondNode)->pParameterList) {
       SOperatorNode* pOperNode = (SOperatorNode*)pNode;
-      extractEqualOnCondColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
+      extractEqualOnCondColsFromOper(pInfo, pOperNode, &left, &right);
       taosArrayPush(leftTagEqCols, &left);
       taosArrayPush(rightTagEqCols, &right);
     }
@@ -134,7 +134,7 @@ static void extractEqualOnCondCols(SMJoinOperatorInfo* pInfo, SOperatorInfo** pD
 
   if (nodeType(pEqualOnCondNode) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pOperNode = (SOperatorNode*)pEqualOnCondNode;
-    extractEqualOnCondColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
+    extractEqualOnCondColsFromOper(pInfo, pOperNode, &left, &right);
     taosArrayPush(leftTagEqCols, &left);
     taosArrayPush(rightTagEqCols, &right);
   }
@@ -198,15 +198,39 @@ static int32_t fillKeyBufFromTagCols(SArray* pCols, SSDataBlock* pBlock, int32_t
   return (int32_t)(pStart - (char*)pKey);
 }
 
+SOperatorInfo** buildMergeJoinDownstreams(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream) {
+  SOperatorInfo** p = taosMemoryMalloc(2 * POINTER_BYTES);
+  if (p) {
+    p[0] = pDownstream[0];
+    p[1] = pDownstream[0];
+    pInfo->downstreamResBlkId[0] = getOperatorResultBlockId(pDownstream[0], 0);
+    pInfo->downstreamResBlkId[1] = getOperatorResultBlockId(pDownstream[1], 1);
+  }
+
+  return p;
+}
+
+
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   SMJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMJoinOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
+  bool newDownstreams = false;
+  
   int32_t code = TSDB_CODE_SUCCESS;
   if (pOperator == NULL || pInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
+  }
+
+  if (1 == numOfDownstream) {
+    newDownstreams = true;
+    pDownstream = buildMergeJoinDownstreams(pInfo, pDownstream);
+    if (NULL == pDownstream) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    numOfDownstream = 2;
   }
 
   int32_t      numOfCols = 0;
@@ -220,7 +244,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
 
-  extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode, GET_TASKID(pTaskInfo));
+  extractTimeCondition(pInfo, pJoinNode, GET_TASKID(pTaskInfo));
 
   if (pJoinNode->pOtherOnCond != NULL && pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
@@ -265,7 +289,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   if (pInfo->pColEqualOnConditions != NULL) {
     pInfo->leftEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
     pInfo->rightEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
-    extractEqualOnCondCols(pInfo, pDownstream, pInfo->pColEqualOnConditions, pInfo->leftEqOnCondCols, pInfo->rightEqOnCondCols);
+    extractEqualOnCondCols(pInfo, pInfo->pColEqualOnConditions, pInfo->leftEqOnCondCols, pInfo->rightEqOnCondCols);
     initTagColskeyBuf(&pInfo->leftEqOnCondKeyLen, &pInfo->leftEqOnCondKeyBuf, pInfo->leftEqOnCondCols);
     initTagColskeyBuf(&pInfo->rightEqOnCondKeyLen, &pInfo->rightEqOnCondKeyBuf, pInfo->rightEqOnCondCols);
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -282,6 +306,9 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 _error:
   if (pInfo != NULL) {
     destroyMergeJoinOperator(pInfo);
+  }
+  if (newDownstreams) {
+    taosMemoryFree(pDownstream);
   }
 
   taosMemoryFree(pOperator);

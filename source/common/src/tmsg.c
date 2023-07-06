@@ -5530,7 +5530,7 @@ int32_t tSerializeSOperatorParam(SEncoder* pEncoder, SOperatorParam* pOpParam) {
 }
 
 int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam* pOpParam, int32_t specNum) {
-  pOpParam->pOpParams = taosArrayInit(specNum, sizeof(SOperatorSpecParam))
+  pOpParam->pOpParams = taosArrayInit(specNum, sizeof(SOperatorSpecParam));
   if (NULL == pOpParam->pOpParams) return -1;
 
   SOperatorSpecParam specParam;

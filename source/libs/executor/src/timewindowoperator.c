@@ -5259,7 +5259,6 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
                   pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamIntervalAgg, NULL,
                                          destroyStreamFinalIntervalOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-                                         destroyStreamFinalIntervalOperatorInfo, optrDefaultBufFn, NULL);
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
 
   pInfo->statestore = pTaskInfo->storageAPI.stateStore;

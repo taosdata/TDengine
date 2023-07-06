@@ -134,6 +134,8 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
 
 bool   qIsDynamicExecTask(qTaskInfo_t tinfo);
 
+void   qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
+
 /**
  * Create the exec task object according to task json
  * @param readHandle

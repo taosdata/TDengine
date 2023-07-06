@@ -789,14 +789,17 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;  
   int32_t code = 0;
   STableListInfo* pListInfo = pInfo->base.pTableListInfo;
-  int32_t num = taosArrayGetSize(pOperator->pOperatorParam->pUidList);
+  STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorParam;
+  int32_t num = taosArrayGetSize(pParam->pUidList);
   if (num <= 0) {
     qError("empty table scan uid list");
     return TSDB_CODE_INVALID_PARA;
   }
+  
   qDebug("add total %d dynamic tables to scan", num);
+  
   for (int32_t i = 0; i < num; ++i) {
-    uint64_t* pUid = taosArrayGet(pOperator->pOperatorParam->pUidList, i);
+    uint64_t* pUid = taosArrayGet(pParam->pUidList, i);
     STableKeyInfo info = {.uid = *pUid, .groupId = 0};
 
     void* p = taosArrayPush(pListInfo->pTableList, &info);

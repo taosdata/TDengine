@@ -120,16 +120,6 @@ static int32_t initGroupCacheBufPages(SGroupCacheOperatorInfo* pInfo) {
   return addPageToGroupCacheBuf(pInfo->pBlkBufs);
 }
 
-static int32_t initGroupCacheDownstreamInfo(SGroupCachePhysiNode* pPhyciNode, SOperatorInfo** pDownstream, int32_t numOfDownstream, SGcDownstreamInfo* pInfo) {
-  pInfo->ppDownStream = taosMemoryMalloc(numOfDownstream * POINTER_BYTES);
-  if (NULL == pInfo->ppDownStream) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  memcpy(pInfo->ppDownStream, pDownstream, numOfDownstream * POINTER_BYTES);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SGcOperatorParam* pParam, SGcSessionCtx** ppSession) {
   SGcSessionCtx ctx = {0};
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
@@ -138,7 +128,7 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SGcOperato
     ctx.cacheHit = true;
     ctx.pLastBlk = pGroup->blks;
   } else {
-    ctx.pDownstream = pOperator->pDownstream[pParam->downstreamIdx];
+    ctx.downstreamIdx = pParam->downstreamIdx;
     ctx.needCache = pParam->needCache;
   }
   
@@ -210,7 +200,7 @@ SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator) {
   }
 
   while (true) {
-    SSDataBlock* pBlock = pSession->pDownstream->fpSet.getNextExtFn(pSession->pDownstream, param);
+    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, pSession->downstreamIdx);
     if (NULL == pBlock) {
       setCurrentGroupCacheDone(pOperator);
       break;
@@ -237,6 +227,8 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
     goto _error;
   }
 
+  pOperator->transparent = true;
+  
   setOperatorInfo(pOperator, "GroupCacheOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   code = initGroupColsInfo(&pInfo->groupColsInfo, pPhyciNode->grpColsMayBeNull, pPhyciNode->pGroupCols);

@@ -94,16 +94,6 @@ int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   }
 }
 
-SSDataBlock* optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
-  pOperator->pOperatorParam = getOperatorParam(pOperator->operatorType, pParam, 0);
-  int32_t code = setOperatorParams(pOperator, pOperator->pOperatorParam ? pOperator->pOperatorParam->pChild : pParam);
-  if (TSDB_CODE_SUCCESS != code) {
-    pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
-  }
-  return pOperator->fpSet.getNextFn(pOperator);
-}
-
 static int64_t getQuerySupportBufSize(size_t numOfTables) {
   size_t s1 = sizeof(STableQueryInfo);
   //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
@@ -656,7 +646,7 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pPara
   return TSDB_CODE_SUCCESS;
 }
 
-FORCE_INLINE SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
+SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   if (pOperator->pDownstreamParams && pOperator->pDownstreamParams[idx]) {
     return pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamParams[idx]);
   }
@@ -664,10 +654,22 @@ FORCE_INLINE SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOper
   return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
 }
 
-void destroyOperatorParam(SOperatorParam* pParam) {
-  if (NULL == pParam) {
-    return;
+
+SSDataBlock* optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
+  pOperator->pOperatorParam = getOperatorParam(pOperator->operatorType, pParam, 0);
+  int32_t code = setOperatorParams(pOperator, pOperator->pOperatorParam ? pOperator->pOperatorParam->pChild : pParam);
+  if (TSDB_CODE_SUCCESS != code) {
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
   }
+  return pOperator->fpSet.getNextFn(pOperator);
+}
+
+int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
+  if (pOperator->transparent) {
+    return getOperatorResultBlockId(pOperator->pDownstream[idx], 0);
+  }
+  return pOperator->resultDataBlockId;
 }
 
 

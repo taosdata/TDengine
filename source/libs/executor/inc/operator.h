@@ -65,6 +65,7 @@ typedef struct SOperatorInfo {
   uint16_t               operatorType;
   int16_t                resultDataBlockId;
   bool                   blocking;  // block operator or not
+  bool                   transparent;
   uint8_t                status;    // denote if current operator is completed
   char*                  name;      // name, for debug purpose
   void*                  info;      // extension attribution
@@ -165,7 +166,9 @@ void           setOperatorCompleted(SOperatorInfo* pOperator);
 void           setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status,
                                void* pInfo, SExecTaskInfo* pTaskInfo);
 int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
-SSDataBlock*   optrDefaultGetExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+SSDataBlock*   optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
+int16_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 
 SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname);
