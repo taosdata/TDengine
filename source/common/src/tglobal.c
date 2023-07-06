@@ -215,7 +215,6 @@ char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udf
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
-int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 bool    tsFilterScalarMode = false;
 
 #ifndef _STORAGE
@@ -532,7 +531,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, 0) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, 0) != 0) return -1;
-  if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
 
@@ -918,7 +916,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
-  tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;

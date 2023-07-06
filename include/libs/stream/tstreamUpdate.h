@@ -43,8 +43,8 @@ typedef struct SUpdateKey {
 //  uint64_t     maxDataVersion;
 //} SUpdateInfo;
 
-SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark);
-SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark);
+SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark, bool igUp);
+SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
 TSKEY        updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol);
 bool         updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
 bool         updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid);

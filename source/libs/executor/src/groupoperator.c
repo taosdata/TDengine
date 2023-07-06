@@ -1128,9 +1128,13 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
         printDataBlock(pInfo->pDelRes, "stream partitionby delete");
         return pInfo->pDelRes;
       } break;
-      default:
-        ASSERTS(pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_RETRIEVE, "invalid SSDataBlock type");
+      case STREAM_CREATE_CHILD_TABLE:
+      case STREAM_RETRIEVE:
+      case STREAM_CHECKPOINT: {
         return pBlock;
+      }
+      default:
+        ASSERTS(0, "invalid SSDataBlock type");
     }
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
@@ -1183,8 +1187,8 @@ void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
-  if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
-    pScanInfo->pUpdateInfo = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0);
+  if (!pScanInfo->pUpdateInfo) {
+    pScanInfo->pUpdateInfo = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate);
   }
 }
 

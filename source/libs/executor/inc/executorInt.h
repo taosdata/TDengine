@@ -317,8 +317,6 @@ typedef struct STimeWindowAggSupp {
   int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
-  TSKEY           checkPointTs;
-  TSKEY           checkPointInterval;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
@@ -353,8 +351,6 @@ typedef struct SStreamScanInfo {
   SExprSupp*            pPartScalarSup;
   bool                  assignBlockUid;  // assign block uid to groupId, temporarily used for generating rollup SMA.
   int32_t               scanWinIndex;    // for state operator
-  int32_t               pullDataResIndex;
-  SSDataBlock*          pPullDataRes;    // pull data SSDataBlock
   SSDataBlock*          pDeleteDataRes;  // delete data SSDataBlock
   int32_t               deleteDataIndex;
   STimeWindow           updateWin;
@@ -429,6 +425,11 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   SResultRow*  pResultRow;
 } SMergeAlignedIntervalAggOperatorInfo;
 
+typedef struct SOpCheckPointInfo {
+  uint16_t  checkPointId;
+  SHashObj* children; // key:child id
+} SOpCheckPointInfo;
+
 typedef struct SStreamIntervalOperatorInfo {
   SOptrBasicInfo     binfo;           // basic info
   SAggSupporter      aggSup;          // aggregate supporter
@@ -457,9 +458,12 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pUpdated;
   SSHashObj*         pUpdatedMap;
   int64_t            dataVersion;
-  SStateStore        statestore;
+  SStateStore        stateStore;
   bool               recvGetAll;
   SHashObj*          pFinalPullDataMap;
+  SOpCheckPointInfo  checkPointInfo;
+  bool               reCkBlock;
+  SSDataBlock*       pCheckpointRes;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -493,7 +497,6 @@ typedef struct SStreamSessionAggOperatorInfo {
   STimeWindowAggSupp  twAggSup;
   SSDataBlock*        pWinBlock;   // window result
   SSDataBlock*        pDelRes;     // delete result
-  SSDataBlock*        pUpdateRes;  // update window
   bool                returnUpdate;
   SSHashObj*          pStDeleted;
   void*               pDelIterator;
@@ -507,6 +510,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   int64_t             dataVersion;
   SArray*             historyWins;
   bool                isHistoryOp;
+  bool                reCkBlock;
+  SSDataBlock*        pCheckpointRes;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -528,6 +533,8 @@ typedef struct SStreamStateAggOperatorInfo {
   int64_t             dataVersion;
   bool                isHistoryOp;
   SArray*             historyWins;
+  bool                reCkBlock;
+  SSDataBlock*        pCheckpointRes;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -686,6 +693,9 @@ void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 uint64_t calcGroupId(char* pData, int32_t len);
 void streamOpReleaseState(struct SOperatorInfo* pOperator);
 void streamOpReloadState(struct SOperatorInfo* pOperator);
+
+int32_t encodeSTimeWindowAggSupp(void **buf, STimeWindowAggSupp* pTwAggSup);
+void*   decodeSTimeWindowAggSupp(void *buf, STimeWindowAggSupp* pTwAggSup);
 
 #ifdef __cplusplus
 }

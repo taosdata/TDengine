@@ -363,13 +363,13 @@ typedef struct SStateStore {
                                            state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
   int32_t (*streamStateSessionGetKeyByRange)(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
 
-  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark);
+  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
   TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
   bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
 
-  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark);
+  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);
   void (*updateInfoDestoryColseWinSBF)(SUpdateInfo* pInfo);
   int32_t (*updateInfoSerialize)(void* buf, int32_t bufLen, const SUpdateInfo* pInfo);

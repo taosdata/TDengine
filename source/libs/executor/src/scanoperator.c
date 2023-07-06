@@ -40,11 +40,12 @@
 
 int32_t scanDebug = 0;
 
-#define MULTI_READER_MAX_TABLE_NUM   5000
-#define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
-#define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
-#define STREAM_SCAN_OP_NAME          "StreamScanOperator"
-#define STREAM_SCAN_OP_STATE_NAME    "StreamScanFillHistoryState"
+#define MULTI_READER_MAX_TABLE_NUM        5000
+#define SET_REVERSE_SCAN_FLAG(_info)      ((_info)->scanFlag = REVERSE_SCAN)
+#define SWITCH_ORDER(n)                   (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
+#define STREAM_SCAN_OP_NAME               "StreamScanOperator"
+#define STREAM_SCAN_OP_STATE_NAME         "StreamScanFillHistoryState"
+#define STREAM_SCAN_OP_CHECKPOINT_NAME    "StreamScanOperator_Checkpoint"
 
 typedef struct STableMergeScanExecInfo {
   SFileBlockLoadRecorder blockRecorder;
@@ -1756,21 +1757,33 @@ static void doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBl
   }
 }
 
-//int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
-//  int32_t len = updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo);
-//  *pBuff = taosMemoryCalloc(1, len);
-//  updateInfoSerialize(*pBuff, len, pInfo->pUpdateInfo);
-//  return len;
-//}
+int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
+ int32_t len = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo);
+ len += encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
+ *pBuff = taosMemoryCalloc(1, len);
+ void* buf = *pBuff;
+ encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
+ pInfo->stateStore.updateInfoSerialize(buf, len, pInfo->pUpdateInfo);
+ return len;
+}
+
+void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
+  void* pBuf = NULL;
+  int32_t len = streamScanOperatorEncode(pInfo, pBuf);
+  pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
+}
 
 // other properties are recovered from the execution plan
 void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) {
   if (!pBuff || len == 0) {
     return;
   }
+  void* buf = pBuff;
+  buf = decodeSTimeWindowAggSupp(buf, &pInfo->twAggSup);
+  int32_t tlen = len - (pBuff - buf);
 
-  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
-  int32_t      code = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
+  void* pUpInfo = pInfo->stateStore.updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0, pInfo->igCheckUpdate);
+  int32_t code = pInfo->stateStore.updateInfoDeserialize(buf, tlen, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->pUpdateInfo = pUpInfo;
   }
@@ -1984,6 +1997,11 @@ FETCH_NEXT_BLOCK:
             goto FETCH_NEXT_BLOCK;
           }
         }
+      } break;
+      case STREAM_CHECKPOINT: {
+        streamScanOperatorSaveCheckpoint(pInfo);
+        pAPI->stateStore.streamStateCommit(pInfo->pState);
+        pAPI->stateStore.streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
       } break;
       default:
         break;
@@ -2317,7 +2335,6 @@ static void destroyStreamScanOperatorInfo(void* param) {
   pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
-  blockDataDestroy(pStreamScan->pPullDataRes);
   blockDataDestroy(pStreamScan->pDeleteDataRes);
   blockDataDestroy(pStreamScan->pUpdateDataRes);
   blockDataDestroy(pStreamScan->pCreateTbRes);
@@ -2526,7 +2543,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
   pInfo->groupId = 0;
-  pInfo->pPullDataRes = createSpecialDataBlock(STREAM_RETRIEVE);
   pInfo->pStreamScanOp = pOperator;
   pInfo->deleteDataIndex = 0;
   pInfo->pDeleteDataRes = createSpecialDataBlock(STREAM_DELETE_DATA);
@@ -2545,9 +2561,11 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   if (pTaskInfo->streamInfo.pState) {
     void*   buff = NULL;
     int32_t len = 0;
-    pAPI->stateStore.streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), &buff, &len);
-    streamScanOperatorDecode(buff, len, pInfo);
-    taosMemoryFree(buff);
+    int32_t res = pAPI->stateStore.streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), &buff, &len);
+    if (res == TSDB_CODE_SUCCESS) {
+      streamScanOperatorDecode(buff, len, pInfo);
+      taosMemoryFree(buff);
+    }
   }
 
   setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
