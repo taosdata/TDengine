@@ -246,7 +246,7 @@ fn main() -> anyhow::Result<()> {
 
     layers.push(
         tracing_subscriber::fmt::layer()
-            .with_timer(timer)
+            .with_timer(timer.clone())
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
@@ -260,7 +260,7 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         layers.push(
             tracing_subscriber::fmt::layer()
-                .with_timer(timer)
+                .with_timer(timer.clone())
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
