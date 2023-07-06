@@ -15,6 +15,7 @@
 
 #include "streamInt.h"
 #include "ttimer.h"
+#include "trpc.h"
 
 #define MAX_BLOCK_NAME_NUM         1024
 #define DISPATCH_RETRY_INTERVAL_MS 300
@@ -619,4 +620,44 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
   // this block can not be deleted until it has been sent to downstream task successfully.
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamTaskCheckpointReq* pReq, int32_t nodeId, SEpSet* pEpSet) {
+  void*   buf = NULL;
+  int32_t code = -1;
+  SRpcMsg msg = {0};
+
+  int32_t tlen;
+  tEncodeSize(tEncodeStreamTaskCheckpointReq, pReq, tlen, code);
+  if (code < 0) {
+    return -1;
+  }
+
+  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  ((SMsgHead*)buf)->vgId = htonl(nodeId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((code = tEncodeStreamTaskCheckpointReq(&encoder, pReq)) < 0) {
+    rpcFreeCont(buf);
+    return code;
+  }
+
+  tEncoderClear(&encoder);
+
+  msg.contLen = tlen + sizeof(SMsgHead);
+  msg.pCont = buf;
+  msg.msgType = TDMT_STREAM_TASK_CHECKPOINT;
+
+  qDebug("s-task:%s (level:%d) dispatch checkpoint msg to s-task:%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
+         pTask->info.taskLevel, pReq->streamId, pReq->downstreamTaskId, nodeId);
+
+  tmsgSendReq(pEpSet, &msg);
+  return 0;
+
 }

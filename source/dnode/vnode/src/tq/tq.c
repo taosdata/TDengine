@@ -1278,59 +1278,6 @@ int32_t tqProcessTaskRecoverFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock) {
-  SDecoder*   pCoder = &(SDecoder){0};
-  SDeleteRes* pRes = &(SDeleteRes){0};
-
-  *pRefBlock = NULL;
-
-  pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
-  if (pRes->uidList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  tDecoderInit(pCoder, (uint8_t*)pData, len);
-  tDecodeDeleteRes(pCoder, pRes);
-  tDecoderClear(pCoder);
-
-  int32_t numOfTables = taosArrayGetSize(pRes->uidList);
-  if (numOfTables == 0 || pRes->affectedRows == 0) {
-    taosArrayDestroy(pRes->uidList);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
-  blockDataEnsureCapacity(pDelBlock, numOfTables);
-  pDelBlock->info.rows = numOfTables;
-  pDelBlock->info.version = ver;
-
-  for (int32_t i = 0; i < numOfTables; i++) {
-    // start key column
-    SColumnInfoData* pStartCol = taosArrayGet(pDelBlock->pDataBlock, START_TS_COLUMN_INDEX);
-    colDataSetVal(pStartCol, i, (const char*)&pRes->skey, false);  // end key column
-    SColumnInfoData* pEndCol = taosArrayGet(pDelBlock->pDataBlock, END_TS_COLUMN_INDEX);
-    colDataSetVal(pEndCol, i, (const char*)&pRes->ekey, false);
-    // uid column
-    SColumnInfoData* pUidCol = taosArrayGet(pDelBlock->pDataBlock, UID_COLUMN_INDEX);
-    int64_t*         pUid = taosArrayGet(pRes->uidList, i);
-    colDataSetVal(pUidCol, i, (const char*)pUid, false);
-
-    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX), i);
-    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
-    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
-  }
-
-  taosArrayDestroy(pRes->uidList);
-  *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-  if (pRefBlock == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRefBlock)->type = STREAM_INPUT__REF_DATA_BLOCK;
-  (*pRefBlock)->pBlock = pDelBlock;
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
 
@@ -1365,7 +1312,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     tqStartStreamTasks(pTq);
     return 0;
   } else {
-    tqError("vgId:%d failed to found s-task, taskId:%d", vgId, taskId);
+    tqError("vgId:%d failed to found s-task, taskId:0x%x", vgId, taskId);
     return -1;
   }
 }
@@ -1593,14 +1540,34 @@ FAIL:
 
 int32_t tqCheckLogInWal(STQ* pTq, int64_t sversion) { return sversion <= pTq->walLogLastVer; }
 
-int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
   char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
   int32_t      len = msgLen - sizeof(SMsgHead);
+  int32_t      code = 0;
 
-  streamDoCheckpoint(pMeta);
-  // taosWLockLatch(&pMeta->lock);
-  // taosWUnLockLatch(&pMeta->lock);
-  return 0;
+  SStreamCheckpointSourceReq req= {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if (tDecodeStreamCheckpointSourceReq(&decoder, &req) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
+    goto FAIL;
+  }
+  tDecoderClear(&decoder);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to find s-task:0x%x , it may have been destroyed already", vgId, req.taskId);
+    goto FAIL;
+  }
+
+  streamProcessCheckpointSourceReq(pMeta, pTask, &req);
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
+
+  FAIL:
+  return code;
 }

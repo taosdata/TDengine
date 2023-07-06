@@ -462,24 +462,3 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
 
   return 0;
 }
-
-int32_t streamDoCheckpoint(SStreamMeta* pMeta) {
-  int  code = -1;
-  char buf[256] = {0};
-
-  int64_t ts = taosGetTimestampMs();
-  if (ts - pMeta->checkpointTs <= tsStreamCheckpointTickInterval * 1000) {
-    // avoid do checkpoint freq
-    return 0;
-  }
-  pMeta->checkpointTs = ts;
-
-  sprintf(buf, "%s/%s", pMeta->path, "checkpoints");
-  code = taosMulModeMkDir(buf, 0755);
-  if (code != 0) {
-    qError("failed to create chechpoint %s, reason:%s", buf, tstrerror(code));
-    return code;
-  }
-  code = streamBackendDoCheckpoint((void*)pMeta, buf);
-  return code;
-}

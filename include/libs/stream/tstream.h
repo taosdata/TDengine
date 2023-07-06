@@ -47,6 +47,7 @@ enum {
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
   TASK_STATUS__HALT,          // stream task will handle all data in the input queue, and then paused
   TASK_STATUS__PAUSE,
+  TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
 };
 
 enum {
@@ -118,7 +119,7 @@ typedef struct {
 } SStreamMergedSubmit;
 
 typedef struct {
-  int8_t type;
+  int8_t  type;
 
   int32_t srcVgId;
   int32_t childId;
@@ -135,13 +136,9 @@ typedef struct {
 } SStreamRefDataBlock;
 
 typedef struct {
-  int8_t type;
-} SStreamCheckpoint;
-
-typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
-} SStreamTrigger;
+} SStreamTrigger, SStreamCheckpoint;
 
 typedef struct SStreamQueueNode SStreamQueueNode;
 
@@ -486,8 +483,8 @@ typedef struct {
   int64_t expireTime;
 } SStreamCheckpointSourceRsp;
 
-int32_t tEncodeSStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
-int32_t tDecodeSStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq);
+int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
+int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq);
 
 int32_t tEncodeSStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp);
 int32_t tDecodeSStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointSourceRsp* pRsp);
@@ -501,9 +498,7 @@ typedef struct {
   int32_t  upstreamTaskId;
   int32_t  upstreamNodeId;
   int32_t  childId;
-  int64_t  expireTime;
-  int8_t   taskLevel;
-} SStreamCheckpointReq;
+} SStreamTaskCheckpointReq;
 
 typedef struct {
   SMsgHead msgHead;
@@ -514,15 +509,13 @@ typedef struct {
   int32_t  upstreamTaskId;
   int32_t  upstreamNodeId;
   int32_t  childId;
-  int64_t  expireTime;
-  int8_t   taskLevel;
 } SStreamCheckpointRsp;
 
-int32_t tEncodeSStreamCheckpointReq(SEncoder* pEncoder, const SStreamCheckpointReq* pReq);
-int32_t tDecodeSStreamCheckpointReq(SDecoder* pDecoder, SStreamCheckpointReq* pReq);
+int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
+int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
 
-int32_t tEncodeSStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRsp* pRsp);
-int32_t tDecodeSStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRsp);
+int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRsp* pRsp);
+int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRsp);
 
 typedef struct {
   int64_t streamId;
@@ -633,7 +626,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
-int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointReq* pReq);
+int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTaskCheckpointReq* pReq);
 int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointRsp* pRsp);
 
 int32_t streamTaskReleaseState(SStreamTask* pTask);

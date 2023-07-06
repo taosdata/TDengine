@@ -16,6 +16,7 @@
 #include "streamInt.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "trpc.h"
 
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated) {
   SStreamScanHistoryReq req;
@@ -43,6 +44,7 @@ const char* streamGetTaskStatusStr(int32_t status) {
     case TASK_STATUS__SCAN_HISTORY: return "scan-history";
     case TASK_STATUS__HALT: return "halt";
     case TASK_STATUS__PAUSE: return "paused";
+    case TASK_STATUS__CK: return "check-point";
     default:return "";
   }
 }

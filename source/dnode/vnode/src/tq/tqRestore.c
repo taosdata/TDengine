@@ -29,7 +29,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
     int32_t scan = pMeta->walScanCounter;
     tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, scan);
 
-    // check all restore tasks
+    // check all tasks
     bool shouldIdle = true;
     createStreamTaskRunReq(pTq->pStreamMeta, &shouldIdle);
 
@@ -73,6 +73,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
   taosWUnLockLatch(&pMeta->lock);
 
+  // broadcast the check downstream tasks msg
   for (int32_t i = 0; i < numOfTasks; ++i) {
     int32_t*     pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, *pTaskId);
@@ -83,8 +84,8 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
     streamTaskCheckDownstreamTasks(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
-  taosArrayDestroy(pTaskList);
 
+  taosArrayDestroy(pTaskList);
   return 0;
 }
 

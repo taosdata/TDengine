@@ -889,10 +889,7 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   pMsg->checkpointId = checkpointId;
 
   SRpcMsg rpcMsg = {
-      .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
-      .pCont = pMsg,
-      .contLen = sizeof(SMStreamDoCheckpointMsg),
-  };
+      .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = sizeof(SMStreamDoCheckpointMsg)};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   return 0;
 }
@@ -909,7 +906,7 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
   int32_t code;
   int32_t blen;
 
-  tEncodeSize(tEncodeSStreamCheckpointSourceReq, &req, blen, code);
+  tEncodeSize(tEncodeStreamCheckpointSourceReq, &req, blen, code);
   if (code < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -926,7 +923,7 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
   void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  tEncodeSStreamCheckpointSourceReq(&encoder, &req);
+  tEncodeStreamCheckpointSourceReq(&encoder, &req);
 
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);
@@ -950,7 +947,7 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
   int32_t code;
   int32_t blen;
 
-  tEncodeSize(tEncodeSStreamCheckpointSourceReq, &req, blen, code);
+  tEncodeSize(tEncodeStreamCheckpointSourceReq, &req, blen, code);
   if (code < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -967,7 +964,7 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
   void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  tEncodeSStreamCheckpointSourceReq(&encoder, &req);
+  tEncodeStreamCheckpointSourceReq(&encoder, &req);
 
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);

@@ -499,7 +499,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     } break;
 
     case TDMT_VND_STREAM_CHECK_POINT_SOURCE: {
-      if (tqProcessStreamCheckPointReq(pVnode->pTq, ver, pReq, len) < 0) goto _err;
+      if (tqProcessStreamCheckPointSourceReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
     } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
