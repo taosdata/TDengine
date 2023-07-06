@@ -349,8 +349,8 @@ if $rows > 2 then
 endi
 
 if $data01 != 100 then
-  if $data01 != 10 then
-    print retention level 2 file/mem result $data01 != 100 or 10
+  if $data01 != 50 then
+    print retention level 2 file/mem result $data01 != 100 or 50
   return -1
   endi
 endi
@@ -371,8 +371,8 @@ if $rows > 2 then
 endi
 
 if $data01 != 100 then
-  if $data01 != 10 then
-    print retention level 2 file/mem result $data01 != 100 or 10
+  if $data01 != 50 then
+    print retention level 2 file/mem result $data01 != 100 or 50
   return -1
   endi
 endi
@@ -394,8 +394,8 @@ if $rows > 2 then
 endi
 
 if $data01 != 100 then
-  if $data01 != 10 then
-    print retention level 1 file/mem result $data01 != 100 or 10
+  if $data01 != 50 then
+    print retention level 1 file/mem result $data01 != 100 or 50
   return -1
   endi
 endi
@@ -416,8 +416,8 @@ if $rows > 2 then
 endi
 
 if $data01 != 100 then
-  if $data01 != 10 then
-    print retention level 1 file/mem result $data01 != 100 or 10
+  if $data01 != 50 then
+    print retention level 1 file/mem result $data01 != 100 or 50
   return -1
   endi
 endi
