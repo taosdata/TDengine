@@ -398,6 +398,7 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
       taosRemoveDir(tbuf);
     }
   }
+  taosArrayDestroy(checkpointDel);
   return 0;
 }
 int32_t streamBackendDoCheckpoint(void* arg, const char* path) {
