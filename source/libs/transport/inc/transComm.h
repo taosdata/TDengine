@@ -167,8 +167,8 @@ typedef struct {
 
   uint64_t timestamp;
   char     user[TSDB_UNI_LEN];
+  int32_t  compatibilityVer;
   uint32_t magicNum;
-  uint32_t compatibilityVer;
   STraceId traceId;
   uint64_t ahandle;  // ahandle assigned by client
   uint32_t code;     // del later
