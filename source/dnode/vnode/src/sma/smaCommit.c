@@ -149,13 +149,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
     while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
       tdSmaLoopsCheck(&nLoops, 1000);
     }
-
-    pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-    if (ASSERTS(pRSmaStat->commitAppliedVer >= -1, "commit applied version %" PRIi64 " < -1",
-                pRSmaStat->commitAppliedVer)) {
-      code = TSDB_CODE_APP_ERROR;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
   }
   // step 2: wait for all triggered fetch tasks to finish
   nLoops = 0;
@@ -182,6 +175,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   }
 
   if (!isCommit) goto _exit;
+
+  code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 

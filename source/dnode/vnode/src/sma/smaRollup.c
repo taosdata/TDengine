@@ -1052,6 +1052,47 @@ _err:
   return code;
 }
 
+int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SSma   *pSma = pRSmaStat->pSma;
+  SVnode *pVnode = pSma->pVnode;
+  SRSmaFS fs = {0};
+
+  if (taosHashGetSize(pInfoHash) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void *infoHash = NULL;
+  while ((infoHash = taosHashIterate(pInfoHash, infoHash))) {
+    SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)infoHash;
+
+    if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
+      continue;
+    }
+
+    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+      SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pRSmaInfo, i);
+      if (pItem && pItem->pStreamState) {
+        if (streamStateCommit(pItem->pStreamState) < 0) {
+          code = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 ", level %d", TD_VID(pVnode),
+                 pRSmaInfo->suid, i + 1);
+      }
+    }
+  }
+
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+
+  terrno = code;
+  return code;
+}
+
 /**
  * @brief trigger to get rsma result in async mode
  *

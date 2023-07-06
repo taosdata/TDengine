@@ -105,17 +105,16 @@ struct SRSmaFS {
 
 struct SRSmaStat {
   SSma            *pSma;
-  int64_t          commitAppliedVer;  // vnode applied version for async commit
-  int64_t          refId;             // shared by fetch tasks
-  volatile int64_t nBufItems;         // number of items in queue buffer
-  SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
-  volatile int32_t nFetchAll;         // active number of fetch all
-  volatile int8_t  triggerStat;       // shared by fetch tasks
-  volatile int8_t  commitStat;        // 0 not in committing, 1 in committing
-  volatile int8_t  delFlag;           // 0 no deleted SRSmaInfo, 1 has deleted SRSmaInfo
-  SRSmaFS          fs;                // for recovery/snapshot r/w
-  SHashObj        *infoHash;          // key: suid, value: SRSmaInfo
-  tsem_t           notEmpty;          // has items in queue buffer
+  int64_t          refId;        // shared by fetch tasks
+  volatile int64_t nBufItems;    // number of items in queue buffer
+  SRWLatch         lock;         // r/w lock for rsma fs(e.g. qtaskinfo)
+  volatile int32_t nFetchAll;    // active number of fetch all
+  volatile int8_t  triggerStat;  // shared by fetch tasks
+  volatile int8_t  commitStat;   // 0 not in committing, 1 in committing
+  volatile int8_t  delFlag;      // 0 no deleted SRSmaInfo, 1 has deleted SRSmaInfo
+  SRSmaFS          fs;           // for recovery/snapshot r/w
+  SHashObj        *infoHash;     // key: suid, value: SRSmaInfo
+  tsem_t           notEmpty;     // has items in queue buffer
 };
 
 struct SSmaStat {
@@ -156,9 +155,9 @@ struct SRSmaInfo {
   int16_t   padding;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
-  void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
-  STaosQueue   *queue;                         // buffer queue of SubmitReq
-  STaosQall    *qall;                          // buffer qall of SubmitReq
+  void         *taskInfo[TSDB_RETENTION_L2];  // qTaskInfo_t
+  STaosQueue   *queue;                        // buffer queue of SubmitReq
+  STaosQall    *qall;                         // buffer qall of SubmitReq
 };
 
 #define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
@@ -221,6 +220,7 @@ void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
+int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback);
 void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName);
 void    tdRSmaQTaskInfoGetFullPath(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName);
@@ -233,7 +233,6 @@ static FORCE_INLINE void tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int32_t ref = T_REF_DEC(pRSmaInfo);
   smaTrace("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
-
 
 void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
 
