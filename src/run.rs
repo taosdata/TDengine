@@ -233,7 +233,7 @@ impl Cli {
                 log::debug!("opc main scheduler done");
             }
             ("csv", "taos") => {
-                csv_to_taos(args.from, args.to).await?;
+                csv_to_taos(args.from).await?;
             }
             (_, _) => bail!(
                 "unsupported source or dest: from `{}` to `{}`",
