@@ -135,6 +135,7 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
         break;
       case JOB_TASK_STATUS_DROP:
         SCH_ERR_JRET(TSDB_CODE_QRY_JOB_FREED);
+        break;
 
       default:
         SCH_JOB_ELOG("invalid job status:%s", jobTaskStatusStr(oriStatus));

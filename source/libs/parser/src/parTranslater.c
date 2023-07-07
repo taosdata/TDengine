@@ -6044,6 +6044,9 @@ static int32_t checkCollectTopicTags(STranslateContext* pCxt, SCreateTopicStmt* 
 //    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
       SSchema* column = &pMeta->schema[0];
       SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      if (NULL == col) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       strcpy(col->colName, column->name);
       strcpy(col->node.aliasName, col->colName);
       strcpy(col->node.userAlias, col->colName);
@@ -6154,7 +6157,7 @@ static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pSt
   char* p = strchr(pStmt->config, ' ');
   if (NULL != p) {
     *p = 0;
-    strcpy(pStmt->value, p + 1);
+    tstrncpy(pStmt->value, p + 1, sizeof(pStmt->value));
   }
   return TSDB_CODE_SUCCESS;
 }
