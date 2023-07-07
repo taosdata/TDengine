@@ -182,9 +182,20 @@ pub struct Authentication {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Authentication item name.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     /// Authentication items.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub alternatives: Vec<AuthItem>,
+}
+
+impl Authentication {
+    pub fn is_none(&self) -> bool {
+        self.display.is_none()
+            && self.description.is_none()
+            && self.value.is_none()
+            && self.alternatives.is_empty()
+    }
 }
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct HintDefinition {
@@ -285,6 +296,7 @@ pub struct DataSourceDefinition {
 
     /// Authentication settings.
     #[serde(default)]
+    #[serde(skip_serializing_if = "Authentication::is_none")]
     pub authentication: Authentication,
 
     /// Grouped parameters.
