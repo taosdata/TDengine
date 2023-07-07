@@ -37,7 +37,7 @@ int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSo
   return 0;
 }
 
-int32_t tEncodeSStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp) {
+int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->checkpointId) < 0) return -1;
@@ -48,7 +48,7 @@ int32_t tEncodeSStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheck
   return pEncoder->pos;
 }
 
-int32_t tDecodeSStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointSourceRsp* pRsp) {
+int32_t tDecodeStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointSourceRsp* pRsp) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pRsp->checkpointId) < 0) return -1;
@@ -59,7 +59,7 @@ int32_t tDecodeSStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointS
   return 0;
 }
 
-int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
+int32_t tEncodeStreamCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
@@ -72,7 +72,7 @@ int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskChec
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
+int32_t tDecodeStreamCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
@@ -85,7 +85,7 @@ int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpoint
   return 0;
 }
 
-int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRsp* pRsp) {
+int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamTaskCheckpointRsp* pRsp) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->checkpointId) < 0) return -1;
@@ -98,7 +98,7 @@ int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRs
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRsp) {
+int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamTaskCheckpointRsp* pRsp) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pRsp->checkpointId) < 0) return -1;
@@ -112,13 +112,14 @@ int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRs
 }
 
 static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, int32_t childId) {
-  if (pTask->checkpointingId == 0) {
+  int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int64_t old = atomic_val_compare_exchange_64(&pTask->checkpointingId, 0, num);
+  if (old == 0) {
+    qDebug("s-task:%s set initial align upstream num:%d", pTask->id.idStr, num);
     pTask->checkpointingId = checkpointId;
-    pTask->checkpointAlignCnt = taosArrayGetSize(pTask->pUpstreamEpInfoList);
   }
 
   ASSERT(pTask->checkpointingId == checkpointId);
-
   return atomic_sub_fetch_32(&pTask->checkpointAlignCnt, 1);
 }
 
@@ -159,77 +160,49 @@ static int32_t streamTaskDispatchCheckpointMsg(SStreamTask* pTask, uint64_t chec
              pTask->info.nodeId, req.downstreamTaskId, req.downstreamNodeId, i);
       streamDispatchCheckpointMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
-  } else {
-    qDebug("s-task:%s (vgId:%d) sink task set to be ready for checkpointing", pTask->id.idStr, pTask->info.nodeId);
-    ASSERT(pTask->info.taskLevel == TASK_LEVEL__SINK);
-    streamTaskLaunchScanHistory(pTask);
   }
 
   return 0;
 }
 
-// set status check pointing
-// do checkpoint
-static int32_t streamDoSourceCheckpoint(SStreamMeta* pMeta, SStreamTask* pTask, uint64_t checkpointId) {
-  int  code = 0;
-  char buf[256] = {0};
-
-  int64_t ts = taosGetTimestampMs();
-
-  sprintf(buf, "%s/%s", pMeta->path, "checkpoints");
-  code = taosMulModeMkDir(buf, 0755);
-  if (code != 0) {
-    qError("failed to prepare checkpoint %s, checkpointId:%" PRIu64 ", reason:%s", buf, checkpointId, tstrerror(code));
-    return code;
+static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask) {
+  SStreamCheckpoint* pChkpoint = taosAllocateQitem(sizeof(SStreamCheckpoint), DEF_QITEM, sizeof(SSDataBlock));
+  if (pChkpoint == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pMeta->checkpointTs = ts;
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
-  // 1. set task status to be prepared for check point
-  pTask->status.taskStatus = TASK_STATUS__CK;
-
-  // 2. put the checkpoint data block into the inputQ, to enable the local status to be flushed to storage backend
-  {
-    SStreamCheckpoint* pChkpoint = taosAllocateQitem(sizeof(SStreamCheckpoint), DEF_QITEM, sizeof(SSDataBlock));
-    if (pChkpoint == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    pChkpoint->type = STREAM_INPUT__CHECKPOINT;
-    pChkpoint->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-    if (pChkpoint->pBlock == NULL) {
-      taosFreeQitem(pChkpoint);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    pChkpoint->pBlock->info.type = STREAM_CHECKPOINT;
-    if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pChkpoint) < 0) {
-      taosFreeQitem(pChkpoint);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    streamSchedExec(pTask);
+  pChkpoint->type = STREAM_INPUT__CHECKPOINT;
+  pChkpoint->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pChkpoint->pBlock == NULL) {
+    taosFreeQitem(pChkpoint);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // 2. dispatch checkpoint msg to downstream task
-  streamTaskDispatchCheckpointMsg(pTask, checkpointId);
+  pChkpoint->pBlock->info.type = STREAM_CHECKPOINT;
+  if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pChkpoint) < 0) {
+    taosFreeQitem(pChkpoint);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-//  code = streamBackendDoCheckpoint((void*)pMeta, buf);
-  return code;
+  streamSchedExec(pTask);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointSourceReq* pReq) {
   int32_t code = 0;
   int64_t checkpointId = pReq->checkpointId;
 
-  code = streamDoSourceCheckpoint(pMeta, pTask, checkpointId);
-  if (code < 0) {
-    // rsp error
-    return -1;
-  }
+  qDebug("s-task:%s level:%d receive the checkpoint msg id:%" PRId64 " from mnode", pTask->id.idStr,
+         pTask->info.taskLevel, checkpointId);
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
-  return 0;
+  // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
+  pTask->status.taskStatus = TASK_STATUS__CK;
+  pTask->checkpointNotReadyTasks = 1;
+
+  // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else.
+  streamTaskDispatchCheckpointMsg(pTask, checkpointId);
+  return code;
 }
 
 int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTaskCheckpointReq* pReq) {
@@ -237,31 +210,55 @@ int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStre
   int64_t checkpointId = pReq->checkpointId;
   int32_t childId = pReq->childId;
 
-  if (taosArrayGetSize(pTask->pUpstreamEpInfoList) > 0) {
-    code = streamAlignCheckpoint(pTask, checkpointId, childId);
-    if (code > 0) {
+  // set the task status
+  pTask->status.taskStatus = TASK_STATUS__CK;
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__SINK);
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    qDebug("s-task:%s sink task set to checkpoint ready", pTask->id.idStr);
+    appendCheckpointIntoInputQ(pTask);
+    streamSchedExec(pTask);
+  } else {
+    // todo close the inputQ for data from childId, which means data from childId are not allowed to put into intpuQ
+    // anymore
+    ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) > 0);
+
+    // there are still some upstream tasks not send checkpoint request
+    int32_t notReady = streamAlignCheckpoint(pTask, checkpointId, childId);
+    if (notReady > 0) {
+      int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+      qDebug("s-task:%s %d upstream tasks not send checkpoint info yet, total:%d", pTask->id.idStr, notReady, num);
       return 0;
     }
-    if (code < 0) {
-      ASSERT(0);
-      return -1;
-    }
-  }
 
-  // code = streamDoCheckpoint(pMeta, pTask, checkpointId);
-  if (code < 0) {
-    // rsp error
-    return -1;
-  }
+    qDebug("s-task:%s all upstream send checkpoint msg now, dispatch checkpoint msg to downstream", pTask->id.idStr);
+    pTask->checkpointNotReadyTasks = (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH)
+                                         ? 1
+                                         : taosArrayGetSize(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
 
-  // send rsp to all children
+    // if all upstreams are ready for generating checkpoint, set the status to be TASK_STATUS__CK_READY
+    // 2. dispatch check point msg to all downstream tasks
+    streamTaskDispatchCheckpointMsg(pTask, checkpointId);
+  }
 
   return 0;
 }
 
-int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointRsp* pRsp) {
-  // recover step2, scan from wal
-  // unref wal
-  // set status normal
+/**
+ * All down stream tasks have successfully completed the check point task.
+ * Current stream task is allowed to start to do checkpoint things in ASYNC model.
+ */
+int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTaskCheckpointRsp* pRsp) {
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG);
+
+  // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
+  int32_t notReady = atomic_sub_fetch_32(&pTask->checkpointNotReadyTasks, 1);
+  if (notReady == 0) {
+    qDebug("s-task:%s all downstream tasks have completed the checkpoint, start to do checkpoint for this task",
+           pTask->id.idStr);
+    appendCheckpointIntoInputQ(pTask);
+    streamSchedExec(pTask);
+  }
+
   return 0;
 }

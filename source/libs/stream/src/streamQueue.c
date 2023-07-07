@@ -107,8 +107,8 @@ SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
 }
 #endif
 
-#define MAX_STREAM_EXEC_BATCH_NUM 128
-#define MIN_STREAM_EXEC_BATCH_NUM 16
+#define MAX_STREAM_EXEC_BATCH_NUM 32
+#define MIN_STREAM_EXEC_BATCH_NUM 4
 
 // todo refactor:
 // read data from input queue
@@ -119,6 +119,7 @@ typedef struct SQueueReader {
   int32_t  waitDuration;     // maximum wait time to format several block into a batch to process, unit: ms
 } SQueueReader;
 
+#if 0
 SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* idstr) {
   int32_t numOfBlocks = 0;
   int32_t tryCount = 0;
@@ -163,4 +164,59 @@ SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* 
   }
 
   return pRet;
+}
+#endif
+
+int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, const char* id) {
+  int32_t retryTimes = 0;
+  int32_t MAX_RETRY_TIMES = 5;
+
+  while (1) {
+    if (streamTaskShouldPause(&pTask->status)) {
+      qDebug("s-task:%s task should pause, input blocks:%d", pTask->id.idStr, *numOfBlocks);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
+    if (qItem == NULL) {
+      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
+        taosMsleep(10);
+        qDebug("===stream===try again batchSize:%d, retry:%d", *numOfBlocks, retryTimes);
+        continue;
+      }
+
+      qDebug("===stream===break batchSize:%d", *numOfBlocks);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    // do not merge blocks for sink node and check point data block
+    if ((pTask->info.taskLevel == TASK_LEVEL__SINK) || (qItem->type == STREAM_INPUT__CHECKPOINT)) {
+      *numOfBlocks = 1;
+      *pInput = qItem;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (*pInput == NULL) {
+      ASSERT((*numOfBlocks) == 0);
+      *pInput = qItem;
+    } else {
+      // todo we need to sort the data block, instead of just appending into the array list.
+      void* newRet = streamMergeQueueItem(*pInput, qItem);
+      if (newRet == NULL) {
+        qError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+        streamQueueProcessFail(pTask->inputQueue);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      *pInput = newRet;
+    }
+
+    *numOfBlocks += 1;
+    streamQueueProcessSuccess(pTask->inputQueue);
+
+    if (*numOfBlocks >= MAX_STREAM_EXEC_BATCH_NUM) {
+      qDebug("s-task:%s batch size limit:%d reached, start to process blocks", id, MAX_STREAM_EXEC_BATCH_NUM);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
 }

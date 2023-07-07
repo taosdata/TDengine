@@ -401,20 +401,29 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   taosArrayDestroy(checkpointDel);
   return 0;
 }
-int32_t streamBackendDoCheckpoint(void* arg, const char* path) {
+
+int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
   SStreamMeta*     pMeta = arg;
   int64_t          backendRid = pMeta->streamBackendRid;
-  int64_t          checkpointId = pMeta->checkpointTs;
   int64_t          st = taosGetTimestampMs();
   int32_t          code = -1;
-  SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
+
+  char path[256] = {0};
+  sprintf(path, "%s/%s", pMeta->path, "checkpoints");
+  code = taosMulModeMkDir(path, 0755);
+  if (code != 0) {
+    qError("failed to prepare checkpoint dir, path:%s, reason:%s", path, tstrerror(code));
+    return code;
+  }
 
   char checkpointDir[256] = {0};
-  sprintf(checkpointDir, "%s/checkpoint_%" PRId64 "", path, checkpointId);
+  snprintf(checkpointDir, tListLen(checkpointDir),"%s/checkpoint_%" PRIu64, path, checkpointId);
 
+  SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
   if (pHandle == NULL) {
     return -1;
   }
+
   qDebug("stream backend:%p start to do checkpoint at:%s ", pHandle, path);
   if (pHandle->db != NULL) {
     char*                 err = NULL;
@@ -442,10 +451,12 @@ int32_t streamBackendDoCheckpoint(void* arg, const char* path) {
   taosWUnLockLatch(&pMeta->checkpointDirLock);
 
   delObsoleteCheckpoint(arg, path);
+
 _ERROR:
   taosReleaseRef(streamBackendId, backendRid);
   return code;
 }
+
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
   SListNode*       node = NULL;

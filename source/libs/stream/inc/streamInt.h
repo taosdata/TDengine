@@ -32,11 +32,13 @@ typedef struct {
 } SStreamGlobalEnv;
 
 extern SStreamGlobalEnv streamEnv;
+extern int32_t streamBackendId;
+extern int32_t streamBackendCfWrapperId;
 
 void    streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 
-SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
+SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
 SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
                                                SArray* pRes);
 void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
@@ -49,14 +51,11 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
 int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData);
 int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamTaskCheckpointReq* pReq, int32_t nodeId, SEpSet* pEpSet);
+int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask, int32_t vgId);
+int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask, int32_t vgId);
 
-int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHistoryFinishReq* pReq, int32_t vgId,
-                                             SEpSet* pEpSet);
-
+int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, const char* id);
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
-
-extern int32_t streamBackendId;
-extern int32_t streamBackendCfWrapperId;
 
 #ifdef __cplusplus
 }

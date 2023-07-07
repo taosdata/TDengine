@@ -217,55 +217,6 @@ void tqNotifyClose(STQ* pTq) {
   }
 }
 
-//static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch,
-//                             int64_t consumerId, int32_t type) {
-//  int32_t len = 0;
-//  int32_t code = 0;
-//
-//  if (type == TMQ_MSG_TYPE__POLL_DATA_RSP) {
-//    tEncodeSize(tEncodeMqDataRsp, pRsp, len, code);
-//  } else if (type == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
-//    tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
-//  }
-//
-//  if (code < 0) {
-//    return -1;
-//  }
-//
-//  int32_t tlen = sizeof(SMqRspHead) + len;
-//  void*   buf = rpcMallocCont(tlen);
-//  if (buf == NULL) {
-//    return -1;
-//  }
-//
-//  ((SMqRspHead*)buf)->mqMsgType = type;
-//  ((SMqRspHead*)buf)->epoch = epoch;
-//  ((SMqRspHead*)buf)->consumerId = consumerId;
-//
-//  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-//
-//  SEncoder encoder = {0};
-//  tEncoderInit(&encoder, abuf, len);
-//
-//  if (type == TMQ_MSG_TYPE__POLL_DATA_RSP) {
-//    tEncodeMqDataRsp(&encoder, pRsp);
-//  } else if (type == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
-//    tEncodeSTaosxRsp(&encoder, (STaosxRsp*)pRsp);
-//  }
-//
-//  tEncoderClear(&encoder);
-//
-//  SRpcMsg rsp = {
-//      .info = *pRpcHandleInfo,
-//      .pCont = buf,
-//      .contLen = tlen,
-//      .code = 0,
-//  };
-//
-//  tmsgSendRsp(&rsp);
-//  return 0;
-//}
-
 int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId) {
   SMqDataRsp dataRsp = {0};
   dataRsp.head.consumerId = pHandle->consumerId;
@@ -948,6 +899,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
             taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   }
 
+  // todo extract method
   SEncoder encoder;
   int32_t  code;
   int32_t  len;
@@ -973,7 +925,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
-  char* pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  char*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t len = pMsg->contLen - sizeof(SMsgHead);
 
   int32_t             code;
@@ -982,7 +934,6 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)pReq, len);
   code = tDecodeStreamTaskCheckRsp(&decoder, &rsp);
-
   if (code < 0) {
     tDecoderClear(&decoder);
     return -1;
@@ -1295,26 +1246,27 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-  if (pTask != NULL) {
-    // even in halt status, the data in inputQ must be processed
-    int8_t status = pTask->status.taskStatus;
-    if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT) {
-      tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
-              pTask->chkInfo.version);
-      streamProcessRunReq(pTask);
-    } else {
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-      tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
-              pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
-    }
-
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqStartStreamTasks(pTq);
-    return 0;
-  } else {
+  if (pTask == NULL) {
     tqError("vgId:%d failed to found s-task, taskId:0x%x", vgId, taskId);
     return -1;
   }
+
+  // even in halt status, the data in inputQ must be processed
+  int8_t status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT) {
+    tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
+            pTask->chkInfo.version);
+    streamProcessRunReq(pTask);
+  } else {
+    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
+            pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+  }
+
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  tqStartStreamTasks(pTq);
+
+  return 0;
 }
 
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
@@ -1554,17 +1506,91 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, int64_t sversion, char* pMs
   if (tDecodeStreamCheckpointSourceReq(&decoder, &req) < 0) {
     code = TSDB_CODE_MSG_DECODE_ERROR;
     tDecoderClear(&decoder);
+    tqError("vgId:%d failed to decode checkpoint source msg, code:%s", vgId, tstrerror(code));
     goto FAIL;
   }
   tDecoderClear(&decoder);
 
+  // todo handle this bug: task not in ready state.
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d failed to find s-task:0x%x , it may have been destroyed already", vgId, req.taskId);
+    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId, req.taskId);
     goto FAIL;
   }
 
+  // backup the rpchandle for rsp
+  SRpcMsg* pRpcMsg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+  memcpy(pRpcMsg, (SRpcMsg*)pMsg, sizeof(SRpcMsg));
+  taosArrayPush(pTask->pRpcMsgList, &pRpcMsg);
+
   streamProcessCheckpointSourceReq(pMeta, pTask, &req);
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
+
+  FAIL:
+  return code;
+}
+
+int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+  int32_t      len = msgLen - sizeof(SMsgHead);
+  int32_t      code = 0;
+
+  SStreamTaskCheckpointReq req= {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if (tDecodeStreamCheckpointReq(&decoder, &req) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
+    goto FAIL;
+  }
+  tDecoderClear(&decoder);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.downstreamTaskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to find s-task:0x%x , it may have been destroyed already", vgId, req.downstreamTaskId);
+    goto FAIL;
+  }
+
+  streamProcessCheckpointReq(pMeta, pTask, &req);
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
+
+  FAIL:
+  return code;
+}
+
+// downstream task has complete the stream task checkpoint procedure
+int32_t tqProcessStreamCheckPointRsp(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+  // if this task is an agg task, rsp this message to upstream directly.
+  // if this task is an source task, send source rsp to mnode
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+  int32_t      len = msgLen - sizeof(SMsgHead);
+  int32_t      code = 0;
+
+  SStreamTaskCheckpointRsp req= {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if (tDecodeStreamCheckpointRsp(&decoder, &req) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
+    goto FAIL;
+  }
+  tDecoderClear(&decoder);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.downstreamTaskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to find s-task:0x%x , it may have been destroyed already", vgId, req.downstreamTaskId);
+    goto FAIL;
+  }
+
+  streamProcessCheckpointRsp(pMeta, pTask, &req);
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 
