@@ -132,6 +132,8 @@ groups:
         display: Measurements
         description: Select one or more specified measurements to migrate, if empty, migrate all
         placeholder: bucket
+        multiple: true
+        editable: true
         hint:
           type: str
           choices:

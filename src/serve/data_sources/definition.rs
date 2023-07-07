@@ -100,6 +100,10 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiple: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub placeholder: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -567,6 +571,8 @@ impl DataSourceDefinition {
                 short_description: None,
                 description: None,
                 required: Some(false),
+                multiple: Some(false),
+                editable: Some(false),
                 placeholder: None,
                 value: Some(value),
                 display: None,

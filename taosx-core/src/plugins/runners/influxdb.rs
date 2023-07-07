@@ -12,7 +12,7 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
+use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred, DataSet};
 
 use super::get_plugin_dir;
 
@@ -394,4 +394,63 @@ pub async fn influxdb_to_taos(
         }).await??;
     }
     Ok(())
+}
+
+pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let host = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.host.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let port = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.port.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let influx_url = format!("http://{}:{}/", host, port);
+    let influx_version = dsn
+        .remove("version")
+        .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+    // On version 1.x, only username/password mode can be used
+    // On version 2.x, only access token mode can be used.
+    let influx_username = dsn.remove("username").unwrap_or("".to_string());
+    let influx_password = dsn.remove("password").unwrap_or("".to_string());
+    let influx_token = dsn.remove("token").unwrap_or("".to_string());
+    if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+        anyhow::bail!("The username is required");
+    } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+        anyhow::bail!("The password is required");
+    } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+        anyhow::bail!("The access token is required");
+    }
+    // 连接器路径
+    let connector_path = influxdb_jar_path();
+    // startup the connector
+    let mut command = tokio::process::Command::new("java");
+    // 查询命令
+    let output = command
+        .arg("-jar")
+        .arg(&connector_path)
+        .arg("-fetch")
+        .arg(&influx_version)
+        .arg(&influx_url)
+        .arg(&influx_username)
+        .arg(&influx_password)
+        .arg(&influx_token)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| "Start InfluxDB collector error")?;
+    let s = String::from_utf8(output.stdout.clone())?;
+    let mut vec = Vec::new();
+    vec.push(DataSet {
+        id: s,
+        name: None,
+        category: None,
+        r#type: None,
+        options: None,
+        format: None,
+    });
+    Ok(vec)
 }

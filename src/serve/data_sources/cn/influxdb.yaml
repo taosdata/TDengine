@@ -130,6 +130,8 @@ groups:
         display: 测量值 Measurements
         description: 指定需要同步的 Measurements ，未指定则同步全部。
         placeholder: bucket
+        multiple: true
+        editable: true
         hint:
           type: str
           choices:
