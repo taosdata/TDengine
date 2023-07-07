@@ -55,4 +55,4 @@ def taos_get_assignment_and_seek_demo():
 
 
 if __name__ == '__main__':
-    taosws_get_assignment_and_seek_demo()
+    taos_get_assignment_and_seek_demo()

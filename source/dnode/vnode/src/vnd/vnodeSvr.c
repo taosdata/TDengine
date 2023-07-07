@@ -665,7 +665,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskTransferStateReq(pVnode->pTq, 0, pReq, len);
     }
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
-      return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
+      return tqProcessStreamTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
       return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
     default:
