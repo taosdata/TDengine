@@ -1492,14 +1492,14 @@ FAIL:
 
 int32_t tqCheckLogInWal(STQ* pTq, int64_t sversion) { return sversion <= pTq->walLogLastVer; }
 
-int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
-  int32_t      len = msgLen - sizeof(SMsgHead);
+  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
-  SStreamCheckpointSourceReq req= {0};
+  SStreamCheckpointSourceReq req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -1524,10 +1524,19 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, int64_t sversion, char* pMs
   taosArrayPush(pTask->pRpcMsgList, &pRpcMsg);
 
   // todo: when generating checkpoint, no new tasks are allowed to add into current Vnode
+
   // set the initial value for generating check point
+  int32_t total = 0;
   taosWLockLatch(&pMeta->lock);
-  pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
+  if (pMeta->chkptNotReadyTasks == 0) {
+    pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
+  }
+
+  total = taosArrayGetSize(pMeta->pTaskList);
   taosWUnLockLatch(&pMeta->lock);
+
+  qDebug("s-task:%s level:%d receive the checkpoint msg id:%" PRId64 " from mnode, total source checkpoint req:%d",
+         pTask->id.idStr, pTask->info.taskLevel, req.checkpointId, total);
 
   streamProcessCheckpointSourceReq(pMeta, pTask, &req);
   streamMetaReleaseTask(pMeta, pTask);
