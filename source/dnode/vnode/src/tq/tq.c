@@ -490,7 +490,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (!exec) {
       tqSetHandleExec(pHandle);
       //      qSetTaskCode(pHandle->execHandle.task, TDB_CODE_SUCCESS);
-      tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId,
+      tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId,
               req.subKey, pHandle);
       taosWUnLockLatch(&pTq->lock);
       break;
@@ -518,7 +518,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
   tqSetHandleIdle(pHandle);
 
-  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, , set handle idle, pHandle:%p", consumerId, vgId,
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle idle, pHandle:%p", consumerId, vgId,
           req.subKey, pHandle);
   return code;
 }
