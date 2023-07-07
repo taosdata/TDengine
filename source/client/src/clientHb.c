@@ -137,7 +137,6 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
   vgInfo->hashSuffix = rsp->hashSuffix;
   vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == vgInfo->vgHash) {
-    taosMemoryFree(vgInfo);
     tscError("hash init[%d] failed", rsp->vgNum);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
@@ -147,8 +146,6 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
     SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
     if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
       tscError("hash push failed, errno:%d", errno);
-      taosHashCleanup(vgInfo->vgHash);
-      taosMemoryFree(vgInfo);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _return;
     }
@@ -486,7 +483,6 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       if (code) {
         taosArrayDestroy(desc.subDesc);
         desc.subDesc = NULL;
-        desc.subPlanNum = 0;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
     } else {
@@ -592,7 +588,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
-  strncpy(user->user, pTscObj->user, TSDB_USER_LEN);
+  tstrncpy(user->user, pTscObj->user, TSDB_USER_LEN);
   user->version = htonl(-1);  // force get userAuthInfo
   kv.valueLen = sizeof(SUserAuthVersion);
   kv.value = user;
