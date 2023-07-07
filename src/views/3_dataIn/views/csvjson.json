@@ -1,0 +1,55 @@
+{
+    "id": "csv",
+    "type": "path",
+    "name": "CSV",
+    "description": "Import a file or a collection of files in CSV format to TDengine.\n",
+    "strict": true,
+    "options": {
+      "path": {
+        "required": true,
+        "display": "Path",
+        "description": "CSV file path or directory",
+        "placeholder": "Example: a.csv,b.csv"
+      }
+    },
+    "authentication": {
+      "value": null,
+      "alternatives": []
+    },
+    "groups": [
+      {
+        "name": "CSV Options",
+        "display_order": 2,
+        "description": "CSV reading options",
+        "collapsible": false,
+        "params": [
+          {
+            "name": "quote",
+            "display": "Quote escape char.",
+            "hint": "str",
+            "value": "\\\""
+          },
+          {
+            "name": "sep",
+            "display": "Separator character.",
+            "hint": "str",
+            "value": "\\,"
+          }
+        ]
+      },
+      {
+        "name": "Write Options",
+        "display_order": 2,
+        "description": "Writing options",
+        "collapsible": false,
+        "params": [
+          {
+            "name": "batch_size",
+            "display": "Batch Size",
+            "description": "Batch size.",
+            "value": "1000"
+          }
+        ]
+      }
+    ]
+  }

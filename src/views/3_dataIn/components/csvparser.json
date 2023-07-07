@@ -1,0 +1,15 @@
+{
+  "parser": {
+    "parse": {
+      "ts": { "as": "timestamp" },
+      "val": { "as": "int" },
+      "tag1": { "alias": "id", "as": "int" }
+    },
+    "model": {
+      "name": "",
+      "using": "",
+      "tags": [],
+      "columns": []
+    }
+  }
+}

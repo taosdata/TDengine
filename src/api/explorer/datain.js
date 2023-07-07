@@ -69,3 +69,15 @@ export function refreshTask(id){
         
     })
 }
+
+export function uploadFile(file){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/upload`,
+        method:'post',
+        headers:{
+            "Content-Type":"multipart/form-data"
+        }
+        
+    })
+}

@@ -22,7 +22,7 @@
           ></el-input>
         </div>
       </div>
-      <section class="basics">
+      <section class="basics" v-if="tagName!=='csv'">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
@@ -396,20 +396,20 @@
                     v-if="
                       p.hint === 'str' ||
                       p.hint === 'timeout' ||
-                      p.hint.type == 'file'
+                      (p.hint&&p.hint.type == 'file')
                     "
                   >
                     <el-input
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
                       :type="
-                        p.hint.type && p.hint.type == 'file'
+                        p.hint && p.hint.type == 'file'
                           ? 'textarea'
                           : 'text'
                       "
                     ></el-input>
                   </template>
-                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                  <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select v-model="p.value" placeholder="">
                         <el-option
@@ -428,7 +428,7 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      (p.hint === 'bool' || (p.hint&&p.hint.type === 'bool')) &&
                       p.name == 'clean_session'
                     "
                   >
@@ -445,12 +445,12 @@
                       ></el-checkbox>
                     </template>
                   </template>
-                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
+                  <template v-else-if="p.hint && p.hint.type === 'bool'">
                     <p-three-checkbox :data="checkboxData" v-model="p.value" />
                   </template>
                   <template
                     v-if="
-                      (p.hint.type && p.hint.type === 'integer') ||
+                      (p.hint && p.hint.type === 'integer') ||
                       p.hint === 'integer'
                     "
                   >
@@ -482,7 +482,7 @@
                       :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input>
                   </template>
-                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                  <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select
                         v-model="p.value"
@@ -504,7 +504,7 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      (p.hint === 'bool' || (p.hint&&p.hint.type === 'bool')) &&
                       p.name == 'clean_session'
                     "
                   >
@@ -521,12 +521,12 @@
                       ></el-checkbox>
                     </template>
                   </template>
-                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
+                  <template v-else-if="p.hint && p.hint.type === 'bool'">
                     <p-three-checkbox :data="checkboxData" v-model="p.value" />
                   </template>
                   <template
                     v-if="
-                      (p.hint.type && p.hint.type === 'integer') ||
+                      (p.hint && p.hint.type === 'integer') ||
                       p.hint === 'integer'
                     "
                   >
@@ -581,7 +581,10 @@
           ></MqttConnector>
         </div>
       </section>
-      <section class="choose-db">
+      <section v-if="tagName=='csv'">
+        <CsvData></CsvData>
+      </section>
+      <section class="choose-db" v-else>
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
@@ -613,6 +616,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
+import CsvData from '../components/csvData.vue'
 import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
@@ -623,6 +627,7 @@ export default {
     "p-three-checkbox": PThreeCheckbox,
     MqttConnector,
     opcConnector,
+    CsvData
   },
   props: {
     // sourceName: {

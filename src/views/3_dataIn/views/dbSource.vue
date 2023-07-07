@@ -172,6 +172,9 @@ export default {
             this.currentName = "ui";
             this.tagName = "pibackfill";
             break;
+          case "csv":
+            this.currentName = "opcui";
+            this.tagName = "csv";
         }
       } else {
         switch (id) {
