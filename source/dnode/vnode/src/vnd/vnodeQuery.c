@@ -410,9 +410,9 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
                             "nBatchInsertSuccess");
 }
 
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables) {
-  SVnode* pVnodeObj = pVnode;
-  SVnodeCfg* pConf = &pVnodeObj->config;
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables) {
+  SVnode    *pVnodeObj = pVnode;
+  SVnodeCfg *pConf = &pVnodeObj->config;
 
   if (dbname) {
     *dbname = pConf->dbname;
@@ -431,7 +431,7 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* num
   }
 }
 
-int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
+int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
   if (type == TSDB_SUPER_TABLE) {
     return vnodeGetStbIdList(pVnode, 0, pList);
   } else {
@@ -531,32 +531,87 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   return TSDB_CODE_SUCCESS;
 }
 
+// #ifndef TD_ENTERPRISE
+#define TK_LOG_STB_NUM 19
+static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
+                                               "data_dir",
+                                               "dnodes_info",
+                                               "d_info",
+                                               "grants_info",
+                                               "keeper_monitor",
+                                               "logs",
+                                               "log_dir",
+                                               "log_summary",
+                                               "m_info",
+                                               "taosadapter_restful_http_request_fail",
+                                               "taosadapter_restful_http_request_in_flight",
+                                               "taosadapter_restful_http_request_summary_milliseconds",
+                                               "taosadapter_restful_http_request_total",
+                                               "taosadapter_system_cpu_percent",
+                                               "taosadapter_system_mem_percent",
+                                               "temp_dir",
+                                               "vgroups_info",
+                                               "vnodes_role"};
+
+// exclude stbs of taoskeeper log
+static int32_t vnodeTimeSeriesFilter(SVnode *pVnode, SArray *suidList) {
+  char *dbName = strchr(pVnode->config.dbname, '.');
+  if (!dbName || 0 != strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
+    goto _exit;
+  }
+  int32_t tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+  if (tbSize < TK_LOG_STB_NUM) {
+    for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
+      tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
+      if (suid != 0) {
+        metaPutTbToFilterCache(pVnode, suid, 0);
+      }
+    }
+    if (metaSizeOfTbFilterCache(pVnode, 0) <= 0) goto _exit;
+  }
+
+  for (int64_t i = 0; i < TARRAY_SIZE(suidList);) {
+    if (metaTbInFilterCache(pVnode, *(tb_uid_t *)TARRAY_GET_ELEM(suidList, i), sizeof(tb_uid_t))) {
+      taosArrayRemove(suidList, i);
+      continue;
+    }
+  }
+
+_exit:
+  return 0;
+}
+// #endif
+
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_FAILED;
   }
 
   if (vnodeGetStbIdList(pVnode, 0, suidList) < 0) {
-    qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
-    taosArrayDestroy(suidList);
-    return TSDB_CODE_FAILED;
+      qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
+      taosArrayDestroy(suidList);
+      return TSDB_CODE_FAILED;
   }
+
+// #ifdef TD_ENTERPRISE
+  vnodeTimeSeriesFilter(pVnode, suidList);
+// #endif
 
   *num = 0;
   int64_t arrSize = taosArrayGetSize(suidList);
   for (int64_t i = 0; i < arrSize; ++i) {
-    tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
+      tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 
-    int64_t ctbNum = 0;
-    metaGetStbStats(pVnode, suid, &ctbNum);
+      int64_t ctbNum = 0;
+      metaGetStbStats(pVnode, suid, &ctbNum);
 
-    int numOfCols = 0;
-    vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
+      int numOfCols = 0;
+      vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
 
-    *num += ctbNum * (numOfCols - 1);
+      *num += ctbNum * (numOfCols - 1);
   }
 
   taosArrayDestroy(suidList);
@@ -566,20 +621,20 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num) {
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+      return TSDB_CODE_FAILED;
   }
 
   *num = 0;
   while (1) {
-    tb_uid_t id = metaStbCursorNext(pCur);
-    if (id == 0) {
-      break;
-    }
+      tb_uid_t id = metaStbCursorNext(pCur);
+      if (id == 0) {
+        break;
+      }
 
-    int64_t ctbNum = 0;
-    vnodeGetCtbNum(pVnode, id, &ctbNum);
+      int64_t ctbNum = 0;
+      vnodeGetCtbNum(pVnode, id, &ctbNum);
 
-    *num += ctbNum;
+      *num += ctbNum;
   }
 
   metaCloseStbCursor(pCur);
@@ -588,15 +643,15 @@ int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num) {
 
 void *vnodeGetIdx(void *pVnode) {
   if (pVnode == NULL) {
-    return NULL;
+      return NULL;
   }
 
-  return metaGetIdx(((SVnode*)pVnode)->pMeta);
+  return metaGetIdx(((SVnode *)pVnode)->pMeta);
 }
 
 void *vnodeGetIvtIdx(void *pVnode) {
   if (pVnode == NULL) {
-    return NULL;
+      return NULL;
   }
-  return metaGetIvtIdx(((SVnode*)pVnode)->pMeta);
+  return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }

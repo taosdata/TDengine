@@ -124,8 +124,11 @@ int32_t  metaUidFilterCachePut(void *pVnode, uint64_t suid, const void *pKey, in
                                int32_t payloadLen, double selectivityRatio);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
-int32_t  metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
+int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
+bool     metaTbInFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
+int32_t  metaPutTbToFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
+int32_t  metaSizeOfTbFilterCache(void *pVnode, int8_t type);
 
 int32_t  metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 
