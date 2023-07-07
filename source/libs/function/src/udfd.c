@@ -29,6 +29,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tmisce.h"
+#include "tversion.h"
 // clang-format on
 
 #define UDFD_MAX_SCRIPT_PLUGINS 64
@@ -1038,7 +1039,7 @@ int32_t udfdOpenClientRpc() {
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
