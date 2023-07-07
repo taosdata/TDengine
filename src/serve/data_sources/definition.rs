@@ -94,6 +94,8 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<Hint>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<bool>,
@@ -147,6 +149,8 @@ pub struct GroupedParams {
     pub display: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_order: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(default)]
@@ -305,6 +309,38 @@ pub struct DataSourceDefinition {
 }
 
 impl DataSourceDefinition {
+    pub fn compute(&mut self) {
+        for group in self.groups.as_mut_slice() {
+            // TD-25111
+            match (&group.short_description, &group.description) {
+                (None, Some(desc)) => {
+                    group.short_description = desc
+                        .split_terminator("\n")
+                        .into_iter()
+                        .next()
+                        .map(ToString::to_string)
+                        .map(|s| s.replace("<br>", ""));
+                }
+                _ => (),
+            }
+            if group.collapsible {
+                group.collapsed.replace(false);
+            }
+            for param in &mut group.params {
+                match (&param.short_description, &param.description) {
+                    (None, Some(desc)) => {
+                        param.short_description = desc
+                            .split_terminator("\n")
+                            .into_iter()
+                            .next()
+                            .map(ToString::to_string)
+                            .map(|s| s.replace("<br>", ""));
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
     // todo: parse values from DSN.
     pub fn values_from(mut self, mut dsn: Dsn) -> Self {
         debug_assert!(self.id == dsn.driver);
@@ -446,10 +482,31 @@ impl DataSourceDefinition {
             }
         }
         for group in self.groups.as_mut_slice() {
+            // TD-25111
+            match (&group.short_description, &group.description) {
+                (None, Some(desc)) => {
+                    group.short_description = desc
+                        .split_terminator("\n")
+                        .into_iter()
+                        .next()
+                        .map(ToString::to_string);
+                }
+                _ => (),
+            }
             if group.collapsible {
                 group.collapsed.replace(false);
             }
             for param in &mut group.params {
+                match (&param.short_description, &param.description) {
+                    (None, Some(desc)) => {
+                        param.short_description = desc
+                            .split_terminator("\n")
+                            .into_iter()
+                            .next()
+                            .map(ToString::to_string);
+                    }
+                    _ => (),
+                }
                 if let Some(value) = dsn.remove(&param.name) {
                     if group.collapsible {
                         group.collapsed.replace(true);
@@ -495,6 +552,7 @@ impl DataSourceDefinition {
             self.params.push(Param {
                 name,
                 hint: None,
+                short_description: None,
                 description: None,
                 required: Some(false),
                 placeholder: None,
@@ -597,6 +655,9 @@ fn test_values() {
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
     let _dsn = Dsn::from_str(&dsn).unwrap();
 }
+
+#[test]
+fn test_short_desc() {}
 
 const fn bool_is_false(v: &bool) -> bool {
     !*v
