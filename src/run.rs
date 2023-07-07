@@ -1,11 +1,13 @@
-use std::{time::Duration, io::BufRead, };
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use taos::*;
 
 use taosx_core::{
     influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
-    query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, utils::{port_pool::PortPool, self}, Action,
+    query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td,
+    utils::{self, port_pool::PortPool},
+    Action,
 };
 
 use clap::Parser;
@@ -42,7 +44,6 @@ pub(super) struct Cli {
     #[clap(short, long)]
     parser: Option<String>,
     // parser: Option<taosx_core::Parser>,
-
     /// Transformer actions.
     ///
     /// Supported action format:
@@ -206,11 +207,16 @@ impl Cli {
             ("mqtt", "taos") => {
                 let port_pool = PortPool::default();
                 let parser = if args.parser.is_some() {
-                    let file_content = utils::get_string_content_from_file_path(args.parser.unwrap().as_str());
+                    let file_content =
+                        utils::get_string_content_from_file_path(args.parser.unwrap().as_str());
                     if file_content.is_none() {
                         None
                     } else {
-                        Some(serde_json::from_str(file_content.unwrap().as_str()).with_context(|| format!("file content deserialize error")).unwrap())
+                        Some(
+                            serde_json::from_str(file_content.unwrap().as_str())
+                                .with_context(|| format!("file content deserialize error"))
+                                .unwrap(),
+                        )
                     }
                 } else {
                     None

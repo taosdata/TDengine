@@ -92,6 +92,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(stop_task)
             .service(metrics::metrics_exporter)
             .service(data_sources_in)
+            .service(data_sources_in_one)
             .service(data_source_collection)
             .service(create_agent)
             .service(update_agent)
@@ -169,6 +170,7 @@ impl Cli {
                 metrics::metrics_exporter,
 
                 data_sources_in,
+                data_sources_in_one,
                 data_source_collection,
 
                 agent::create_agent,

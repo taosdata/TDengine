@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use taos::Dsn;
-use taosx_core::Parser;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]

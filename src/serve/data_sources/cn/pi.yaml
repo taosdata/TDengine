@@ -15,7 +15,7 @@ options:
     placeholder: server
     required: true
   subject:
-    required: true 
+    required: true
     display: AFDatabaseName
     description: AF 数据库名
     placeholder: '如: Met1'
