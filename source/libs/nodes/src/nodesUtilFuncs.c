@@ -917,6 +917,10 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyList(pStmt->pCols);
+      if (pStmt->pReq) {
+        tFreeSMCreateSmaReq(pStmt->pReq);
+        taosMemoryFreeClear(pStmt->pReq);
+      }
       break;
     }
     case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
@@ -1063,6 +1067,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_QUERY: {
       SQuery* pQuery = (SQuery*)pNode;
+      nodesDestroyNode(pQuery->pPrevRoot);
       nodesDestroyNode(pQuery->pRoot);
       nodesDestroyNode(pQuery->pPostRoot);
       taosMemoryFreeClear(pQuery->pResSchema);
