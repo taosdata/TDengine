@@ -61,18 +61,11 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
 
 pub async fn csv_header(path: &str, has_header: bool) -> Result<CsvHeader> {
     let files = CsvSource::csv_path(path)?;
-    let headers = CsvSource::read_header(files[0].as_str(), has_header).await?;
-    if has_header {
-        Ok(CsvHeader {
-            columns: headers.len(),
-            headers,
-        })
-    } else {
-        Ok(CsvHeader {
-            columns: headers.len(),
-            headers: vec![],
-        })
-    }
+    let headers = CsvSource::read_header(&files[0], has_header).await?;
+    Ok(CsvHeader {
+        columns: headers.len(),
+        headers: if has_header { headers } else { vec![] },
+    })
 }
 
 pub async fn csv_to_taos(mut from: Dsn) -> Result<()> {
@@ -109,8 +102,8 @@ impl CsvSource {
         };
 
         let has_header: bool = dsn.params.remove("has_header").unwrap_or_else(|| "true".to_string()).parse()?;
-        let headers: Vec<String> = dsn.params.remove("header").unwrap_or_default().split(",")
-            .map(|s| s.to_string()).collect::<Vec<String>>();
+        let headers = dsn.params.remove("header").unwrap_or_default().split(",")
+            .map(String::from).collect::<Vec<String>>();
         let skip: u64 = dsn.params.remove("skip").unwrap_or_else(|| "0".to_string()).parse()?;
         let sep = dsn.params.remove("sep").unwrap_or_default();
         let sep = sep.as_bytes();
@@ -134,22 +127,22 @@ impl CsvSource {
 
     async fn read_header(read_path: &str, has_header: bool) -> Result<Vec<String>> {
         let paths = CsvSource::csv_path(read_path)?;
-        if paths.len() == 0 {
+        if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
         }
 
-        let mut headers: Vec<String> = vec![];
+        let mut headers: Vec<String> = Vec::new();
 
         for path in paths {
             let mut reader = ReaderBuilder::new().from_path(&path)?;
-            let file_headers: Vec<String> = reader.headers()?
+            let file_headers = reader.headers()?
                 .iter()
-                .map(|h| h.to_string())
-                .collect();
-            if has_header && headers.len() > 0 && headers != file_headers {
+                .map(String::from)
+                .collect::<Vec<String>>();
+            if has_header && !headers.is_empty() && headers != file_headers {
                 return Err(anyhow!(format!("header of files {} is different with others", &path)));
             }
-            if !has_header && headers.len() > 0 && headers.len() != file_headers.len() {
+            if !has_header && !headers.is_empty() && headers.len() != file_headers.len() {
                 return Err(anyhow!(format!("columns of {} if different with others", &path)));
             }
             headers = file_headers
@@ -182,11 +175,9 @@ impl CsvSource {
 
     async fn deal_file(reader: &mut Reader<File>, port: u32, batch_size: usize) -> Result<()> {
         let stream = TcpStream::connect(format!("localhost:{}", port))?;
-        let headers = reader.headers()?.into_iter()
-            .map(|s| s.to_string()).collect::<Vec<String>>();
+        let headers = reader.headers()?.iter().map(String::from).collect::<Vec<String>>();
         let schema = CsvSource::stream_schema(&headers);
         let mut writer: StreamWriter<&TcpStream> = StreamWriter::try_new(&stream, &schema)?;
-        // let writer_rc = Arc::new(writer);
 
         let mut records: Vec<HashMap<String, String>> = Vec::with_capacity(batch_size);
 
@@ -204,22 +195,13 @@ impl CsvSource {
     }
 
     fn write_to_stream(headers: &Vec<String>, schema: &Schema, writer: &mut StreamWriter<&TcpStream>, records: &Vec<HashMap<String, String>>) -> Result<()> {
-        let mut arrow_columns: Vec<ArrayRef> = Vec::with_capacity(headers.len());
-        let mut columns: HashMap<String, Vec<String>> = HashMap::with_capacity(headers.len());
-        for col in headers {
-            columns.insert(col.to_string(), Vec::with_capacity(records.len()));
-        }
-
-        for record in records {
-            for item in record {
-                columns.get_mut(item.0).unwrap().push(item.1.to_string());
-            }
-        }
-
-        for col in headers {
-            let cols = columns.get(col).unwrap().clone();
-            arrow_columns.push(Arc::new(StringArray::from(cols)))
-        }
+        let arrow_columns: Vec<ArrayRef> = headers.iter()
+            .map(|col| {
+                let cols = records.iter()
+                    .map(|record| record[col].clone())
+                    .collect::<Vec<String>>();
+                Arc::new(StringArray::from(cols)) as ArrayRef
+            }).collect();
 
         let record_batch = RecordBatch::try_new(Arc::new(schema.clone()), arrow_columns)?;
         let res = writer.write(&record_batch)?;
@@ -234,11 +216,11 @@ impl CsvSource {
         metadata.insert(String::from("ack"), String::from("none"));
 
         let columns = headers
-            .into_iter()
+            .iter()
             .map(
                 |header| Field::new(header, ArrowDataType::Utf8, false)
             )
-            .collect_vec();
+            .collect::<Vec<Field>>();
 
         Schema::new(columns).with_metadata(metadata)
     }
