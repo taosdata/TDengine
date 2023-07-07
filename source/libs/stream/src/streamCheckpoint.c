@@ -160,6 +160,9 @@ static int32_t streamTaskDispatchCheckpointMsg(SStreamTask* pTask, uint64_t chec
              pTask->info.nodeId, req.downstreamTaskId, req.downstreamNodeId, i);
       streamDispatchCheckpointMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
+  } else { // no need to dispatch msg to downstream task
+    qDebug("s-task:%s no down stream task, not dispatch checkpoint msg to downstream", pTask->id.idStr);
+    streamProcessCheckpointRsp(NULL, pTask);
   }
 
   return 0;
@@ -215,7 +218,7 @@ int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStre
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__SINK);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    qDebug("s-task:%s sink task set to checkpoint ready", pTask->id.idStr);
+    qDebug("s-task:%s sink task set to checkpoint ready, start to send rsp to upstream", pTask->id.idStr);
     appendCheckpointIntoInputQ(pTask);
     streamSchedExec(pTask);
   } else {
@@ -248,7 +251,7 @@ int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStre
  * All down stream tasks have successfully completed the check point task.
  * Current stream task is allowed to start to do checkpoint things in ASYNC model.
  */
-int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTaskCheckpointRsp* pRsp) {
+int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG);
 
   // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
@@ -258,6 +261,8 @@ int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStre
            pTask->id.idStr);
     appendCheckpointIntoInputQ(pTask);
     streamSchedExec(pTask);
+  } else {
+    qDebug("s-task:%s %d downstream tasks are not ready, wait", pTask->id.idStr, notReady);
   }
 
   return 0;

@@ -470,7 +470,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
         const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)pInput;
         qSetMultiStreamInput(pExecutor, pRefBlock->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
-      } else if (pItem->type == STREAM_CHECKPOINT) {
+      } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
         const SStreamCheckpoint* pCheckpoint = (const SStreamCheckpoint*) pInput;
         qSetMultiStreamInput(pExecutor, pCheckpoint->pBlock, 1, STREAM_INPUT__CHECKPOINT);
       } else {

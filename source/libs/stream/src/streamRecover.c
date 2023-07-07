@@ -45,6 +45,7 @@ const char* streamGetTaskStatusStr(int32_t status) {
     case TASK_STATUS__HALT: return "halt";
     case TASK_STATUS__PAUSE: return "paused";
     case TASK_STATUS__CK: return "check-point";
+    case TASK_STATUS__CK_READY: return "check-point-ready";
     default:return "";
   }
 }

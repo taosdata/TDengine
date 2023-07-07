@@ -819,6 +819,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
 
+  pTask->pRpcMsgList = taosArrayInit(4, POINTER_BYTES);
+
   // sink
   if (pTask->outputType == TASK_OUTPUT__SMA) {
     pTask->smaSink.vnode = pTq->pVnode;
@@ -1253,7 +1255,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // even in halt status, the data in inputQ must be processed
   int8_t status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT) {
+  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT || status == TASK_STATUS__CK) {
     tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
             pTask->chkInfo.version);
     streamProcessRunReq(pTask);
@@ -1546,14 +1548,14 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
-int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+int32_t tqProcessStreamCheckPointReq(STQ* pTq, SRpcMsg* pMsg) {
+  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
+  int32_t      code = 0;
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
-  int32_t      len = msgLen - sizeof(SMsgHead);
-  int32_t      code = 0;
 
-  SStreamTaskCheckpointReq req= {0};
+  SStreamTaskCheckpointReq req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -1574,21 +1576,22 @@ int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 
-  FAIL:
+FAIL:
   return code;
 }
 
 // downstream task has complete the stream task checkpoint procedure
-int32_t tqProcessStreamCheckPointRsp(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+int32_t tqProcessStreamCheckPointRsp(STQ* pTq, SRpcMsg* pMsg) {
   // if this task is an agg task, rsp this message to upstream directly.
   // if this task is an source task, send source rsp to mnode
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
-  int32_t      len = msgLen - sizeof(SMsgHead);
+
+  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
-  SStreamTaskCheckpointRsp req= {0};
+  SStreamTaskCheckpointRsp req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -1605,7 +1608,9 @@ int32_t tqProcessStreamCheckPointRsp(STQ* pTq, int64_t sversion, char* pMsg, int
     goto FAIL;
   }
 
-  streamProcessCheckpointRsp(pMeta, pTask, &req);
+  tqDebug("vgId:%d s-task:%s received the checkpoint rsp, handle it", vgId, pTask->id.idStr);
+
+  streamProcessCheckpointRsp(pMeta, pTask);
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 
