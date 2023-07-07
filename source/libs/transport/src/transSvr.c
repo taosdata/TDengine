@@ -196,6 +196,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
     return false;
   }
+  tDebug("head version: %d 2", pHead->version);
 
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
@@ -236,8 +237,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
     if (cost >= EXCEPTION_LIMIT_US) {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception", transLabel(pTransInst),
-             pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception",
+              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
     } else {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus", transLabel(pTransInst), pConn,
               TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
@@ -245,8 +246,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
   } else {
     if (cost >= EXCEPTION_LIMIT_US) {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception",
-             transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
-             transMsg.code, (int)(cost));
+              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
+              transMsg.code, (int)(cost));
     } else {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus",
               transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
@@ -262,6 +263,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.handle = (void*)transAcquireExHandle(transGetRefMgt(), pConn->refId);
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
+  transMsg.info.cliVer = htonl(pHead->compatibilityVer);
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
@@ -410,6 +412,8 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+  pHead->compatibilityVer = htonl(((STrans*)pConn->pTransInst)->compatibilityVer);
+  pHead->version = TRANS_VER;
 
   // handle invalid drop_task resp, TD-20098
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {

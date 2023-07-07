@@ -256,6 +256,7 @@ class TDTestCase:
         tdLog.info("all consumers status into 'lost'")
         
         # drop consumer groups
+        tdLog.info("drop all consumers")
         for i in range(len(groupIdList)): 
             for j in range(len(topicNameList)): 
                 sqlCmd = f"drop consumer group `%s` on %s"%(groupIdList[i], topicNameList[j])
@@ -265,7 +266,17 @@ class TDTestCase:
         tmqCom.g_end_insert_flag = 1
         tdLog.debug("notify sub-thread to stop insert data")
         pThread.join()
+        
+        tdSql.query('show consumers;')
+        consumerNUm = tdSql.queryRows
 
+        tdSql.query('show subscriptions;')
+        subscribeNum = tdSql.queryRows
+        
+        if (0 != consumerNUm or 0 != subscribeNum):
+            tdLog.exit("drop consumer fail! consumerNUm %d, subscribeNum: %d"%(consumerNUm, subscribeNum))
+
+        tdLog.info("drop consuer success, there is no consumers and subscribes")
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):

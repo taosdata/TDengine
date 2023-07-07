@@ -62,7 +62,10 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   }
   memset(pDb->pgrHash, 0, tsize);
 
-  taosMulModeMkDir(dbname, 0755);
+  ret = taosMulModeMkDir(dbname, 0755);
+  if (ret < 0) {
+    return -1;
+  }
 
 #ifdef USE_MAINDB
   // open main db

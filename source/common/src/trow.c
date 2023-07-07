@@ -423,7 +423,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
         val = (const void *)&pColVal->value.val;
       }
     } else {
-      pColVal = NULL;
+      // pColVal = NULL;
       valType = TD_VTYPE_NONE;
     }
 
