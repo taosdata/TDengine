@@ -76,11 +76,13 @@ class TDTestQuery(TDCase):
         self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
         
     def db_create(self,db): 
-        self.logger.info("\n\n\n=============\start=============\n\n\n" )
+        self.logger.info("\n\n\n=============test=============\n\n\n" )
         sql = " drop database if exists %s "  % db
-        self.query_ignore_error(db,sql)
+        #self.query_ignore_error(db,sql)
+        self.tdSql.execute(sql,queryTimes=30)
         sql = "create database if not exists %s keep 36500  replica 1 " % db
-        self.query_ignore_error(db,sql)
+        #self.query_ignore_error(db,sql)
+        self.tdSql.execute(sql,queryTimes=30)
         sql = "use %s" %db
         self.query_ignore_error(db,sql)
         
@@ -103,17 +105,17 @@ class TDTestQuery(TDCase):
                 
     def flush_db(self,db): 
         sql = " flush database %s "  % db
-        self.tdSql.execute(sql,queryTimes=1)
+        self.tdSql.execute(sql,queryTimes=30)
         
     def alter_replica1_3(self,db): 
         sql = " ALTER DATABASE %s replica 3"  % db
         self.query_ignore_error(db,sql)
-        time.sleep(60)
+        time.sleep(50)
                 
     def alter_replica3_1(self,db): 
         sql = " ALTER DATABASE %s replica 1"  % db
         self.query_ignore_error(db,sql)
-        time.sleep(40)
+        time.sleep(20)       
         
     def data_insert(self,db): 
         sql = " insert into %s.t1(ts,c1,c2) values(now, 1, 'abc');"  % db
@@ -204,12 +206,12 @@ class TDTestQuery(TDCase):
     def query_ignore_error(self,db,sql):            
         rows = -1;        
         try:
-            self.tdSql.execute(sql,queryTimes=1)          
+            #self.tdSql.execute(sql,queryTimes=1)          
             rows = self.tdSql.execute(sql,queryTimes=1).row_count  
             if rows>=0:
                 self.logger.info(("=====sql1.rows:'%s'") %(rows))
         except:
-            self.logger.info("sql is not support %s; " %sql)
+            self.logger.info("sql is not support at now! : %s; " %sql)
         
     def case_test(self):
         self.db_create(self.db)
@@ -373,7 +375,8 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         self.case_test()
-        for i in range(100):
+        for i in range(50):
+            self.logger.info("\n\n\n=========num:%d====start=============\n\n\n" %i) 
             self.bug_11()
             self.bug_23024()
             self.bug_23024_1()
@@ -384,6 +387,7 @@ class TDTestQuery(TDCase):
             self.bug_2832()
             self.bug_22909()
             self.bug_3010()
+            self.logger.info("\n\n\n=========num:%d====end=============\n\n\n" %i ) 
         self.data_create(self.db)
          
 

@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from Query.queryscript.table_function.numeric.table_numeric_interp import *
+from Query.queryscript.stable_function.numeric.table_numeric_interp import *
 
 class TDTestQuery(TDTestQuery):
         
@@ -34,12 +34,12 @@ class TDTestQuery(TDTestQuery):
         startTime = time.time() 
         self.tdSql.query("alter local 'schedulePolicy' '2';") 
         
-        self.data_create(self.db_2)
+        self.data_create(self.db_1)
         
-        self.right_case_2_range()    
+        self.right_case_1_range()    
 
         endTime = time.time()
-        self.rm_sql(self.db_2)
+        self.rm_sql(self.db_1)
         self.logger.info("total time %ds" % (endTime - startTime))
 
 

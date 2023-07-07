@@ -833,223 +833,147 @@ class TDTestQuery(TDCase):
         float_data = fake.pyfloat()
         str_data = fake.pystr() 
         
-        # self.logger.info("base query ---------1----------")
-        # sql = "select * from %s.meters limit %d" %(dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)        
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)  
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # sql_join = "select a.* from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)  
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
-        # self.logger.info("base query ---------2----------")
-        # sql = "select * from %s.meters where ts is not null limit %d" %(dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # sql_join = "select a.* from %s.meters a,%s.meters b where a.ts is not null and  a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
-        # self.logger.info("base query ---------3----------")
-        # sql = "select * from %s.meters where ts is not null order by ts limit %d" %(dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # sql_join = "select a.* from %s.meters a,%s.meters b where a.ts is not null  and  a.ts = b.ts order by b.ts limit %d" %(dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        # self.logger.info("base query ---------4----------")
-        # sql = "select * from %s.meters where ts is not null order by ts desc limit %d" %(dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select a.* from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # self.logger.info("base query ---------5----------")
-        # sql = "select %d from %s.meters where ts is not null order by ts desc limit %d" %(int_data,dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(int_data,dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # self.logger.info("base query ---------6----------")
-        # sql = "select %f from %s.meters where ts is not null order by ts desc limit %d" %(float_data,dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(float_data,dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # self.logger.info("base query ---------7----------")
-        # sql = "select '%s' from %s.meters where ts is not null order by ts desc limit %d" %(str_data,dbname,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(str_data,dbname,dbnamejoin,num)
-        # self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-
-
-        # self.logger.info("base query ---------8----------")
-        # sql = "select %d from %s.meters where ts is not null group by tbname limit %d" %(int_data,dbname,num)
-        # self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
-        # self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # self.logger.info("base query ---------9----------")
-        # sql = "select %f from %s.meters where ts is not null group by tbname limit %d" %(float_data,dbname,num)
-        # self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
-        # self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        # self.logger.info("base query ---------10----------")
-        # sql = "select '%s' from %s.meters where ts is not null group by tbname limit %d" %(str_data,dbname,num)
-        # self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql = "select count(*) from (%s)" %sql
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql,sql)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        # sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
-        # self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_join = "select count(*) from (%s)" %sql_join
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        self.logger.info("base query ---------11----------")
-        sql = "select %d from %s.meters where ts is not null partition by tbname limit %d" %(int_data,dbname,num)
-        self.sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        self.logger.info("base query ---------1----------")
+        sql = "select * from %s.meters limit %d" %(dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)        
         sql = "select count(*) from (%s)" %sql
-        self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)  
         sql_union = "(%s) union (%s)" %(sql,sql)
-        self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
-        self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-               
-        sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts partition by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
-        self.sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_join_per_table_num(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        sql_join = "select count(*) from (%s)" %sql_join
-        self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
-        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
-        self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
-        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
-        self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
-        self.logger.info("base query ---------12----------")
-        sql = "select %f from %s.meters where ts is not null partition by tbname limit %d" %(float_data,dbname,num)
+        sql_join = "select a.* from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)  
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        
+        
+        self.logger.info("base query ---------2----------")
+        sql = "select * from %s.meters where ts is not null limit %d" %(dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join = "select a.* from %s.meters a,%s.meters b where a.ts is not null and  a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        
+        
+        self.logger.info("base query ---------3----------")
+        sql = "select * from %s.meters where ts is not null order by ts limit %d" %(dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join = "select a.* from %s.meters a,%s.meters b where a.ts is not null  and  a.ts = b.ts order by b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        
+        self.logger.info("base query ---------4----------")
+        sql = "select * from %s.meters where ts is not null order by ts desc limit %d" %(dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        sql_join = "select a.* from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        self.logger.info("base query ---------5----------")
+        sql = "select %d from %s.meters where ts is not null order by ts desc limit %d" %(int_data,dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        self.logger.info("base query ---------6----------")
+        sql = "select %f from %s.meters where ts is not null order by ts desc limit %d" %(float_data,dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        self.logger.info("base query ---------7----------")
+        sql = "select '%s' from %s.meters where ts is not null order by ts desc limit %d" %(str_data,dbname,num)
+        self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+
+
+        self.logger.info("base query ---------8----------")
+        sql = "select %d from %s.meters where ts is not null group by tbname limit %d" %(int_data,dbname,num)
         self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
         sql = "select count(*) from (%s)" %sql
         self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1058,7 +982,7 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
-        sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts partition by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
+        sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -1067,8 +991,8 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
-        self.logger.info("base query ---------13----------")
-        sql = "select '%s' from %s.meters where ts is not null partition by tbname limit %d" %(str_data,dbname,num)
+        self.logger.info("base query ---------9----------")
+        sql = "select %f from %s.meters where ts is not null group by tbname limit %d" %(float_data,dbname,num)
         self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
         sql = "select count(*) from (%s)" %sql
         self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1077,7 +1001,7 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
-        sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts partition by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -1085,6 +1009,82 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        self.logger.info("base query ---------10----------")
+        sql = "select '%s' from %s.meters where ts is not null group by tbname limit %d" %(str_data,dbname,num)
+        self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql = "select count(*) from (%s)" %sql
+        self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql,sql)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        # # self.logger.info("base query ---------11----------")
+        # # sql = "select %d from %s.meters where ts is not null partition by tbname limit %d" %(int_data,dbname,num)
+        # # self.sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql = "select count(*) from (%s)" %sql
+        # # self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union = "(%s) union (%s)" %(sql,sql)
+        # # self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        # # self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        # # sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts partition by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
+        # # self.sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_join_per_table_num(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_join = "select count(*) from (%s)" %sql_join
+        # # self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        # # self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        # # self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        # # self.logger.info("base query ---------12----------")
+        # # sql = "select %f from %s.meters where ts is not null partition by tbname limit %d" %(float_data,dbname,num)
+        # # self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql = "select count(*) from (%s)" %sql
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union = "(%s) union (%s)" %(sql,sql)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        # # sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts partition by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
+        # # self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_join = "select count(*) from (%s)" %sql_join
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        # # self.logger.info("base query ---------13----------")
+        # # sql = "select '%s' from %s.meters where ts is not null partition by tbname limit %d" %(str_data,dbname,num)
+        # # self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql = "select count(*) from (%s)" %sql
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union = "(%s) union (%s)" %(sql,sql)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+               
+        # # sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts partition by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        # # self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_join = "select count(*) from (%s)" %sql_join
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        # # sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        # # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         
         # self.logger.info("base query ---------14----------")

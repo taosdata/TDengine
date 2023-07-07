@@ -82,6 +82,9 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeri
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interp.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_interp_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_interp_2.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/table_numeric_interp.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/table_numeric_interp_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/table_numeric_interp_2.py --keep --containers
 taostest --use=common_insert_kcn.yaml --case=Query/queryscript/stable_query/keepColumnNameCheck.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_sample_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_sample_2.py --keep --containers
