@@ -755,6 +755,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
 
 #tsim test
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
