@@ -1523,6 +1523,12 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, int64_t sversion, char* pMs
   memcpy(pRpcMsg, (SRpcMsg*)pMsg, sizeof(SRpcMsg));
   taosArrayPush(pTask->pRpcMsgList, &pRpcMsg);
 
+  // todo: when generating checkpoint, no new tasks are allowed to add into current Vnode
+  // set the initial value for generating check point
+  taosWLockLatch(&pMeta->lock);
+  pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
+  taosWUnLockLatch(&pMeta->lock);
+
   streamProcessCheckpointSourceReq(pMeta, pTask, &req);
   streamMetaReleaseTask(pMeta, pTask);
   return code;

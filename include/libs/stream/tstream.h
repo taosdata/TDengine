@@ -368,7 +368,7 @@ typedef struct SStreamMeta {
   TdThreadMutex backendMutex;
 
 //  uint64_t checkpointId;
-  int32_t  notCkptReadyTasks;
+  int32_t  chkptNotReadyTasks;
   SArray*  checkpointSaved;
   SArray*  checkpointInUse;
   int32_t  checkpointCap;

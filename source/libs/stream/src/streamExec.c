@@ -536,8 +536,10 @@ int32_t streamTryExec(SStreamTask* pTask) {
       // check for all tasks, and do generate the vnode-wide checkpoint data.
       // todo extract method
       SStreamMeta* pMeta = pTask->pMeta;
-      int32_t remain = atomic_sub_fetch_32(&pMeta->notCkptReadyTasks, 1);
-      if (remain <= 0) {  // all tasks are in TASK_STATUS__CK_READY state
+      int32_t remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
+      ASSERT(remain >= 0);
+
+      if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
         streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
       }
 
