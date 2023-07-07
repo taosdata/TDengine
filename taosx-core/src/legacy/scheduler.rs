@@ -71,6 +71,7 @@ async fn worker(
     source_is_v3: bool,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
+    const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
     let mut to = target.get().await?;
     from.exec("select 1")
@@ -85,7 +86,7 @@ async fn worker(
             Todo::Meta(stable, tables, sender) => {
                 match stable {
                     Some(stable) => {
-                        let mut retries = 1;
+                        let mut retries = MAX_WS_RETRIES;
                         loop {
                             //todo
                             match sync_super_table_schema_with_subs(
@@ -110,16 +111,23 @@ async fn worker(
                                 }
                                 Err(err) => {
                                     let table_count = tables.len();
-                                    log::error!(
-                                		"[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:?}, continue next"
-                            		);
                                     let err_string = err.to_string();
-                                    if err_string.contains("0xE00") && retries > 0 {
+                                    if (err_string.contains("0xE00")
+                                        || err_string.contains("channel closed"))
+                                        && retries > 0
+                                    {
                                         from = source.get().await?;
                                         to = target.get().await?;
                                         retries -= 1;
+                                        log::warn!(
+                                            "[worker:{worker}] sync stable {stable} error: {err}, retrying"
+                                        );
                                         continue;
                                     }
+
+                                    log::error!(
+                                		"[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:?}, continue next"
+                            		);
 
                                     if let Some(path) = opts.fails_to.as_ref() {
                                         path.lock().unwrap().write_fmt(format_args!(
@@ -177,7 +185,7 @@ async fn worker(
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
                 };
-                let mut retries = 1;
+                let mut retries = MAX_WS_RETRIES;
 
                 loop {
                     match sync_single_table(
@@ -199,16 +207,23 @@ async fn worker(
                             break;
                         }
                         Err(err) => {
-                            log::error!(
-                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
-                            );
                             let err_string = err.to_string();
-                            if err_string.contains("0xE00") && retries > 0 {
+                            if (err_string.contains("0xE00")
+                                || err_string.contains("channel closed"))
+                                && retries > 0
+                            {
                                 from = source.get().await?;
                                 to = target.get().await?;
                                 retries -= 1;
+                                log::warn!(
+                                    "[worker:{worker}] sync table {table} error: {err}, retrying"
+                                );
                                 continue;
                             }
+
+                            log::error!(
+                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
+                            );
                             if let Some(path) = opts.fails_to.as_ref() {
                                 path.lock().unwrap().write_fmt(format_args!(
                                     "data\t{}\t{}\n",
