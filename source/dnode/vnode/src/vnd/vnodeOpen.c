@@ -76,7 +76,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   }
 
   SSyncCfg *pCfg = &info.config.syncCfg;
- 
+
   pCfg->replicaNum = 0;
   pCfg->totalReplicaNum = 0;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
@@ -109,7 +109,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
     pCfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
   }
 
-  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d", 
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d",
             pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex);
 
   info.config.syncCfg = *pCfg;
@@ -370,6 +370,10 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   if (metaOpen(pVnode, &pVnode->pMeta, rollback) < 0) {
     vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
+  }
+
+  if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+    vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
   // open tsdb
