@@ -30,7 +30,7 @@ class TestCompRatio(TDCase):
         self.create_table_thread_count = 16
         self.thread_count = 16
         self.childtable_count = 1000
-        self.insert_rows = 5000
+        self.insert_rows = 30000
         self.num_of_records_per_req = 10000
         self.batch_create_tbl_num = 10000
         self.dbname = "test"
@@ -60,13 +60,15 @@ class TestCompRatio(TDCase):
             "type": "INT",
             "count": 1,
             "min": 1,
-            "max": 100
+            "max": 1
           }
         ]
         tag_info_list = [
           {
             "type": "INT",
-            "count": 1
+            "count": 1,
+            "min": 1,
+            "max": 1
           }
         ]
         for comp_value in self.comp_value_list:
@@ -89,8 +91,10 @@ class TestCompRatio(TDCase):
           time.sleep(self.flush_time)
           res = self._remote.cmd(host, [f'du -sh {data_dir}'])
           if comp_value == self.comp_value_list[0]:
-            uncomp = "".join(list(filter(str.isdigit, res)))
+            uncomp = res.split("\t")[0][:-1]
           else:
-            comp = "".join(list(filter(str.isdigit, res)))
-        comp_ratio = int(comp)/int(uncomp)
+            comp = res.split("\t")[0][:-1]
+        comp_ratio = float(comp)/float(uncomp)
+        self._remote._logger.info(f'uncomp data use {uncomp}M')
+        self._remote._logger.info(f'comp data use {comp}M')
         self._remote._logger.info(f'comp ratio is {round(comp_ratio*100, 2)}%')

@@ -87,4 +87,27 @@ class Test16C32G500W(TDCase):
         Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
         # Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         # Insert_file.get_node_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
-        print(self.run_log_dir + '/perf_report.txt')
+
+
+        # query
+        self.childtable_count = 1000
+        self.insert_rows = 10000
+        stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
+        database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
+        host = self.get_fqdn("taosd")[0]
+        json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name, json_info)
+        json_data_list.append(json_info)
+
+        self.tdCom.put_file(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
+        # timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
+        res = self._remote.cmd(host, f'taos -s \"explain analyze select c0 from {self.dbname}.stb\"')
+        execution_time_str = [x for x in res.split('\n') if "Execution Time" in x]
+        execution_time = "".join(execution_time_str[0].split(":")[1].strip().split(" ")[:2])
+        self._remote._logger.info(f'execute time: {execution_time}')
+        if "ms" in execution_time:
+              execution_time = float(execution_time.replace("ms", ""))
+        self.tdSql.checkEqual(execution_time<1000, True)
+
+        self._remote._logger.info(self.run_log_dir + '/perf_report.txt')
