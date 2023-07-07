@@ -16,7 +16,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use linked_hash_map::LinkedHashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{taos_query::common::Timestamp, *};
+use taos::*;
 use tokio::sync::oneshot;
 
 use crate::{legacy::scheduler::Todo, Action};
@@ -24,6 +24,7 @@ use crate::{legacy::scheduler::Todo, Action};
 use self::scheduler::Scheduler;
 
 mod scheduler;
+mod verify;
 // mod tasks;
 
 #[derive(Debug, Clone, Copy)]
@@ -1790,6 +1791,9 @@ pub async fn legacy_to_taos(
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
 
+    verify::verify_dsn(&from)
+        .map_err(|err| anyhow::format_err!("Cannot parse source DSN params: {err}"))?;
+
     let target_db = to.subject.take();
 
     let from_builder = TaosBuilder::from_dsn(&from)?;
@@ -1801,6 +1805,8 @@ pub async fn legacy_to_taos(
     }
 
     let target_opts = TargetOpts::from_params(&mut to)?;
+    verify::verify_dsn(&to)
+        .map_err(|err| anyhow::format_err!("Cannot parse target DSN params: {err}"))?;
     let connect_timeout = Duration::from_secs(10);
     tracing::debug!("Building source connection pool...");
     let from_pool = from_builder
