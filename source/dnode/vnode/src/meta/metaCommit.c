@@ -40,10 +40,6 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
     return -1;
   }
 
-  if (ttlMgrBegin(pMeta->pTtlMgr, pMeta) < 0) {
-    return -1;
-  }
-
   tdbCommit(pMeta->pEnv, pMeta->txn);
 
   return 0;

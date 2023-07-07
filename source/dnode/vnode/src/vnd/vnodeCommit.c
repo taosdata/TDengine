@@ -360,7 +360,12 @@ static int32_t vnodeCommitTask(void *arg) {
 
   // commit
   code = vnodeCommitImpl(pInfo);
-  if (code) goto _exit;
+  if (code) {
+    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+    taosMsleep(100);
+    exit(EXIT_FAILURE);
+    goto _exit;
+  }
 
   vnodeReturnBufPool(pVnode);
 
