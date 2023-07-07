@@ -640,6 +640,8 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pPara
     pOperator->pDownstreamParams[pChild->downstreamIdx] = pChild;
   }
 
+  taosArrayClear(pOperator->pOperatorParam->pChildren);
+
   return TSDB_CODE_SUCCESS;
 }
 

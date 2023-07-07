@@ -159,11 +159,6 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-  }
-
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
@@ -205,6 +200,11 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
 static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+  }
 
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -434,6 +434,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   }
   
   (*ppRes)->opType = srcOpType;
+  (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
   (*ppRes)->pChildren = NULL;
 
@@ -762,6 +763,8 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   dataInfo.srcOpType = pParam->srcOpType;
   taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
 
+  pOperator->pOperatorParam = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -769,7 +772,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) {
+  if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) || (pExchangeInfo->dynamicOp && NULL == pOperator->pOperatorParam)) {
     return TSDB_CODE_SUCCESS;
   }
 

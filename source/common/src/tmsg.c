@@ -5501,6 +5501,7 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
 
 int32_t tSerializeSOperatorParam(SEncoder* pEncoder, SOperatorParam* pOpParam) {
   if (tEncodeI32(pEncoder, pOpParam->opType) < 0) return -1;
+  if (tEncodeI32(pEncoder, pOpParam->downstreamIdx) < 0) return -1;
   switch (pOpParam->opType) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam* pScan = (STableScanOperatorParam*)pOpParam->value;
@@ -5528,6 +5529,7 @@ int32_t tSerializeSOperatorParam(SEncoder* pEncoder, SOperatorParam* pOpParam) {
 
 int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam* pOpParam) {
   if (tDecodeI32(pDecoder, &pOpParam->opType) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pOpParam->downstreamIdx) < 0) return -1;
   switch (pOpParam->opType) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
@@ -5545,6 +5547,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam* pOpParam)
       } else {
         pScan->pUidList = NULL;
       }
+      pOpParam->value = pScan;
       break;
     }
     default:

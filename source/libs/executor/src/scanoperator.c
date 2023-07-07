@@ -815,7 +815,6 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     qTrace("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
   }
   
-  pOperator->pOperatorParam = NULL;
   return code;
 }
 
@@ -852,12 +851,14 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   if (pOperator->pOperatorParam) {
     int32_t code = createTableListInfoFromParam(pOperator);
+    pOperator->pOperatorParam = NULL;
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
     
     if (pInfo->currentGroupId != -1) {
+      pInfo->currentGroupId = 0;
       return startNextGroupScan(pOperator);
     }
   }

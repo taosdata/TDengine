@@ -61,6 +61,7 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
   pGc->groupValueSize = grpValSize;
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
+  (*ppRes)->downstreamIdx = downstreamIdx;
   (*ppRes)->value = pGc;
 
   return TSDB_CODE_SUCCESS;
@@ -132,16 +133,22 @@ static int32_t buildStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJ
   SOperatorParam*             pExcParam1 = NULL;
   SOperatorParam*             pGcParam0 = NULL;
   SOperatorParam*             pGcParam1 = NULL;  
+  int32_t*                    leftVg = (int32_t*)(pVg0->pData + pVg0->info.bytes * rowIdx);
+  int64_t*                    leftUid = (int64_t*)(pUid0->pData + pUid0->info.bytes * rowIdx);
+  int32_t*                    rightVg = (int32_t*)(pVg1->pData + pVg1->info.bytes * rowIdx);
+  int64_t*                    rightUid = (int64_t*)(pUid1->pData + pUid1->info.bytes * rowIdx);
+
+  qDebug("start stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, *leftVg, *leftUid, *rightVg, *rightUid);
   
-  int32_t code = buildExchangeOperatorParam(&pExcParam0, 0, (int32_t*)(pVg0->pData + pVg0->info.bytes * rowIdx), (int64_t*)(pUid0->pData + pUid0->info.bytes * rowIdx), NULL);
+  int32_t code = buildExchangeOperatorParam(&pExcParam0, 0, leftVg, leftUid, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildExchangeOperatorParam(&pExcParam1, 1, (int32_t*)(pVg1->pData + pVg1->info.bytes * rowIdx), (int64_t*)(pUid1->pData + pUid1->info.bytes * rowIdx), NULL);
+    code = buildExchangeOperatorParam(&pExcParam1, 1, rightVg, rightUid, NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam0, 0, false, pUid0->pData + pUid0->info.bytes * rowIdx, pUid0->info.bytes, pExcParam0);
+    code = buildGroupCacheOperatorParam(&pGcParam0, 0, false, leftUid, pUid0->info.bytes, pExcParam0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam1, 1, false, pUid1->pData + pUid1->info.bytes * rowIdx, pUid1->info.bytes, pExcParam1);
+    code = buildGroupCacheOperatorParam(&pGcParam1, 1, false, rightUid, pUid1->info.bytes, pExcParam1);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildMergeJoinOperatorParam(ppParam, pGcParam0, pGcParam1);
@@ -165,6 +172,11 @@ static void seqJoinLaunchPostJoin(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   *ppRes = pOperator->pDownstream[1]->fpSet.getNextExtFn(pOperator->pDownstream[1], pParam);
   if (*ppRes) {
     pPost->isStarted = true;
+    pInfo->execInfo.postBlkNum++;
+    pInfo->execInfo.postBlkRows += (*ppRes)->info.rows;
+    qDebug("join res block retrieved");
+  } else {
+    qDebug("Empty join res block retrieved");
   }
 }
 
