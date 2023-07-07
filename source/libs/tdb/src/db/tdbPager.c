@@ -720,14 +720,38 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int   code = 0;
   SPgno pgno = TDB_PAGE_PGNO(pPage);
 
+  if (pPager->frps) {
+    taosArrayPush(pPager->frps, &pgno);
+    pPage->pPager = NULL;
+    return code;
+  }
+
+  pPager->frps = taosArrayInit(8, sizeof(SPgno));
   // memset(pPage->pData, 0, pPage->pageSize);
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", pgno);
   // printf("tdb/insert-free-page: tbc recycle page: %d.\n", pgno);
   code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
   if (code < 0) {
     tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
+    taosArrayDestroy(pPager->frps);
+    pPager->frps = NULL;
     return -1;
   }
+
+  while (TARRAY_SIZE(pPager->frps) > 0) {
+    pgno = *(SPgno *)taosArrayPop(pPager->frps);
+
+    code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
+    if (code < 0) {
+      tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
+      taosArrayDestroy(pPager->frps);
+      pPager->frps = NULL;
+      return -1;
+    }
+  }
+
+  taosArrayDestroy(pPager->frps);
+  pPager->frps = NULL;
 
   pPage->pPager = NULL;
 
@@ -739,7 +763,11 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   TBC *pCur;
 
   if (!pPager->pEnv->pFreeDb) {
-    return 0;
+    return code;
+  }
+
+  if (pPager->frps) {
+    return code;
   }
 
   code = tdbTbcOpen(pPager->pEnv->pFreeDb, &pCur, pTxn);
