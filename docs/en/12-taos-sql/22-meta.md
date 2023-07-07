@@ -283,6 +283,8 @@ Provides dnode configuration information.
 | 2   | consumer_group | BINARY(193)  | Subscribed consumer group         |
 | 3   |   vgroup_id    | INT          | Vgroup ID for the consumer |
 | 4   |  consumer_id   | BIGINT       | Consumer ID          |
+| 5   |  offset        | BINARY(64)   | Consumption progress |
+| 6   |  rows          | BIGINT       | Number of consumption items |
 
 ## INS_STREAMS
 
