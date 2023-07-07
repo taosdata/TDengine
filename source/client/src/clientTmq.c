@@ -678,6 +678,8 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, int32_t type, tm
       taosMemoryFree(pParamSet);
       pCommitFp(tmq, code, userParam);
     }
+    // update the offset value.
+    pVg->offsetInfo.committedOffset = pVg->offsetInfo.currentOffset;
   } else {  // do not perform commit, callback user function directly.
     taosMemoryFree(pParamSet);
     pCommitFp(tmq, code, userParam);
@@ -2712,7 +2714,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 //        char offsetBuf[TSDB_OFFSET_LEN] = {0};
 //        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
 
-        tscInfo("vgId:%d offset is old to:%"PRId64, p->vgId, p->currentOffset);
+        tscInfo("vgId:%d offset is update to:%"PRId64, p->vgId, p->currentOffset);
 
         pOffsetInfo->walVerBegin = p->begin;
         pOffsetInfo->walVerEnd = p->end;
