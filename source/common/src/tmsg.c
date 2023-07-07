@@ -5500,71 +5500,70 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
 }
 
 int32_t tSerializeSOperatorParam(SEncoder* pEncoder, SOperatorParam* pOpParam) {
-  int32_t n = taosArrayGetSize(pOpParam->pOpParams);
+  if (tEncodeI32(pEncoder, pOpParam->opType) < 0) return -1;
+  switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+      STableScanOperatorParam* pScan = (STableScanOperatorParam*)pOpParam->value;
+      int32_t uidNum = taosArrayGetSize(pScan->pUidList);
+      if (tEncodeI32(pEncoder, uidNum) < 0) return -1;
+      for (int32_t m = 0; m < uidNum; ++m) {
+        int64_t* pUid = taosArrayGet(pScan->pUidList, m);
+        if (tEncodeI64(pEncoder, *pUid) < 0) return -1;
+      }
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+  
+  int32_t n = taosArrayGetSize(pOpParam->pChildren);
   if (tEncodeI32(pEncoder, n) < 0) return -1;
   for (int32_t i = 0; i < n; ++i) {
-    SOperatorSpecParam* pSpec = (SOperatorSpecParam*)taosArrayGet(pOpParam->pOpParams, i);
-    if (tEncodeI32(pEncoder, pSpec->opType) < 0) return -1;
-    switch (pSpec->opType) {
-      case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-        STableScanOperatorParam* pScan = (STableScanOperatorParam*)pSpec->value;
-        if (pScan->pChild) {
-          if (tSerializeSOperatorParam(pEncoder, pScan->pChild) < 0) return -1;
-        } else {
-          if (tEncodeI32(pEncoder, 0) < 0) return -1;
-        }
-        int32_t uidNum = taosArrayGetSize(pScan->pUidList);
-        if (tEncodeI32(pEncoder, uidNum) < 0) return -1;
-        for (int32_t m = 0; m < uidNum; ++m) {
-          int64_t* pUid = taosArrayGet(pScan->pUidList, m);
-          if (tEncodeI64(pEncoder, *pUid) < 0) return -1;
-        }
-        break;
-      }
-      default:
-        return TSDB_CODE_INVALID_PARA;
-    }
+    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pOpParam->pChildren, i);
+    if (tSerializeSOperatorParam(pEncoder, pChild) < 0) return -1;
   }
 
   return 0;
 }
 
-int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam* pOpParam, int32_t specNum) {
-  pOpParam->pOpParams = taosArrayInit(specNum, sizeof(SOperatorSpecParam));
-  if (NULL == pOpParam->pOpParams) return -1;
-
-  SOperatorSpecParam specParam;
-  for (int32_t i = 0; i < specNum; ++i) {
-    if (tDecodeI32(pDecoder, &specParam.opType) < 0) return -1;
-    switch (specParam.opType) {
-      case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-        STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
-        if (NULL == pScan) return -1;
-        int32_t childSpecNum = 0;
-        if (tDecodeI32(pDecoder, &childSpecNum) < 0) return -1;
-        if (childSpecNum > 0) {
-          pScan->pChild = taosMemoryMalloc(sizeof(SOperatorParam));
-          if (NULL == pScan->pChild) return -1;
-          if (tDeserializeSOperatorParam(pDecoder, pScan->pChild, childSpecNum) < 0) return -1;
+int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam* pOpParam) {
+  if (tDecodeI32(pDecoder, &pOpParam->opType) < 0) return -1;
+  switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+      STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+      if (NULL == pScan) return -1;
+      int32_t uidNum = 0;
+      int64_t uid = 0;
+      if (tDecodeI32(pDecoder, &uidNum) < 0) return -1;
+      if (uidNum > 0) {
+        pScan->pUidList = taosArrayInit(uidNum, sizeof(int64_t));
+        if (NULL == pScan->pUidList) return -1;
+        for (int32_t m = 0; m < uidNum; ++m) {
+          if (tDecodeI64(pDecoder, &uid) < 0) return -1;
+          taosArrayPush(pScan->pUidList, &uid);
         }
-        int32_t uidNum = 0;
-        int64_t uid = 0;
-        if (tDecodeI32(pDecoder, &uidNum) < 0) return -1;
-        if (uidNum > 0) {
-          pScan->pUidList = taosArrayInit(uidNum, sizeof(int64_t));
-          if (NULL == pScan->pUidList) return -1;
-          for (int32_t m = 0; m < uidNum; ++m) {
-            if (tDecodeI64(pDecoder, &uid) < 0) return -1;
-            taosArrayPush(pScan->pUidList, &uid);
-          }
-        }
-        specParam.value = pScan;
-        break;
+      } else {
+        pScan->pUidList = NULL;
       }
-      default:
-        return TSDB_CODE_INVALID_PARA;
+      break;
     }
-    taosArrayPush(pOpParam->pOpParams, &specParam);
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t childrenNum = 0;
+  if (tDecodeI32(pDecoder, &childrenNum) < 0) return -1;
+  if (childrenNum > 0) {
+    pOpParam->pChildren = taosArrayInit(childrenNum, POINTER_BYTES);
+    if (NULL == pOpParam->pChildren) return -1;
+    for (int32_t i = 0; i < childrenNum; ++i) {
+      SOperatorParam* pChild = taosMemoryCalloc(1, sizeof(SOperatorParam));
+      if (NULL == pChild) return -1;
+      if (tDeserializeSOperatorParam(pDecoder, pChild) < 0) return -1;
+      taosArrayPush(pOpParam->pChildren, &pChild);
+    }
+  } else {
+    pOpParam->pChildren = NULL;
   }
 
   return 0;
@@ -5587,6 +5586,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
   if (tEncodeU64(&encoder, pReq->taskId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->execId) < 0) return -1;
   if (pReq->pOpParam) {
+    if (tEncodeI32(&encoder, 1) < 0) return -1;
     if (tSerializeSOperatorParam(&encoder, pReq->pOpParam) < 0) return -1;
   } else {
     if (tEncodeI32(&encoder, 0) < 0) return -1;
@@ -5623,12 +5623,12 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   if (tDecodeU64(&decoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->execId) < 0) return -1;
 
-  int32_t specNum = 0;
-  if (tDecodeI32(&decoder, &specNum) < 0) return -1;
-  if (specNum > 0) {
+  int32_t paramNum = 0;
+  if (tDecodeI32(&decoder, &paramNum) < 0) return -1;
+  if (paramNum > 0) {
     pReq->pOpParam = taosMemoryMalloc(sizeof(*pReq->pOpParam));
     if (NULL == pReq->pOpParam) return -1;
-    if (tDeserializeSOperatorParam(&decoder, pReq->pOpParam, specNum) < 0) return -1;
+    if (tDeserializeSOperatorParam(&decoder, pReq->pOpParam) < 0) return -1;
   }
   
   tEndDecode(&decoder);

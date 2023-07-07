@@ -73,7 +73,7 @@ typedef struct SOperatorInfo {
   SExecTaskInfo*         pTaskInfo;
   SOperatorCostInfo      cost;
   SResultInfo            resultInfo;
-  SOperatorBaseParam*    pOperatorParam;
+  SOperatorParam*        pOperatorParam;
   SOperatorParam**       pDownstreamParams;
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator

@@ -149,11 +149,9 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SSortMergeJoinOperatorParam {
-  SOperatorParam* pChild;
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorParam {
-  SOperatorParam* pChild;
   int32_t         vgId;
   int32_t         srcOpType;
   SArray*         uidList;

@@ -124,6 +124,7 @@ typedef struct SQWTaskCtx {
   int32_t  queryMsgType;
   int32_t  fetchMsgType;
   int32_t  level;
+  int32_t  dynExecId;
   uint64_t sId;
 
   bool    queryGotData;

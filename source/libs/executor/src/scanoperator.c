@@ -789,7 +789,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;  
   int32_t code = 0;
   STableListInfo* pListInfo = pInfo->base.pTableListInfo;
-  STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorParam;
+  STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorParam->value;
   int32_t num = taosArrayGetSize(pParam->pUidList);
   if (num <= 0) {
     qError("empty table scan uid list");
@@ -797,6 +797,9 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   }
   
   qDebug("add total %d dynamic tables to scan", num);
+
+  taosArrayClear(pListInfo->pTableList);
+  taosHashClear(pListInfo->map);
   
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* pUid = taosArrayGet(pParam->pUidList, i);
@@ -816,6 +819,32 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   return code;
 }
 
+static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
+  STableScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+
+  // reset value for the next group data output
+  pOperator->status = OP_OPENED;
+  resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
+  
+  int32_t        num = 0;
+  STableKeyInfo* pList = NULL;
+  tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
+  
+  pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
+  pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+  pInfo->scanTimes = 0;
+  
+  SSDataBlock* result = doGroupedTableScan(pOperator);
+  if (result != NULL) {
+    return result;
+  }
+  
+  setOperatorCompleted(pOperator);
+  return NULL;
+}
+
 static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -826,6 +855,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
+    }
+    
+    if (pInfo->currentGroupId != -1) {
+      return startNextGroupScan(pOperator);
     }
   }
 
@@ -895,25 +928,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    // reset value for the next group data output
-    pOperator->status = OP_OPENED;
-    resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
-
-    int32_t        num = 0;
-    STableKeyInfo* pList = NULL;
-    tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
-
-    pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
-    pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-    pInfo->scanTimes = 0;
-
-    result = doGroupedTableScan(pOperator);
-    if (result != NULL) {
-      return result;
-    }
-
-    setOperatorCompleted(pOperator);
-    return NULL;
+    return startNextGroupScan(pOperator);
   }
 }
 

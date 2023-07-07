@@ -66,9 +66,23 @@ static void freeGroupCacheBufPage(void* param) {
   taosMemoryFree(pInfo->data);
 }
 
+static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
+  char* buf = taosMemoryMalloc(pGrpCacheOperator->execInfo.downstreamNum * 32 + 100);
+  if (NULL == buf) {
+    return;
+  }
+  int32_t offset = sprintf(buf, "groupCache exec info, downstreamBlkNum:");
+  for (int32_t i = 0; i < pGrpCacheOperator->execInfo.downstreamNum; ++i) {
+    offset += sprintf(buf + offset, " %" PRId64 , pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
+  }
+  qDebug("%s", buf);
+}
+
 static void destroyGroupCacheOperator(void* param) {
   SGroupCacheOperatorInfo* pGrpCacheOperator = (SGroupCacheOperatorInfo*)param;
 
+  logGroupCacheExecInfo(pGrpCacheOperator);
+  
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pColsInfo);
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pBuf);
   taosArrayDestroyEx(pGrpCacheOperator->pBlkBufs, freeGroupCacheBufPage);
@@ -191,7 +205,7 @@ static void addBlkToGroupCache(struct SOperatorInfo* pOperator, SSDataBlock* pBl
 SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator) {
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SGcOperatorParam* pParam = (SGcOperatorParam*)pOperator->pOperatorParam;
+  SGcOperatorParam* pParam = (SGcOperatorParam*)pOperator->pOperatorParam->value;
   SGcSessionCtx* pSession = NULL;
   SSDataBlock* pRes = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -211,8 +225,12 @@ SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator) {
       break;
     }
 
+    pGCache->execInfo.pDownstreamBlkNum[pSession->downstreamIdx]++;
+    
     if (pGCache->pCurrent->needCache) {
       addBlkToGroupCache(pOperator, pBlock, &pRes);
+    } else {
+      pRes = pBlock;
     }
     break;
   }
@@ -220,6 +238,15 @@ SSDataBlock* getFromGroupCache(struct SOperatorInfo* pOperator) {
   return pRes;
 }
 
+static int32_t initGroupCacheExecInfo(SOperatorInfo*        pOperator) {
+  SGroupCacheOperatorInfo* pInfo = pOperator->info;
+  pInfo->execInfo.downstreamNum = pOperator->numOfDownstream;
+  pInfo->execInfo.pDownstreamBlkNum = taosMemoryCalloc(pOperator->numOfDownstream, sizeof(int64_t));
+  if (NULL == pInfo->execInfo.pDownstreamBlkNum) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo) {
@@ -259,6 +286,11 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
   }
 
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _error;
+  }
+
+  code = initGroupCacheExecInfo(pOperator);
   if (TSDB_CODE_SUCCESS != code) {
     goto _error;
   }

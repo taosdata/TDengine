@@ -41,8 +41,11 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  (*ppRes)->pOpParams = taosArrayInit(1, sizeof(SOperatorSpecParam));
+  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *ppRes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild)) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -51,38 +54,30 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pGc->pChild = pChild;
   pGc->sessionId = atomic_add_fetch_64(&gSessionId, 1);
   pGc->downstreamIdx = downstreamIdx;
   pGc->needCache = needCache;
   pGc->pGroupValue = pGrpValue;
   pGc->groupValueSize = grpValSize;
 
-  SOperatorSpecParam specParam;
-  specParam.opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
-  specParam.value = pGc;
-
-  taosArrayPush((*ppRes)->pOpParams, &specParam);
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
+  (*ppRes)->value = pGc;
 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t* pVgId, int64_t* pUid, SOperatorParam* pChild) {
+static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid, SOperatorParam* pChild) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  (*ppRes)->pOpParams = taosArrayInit(1, sizeof(SOperatorSpecParam));
-  if (NULL == *ppRes) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+  (*ppRes)->pChildren = NULL;
   
   SExchangeOperatorParam* pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
   if (NULL == pExc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
-  pExc->pChild = pChild;
   pExc->vgId = *pVgId;
   pExc->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pExc->uidList = taosArrayInit(1, sizeof(int64_t));
@@ -92,12 +87,10 @@ static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, i
   }
   taosArrayPush(pExc->uidList, pUid);
 
-  SOperatorSpecParam specParam;
-  specParam.opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  specParam.value = pExc;
-
-  taosArrayPush((*ppRes)->pOpParams, &specParam);
-
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  (*ppRes)->downstreamIdx = downstreamIdx;
+  (*ppRes)->value = pExc;
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -106,28 +99,24 @@ static FORCE_INLINE int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, 
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  (*ppRes)->pOpParams = taosArrayInit(2, sizeof(SOperatorSpecParam));
+  (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  
-  SSortMergeJoinOperatorParam* pJoin0 = taosMemoryMalloc(sizeof(SSortMergeJoinOperatorParam));
-  SSortMergeJoinOperatorParam* pJoin1 = taosMemoryMalloc(sizeof(SSortMergeJoinOperatorParam));
-  if (NULL == pJoin0 || NULL == pJoin1) {
-    taosMemoryFree(pJoin0);
-    taosMemoryFree(pJoin1);
+  if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild0)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild1)) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
-  pJoin0->pChild = pChild0;
-  pJoin1->pChild = pChild1;
-
-  SOperatorSpecParam specParam;
-  specParam.opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
-  specParam.value = pJoin0;
-  taosArrayPush((*ppRes)->pOpParams, &specParam);
-  specParam.value = pJoin1;
-  taosArrayPush((*ppRes)->pOpParams, &specParam);
+  SSortMergeJoinOperatorParam* pJoin = taosMemoryMalloc(sizeof(SSortMergeJoinOperatorParam));
+  if (NULL == pJoin) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
+  (*ppRes)->value = pJoin;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -142,11 +131,11 @@ static int32_t buildStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJ
   SOperatorParam*             pExcParam0 = NULL;
   SOperatorParam*             pExcParam1 = NULL;
   SOperatorParam*             pGcParam0 = NULL;
-  SOperatorParam*             pGcParam1 = NULL;
+  SOperatorParam*             pGcParam1 = NULL;  
   
-  int32_t code = buildExchangeOperatorParam(&pExcParam0, (int32_t*)(pVg0->pData + pVg0->info.bytes * rowIdx), (int64_t*)(pUid0->pData + pUid0->info.bytes * rowIdx), NULL);
+  int32_t code = buildExchangeOperatorParam(&pExcParam0, 0, (int32_t*)(pVg0->pData + pVg0->info.bytes * rowIdx), (int64_t*)(pUid0->pData + pUid0->info.bytes * rowIdx), NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildExchangeOperatorParam(&pExcParam1, (int32_t*)(pVg1->pData + pVg1->info.bytes * rowIdx), (int64_t*)(pUid1->pData + pUid1->info.bytes * rowIdx), NULL);
+    code = buildExchangeOperatorParam(&pExcParam1, 1, (int32_t*)(pVg1->pData + pVg1->info.bytes * rowIdx), (int64_t*)(pUid1->pData + pUid1->info.bytes * rowIdx), NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildGroupCacheOperatorParam(&pGcParam0, 0, false, pUid0->pData + pUid0->info.bytes * rowIdx, pUid0->info.bytes, pExcParam0);

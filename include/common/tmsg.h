@@ -2052,24 +2052,15 @@ typedef struct {
 
 
 typedef struct SOperatorParam {
-  SArray*             pOpParams; //SArray<SOperatorSpecParam>
+  int32_t             opType;
+  int32_t             downstreamIdx;
+  void*               value;
+  SArray*             pChildren; //SArray<SOperatorParam*>
 } SOperatorParam;
 
-typedef struct SOperatorSpecParam {
-  int32_t         opType;
-  void*           value;
-} SOperatorSpecParam;
-
-typedef struct SOperatorBaseParam {
-  SOperatorParam* pChild;
-} SOperatorBaseParam;
-
-
 typedef struct STableScanOperatorParam {
-  SOperatorParam*     pChild;
   SArray*             pUidList;
 } STableScanOperatorParam;
-
 
 typedef struct {
   SMsgHead        header;

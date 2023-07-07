@@ -62,6 +62,11 @@ typedef struct SGcSessionCtx {
   SGcBlkBufInfo*  pLastBlk; 
 } SGcSessionCtx;
 
+typedef struct SGcExecInfo {
+  int32_t  downstreamNum;
+  int64_t* pDownstreamBlkNum;
+} SGcExecInfo;
+
 typedef struct SGroupCacheOperatorInfo {
   SSHashObj*        pSessionHash;  
   SGroupColsInfo    groupColsInfo;
@@ -69,6 +74,7 @@ typedef struct SGroupCacheOperatorInfo {
   SSHashObj*        pBlkHash;  
   int64_t           pCurrentId;
   SGcSessionCtx*    pCurrent;
+  SGcExecInfo       execInfo;
 } SGroupCacheOperatorInfo;
 
 #ifdef __cplusplus

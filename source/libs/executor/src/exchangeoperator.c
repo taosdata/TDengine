@@ -93,7 +93,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       }
 
       SRetrieveTableRsp*     pRsp = pDataInfo->pRsp;
-      SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, i);
+      SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
 
       // todo
       SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
@@ -422,27 +422,20 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  (*ppRes)->pOpParams = taosArrayInit(1, sizeof(SOperatorSpecParam));
-  if (NULL == *ppRes) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
   STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pScan->pChild = NULL;
   pScan->pUidList = taosArrayDup(pUidList, NULL);
   if (NULL == pScan->pUidList) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
-  SOperatorSpecParam specParam;
-  specParam.opType = srcOpType;
-  specParam.value = pScan;
-
-  taosArrayPush((*ppRes)->pOpParams, &specParam);
+  (*ppRes)->opType = srcOpType;
+  (*ppRes)->value = pScan;
+  (*ppRes)->pChildren = NULL;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -753,7 +746,7 @@ _error:
 
 int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
-  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperator->pOperatorParam;
+  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperator->pOperatorParam->value;
   int32_t* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pParam->vgId, sizeof(pParam->vgId));
   if (NULL == pIdx) {
     qError("No exchange source for vgId: %d", pParam->vgId);

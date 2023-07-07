@@ -488,14 +488,22 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
 }
 
 int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg) {
-  if (!ctx->queryExecDone || !ctx->queryEnd) {
-    QW_TASK_ELOG("dynamic task prev exec not finished, execDone:%d, queryEnd:%d", ctx->queryExecDone, ctx->queryEnd);
+  if (!atomic_val_compare_exchange_8((int8_t*)&ctx->queryExecDone, true, false)) {
+    QW_TASK_ELOG("dynamic task prev exec not finished, execDone:%d", ctx->queryExecDone);
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
+  if (!atomic_val_compare_exchange_8((int8_t*)&ctx->queryEnd, true, false)) {
+    QW_TASK_ELOG("dynamic task prev exec not finished, queryEnd:%d", ctx->queryEnd);
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  }  
   
   qUpdateOperatorParam(ctx->taskHandle, qwMsg->msg);
 
+  QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
+
   atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
+
+  QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
   
   QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
 
@@ -515,7 +523,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_SET_PHASE(ctx, phase);
 
-  if (atomic_load_8((int8_t *)&ctx->queryEnd)) {
+  if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
     QW_TASK_ELOG_E("query already end");
     QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
   }
