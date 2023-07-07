@@ -23,12 +23,61 @@ options:
 authentication:
   display: 认证
   description: InfluxDB 的身份认证
-  value: token
+  value: 2.x
   alternatives:
-    - name: token
-      display: Token
-      description: 使用 Token 认证。
+    - name: 1.x
+      display: 1.x 版本
+      description: 使用 1.x 版本时，只能使用“用户/密码”进行认证。
       params:
+        - name: version
+          display: 版本
+          description: 指定数据库的版本。
+          placeholder:
+          hint:
+            type: str
+            choices:
+              - "1.8"
+              - "1.7"
+          required: true
+        - name: orgId
+          display: 组织 ID
+          description: 所有的仪表板、任务、存储桶和用户都属于一个组织。
+          placeholder: 请输入 InfluxDB 组织 ID
+          hint: str
+          required: true
+        - name: username
+          display: 用户
+          description: 该用户至少在该组织中拥有读取权限。
+          placeholder: 请输入 InfluxDB 用户
+          hint: str
+          required: true
+        - name: password
+          display: 密码
+          description: 用户的登陆密码。
+          placeholder: 请输入登陆密码
+          hint: str
+          required: true
+    - name: 2.x
+      display: 版本 2.x
+      description: 使用 1.x 版本时，只能使用“令牌 Token”进行认证。
+      value: true
+      params:
+        - name: version
+          display: 版本
+          description: 指定数据库的版本。
+          placeholder:
+          hint:
+            type: str
+            choices:
+              - "2.7"
+              - "2.6"
+              - "2.5"
+              - "2.4"
+              - "2.3"
+              - "2.2"
+              - "2.1"
+              - "2.0"
+          required: true
         - name: orgId
           display: 组织 ID
           description: 所有的仪表板、任务、存储桶和用户都属于一个组织。
@@ -58,9 +107,30 @@ groups:
         description: 同步数据的结束时间戳，如果未指定，将持续进行数据同步。
         placeholder: YYYY-MM-DD HH:MM:SS
         hint: time
+      - name: readWindow
+        display: 读取窗口
+        description: 选择一个读取窗口类型，如果未指定，默认按分钟
+        placeholder:
+        hint:
+          type: str
+          choices:
+            - D
+            - H
+            - M
       - name: bucket
         display: 桶 Bucket
         description: 指定需要同步的 Bucket 。
         placeholder: bucket
-        hint: str
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
         required: true
+      - name: measurements
+        display: 测量值 Measurements
+        description: 指定需要同步的 Measurements ，未指定则同步全部。
+        placeholder: bucket
+        hint:
+          type: str
+          choices:
+            - "--NONE--"

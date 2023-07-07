@@ -16,6 +16,9 @@ use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
 
 use super::get_plugin_dir;
 
+const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
+const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
+
 #[derive(Debug, serde::Serialize)]
 struct InfluxdbConfig {
     // the datasource config
@@ -24,6 +27,8 @@ struct InfluxdbConfig {
     taosx: TaosxConfig,
     // the task config
     task: TaskConfig,
+    // the performance config
+    performance: PerformanceConfig,
 
     // others
     #[serde(skip)]
@@ -37,6 +42,12 @@ struct InfluxdbConfig {
 struct InfluxConfig {
     #[serde(rename = "url")]
     influx_url: String,
+    #[serde(rename = "version")]
+    influx_version: String,
+    #[serde(rename = "username")]
+    influx_username: String,
+    #[serde(rename = "password")]
+    influx_password: String,
     #[serde(rename = "token")]
     influx_token: String,
     #[serde(rename = "orgId")]
@@ -57,16 +68,30 @@ struct TaskConfig {
     task_mode: String,
     #[serde(rename = "bucket")]
     task_bucket: String,
+    #[serde(rename = "measurements")]
+    task_measurements: Vec<String>,
     #[serde(rename = "beginTime")]
     task_begin_time: String,
     #[serde(rename = "endTime")]
     task_end_time: Option<String>,
 }
 
+#[derive(Debug, serde::Serialize)]
+struct PerformanceConfig {
+    #[serde(rename = "readWindow")]
+    performance_read_window: Option<String>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum InfluxdbError {
     #[error("The access address of InfluxDB is required: {0}")]
     InfluxUrlIsRequired(Dsn),
+    #[error("The version of InfluxDB is required: {0}")]
+    InfluxVersionIsRequired(Dsn),
+    #[error("The username is required: {0}")]
+    InfluxUsernameIsRequired(Dsn),
+    #[error("The password is required: {0}")]
+    InfluxPasswordIsRequired(Dsn),
     #[error("The access token is required: {0}")]
     InfluxTokenIsRequired(Dsn),
     #[error("The organization id is required: {0}")]
@@ -94,9 +119,21 @@ impl InfluxdbConfig {
             .and_then(|addr| addr.port.clone())
             .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
         let influx_url = format!("http://{}:{}/", host, port);
-        let influx_token = dsn
-            .remove("token")
-            .ok_or_else(|| InfluxdbError::InfluxTokenIsRequired(dsn.clone()))?;
+        let influx_version = dsn
+            .remove("version")
+            .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+        // On version 1.x, only username/password mode can be used
+        // On version 2.x, only access token mode can be used.
+        let influx_username = dsn.remove("username").unwrap_or("".to_string());
+        let influx_password = dsn.remove("password").unwrap_or("".to_string());
+        let influx_token = dsn.remove("token").unwrap_or("".to_string());
+        if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+            return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()))
+        } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+            return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()))
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+            return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()))
+        }
         let influx_org_id = dsn
             .remove("orgId")
             .ok_or_else(|| InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()))?;
@@ -110,16 +147,30 @@ impl InfluxdbConfig {
         let task_bucket = dsn
             .remove("bucket")
             .ok_or_else(|| InfluxdbError::TaskBucketIsRequired(dsn.clone()))?;
+        let task_measurements = dsn
+            .remove("measurements")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
         let task_begin_time = dsn
             .remove("beginTime")
             .ok_or_else(|| InfluxdbError::TaskBeginTimeIsRequired(dsn.clone()))?;
         let task_end_ime = dsn.remove("endTime");
+
+        // the performance config
+        let performance_read_window = dsn.remove("readWindow");
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
 
         let influx = InfluxConfig {
             influx_url,
+            influx_version,
+            influx_username,
+            influx_password,
             influx_token,
             influx_org_id,
         };
@@ -132,14 +183,20 @@ impl InfluxdbConfig {
         let task = TaskConfig {
             task_mode,
             task_bucket,
+            task_measurements,
             task_begin_time,
             task_end_time: task_end_ime,
+        };
+
+        let performance = PerformanceConfig {
+            performance_read_window,
         };
 
         Ok(Self {
             influx,
             taosx,
             task,
+            performance,
             td_database,
             ipc_stream,
         })

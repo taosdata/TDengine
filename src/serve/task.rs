@@ -515,3 +515,79 @@ pub fn get_file_save_home_dir() -> PathBuf {
         // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
     std::path::Path::new(&ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT).to_path_buf()
 }
+
+#[derive(Serialize, Deserialize, Default, Clone, )]
+#[serde(default)]
+pub struct FileMeta {
+    filename: Option<String>,
+    /// releative
+    filepath: Option<String>,
+    filesize: Option<u64>,
+    file_header: Option<FileMetaHeader>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, IntoParams, ToSchema)]
+#[serde(default)]
+pub struct FileMetaRequest {
+    file_path: String, 
+    file_type: String, 
+    has_header: bool
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, )]
+#[serde(default)]
+pub struct FileMetaHeader {
+    columns_length: usize,
+    column_names: Option<Vec<String>>,
+}
+
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "filemeta access success", body = Vec<String>),
+        (status = 500, description = "metadata achive occur error", body = Failed)
+    ),
+    params (
+        FileMetaRequest
+    )
+)]
+#[get("/filemeta")]
+pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
+    match get_filemeta(filemeta_request.into_inner()).await {
+        Ok(filemeta) => HttpResponse::Ok().json(filemeta),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+        }),
+    }
+}
+
+async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
+    let (filepath_or_filedir, file_type, has_header) = (filemeta_request.file_path, filemeta_request.file_type, filemeta_request.has_header);
+    // set current path
+    let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.clone().replace("files", "");
+    let root = std::path::Path::new(path.as_str());
+    assert!(std::env::set_current_dir(&root).is_ok());
+    match file_type.as_str() {
+        "csv" => {
+            let csv_header = taosx_core::csv_header(filepath_or_filedir.as_ref(), has_header).await?;
+            let column_names = if csv_header.columns == 0 {
+                None
+            } else {
+                Some(csv_header.headers)
+            };
+            Ok(FileMeta {
+                filename: None,
+                filepath: None,
+                filesize: None,
+                file_header: Some(FileMetaHeader {
+                    columns_length: csv_header.columns,
+                    column_names,
+                })
+            })
+        },
+        _ => {
+            anyhow::bail!("file type not support now");
+        }
+    }
+}
