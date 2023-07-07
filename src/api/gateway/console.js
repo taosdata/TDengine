@@ -1,10 +1,10 @@
 import { request } from "@/utils/request";
 import store from "@/store";
-import { compHeadAndData } from "@/utils";
+import { compHeadAndData, getLocalTimezone } from "@/utils";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
     baseURL:'',
-    url: '/rest/sql',
+    url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
     headers: {
       "Content-Type": "text/plain"
@@ -22,7 +22,7 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
     baseURL:'',
-    url: '/rest/sql',
+    url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: "post",
     headers: {
       "Content-Type": "text/plain"

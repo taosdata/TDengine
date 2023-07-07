@@ -6,3 +6,4 @@ export { default as QRcode } from "./QRcode";
 export { default as Help } from "./Help";
 export { default as Support } from "./Support";
 export { default as Document } from "./Document";
+export { default as Timezone } from './Timezone'
