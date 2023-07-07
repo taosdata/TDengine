@@ -172,6 +172,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function is not supported in group query";
     case TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC:
       return "%s function is not supported in system table query";
+    case TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED:
+      return "%s is not supported in system table query";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
