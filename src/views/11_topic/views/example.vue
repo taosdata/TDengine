@@ -85,9 +85,9 @@ export default {
   computed: {
     topicTitle() {
       const foundItem = this.topicList.find((item) => {
-        return item.topicId === this.currentTopic;
+        return item === this.currentTopic;
       });
-      return foundItem ? foundItem.topicName : "";
+      return foundItem ? foundItem : "";
     },
   },
   created() {
