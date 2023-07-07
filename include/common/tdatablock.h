@@ -244,7 +244,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema, int64_t uid, int32_t vgId,
-                                    tb_uid_t suid);
+                                    tb_uid_t suid, int64_t blkVer, const char* tag);
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);

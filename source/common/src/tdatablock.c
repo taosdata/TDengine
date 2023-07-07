@@ -1872,12 +1872,31 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   return dumpBuf;
 }
 
+static SHashObj* dupCheck = NULL;
+static int8_t    dupInit = 0;
+
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, const STSchema* pTSchema,
-                                    int64_t uid, int32_t vgId, tb_uid_t suid) {
+                                    int64_t uid, int32_t vgId, tb_uid_t suid, int64_t blkVer, const char* tag) {
   SSubmitReq2* pReq = *ppReq;
   SArray*      pVals = NULL;
   int32_t      numOfBlks = 0;
   int32_t      sz = 1;
+
+  if (!dupCheck) {
+    if (0 == atomic_val_compare_exchange_8(&dupInit, 0, 1)) {
+      dupCheck = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+      if (!dupCheck) ASSERT(0);
+    } else {
+      int32_t cnt = 0;
+      while (!dupCheck) {
+        ++cnt;
+        if (cnt > 1000) {
+          sched_yield();
+          cnt = 0;
+        }
+      }
+    }
+  }
 
   terrno = TSDB_CODE_SUCCESS;
 
@@ -1891,6 +1910,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       goto _end;
     }
   }
+
+  char dupKey[40];
 
   for (int32_t i = 0; i < sz; ++i) {
     int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
@@ -1936,6 +1957,18 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               ASSERT(PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId);
               SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(TSKEY*)var});
               taosArrayPush(pVals, &cv);
+              snprintf(dupKey, 40, "%" PRIi64 ":%" PRIi64, *(TSKEY*)var, blkVer);
+              uInfo("%s:%d key:ver: %s, tags: %s", __func__, __LINE__, dupKey, tag);
+              int32_t dupKeyLen = strlen(dupKey);
+              assert(dupKeyLen < 40);
+              void* hashKey = NULL;
+              if ((hashKey = taosHashGet(dupCheck, &dupKey, dupKeyLen + 1))) {
+                ASSERT(0);
+              } else {
+                if(taosHashPut(dupCheck, &dupKey, dupKeyLen + 1, NULL, 0) != 0){
+                  ASSERT(0);
+                }
+              }
             } else if (colDataIsNull_s(pColInfoData, j)) {
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
