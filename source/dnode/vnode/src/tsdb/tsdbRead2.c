@@ -664,8 +664,6 @@ static SFileDataBlockInfo* getCurrentBlockInfo(SDataBlockIter* pBlockIter) {
   return pBlockInfo;
 }
 
-static SDataBlk* getCurrentBlock(SDataBlockIter* pBlockIter) { return &pBlockIter->block; }
-
 static int doBinarySearchKey(TSKEY* keyList, int num, int pos, TSKEY key, int order) {
   // start end position
   int s, e;
@@ -2353,7 +2351,6 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
     // currently loaded file data block is consumed
     if ((pBlockData->nRow > 0) && (pDumpInfo->rowIndex >= pBlockData->nRow || pDumpInfo->rowIndex < 0)) {
-      //      pBlock = getCurrentBlock(&pReader->status.blockIter);
       setBlockAllDumped(pDumpInfo, pRecord->lastKey, pReader->info.order);
       break;
     }
@@ -3361,7 +3358,6 @@ int32_t doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pSc
       CHECK_FILEBLOCK_STATE st;
 
       SFileDataBlockInfo* pFileBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
-      //      SDataBlk*           pCurrentBlock = getCurrentBlock(&pReader->status.blockIter);
       if (pFileBlockInfo == NULL) {
         st = CHECK_FILEBLOCK_QUIT;
         break;
