@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "streamInt.h"
 #include "ttimer.h"
-#include "streamInc.h"
 
 #define MAX_BLOCK_NAME_NUM         1024
 #define DISPATCH_RETRY_INTERVAL_MS 300
@@ -276,14 +276,14 @@ int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pR
   return 0;
 }
 
-int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
+int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHistoryFinishReq* pReq, int32_t vgId,
                                              SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   SRpcMsg msg = {0};
 
   int32_t tlen;
-  tEncodeSize(tEncodeStreamRecoverFinishReq, pReq, tlen, code);
+  tEncodeSize(tEncodeStreamScanHistoryFinishReq, pReq, tlen, code);
   if (code < 0) {
     return -1;
   }
@@ -299,7 +299,7 @@ int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamRe
 
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamRecoverFinishReq(&encoder, pReq)) < 0) {
+  if ((code = tEncodeStreamScanHistoryFinishReq(&encoder, pReq)) < 0) {
     if (buf) {
       rpcFreeCont(buf);
     }

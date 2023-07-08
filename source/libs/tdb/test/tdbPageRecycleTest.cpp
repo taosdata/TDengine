@@ -120,24 +120,6 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-// TEST(TdbOVFLPagesTest, DISABLED_TbUpsertTest) {
-//  TEST(TdbOVFLPagesTest, TbUpsertTest) {
-//}
-
-// TEST(TdbOVFLPagesTest, DISABLED_TbPGetTest) {
-//  TEST(TdbOVFLPagesTest, TbPGetTest) {
-//}
-
-static void generateBigVal(char *val, int valLen) {
-  for (int i = 0; i < valLen; ++i) {
-    char c = char(i & 0xff);
-    if (c == 0) {
-      c = 1;
-    }
-    val[i] = c;
-  }
-}
-
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
@@ -149,10 +131,18 @@ static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) 
   return pEnv;
 }
 
+static void generateBigVal(char *val, int valLen) {
+  for (int i = 0; i < valLen; ++i) {
+    char c = char(i & 0xff);
+    if (c == 0) {
+      c = 1;
+    }
+    val[i] = c;
+  }
+}
+
 static void insertOfp(void) {
   int ret = 0;
-
-  taosRemoveDir("tdb");
 
   // open Env
   int const pageSize = 4096;
@@ -164,7 +154,7 @@ static void insertOfp(void) {
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
   // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
-  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
@@ -184,7 +174,7 @@ static void insertOfp(void) {
   // insert the generated big data
   // char const *key = "key1";
   char const *key = "key123456789";
-  ret = tdbTbInsert(pDb, key, strlen(key), val, valLen, txn);
+  ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
   GTEST_ASSERT_EQ(ret, 0);
 
   // commit current transaction
@@ -201,11 +191,18 @@ static void insertOfp(void) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-// TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
-TEST(TdbOVFLPagesTest, TbInsertTest) { insertOfp(); }
+static void clearDb(char const *db) { taosRemoveDir(db); }
 
-// TEST(TdbOVFLPagesTest, DISABLED_TbGetTest) {
-TEST(TdbOVFLPagesTest, TbGetTest) {
+TEST(TdbPageRecycleTest, DISABLED_TbInsertTest) {
+  // TEST(TdbPageRecycleTest, TbInsertTest) {
+  // ofp inserting
+  clearDb("tdb");
+  insertOfp();
+}
+
+TEST(TdbPageRecycleTest, DISABLED_TbGetTest) {
+  // TEST(TdbPageRecycleTest, TbGetTest) {
+  clearDb("tdb");
   insertOfp();
 
   // open Env
@@ -242,17 +239,10 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
 
     tdbFree(pVal);
   }
-
-  // Close a database
-  tdbTbClose(pDb);
-
-  // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
 }
 
-// TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
-TEST(TdbOVFLPagesTest, TbDeleteTest) {
+TEST(TdbPageRecycleTest, DISABLED_TbDeleteTest) {
+  // TEST(TdbPageRecycleTest, TbDeleteTest) {
   int ret = 0;
 
   taosRemoveDir("tdb");
@@ -350,19 +340,10 @@ tdbBegin(pEnv, &txn);
   // commit current transaction
   tdbCommit(pEnv, txn);
   tdbPostCommit(pEnv, txn);
-
-  closePool(pPool);
-
-  // Close a database
-  tdbTbClose(pDb);
-
-  // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
 }
 
-// TEST(tdb_test, DISABLED_simple_insert1) {
-TEST(tdb_test, simple_insert1) {
+TEST(TdbPageRecycleTest, DISABLED_simple_insert1) {
+  // TEST(TdbPageRecycleTest, simple_insert1) {
   int           ret;
   TDB          *pEnv;
   TTB          *pDb;
@@ -432,8 +413,6 @@ TEST(tdb_test, simple_insert1) {
     tdbCommit(pEnv, txn);
     tdbPostCommit(pEnv, txn);
 
-    closePool(pPool);
-
     {  // Query the data
       void *pVal = NULL;
       int   vLen;
@@ -494,4 +473,363 @@ TEST(tdb_test, simple_insert1) {
   // Close Env
   ret = tdbClose(pEnv);
   GTEST_ASSERT_EQ(ret, 0);
+}
+
+static void insertDb(int nData) {
+  int           ret = 0;
+  TDB          *pEnv = NULL;
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc;
+  TXN          *txn = NULL;
+  int const     pageSize = 4 * 1024;
+
+  // Open Env
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Create a database
+  compFunc = tKeyCmpr;
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // 1, insert nData kv
+  {
+    char      key[64];
+    char      val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+    int64_t   poolLimit = 4096;             // 1M pool limit
+    SPoolMem *pPool;
+
+    // open the pool
+    pPool = openPool();
+
+    // start a transaction
+    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+    for (int iData = 0; iData < nData; ++iData) {
+      sprintf(key, "key%03d", iData);
+      sprintf(val, "value%03d", iData);
+
+      ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), txn);
+      GTEST_ASSERT_EQ(ret, 0);
+      // if pool is full, commit the transaction and start a new one
+      if (pPool->size >= poolLimit) {
+        // commit current transaction
+        tdbCommit(pEnv, txn);
+        tdbPostCommit(pEnv, txn);
+
+        // start a new transaction
+        clearPool(pPool);
+
+        tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+      }
+    }
+
+    // commit the transaction
+    tdbCommit(pEnv, txn);
+    tdbPostCommit(pEnv, txn);
+
+    // 2, delete nData/2 records
+
+    closePool(pPool);
+  }
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  system("ls -l ./tdb");
+}
+
+static void deleteDb(int nData) {
+  int           ret = 0;
+  TDB          *pEnv = NULL;
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc;
+  TXN          *txn = NULL;
+  int const     pageSize = 4 * 1024;
+
+  // Open Env
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Create a database
+  compFunc = tKeyCmpr;
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // 2, delete nData/2 records
+  {
+    char      key[64];
+    char      val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+    int64_t   poolLimit = 4096;             // 1M pool limit
+    SPoolMem *pPool;
+
+    // open the pool
+    pPool = openPool();
+
+    // start a transaction
+    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+    for (int iData = 0; iData < nData; iData++) {
+      // if (iData % 2 == 0) continue;
+
+      sprintf(key, "key%03d", iData);
+      sprintf(val, "value%03d", iData);
+
+      {  // delete the data
+        ret = tdbTbDelete(pDb, key, strlen(key), txn);
+        GTEST_ASSERT_EQ(ret, 0);
+      }
+      // if pool is full, commit the transaction and start a new one
+      if (pPool->size >= poolLimit) {
+        // commit current transaction
+        tdbCommit(pEnv, txn);
+        tdbPostCommit(pEnv, txn);
+
+        // start a new transaction
+        clearPool(pPool);
+
+        tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+      }
+    }
+
+    // commit the transaction
+    tdbCommit(pEnv, txn);
+    tdbPostCommit(pEnv, txn);
+
+    closePool(pPool);
+  }
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  system("ls -l ./tdb");
+}
+
+static const int nDataConst = 256 * 19;
+
+// TEST(TdbPageRecycleTest, DISABLED_seq_insert) {
+TEST(TdbPageRecycleTest, seq_insert) {
+  clearDb("tdb");
+  insertDb(nDataConst);
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_seq_delete) {
+TEST(TdbPageRecycleTest, seq_delete) { deleteDb(nDataConst); }
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_insert) {
+TEST(TdbPageRecycleTest, recycly_insert) { insertDb(nDataConst); }
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_seq_insert_ofp) {
+TEST(TdbPageRecycleTest, recycly_seq_insert_ofp) {
+  clearDb("tdb");
+  insertOfp();
+  system("ls -l ./tdb");
+}
+
+static void deleteOfp(void) {
+  // open Env
+  int       ret = 0;
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  {  // delete the data
+    char const *key = "key123456789";
+    ret = tdbTbDelete(pDb, key, strlen(key) + 1, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  ret = tdbTbDrop(pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_seq_delete_ofp) {
+TEST(TdbPageRecycleTest, seq_delete_ofp) {
+  deleteOfp();
+  system("ls -l ./tdb");
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_seq_insert_ofp_again) {
+TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_again) {
+  insertOfp();
+  system("ls -l ./tdb");
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_seq_insert_ofp_nocommit) {
+TEST(TdbPageRecycleTest, recycly_seq_insert_ofp_nocommit) {
+  clearDb("tdb");
+  insertOfp();
+  system("ls -l ./tdb");
+
+  // open Env
+  int       ret = 0;
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  {  // delete the data
+    char const *key = "key123456789";
+    ret = tdbTbDelete(pDb, key, strlen(key) + 1, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // 1, insert nData kv
+  {
+    int     nData = nDataConst;
+    char    key[64];
+    char    val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+    int64_t poolLimit = 4096;             // 1M pool limit
+
+    for (int iData = 0; iData < nData; ++iData) {
+      sprintf(key, "key%03d", iData);
+      sprintf(val, "value%03d", iData);
+
+      ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), txn);
+      GTEST_ASSERT_EQ(ret, 0);
+      // if pool is full, commit the transaction and start a new one
+      if (pPool->size >= poolLimit) {
+        // commit current transaction
+        tdbCommit(pEnv, txn);
+        tdbPostCommit(pEnv, txn);
+
+        // start a new transaction
+        clearPool(pPool);
+
+        tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+      }
+    }
+  }
+
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  system("ls -l ./tdb");
+}
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_delete_interior_ofp_nocommit) {
+TEST(TdbPageRecycleTest, recycly_delete_interior_ofp_nocommit) {
+  clearDb("tdb");
+
+  // open Env
+  int       ret = 0;
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = NULL;  // tKeyCmpr;
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn;
+
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  char key[1024] = {0};
+  int  count = sizeof(key) / sizeof(key[0]);
+  for (int i = 0; i < count - 1; ++i) {
+    key[i] = 'a';
+  }
+
+  // insert n ofp keys to form 2-layer btree
+  {
+    for (int i = 0; i < 7; ++i) {
+      // sprintf(&key[count - 2], "%c", i);
+      key[count - 2] = '0' + i;
+
+      ret = tdbTbInsert(pDb, key, count, NULL, NULL, txn);
+      GTEST_ASSERT_EQ(ret, 0);
+    }
+  }
+  /*
+  // delete one interior key
+  {
+    sprintf(&key[count - 2], "%c", 2);
+    key[count - 2] = '0' + 2;
+
+    ret = tdbTbDelete(pDb, key, strlen(key) + 1, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+  */
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  system("ls -l ./tdb");
 }
