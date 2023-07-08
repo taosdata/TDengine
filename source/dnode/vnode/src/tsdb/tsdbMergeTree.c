@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 #include "tsdbFSet2.h"
+#include "tsdbReadUtil.h"
 #include "tsdbSttFileRW.h"
 
 static void tLDataIterClose2(SLDataIter *pIter);
@@ -392,9 +393,9 @@ static int32_t loadSttTombBlockData(SSttFileReader* pSttFileReader, uint64_t sui
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
+int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader, int32_t iStt, int8_t backward, uint64_t suid,
                        uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       const char *idStr, bool strictTimeRange) {
+                       const char *idStr, bool strictTimeRange, void* pReader1) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pIter->uid = uid;
@@ -404,7 +405,7 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32
   pIter->verRange.maxVer = pRange->maxVer;
   pIter->timeWindow.skey = pTimeWindow->skey;
   pIter->timeWindow.ekey = pTimeWindow->ekey;
-  pIter->pReader = pReader;
+  pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
   if (!pBlockLoadInfo->sttBlockLoaded) {
@@ -413,15 +414,17 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32
 
     code = tsdbSttFileReadSttBlk(pIter->pReader, (const TSttBlkArray **)&pBlockLoadInfo->pBlockArray);
     if (code != TSDB_CODE_SUCCESS) {
+      tsdbError("load stt blk, code:%s, %s", tstrerror(code), idStr);
       return code;
     }
 
     code = loadSttBlockInfo(pIter, pBlockLoadInfo, suid);
-
-    code = loadSttTombBlockData(pReader, suid, pBlockLoadInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      tsdbError("load stt block info failed, code:%s, %s", tstrerror(code), idStr);
       return code;
     }
+
+    code = loadSttTombDataForAll(pReader1, pIter->pReader, pBlockLoadInfo);
 
     double el = (taosGetTimestampUs() - st) / 1000.0;
     tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
@@ -721,7 +724,7 @@ _end:
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint64_t suid, uint64_t uid,
                         STimeWindow *pTimeWindow, SVersionRange *pVerRange, const char *idStr,
                         bool strictTimeRange, SArray *pSttFileBlockIterArray, void *pCurrentFileSet, STSchema* pSchema,
-                        int16_t* pCols, int32_t numOfCols) {
+                        int16_t* pCols, int32_t numOfCols, void* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pMTree->backward = backward;
@@ -785,7 +788,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint6
 
       memset(pIter, 0, sizeof(SLDataIter));
       code = tLDataIterOpen2(pIter, pSttFileReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange,
-                             pLoadInfo, pMTree->idStr, strictTimeRange);
+                             pLoadInfo, pMTree->idStr, strictTimeRange, pReader);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }

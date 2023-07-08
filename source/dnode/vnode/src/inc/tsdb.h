@@ -798,7 +798,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint64_t suid, uint64_t uid,
                         STimeWindow *pTimeWindow, SVersionRange *pVerRange, const char *idStr,
                         bool strictTimeRange, SArray *pSttFileBlockIterArray, void *pCurrentFileSet, STSchema* pSchema,
-                        int16_t* pCols, int32_t numOfCols);
+                        int16_t* pCols, int32_t numOfCols, void* pReader);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);
