@@ -50,9 +50,9 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
 
 int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData);
 int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
-int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamTaskCheckpointReq* pReq, int32_t nodeId, SEpSet* pEpSet);
+int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamCheckpointReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask, int32_t vgId);
-int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask, int32_t vgId);
+int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 
 int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, const char* id);
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);

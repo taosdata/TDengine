@@ -415,7 +415,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamTaskCheckpointReq* pReq, int32_t nodeId,
+int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamCheckpointReq* pReq, int32_t nodeId,
                                     SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
@@ -476,70 +476,36 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
 
 // this function is usually invoked by sink/agg task
 int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask, int32_t vgId) {
-//  int32_t  code = 0;
-//  int32_t  len;
-//
-//  // todo set upstreamTaskId Info
-//  const SStreamTaskCheckpointRsp rsp = {
-//      .streamId = pTask->id.streamId, .downstreamTaskId = pTask->id.taskId, .downstreamNodeId = vgId};
-//
-//  SEncoder encoder;
-//  tEncodeSize(tEncodeStreamCheckpointRsp, &rsp, len, code);
-//  if (code < 0) {
-//    qError("vgId:%d failed to encode checkpoint rsp, task:0x%x", vgId, rsp.downstreamTaskId);
-//    return -1;
-//  }
-//
-//  void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
-//  ((SMsgHead*)buf)->vgId = htonl(rsp.upstreamNodeId);
-//
-//  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-//  tEncoderInit(&encoder, (uint8_t*)abuf, len);
-//  tEncodeStreamCheckpointRsp(&encoder, &rsp);
-//  tEncoderClear(&encoder);
-
   int32_t num = taosArrayGetSize(pTask->pRpcMsgList);
   ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) == num);
 
   qDebug("s-task:%s level:%d checkpoint completed msg sent to %d upstream tasks", pTask->id.idStr, pTask->info.taskLevel,
          num);
+
   for(int32_t i = 0; i < num; ++i) {
-    SRpcMsg* pMsg = taosArrayGetP(pTask->pRpcMsgList, 0);
+    SRpcMsg* pMsg = taosArrayGet(pTask->pRpcMsgList, i);
     tmsgSendRsp(pMsg);
   }
+
+  int8_t prev = pTask->status.taskStatus;
+  pTask->status.taskStatus = TASK_STATUS__NORMAL;
+  qDebug("s-task:%s level:%d source checkpoint completed msg sent to upstream, set status:%s, prev:%s", pTask->id.idStr,
+         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), streamGetTaskStatusStr(prev));
 
   return TSDB_CODE_SUCCESS;
 }
 
 // this function is only invoked by source task, and send rsp to mnode
-int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask, int32_t vgId) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
-//  int32_t  code = 0;
-//  int32_t  len;
-//  SEncoder encoder;
-//  SStreamMeta* pMeta = pTask->pMeta;
-//  const SStreamCheckpointSourceRsp rsp = {
-//      .streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .nodeId = vgId, .checkpointId = pMeta->checkpointId};
-//
-//  tEncodeSize(tEncodeStreamCheckpointSourceRsp, &rsp, len, code);
-//  if (code < 0) {
-//    qError("vgId:%d failed to encode source checkpoint rsp, task:0x%x", vgId, pTask->id.taskId);
-//    return -1;
-//  }
-//
-//  void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
-//  ((SMsgHead*)buf)->vgId = htonl(rsp.nodeId);
-//
-//  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-//  tEncoderInit(&encoder, (uint8_t*)abuf, len);
-//  tEncodeStreamCheckpointSourceRsp(&encoder, &rsp);
-//  tEncoderClear(&encoder);
-//  SRpcMsg rspMsg = *pTask->rpcMsg;
+int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosArrayGetSize(pTask->pRpcMsgList) == 1);
+  SRpcMsg* pMsg = taosArrayGet(pTask->pRpcMsgList, 0);
 
-  ASSERT(taosArrayGetSize(pTask->pRpcMsgList) == 0);
+  tmsgSendRsp(pMsg);
 
-  qDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
-  tmsgSendRsp(taosArrayGetP(pTask->pRpcMsgList, 0));
+  int8_t prev = pTask->status.taskStatus;
+  pTask->status.taskStatus = TASK_STATUS__NORMAL;
+  qDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode, set status:%s, prev:%s", pTask->id.idStr,
+         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), streamGetTaskStatusStr(prev));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -598,7 +564,7 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
 }
 
 int32_t doDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHistoryFinishReq* pReq, int32_t vgId,
-                                             SEpSet* pEpSet) {
+                                       SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   SRpcMsg msg = {0};
@@ -758,4 +724,81 @@ void doRetryDispatchData(void* param, void* tmrId) {
     atomic_store_32(&pTask->shuffleDispatcher.waitingRspCnt, 0);
     streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
   }
+}
+
+int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,
+                                        SStreamTask* pTask) {
+  int32_t  len = 0;
+  int32_t  code = 0;
+  SEncoder encoder;
+
+  SStreamCheckpointSourceRsp rsp = {
+      .checkpointId = pReq->checkpointId,
+      .taskId = pReq->taskId,
+      .nodeId = pReq->nodeId,
+      .streamId = pReq->streamId,
+      .expireTime = pReq->expireTime,
+      .mnodeId = pReq->mnodeId,
+  };
+
+  tEncodeSize(tEncodeStreamCheckpointSourceRsp, &rsp, len, code);
+  if (code < 0) {
+    return code;
+  }
+
+  void* pBuf = rpcMallocCont(sizeof(SMsgHead) + len);
+  if (pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  ((SMsgHead*)pBuf)->vgId = htonl(pReq->mnodeId);
+
+  void* abuf = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+
+  tEncoderInit(&encoder, (uint8_t*)abuf, len);
+  tEncodeStreamCheckpointSourceRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
+
+  SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = sizeof(SMsgHead) + len, .info = *pRpcInfo};
+  taosArrayPush(pTask->pRpcMsgList, &rspMsg);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamAddCheckpointRspMsg(SStreamCheckpointReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask) {
+  int32_t  len = 0;
+  int32_t  code = 0;
+  SEncoder encoder;
+
+  SStreamCheckpointRsp rsp = {
+      .checkpointId = pReq->checkpointId,
+      .downstreamTaskId = pReq->downstreamTaskId,
+      .downstreamNodeId = pReq->downstreamNodeId,
+      .streamId = pReq->streamId,
+      .upstreamTaskId = pReq->upstreamTaskId,
+      .upstreamNodeId = pReq->upstreamNodeId,
+  };
+
+  tEncodeSize(tEncodeStreamCheckpointRsp, &rsp, len, code);
+  if (code < 0) {
+    return code;
+  }
+
+  void* pBuf = rpcMallocCont(sizeof(SMsgHead) + len);
+  if (pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  ((SMsgHead*)pBuf)->vgId = htonl(pReq->upstreamTaskId);
+
+  void* abuf = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+
+  tEncoderInit(&encoder, (uint8_t*)abuf, len);
+  tEncodeStreamCheckpointRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
+
+  SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = sizeof(SMsgHead) + len, .info = *pRpcInfo};
+  taosArrayPush(pTask->pRpcMsgList, &rspMsg);
+
+  return TSDB_CODE_SUCCESS;
 }

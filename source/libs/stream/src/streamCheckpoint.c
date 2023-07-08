@@ -21,6 +21,7 @@ int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckp
   if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->mnodeId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->expireTime) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -32,6 +33,7 @@ int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSo
   if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->mnodeId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->expireTime) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
@@ -59,7 +61,7 @@ int32_t tDecodeStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointSo
   return 0;
 }
 
-int32_t tEncodeStreamCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
+int32_t tEncodeStreamCheckpointReq(SEncoder* pEncoder, const SStreamCheckpointReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
@@ -72,7 +74,7 @@ int32_t tEncodeStreamCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpoi
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
+int32_t tDecodeStreamCheckpointReq(SDecoder* pDecoder, SStreamCheckpointReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
@@ -85,7 +87,7 @@ int32_t tDecodeStreamCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq*
   return 0;
 }
 
-int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamTaskCheckpointRsp* pRsp) {
+int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRsp* pRsp) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->checkpointId) < 0) return -1;
@@ -98,7 +100,7 @@ int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamTaskCheckpoi
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamTaskCheckpointRsp* pRsp) {
+int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRsp) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pRsp->checkpointId) < 0) return -1;
@@ -124,7 +126,7 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, i
 }
 
 static int32_t streamTaskDispatchCheckpointMsg(SStreamTask* pTask, uint64_t checkpointId) {
-  SStreamTaskCheckpointReq req = {
+  SStreamCheckpointReq req = {
       .streamId = pTask->id.streamId,
       .upstreamTaskId = pTask->id.taskId,
       .upstreamNodeId = pTask->info.nodeId,
@@ -208,7 +210,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask,
   return code;
 }
 
-int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTaskCheckpointReq* pReq) {
+int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointReq* pReq) {
   int32_t code;
   int64_t checkpointId = pReq->checkpointId;
   int32_t childId = pReq->childId;

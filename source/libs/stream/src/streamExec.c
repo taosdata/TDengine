@@ -546,7 +546,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
       // send check point response to upstream task
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-        streamTaskSendCheckpointSourceRsp(pTask, pMeta->vgId);
+        streamTaskSendCheckpointSourceRsp(pTask);
       } else {
         streamTaskSendCheckpointRsp(pTask, pMeta->vgId);
       }

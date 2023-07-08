@@ -819,7 +819,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
 
-  pTask->pRpcMsgList = taosArrayInit(4, POINTER_BYTES);
+  pTask->pRpcMsgList = taosArrayInit(4, sizeof(SRpcMsg));
 
   // sink
   if (pTask->outputType == TASK_OUTPUT__SMA) {
@@ -1516,16 +1516,18 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   // todo handle this bug: task not in ready state.
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId, req.taskId);
+    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId,
+            req.taskId);
     goto FAIL;
   }
 
-  // backup the rpchandle for rsp
-  SRpcMsg* pRpcMsg = taosMemoryCalloc(1, sizeof(SRpcMsg));
-  memcpy(pRpcMsg, (SRpcMsg*)pMsg, sizeof(SRpcMsg));
-  taosArrayPush(pTask->pRpcMsgList, &pRpcMsg);
+  code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto FAIL;
+  }
 
   // todo: when generating checkpoint, no new tasks are allowed to add into current Vnode
+  // todo: when generating checkpoint, leader of mnode has transfer to other DNode?
 
   // set the initial value for generating check point
   int32_t total = 0;
@@ -1544,7 +1546,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 
-  FAIL:
+FAIL:
   return code;
 }
 
@@ -1555,7 +1557,7 @@ int32_t tqProcessStreamCheckPointReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
-  SStreamTaskCheckpointReq req = {0};
+  SStreamCheckpointReq req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -1569,6 +1571,11 @@ int32_t tqProcessStreamCheckPointReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.downstreamTaskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x , it may have been destroyed already", vgId, req.downstreamTaskId);
+    goto FAIL;
+  }
+
+  code = streamAddCheckpointRspMsg(&req, &pMsg->info, pTask);
+  if (code != TSDB_CODE_SUCCESS) {
     goto FAIL;
   }
 
@@ -1591,7 +1598,7 @@ int32_t tqProcessStreamCheckPointRsp(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
-  SStreamTaskCheckpointRsp req = {0};
+  SStreamCheckpointRsp req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
