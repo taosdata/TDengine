@@ -1409,18 +1409,17 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
 
   int32_t      taskId = req.dstTaskId;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-
-  if (pTask) {
-    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-    streamProcessRetrieveReq(pTask, &req, &rsp);
-
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tDeleteStreamRetrieveReq(&req);
-    return 0;
-  } else {
+  if (pTask == NULL) {
     tDeleteStreamRetrieveReq(&req);
     return -1;
   }
+
+  SRpcMsg rsp = {.info = pMsg->info, .code = 0};
+  streamProcessRetrieveReq(pTask, &req, &rsp);
+
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  tDeleteStreamRetrieveReq(&req);
+  return 0;
 }
 
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
@@ -1579,7 +1578,7 @@ int32_t tqProcessStreamCheckPointReq(STQ* pTq, SRpcMsg* pMsg) {
     goto FAIL;
   }
 
-  streamProcessCheckpointReq(pMeta, pTask, &req);
+  streamProcessCheckpointReq(pTask, &req);
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 
@@ -1593,7 +1592,6 @@ int32_t tqProcessStreamCheckPointRsp(STQ* pTq, SRpcMsg* pMsg) {
   // if this task is an source task, send source rsp to mnode
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
-
   char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
