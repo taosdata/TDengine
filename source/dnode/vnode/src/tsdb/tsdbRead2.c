@@ -545,7 +545,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     }
 
     if (uid < pRecord->uid) {  // forward the table uid index
-      while (pReader->status.uidList.tableUidList[k] < pRecord->uid && k < numOfTables) {
+      while (k < numOfTables && pReader->status.uidList.tableUidList[k] < pRecord->uid) {
         k += 1;
       }
 
