@@ -2780,18 +2780,18 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   SVgOffsetInfo* pOffsetInfo = &pVg->offsetInfo;
 
   int32_t type = pOffsetInfo->currentOffset.type;
-//  if (type != TMQ_OFFSET__LOG && !OFFSET_IS_RESET_OFFSET(type)) {
-//    tscError("consumer:0x%" PRIx64 " offset type:%d not wal version, seek not allowed", tmq->consumerId, type);
-//    taosWUnLockLatch(&tmq->lock);
-//    return TSDB_CODE_INVALID_PARA;
-//  }
-//
-//  if (type == TMQ_OFFSET__LOG && (offset < pOffsetInfo->walVerBegin || offset > pOffsetInfo->walVerEnd)) {
-//    tscError("consumer:0x%" PRIx64 " invalid seek params, offset:%" PRId64 ", valid range:[%" PRId64 ", %" PRId64 "]",
-//             tmq->consumerId, offset, pOffsetInfo->walVerBegin, pOffsetInfo->walVerEnd);
-//    taosWUnLockLatch(&tmq->lock);
-//    return TSDB_CODE_INVALID_PARA;
-//  }
+  if (type != TMQ_OFFSET__LOG && !OFFSET_IS_RESET_OFFSET(type)) {
+    tscError("consumer:0x%" PRIx64 " offset type:%d not wal version, seek not allowed", tmq->consumerId, type);
+    taosWUnLockLatch(&tmq->lock);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (type == TMQ_OFFSET__LOG && (offset < pOffsetInfo->walVerBegin || offset > pOffsetInfo->walVerEnd)) {
+    tscError("consumer:0x%" PRIx64 " invalid seek params, offset:%" PRId64 ", valid range:[%" PRId64 ", %" PRId64 "]",
+             tmq->consumerId, offset, pOffsetInfo->walVerBegin, pOffsetInfo->walVerEnd);
+    taosWUnLockLatch(&tmq->lock);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   // update the offset, and then commit to vnode
 //  if (pOffsetInfo->currentOffset.type == TMQ_OFFSET__LOG) {
