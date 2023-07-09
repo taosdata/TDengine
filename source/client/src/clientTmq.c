@@ -2794,7 +2794,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   // update the offset, and then commit to vnode
   if (pOffsetInfo->currentOffset.type == TMQ_OFFSET__LOG) {
-    pOffsetInfo->currentOffset.version = offset;
+    pOffsetInfo->currentOffset.version = offset - 1;
     pOffsetInfo->committedOffset.version = INT64_MIN;
     pVg->seekUpdated = true;
   }
