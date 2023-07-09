@@ -81,10 +81,6 @@ Set<String> subscription() throws SQLException;
 
 ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 
-void commitAsync();
-
-void commitAsync(OffsetCommitCallback callback);
-
 void commitSync() throws SQLException;
 
 void close() throws SQLException;
