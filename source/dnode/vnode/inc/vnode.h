@@ -78,6 +78,7 @@ ESyncRole vnodeGetRole(SVnode *pVnode);
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
 int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg, void* arg1), void *arg);
 void   *vnodeGetIdx(void *pVnode);
 void   *vnodeGetIvtIdx(void *pVnode);
 

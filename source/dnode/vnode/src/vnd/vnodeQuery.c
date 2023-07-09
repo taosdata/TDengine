@@ -496,6 +496,30 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg, void *arg1),
+                                  void *arg) {
+  SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
+  if (!pCur) {
+    return TSDB_CODE_FAILED;
+  }
+
+  while (1) {
+    tb_uid_t id = metaStbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    if ((*filter) && (*filter)(arg, &id)) {
+      continue;
+    }
+
+    taosArrayPush(list, &id);
+  }
+
+  metaCloseStbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 0);
   if (!pCur) {
@@ -554,10 +578,10 @@ static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "vnodes_role"};
 
 // exclude stbs of taoskeeper log
-static int32_t vnodeTimeSeriesFilter(SVnode *pVnode, SArray *suidList) {
+static int32_t vnodeGetTimeSeriBlackList(SVnode *pVnode) {
   char *dbName = strchr(pVnode->config.dbname, '.');
   if (!dbName || 0 != strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
-    goto _exit;
+    return 0;
   }
   int32_t tbSize = metaSizeOfTbFilterCache(pVnode, 0);
   if (tbSize < TK_LOG_STB_NUM) {
@@ -567,51 +591,53 @@ static int32_t vnodeTimeSeriesFilter(SVnode *pVnode, SArray *suidList) {
         metaPutTbToFilterCache(pVnode, suid, 0);
       }
     }
-    if (metaSizeOfTbFilterCache(pVnode, 0) <= 0) goto _exit;
   }
 
-  for (int64_t i = 0; i < TARRAY_SIZE(suidList);) {
-    if (metaTbInFilterCache(pVnode, *(tb_uid_t *)TARRAY_GET_ELEM(suidList, i), sizeof(tb_uid_t))) {
-      taosArrayRemove(suidList, i);
-      continue;
-    }
-  }
-
-_exit:
   return 0;
 }
 // #endif
+
+static bool filter(void *arg1, void *arg2) {
+  SVnode *pVnode = (SVnode *)arg1;
+
+  if (metaTbInFilterCache(pVnode, *(tb_uid_t *)(arg2), 0)) {
+    return true;
+  }
+  return false;
+}
 
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return TSDB_CODE_FAILED;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_FAILED;
   }
 
-  if (vnodeGetStbIdList(pVnode, 0, suidList) < 0) {
-      qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
-      taosArrayDestroy(suidList);
-      return TSDB_CODE_FAILED;
-  }
+  void *blackListArg = NULL;
+  // #ifdef TD_ENTERPRISE
+  vnodeTimeSeriesFilter(pVnode, blackListArg);
+  // #endif
 
-// #ifdef TD_ENTERPRISE
-  vnodeTimeSeriesFilter(pVnode, suidList);
-// #endif
+  if ((!blackListArg && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
+      (blackListArg && vnodeGetStbIdListByFilter(pVnode, 0, suidList, filter, pVnode) < 0)) {
+    qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
+    taosArrayDestroy(suidList);
+    return TSDB_CODE_FAILED;
+  }
 
   *num = 0;
   int64_t arrSize = taosArrayGetSize(suidList);
   for (int64_t i = 0; i < arrSize; ++i) {
-      tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
+    tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 
-      int64_t ctbNum = 0;
-      metaGetStbStats(pVnode, suid, &ctbNum);
+    int64_t ctbNum = 0;
+    metaGetStbStats(pVnode, suid, &ctbNum);
 
-      int numOfCols = 0;
-      vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
+    int numOfCols = 0;
+    vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
 
-      *num += ctbNum * (numOfCols - 1);
+    *num += ctbNum * (numOfCols - 1);
   }
 
   taosArrayDestroy(suidList);
@@ -621,20 +647,20 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num) {
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
   if (!pCur) {
-      return TSDB_CODE_FAILED;
+    return TSDB_CODE_FAILED;
   }
 
   *num = 0;
   while (1) {
-      tb_uid_t id = metaStbCursorNext(pCur);
-      if (id == 0) {
-        break;
-      }
+    tb_uid_t id = metaStbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
 
-      int64_t ctbNum = 0;
-      vnodeGetCtbNum(pVnode, id, &ctbNum);
+    int64_t ctbNum = 0;
+    vnodeGetCtbNum(pVnode, id, &ctbNum);
 
-      *num += ctbNum;
+    *num += ctbNum;
   }
 
   metaCloseStbCursor(pCur);
@@ -643,7 +669,7 @@ int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num) {
 
 void *vnodeGetIdx(void *pVnode) {
   if (pVnode == NULL) {
-      return NULL;
+    return NULL;
   }
 
   return metaGetIdx(((SVnode *)pVnode)->pMeta);
@@ -651,7 +677,7 @@ void *vnodeGetIdx(void *pVnode) {
 
 void *vnodeGetIvtIdx(void *pVnode) {
   if (pVnode == NULL) {
-      return NULL;
+    return NULL;
   }
   return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }
