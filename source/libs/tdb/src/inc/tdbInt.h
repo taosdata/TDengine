@@ -408,6 +408,7 @@ struct SPager {
   // u8        inTran;
   TXN    *pActiveTxn;
   SArray *ofps;
+  SArray *frps;
   SPager *pNext;      // used by TDB
   SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB
