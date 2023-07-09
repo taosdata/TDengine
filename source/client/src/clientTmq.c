@@ -2709,17 +2709,16 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
         SVgOffsetInfo* pOffsetInfo = &pClientVg->offsetInfo;
 
-//        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+        char offsetBuf[TSDB_OFFSET_LEN] = {0};
+        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
 
-//        char offsetBuf[TSDB_OFFSET_LEN] = {0};
-//        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
-
-        tscInfo("vgId:%d offset is update to:%"PRId64, p->vgId, p->currentOffset);
+        tscInfo("vgId:%d offset is update to:%s", p->vgId, offsetBuf);
 
         pOffsetInfo->walVerBegin = p->begin;
         pOffsetInfo->walVerEnd = p->end;
-//        pOffsetInfo->currentOffset.version = p->currentOffset;
-//        pOffsetInfo->committedOffset.version = p->currentOffset;
+        pOffsetInfo->currentOffset.version = p->currentOffset;
+        pOffsetInfo->committedOffset.version = p->currentOffset;
       }
     }
   }
