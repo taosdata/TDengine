@@ -678,6 +678,8 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, int32_t type, tm
       taosMemoryFree(pParamSet);
       pCommitFp(tmq, code, userParam);
     }
+    // update the offset value.
+    pVg->offsetInfo.committedOffset = pVg->offsetInfo.currentOffset;
   } else {  // do not perform commit, callback user function directly.
     taosMemoryFree(pParamSet);
     pCommitFp(tmq, code, userParam);
@@ -1877,6 +1879,23 @@ static int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* p
   return 0;
 }
 
+static void updateVgInfo(SMqClientVg* pVg, STqOffsetVal* offset, int64_t sver, int64_t ever, int64_t consumerId){
+  if (!pVg->seekUpdated) {
+    tscDebug("consumer:0x%" PRIx64" local offset is update, since seekupdate not set", consumerId);
+    pVg->offsetInfo.currentOffset = *offset;
+  } else {
+    tscDebug("consumer:0x%" PRIx64" local offset is NOT update, since seekupdate is set", consumerId);
+  }
+
+  // update the status
+  atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+
+  // update the valid wal version range
+  pVg->offsetInfo.walVerBegin = sver;
+  pVg->offsetInfo.walVerEnd = ever;
+  pVg->receivedInfoFromVnode = true;
+}
+
 static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
   tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, tmq->qall->numOfItems);
 
@@ -1925,22 +1944,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           pVg->epSet = *pollRspWrapper->pEpset;
         }
 
-        // update the local offset value only for the returned values, only when the local offset is NOT updated
-        // by tmq_offset_seek function
-        if (!pVg->seekUpdated) {
-          tscDebug("consumer:0x%" PRIx64" local offset is update, since seekupdate not set, rsp offset:%d,%"PRId64, tmq->consumerId, pDataRsp->rspOffset.type, pDataRsp->rspOffset.version);
-          pVg->offsetInfo.currentOffset = pDataRsp->rspOffset;
-        } else {
-          tscDebug("consumer:0x%" PRIx64" local offset is NOT update, since seekupdate is set", tmq->consumerId);
-        }
-
-        // update the status
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
-
-        // update the valid wal version range
-        pVg->offsetInfo.walVerBegin = pDataRsp->head.walsver;
-        pVg->offsetInfo.walVerEnd = pDataRsp->head.walever;
-        pVg->receivedInfoFromVnode = true;
+        updateVgInfo(pVg, &pDataRsp->rspOffset, pDataRsp->head.walsver, pDataRsp->head.walever, tmq->consumerId);
 
         char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pDataRsp->rspOffset);
@@ -1990,11 +1994,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           return NULL;
         }
 
-        if(pollRspWrapper->metaRsp.rspOffset.type != 0){    // if offset is validate
-          pVg->offsetInfo.currentOffset = pollRspWrapper->metaRsp.rspOffset;
-        }
-
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+        updateVgInfo(pVg, &pollRspWrapper->metaRsp.rspOffset, pollRspWrapper->metaRsp.head.walsver, pollRspWrapper->metaRsp.head.walever, tmq->consumerId);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
         taosFreeQitem(pollRspWrapper);
@@ -2022,18 +2022,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           return NULL;
         }
 
-        // update the local offset value only for the returned values, only when the local offset is NOT updated
-        // by tmq_offset_seek function
-        if (!pVg->seekUpdated) {
-          if(pollRspWrapper->taosxRsp.rspOffset.type != 0) {    // if offset is validate
-            tscDebug("consumer:0x%" PRIx64" local offset is update, since seekupdate not set", tmq->consumerId);
-            pVg->offsetInfo.currentOffset = pollRspWrapper->taosxRsp.rspOffset;
-          }
-        } else {
-          tscDebug("consumer:0x%" PRIx64" local offset is NOT update, since seekupdate is set", tmq->consumerId);
-        }
-
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+        updateVgInfo(pVg, &pollRspWrapper->taosxRsp.rspOffset, pollRspWrapper->taosxRsp.head.walsver, pollRspWrapper->taosxRsp.head.walever, tmq->consumerId);
 
         if (pollRspWrapper->taosxRsp.blockNum == 0) {
           tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, vg total:%" PRId64 ", reqId:0x%" PRIx64,
@@ -2615,6 +2604,8 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     pAssignment->begin = pClientVg->offsetInfo.walVerBegin;
     pAssignment->end = pClientVg->offsetInfo.walVerEnd;
     pAssignment->vgId = pClientVg->vgId;
+    tscInfo("consumer:0x%" PRIx64 " get assignment from local:%d->%" PRId64, tmq->consumerId,
+            pAssignment->vgId, pAssignment->currentOffset);
   }
 
   if (needFetch) {
@@ -2690,7 +2681,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.currentOffset);
 
       tscInfo("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s, reqId:0x%" PRIx64,
-               tmq->consumerId, pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
+              tmq->consumerId, pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
       asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, &transporterId, sendInfo);
     }
 
@@ -2718,17 +2709,17 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
         SVgOffsetInfo* pOffsetInfo = &pClientVg->offsetInfo;
 
-        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+//        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
 
-        char offsetBuf[TSDB_OFFSET_LEN] = {0};
-        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
+//        char offsetBuf[TSDB_OFFSET_LEN] = {0};
+//        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
 
-        tscInfo("vgId:%d offset is update to:%s", p->vgId, offsetBuf);
+        tscInfo("vgId:%d offset is update to:%"PRId64, p->vgId, p->currentOffset);
 
         pOffsetInfo->walVerBegin = p->begin;
         pOffsetInfo->walVerEnd = p->end;
-        pOffsetInfo->currentOffset.version = p->currentOffset;
-        pOffsetInfo->committedOffset.version = p->currentOffset;
+//        pOffsetInfo->currentOffset.version = p->currentOffset;
+//        pOffsetInfo->committedOffset.version = p->currentOffset;
       }
     }
   }

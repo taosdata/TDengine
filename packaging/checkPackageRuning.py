@@ -87,7 +87,7 @@ os.system("rm -rf /tmp/dumpdata/*")
 # dump data out 
 print("taosdump dump out data")
 
-os.system("taosdump -o /tmp/dumpdata -D test -y -h %s  "%serverHost)
+os.system("taosdump -o /tmp/dumpdata -D test -h %s  "%serverHost)
 
 # drop database of test
 print("drop database test")
@@ -95,7 +95,7 @@ os.system(" taos -s ' drop database test ;'  -h %s  "%serverHost)
 
 # dump data in 
 print("taosdump dump data in")
-os.system("taosdump -i /tmp/dumpdata  -y  -h %s  "%serverHost)
+os.system("taosdump -i /tmp/dumpdata -h %s  "%serverHost)
 
 result = conn.query("SELECT count(*) from test.meters")
 

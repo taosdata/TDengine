@@ -403,6 +403,10 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // wait for the task to be ready to go
     while (pTask->taskLevel == TASK_LEVEL__SOURCE) {
       int8_t status = atomic_load_8(&pTask->status.taskStatus);
+      if (status == TASK_STATUS__DROPPING) {
+        break;
+      }
+
       if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE) {
         qError("stream task wait for the end of fill history, s-task:%s, status:%d", id, status);
         taosMsleep(100);

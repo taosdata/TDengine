@@ -961,7 +961,6 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
     localRsp->rsp.numOfPlans = 0;
     localRsp->rsp.subplanInfo = NULL;
     pTask = NULL;
-    pJob = NULL;
   }
 
 _return:

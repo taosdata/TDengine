@@ -507,7 +507,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (!exec) {
       tqSetHandleExec(pHandle);
       //      qSetTaskCode(pHandle->execHandle.task, TDB_CODE_SUCCESS);
-      tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId,
+      tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId,
               req.subKey, pHandle);
       taosWUnLockLatch(&pTq->lock);
       break;
@@ -535,7 +535,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
   tqSetHandleIdle(pHandle);
 
-  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, , set handle idle, pHandle:%p", consumerId, vgId,
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle idle, pHandle:%p", consumerId, vgId,
           req.subKey, pHandle);
   return code;
 }
@@ -577,48 +577,47 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, &req);
 
-  STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
-  if (pOffset != NULL) {
-    if (pOffset->val.type != TMQ_OFFSET__LOG) {
-      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s use snapshot, no valid wal info", consumerId, vgId, req.subKey);
-      terrno = TSDB_CODE_INVALID_PARA;
-      tDeleteMqDataRsp(&dataRsp);
-      return -1;
-    }
+  if (req.useSnapshot == true) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
+    terrno = TSDB_CODE_INVALID_PARA;
+    tDeleteMqDataRsp(&dataRsp);
+    return -1;
+  }
 
-    dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
-    dataRsp.rspOffset.version = pOffset->val.version;
-  } else {
-    if (req.useSnapshot == true) {
-      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
-      terrno = TSDB_CODE_INVALID_PARA;
-      tDeleteMqDataRsp(&dataRsp);
-      return -1;
-    }
+  dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
 
-    dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
-
-    if (reqOffset.type == TMQ_OFFSET__LOG) {
-      int64_t currentVer = walReaderGetCurrentVer(pHandle->execHandle.pTqReader->pWalReader);
-      if (currentVer == -1) {  // not start to read data from wal yet, return req offset directly
-        dataRsp.rspOffset.version = reqOffset.version;
-      } else {
-        dataRsp.rspOffset.version = currentVer;  // return current consume offset value
+  if (reqOffset.type == TMQ_OFFSET__LOG) {
+    dataRsp.rspOffset.version = reqOffset.version;
+  } else if(reqOffset.type < 0){
+    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
+    if (pOffset != NULL) {
+      if (pOffset->val.type != TMQ_OFFSET__LOG) {
+        tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s, no valid wal info", consumerId, vgId, req.subKey);
+        terrno = TSDB_CODE_INVALID_PARA;
+        tDeleteMqDataRsp(&dataRsp);
+        return -1;
       }
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
-      dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-      dataRsp.rspOffset.version = ever;
-    } else {
-      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
-              reqOffset.type);
-      terrno = TSDB_CODE_INVALID_PARA;
-      tDeleteMqDataRsp(&dataRsp);
-      return -1;
+
+      dataRsp.rspOffset.version = pOffset->val.version;
+      tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%"PRId64, consumerId, vgId, req.subKey, dataRsp.rspOffset.version);
+    }else{
+      if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
+        dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
+      } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
+        dataRsp.rspOffset.version = ever;
+      }
+      tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from init:%"PRId64, consumerId, vgId, req.subKey, dataRsp.rspOffset.version);
     }
+  } else {
+    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
+            reqOffset.type);
+    terrno = TSDB_CODE_INVALID_PARA;
+    tDeleteMqDataRsp(&dataRsp);
+    return -1;
   }
 
   tqDoSendDataRsp(&pMsg->info, &dataRsp, req.epoch, req.consumerId, TMQ_MSG_TYPE__WALINFO_RSP, sver, ever);
+  tDeleteMqDataRsp(&dataRsp);
   return 0;
 }
 

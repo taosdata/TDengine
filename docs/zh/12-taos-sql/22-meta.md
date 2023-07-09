@@ -284,6 +284,8 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 2   | consumer_group | BINARY(193)  | 订阅者的消费者组         |
 | 3   |   vgroup_id    | INT          | 消费者被分配的 vgroup id |
 | 4   |  consumer_id   | BIGINT       | 消费者的唯一 id          |
+| 5   |  offset        | BINARY(64)   | 消费者的消费进度          |
+| 6   |  rows          | BIGINT       | 消费者的消费的数据条数     |
 
 ## INS_STREAMS
 
