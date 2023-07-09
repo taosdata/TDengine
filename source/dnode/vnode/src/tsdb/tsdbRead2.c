@@ -2095,17 +2095,31 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
   tsdbDebug("init last block reader, window:%" PRId64 "-%" PRId64 ", uid:%" PRIu64 ", %s", w.skey, w.ekey,
             pScanInfo->uid, pReader->idStr);
 
-  int32_t code = tMergeTreeOpen2(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pTsdb,
-                                 pReader->info.suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pReader->idStr,
-                                 false, pReader->status.pLDataIterArray, pReader->status.pCurrentFileset,
-                                 pReader->info.pSchema, pReader->suppInfo.colId, pReader->suppInfo.numOfCols, pReader);
+  SMergeTreeConf conf = {
+      .uid = pScanInfo->uid,
+      .suid = pReader->info.suid,
+      .pTsdb = pReader->pTsdb,
+      .timewindow = w,
+      .verRange = pLBlockReader->verRange,
+      .strictTimeRange = false,
+      .pSchema = pReader->info.pSchema,
+      .pCurrentFileset = pReader->status.pCurrentFileset,
+      .backward = (pLBlockReader->order == TSDB_ORDER_DESC),
+      .pSttFileBlockIterArray = pReader->status.pLDataIterArray,
+      .pCols = pReader->suppInfo.colId,
+      .numOfCols = pReader->suppInfo.numOfCols,
+      .pReader = pReader,
+      .idstr = pReader->idStr,
+  };
+
+  int32_t code = tMergeTreeOpen2(&pLBlockReader->mergeTree, &conf);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
 
   initMemDataIterator(pScanInfo, pReader);
-
   initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost);
+
   code = nextRowFromLastBlocks(pLBlockReader, pScanInfo, &pReader->info.verRange);
 
   int64_t el = taosGetTimestampUs() - st;

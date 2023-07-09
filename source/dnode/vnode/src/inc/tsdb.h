@@ -795,10 +795,23 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
 
-int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint64_t suid, uint64_t uid,
-                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, const char *idStr,
-                        bool strictTimeRange, SArray *pSttFileBlockIterArray, void *pCurrentFileSet, STSchema* pSchema,
-                        int16_t* pCols, int32_t numOfCols, void* pReader);
+typedef struct {
+  int8_t         backward;
+  STsdb         *pTsdb;
+  uint64_t       suid;
+  uint64_t       uid;
+  STimeWindow    timewindow;
+  SVersionRange  verRange;
+  bool           strictTimeRange;
+  SArray        *pSttFileBlockIterArray;
+  void          *pCurrentFileset;
+  STSchema      *pSchema;
+  int16_t       *pCols;
+  int32_t        numOfCols;
+  void          *pReader;
+  void          *idstr;
+} SMergeTreeConf;
+int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf* pConf);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);

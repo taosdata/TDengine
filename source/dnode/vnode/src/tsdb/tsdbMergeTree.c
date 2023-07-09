@@ -721,15 +721,12 @@ _end:
   return code;
 }
 
-int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint64_t suid, uint64_t uid,
-                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, const char *idStr,
-                        bool strictTimeRange, SArray *pSttFileBlockIterArray, void *pCurrentFileSet, STSchema* pSchema,
-                        int16_t* pCols, int32_t numOfCols, void* pReader) {
+int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf* pConf) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  pMTree->backward = backward;
   pMTree->pIter = NULL;
-  pMTree->idStr = idStr;
+  pMTree->backward = pConf->backward;
+  pMTree->idStr = pConf->idstr;
 
   if (!pMTree->backward) {  // asc
     tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
@@ -740,21 +737,21 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint6
   pMTree->ignoreEarlierTs = false;
 
   // todo handle other level of stt files, here only deal with the first level stt
-  int32_t size = ((STFileSet *)pCurrentFileSet)->lvlArr->size;
+  int32_t size = ((STFileSet *)pConf->pCurrentFileset)->lvlArr->size;
   if (size == 0) {
     goto _end;
   }
 
-  while (taosArrayGetSize(pSttFileBlockIterArray) < size) {
+  while (taosArrayGetSize(pConf->pSttFileBlockIterArray) < size) {
     SArray* pList = taosArrayInit(4, POINTER_BYTES);
-    taosArrayPush(pSttFileBlockIterArray, &pList);
+    taosArrayPush(pConf->pSttFileBlockIterArray, &pList);
   }
 
   for(int32_t j = 0; j < size; ++j) {
-    SSttLvl *pSttLevel = ((STFileSet *)pCurrentFileSet)->lvlArr->data[j];
+    SSttLvl *pSttLevel = ((STFileSet *)pConf->pCurrentFileset)->lvlArr->data[j];
     ASSERT(pSttLevel->level == j);
 
-    SArray* pList = taosArrayGetP(pSttFileBlockIterArray, j);
+    SArray* pList = taosArrayGetP(pConf->pSttFileBlockIterArray, j);
     int32_t numOfIter = taosArrayGetSize(pList);
 
     if (numOfIter < TARRAY2_SIZE(pSttLevel->fobjArr)) {
@@ -773,7 +770,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint6
 
       // open stt file reader if not
       if (pSttFileReader == NULL) {
-        SSttFileReaderConfig conf = {.tsdb = pTsdb, .szPage = pTsdb->pVnode->config.szPage};
+        SSttFileReaderConfig conf = {.tsdb = pConf->pTsdb, .szPage = pConf->pTsdb->pVnode->config.szPage};
         conf.file[0] = *pSttLevel->fobjArr->data[i]->f;
 
         code = tsdbSttFileReaderOpen(pSttLevel->fobjArr->data[i]->fname, &conf, &pSttFileReader);
@@ -783,12 +780,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint6
       }
 
       if (pLoadInfo == NULL) {
-        pLoadInfo = tCreateOneLastBlockLoadInfo(pSchema, pCols, numOfCols);
+        pLoadInfo = tCreateOneLastBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
       }
 
       memset(pIter, 0, sizeof(SLDataIter));
-      code = tLDataIterOpen2(pIter, pSttFileReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange,
-                             pLoadInfo, pMTree->idStr, strictTimeRange, pReader);
+      code = tLDataIterOpen2(pIter, pSttFileReader, i, pMTree->backward, pConf->suid, pConf->uid, &pConf->timewindow,
+                             &pConf->verRange, pLoadInfo, pMTree->idStr, pConf->strictTimeRange, pConf->pReader);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
