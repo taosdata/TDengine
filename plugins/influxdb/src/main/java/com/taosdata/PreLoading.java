@@ -178,25 +178,35 @@ public class PreLoading implements CommandLineRunner {
             // 解析配置内容
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置
-            this.influxdbConfig.setUrl((String) tomlParseResult.get("influx.url"));
-            this.influxdbConfig.setVersion((String) tomlParseResult.get("influx.version"));
-            this.influxdbConfig.setUsername((String) tomlParseResult.get("influx.username"));
-            this.influxdbConfig.setPassword((String) tomlParseResult.get("influx.password"));
-            this.influxdbConfig.setToken((String) tomlParseResult.get("influx.token"));
-            this.influxdbConfig.setOrgId((String) tomlParseResult.get("influx.orgId"));
-            this.nettyClientConfig.setHost((String) tomlParseResult.get("taosx.host"));
-            this.nettyClientConfig.setPort(((Long) tomlParseResult.get("taosx.port")).intValue());
-            this.taskConfig.setMode((String) tomlParseResult.get("task.mode"));
-            this.taskConfig.setBuckets(Arrays.asList((String) tomlParseResult.get("task.bucket")));
+            this.influxdbConfig.setUrl(tomlParseResult.getString("influx.url", String::new));
+            this.influxdbConfig.setVersion(tomlParseResult.getString("influx.version", String::new));
+            this.influxdbConfig.setUsername(tomlParseResult.getString("influx.username", String::new));
+            this.influxdbConfig.setPassword(tomlParseResult.getString("influx.password", String::new));
+            this.influxdbConfig.setToken(tomlParseResult.getString("influx.token", String::new));
+            this.influxdbConfig.setOrgId(tomlParseResult.getString("influx.orgId", String::new));
+            this.nettyClientConfig.setHost(tomlParseResult.getString("taosx.host", String::new));
+            this.nettyClientConfig.setPort((int) tomlParseResult.getLong("taosx.port", () -> 0L));
+            this.taskConfig.setMode(tomlParseResult.getString("task.mode", String::new));
+            this.taskConfig.setBuckets(Arrays.asList(tomlParseResult.getString("task.bucket", String::new)));
             Set<String> measurements = new HashSet<>();
             TomlArray tomlArray = tomlParseResult.getArrayOrEmpty("task.measurements");
             for (int i = 0; i < tomlArray.size(); i++) {
                 measurements.add((String) tomlArray.get(i));
             }
             this.taskConfig.setMeasurements(measurements);
-            this.taskConfig.setBeginTime((String) tomlParseResult.get("task.beginTime"));
-            this.taskConfig.setEndTime((String) tomlParseResult.get("task.endTime"));
-            this.performanceConfig.setReadWindow((String) tomlParseResult.get("performance.readWindow"));
+            this.taskConfig.setBeginTime(tomlParseResult.getString("task.beginTime", String::new));
+            this.taskConfig.setEndTime(tomlParseResult.getString("task.endTime", String::new));
+            this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
+            // 如果设置了性能参数，则覆盖默认值
+            if (tomlParseResult.getLong("performance.limitConnect") != null) {
+                this.performanceConfig.setLimitConnect(tomlParseResult.getLong("performance.limitConnect").intValue());
+            }
+            if (tomlParseResult.getLong("performance.limitSpeed") != null) {
+                this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());
+            }
+            if (tomlParseResult.getLong("performance.queueSizeD") != null) {
+                this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
+            }
         } catch (Exception e) {
             logger.error("加载Toml文件过程中发生异常，启动失败", e);
             // 状态异常
