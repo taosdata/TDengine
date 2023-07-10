@@ -1769,8 +1769,9 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
 
 void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
   void* pBuf = NULL;
-  int32_t len = streamScanOperatorEncode(pInfo, pBuf);
+  int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
+  taosMemoryFree(pBuf);
 }
 
 // other properties are recovered from the execution plan
@@ -2185,10 +2186,9 @@ FETCH_NEXT_BLOCK:
     if (pBlock->info.type == STREAM_CHECKPOINT) {
       streamScanOperatorSaveCheckpoint(pInfo);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
-      pAPI->stateStore.streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
     }
     printDataBlock(pBlock, "stream scan ck");
-    return pBlock;
+    return pInfo->pCheckpointRes;
   }
 
   return NULL;
@@ -2356,6 +2356,8 @@ static void destroyStreamScanOperatorInfo(void* param) {
   blockDataDestroy(pStreamScan->pUpdateDataRes);
   blockDataDestroy(pStreamScan->pCreateTbRes);
   taosArrayDestroy(pStreamScan->pBlockLists);
+  blockDataDestroy(pStreamScan->pCheckpointRes);
+
   taosMemoryFree(pStreamScan);
 }
 
@@ -2573,6 +2575,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pState = NULL;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
+  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
 
   // for stream
   if (pTaskInfo->streamInfo.pState) {

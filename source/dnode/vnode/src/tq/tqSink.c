@@ -274,6 +274,8 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       tagArray = taosArrayDestroy(tagArray);
       taosArrayDestroyEx(crTblArray, (FDelete)tdDestroySVCreateTbReq);
       crTblArray = NULL;
+    } else if (pDataBlock->info.type == STREAM_CHECKPOINT) {
+      continue;
     } else {
       SSubmitTbData tbData = {0};
       tqDebug("tq sink pipe, convert block:%d, rows:%d", i, rows);
