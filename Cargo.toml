@@ -105,7 +105,6 @@ rand = "0.8"
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
 md5 = "0.7.0"
-async-channel = "1.8.0"
 
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
