@@ -94,9 +94,15 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<Hint>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiple: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub placeholder: Option<String>,
 
@@ -148,6 +154,8 @@ pub struct GroupedParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_order: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(default)]
     pub collapsible: bool,
@@ -178,9 +186,20 @@ pub struct Authentication {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Authentication item name.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     /// Authentication items.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub alternatives: Vec<AuthItem>,
+}
+
+impl Authentication {
+    pub fn is_none(&self) -> bool {
+        self.display.is_none()
+            && self.description.is_none()
+            && self.value.is_none()
+            && self.alternatives.is_empty()
+    }
 }
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct HintDefinition {
@@ -281,6 +300,7 @@ pub struct DataSourceDefinition {
 
     /// Authentication settings.
     #[serde(default)]
+    #[serde(skip_serializing_if = "Authentication::is_none")]
     pub authentication: Authentication,
 
     /// Grouped parameters.
@@ -305,6 +325,38 @@ pub struct DataSourceDefinition {
 }
 
 impl DataSourceDefinition {
+    pub fn compute(&mut self) {
+        for group in self.groups.as_mut_slice() {
+            // TD-25111
+            match (&group.short_description, &group.description) {
+                (None, Some(desc)) => {
+                    group.short_description = desc
+                        .split_terminator("\n")
+                        .into_iter()
+                        .next()
+                        .map(ToString::to_string)
+                        .map(|s| s.replace("<br>", ""));
+                }
+                _ => (),
+            }
+            if group.collapsible {
+                group.collapsed.replace(false);
+            }
+            for param in &mut group.params {
+                match (&param.short_description, &param.description) {
+                    (None, Some(desc)) => {
+                        param.short_description = desc
+                            .split_terminator("\n")
+                            .into_iter()
+                            .next()
+                            .map(ToString::to_string)
+                            .map(|s| s.replace("<br>", ""));
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
     // todo: parse values from DSN.
     pub fn values_from(mut self, mut dsn: Dsn) -> Self {
         debug_assert!(self.id == dsn.driver);
@@ -446,10 +498,31 @@ impl DataSourceDefinition {
             }
         }
         for group in self.groups.as_mut_slice() {
+            // TD-25111
+            match (&group.short_description, &group.description) {
+                (None, Some(desc)) => {
+                    group.short_description = desc
+                        .split_terminator("\n")
+                        .into_iter()
+                        .next()
+                        .map(ToString::to_string);
+                }
+                _ => (),
+            }
             if group.collapsible {
                 group.collapsed.replace(false);
             }
             for param in &mut group.params {
+                match (&param.short_description, &param.description) {
+                    (None, Some(desc)) => {
+                        param.short_description = desc
+                            .split_terminator("\n")
+                            .into_iter()
+                            .next()
+                            .map(ToString::to_string);
+                    }
+                    _ => (),
+                }
                 if let Some(value) = dsn.remove(&param.name) {
                     if group.collapsible {
                         group.collapsed.replace(true);
@@ -495,8 +568,11 @@ impl DataSourceDefinition {
             self.params.push(Param {
                 name,
                 hint: None,
+                short_description: None,
                 description: None,
                 required: Some(false),
+                multiple: Some(false),
+                editable: Some(false),
                 placeholder: None,
                 value: Some(value),
                 display: None,
@@ -573,11 +649,33 @@ fn test_mqtt() {
     dbg!(&ds);
 }
 #[test]
+fn test_csv() {
+    use std::str::FromStr;
+    let json = include_str!("en/csv.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "csv:abc.csv?quote=\"";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    // assert_eq!(ds.groups[0].collapsed, Some(true));
+    let options = ds.options.as_ref().unwrap();
+    matches!(options, DataSourceOptions::Path { path: _ });
+    dbg!(&ds);
+}
+#[test]
 fn test_values() {
     use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
     let _dsn = Dsn::from_str(&dsn).unwrap();
 }
+
+#[test]
+fn test_short_desc() {}
 
 const fn bool_is_false(v: &bool) -> bool {
     !*v
