@@ -487,6 +487,8 @@ int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask, int32_t vgId) {
     tmsgSendRsp(pMsg);
   }
 
+  taosArrayClear(pTask->pRpcMsgList);
+
   int8_t prev = pTask->status.taskStatus;
   pTask->status.taskStatus = TASK_STATUS__NORMAL;
   qDebug("s-task:%s level:%d source checkpoint completed msg sent to upstream, set status:%s, prev:%s", pTask->id.idStr,
@@ -501,6 +503,8 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
   SRpcMsg* pMsg = taosArrayGet(pTask->pRpcMsgList, 0);
 
   tmsgSendRsp(pMsg);
+
+  taosArrayClear(pTask->pRpcMsgList);
 
   int8_t prev = pTask->status.taskStatus;
   pTask->status.taskStatus = TASK_STATUS__NORMAL;
