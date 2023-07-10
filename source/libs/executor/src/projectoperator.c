@@ -665,7 +665,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
 
         int32_t startOffset = pRes->info.rows;
         ASSERT(pRes->info.capacity > 0);
-        colDataMergeCol(pResColData, startOffset, (int32_t*)&pRes->info.capacity, &idata, dest.numOfRows);
+        colDataAssign(pResColData, &idata, dest.numOfRows, &pRes->info);
         colDataDestroy(&idata);
 
         taosArrayDestroy(pBlockList);
