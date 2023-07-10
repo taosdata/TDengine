@@ -9,7 +9,9 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
-      <el-table-column width="200" :label="$t('createTime')" prop="create_time"></el-table-column>
+      <el-table-column width="200" :label="$t('createTime')" prop="create_time">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
+      </el-table-column>
       <el-table-column min-width="200" label="SQL" prop="sql">
         <template slot-scope="scope">
           <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
@@ -66,6 +68,7 @@
 <script>
   import { createTopic, getTopics, delTopic } from "@/api/topic";
   import { SubscriptionDocsUrl } from "@/const";
+  import { parsinginZone } from '@/utils'
   
   export default {
     components: {
@@ -88,8 +91,8 @@
         total: 0,
         dialogType: "0",
         sqlTip: "[IF NOT EXISTS] topic_name AS {subquery | DATABASE db_name | STABLE stb_name }",
-      
-         dialogParams: {},
+        dialogParams: {},
+        parsinginZone
       };
     },
     computed: {

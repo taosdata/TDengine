@@ -16,7 +16,9 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
       <el-table-column :label="$t('taosuser.database')" prop="database"></el-table-column>
-      <el-table-column :label="$t('taosuser.createtime')" prop="created_at"></el-table-column>
+      <el-table-column :label="$t('taosuser.createtime')" prop="created_at">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+      </el-table-column>
       <el-table-column :label="$t('taosuser.lastbackup')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
@@ -203,6 +205,7 @@ import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { validDir } from '@/utils/validate';
+import { parsinginZone } from '@/utils'
 export default {
   data() {
     return {
@@ -261,6 +264,7 @@ export default {
         ],
       },
       topicList: [],
+      parsinginZone
     };
   },
   computed: {

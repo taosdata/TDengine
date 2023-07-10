@@ -11,9 +11,15 @@
       <el-table-column :label="$t('topic.clientID')" prop="client_id"></el-table-column>
       <el-table-column :label="$t('status')" prop="status"></el-table-column>
       <el-table-column :label="$t('route.topic')" prop="topics"></el-table-column>
-      <el-table-column :label="$t('topic.upTime')" prop="up_time"></el-table-column>
-      <el-table-column :label="$t('topic.subscribeTime')" prop="subscribe_time"></el-table-column>
-      <el-table-column :label="$t('topic.rebalanceTime')" prop="rebalance_time"></el-table-column>
+      <el-table-column :label="$t('topic.upTime')" prop="up_time">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.up_time) }}</span>
+      </el-table-column>
+      <el-table-column :label="$t('topic.subscribeTime')" prop="subscribe_time">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.subscribe_time) }}</span>
+      </el-table-column>
+      <el-table-column :label="$t('topic.rebalanceTime')" prop="rebalance_time">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.rebalance_time) }}</span>
+      </el-table-column>
       <!-- <el-table-column label="Pid" prop="pid"></el-table-column> -->
       <!-- <el-table-column :label="$t('topic.endPoint')" prop="end_point"></el-table-column> -->
     </el-table>
@@ -52,6 +58,7 @@
 
 <script>
   import { getConsumers } from "@/api/topic";
+  import { parsinginZone } from '@/utils'
   export default {
     data() {
       return {
@@ -65,6 +72,7 @@
         sqlPrefix: "",
         errorText: "",
         sqlTip: "",
+        parsinginZone
       };
     },
     computed: {},

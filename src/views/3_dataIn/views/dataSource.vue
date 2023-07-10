@@ -48,7 +48,9 @@
         <el-table-column
           :label="$t('datasource.createat')"
           prop="created_at"
-        ></el-table-column>
+        >
+          <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
@@ -171,7 +173,7 @@ import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import MqttParserDialog from "../components/mqttConnector.vue";
 import Agents from "../components/agents.vue";
-import { deepClone } from "@/utils";
+import { deepClone, parsinginZone } from "@/utils";
 export default {
   name: "DataSource",
   components: { AddDialog, Agents, MqttParserDialog },
@@ -199,7 +201,8 @@ export default {
       total: 10,
       dialog: false,
       topicList: [],
-      requestIng: false
+      requestIng: false,
+      parsinginZone
     };
   },
   methods: {
