@@ -72,7 +72,7 @@ namespace TDengineDriver
             {
                 if ("--help" == argv[i])
                 {
-                    Console.WriteLine("Usage: mono taosdemo.exe [OPTION...]");
+                    Console.WriteLine("Usage: taosdemo.exe [OPTION...]");
                     Console.WriteLine("");
                     HelpPrint("--help", "Show usage.");
                     Console.WriteLine("");
