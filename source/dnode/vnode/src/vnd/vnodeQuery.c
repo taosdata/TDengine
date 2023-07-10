@@ -580,6 +580,7 @@ static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
   char *dbName = strchr(pVnode->config.dbname, '.');
+  ++dbName;
   if (!dbName || 0 != strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
     return 0;
   }
