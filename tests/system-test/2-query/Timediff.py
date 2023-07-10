@@ -4,6 +4,8 @@ from util.cases import *
 from util.gettime import *
 class TDTestCase:
 
+    updatecfgDict = {'keepColumnName': 1}
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -27,14 +29,14 @@ class TDTestCase:
         self.ctbname = f'{self.dbname}.ctb'
         self.subtractor = 1  # unit:s
     def check_tbtype(self,tb_type):
-        if tb_type.lower() == 'ntb': 
+        if tb_type.lower() == 'ntb':
             tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.ntbname}')
         elif tb_type.lower() == 'ctb':
             tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.ctbname}')
         elif tb_type.lower() == 'stb':
             tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.stbname}')
     def check_tb_type(self,unit,tb_type):
-        if tb_type.lower() == 'ntb': 
+        if tb_type.lower() == 'ntb':
             tdSql.query(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
         elif tb_type.lower() == 'ctb':
             tdSql.query(f'select timediff(ts,{self.subtractor},{unit}) from {self.ctbname}')
@@ -43,7 +45,7 @@ class TDTestCase:
     def data_check(self,date_time,precision,tb_type):
         for unit in self.time_unit:
             if (unit.lower() == '1u' and precision.lower() == 'ms') or (unit.lower() == '1b' and precision.lower() == 'us') or (unit.lower() == '1b' and precision.lower() == 'ms'):
-                if tb_type.lower() == 'ntb': 
+                if tb_type.lower() == 'ntb':
                     tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':
                     tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ctbname}')
@@ -66,7 +68,7 @@ class TDTestCase:
                         tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60))
                 elif unit.lower() == '1d':
                     for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60/24))        
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60/24))
                 elif unit.lower() == '1w':
                     for i in range(len(self.ts_str)):
                         tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60/24/7))
@@ -97,7 +99,7 @@ class TDTestCase:
                         tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor*1000)))
                 elif unit.lower() == '1u':
                     for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000)))        
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000)))
                 self.check_tbtype(tb_type)
                 tdSql.checkRows(len(self.ts_str))
                 for i in range(len(self.ts_str)):
@@ -185,8 +187,16 @@ class TDTestCase:
             elif precision.lower() == 'ns':
                 for i in range(len(self.ts_str)):
                     tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000000)))
-                    
+    def function_multi_res_param(self):
+        tdSql.execute(f'drop database if exists {self.dbname}')
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'create table {self.ntbname} (ts timestamp,c0 int)')
+        tdSql.execute(f'insert into {self.ntbname} values("2023-01-01 00:00:00",1)')
+        tdSql.execute(f'insert into {self.ntbname} values("2023-01-01 00:01:00",2)')
 
+        tdSql.query(f'select timediff(last(ts), first(ts)) from {self.ntbname}')
+        tdSql.checkData(0, 0, 60000)
 
 
 
@@ -194,7 +204,8 @@ class TDTestCase:
         self.function_check_ntb()
         self.function_check_stb()
         self.function_without_param()
-        
+        self.function_multi_res_param()
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

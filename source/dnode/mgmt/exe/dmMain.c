@@ -19,6 +19,9 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
+#ifdef TD_JEMALLOC_ENABLED
+#include "jemalloc/jemalloc.h"
+#endif
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -255,6 +258,10 @@ static void taosCleanupArgs() {
 }
 
 int main(int argc, char const *argv[]) {
+#ifdef TD_JEMALLOC_ENABLED
+  bool jeBackgroundThread = true;
+  mallctl("background_thread", NULL, NULL, &jeBackgroundThread, sizeof(bool));
+#endif
   if (!taosCheckSystemIsLittleEnd()) {
     printf("failed to start since on non-little-end machines\n");
     return -1;

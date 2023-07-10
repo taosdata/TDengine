@@ -476,13 +476,13 @@ int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode) {
   return tlen;
 }
 
-void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz) {
+void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz, int8_t sver) {
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
   *pArray = taosArrayInit(sz, sizeof(void*));
   for (int32_t i = 0; i < sz; i++) {
     void* data = taosMemoryCalloc(1, dataSz);
-    buf = decode(buf, data);
+    buf = decode(buf, data, sver);
     taosArrayPush(*pArray, &data);
   }
   return (void*)buf;

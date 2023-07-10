@@ -79,8 +79,6 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump table schemas.
-  -y, --answer-yes           Input yes for prompt. It will skip data file
-                             checking!
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
                              and lzma.
   -S, --start-time=START_TIME   Start time to dump. Either epoch or

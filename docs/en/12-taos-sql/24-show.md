@@ -36,7 +36,7 @@ Shows information about connections to the system.
 SHOW CONSUMERS;
 ```
 
-Shows information about all active consumers in the system.
+Shows information about all consumers in the system.
 
 ## SHOW CREATE DATABASE
 

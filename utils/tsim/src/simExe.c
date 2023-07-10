@@ -434,7 +434,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   simLogSql(buf, true);
   int32_t code = system(buf);
   int32_t repeatTimes = 0;
-  while (code < 0) {
+  while (code != 0) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);

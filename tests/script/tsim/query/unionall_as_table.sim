@@ -42,4 +42,12 @@ endi
 if $data00 != 4 then
   return -1
 endi
+
+sql create table ctcount(ts timestamp, f int);
+sql insert into ctcount(ts) values(now)(now+1s);
+sql select count(*) from (select f from ctcount);
+print $data00
+if $data00 != 2 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

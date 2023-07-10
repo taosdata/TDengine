@@ -29,6 +29,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tmisce.h"
+#include "tversion.h"
 // clang-format on
 
 #define UDFD_MAX_SCRIPT_PLUGINS 64
@@ -61,7 +62,6 @@ const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const
 
   char  destroyFuncName[TSDB_FUNC_NAME_LEN + 9] = {0};
   char *destroySuffix = "_destroy";
-  strcpy(destroyFuncName, udfName);
   snprintf(destroyFuncName, sizeof(destroyFuncName), "%s%s", udfName, destroySuffix);
   uv_dlsym(&udfCtx->lib, destroyFuncName, (void **)(&udfCtx->destroyFunc));
   return udfName;
@@ -69,7 +69,7 @@ const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const
 
 void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
   char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-  strcpy(processFuncName, udfName);
+  strncpy(processFuncName, udfName, sizeof(processFuncName));
   uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
 
   char  startFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
@@ -94,6 +94,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
+    taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
   const char *udfName = udf->name;
@@ -102,7 +103,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
   if (udf->funcType == UDF_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-    strcpy(processFuncName, udfName);
+    strncpy(processFuncName, udfName, sizeof(processFuncName));
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc));
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);
@@ -965,40 +966,6 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   return code;
 }
 
-int32_t udfdConnectToMnode() {
-  SConnectReq connReq = {0};
-  connReq.connType = CONN_TYPE__UDFD;
-  tstrncpy(connReq.app, "udfd", sizeof(connReq.app));
-  tstrncpy(connReq.user, TSDB_DEFAULT_USER, sizeof(connReq.user));
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
-  tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
-  connReq.pid = taosGetPId();
-  connReq.startTime = taosGetTimestampMs();
-  strcpy(connReq.sVer, version);
-
-  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
-  void   *pReq = rpcMallocCont(contLen);
-  tSerializeSConnectReq(pReq, contLen, &connReq);
-
-  SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
-  msgInfo->rpcType = UDFD_RPC_MNODE_CONNECT;
-  uv_sem_init(&msgInfo->resultSem, 0);
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.msgType = TDMT_MND_CONNECT;
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = contLen;
-  rpcMsg.info.ahandle = msgInfo;
-  rpcSendRequest(global.clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
-
-  uv_sem_wait(&msgInfo->resultSem);
-  int32_t code = msgInfo->code;
-  uv_sem_destroy(&msgInfo->resultSem);
-  taosMemoryFree(msgInfo);
-  return code;
-}
-
 static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_SYN_NOT_LEADER ||
       code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_RESTORING ||
@@ -1072,7 +1039,7 @@ int32_t udfdOpenClientRpc() {
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
@@ -1378,23 +1345,6 @@ static int32_t udfdRun() {
   return 0;
 }
 
-void udfdConnectMnodeThreadFunc(void *args) {
-  int32_t retryMnodeTimes = 0;
-  int32_t code = 0;
-  while (retryMnodeTimes++ <= TSDB_MAX_REPLICA) {
-    uv_sleep(100 * (1 << retryMnodeTimes));
-    code = udfdConnectToMnode();
-    if (code == 0) {
-      break;
-    }
-    fnError("udfd can not connect to mnode, code: %s. retry", tstrerror(code));
-  }
-
-  if (code != 0) {
-    fnError("udfd can not connect to mnode");
-  }
-}
-
 int32_t udfdInitResidentFuncs() {
   if (strlen(tsUdfdResFuncs) == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1496,9 +1446,6 @@ int main(int argc, char *argv[]) {
   }
 
   udfdInitResidentFuncs();
-
-  uv_thread_t mnodeConnectThread;
-  uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
 
   udfdRun();
 

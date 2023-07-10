@@ -39,6 +39,7 @@ enum {
 struct SLRUEntry {
   void               *value;
   _taos_lru_deleter_t deleter;
+  void               *ud;
   SLRUEntry          *nextHash;
   SLRUEntry          *next;
   SLRUEntry          *prev;
@@ -94,7 +95,7 @@ static void taosLRUEntryFree(SLRUEntry *entry) {
   ASSERT(entry->refs == 0);
 
   if (entry->deleter) {
-    (*entry->deleter)(entry->keyData, entry->keyLength, entry->value);
+    (*entry->deleter)(entry->keyData, entry->keyLength, entry->value, entry->ud);
   }
 
   taosMemoryFree(entry);
@@ -144,6 +145,25 @@ static void taosLRUEntryTableCleanup(SLRUEntryTable *table) {
   taosLRUEntryTableApply(table, taosLRUEntryTableFree, 0, 1 << table->lengthBits);
 
   taosMemoryFree(table->list);
+}
+
+static int taosLRUEntryTableApplyF(SLRUEntryTable *table, _taos_lru_functor_t functor, void *ud) {
+  int      ret = 0;
+  uint32_t end = 1 << table->lengthBits;
+  for (uint32_t i = 0; i < end; ++i) {
+    SLRUEntry *h = table->list[i];
+    while (h) {
+      SLRUEntry *n = h->nextHash;
+      ASSERT(TAOS_LRU_ENTRY_IN_CACHE(h));
+      ret = functor(h->keyData, h->keyLength, h->value, ud);
+      if (ret) {
+        return ret;
+      }
+      h = n;
+    }
+  }
+
+  return ret;
 }
 
 static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable *table, const void *key, size_t keyLen, uint32_t hash) {
@@ -424,7 +444,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
 
 static LRUStatus taosLRUCacheShardInsert(SLRUCacheShard *shard, const void *key, size_t keyLen, uint32_t hash,
                                          void *value, size_t charge, _taos_lru_deleter_t deleter, LRUHandle **handle,
-                                         LRUPriority priority) {
+                                         LRUPriority priority, void *ud) {
   SLRUEntry *e = taosMemoryCalloc(1, sizeof(SLRUEntry) - 1 + keyLen);
   if (!e) {
     return TAOS_LRU_STATUS_FAIL;
@@ -433,6 +453,7 @@ static LRUStatus taosLRUCacheShardInsert(SLRUCacheShard *shard, const void *key,
   e->value = value;
   e->flags = 0;
   e->deleter = deleter;
+  e->ud = ud;
   e->keyLength = keyLen;
   e->hash = hash;
   e->refs = 0;
@@ -488,6 +509,18 @@ static void taosLRUCacheShardErase(SLRUCacheShard *shard, const void *key, size_
   if (lastReference) {
     taosLRUEntryFree(e);
   }
+}
+
+static int taosLRUCacheShardApply(SLRUCacheShard *shard, _taos_lru_functor_t functor, void *ud) {
+  int ret;
+
+  taosThreadMutexLock(&shard->mutex);
+
+  ret = taosLRUEntryTableApplyF(&shard->table, functor, ud);
+
+  taosThreadMutexUnlock(&shard->mutex);
+
+  return ret;
 }
 
 static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
@@ -700,12 +733,12 @@ void taosLRUCacheCleanup(SLRUCache *cache) {
 }
 
 LRUStatus taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
-                             _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority) {
+                             _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority, void *ud) {
   uint32_t hash = TAOS_LRU_CACHE_SHARD_HASH32(key, keyLen);
   uint32_t shardIndex = hash & cache->shardedCache.shardMask;
 
   return taosLRUCacheShardInsert(&cache->shards[shardIndex], key, keyLen, hash, value, charge, deleter, handle,
-                                 priority);
+                                 priority, ud);
 }
 
 LRUHandle *taosLRUCacheLookup(SLRUCache *cache, const void *key, size_t keyLen) {
@@ -720,6 +753,15 @@ void taosLRUCacheErase(SLRUCache *cache, const void *key, size_t keyLen) {
   uint32_t shardIndex = hash & cache->shardedCache.shardMask;
 
   return taosLRUCacheShardErase(&cache->shards[shardIndex], key, keyLen, hash);
+}
+
+void taosLRUCacheApply(SLRUCache *cache, _taos_lru_functor_t functor, void *ud) {
+  int numShards = cache->numShards;
+  for (int i = 0; i < numShards; ++i) {
+    if (taosLRUCacheShardApply(&cache->shards[i], functor, ud)) {
+      break;
+    }
+  }
 }
 
 void taosLRUCacheEraseUnrefEntries(SLRUCache *cache) {

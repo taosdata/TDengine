@@ -81,7 +81,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 3   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
 | 4   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
 | 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                           |
-| 7   |        strict        | BINARY(3)        | 强一致性。需要注意，`strict` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
+| 7   |        strict        | BINARY(4)        | 废弃参数 |
 | 8   |       duration       | INT              | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
 | 9   |         keep         | INT              | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
 | 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
@@ -284,6 +284,8 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 2   | consumer_group | BINARY(193)  | 订阅者的消费者组         |
 | 3   |   vgroup_id    | INT          | 消费者被分配的 vgroup id |
 | 4   |  consumer_id   | BIGINT       | 消费者的唯一 id          |
+| 5   |  offset        | BINARY(64)   | 消费者的消费进度          |
+| 6   |  rows          | BIGINT       | 消费者的消费的数据条数     |
 
 ## INS_STREAMS
 

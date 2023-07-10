@@ -250,29 +250,17 @@ function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  ${csudo}rm -f ${lib_link_dir}/librocksdb.* || :
-  ${csudo}rm -f ${lib64_link_dir}/librocksdb.* || :
   #${csudo}rm -rf ${v15_java_app_dir}              || :
   ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
   ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
-  ${csudo}ln -sf ${install_main_dir}/driver/librocksdb.* ${lib_link_dir}/librocksdb.so.8
-  ${csudo}ln -sf ${lib_link_dir}/librocksdb.so.8 ${lib_link_dir}/librocksdb.so
-
-  ${csudo}ln -sf ${install_main_dir}/driver/librocksdb.* ${lib_link_dir}/librocksdb.so.8
-  ${csudo}ln -sf ${lib_link_dir}/librocksdb.so.8 ${lib_link_dir}/librocksdb.so
-
-
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
 
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
-
-    ${csudo}ln -sf ${install_main_dir}/driver/librocksdb.* ${lib64_link_dir}/librocksdb.so.8 || :
-    ${csudo}ln -sf ${lib64_link_dir}/librocksdb.so.8 ${lib64_link_dir}/librocksdb.so || :
 
     [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
@@ -327,13 +315,13 @@ function install_jemalloc() {
       ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
       ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
       ${csudo}/usr/bin/install -c -d /usr/local/lib
-      if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-        ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
-      fi
-      if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-        ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
-      fi
-      if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+      # if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+      #   ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+      # fi
+      # if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+      #   ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+      # fi
+      if [ -f ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc ]; then
         ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
         ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
       fi

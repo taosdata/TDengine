@@ -150,9 +150,12 @@ static int32_t initTagColskeyBuf(int32_t* keyLen, char** keyBuf, const SArray* p
   int32_t nullFlagSize = sizeof(int8_t) * numOfGroupCols;
   (*keyLen) += nullFlagSize;
 
-  (*keyBuf) = taosMemoryCalloc(1, (*keyLen));
-  if ((*keyBuf) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (*keyLen >= 0) {
+
+    (*keyBuf) = taosMemoryCalloc(1, (*keyLen));
+    if ((*keyBuf) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -253,9 +256,9 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   }
 
   pInfo->inputOrder = TSDB_ORDER_ASC;
-  if (pJoinNode->inputTsOrder == ORDER_ASC) {
+  if (pJoinNode->node.inputTsOrder == ORDER_ASC) {
     pInfo->inputOrder = TSDB_ORDER_ASC;
-  } else if (pJoinNode->inputTsOrder == ORDER_DESC) {
+  } else if (pJoinNode->node.inputTsOrder == ORDER_DESC) {
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
@@ -318,6 +321,11 @@ void destroyMergeJoinOperator(void* param) {
     taosArrayDestroy(pJoinOperator->leftEqOnCondCols);
   }
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
+
+  taosArrayDestroy(pJoinOperator->rowCtx.leftCreatedBlocks);
+  taosArrayDestroy(pJoinOperator->rowCtx.rightCreatedBlocks);
+  taosArrayDestroy(pJoinOperator->rowCtx.leftRowLocations);
+  taosArrayDestroy(pJoinOperator->rowCtx.rightRowLocations);
 
   pJoinOperator->pRes = blockDataDestroy(pJoinOperator->pRes);
   taosMemoryFreeClear(param);
@@ -679,6 +687,7 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
     // the pDataBlock are always the same one, no need to call this again
     pRes->info.rows = nrows;
     pRes->info.dataLoad = 1;
+    pRes->info.scanFlag = MAIN_SCAN;
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }

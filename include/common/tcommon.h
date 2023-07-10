@@ -198,6 +198,7 @@ typedef struct SDataBlockInfo {
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
+  uint8_t     scanFlag;
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -231,6 +232,7 @@ typedef struct SColumnInfoData {
   };
   SColumnInfo info;     // column info
   bool        hasNull;  // if current column data has null value.
+  bool        reassigned; // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {

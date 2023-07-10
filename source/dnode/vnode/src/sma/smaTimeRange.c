@@ -29,7 +29,7 @@ int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if ((code = tdProcessTSmaInsertImpl(pSma, indexUid, msg)) < 0) {
-    smaWarn("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
+    smaError("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
 
   return code;
@@ -346,6 +346,43 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *pDelReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (taosArrayGetSize(pDelReq->deleteReqs) > 0) {
+    int32_t len = 0;
+    tEncodeSize(tEncodeSBatchDeleteReq, pDelReq, len, code);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    void *pBuf = rpcMallocCont(len + sizeof(SMsgHead));
+    if (!pBuf) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    SEncoder encoder;
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len);
+    tEncodeSBatchDeleteReq(&encoder, pDelReq);
+    tEncoderClear(&encoder);
+
+    ((SMsgHead *)pBuf)->vgId = TD_VID(pSma->pVnode);
+
+    SRpcMsg delMsg = {.msgType = TDMT_VND_BATCH_DEL, .pCont = pBuf, .contLen = len + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &delMsg);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  taosArrayDestroy(pDelReq->deleteReqs);
+  if (code) {
+    smaError("vgId:%d, failed at line %d to process delete req for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), lino,
+             indexUid, tstrerror(code));
+  }
+
+  return code;
+}
+
 /**
  * @brief Insert/Update Time-range-wise SMA data.
  *
@@ -355,7 +392,6 @@ _end:
  */
 static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   const SArray *pDataBlocks = (const SArray *)msg;
-  // TODO: destroy SSDataBlocks(msg)
   if (!pDataBlocks) {
     terrno = TSDB_CODE_TSMA_INVALID_PTR;
     smaWarn("vgId:%d, insert tsma data failed since pDataBlocks is NULL", SMA_VID(pSma));
@@ -419,8 +455,10 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
     goto _err;
   }
 
-  // TODO deleteReq
-  taosArrayDestroy(deleteReq.deleteReqs);
+  if ((terrno = tsmaProcessDelReq(pSma, indexUid, &deleteReq)) != 0) {
+    goto _err;
+  }
+
 #if 0
   if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
     terrno = TSDB_CODE_APP_ERROR;

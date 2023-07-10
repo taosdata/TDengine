@@ -29,6 +29,7 @@
 #include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
+#include "tversion.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -111,7 +112,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (tsSlowLogScope & reqType) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
-        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration, pRequest->sqlstr);
+                       taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
+                       pRequest->sqlstr);
     }
   }
 
@@ -174,6 +176,8 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   connLimitNum = TMIN(connLimitNum, 1000);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
@@ -358,6 +362,47 @@ int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, ri
 
 int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
 
+void destroySubRequests(SRequestObj *pRequest) {
+  int32_t      reqIdx = -1;
+  SRequestObj *pReqList[16] = {NULL};
+  uint64_t     tmpRefId = 0;
+
+  if (pRequest->relation.userRefId && pRequest->relation.userRefId != pRequest->self) {
+    return;
+  }
+
+  SRequestObj *pTmp = pRequest;
+  while (pTmp->relation.prevRefId) {
+    tmpRefId = pTmp->relation.prevRefId;
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      pReqList[++reqIdx] = pTmp;
+      releaseRequest(tmpRefId);
+    } else {
+      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
+               pTmp->requestId);
+      break;
+    }
+  }
+
+  for (int32_t i = reqIdx; i >= 0; i--) {
+    removeRequest(pReqList[i]->self);
+  }
+
+  tmpRefId = pRequest->relation.nextRefId;
+  while (tmpRefId) {
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      tmpRefId = pTmp->relation.nextRefId;
+      removeRequest(pTmp->self);
+      releaseRequest(pTmp->self);
+    } else {
+      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      break;
+    }
+  }
+}
+
 void doDestroyRequest(void *p) {
   if (NULL == p) {
     return;
@@ -368,9 +413,13 @@ void doDestroyRequest(void *p) {
   uint64_t reqId = pRequest->requestId;
   tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
+  destroySubRequests(pRequest);
+
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
   schedulerFreeJob(&pRequest->body.queryJob, 0);
+
+  destorySqlCallbackWrapper(pRequest->pWrapper);
 
   taosMemoryFreeClear(pRequest->msgBuf);
   taosMemoryFreeClear(pRequest->pDb);
@@ -410,6 +459,62 @@ void destroyRequest(SRequestObj *pRequest) {
 
   taos_stop_query(pRequest);
   removeRequest(pRequest->self);
+}
+
+void taosStopQueryImpl(SRequestObj *pRequest) {
+  pRequest->killed = true;
+
+  // It is not a query, no need to stop.
+  if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
+    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
+    return;
+  }
+
+  schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
+  tscDebug("request %" PRIx64 " killed", pRequest->requestId);
+}
+
+void stopAllQueries(SRequestObj *pRequest) {
+  int32_t      reqIdx = -1;
+  SRequestObj *pReqList[16] = {NULL};
+  uint64_t     tmpRefId = 0;
+
+  if (pRequest->relation.userRefId && pRequest->relation.userRefId != pRequest->self) {
+    return;
+  }
+
+  SRequestObj *pTmp = pRequest;
+  while (pTmp->relation.prevRefId) {
+    tmpRefId = pTmp->relation.prevRefId;
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      pReqList[++reqIdx] = pTmp;
+      releaseRequest(tmpRefId);
+    } else {
+      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
+               pTmp->requestId);
+      break;
+    }
+  }
+
+  for (int32_t i = reqIdx; i >= 0; i--) {
+    taosStopQueryImpl(pReqList[i]);
+  }
+
+  taosStopQueryImpl(pRequest);
+
+  tmpRefId = pRequest->relation.nextRefId;
+  while (tmpRefId) {
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      tmpRefId = pTmp->relation.nextRefId;
+      taosStopQueryImpl(pTmp);
+      releaseRequest(pTmp->self);
+    } else {
+      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      break;
+    }
+  }
 }
 
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }

@@ -1694,7 +1694,8 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
     }
 
-    if (1 == res->numOfRows) {
+    SSDataBlock *pb = taosArrayGetP(pBlockList, 0);
+    if (1 == res->numOfRows && pb->info.rows > 0) {
       SCL_ERR_JRET(sclExtendResRows(pDst, res, pBlockList));
     } else {
       colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true);
