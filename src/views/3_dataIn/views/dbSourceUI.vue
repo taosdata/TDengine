@@ -1212,6 +1212,16 @@ export default {
     changeBucket(value, name, choices) {
       if(name === 'bucket') {
         this.measurementList = this.bucketList.filter(item => item.id == value)
+        // 清空 Measurements
+        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+          group.params.map((p) => {
+            if (p.name === 'measurements') {
+              p.value = []
+            }
+            return p
+          });
+          return group
+        });
       }
     },
     getSchema() {
@@ -1387,8 +1397,8 @@ export default {
           }
             getUaAndDaData(piParams)
             .then((res) => {
-              this.bucketList = Object.keys(JSON.parse(res[0].id)).map(item => {
-                return {id: item, children: JSON.parse(res[0].id)[item]}
+              this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
+                return {id: item, children: JSON.parse(res[0].id)[item][0]}
               }) 
               this.btnLoading = false
             })
