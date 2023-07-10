@@ -97,7 +97,7 @@ class TDTestCase:
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%s -i ./taosdumptest/tmp -y" % binPath)
+        os.system("%s -i ./taosdumptest/tmp " % binPath)
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -125,13 +125,13 @@ class TDTestCase:
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
         os.system("rm -rf ./taosdumptest/tmp/taosdump.*")
-        os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
+        os.system("%s -D test -o ./taosdumptest/tmp " % binPath)
 
         tdSql.execute("drop database test")
         tdSql.query("show databases")
         tdSql.checkRows(1)
 
-        os.system("%s -i ./taosdumptest/tmp -y" % binPath)
+        os.system("%s -i ./taosdumptest/tmp " % binPath)
 
         tdSql.execute("use test")
         tdSql.error("show vnodes '' ")

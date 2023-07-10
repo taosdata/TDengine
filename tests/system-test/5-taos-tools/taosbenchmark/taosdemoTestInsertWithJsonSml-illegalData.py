@@ -94,7 +94,8 @@ class TDTestCase:
         tdSql.execute("drop database if exists db1") 
         tdSql.execute("drop database if exists db") 
         os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/sml/insertNumOfrecordPerReq0-sml.json -y " % binPath)   
-        tdSql.error("select count(*) from db.stb0") 
+        tdSql.query("select count(*) from db.stb0") 
+        tdSql.checkData(0, 0, 1)
         # # has a core dumped
         # tdSql.execute("drop database if exists db") 
         # os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/sml/insertNumOfrecordPerReqless0-sml.json -y " % binPath)   

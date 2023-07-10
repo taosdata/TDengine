@@ -116,9 +116,9 @@ class TDTestCase:
         tdSql.query("select count (tbname) from stb1")
         tdSql.checkData(0, 0, 6)
         tdSql.query("select count (tbname) from stb2")
-        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(0, 0, 7)
         tdSql.query("select count (tbname) from stb3")
-        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 0, 8)
         os.system(
             "%staosBenchmark -f 5-taos-tools/taosbenchmark/sml/insert-renewdb-sml.json -y"
             % binPath
@@ -129,9 +129,9 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 120)
         tdSql.query("select count(*) from stb2")
-        tdSql.checkData(0, 0, 80)
+        tdSql.checkData(0, 0, 140)
         tdSql.query("select count(*) from stb3")
-        tdSql.checkData(0, 0, 40)
+        tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from stb4")
         tdSql.checkData(0, 0, 160)
 
