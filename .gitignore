@@ -19,3 +19,4 @@ go.work*
 /.idea/centos7.target
 .idea
 logs/*
+__pycache__

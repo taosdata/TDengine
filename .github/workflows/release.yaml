@@ -12,6 +12,11 @@ jobs:
     container: docker.io/centos:7
 
     steps:
+      - name: Obtain Latest Git ONLY within container for checkout
+        run: |
+          yum install -y https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
+          yum install -y git
+
       - uses: actions/checkout@v3
 
       - name: Set up Rust
@@ -25,26 +30,13 @@ jobs:
         run: |
           yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
 
-      - uses: actions/cache@v3
-        name: Cargo Caches
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
-
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build taosX
         run: |
+          git config --global --add safe.directory $PWD
           cargo build --release --no-default-features --features optin --features native-tls
+          target/release/taosx -V
           strip target/release/taosx
           mv target/release/taosx target/release/taosx-amd64
 
