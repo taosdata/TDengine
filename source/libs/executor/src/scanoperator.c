@@ -2185,6 +2185,8 @@ FETCH_NEXT_BLOCK:
       pAPI->stateStore.streamStateCommit(pInfo->pState);
       pAPI->stateStore.streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
     }
+    printDataBlock(pBlock, "stream scan ck");
+    return pBlock;
   }
 
   return NULL;
