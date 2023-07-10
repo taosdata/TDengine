@@ -158,8 +158,6 @@ static int32_t streamTaskDispatchCheckpointMsg(SStreamTask* pTask, uint64_t chec
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      qDebug("s-task:%s (vgId:%d) checkpoint to task:0x%x (vgId:%d) (shuffle), idx:%d", pTask->id.idStr,
-             pTask->info.nodeId, req.downstreamTaskId, req.downstreamNodeId, i);
       streamDispatchCheckpointMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else { // no need to dispatch msg to downstream task

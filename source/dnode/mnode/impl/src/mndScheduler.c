@@ -637,6 +637,12 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
       return code;
     }
 
+    SArray* pSinkTaskList = taosArrayGetP(pStream->tasks, 0);
+    for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
+      SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
+      setEpToDownstreamTask(pAggTask, pSinkTask);
+    }
+
     // source level
     return addSourceTasksForMultiLevelStream(pMnode, pPlan, pStream, pAggTask, pHAggTask, nextWindowSkey);
   } else if (numOfPlanLevel == 1) {
