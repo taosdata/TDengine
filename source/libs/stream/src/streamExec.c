@@ -407,7 +407,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         break;
       }
 
-      if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE && zstatus != TASK_STATUS__STOP) {
+      if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE && status != TASK_STATUS__STOP) {
         qError("stream task wait for the end of fill history, s-task:%s, status:%d", id, status);
         taosMsleep(100);
       } else {
