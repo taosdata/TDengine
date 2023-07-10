@@ -678,6 +678,8 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, int32_t type, tm
       taosMemoryFree(pParamSet);
       pCommitFp(tmq, code, userParam);
     }
+    // update the offset value.
+    pVg->offsetInfo.committedOffset = pVg->offsetInfo.currentOffset;
   } else {  // do not perform commit, callback user function directly.
     taosMemoryFree(pParamSet);
     pCommitFp(tmq, code, userParam);
@@ -1424,7 +1426,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
 
-    char buf[TSDB_OFFSET_LEN];
+    char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pRspWrapper->dataRsp.rspOffset);
     tscDebug("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, req ver:%" PRId64 ", rsp:%s type %d, reqId:0x%" PRIx64,
              tmq->consumerId, vgId, pRspWrapper->dataRsp.reqOffset.version, buf, rspType, requestId);
@@ -1570,7 +1572,7 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
         SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, j);
         makeTopicVgroupKey(vgKey, pTopicCur->topicName, pVgCur->vgId);
 
-        char buf[TSDB_OFFSET_LEN];
+        char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pVgCur->offsetInfo.currentOffset);
         tscInfo("consumer:0x%" PRIx64 ", epoch:%d vgId:%d vgKey:%s, offset:%s", tmq->consumerId, epoch, pVgCur->vgId,
                  vgKey, buf);
@@ -1798,7 +1800,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   sendInfo->msgType = TDMT_VND_TMQ_CONSUME;
 
   int64_t transporterId = 0;
-  char    offsetFormatBuf[TSDB_OFFSET_LEN];
+  char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pVg->offsetInfo.currentOffset);
 
   tscDebug("consumer:0x%" PRIx64 " send poll to %s vgId:%d, epoch %d, req:%s, reqId:0x%" PRIx64, pTmq->consumerId,
@@ -1944,7 +1946,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
         updateVgInfo(pVg, &pDataRsp->rspOffset, pDataRsp->head.walsver, pDataRsp->head.walever, tmq->consumerId);
 
-        char buf[TSDB_OFFSET_LEN];
+        char buf[TSDB_OFFSET_LEN] = {0};
         tFormatOffset(buf, TSDB_OFFSET_LEN, &pDataRsp->rspOffset);
         if (pDataRsp->blockNum == 0) {
           tscDebug("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
@@ -2041,7 +2043,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
           tmq->totalRows += numOfRows;
 
-          char buf[TSDB_OFFSET_LEN];
+          char buf[TSDB_OFFSET_LEN] = {0};
           tFormatOffset(buf, TSDB_OFFSET_LEN, &pVg->offsetInfo.currentOffset);
           tscDebug("consumer:0x%" PRIx64 " process taosx poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
                        ", vg total:%" PRId64 ", total:%" PRId64 ", reqId:0x%" PRIx64,
@@ -2675,7 +2677,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       sendInfo->msgType = TDMT_VND_TMQ_VG_WALINFO;
 
       int64_t transporterId = 0;
-      char    offsetFormatBuf[TSDB_OFFSET_LEN];
+      char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.currentOffset);
 
       tscInfo("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s, reqId:0x%" PRIx64,
@@ -2712,7 +2714,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 //        char offsetBuf[TSDB_OFFSET_LEN] = {0};
 //        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
 
-        tscInfo("vgId:%d offset is old to:%"PRId64, p->vgId, p->currentOffset);
+        tscInfo("vgId:%d offset is update to:%"PRId64, p->vgId, p->currentOffset);
 
         pOffsetInfo->walVerBegin = p->begin;
         pOffsetInfo->walVerEnd = p->end;
@@ -2792,11 +2794,12 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   }
 
   // update the offset, and then commit to vnode
-  if (pOffsetInfo->currentOffset.type == TMQ_OFFSET__LOG) {
-    pOffsetInfo->currentOffset.version = offset;
-    pOffsetInfo->committedOffset.version = INT64_MIN;
-    pVg->seekUpdated = true;
-  }
+//  if (pOffsetInfo->currentOffset.type == TMQ_OFFSET__LOG) {
+  pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+  pOffsetInfo->currentOffset.version = offset >= 1 ? offset - 1 : 0;
+  pOffsetInfo->committedOffset.version = INT64_MIN;
+  pVg->seekUpdated = true;
+//  }
 
   SMqRspObj rspObj = {.resType = RES_TYPE__TMQ, .vgId = pVg->vgId};
   tstrncpy(rspObj.topic, tname, tListLen(rspObj.topic));
