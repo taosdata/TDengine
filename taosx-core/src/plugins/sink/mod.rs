@@ -1112,11 +1112,9 @@ pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &V
         }
         let mut should_alter = false;
         let mut should_add = true;
-        // let mut column_exist = None;
         desc.iter().for_each(|c| {
             if c.field() == name { 
                 should_add = false;
-                log::debug!("original column: {}, new def: {}", &ty.ty().to_string(), &c.ty().to_string());
                 let original_ty = c.ty();
                 let new_def_ty = ty.ty();
                 if original_ty.is_var_type() {
@@ -1140,7 +1138,7 @@ pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &V
         } if should_add && !is_tag {
             alter_sql.push(format!("ALTER TABLE `{tablename}` ADD COLUMN `{name}` {} ", ty.sql_repr()));
         } else if should_add {
-            alter_sql.push(format!("ALTER TABLE `{tablename}` ADD COLUMN `{name}` {} ", ty.sql_repr()));
+            alter_sql.push(format!("ALTER TABLE `{tablename}` ADD TAG `{name}` {} ", ty.sql_repr()));
         }
     }
     if alter_sql.is_empty() {
