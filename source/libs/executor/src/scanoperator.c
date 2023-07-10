@@ -1771,6 +1771,7 @@ void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
   void* pBuf = NULL;
   int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
+  taosMemoryFree(pBuf);
 }
 
 // other properties are recovered from the execution plan

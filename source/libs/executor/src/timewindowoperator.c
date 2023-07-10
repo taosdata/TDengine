@@ -2673,6 +2673,7 @@ void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
   len = doStreamIntervalEncodeOpState(&pBuf, pOperator);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME,
                                         strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), buf, len);
+  taosMemoryFree(buf);
 }
 
 static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
@@ -4675,6 +4676,12 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
+    } else if (pBlock->info.type == STREAM_CHECKPOINT) {
+      doStreamSessionSaveCheckpoint(pOperator);
+      pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
+      setStreamDataVersion(pOperator->pTaskInfo, pInfo->dataVersion, pInfo->streamAggSup.pState->checkPointId);
+      copyDataBlock(pInfo->pCheckpointRes, pBlock);
+      continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
     }
