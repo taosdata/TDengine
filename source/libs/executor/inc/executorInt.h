@@ -327,24 +327,24 @@ typedef struct SStreamScanInfo {
   SExprSupp     tagCalSup;
   int32_t       primaryTsIndex;  // primary time stamp slot id
   SReadHandle   readHandle;
-  SInterval     interval;  // if the upstream is an interval operator, the interval info is also kept here.
+  SInterval     interval;        // if the upstream is an interval operator, the interval info is also kept here.
   SColMatchInfo matchInfo;
 
-  SArray*      pBlockLists;  // multiple SSDatablock.
-  SSDataBlock* pRes;         // result SSDataBlock
-  SSDataBlock* pUpdateRes;   // update SSDataBlock
+  SArray*      pBlockLists;      // multiple SSDatablock.
+  SSDataBlock* pRes;             // result SSDataBlock
+  SSDataBlock* pUpdateRes;       // update SSDataBlock
   int32_t      updateResIndex;
   int32_t      blockType;        // current block type
   int32_t      validBlockIndex;  // Is current data has returned?
   uint64_t     numOfExec;        // execution times
   STqReader*   tqReader;
 
-  uint64_t     groupId;
+  uint64_t            groupId;
   struct SUpdateInfo* pUpdateInfo;
 
   EStreamScanMode       scanMode;
-  struct SOperatorInfo*        pStreamScanOp;
-  struct SOperatorInfo*        pTableScanOp;
+  struct SOperatorInfo* pStreamScanOp;
+  struct SOperatorInfo* pTableScanOp;
   SArray*               childIds;
   SWindowSupporter      windowSup;
   SPartitionBySupporter partitionSup;
@@ -366,12 +366,13 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock*  pCreateTbRes;
-  int8_t        igCheckUpdate;
-  int8_t        igExpired;
-  void*         pState;         //void
+  SSDataBlock*   pCreateTbRes;
+  int8_t         igCheckUpdate;
+  int8_t         igExpired;
+  void*          pState;  // void
   SStoreTqReader readerFn;
-  SStateStore stateStore;
+  SStateStore    stateStore;
+  SSDataBlock*   pCheckpointRes;
 } SStreamScanInfo;
 
 typedef struct {

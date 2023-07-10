@@ -2828,7 +2828,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       qDebug("===stream===return data:%s. recv datablock num:%" PRIu64,
              IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", pInfo->numOfDatapack);
       pInfo->numOfDatapack = 0;
-      break;
+      continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
     }
@@ -3953,7 +3953,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
       setStreamDataVersion(pOperator->pTaskInfo, pInfo->dataVersion, pAggSup->pState->checkPointId);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
-      break;
+      continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
     }
@@ -4255,7 +4255,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
       setStreamDataVersion(pOperator->pTaskInfo, pInfo->dataVersion, pAggSup->pState->checkPointId);
       pOperator->status = OP_RES_TO_RETURN;
-      break;
+      continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
     }
@@ -5543,7 +5543,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       qDebug("===stream===return data:single interval. recv datablock num:%" PRIu64, pInfo->numOfDatapack);
       pInfo->numOfDatapack = 0;
-      break;
+      continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
     }
