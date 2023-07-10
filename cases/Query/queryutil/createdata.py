@@ -1769,11 +1769,19 @@ class TDCreateData():
         elif oper == "TO_ISO8601":
             #处理data格式，只保留+之前的，eg：2022-03-30T15:11:36.432+0800 保留2022-03-30T15:11:36.432
             self.logger.info(f"{data},{value}")
-            data = str(data).split("+")[0]
-            value = str(value).split("+")[0]
-            chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()            
-            self.logger.info(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f"))
-            self.logger.info(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f"))
+            # old
+            # data = str(data).split("+")[0]
+            # value = str(value).split("+")[0]
+            #chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()    
+            # self.logger.info(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f"))
+            # self.logger.info(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f"))        
+            # new
+            #避免返回成2022-03-30T15:11:36，因此只取前面19位
+            data = str(data)[0:19]
+            value = str(value)[0:19]
+            chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")).total_seconds()            
+            self.logger.info(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S"))
+            self.logger.info(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S"))
             self.logger.info(f"{chazhi},float({chazhi})")
             
             if str(data).split(".")[0] == str(value).split(".")[0]:  
