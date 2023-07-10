@@ -598,7 +598,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 }
 #endif
 
-static bool vnodeTimeSeriesStbFilter(void *arg1, void *arg2) {
+static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
 
   if (metaTbInFilterCache(pVnode, *(tb_uid_t *)(arg2), 0)) {
@@ -621,7 +621,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   #endif
 
   if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
-      (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesStbFilter, pVnode) < 0)) {
+      (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
     return TSDB_CODE_FAILED;
