@@ -475,7 +475,7 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
 }
 
 // this function is usually invoked by sink/agg task
-int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask, int32_t vgId) {
+int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->pRpcMsgList);
   ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) == num);
 

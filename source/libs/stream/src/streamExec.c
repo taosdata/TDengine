@@ -18,7 +18,7 @@
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
-static int32_t updateCheckPointInfo(SStreamTask* pTask);
+static int32_t updateCheckPointInfo(SStreamTask* pTask, int64_t checkpointId);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
@@ -32,12 +32,6 @@ bool streamTaskShouldPause(const SStreamStatus* pStatus) {
 
 static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray* pRes, int32_t size, int64_t* totalSize,
                             int32_t* totalBlocks) {
-  int32_t code = updateCheckPointInfo(pTask);
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-    return code;
-  }
-
   int32_t numOfBlocks = taosArrayGetSize(pRes);
   if (numOfBlocks > 0) {
     SStreamDataBlock* pStreamBlocks = createStreamBlockFromResults(pItem, pTask, size, pRes);
@@ -50,7 +44,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
     qDebug("s-task:%s dump stream result data blocks, num:%d, size:%.2fMiB", pTask->id.idStr, numOfBlocks,
            size / 1048576.0);
 
-    code = streamTaskOutputResultBlock(pTask, pStreamBlocks);
+    int32_t code = streamTaskOutputResultBlock(pTask, pStreamBlocks);
     if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {  // back pressure and record position
       destroyStreamDataBlock(pStreamBlocks);
       return -1;
@@ -301,31 +295,17 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
 }
 #endif
 
-int32_t updateCheckPointInfo(SStreamTask* pTask) {
+int32_t updateCheckPointInfo(SStreamTask* pTask, int64_t checkpointId) {
   int64_t ckId = 0;
   int64_t dataVer = 0;
   qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
 
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
-  if (ckId > pCkInfo->id) {  // save it since the checkpoint is updated
-    qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64
-           ", checkPoint id:%" PRId64 " -> %" PRId64,
-           pTask->id.idStr, pCkInfo->version, dataVer, pCkInfo->id, ckId);
-
-    pTask->chkInfo = (SCheckpointInfo){.version = dataVer, .id = ckId, .currentVer = pCkInfo->currentVer};
-
-    taosWLockLatch(&pTask->pMeta->lock);
-
-    streamMetaSaveTask(pTask->pMeta, pTask);
-    if (streamMetaCommit(pTask->pMeta) < 0) {
-      taosWUnLockLatch(&pTask->pMeta->lock);
-      qError("s-task:%s failed to commit stream meta, since %s", pTask->id.idStr, terrstr());
-      return -1;
-    } else {
-      taosWUnLockLatch(&pTask->pMeta->lock);
-      qDebug("s-task:%s update checkpoint ver succeed", pTask->id.idStr);
-    }
-  }
+  qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64 ", checkpointId:%" PRId64
+         " -> %" PRId64,
+         pTask->id.idStr, pCkInfo->version, dataVer, pCkInfo->keptCheckpointId, checkpointId);
+  pCkInfo->keptCheckpointId = checkpointId;
+  pCkInfo->version = dataVer;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -544,15 +524,38 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
       if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
         streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
+        qDebug("vgId:%d do vnode wide checkpoint completed, checkpoint id:%"PRId64, pMeta->vgId);
+      }
+
+      code = updateCheckPointInfo(pTask, pTask->checkpointingId);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       // send check point response to upstream task
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-        streamTaskSendCheckpointSourceRsp(pTask);
+        code = streamTaskSendCheckpointSourceRsp(pTask);
       } else {
-        streamTaskSendCheckpointRsp(pTask, pMeta->vgId);
+        code = streamTaskSendCheckpointRsp(pTask);
       }
 
+      if (code == TSDB_CODE_SUCCESS) {
+        taosWLockLatch(&pTask->pMeta->lock);
+
+        streamMetaSaveTask(pTask->pMeta, pTask);
+        if (streamMetaCommit(pTask->pMeta) < 0) {
+          taosWUnLockLatch(&pTask->pMeta->lock);
+          qError("s-task:%s failed to commit stream meta, since %s", pTask->id.idStr, terrstr());
+          return -1;
+        } else {
+          taosWUnLockLatch(&pTask->pMeta->lock);
+          qDebug("s-task:%s commit after checkpoint generating", pTask->id.idStr);
+        }
+
+        qInfo("vgId:%d s-task:%s commit task status after checkpoint completed", pMeta->vgId, pTask->id.idStr);
+      } else {
+        // todo: let's retry send rsp to upstream/mnode
+      }
     } else {
       if (!taosQueueEmpty(pTask->inputQueue->queue) && (!streamTaskShouldStop(&pTask->status)) &&
           (!streamTaskShouldPause(&pTask->status))) {

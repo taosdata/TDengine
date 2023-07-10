@@ -258,7 +258,7 @@ typedef struct SStreamId {
 } SStreamId;
 
 typedef struct SCheckpointInfo {
-  int64_t id;
+  int64_t keptCheckpointId;
   int64_t version;     // offset in WAL
   int64_t currentVer;  // current offset in WAL, not serialize it
 } SCheckpointInfo;
@@ -311,7 +311,6 @@ struct SStreamTask {
   SStreamId        historyTaskId;
   SStreamId        streamTaskId;
   SArray*          pUpstreamEpInfoList;  // SArray<SStreamChildEpInfo*>, // children info
-  SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
   SArray*          pRpcMsgList;     // SArray<SRpcMsg*>
   // output
   union {

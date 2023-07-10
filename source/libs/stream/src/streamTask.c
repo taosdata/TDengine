@@ -85,7 +85,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI32(pEncoder, pTask->info.nodeId) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->info.epSet) < 0) return -1;
 
-  if (tEncodeI64(pEncoder, pTask->chkInfo.id) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->chkInfo.keptCheckpointId) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->chkInfo.version) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->info.fillHistory) < 0) return -1;
 
@@ -148,7 +148,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI32(pDecoder, &pTask->info.nodeId) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->info.epSet) < 0) return -1;
 
-  if (tDecodeI64(pDecoder, &pTask->chkInfo.id) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->chkInfo.keptCheckpointId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->chkInfo.version) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->info.fillHistory) < 0) return -1;
 
