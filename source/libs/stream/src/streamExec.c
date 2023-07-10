@@ -527,11 +527,12 @@ int32_t streamTryExec(SStreamTask* pTask) {
         qDebug("vgId:%d do vnode wide checkpoint completed, checkpoint id:%"PRId64, pMeta->vgId);
       }
 
-      code = updateCheckPointInfo(pTask, pTask->checkpointingId);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
+      if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+        code = updateCheckPointInfo(pTask, pTask->checkpointingId);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
-
       // send check point response to upstream task
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
         code = streamTaskSendCheckpointSourceRsp(pTask);
