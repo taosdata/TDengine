@@ -885,7 +885,7 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
     return 0;
   }
 
-  int64_t                  checkpointId = tGenIdPI64();
+  int64_t                  checkpointId = taosGetTimestampMs();
   SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
   pMsg->checkpointId = checkpointId;
 
@@ -994,6 +994,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     mndTransDrop(pTrans);
     return -1;
   }
+  mDebug("start to trigger checkpoint for stream:%s, checkpoint: %" PRId64 "", pStream->name, checkpointId);
   atomic_store_64(&pStream->currentTick, 1);
   taosWLockLatch(&pStream->lock);
   // 1. redo action: broadcast checkpoint source msg for all source vg
