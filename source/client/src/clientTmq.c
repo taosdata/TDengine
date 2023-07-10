@@ -2799,35 +2799,35 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   // update the offset, and then commit to vnode
   pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
   pOffsetInfo->currentOffset.version = offset >= 1 ? offset - 1 : 0;
-  pOffsetInfo->committedOffset.version = INT64_MIN;
+//  pOffsetInfo->committedOffset.version = INT64_MIN;
   pVg->seekUpdated = true;
-
-  SMqRspObj rspObj = {.resType = RES_TYPE__TMQ, .vgId = pVg->vgId};
-  tstrncpy(rspObj.topic, tname, tListLen(rspObj.topic));
 
   tscInfo("consumer:0x%" PRIx64 " seek to %" PRId64 " on vgId:%d", tmq->consumerId, offset, pVg->vgId);
   taosWUnLockLatch(&tmq->lock);
 
-  SSyncCommitInfo* pInfo = taosMemoryMalloc(sizeof(SSyncCommitInfo));
-  if (pInfo == NULL) {
-    tscError("consumer:0x%"PRIx64" failed to prepare seek operation", tmq->consumerId);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+//  SMqRspObj rspObj = {.resType = RES_TYPE__TMQ, .vgId = pVg->vgId};
+//  tstrncpy(rspObj.topic, tname, tListLen(rspObj.topic));
+//
+//  SSyncCommitInfo* pInfo = taosMemoryMalloc(sizeof(SSyncCommitInfo));
+//  if (pInfo == NULL) {
+//    tscError("consumer:0x%"PRIx64" failed to prepare seek operation", tmq->consumerId);
+//    return TSDB_CODE_OUT_OF_MEMORY;
+//  }
+//
+//  tsem_init(&pInfo->sem, 0, 0);
+//  pInfo->code = 0;
+//
+//  asyncCommitOffset(tmq, &rspObj, TDMT_VND_TMQ_SEEK_TO_OFFSET, commitCallBackFn, pInfo);
+//
+//  tsem_wait(&pInfo->sem);
+//  int32_t code = pInfo->code;
+//
+//  tsem_destroy(&pInfo->sem);
+//  taosMemoryFree(pInfo);
+//
+//  if (code != TSDB_CODE_SUCCESS) {
+//    tscError("consumer:0x%" PRIx64 " failed to send seek to vgId:%d, code:%s", tmq->consumerId, pVg->vgId, tstrerror(code));
+//  }
 
-  tsem_init(&pInfo->sem, 0, 0);
-  pInfo->code = 0;
-
-  asyncCommitOffset(tmq, &rspObj, TDMT_VND_TMQ_SEEK_TO_OFFSET, commitCallBackFn, pInfo);
-
-  tsem_wait(&pInfo->sem);
-  int32_t code = pInfo->code;
-
-  tsem_destroy(&pInfo->sem);
-  taosMemoryFree(pInfo);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("consumer:0x%" PRIx64 " failed to send seek to vgId:%d, code:%s", tmq->consumerId, pVg->vgId, tstrerror(code));
-  }
-
-  return code;
+  return 0;
 }
