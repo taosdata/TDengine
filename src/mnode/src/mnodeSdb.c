@@ -642,6 +642,33 @@ static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable) {
   return sdbUpdateHash(pTable, &row);
 }
 
+static const char *sdbAction[3] = {"insert", "delete", "update"};
+
+static int32_t sdbProcessDumpWal(SWalHead *hparam) {
+  SWalHead  *pHead = hparam;
+  int32_t    tableId = pHead->msgType / 10;
+  int32_t    action = pHead->msgType % 10;
+  SSdbTable *pTable = sdbGetTableFromId(tableId);
+  SSdbRow    row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+
+  if (tableId == SDB_TABLE_DB) {
+    SDbObj *pDb = (SDbObj *)row.pObj;
+    sdbInfo("sdbWal, tableId:%d, action:%s, dbName:%s, acct:%s, createdTime:%" PRIi64
+            ", vgListSize:%d, precision:%" PRIi8
+            ", nTables:%d, nVgroups:%d, daysPerFile: %d, keep0:1:2: %d:%d:%d, cacheLast:%" PRIi8 ", update:%" PRIi8
+            ", walLevel:%" PRIi8 ", commitTime:%d, fsyncPeriod:%d",
+            tableId, sdbAction[action], pDb->name, pDb->acct, pDb->createdTime, pDb->vgListSize, pDb->cfg.precision,
+            pDb->numOfTables, pDb->numOfVgroups, pDb->cfg.daysPerFile, pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
+            pDb->cfg.daysToKeep2, pDb->cfg.cacheLastRow, pDb->cfg.update, pDb->cfg.walLevel, pDb->cfg.commitTime,
+            pDb->cfg.fsyncPeriod);
+  }
+
+  (*pTable->fpDestroy)(&row);
+
+  return 0;
+}
+
 static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unused) {
   SSdbRow *pRow = wparam;
   SWalHead *pHead = hparam;
@@ -686,6 +713,8 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
       tsSdbMgmt.version = pHead->version;
     }
   }
+
+  sdbProcessDumpWal(hparam);
 
   int32_t code = walWrite(tsSdbMgmt.wal, pHead);
   if (code < 0) {

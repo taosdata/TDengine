@@ -26,6 +26,12 @@ extern "C" {
 extern int32_t mDebugFlag;
 extern int32_t sdbDebugFlag;
 
+#define RETURN_WITH_CODE(c) \
+  do {                      \
+    code = (c);             \
+    goto _exit;             \
+  } while (0)
+
 // mnode log function
 #define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", 255, __VA_ARGS__); }}
 #define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", 255, __VA_ARGS__); }}

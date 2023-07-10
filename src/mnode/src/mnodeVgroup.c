@@ -105,6 +105,7 @@ static int32_t mnodeVgroupActionInsert(SSdbRow *pRow) {
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
   if (mnodeAllocVgroupIdPool(pVgroup) < 0) {
     mError("vgId:%d, failed to init idpool for vgroups", pVgroup->vgId);
+    mnodeDecDbRef(pDb);
     return -1;
   }
 
@@ -118,6 +119,8 @@ static int32_t mnodeVgroupActionInsert(SSdbRow *pRow) {
   }
 
   mnodeAddVgroupIntoDb(pVgroup);
+  
+  mnodeDecDbRef(pDb);
 
   return TSDB_CODE_SUCCESS;
 }
