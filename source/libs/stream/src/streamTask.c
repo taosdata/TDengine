@@ -235,13 +235,14 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
-    taosArrayDestroy(pTask->checkReqIds);
-    pTask->checkReqIds = NULL;
+    pTask->checkReqIds =taosArrayDestroy(pTask->checkReqIds);
   }
 
   if (pTask->pState) {
     streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
   }
+
+  pTask->pRpcMsgList = taosArrayDestroy(pTask->pRpcMsgList);
 
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);

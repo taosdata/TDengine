@@ -2179,7 +2179,9 @@ FETCH_NEXT_BLOCK:
     int32_t  current = pInfo->validBlockIndex++;
     qDebug("process %d/%d input data blocks, %s", current, (int32_t) total, id);
 
-    SSDataBlock* pBlock = taosArrayGet(pInfo->pBlockLists, current);
+    SPackedData* pData = taosArrayGet(pInfo->pBlockLists, current);
+    SSDataBlock* pBlock = pData->pDataBlock;
+
     if (pBlock->info.type == STREAM_CHECKPOINT) {
       streamScanOperatorSaveCheckpoint(pInfo);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
