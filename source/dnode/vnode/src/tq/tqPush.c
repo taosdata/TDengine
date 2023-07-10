@@ -64,7 +64,9 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
   } else {
-    tqPushDataRsp(pHandle, vgId);
+//    tqPushDataRsp(pHandle, vgId);
+    tqPushEmptyDataRsp(pHandle, vgId);
+
     void* tmp = pHandle->msg->pCont;
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = tmp;
@@ -89,7 +91,8 @@ int32_t tqUnregisterPushHandle(STQ* pTq, void *handle) {
   tqDebug("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
 
   if(pHandle->msg != NULL) {
-    tqPushDataRsp(pHandle, vgId);
+//    tqPushDataRsp(pHandle, vgId);
+    tqPushEmptyDataRsp(pHandle, vgId);
 
     rpcFreeCont(pHandle->msg->pCont);
     taosMemoryFree(pHandle->msg);
