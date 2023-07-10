@@ -35,9 +35,14 @@ typedef struct SGcBufPageInfo {
   char*   data;
 } SGcBufPageInfo;
 
-typedef struct SGroupData {
-  SGcBlkBufInfo* blks;
-} SGroupData;
+typedef struct SGroupCacheData {
+  TdThreadMutex  mutex;
+  SSHashObj*     waitQueue;
+  bool           fetchDone;
+  int64_t        fetchSessionId;
+  SGcBlkBufInfo* pFirstBlk;
+  SGcBlkBufInfo* pLastBlk;
+} SGroupCacheData;
 
 typedef struct SGroupColInfo {
   int32_t  slot;
@@ -56,10 +61,10 @@ typedef struct SGroupColsInfo {
 } SGroupColsInfo;
 
 typedef struct SGcSessionCtx {
-  int32_t         downstreamIdx;
-  bool            cacheHit;
-  bool            needCache;
-  SGcBlkBufInfo*  pLastBlk; 
+  int32_t          downstreamIdx;
+  bool             needCache;
+  SGroupCacheData* pGroupData;
+  SGcBlkBufInfo*   pLastBlk; 
 } SGcSessionCtx;
 
 typedef struct SGcExecInfo {
@@ -71,9 +76,7 @@ typedef struct SGroupCacheOperatorInfo {
   SSHashObj*        pSessionHash;  
   SGroupColsInfo    groupColsInfo;
   SArray*           pBlkBufs;
-  SSHashObj*        pBlkHash;  
-  int64_t           pCurrentId;
-  SGcSessionCtx*    pCurrent;
+  SHashObj*         pBlkHash;  
   SGcExecInfo       execInfo;
 } SGroupCacheOperatorInfo;
 
