@@ -1607,7 +1607,7 @@ int32_t tqProcessStreamCheckPointRsp(STQ* pTq, SRpcMsg* pMsg) {
   }
   tDecoderClear(&decoder);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.downstreamTaskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.upstreamTaskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x , it may have been destroyed already", vgId, req.downstreamTaskId);
     goto FAIL;
