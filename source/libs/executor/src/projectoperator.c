@@ -38,7 +38,7 @@ typedef struct SIndefOperatorInfo {
   SSDataBlock*   pNextGroupRes;
 } SIndefOperatorInfo;
 
-static SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator);
+static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator);
 static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator);
 static SArray*      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols);
@@ -215,7 +215,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   if (newGroup) {
     resetLimitInfoForNextGroup(pLimitInfo);
   }
-  
+
   return PROJECT_RETRIEVE_CONTINUE;
 }
 
@@ -267,7 +267,12 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SLimitInfo*    pLimitInfo = &pProjectInfo->limitInfo;
 
   if (downstream == NULL) {
-    return doGenerateSourceData(pOperator);
+    code = doGenerateSourceData(pOperator);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    return (pRes->info.rows > 0) ? pRes : NULL;
   }
 
   while (1) {
@@ -616,7 +621,7 @@ SArray* setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols) {
   return pList;
 }
 
-SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
+int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
 
   SExprSupp*   pSup = &pOperator->exprSupp;
@@ -630,14 +635,45 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   for (int32_t k = 0; k < pSup->numOfExprs; ++k) {
     int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
 
-    ASSERT(pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE);
-    SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, outputSlotId);
+    if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, outputSlotId);
 
-    int32_t type = pExpr[k].base.pParam[0].param.nType;
-    if (TSDB_DATA_TYPE_NULL == type) {
-      colDataSetNNULL(pColInfoData, 0, 1);
+      int32_t type = pExpr[k].base.pParam[0].param.nType;
+      if (TSDB_DATA_TYPE_NULL == type) {
+        colDataSetNNULL(pColInfoData, 0, 1);
+      } else {
+        colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+      }
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
+      SqlFunctionCtx* pfCtx = &pSup->pCtx[k];
+
+      // UDF scalar functions will be calculated here, for example, select foo(n) from (select 1 n).
+      // UDF aggregate functions will be handled in agg operator.
+      if (fmIsScalarFunc(pfCtx->functionId)) {
+        SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
+        taosArrayPush(pBlockList, &pRes);
+
+        SColumnInfoData* pResColData = taosArrayGet(pRes->pDataBlock, outputSlotId);
+        SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+
+        SScalarParam dest = {.columnData = &idata};
+        int32_t      code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pBlockList);
+          return code;
+        }
+
+        int32_t startOffset = pRes->info.rows;
+        ASSERT(pRes->info.capacity > 0);
+        colDataAssign(pResColData, &idata, dest.numOfRows, &pRes->info);
+        colDataDestroy(&idata);
+
+        taosArrayDestroy(pBlockList);
+      } else {
+        return TSDB_CODE_OPS_NOT_SUPPORT;
+      }
     } else {
-      colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+      return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
 
@@ -653,7 +689,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
-  return (pRes->info.rows > 0) ? pRes : NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, SArray* pPseudoList) {
