@@ -378,7 +378,6 @@ static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
   if (pMsg->pDb == NULL) {
     return TSDB_CODE_MND_INVALID_DB;
   }
-
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
     if (getDb) mnodeDecDbRef(pMsg->pDb);

@@ -642,8 +642,6 @@ static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable) {
   return sdbUpdateHash(pTable, &row);
 }
 
-static const char *sdbAction[3] = {"insert", "delete", "update"};
-
 static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unused) {
   SSdbRow *pRow = wparam;
   SWalHead *pHead = hparam;

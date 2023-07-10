@@ -1213,9 +1213,7 @@ int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
 
   code = mnodeAlterDb(pMsg->pDb, pAlter, pMsg);
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 
@@ -1291,9 +1289,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   mDebug("db:%s, all vgroups is dropped", pMsg->pDb->name);
   code = mnodeDropDb(pMsg);
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 
@@ -1378,9 +1374,7 @@ static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
 
   code = mnodeSyncDb(pMsg->pDb, pMsg);
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg) {
@@ -1402,9 +1396,7 @@ static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg) {
 
   code = mnodeCompact(pMsg->pDb, pCompact);
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 

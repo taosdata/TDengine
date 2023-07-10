@@ -55,7 +55,7 @@
 static int32_t tsMetaSyncOption = 0;
 // informal
 
-int64_t tsCTableRid = -1;
+int64_t          tsCTableRid = -1;
 static void *    tsChildTableSdb;
 int64_t          tsSTableRid = -1;
 static void *    tsSuperTableSdb;
@@ -884,9 +884,7 @@ static int32_t mnodeValidateCreateTableMsg(SCreateTableMsg *pCreateTable, SMnode
     RETURN_WITH_CODE(mnodeProcessCreateChildTableMsg(pMsg));
   }
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 
@@ -1008,9 +1006,7 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
     RETURN_WITH_CODE(mnodeProcessCreateChildTableMsg(pMsg));
   }
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 
@@ -1069,9 +1065,7 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     RETURN_WITH_CODE(mnodeProcessDropChildTableMsg(pMsg));
   }
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 
@@ -1117,9 +1111,7 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
     }
   }
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 
@@ -3579,9 +3571,7 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
   }
 
 _exit:
-  if (getDb) {
-    mnodeDecDbRef(pMsg->pDb);
-  }
+  if (getDb) mnodeDecDbRef(pMsg->pDb);
   return code;
 }
 

@@ -119,7 +119,6 @@ static int32_t mnodeVgroupActionInsert(SSdbRow *pRow) {
   }
 
   mnodeAddVgroupIntoDb(pVgroup);
-  
   mnodeDecDbRef(pDb);
 
   return TSDB_CODE_SUCCESS;
