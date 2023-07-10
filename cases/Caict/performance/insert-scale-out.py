@@ -24,10 +24,8 @@ import sys
 import shutil
 class Timeline_100B(TDCase):
     def init(self):
-        self.argv = sys.argv
-        # self.yaml_file = os.path.join(os.environ["TEST_ROOT"], f'env/{self.argv[1].split("=")[1]}')
         self.yaml_path = os.path.join(os.environ["TEST_ROOT"], "env")
-        self.yaml_file_name = self.argv[1].split("=")[1]
+        self.yaml_file_name = sys.argv[1].split("=")[1]
         shutil.copy2(os.path.join(self.yaml_path, self.yaml_file_name), os.path.join(self.yaml_path, f'{self.yaml_file_name}_tmp'))
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
@@ -47,9 +45,6 @@ class Timeline_100B(TDCase):
         self.childtable_count1 = 1000
         self.childtable_count2 = 1000
         self.childtable_count3 = 1000
-        # self.childtable_count1 = 100
-        # self.childtable_count2 = 100
-        # self.childtable_count3 = 100
         self.childtable_prefix1 = "ctb1_"
         self.childtable_prefix2 = "ctb2_"
         self.childtable_prefix3 = "ctb3_"
@@ -107,7 +102,7 @@ class Timeline_100B(TDCase):
         dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, drop="no")
         stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count1, childtable_prefix=self.childtable_prefix1, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
-        
+
         json_info1 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name1, json_info1)
         self.json_data_list.append(json_info1)
@@ -120,11 +115,11 @@ class Timeline_100B(TDCase):
         Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
         # Insert_file.get_process_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
         # Insert_file.get_node_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
-    
-    def dnode2scale(self):
-        self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][0])
+
+    def dnode2scale(self, reserve_dnodes_index):
+        self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index])
         self.tdCom.createDb(dbname=self.dbname2, vgroups=self.vgroups, buffer=self.buffer)
-        add_taosBenchmark_fqdn = self.taosd_setting["spec"]["reserve_dnodes"][0]["endpoint"].split(":")[0]
+        add_taosBenchmark_fqdn = self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index]["endpoint"].split(":")[0]
         self.modify_taosBenchmark_fqdn(add_taosBenchmark_fqdn)
         dict2yaml(self.env_setting, self.yaml_path, self.yaml_file_name)
         self.tdCom.createDb(dbname=self.dbname1, vgroups=self.vgroups, buffer=self.buffer)
@@ -139,13 +134,33 @@ class Timeline_100B(TDCase):
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name2, json_info2)
         self.json_data_list.append(json_info2)
 
-        # self.json_filename_list.append(self.file_name3)
-        # dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop="no")
-        # stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count3, childtable_prefix=self.childtable_prefix3, insert_rows=self.insert_rows, interlace_rows=self.interlace_rows, batch_create_tbl_num=self.batch_create_tbl_num)]
-        # database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
-        # json_info3 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
-        # self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name3, json_info3)
-        # self.json_data_list.append(json_info3)
+        self.tdCom.put_file(self._remote, taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
+        timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        result_file_list = self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, self.json_data_list, self.json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
+        timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        Insert_file = Perf_Base_func(self._remote._logger, self.run_log_dir)
+        Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
+        # Insert_file.get_process_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
+        # Insert_file.get_node_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
+
+    def dnode3scale(self, reserve_dnodes_index):
+        self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index])
+        self.tdCom.createDb(dbname=self.dbname3, vgroups=self.vgroups, buffer=self.buffer)
+        add_taosBenchmark_fqdn = self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index]["endpoint"].split(":")[0]
+        self.modify_taosBenchmark_fqdn(add_taosBenchmark_fqdn)
+        dict2yaml(self.env_setting, self.yaml_path, self.yaml_file_name)
+        self.tdCom.createDb(dbname=self.dbname1, vgroups=self.vgroups, buffer=self.buffer)
+        self.tdCom.createDb(dbname=self.dbname2, vgroups=self.vgroups, buffer=self.buffer)
+
+        taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
+        taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+        self.json_filename_list.append(self.file_name3)
+        dbinfo = self.tdCom.setDBinfo(name=self.dbname3, replica=self.replica, vgroups=self.vgroups, drop="no")
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count3, childtable_prefix=self.childtable_prefix3, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
+        database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
+        json_info3 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name3, json_info3)
+        self.json_data_list.append(json_info3)
         self.tdCom.put_file(self._remote, taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
         timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         result_file_list = self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, self.json_data_list, self.json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
@@ -158,7 +173,8 @@ class Timeline_100B(TDCase):
 
     def run(self):
         self.dnode1scale()
-        self.dnode2scale()
+        self.dnode2scale(0)
+        self.dnode3scale(1)
 
         shutil.move(os.path.join(self.yaml_path, f'{self.yaml_file_name}_tmp'), os.path.join(self.yaml_path, self.yaml_file_name))
         print(self.result_file_name)
