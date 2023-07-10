@@ -9,6 +9,7 @@ use arrow_flight::{FlightClient, PutResult};
 use bytes::Bytes;
 use futures::TryStreamExt;
 use parquet::column;
+use sha2::digest::typenum::private::IsLessOrEqualPrivate;
 use std::{
     any::Any,
     collections::HashMap,
@@ -23,7 +24,7 @@ use std::{
     time::{Duration, Instant}, ops::DerefMut, f32::consts::E,
 };
 use taos::{
-    taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Dsn, Itertools,
+    taos_query::common::{views::views_to_raw_block, Describe}, AsyncQueryable, Bindable, Dsn, Itertools,
     RawBlock, Stmt, Taos, TaosPool, Ty,
 };
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
@@ -1102,6 +1103,53 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     Ok(())
 }
 
+pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &Vec<(String, IpcDataType)>, is_tag: bool) -> Option<Vec<String>> {
+    let mut alter_sql = Vec::new();
+    // diff columns and tags
+    for (name, ty) in fields {
+        if name == "__table_name__" {
+            continue;
+        }
+        let mut should_alter = false;
+        let mut should_add = true;
+        // let mut column_exist = None;
+        desc.iter().for_each(|c| {
+            if c.field() == name { 
+                should_add = false;
+                log::debug!("original column: {}, new def: {}", &ty.ty().to_string(), &c.ty().to_string());
+                let original_ty = c.ty();
+                let new_def_ty = ty.ty();
+                if original_ty.is_var_type() {
+                    match ty {
+                        IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                            if original_ty.to_string() != new_def_ty.to_string() || len.clone() as usize > c.length() {
+                                should_alter = true;
+                            }
+                        }
+                        _ => ()
+                    }
+                } else if original_ty.to_string() != new_def_ty.to_string() {
+                    should_alter = true;
+                }
+            }
+        });
+        if should_alter && !is_tag {
+            alter_sql.push(format!("ALTER TABLE `{tablename}` MODIFY COLUMN `{name}` {} ", ty.sql_repr()));
+        } else if should_alter {
+            alter_sql.push(format!("ALTER TABLE `{tablename}` MODIFY TAG `{name}` {} ", ty.sql_repr()));
+        } if should_add && !is_tag {
+            alter_sql.push(format!("ALTER TABLE `{tablename}` ADD COLUMN `{name}` {} ", ty.sql_repr()));
+        } else if should_add {
+            alter_sql.push(format!("ALTER TABLE `{tablename}` ADD COLUMN `{name}` {} ", ty.sql_repr()));
+        }
+    }
+    if alter_sql.is_empty() {
+        None
+    } else {
+        Some(alter_sql)
+    }
+}
+
 #[instrument(skip(pool, ipc_reader, ipc_ack_writer, config))]
 async fn ipc_process<R: Read, W: Write>(
     client: String,
@@ -1156,18 +1204,46 @@ async fn ipc_process<R: Read, W: Write>(
         let max_retries = 10;
         let mut i = 0;
         loop {
-            info!("[{client}] {sql}");
-            // rt.block_on(taos.exec(&sql))?;
-            let res: Result<usize, taos::Error> = taos.exec(&sql).await;
-            if let Err(err) = res {
-                tracing::error!("Query error with {sql}: {err:?}");
-                i += 1;
-                if i > max_retries {
+            // alter table
+            let init = metadata.init().unwrap();
+            let stable_name = init.name();
+            let desc = taos.describe(stable_name).await;
+            match desc {
+                Ok(desc) => {
+                    log::info!("table {stable_name} exists");
+                    let sql = generate_alter_sql_diff_desc(stable_name, &desc, init.columns().as_ref(), false);
+                    if sql.is_some() {
+                        for sql in sql.unwrap() {
+                            log::info!("alter table sql: {}", sql.clone());
+                            taos.exec(sql).await?;
+                        }
+                    }
+                    let sql = generate_alter_sql_diff_desc(stable_name, &desc, init.tags().as_ref(), true);
+                    if sql.is_some() {
+                        for sql in sql.unwrap() {
+                            log::info!("alter table sql: {}", sql.clone());
+                            taos.exec(sql).await?;
+                        }
+                    }
                     break;
+                },
+                Err(err) => {
+                    log::warn!("describe failed: {}", err.to_string());
+                    // create table
+                    info!("[{client}] {sql}");
+                    let res: Result<usize, taos::Error> = taos.exec(&sql).await;
+                    if let Err(err) = res {
+                        tracing::error!("Query error with {sql}: {err:?}");
+                        i += 1;
+                        if i > max_retries {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
                 }
-            } else {
-                break;
             }
+            
         }
         drop(guard)
     }
