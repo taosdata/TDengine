@@ -109,13 +109,15 @@ class TDTestQuery(TDCase):
         
     def alter_replica1_3(self,db): 
         sql = " ALTER DATABASE %s replica 3"  % db
-        self.query_ignore_error(db,sql)
-        time.sleep(50)
+        # self.query_ignore_error(db,sql)
+        # time.sleep(50)
+        self.tdSql.execute(sql,queryTimes=60)
                 
     def alter_replica3_1(self,db): 
         sql = " ALTER DATABASE %s replica 1"  % db
-        self.query_ignore_error(db,sql)
-        time.sleep(20)       
+        # self.query_ignore_error(db,sql)
+        # time.sleep(20)   
+        self.tdSql.execute(sql,queryTimes=30)    
         
     def data_insert(self,db): 
         sql = " insert into %s.t1(ts,c1,c2) values(now, 1, 'abc');"  % db
