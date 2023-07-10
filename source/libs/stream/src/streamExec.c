@@ -486,14 +486,16 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     qDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d",
            id, el, resSize / 1048576.0, totalBlocks);
 
+    int32_t type = pInput->type;
     streamFreeQitem(pInput);
 
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
-    if (pInput->type == STREAM_INPUT__CHECKPOINT) {
+    if (type == STREAM_INPUT__CHECKPOINT) {
       ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
       pTask->status.taskStatus = TASK_STATUS__CK_READY;
       return 0;
     }
+
   }
 }
 
