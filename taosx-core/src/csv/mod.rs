@@ -15,6 +15,7 @@ use futures_util::stream::FuturesUnordered;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
+use tokio::time::MissedTickBehavior::Skip;
 
 use taosx_ipc::prelude::ArrowDataType;
 
@@ -102,25 +103,34 @@ impl CsvSource {
         };
 
         let has_header: bool = dsn.params.remove("has_header").unwrap_or_else(|| "true".to_string()).parse()?;
-        let headers = dsn.params.remove("header").unwrap_or_default().split(",")
-            .map(String::from).collect::<Vec<String>>();
-        let skip: u64 = dsn.params.remove("skip").unwrap_or_else(|| "0".to_string()).parse()?;
-        let sep = dsn.params.remove("sep").unwrap_or_default();
-        let sep = sep.as_bytes();
-        let sep = if sep.len() == 1 && sep[0] != b',' { sep[0] } else { b',' };
-        let quotes = dsn.params.remove("quotes").unwrap_or_default();
-        let quotes = quotes.as_bytes();
-        let double_quote = quotes.len() == 1 && quotes[0] != b'"';
-        let escape = if quotes.len() == 1 && quotes[0] != b'"' { Some(quotes[0]) } else { None };
-        let comment = dsn.params.remove("comment").unwrap_or_default();
-        let comment = comment.as_bytes();
-        let comment = if comment.len() == 1 { Some(comment[0]) } else { None };
+        let headers = dsn.params.remove("header").unwrap_or_default();
+        let headers = if !headers.is_empty() {
+            headers.split(",").map(String::from).collect::<Vec<String>>()
+        } else { Vec::new() };
+        let skip = dsn.params.remove("skip").and_then(|skip_char| {
+            if skip_char.is_empty() { None } else {
+                Some(skip_char.parse().unwrap())
+            }
+        });
+
+        let sep = dsn.params.remove("sep").and_then(|sep_char| {
+            if sep_char.is_empty() {
+                None
+            } else {
+                let sep_char = sep_char.as_bytes();
+                if sep_char.len() == 1 && sep_char[0] != b',' {
+                    Some(sep_char[0])
+                } else {
+                    None
+                }
+            }
+        });
+
         let batch_size: usize = dsn.params.remove("batch_size").unwrap_or("10".to_string()).parse()?;
         let concurrent: usize = dsn.params.remove("concurrent").unwrap_or("1".to_string()).parse()?;
         let port: u32 = dsn.params.remove("port").unwrap().parse()?;
 
-        let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep,
-                                             double_quote, escape, comment, skip)?;
+        let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep, skip)?;
 
         Ok(CsvSource { readers, concurrent, batch_size, port })
     }
@@ -243,29 +253,27 @@ impl CsvSource {
     fn csv_readers(paths: &Vec<String>,
                    has_header: bool,
                    headers: &Vec<String>,
-                   sep: u8,
-                   double_quote: bool,
-                   escape: Option<u8>,
-                   comment: Option<u8>, skip: u64) -> Result<Vec<Reader<File>>> {
+                   sep: Option<u8>,
+                   skip: Option<u64>) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
         let mut first = true;
         for path in paths {
             let mut reader = ReaderBuilder::new()
+                .delimiter(match sep {
+                    Some(sep) => sep,
+                    _ => b','
+                })
                 .has_headers(has_header)
-                .delimiter(sep)
-                .double_quote(double_quote)
-                .escape(escape)
-                .comment(comment)
-                .flexible(true)
-                .from_path(path)?;
+                .flexible(true).from_path(path)?;
             if !headers.is_empty() {
                 reader.set_headers(StringRecord::from(headers.clone()));
             }
             if first {
-                let mut position = Position::new();
-                position.set_line(skip);
-                reader.seek(position)?;
-
+                if let Some(skip) = skip {
+                    let mut position = Position::new();
+                    position.set_line(skip);
+                    reader.seek(position)?;
+                }
                 first = false;
             }
             readers.push(reader);
