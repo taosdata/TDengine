@@ -1,18 +1,19 @@
 use std::{fs, io::prelude::*, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
-
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
+use std::process::Output;
+use std::ptr::null;
 
 use anyhow::Context;
+use file_rotate::{
+    compression::Compression,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+};
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred, DataSet};
+use crate::{Action, DataSet, plugins::sink, Transferred, utils::port_pool::PortPool};
 
 use super::get_plugin_dir;
 
@@ -128,11 +129,11 @@ impl InfluxdbConfig {
         let influx_password = dsn.remove("password").unwrap_or("".to_string());
         let influx_token = dsn.remove("token").unwrap_or("".to_string());
         if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
-            return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()))
+            return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()));
         } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
-            return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()))
+            return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()));
         } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
-            return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()))
+            return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()));
         }
         let influx_org_id = dsn
             .remove("orgId")
@@ -428,21 +429,39 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
-    let output = command
-        .arg("-jar")
-        .arg(&connector_path)
-        .arg("-fetch")
-        .arg(&influx_version)
-        .arg(&influx_url)
-        .arg(&influx_username)
-        .arg(&influx_password)
-        .arg(&influx_token)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::piped())
-        .output()
-        .await
-        .with_context(|| "Start InfluxDB collector error")?;
+    let mut output;
+    // 不同版本不同参数
+    if INFLUXDB_V1.contains(&influx_version.as_str()) {
+        // 查询命令
+        output = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg("-fetch")
+            .arg(&influx_version)
+            .arg(&influx_url)
+            .arg(&influx_username)
+            .arg(&influx_password)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+            .with_context(|| "Start InfluxDB collector error")?;
+    } else {
+        output = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg("-fetch")
+            .arg(&influx_version)
+            .arg(&influx_url)
+            .arg(&influx_token)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+            .with_context(|| "Start InfluxDB collector error")?;
+    }
     let s = String::from_utf8(output.stdout.clone())?;
+    dbg!(&s);
     let mut vec = Vec::new();
     vec.push(DataSet {
         id: s,
