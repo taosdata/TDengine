@@ -671,7 +671,6 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 
 // N.B. Called by statusReq per second
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
-  fprintf(stderr, "@@@@@@@ %s:%d called @@@@@@@@@: vgId:%d, second:%d\n", __func__, __LINE__, TD_VID(pMeta->pVnode), taosGetTimestampSec());
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
   if (pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
       ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
