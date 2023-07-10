@@ -555,7 +555,7 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   return TSDB_CODE_SUCCESS;
 }
 
-// #ifndef TD_ENTERPRISE
+#ifndef TD_ENTERPRISE
 #define TK_LOG_STB_NUM 19
 static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "data_dir",
@@ -578,7 +578,7 @@ static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "vnodes_role"};
 
 // exclude stbs of taoskeeper log
-static int32_t vnodeGetTimeSeriBlackList(SVnode *pVnode) {
+static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
   char *dbName = strchr(pVnode->config.dbname, '.');
   if (!dbName || 0 != strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
     return 0;
@@ -591,13 +591,14 @@ static int32_t vnodeGetTimeSeriBlackList(SVnode *pVnode) {
         metaPutTbToFilterCache(pVnode, suid, 0);
       }
     }
+    tbSize = metaSizeOfTbFilterCache(pVnode, 0);
   }
 
-  return 0;
+  return tbSize;
 }
-// #endif
+#endif
 
-static bool filter(void *arg1, void *arg2) {
+static bool vnodeTimeSeriesStbFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
 
   if (metaTbInFilterCache(pVnode, *(tb_uid_t *)(arg2), 0)) {
@@ -614,13 +615,13 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
     return TSDB_CODE_FAILED;
   }
 
-  void *blackListArg = NULL;
-  // #ifdef TD_ENTERPRISE
-  vnodeTimeSeriesFilter(pVnode, blackListArg);
-  // #endif
+  int32_t tbFilterSize = 0;
+  #ifdef TD_ENTERPRISE
+  tbFilterSize = vnodeGetTimeSeriesBlackList(pVnode);
+  #endif
 
-  if ((!blackListArg && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
-      (blackListArg && vnodeGetStbIdListByFilter(pVnode, 0, suidList, filter, pVnode) < 0)) {
+  if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
+      (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesStbFilter, pVnode) < 0)) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
     return TSDB_CODE_FAILED;
