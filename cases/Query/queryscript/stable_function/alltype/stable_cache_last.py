@@ -79,7 +79,7 @@ class TDTestQuery(TDCase):
         self.logger.info("\n\n\n=============test=============\n\n\n" )
         sql = " drop database if exists %s "  % db
         #self.query_ignore_error(db,sql)
-        self.tdSql.execute(sql,queryTimes=60)
+        self.tdSql.execute(sql,queryTimes=100)
         sql = "create database if not exists %s keep 36500  replica 1 " % db
         #self.query_ignore_error(db,sql)
         self.tdSql.execute(sql,queryTimes=60)
