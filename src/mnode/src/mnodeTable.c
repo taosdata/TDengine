@@ -3532,7 +3532,7 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  return code;
+ return code;
 }
 
 static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
