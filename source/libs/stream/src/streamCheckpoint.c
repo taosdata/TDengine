@@ -160,7 +160,7 @@ static int32_t streamTaskDispatchCheckpointMsg(SStreamTask* pTask, uint64_t chec
       req.downstreamTaskId = pVgInfo->taskId;
       streamDispatchCheckpointMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
-  } else { // no need to dispatch msg to downstream task
+  } else {  // no need to dispatch msg to downstream task
     qDebug("s-task:%s no down stream task, not dispatch checkpoint msg to downstream", pTask->id.idStr);
     streamProcessCheckpointRsp(NULL, pTask);
   }
@@ -202,6 +202,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask,
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
   pTask->status.taskStatus = TASK_STATUS__CK;
   pTask->checkpointNotReadyTasks = 1;
+  pTask->checkpointingId = pReq->checkpointId;
 
   // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else.
   streamTaskDispatchCheckpointMsg(pTask, checkpointId);
