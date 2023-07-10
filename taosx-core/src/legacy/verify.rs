@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-pub const CLIENT_OPTIONS: [&str; 50] = [
+pub const CLIENT_OPTIONS: [&str; 52] = [
     // taos.cfg options
     "shellActivityTimer",
     "firstEp",
@@ -10,6 +10,8 @@ pub const CLIENT_OPTIONS: [&str; 50] = [
     "logDir",
     "dataDir",
     "tempDir",
+    "configDir",
+    "libraryPath",
     "telemetryReporting",
     "crashReporting",
     "supportVnodes",
