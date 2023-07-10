@@ -994,6 +994,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     mndTransDrop(pTrans);
     return -1;
   }
+  mDebug("start to trigger checkpoint for stream:%s", pStream->name);
   atomic_store_64(&pStream->currentTick, 1);
   taosWLockLatch(&pStream->lock);
   // 1. redo action: broadcast checkpoint source msg for all source vg
