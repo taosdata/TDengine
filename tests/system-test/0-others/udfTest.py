@@ -234,6 +234,11 @@ class TDTestCase:
         tdSql.checkData(20,6,88)
         tdSql.checkData(20,7,1)
 
+        tdSql.query("select udf1(1) from (select 1)")
+        tdSql.checkData(0,0,1)
+
+        tdSql.query("select udf1(n) from (select 1 n)")
+        tdSql.checkData(0,0,1)
 
         # aggregate functions
         tdSql.query("select udf2(num1) ,udf2(num2), udf2(num3) from tb")
