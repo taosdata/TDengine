@@ -488,20 +488,9 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
               .suid = TARRAY2_LAST(writer->staticBlock->suid),
               .uid = TARRAY2_LAST(writer->staticBlock->uid),
           },
-      .minVer = TARRAY2_FIRST(writer->staticBlock->minVer),
-      .maxVer = TARRAY2_FIRST(writer->staticBlock->maxVer),
       .numRec = STATIS_BLOCK_SIZE(writer->staticBlock),
       .cmprAlg = writer->config->cmprAlg,
   }};
-
-  for (int32_t i = 1; i < STATIS_BLOCK_SIZE(writer->staticBlock); i++) {
-    if (statisBlk->minVer > TARRAY2_GET(writer->staticBlock->minVer, i)) {
-      statisBlk->minVer = TARRAY2_GET(writer->staticBlock->minVer, i);
-    }
-    if (statisBlk->maxVer < TARRAY2_GET(writer->staticBlock->maxVer, i)) {
-      statisBlk->maxVer = TARRAY2_GET(writer->staticBlock->maxVer, i);
-    }
-  }
 
   for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; i++) {
     code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->staticBlock->dataArr + i),
@@ -889,8 +878,6 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
         .uid = row->uid,
         .firstKey = key->ts,
         .lastKey = key->ts,
-        .minVer = key->version,
-        .maxVer = key->version,
         .count = 1,
     };
     code = tStatisBlockPut(writer->staticBlock, &record);
@@ -898,12 +885,6 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   } else {
     ASSERT(key->ts >= TARRAY2_LAST(writer->staticBlock->lastKey));
 
-    if (TARRAY2_LAST(writer->staticBlock->minVer) > key->version) {
-      TARRAY2_LAST(writer->staticBlock->minVer) = key->version;
-    }
-    if (TARRAY2_LAST(writer->staticBlock->maxVer) < key->version) {
-      TARRAY2_LAST(writer->staticBlock->maxVer) = key->version;
-    }
     if (key->ts > TARRAY2_LAST(writer->staticBlock->lastKey)) {
       TARRAY2_LAST(writer->staticBlock->count)++;
       TARRAY2_LAST(writer->staticBlock->lastKey) = key->ts;

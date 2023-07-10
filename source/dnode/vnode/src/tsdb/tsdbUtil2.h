@@ -70,7 +70,7 @@ int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record);
 int32_t tTombRecordCompare(const STombRecord *record1, const STombRecord *record2);
 
 // STbStatisRecord ----------
-#define STATIS_RECORD_NUM_ELEM 7
+#define STATIS_RECORD_NUM_ELEM 5
 typedef union {
   int64_t dataArr[STATIS_RECORD_NUM_ELEM];
   struct {
@@ -78,8 +78,6 @@ typedef union {
     int64_t uid;
     int64_t firstKey;
     int64_t lastKey;
-    int64_t minVer;
-    int64_t maxVer;
     int64_t count;
   };
 } STbStatisRecord;
@@ -91,8 +89,6 @@ typedef union {
     TARRAY2(int64_t) uid[1];
     TARRAY2(int64_t) firstKey[1];
     TARRAY2(int64_t) lastKey[1];
-    TARRAY2(int64_t) minVer[1];
-    TARRAY2(int64_t) maxVer[1];
     TARRAY2(int64_t) count[1];
   };
 } STbStatisBlock;
@@ -101,8 +97,6 @@ typedef struct {
   SFDataPtr dp[1];
   TABLEID   minTbid;
   TABLEID   maxTbid;
-  int64_t   minVer;
-  int64_t   maxVer;
   int32_t   numRec;
   int32_t   size[STATIS_RECORD_NUM_ELEM];
   int8_t    cmprAlg;
