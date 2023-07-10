@@ -1192,15 +1192,10 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
 }
 
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
-  int32_t      code = 0;
-  bool         getDb = false;
   SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
   mDebug("db:%s, alter db msg is received from thandle:%p, dbType:%d", pAlter->db, pMsg->rpcMsg.handle, pAlter->dbType);
 
-  if (pMsg->pDb == NULL) {
-    getDb = true;
-    pMsg->pDb = mnodeGetDb(pAlter->db);
-  }
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pAlter->db);
   if (pMsg->pDb == NULL) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
     return TSDB_CODE_MND_INVALID_DB;
@@ -1208,13 +1203,10 @@ int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
 
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pAlter->db, pMsg->pDb->status);
-    RETURN_WITH_CODE(TSDB_CODE_MND_DB_IN_DROPPING);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
-  code = mnodeAlterDb(pMsg->pDb, pAlter, pMsg);
-_exit:
-  if (getDb) mnodeDecDbRef(pMsg->pDb);
-  return code;
+  return mnodeAlterDb(pMsg->pDb, pAlter, pMsg);
 }
 
 static int32_t mnodeDropDbCb(SMnodeMsg *pMsg, int32_t code) {
@@ -1252,15 +1244,10 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  bool        getDb = false;
   SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
   mDebug("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->rpcMsg.handle);
 
-  if (pMsg->pDb == NULL) {
-    getDb = true;
-    pMsg->pDb = mnodeGetDb(pDrop->db);
-  }
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pDrop->db);
   if (pMsg->pDb == NULL) {
     if (pDrop->ignoreNotExists) {
       mDebug("db:%s, db is not exist, treat as success", pDrop->db);
@@ -1278,19 +1265,16 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   }
 #endif
 
-  code = mnodeSetDbDropping(pMsg->pDb);
+  int32_t code = mnodeSetDbDropping(pMsg->pDb);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
-    goto _exit;
+    return code;
   }
 
   mnodeSendDropAllDbVgroupsMsg(pMsg->pDb);
 
   mDebug("db:%s, all vgroups is dropped", pMsg->pDb->name);
-  code = mnodeDropDb(pMsg);
-_exit:
-  if (getDb) mnodeDecDbRef(pMsg->pDb);
-  return code;
+  return mnodeDropDb(pMsg);
 }
 
 static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
@@ -1348,15 +1332,10 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
 }
 
 static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  bool        getDb = false;
   SSyncDbMsg *pSyncDb = pMsg->rpcMsg.pCont;
   mDebug("db:%s, syncdb is received from thandle:%p, ignore:%d", pSyncDb->db, pMsg->rpcMsg.handle, pSyncDb->ignoreNotExists);
 
-  if (pMsg->pDb == NULL) {
-    getDb = true;
-    pMsg->pDb = mnodeGetDb(pSyncDb->db);
-  }
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pSyncDb->db);
   if (pMsg->pDb == NULL) {
         if (pSyncDb->ignoreNotExists) {
           mDebug("db:%s, db is not exist, treat as success", pSyncDb->db);
@@ -1369,35 +1348,24 @@ static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
 
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pSyncDb->db, pMsg->pDb->status);
-    RETURN_WITH_CODE(TSDB_CODE_MND_DB_IN_DROPPING);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
-  code = mnodeSyncDb(pMsg->pDb, pMsg);
-_exit:
-  if (getDb) mnodeDecDbRef(pMsg->pDb);
-  return code;
+  return mnodeSyncDb(pMsg->pDb, pMsg);
 }
 static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  bool        getDb = false;
   SCompactMsg *pCompact = pMsg->rpcMsg.pCont;
   mDebug("db:%s, compact is received from thandle:%p", pCompact->db, pMsg->rpcMsg.handle);
 
-  if (pMsg->pDb == NULL) {
-    getDb = true;
-    pMsg->pDb = mnodeGetDb(pCompact->db);
-  }
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCompact->db);
   if (pMsg->pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
 
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping, ignore compact request", pCompact->db, pMsg->pDb->status);
-    RETURN_WITH_CODE(TSDB_CODE_MND_DB_IN_DROPPING);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
-  code = mnodeCompact(pMsg->pDb, pCompact);
-_exit:
-  if (getDb) mnodeDecDbRef(pMsg->pDb);
-  return code;
+  return mnodeCompact(pMsg->pDb, pCompact);
 }
 
 void  mnodeDropAllDbs(SAcctObj *pAcct)  {
