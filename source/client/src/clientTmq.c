@@ -2794,11 +2794,12 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   }
 
   // update the offset, and then commit to vnode
-  if (pOffsetInfo->currentOffset.type == TMQ_OFFSET__LOG) {
-    pOffsetInfo->currentOffset.version = offset;
-    pOffsetInfo->committedOffset.version = INT64_MIN;
-    pVg->seekUpdated = true;
-  }
+//  if (pOffsetInfo->currentOffset.type == TMQ_OFFSET__LOG) {
+  pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+  pOffsetInfo->currentOffset.version = offset >= 1 ? offset - 1 : 0;
+  pOffsetInfo->committedOffset.version = INT64_MIN;
+  pVg->seekUpdated = true;
+//  }
 
   SMqRspObj rspObj = {.resType = RES_TYPE__TMQ, .vgId = pVg->vgId};
   tstrncpy(rspObj.topic, tname, tListLen(rspObj.topic));
