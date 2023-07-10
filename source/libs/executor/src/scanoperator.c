@@ -2185,7 +2185,6 @@ FETCH_NEXT_BLOCK:
     if (pBlock->info.type == STREAM_CHECKPOINT) {
       streamScanOperatorSaveCheckpoint(pInfo);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
-      pAPI->stateStore.streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
     }
     printDataBlock(pBlock, "stream scan ck");
     return pInfo->pCheckpointRes;
