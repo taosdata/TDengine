@@ -171,6 +171,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest);
+  dataRsp.reqOffset.type = pOffset->type; // stroe origin type for getting offset in tmq_get_vgroup_offset
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
@@ -191,7 +192,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     }
     taosWUnLockLatch(&pTq->lock);
   }
-  setRequestVersion(pOffset, pOffset->version);
+  setRequestVersion(&dataRsp.reqOffset, pOffset->version);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
 
 end : {

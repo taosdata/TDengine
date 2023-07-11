@@ -2276,7 +2276,7 @@ int64_t tmq_get_vgroup_offset(TAOS_RES* res) {
       return pRspObj->rsp.reqOffset.version;
     }
   } else{
-    tscError("invalid tmqtype:%d", *(int8_t*)res);
+    tscError("invalid tmq type:%d", *(int8_t*)res);
   }
 
   // data from tsdb, no valid offset info
