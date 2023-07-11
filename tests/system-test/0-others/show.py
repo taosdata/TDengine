@@ -83,12 +83,20 @@ class TDTestCase:
             tag_sql += f"{k} {v}, "
         create_stb_sql = f'create stable {stbname} ({column_sql[:-2]}) tags ({tag_sql[:-2]})'
         return create_stb_sql
-    
+
     def set_create_database_sql(self,sql_dict):
         create_sql = 'create'
         for key,value in sql_dict.items():
             create_sql += f' {key} {value}'
         return create_sql
+
+    def show_create_sysdb_sql(self):
+        sysdb_list = {'information_schema', 'performance_schema'}
+        for db in sysdb_list:
+          tdSql.query(f'show create database {db}')
+          tdSql.checkEqual(f'{db}',tdSql.queryResult[0][0])
+          tdSql.checkEqual(f'CREATE DATABASE `{db}`',tdSql.queryResult[0][1])
+
     def show_create_sql(self):
         create_db_sql = self.set_create_database_sql(self.db_param)
         print(create_db_sql)
@@ -108,7 +116,7 @@ class TDTestCase:
         tdSql.query('show vnodes 1')
         tdSql.checkRows(self.vgroups)
         tdSql.execute(f'use {self.dbname}')
-        
+
         column_dict = {
             '`ts`': 'timestamp',
             '`col1`': 'tinyint',
@@ -124,7 +132,7 @@ class TDTestCase:
             '`col11`': 'bool',
             '`col12`': 'varchar(20)',
             '`col13`': 'nchar(20)'
-            
+
         }
         tag_dict = {
             '`t1`': 'tinyint',
@@ -141,7 +149,7 @@ class TDTestCase:
             '`t12`': 'varchar(20)',
             '`t13`': 'nchar(20)',
             '`t14`': 'timestamp'
-            
+
         }
         create_table_sql = self.set_stb_sql(self.stbname,column_dict,tag_dict)
         tdSql.execute(create_table_sql)
@@ -152,7 +160,7 @@ class TDTestCase:
         tag_sql = '('
         for tag_keys in tag_dict.keys():
             tag_sql += f'{tag_keys}, '
-        tags = f'{tag_sql[:-2]})' 
+        tags = f'{tag_sql[:-2]})'
         sql = f'create table {self.tbname} using {self.stbname} {tags} tags (1, 1, 1, 1, 1, 1, 1, 1, 1.000000e+00, 1.000000e+00, true, "abc", "abc123", 0)'
         tdSql.query(f'show create table {self.tbname}')
         query_result = tdSql.queryResult
@@ -175,7 +183,7 @@ class TDTestCase:
         taosd_info = os.popen('taosd -V').read()
         taosd_gitinfo = re.findall("^gitinfo.*",taosd_info,re.M)
         tdSql.checkEqual(taosd_gitinfo_sql,taosd_gitinfo[0])
-    
+
     def show_base(self):
         for sql in ['dnodes','mnodes','cluster']:
             tdSql.query(f'show {sql}')
@@ -193,6 +201,7 @@ class TDTestCase:
         self.ins_check()
         self.perf_check()
         self.show_create_sql()
+        self.show_create_sysdb_sql()
 
     def stop(self):
         tdSql.close()
