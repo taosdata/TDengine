@@ -1768,6 +1768,9 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
 }
 
 void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
+  if (!pInfo->pState) {
+    return;
+  }
   void* pBuf = NULL;
   int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
