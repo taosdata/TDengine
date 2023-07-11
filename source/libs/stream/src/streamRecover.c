@@ -43,6 +43,7 @@ const char* streamGetTaskStatusStr(int32_t status) {
     case TASK_STATUS__SCAN_HISTORY: return "scan-history";
     case TASK_STATUS__HALT: return "halt";
     case TASK_STATUS__PAUSE: return "paused";
+    case TASK_STATUS__DROPPING: return "dropping";
     default:return "";
   }
 }
@@ -258,9 +259,15 @@ int32_t streamRestoreParam(SStreamTask* pTask) {
 }
 
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
-  qDebug("s-task:%s set task status to be normal, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus));
-  atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
-  return 0;
+  int32_t status = atomic_load_8(&pTask->status.taskStatus);
+  if (status == TASK_STATUS__DROPPING) {
+    qError("s-task:%s cannot be set normal, since in dropping state", pTask->id.idStr);
+    return -1;
+  } else {
+    qDebug("s-task:%s set task status to be normal, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
+    return 0;
+  }
 }
 
 // source
