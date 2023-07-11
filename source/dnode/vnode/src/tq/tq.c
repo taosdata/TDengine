@@ -823,12 +823,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
 
-  if (pTask->status.taskStatus != TASK_STATUS__SCAN_HISTORY) {
-    tqInfo("s-task:%s status is set to %s prev in meta:%s", pTask->id.idStr,
-           streamGetTaskStatusStr(TASK_STATUS__SCAN_HISTORY), streamGetTaskStatusStr(pTask->status.taskStatus));
-    pTask->status.taskStatus = TASK_STATUS__SCAN_HISTORY;
-  }
-
   pTask->pRpcMsgList = taosArrayInit(4, sizeof(SRpcMsg));
 
   // sink
