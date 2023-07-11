@@ -628,6 +628,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_RESULT,                    "Rsma result error")
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is invalid")
 
+//scalar
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to specific type")
+
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
@@ -677,7 +680,7 @@ const char* tstrerror(int32_t err) {
   if ((err & 0x00ff0000) == 0x00ff0000) {
     int32_t code = err & 0x0000ffff;
     // strerror can handle any invalid code
-    // invalid code return Unknown error 
+    // invalid code return Unknown error
     return strerror(code);
   }
   int32_t s = 0;
