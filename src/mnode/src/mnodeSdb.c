@@ -486,8 +486,11 @@ void sdbIncRef(void *tparam, void *pRow) {
   if (pRow == NULL || tparam == NULL) return;
 
   SSdbTable *pTable = tparam;
-  int32_t *  pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
+  int32_t   *pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
   int32_t    refCount = atomic_add_fetch_32(pRefCount, 1);
+  if (refCount >= 30) {
+    assert(0);
+  }
   sdbTrace("vgId:1, sdb:%s, inc ref to row:%p:%s:%d", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
 }
 
