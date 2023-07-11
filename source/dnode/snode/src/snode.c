@@ -75,7 +75,6 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pSnode->msgCb;
-  pTask->chkInfo.version = ver;
   pTask->pMeta = pSnode->pMeta;
 
   pTask->pState = streamStateOpen(pSnode->path, pTask, false, -1, -1);

@@ -295,21 +295,6 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
 }
 #endif
 
-int32_t updateCheckPointInfo(SStreamTask* pTask, int64_t checkpointId) {
-  int64_t ckId = 0;
-  int64_t dataVer = 0;
-  qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
-
-  SCheckpointInfo* pCkInfo = &pTask->chkInfo;
-//  qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64 ", checkpointId:%" PRId64
-//         " -> %" PRId64,
-//         pTask->id.idStr, pCkInfo->version, dataVer, pCkInfo->keptCheckpointId, checkpointId);
-  pCkInfo->keptCheckpointId = checkpointId;
-//  pCkInfo->version = dataVer;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
   // wait for the stream task to be idle
   int64_t st = taosGetTimestampMs();
@@ -379,7 +364,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 }
 
 // set input
-static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_t* pCurrentVer, const char* id) {
+static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_t* pVer, const char* id) {
   void* pExecutor = pTask->exec.pExecutor;
 
   const SStreamQueueItem* pItem = pInput;
@@ -393,8 +378,8 @@ static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_
     qSetMultiStreamInput(pExecutor, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
     qDebug("s-task:%s set submit blocks as source block completed, %p %p len:%d ver:%" PRId64, id, pSubmit,
            pSubmit->submit.msgStr, pSubmit->submit.msgLen, pSubmit->submit.ver);
-    ASSERT((*pCurrentVer) < pSubmit->submit.ver);
-    (*pCurrentVer) = pSubmit->submit.ver;
+    ASSERT((*pVer) < pSubmit->submit.ver);
+    (*pVer) = pSubmit->submit.ver;
 
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     const SStreamDataBlock* pBlock = (const SStreamDataBlock*)pInput;
@@ -412,8 +397,8 @@ static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_
     qDebug("s-task:%s %p set (merged) submit blocks as a batch, numOfBlocks:%d, ver:%" PRId64, id, pTask,
            numOfBlocks, pMerged->ver);
     qSetMultiStreamInput(pExecutor, pBlockList->pData, numOfBlocks, STREAM_INPUT__MERGED_SUBMIT);
-    ASSERT((*pCurrentVer) < pMerged->ver);
-    (*pCurrentVer) = pMerged->ver;
+    ASSERT((*pVer) < pMerged->ver);
+    (*pVer) = pMerged->ver;
 
   } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
     const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)pInput;
@@ -472,8 +457,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     const SStreamQueueItem* pItem = pInput;
     qDebug("s-task:%s start to process batch of blocks, num:%d, type:%d", id, batchSize, pItem->type);
 
-    int64_t currentVer = pTask->chkInfo.currentVer;
-    doSetStreamInputBlock(pTask, pInput, &currentVer, id);
+    int64_t ver = pTask->chkInfo.version;
+    doSetStreamInputBlock(pTask, pInput, &pTask->chkInfo.version, id);
 
     int64_t resSize = 0;
     int32_t totalBlocks = 0;
@@ -484,10 +469,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
            resSize / 1048576.0, totalBlocks);
 
     // update the currentVer if processing the submit blocks.
-    if(currentVer > pTask->chkInfo.currentVer) {
-      qDebug("s-task:%s update currentVer from %" PRId64 " to %" PRId64, pTask->id.idStr,
-             pTask->chkInfo.currentVer, currentVer);
-      pTask->chkInfo.currentVer = currentVer;
+    ASSERT(pTask->chkInfo.version <= pTask->chkInfo.currentVer && ver <= pTask->chkInfo.version);
+
+    if(ver != pTask->chkInfo.version) {
+      qDebug("s-task:%s update checkpoint ver from %" PRId64 " to %" PRId64, pTask->id.idStr, ver,
+             pTask->chkInfo.version);
     }
 
     int32_t type = pInput->type;
@@ -546,7 +532,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
       if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
         streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
-        qDebug("vgId:%d do vnode wide checkpoint completed, checkpoint id:%" PRId64 "", pMeta->vgId,
+        qDebug("vgId:%d do vnode wide checkpoint completed, checkpointId:%" PRId64, pMeta->vgId,
                pTask->checkpointingId);
       }
 
@@ -574,8 +560,10 @@ int32_t streamTryExec(SStreamTask* pTask) {
           taosWUnLockLatch(&pTask->pMeta->lock);
         }
 
-        qInfo("vgId:%d s-task:%s commit task status after checkpoint completed, checkpointId:%" PRId64 ", ver:%" PRId64,
-              pMeta->vgId, pTask->id.idStr, pTask->chkInfo.keptCheckpointId, pTask->chkInfo.version);
+        qInfo("vgId:%d s-task:%s commit task status after checkpoint completed, checkpointId:%" PRId64 ", ver:%" PRId64
+              " currentVer:%" PRId64,
+              pMeta->vgId, pTask->id.idStr, pTask->chkInfo.keptCheckpointId, pTask->chkInfo.version,
+              pTask->chkInfo.currentVer);
       } else {
         // todo: let's retry send rsp to upstream/mnode
       }
