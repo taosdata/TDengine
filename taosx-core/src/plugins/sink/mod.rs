@@ -284,10 +284,7 @@ async fn consume_lush_record(
             taos.exec(&sql).await?;
         }
         LushMessage::Insert(record) => {
-            let sql = format!("insert into ? ({names}) values({marks})");
-            info!("prepare with sql: {sql}");
-            stmt.prepare(&sql)?;
-            info!("prepare");
+            
             for record in record {
                 *records += record.num_rows();
 
@@ -310,6 +307,10 @@ async fn consume_lush_record(
                     }
                     info!("written [{count}] records");
                 } else {
+                    let sql = format!("insert into ? ({names}) values({marks})");
+                    info!("prepare with sql: {sql}");
+                    stmt.prepare(&sql)?;
+                    info!("prepare");
                     stmt.bind(data.as_slice())?;
                     stmt.add_batch().unwrap();
                     let n = stmt.execute()?;
@@ -1113,7 +1114,7 @@ pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &V
         let mut should_alter = false;
         let mut should_add = true;
         desc.iter().for_each(|c| {
-            if c.field() == name { 
+            if c.field() == name {
                 should_add = false;
                 let original_ty = c.ty();
                 let new_def_ty = ty.ty();
