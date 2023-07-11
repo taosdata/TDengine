@@ -628,6 +628,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SNAPSHOT_ERROR,             "Can not operate in snapshot mode")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_CLOSED,            "Consumer closed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_ERROR,             "Consumer error, to see log")
