@@ -68,7 +68,7 @@ struct SMetaCache {
   } STbGroupResCache;
 
   struct STbFilterCache {
-    SHashObj* pTkLogStb;
+    SHashObj* pStb;
   } STbFilterCache;
 };
 
@@ -172,9 +172,8 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   taosHashSetFreeFp(pCache->STbGroupResCache.pTableEntry, freeCacheEntryFp);
   taosThreadMutexInit(&pCache->STbGroupResCache.lock, NULL);
 
-  pCache->STbFilterCache.pTkLogStb =
-      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (pCache->STbFilterCache.pTkLogStb == NULL) {
+  pCache->STbFilterCache.pStb = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pCache->STbFilterCache.pStb == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err2;
   }
@@ -204,7 +203,7 @@ void metaCacheClose(SMeta* pMeta) {
     taosThreadMutexDestroy(&pMeta->pCache->STbGroupResCache.lock);
     taosHashCleanup(pMeta->pCache->STbGroupResCache.pTableEntry);
 
-    taosHashCleanup(pMeta->pCache->STbFilterCache.pTkLogStb);
+    taosHashCleanup(pMeta->pCache->STbFilterCache.pStb);
 
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
@@ -897,7 +896,7 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
 bool metaTbInFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
 
-  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pTkLogStb, &suid, sizeof(suid))) {
+  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, &suid, sizeof(suid))) {
     return true;
   }
 
@@ -908,7 +907,7 @@ int32_t metaPutTbToFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
 
   if (type == 0) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pTkLogStb, &suid, sizeof(suid), NULL, 0);
+    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, &suid, sizeof(suid), NULL, 0);
   }
 
   return 0;
@@ -917,7 +916,7 @@ int32_t metaPutTbToFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
 int32_t metaSizeOfTbFilterCache(void* pVnode, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   if (type == 0) {
-    return taosHashGetSize(pMeta->pCache->STbFilterCache.pTkLogStb);
+    return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
   }
   return 0;
 }
