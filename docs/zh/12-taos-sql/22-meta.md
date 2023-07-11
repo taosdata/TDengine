@@ -100,12 +100,10 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 23  |   wal_fsync_period   | INT              | 数据落盘周期。需要注意，`wal_fsync_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
 | 24  | wal_retention_period | INT              | WAL 的保存时长。需要注意，`wal_retention_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
 | 25  |  wal_retention_size  | INT              | WAL 的保存上限。需要注意，`wal_retention_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
-| 26  |   wal_roll_period    | INT              | wal 文件切换时长。需要注意，`wal_roll_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                 |
-| 27  |   wal_segment_size   | BIGINT | wal 单个文件大小。需要注意，`wal_segment_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
-| 28  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数。需要注意，`stt_trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
-| 29  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。需要注意，`table_prefix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
-| 30  |   table_suffix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。需要注意，`table_suffix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
-| 31  |   tsdb_pagesize   | INT | 时序数据存储引擎中的页大小。需要注意，`tsdb_pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 26  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数。需要注意，`stt_trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 27  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。需要注意，`table_prefix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 28  |   table_suffix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。需要注意，`table_suffix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 29  |   tsdb_pagesize   | INT | 时序数据存储引擎中的页大小。需要注意，`tsdb_pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 
 ## INS_FUNCTIONS
 
