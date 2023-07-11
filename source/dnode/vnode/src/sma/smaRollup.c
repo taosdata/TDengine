@@ -858,9 +858,10 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, int64_t version, const void *pMsg,
   }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
+    char dupKey[40];
     if (!dupVerCheck) {
       if (0 == atomic_val_compare_exchange_8(&dupVerInit, 0, 1)) {
-        dupVerCheck = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+        dupVerCheck = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
         if (!dupVerCheck) ASSERT(0);
       } else {
         int32_t cnt = 0;
@@ -873,14 +874,19 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, int64_t version, const void *pMsg,
         }
       }
     }
+
+    snprintf(dupKey, 40, "%d:%" PRIi64 ":%" PRIi64, SMA_VID(pSma), version);
+    int32_t dupKeyLen = strlen(dupKey);
+    assert(dupKeyLen < 40);
     void *hashKey = NULL;
-    if ((hashKey = taosHashGet(dupVerCheck, &version, sizeof(version)))) {
+    if ((hashKey = taosHashGet(dupVerCheck, &dupKey, dupKeyLen + 1))) {
       ASSERT(0);
     } else {
-      if (taosHashPut(dupVerCheck, &version, sizeof(version), NULL, 0) != 0) {
+      if (taosHashPut(dupVerCheck, &dupKey, dupKeyLen + 1, NULL, 0) != 0) {
         ASSERT(0);
       }
     }
+
     if (tdExecuteRSmaImplAsync(pSma, version, pMsg, len, inputType, pRSmaInfo, suid) < 0) {
       tdReleaseRSmaInfo(pSma, pRSmaInfo);
       return TSDB_CODE_FAILED;

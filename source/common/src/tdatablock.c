@@ -1911,7 +1911,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
     }
   }
 
-  char dupKey[40];
+  char dupKey[50];
 
   for (int32_t i = 0; i < sz; ++i) {
     int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
@@ -1957,10 +1957,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               ASSERT(PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId);
               SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(TSKEY*)var});
               taosArrayPush(pVals, &cv);
-              snprintf(dupKey, 40, "%" PRIi64 ":%" PRIi64, *(TSKEY*)var, blkVer);
+              snprintf(dupKey, 50, "%d:%" PRIi64 ":%" PRIi64, vgId, *(TSKEY*)var, blkVer);
               uInfo("%s:%d key:ver: %s, tags: %s", __func__, __LINE__, dupKey, tag);
               int32_t dupKeyLen = strlen(dupKey);
-              assert(dupKeyLen < 40);
+              assert(dupKeyLen < 50);
               void* hashKey = NULL;
               if ((hashKey = taosHashGet(dupCheck, &dupKey, dupKeyLen + 1))) {
                 ASSERT(0);
