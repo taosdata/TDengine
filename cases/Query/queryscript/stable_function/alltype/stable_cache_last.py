@@ -79,7 +79,7 @@ class TDTestQuery(TDCase):
         self.logger.info("\n\n\n=============test=============\n\n\n" )
         sql = " drop database if exists %s "  % db
         #self.query_ignore_error(db,sql)
-        self.tdSql.execute(sql,queryTimes=100)
+        self.tdSql.execute(sql,queryTimes=60)
         sql = "create database if not exists %s keep 36500  replica 1 " % db
         #self.query_ignore_error(db,sql)
         self.tdSql.execute(sql,queryTimes=60)
@@ -105,18 +105,18 @@ class TDTestQuery(TDCase):
                 
     def flush_db(self,db): 
         sql = " flush database %s "  % db
-        self.tdSql.execute(sql,queryTimes=60)
+        self.tdSql.execute(sql,queryTimes=20)
         
     def alter_replica1_3(self,db): 
         sql = " ALTER DATABASE %s replica 3"  % db
-        # self.query_ignore_error(db,sql)
-        # time.sleep(50)
-        self.tdSql.execute(sql,queryTimes=60)
+        self.query_ignore_error(db,sql)
+        time.sleep(60)
+        # self.tdSql.execute(sql,queryTimes=200)
                 
     def alter_replica3_1(self,db): 
         sql = " ALTER DATABASE %s replica 1"  % db
         self.query_ignore_error(db,sql)
-        time.sleep(20)       
+        time.sleep(10)       
         
     def data_insert(self,db): 
         sql = " insert into %s.t1(ts,c1,c2) values(now, 1, 'abc');"  % db
