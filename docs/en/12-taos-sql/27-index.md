@@ -41,7 +41,6 @@ DROP INDEX index_name;
 ## View Indices
 
 ````sql
-```sql
 SHOW INDEXES FROM tbl_name [FROM db_name];
 ````
 
