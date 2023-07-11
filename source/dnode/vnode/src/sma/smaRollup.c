@@ -45,7 +45,7 @@ static void       tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 static void       tdFreeRSmaSubmitItems(SArray *pItems);
 static int32_t    tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo);
 static int32_t    tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
-                                            int64_t suid, const char* tag);
+                                            int64_t suid);
 static void       tdRSmaFetchTrigger(void *param, void *tmrId);
 static void       tdRSmaQTaskInfoFree(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t    tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables);
@@ -581,7 +581,7 @@ _end:
 }
 
 static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
-                                         int64_t suid, const char* tag) {
+                                         int64_t suid) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SSDataBlock *output = NULL;
@@ -620,8 +620,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       SSubmitReq2 *pReq = NULL;
 
       // TODO: the schema update should be handled later(TD-17965)
-      if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, output->info.id.groupId, SMA_VID(pSma), suid,
-                                      output->info.version, pItem->level, tag) < 0) {
+      if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, output->info.id.groupId, SMA_VID(pSma), suid) < 0) {
         code = terrno ? terrno : TSDB_CODE_RSMA_RESULT;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
@@ -776,7 +775,7 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
   }
 
   SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pInfo, idx);
-  tdRSmaExecAndSubmitResult(pSma, qTaskInfo, pItem, pInfo->pTSchema, pInfo->suid, __func__);
+  tdRSmaExecAndSubmitResult(pSma, qTaskInfo, pItem, pInfo->pTSchema, pInfo->suid);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -845,10 +844,6 @@ static FORCE_INLINE void tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
  * @param suid
  * @return int32_t
  */
-
-static SHashObj* dupVerCheck = NULL;
-static int8_t    dupVerInit = 0;
-
 static int32_t tdExecuteRSmaAsync(SSma *pSma, int64_t version, const void *pMsg, int32_t len, int32_t inputType,
                                   tb_uid_t suid) {
   SRSmaInfo *pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, suid);
@@ -858,35 +853,6 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, int64_t version, const void *pMsg,
   }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-    char dupKey[40];
-    if (!dupVerCheck) {
-      if (0 == atomic_val_compare_exchange_8(&dupVerInit, 0, 1)) {
-        dupVerCheck = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-        if (!dupVerCheck) ASSERT(0);
-      } else {
-        int32_t cnt = 0;
-        while (!dupVerCheck) {
-          ++cnt;
-          if (cnt > 1000) {
-            sched_yield();
-            cnt = 0;
-          }
-        }
-      }
-    }
-
-    snprintf(dupKey, 40, "%d:%" PRIi64 ":%" PRIi64, SMA_VID(pSma), version);
-    int32_t dupKeyLen = strlen(dupKey);
-    assert(dupKeyLen < 40);
-    void *hashKey = NULL;
-    if ((hashKey = taosHashGet(dupVerCheck, &dupKey, dupKeyLen + 1))) {
-      ASSERT(0);
-    } else {
-      if (taosHashPut(dupVerCheck, &dupKey, dupKeyLen + 1, NULL, 0) != 0) {
-        ASSERT(0);
-      }
-    }
-
     if (tdExecuteRSmaImplAsync(pSma, version, pMsg, len, inputType, pRSmaInfo, suid) < 0) {
       tdReleaseRSmaInfo(pSma, pRSmaInfo);
       return TSDB_CODE_FAILED;
@@ -1085,7 +1051,7 @@ _err:
 
   return code;
 }
-
+#if 0
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1126,7 +1092,7 @@ _exit:
   terrno = code;
   return code;
 }
-
+#endif
 /**
  * @brief trigger to get rsma result in async mode
  *
@@ -1280,7 +1246,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
       if ((terrno = qSetSMAInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
         goto _err;
       }
-      if (tdRSmaExecAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid, __func__) < 0) {
+      if (tdRSmaExecAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid) < 0) {
         goto _err;
       }
 
