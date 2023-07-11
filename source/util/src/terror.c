@@ -629,6 +629,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SNAPSHOT_ERROR,             "Can not operate in snapshot mode")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_VERSION_OUT_OF_RANGE,       "Offset out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_VGID,               "VgId does not belong to this consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_TOPIC,              "Topic does not belong to this consumer")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_CLOSED,            "Consumer closed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_ERROR,             "Consumer error, to see log")

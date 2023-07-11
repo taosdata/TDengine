@@ -2259,9 +2259,9 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
 int64_t tmq_get_vgroup_offset(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     SMqRspObj* pRspObj = (SMqRspObj*) res;
-    STqOffsetVal* pOffset = &pRspObj->rsp.rspOffset;
+    STqOffsetVal* pOffset = &pRspObj->rsp.reqOffset;
     if (pOffset->type == TMQ_OFFSET__LOG) {
-      return pRspObj->rsp.rspOffset.version;
+      return pRspObj->rsp.reqOffset.version;
     }
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pRspObj = (SMqMetaRspObj*)res;
@@ -2270,8 +2270,8 @@ int64_t tmq_get_vgroup_offset(TAOS_RES* res) {
     }
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*) res;
-    if (pRspObj->rsp.rspOffset.type == TMQ_OFFSET__LOG) {
-      return pRspObj->rsp.rspOffset.version;
+    if (pRspObj->rsp.reqOffset.type == TMQ_OFFSET__LOG) {
+      return pRspObj->rsp.reqOffset.version;
     }
   }
 
@@ -2761,7 +2761,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   if (pTopic == NULL) {
     tscError("consumer:0x%" PRIx64 " invalid topic name:%s", tmq->consumerId, pTopicName);
     taosWUnLockLatch(&tmq->lock);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_TMQ_INVALID_TOPIC;
   }
 
   SMqClientVg* pVg = NULL;
@@ -2777,7 +2777,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   if (pVg == NULL) {
     tscError("consumer:0x%" PRIx64 " invalid vgroup id:%d", tmq->consumerId, vgId);
     taosWUnLockLatch(&tmq->lock);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_TMQ_INVALID_VGID;
   }
 
   SVgOffsetInfo* pOffsetInfo = &pVg->offsetInfo;
@@ -2793,7 +2793,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
     tscError("consumer:0x%" PRIx64 " invalid seek params, offset:%" PRId64 ", valid range:[%" PRId64 ", %" PRId64 "]",
              tmq->consumerId, offset, pOffsetInfo->walVerBegin, pOffsetInfo->walVerEnd);
     taosWUnLockLatch(&tmq->lock);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_TMQ_VERSION_OUT_OF_RANGE;
   }
 
   // update the offset, and then commit to vnode
