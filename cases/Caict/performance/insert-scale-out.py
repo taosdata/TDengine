@@ -42,20 +42,21 @@ class Timeline_100B(TDCase):
         self.vgroups = 40
         self.create_table_thread_count = 40
         self.thread_count = 40
+        self.interlace_rows = 10000
         self.childtable_count1 = 1000
         self.childtable_count2 = 1000
         self.childtable_count3 = 1000
         self.childtable_prefix1 = "ctb1_"
         self.childtable_prefix2 = "ctb2_"
         self.childtable_prefix3 = "ctb3_"
-        self.insert_rows = 20000
+        self.insert_rows = 5000000
         self.num_of_records_per_req = 10000
         self.batch_create_tbl_num = 10000
         self.dbname1 = "test1"
         self.dbname2 = "test2"
         self.dbname3 = "test3"
         self.stbname = "stb"
-        self.insert_mode = "stmt"
+        self.insert_mode = "taosc"
         self.buffer = 4096
         self.json_data_list = list()
         self.json_filename_list = list()
@@ -73,6 +74,7 @@ class Timeline_100B(TDCase):
           }
         ]
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
+        self.query_interval = "10m"
 
 
     def desc(self):
@@ -93,6 +95,8 @@ class Timeline_100B(TDCase):
                 self.env_setting["settings"][index]["fqdn"].append(fqdn)
 
     def dnode1scale(self):
+        with open(self.result_file_name, 'a') as f:
+            f.write('****************************** 1 dnode ******************************')
         taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
 
@@ -100,7 +104,7 @@ class Timeline_100B(TDCase):
 
         self.json_filename_list.append(self.file_name1)
         dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, drop="no")
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count1, childtable_prefix=self.childtable_prefix1, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count1, childtable_prefix=self.childtable_prefix1, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
 
         json_info1 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
@@ -115,8 +119,14 @@ class Timeline_100B(TDCase):
         Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
         # Insert_file.get_process_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
         # Insert_file.get_node_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
+        query_res = self._remote.cmd(self.taosd_host, [f'taos -s "select count(*) from {self.dbname1}.{self.stbname} interval ({self.query_interval});"'])
+        with open(self.result_file_name, 'a') as f:
+            f.write('****************************** 10000000000 interval ******************************')
+            f.write(query_res)
 
     def dnode2scale(self, reserve_dnodes_index):
+        with open(self.result_file_name, 'a') as f:
+            f.write('\n\n****************************** 2 dnodes ******************************')
         self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index])
         self.tdCom.createDb(dbname=self.dbname2, vgroups=self.vgroups, buffer=self.buffer)
         add_taosBenchmark_fqdn = self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index]["endpoint"].split(":")[0]
@@ -128,7 +138,7 @@ class Timeline_100B(TDCase):
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         self.json_filename_list.append(self.file_name2)
         dbinfo = self.tdCom.setDBinfo(name=self.dbname2, replica=self.replica, vgroups=self.vgroups, drop="no")
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count2, childtable_prefix=self.childtable_prefix2, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count2, childtable_prefix=self.childtable_prefix2, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         json_info2 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name2, json_info2)
@@ -144,6 +154,8 @@ class Timeline_100B(TDCase):
         # Insert_file.get_node_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
 
     def dnode3scale(self, reserve_dnodes_index):
+        with open(self.result_file_name, 'a') as f:
+            f.write('\n\n****************************** 3 dnodes ******************************')
         self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index])
         self.tdCom.createDb(dbname=self.dbname3, vgroups=self.vgroups, buffer=self.buffer)
         add_taosBenchmark_fqdn = self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index]["endpoint"].split(":")[0]
@@ -156,7 +168,7 @@ class Timeline_100B(TDCase):
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         self.json_filename_list.append(self.file_name3)
         dbinfo = self.tdCom.setDBinfo(name=self.dbname3, replica=self.replica, vgroups=self.vgroups, drop="no")
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count3, childtable_prefix=self.childtable_prefix3, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count3, childtable_prefix=self.childtable_prefix3, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         json_info3 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name3, json_info3)
@@ -173,8 +185,8 @@ class Timeline_100B(TDCase):
 
     def run(self):
         self.dnode1scale()
-        self.dnode2scale(0)
-        self.dnode3scale(1)
+        # self.dnode2scale(0)
+        # self.dnode3scale(1)
 
         shutil.move(os.path.join(self.yaml_path, f'{self.yaml_file_name}_tmp'), os.path.join(self.yaml_path, self.yaml_file_name))
         print(self.result_file_name)
