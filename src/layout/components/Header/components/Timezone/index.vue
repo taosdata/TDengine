@@ -33,7 +33,7 @@
         this.$store.commit("app/SET_TIME_ZONE", value);
       },
       getAdditions(string) {
-        return moment.tz(string).zoneAbbr()
+        return moment.tz(string).format("Z")
       }
     },
   };
