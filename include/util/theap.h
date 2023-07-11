@@ -77,7 +77,7 @@ PriorityQueueNode* taosPQTop(PriorityQueue* pq);
 
 size_t taosPQSize(PriorityQueue* pq);
 
-void taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node);
+PriorityQueueNode* taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node);
 
 void taosPQPop(PriorityQueue* pq);
 
@@ -89,7 +89,13 @@ void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn);
 
 void destroyBoundedQueue(BoundedQueue* q);
 
-void taosBQPush(BoundedQueue* q, PriorityQueueNode* n);
+/*
+ * Push one node into BQ
+ * @retval NULL if n is upper than top node in q, and n is not freed
+ * @retval the pushed Node if pushing succeeded
+ * @note if maxSize exceeded, the original highest node is popped and freed with deleteFn
+ * */
+PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n);
 
 PriorityQueueNode* taosBQTop(BoundedQueue* q);
 
