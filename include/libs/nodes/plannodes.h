@@ -443,6 +443,7 @@ typedef struct SGroupCachePhysiNode {
   SPhysiNode node;
   bool       grpColsMayBeNull;
   SArray*    pDownstreamKey;
+  bool       grpByUid;
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 

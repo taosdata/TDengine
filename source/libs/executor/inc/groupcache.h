@@ -37,9 +37,10 @@ typedef struct SGcBufPageInfo {
 
 typedef struct SGroupCacheData {
   TdThreadMutex  mutex;
-  SSHashObj*     waitQueue;
+  SArray*        waitQueue;
   bool           fetchDone;
-  int64_t        fetchSessionId;
+  bool           needCache;
+  SSDataBlock*   pBlock;
   SGcBlkBufInfo* pFirstBlk;
   SGcBlkBufInfo* pLastBlk;
 } SGroupCacheData;
@@ -60,11 +61,26 @@ typedef struct SGroupColsInfo {
   char*          pData;
 } SGroupColsInfo;
 
+typedef struct SGcNewGroupInfo {
+  int64_t         uid;
+  SOperatorParam* pParam;
+} SGcNewGroupInfo;
+
+typedef struct SGcDownstreamCtx {
+  SRWLatch      lock;
+  int64_t       fetchSessionId;
+  SArray*       pNewGrpList; // SArray<SGcNewGroupInfo>
+  SArray*       pGrpUidList;
+} SGcDownstreamCtx;
+
 typedef struct SGcSessionCtx {
-  int32_t          downstreamIdx;
-  bool             needCache;
-  SGroupCacheData* pGroupData;
-  SGcBlkBufInfo*   pLastBlk; 
+  int32_t           downstreamIdx;
+  bool              needCache;
+  SGcOperatorParam* pParam;
+  SGroupCacheData*  pGroupData;
+  SGcBlkBufInfo*    pLastBlk; 
+  bool              semInit;
+  tsem_t            waitSem;
 } SGcSessionCtx;
 
 typedef struct SGcExecInfo {
@@ -72,9 +88,17 @@ typedef struct SGcExecInfo {
   int64_t* pDownstreamBlkNum;
 } SGcExecInfo;
 
+typedef struct SGcNewGroupInfo {
+  int64_t uid;
+} SGcNewGroupInfo;
+
 typedef struct SGroupCacheOperatorInfo {
+  TdThreadMutex     sessionMutex;
+  SGcNewGroupInfo   newGroup;
   SSHashObj*        pSessionHash;  
   SGroupColsInfo    groupColsInfo;
+  bool              grpByUid;
+  SGcDownstreamCtx* pDownstreams;
   SArray*           pBlkBufs;
   SHashObj*         pBlkHash;  
   SGcExecInfo       execInfo;
