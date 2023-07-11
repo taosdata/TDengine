@@ -23,7 +23,7 @@
       v-model="sqlStr"
     ></SQLEditor>
     <template v-if="model == 'Wizard'">
-      <el-form-item :label="$t('topic.topicName')" required prop="topic_name">
+      <el-form-item :label="$t('topic.topicName')" prop="topic_name">
         <el-input v-model="info.topic_name"> </el-input>
       </el-form-item>
       <!-- <SQuery
@@ -133,7 +133,7 @@ import SQuery from "./subscribeQuery.vue";
 import Subquery from "./subquery.vue";
 import SQLEditor from "./sqlEditor.vue";
 import { createTopic } from "@/api/topic";
-import { validTopicSql } from "@/utils/validate"
+import { validTopicSql, validDatabaseName } from "@/utils/validate"
 // const infoValidaterField = ["topic_name", "topic_type", "db_name"];
 export default {
   props: {
@@ -149,6 +149,8 @@ export default {
         callback(new Error(this.$t("topic.topicNameError")));
       } else if (this.topicList.some((item) => item.topicName === val)) {
         callback(new Error(this.$t("topic.topicNameExist")));
+      } else if (!validDatabaseName(val)) {
+        callback(new Error(this.$t("formatWrong")))
       } else {
         callback();
       }
@@ -156,7 +158,11 @@ export default {
     return {
       sqlPrefix: "CREATE TOPIC ",
       rules: {
-        topic_name: [{ validator: validateTopicName, trigger: "blur" }],
+        topic_name: [{ 
+          validator: validateTopicName, 
+          trigger: "blur", 
+          required: true 
+        }],
         stbName: [{
           required: true,
           message: this.$t("stream.stableUpperRequired") 
