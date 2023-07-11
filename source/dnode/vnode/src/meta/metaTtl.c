@@ -21,6 +21,10 @@ typedef struct {
   SMeta *pMeta;
 } SConvertData;
 
+static void ttlMgrCleanup(STtlManger *pTtlMgr);
+
+static int ttlMgrConvert(TTB *pOldTtlIdx, TTB *pNewTtlIdx, void *pMeta);
+
 static void    ttlMgrBuildKey(STtlIdxKeyV1 *pTtlKey, int64_t ttlDays, int64_t changeTimeMs, tb_uid_t uid);
 static int     ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int     ttlIdxKeyV1Cmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -36,27 +40,17 @@ const char *ttlTbname = "ttl.idx";
 const char *ttlV1Tbname = "ttlv1.idx";
 
 int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback) {
-  int ret;
+  int ret = TSDB_CODE_SUCCESS;
+  int64_t startNs = taosGetTimestampNs();
 
   *ppTtlMgr = NULL;
 
   STtlManger *pTtlMgr = (STtlManger *)tdbOsCalloc(1, sizeof(*pTtlMgr));
-  if (pTtlMgr == NULL) {
-    return -1;
-  }
-
-  if (tdbTbExist(ttlTbname, pEnv)) {
-    ret = tdbTbOpen(ttlTbname, sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pEnv, &pTtlMgr->pOldTtlIdx, rollback);
-    if (ret < 0) {
-      metaError("failed to open %s index since %s", ttlTbname, tstrerror(terrno));
-      return ret;
-    }
-  }
+  if (pTtlMgr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   ret = tdbTbOpen(ttlV1Tbname, TDB_VARIANT_LEN, TDB_VARIANT_LEN, ttlIdxKeyV1Cmpr, pEnv, &pTtlMgr->pTtlIdx, rollback);
   if (ret < 0) {
     metaError("failed to open %s since %s", ttlV1Tbname, tstrerror(terrno));
-
     tdbOsFree(pTtlMgr);
     return ret;
   }
@@ -66,42 +60,57 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback) {
 
   taosThreadRwlockInit(&pTtlMgr->lock, NULL);
 
+  ret = ttlMgrFillCache(pTtlMgr);
+  if (ret < 0) {
+    metaError("failed to fill hash since %s", tstrerror(terrno));
+    ttlMgrCleanup(pTtlMgr);
+    return ret;
+  }
+
+  int64_t endNs = taosGetTimestampNs();
+  metaInfo("ttl mgr open end, hash size: %d, time consumed: %" PRId64 " ns", taosHashGetSize(pTtlMgr->pTtlCache),
+           endNs - startNs);
+
   *ppTtlMgr = pTtlMgr;
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-int ttlMgrClose(STtlManger *pTtlMgr) {
-  taosHashCleanup(pTtlMgr->pTtlCache);
-  taosHashCleanup(pTtlMgr->pDirtyUids);
-  tdbTbClose(pTtlMgr->pTtlIdx);
-  taosThreadRwlockDestroy(&pTtlMgr->lock);
-  tdbOsFree(pTtlMgr);
-  return 0;
+void ttlMgrClose(STtlManger *pTtlMgr) { ttlMgrCleanup(pTtlMgr); }
+
+bool ttlMgrNeedUpgrade(TDB *pEnv) {
+  bool needUpgrade = tdbTbExist(ttlTbname, pEnv);
+  if (needUpgrade) {
+    metaInfo("find ttl idx in old version , will convert");
+  }
+  return needUpgrade;
 }
 
-int ttlMgrBegin(STtlManger *pTtlMgr, void *pMeta) {
-  metaInfo("ttl mgr start open");
-  int ret;
+int ttlMgrUpgrade(STtlManger *pTtlMgr, void *pMeta) {
+  SMeta *meta = (SMeta *)pMeta;
+  int    ret = TSDB_CODE_SUCCESS;
+
+  if (!tdbTbExist(ttlTbname, meta->pEnv)) return TSDB_CODE_SUCCESS;
+
+  metaInfo("ttl mgr start upgrade");
 
   int64_t startNs = taosGetTimestampNs();
 
-  SMeta *meta = (SMeta *)pMeta;
+  ret = tdbTbOpen(ttlTbname, sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, meta->pEnv, &pTtlMgr->pOldTtlIdx, 0);
+  if (ret < 0) {
+    metaError("failed to open %s index since %s", ttlTbname, tstrerror(terrno));
+    goto _out;
+  }
 
-  if (pTtlMgr->pOldTtlIdx) {
-    ret = ttlMgrConvert(pTtlMgr->pOldTtlIdx, pTtlMgr->pTtlIdx, pMeta);
-    if (ret < 0) {
-      metaError("failed to convert ttl index since %s", tstrerror(terrno));
-      goto _out;
-    }
+  ret = ttlMgrConvert(pTtlMgr->pOldTtlIdx, pTtlMgr->pTtlIdx, pMeta);
+  if (ret < 0) {
+    metaError("failed to convert ttl index since %s", tstrerror(terrno));
+    goto _out;
+  }
 
-    ret = tdbTbDropByName(ttlTbname, meta->pEnv, meta->txn);
-    if (ret < 0) {
-      metaError("failed to drop old ttl index since %s", tstrerror(terrno));
-      goto _out;
-    }
-
-    tdbTbClose(pTtlMgr->pOldTtlIdx);
-    pTtlMgr->pOldTtlIdx = NULL;
+  ret = tdbTbDropByName(ttlTbname, meta->pEnv, meta->txn);
+  if (ret < 0) {
+    metaError("failed to drop old ttl index since %s", tstrerror(terrno));
+    goto _out;
   }
 
   ret = ttlMgrFillCache(pTtlMgr);
@@ -111,11 +120,21 @@ int ttlMgrBegin(STtlManger *pTtlMgr, void *pMeta) {
   }
 
   int64_t endNs = taosGetTimestampNs();
-
-  metaInfo("ttl mgr open end, hash size: %d, time consumed: %" PRId64 " ns", taosHashGetSize(pTtlMgr->pTtlCache),
+  metaInfo("ttl mgr upgrade end, hash size: %d, time consumed: %" PRId64 " ns", taosHashGetSize(pTtlMgr->pTtlCache),
            endNs - startNs);
 _out:
+  tdbTbClose(pTtlMgr->pOldTtlIdx);
+  pTtlMgr->pOldTtlIdx = NULL;
+
   return ret;
+}
+
+static void ttlMgrCleanup(STtlManger *pTtlMgr) {
+  taosHashCleanup(pTtlMgr->pTtlCache);
+  taosHashCleanup(pTtlMgr->pDirtyUids);
+  tdbTbClose(pTtlMgr->pTtlIdx);
+  taosThreadRwlockDestroy(&pTtlMgr->lock);
+  tdbOsFree(pTtlMgr);
 }
 
 static void ttlMgrBuildKey(STtlIdxKeyV1 *pTtlKey, int64_t ttlDays, int64_t changeTimeMs, tb_uid_t uid) {
@@ -205,7 +224,7 @@ _out:
   return ret;
 }
 
-int ttlMgrConvert(TTB *pOldTtlIdx, TTB *pNewTtlIdx, void *pMeta) {
+static int ttlMgrConvert(TTB *pOldTtlIdx, TTB *pNewTtlIdx, void *pMeta) {
   SMeta *meta = pMeta;
 
   metaInfo("ttlMgr convert ttl start.");
@@ -358,7 +377,8 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
-      metaError("ttlMgr flush failed to get ttl cache since %s", tstrerror(terrno));
+      metaError("ttlMgr flush failed to get ttl cache since %s, uid: %" PRId64 ", type: %d", tstrerror(terrno), *pUid,
+                pEntry->type);
       goto _out;
     }
 

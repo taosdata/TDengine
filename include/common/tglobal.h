@@ -164,6 +164,8 @@ extern char tsSmlTagName[];
 // extern bool    tsSmlDataFormat;
 // extern int32_t tsSmlBatchSize;
 
+extern int32_t tmqMaxTopicNum;
+
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 
@@ -184,6 +186,7 @@ extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
+extern int32_t tsPQSortMemThreshold;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

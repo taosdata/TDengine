@@ -709,7 +709,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
 
   // validate req
-  metaReaderInit(&mr, pMeta, 0);
+  metaReaderDoInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
     if (pReq->type == TSDB_CHILD_TABLE && pReq->ctb.suid != mr.me.ctbEntry.suid) {
       terrno = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
@@ -1979,6 +1979,11 @@ static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
 
 int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
   if (!tsTtlChangeOnWrite) return 0;
+
+  if (changeTimeMs <= 0) {
+    metaWarn("Skip to change ttl deletetion time on write, uid: %" PRId64, uid);
+    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+  }
 
   STtlUpdCtimeCtx ctx = {.uid = uid, .changeTimeMs = changeTimeMs};
 

@@ -672,7 +672,7 @@ If you input a specific column, the number of non-null values in the column is r
 ELAPSED(ts_primary_key [, time_unit])
 ```
 
-**Description**: `elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
+**Description**: `elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` clause, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
 
 **Return value type**: Double if the input value is not NULL;
 
@@ -999,17 +999,13 @@ SAMPLE(expr, k)
 
 **Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
 
-**Return value type**: Same as the column being operated plus the associated timestamp
+**Return value type**: Same as the column being operated
 
-**Applicable data types**: Any data type except for tags of STable
+**Applicable data types**: Any data type
 
 **Applicable nested query**: Inner query and Outer query
 
 **Applicable table types**: standard tables and supertables
-
-**More explanations**:
-
-- This function cannot be used in expression calculation.
 
 
 ### TAIL
@@ -1055,11 +1051,11 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp. The first occurrence of a timestamp or tag is used.
+**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword.
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable column types**: Any data types except for timestamp
+**Applicable column types**: Any data types
 
 **Applicable table types**: table, STable
 

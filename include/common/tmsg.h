@@ -2909,6 +2909,12 @@ enum {
   TMQ_OFFSET__SNAPSHOT_META = 3,
 };
 
+enum {
+  WITH_DATA = 0,
+  WITH_META = 1,
+  ONLY_META = 2,
+};
+
 typedef struct {
   int8_t type;
   union {
@@ -3019,6 +3025,7 @@ typedef struct {
   char*   sql;
   char*   ast;
   int64_t deleteMark;
+  int64_t lastTs;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);

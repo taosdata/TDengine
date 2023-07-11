@@ -62,6 +62,7 @@ int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsMaxStreamBackendCache = 128;  // M
+int32_t tsPQSortMemThreshold = 16; // M
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
@@ -104,11 +105,13 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
 
+// tmq
+int32_t tmqMaxTopicNum = 20;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
-bool    tsEnableQueryHb = false;
+bool    tsEnableQueryHb = true;
 bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
 bool    tsTtlChangeOnWrite = false; // ttl delete time changes on last write if true
 int32_t tsQuerySmaOptimize = 0;
@@ -510,6 +513,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryPort", tsTelemPort, 1, 65056, 0) != 0) return -1;
 
+  if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, 1) != 0) return -1;
+
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
@@ -533,6 +538,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -880,6 +886,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
+  tmqMaxTopicNum= cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
+
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
@@ -914,6 +922,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
+  tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
 
   GRANT_CFG_GET;
   return 0;

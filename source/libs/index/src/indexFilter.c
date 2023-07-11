@@ -639,6 +639,10 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
+    if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY) {
+      return TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+    }
+
     bool       reverse = false, equal = false;
     FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse, &equal);
 

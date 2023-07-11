@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInc.h"
+#include "streamInt.h"
 
 SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen);
@@ -64,11 +64,11 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
+    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pSubmit->ver;
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
+    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pMerged->ver;
   }
 
@@ -162,26 +162,6 @@ int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubm
   taosArrayPush(pMerged->submits, &pSubmit->submit);
   pMerged->ver = pSubmit->ver;
   return 0;
-}
-
-static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  atomic_add_fetch_32(pDataSubmit->dataRef, 1);
-}
-
-SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit) {
-  int32_t len = 0;
-  if (pSubmit->type == STREAM_INPUT__DATA_SUBMIT) {
-    len = pSubmit->submit.msgLen;
-  }
-
-  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, len);
-  if (pSubmitClone == NULL) {
-    return NULL;
-  }
-
-  streamDataSubmitRefInc(pSubmit);
-  memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
-  return pSubmitClone;
 }
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem) {

@@ -835,6 +835,7 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
     if (tEncodeBinary(&encoder, pReq->ast, pReq->astLen) < 0) return -1;
   }
   if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->lastTs) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -884,6 +885,7 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
     if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
   }
   if (tDecodeI64(&decoder, &pReq->deleteMark) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->lastTs) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -6982,8 +6984,11 @@ int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int6
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeSVAlterTbReqCommon(pDecoder, pReq) < 0) return -1;
 
-  *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
-  if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  pReq->ctimeMs = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
+    if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
 
   tEndDecode(pDecoder);
   return 0;
@@ -7541,8 +7546,11 @@ int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
 int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder *pDecoder, SBatchDeleteReq *pReq, int64_t ctimeMs) {
   if (tDecodeSBatchDeleteReqCommon(pDecoder, pReq)) return -1;
 
-  *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
-  if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  pReq->ctimeMs = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
+    if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
   return 0;
 }
 

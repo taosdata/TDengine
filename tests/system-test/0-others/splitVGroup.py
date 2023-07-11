@@ -328,9 +328,28 @@ class TDTestCase:
         tdLog.exit("split vgroup transaction is not finished after executing 50s")
         return False
 
+    # split error 
+    def expectSplitError(self, dbName):
+        vgids = self.getVGroup(dbName)
+        selid = random.choice(vgids)
+        sql = f"split vgroup {selid}"
+        tdLog.info(sql)
+        tdSql.error(sql)    
+
+    # expect split ok
+    def expectSplitOk(self, dbName):
+        # split vgroup
+        vgList1 = self.getVGroup(dbName)
+        self.splitVGroup(dbName)
+        vgList2 = self.getVGroup(dbName)
+        vgNum1 = len(vgList1) + 1
+        vgNum2 = len(vgList2)
+        if vgNum1 != vgNum2:
+            tdLog.exit(f" vglist len={vgNum1} is not same for expect {vgNum2}")
+            return
+
     # split empty database
-    def splitEmptyDB(self):
-        
+    def splitEmptyDB(self):        
         dbName = "emptydb"
         vgNum = 2
         # create database
@@ -339,17 +358,33 @@ class TDTestCase:
         tdSql.execute(sql)
 
         # split vgroup
-        self.splitVGroup(dbName)
-        vgList = self.getVGroup(dbName)
-        vgNum1 = len(vgList)
-        vgNum2 = vgNum + 1
-        if vgNum1 != vgNum2:
-            tdLog.exit(f" vglist len={vgNum1} is not same for expect {vgNum2}")
-            return
+        self.expectSplitOk(dbName)
+
+
+    # forbid
+    def checkForbid(self):
+        # stream
+        tdLog.info("check forbid split having stream...")
+        tdSql.execute("create database streamdb;")
+        tdSql.execute("use streamdb;")
+        tdSql.execute("create table ta(ts timestamp, age int);")
+        tdSql.execute("create stream ma into sta as select count(*) from ta interval(1s);")
+        self.expectSplitError("streamdb")
+        tdSql.execute("drop stream ma;")
+        self.expectSplitOk("streamdb")
+
+        # topic
+        tdLog.info("check forbid split having topic...")
+        tdSql.execute("create database topicdb wal_retention_period 10;")
+        tdSql.execute("use topicdb;")
+        tdSql.execute("create table ta(ts timestamp, age int);")
+        tdSql.execute("create topic toa as select * from ta;")
+        self.expectSplitError("topicdb")
+        tdSql.execute("drop topic toa;")
+        self.expectSplitOk("topicdb")
 
     # run
     def run(self):
-        
         # prepare env
         self.prepareEnv()
 
@@ -360,12 +395,13 @@ class TDTestCase:
 
             # check two db query result same
             self.checkResult()
-
             tdLog.info(f"split vgroup i={i} passed.")
 
         # split empty db
-        self.splitEmptyDB()    
+        self.splitEmptyDB()
 
+        # check topic and stream forib
+        self.checkForbid()
 
     # stop
     def stop(self):
