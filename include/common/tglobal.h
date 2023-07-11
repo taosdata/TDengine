@@ -48,6 +48,7 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
+extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
@@ -185,6 +186,7 @@ extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
+extern int32_t tsKeepTimeOffset;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 
