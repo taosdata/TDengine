@@ -95,10 +95,7 @@ async fn main() -> anyhow::Result<()> {
     info!("Explorer service at http://0.0.0.0:{port}");
 
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header();
+        let cors = Cors::default();
         App::new()
             .wrap(TracingLogger::default())
             .wrap(Logger::default())
