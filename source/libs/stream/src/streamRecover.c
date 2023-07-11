@@ -206,7 +206,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
           qDebug("s-task:%s all %d downstream tasks are ready, now enter into scan-history-data stage, status:%s", id,
                  numOfReqs, streamGetTaskStatusStr(pTask->status.taskStatus));
           streamTaskLaunchScanHistory(pTask);
-        } else {  // todo add assert, agg tasks?
+        } else {
           ASSERT(pTask->status.taskStatus == TASK_STATUS__NORMAL);
           qDebug("s-task:%s fixed downstream task is ready, now ready for data from wal, status:%s", id,
                  streamGetTaskStatusStr(pTask->status.taskStatus));
@@ -351,7 +351,8 @@ static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferRe
   msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
-  qDebug("s-task:%s dispatch transfer state msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pReq->taskId, vgId);
+  qDebug("s-task:%s level:%d, status:%s dispatch transfer state msg to taskId:0x%x (vgId:%d)", pTask->id.idStr,
+         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), pReq->taskId, vgId);
 
   return 0;
 }
@@ -361,9 +362,6 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    qDebug("s-task:%s send transfer state msg to downstream (fix-dispatch) to taskId:0x%x, status:%s", pTask->id.idStr,
-           pTask->fixedEpDispatcher.taskId, streamGetTaskStatusStr(pTask->status.taskStatus));
-
     req.taskId = pTask->fixedEpDispatcher.taskId;
     doDispatchTransferMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -458,6 +456,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
       const char* pStatus = streamGetTaskStatusStr((*ppTask)->status.taskStatus);
       qDebug("s-task:%s status:%s quit timer task", (*ppTask)->id.idStr, pStatus);
 
+      taosMemoryFree(pInfo);
       (*ppTask)->status.timerActive = 0;
       taosWUnLockLatch(&pMeta->lock);
       return;
@@ -518,6 +517,7 @@ int32_t streamCheckHistoryTaskDownstream(SStreamTask* pTask) {
       pTask->launchTaskTimer = taosTmrStart(tryLaunchHistoryTask,  100, pInfo, streamEnv.timer);
       if (pTask->launchTaskTimer == NULL) {
         // todo failed to create timer
+        taosMemoryFree(pInfo);
       } else {
         pTask->status.timerActive = 1;  // timer is active
         qDebug("s-task:%s set timer active flag", pTask->id.idStr);
