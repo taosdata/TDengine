@@ -74,7 +74,7 @@ public class PushThread implements Runnable {
                 if (StringUtils.isEmpty(this.name)) {
                     this.name = "PushThread";
                 }
-                logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 读取内存中的数据
                 List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(this.dataSourceKey, this.performanceConfig.getLimitBatch());
                 // 判断是否读到数据
@@ -97,7 +97,7 @@ public class PushThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    this.logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    this.logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
                 }
             }
         }
@@ -115,7 +115,7 @@ public class PushThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        this.logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        this.logger.debug(this.name + "#Thread finished (Take time " + (end - start) + " ms)#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -131,7 +131,7 @@ public class PushThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        this.logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        this.logger.error(this.name + "#Thread exception (Take time" + (end - start) + " ms)#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -141,7 +141,7 @@ public class PushThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        this.logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        this.logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
@@ -173,7 +173,7 @@ public class PushThread implements Runnable {
             // 记录统计信息
             StatisticCache.totalPush.addAndGet(influxdbBucketDataEntityList.size());
         } catch (Exception e) {
-            this.logger.error("推送数据失败，重新写回内存队列", e);
+            this.logger.error("Push data failed, write back to queue.", e);
             // 写回
             BucketDataCache.addBucketData(influxdbBucketDataEntityList);
         }

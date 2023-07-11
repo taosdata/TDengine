@@ -63,16 +63,18 @@ groups:
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start
-      time will be the earliest time available.
+      The start time for backfilling data.
+
+      If not provided, the start time will be the earliest time available.
     placeholder: "YYYY-MM-DD HH:mm:ss"
   - name: BackfillEndTime
     display: Backfill End Time
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start
-      time will be the earliest time available.
+      The start time for backfilling data.
+
+      If not provided, the start time will be the earliest time available.
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
 - name: Data Queue

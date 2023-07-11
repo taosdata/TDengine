@@ -9,8 +9,6 @@ import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.NettyClient;
 import com.taosdata.utils.DateUtils;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +59,7 @@ public class PushPrepareThread implements Runnable {
                 if (StringUtils.isEmpty(this.name)) {
                     this.name = "PushPrepareThread";
                 }
-                logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 读取内存中的数据
                 List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(performanceConfig.getThread().getReadBucketDataBatch());
                 /* 1.按Bucket/Measurement/Table拆分队列 */
@@ -111,7 +109,7 @@ public class PushPrepareThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
                 }
             }
         }
@@ -129,7 +127,7 @@ public class PushPrepareThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.debug(this.name + "#Thread finished (Take time " + (end - start) + " ms)#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -145,7 +143,7 @@ public class PushPrepareThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        logger.error(this.name + "#Thread exception (Take time" + (end - start) + " ms)#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -161,7 +159,7 @@ public class PushPrepareThread implements Runnable {
         // 遍历写回主队列
         keySet.stream().forEach(key -> BucketDataCache.addBucketData(BucketDataCache.getBucketData(key, BucketDataCache.getBucketDataQueueSize(key))));
         // 线程结束
-        logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
