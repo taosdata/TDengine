@@ -541,13 +541,6 @@ int32_t streamTryExec(SStreamTask* pTask) {
                pTask->checkpointingId);
       }
 
-      if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
-//        code = updateCheckPointInfo(pTask, pTask->checkpointingId);
-//        if (code != TSDB_CODE_SUCCESS) {
-//          return code;
-//        }
-      }
-
       // send check point response to upstream task
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
         code = streamTaskSendCheckpointSourceRsp(pTask);

@@ -121,7 +121,6 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, i
     pTask->checkpointingId = checkpointId;
   }
 
-  ASSERT(pTask->checkpointingId == checkpointId);
   return atomic_sub_fetch_32(&pTask->checkpointAlignCnt, 1);
 }
 
