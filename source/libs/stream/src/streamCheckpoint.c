@@ -118,10 +118,8 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, i
   int64_t old = atomic_val_compare_exchange_32(&pTask->checkpointAlignCnt, 0, num);
   if (old == 0) {
     qDebug("s-task:%s set initial align upstream num:%d", pTask->id.idStr, num);
-    pTask->checkpointingId = checkpointId;
   }
 
-  ASSERT(pTask->checkpointingId == checkpointId);
   return atomic_sub_fetch_32(&pTask->checkpointAlignCnt, 1);
 }
 
@@ -204,11 +202,11 @@ int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask,
 }
 
 int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pReq) {
-  int32_t code;
   int64_t checkpointId = pReq->checkpointId;
   int32_t childId = pReq->childId;
 
   // set the task status
+  pTask->checkpointingId = checkpointId;
   pTask->status.taskStatus = TASK_STATUS__CK;
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__SINK);
 

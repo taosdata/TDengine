@@ -757,7 +757,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->pMeta = pTq->pStreamMeta;
 
-  pTask->chkInfo.version = ver;
   pTask->chkInfo.currentVer = ver;
 
   pTask->dataRange.range.maxVer = ver;
@@ -855,14 +854,13 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   streamSetupScheduleTrigger(pTask);
+  SCheckpointInfo* pChkInfo = &pTask->chkInfo;
 
-  tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64
+  tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " currentVer:%" PRId64
          " child id:%d, level:%d, scan-history:%d, trigger:%" PRId64 " ms",
-         vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->info.selfChildId, pTask->info.taskLevel,
-         pTask->info.fillHistory, pTask->triggerParam);
+         vgId, pTask->id.idStr, pChkInfo->keptCheckpointId, pChkInfo->version, pChkInfo->currentVer,
+         pTask->info.selfChildId, pTask->info.taskLevel, pTask->info.fillHistory, pTask->triggerParam);
 
-  // next valid version will add one
-  pTask->chkInfo.version += 1;
   return 0;
 }
 
