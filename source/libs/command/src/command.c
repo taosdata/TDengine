@@ -287,7 +287,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
   }
 
   if (IS_SYS_DBNAME(dbName)) {
-    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s` ", dbName);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
   } else {
     len += sprintf(
         buf2 + VARSTR_HEADER_SIZE,
