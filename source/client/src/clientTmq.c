@@ -2262,6 +2262,8 @@ int64_t tmq_get_vgroup_offset(TAOS_RES* res) {
     STqOffsetVal* pOffset = &pRspObj->rsp.reqOffset;
     if (pOffset->type == TMQ_OFFSET__LOG) {
       return pRspObj->rsp.reqOffset.version;
+    }else{
+      tscError("invalid offset type:%d", pOffset->type);
     }
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pRspObj = (SMqMetaRspObj*)res;
@@ -2273,6 +2275,8 @@ int64_t tmq_get_vgroup_offset(TAOS_RES* res) {
     if (pRspObj->rsp.reqOffset.type == TMQ_OFFSET__LOG) {
       return pRspObj->rsp.reqOffset.version;
     }
+  } else{
+    tscError("invalid tmqtype:%d", *(int8_t*)res);
   }
 
   // data from tsdb, no valid offset info
