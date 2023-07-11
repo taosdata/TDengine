@@ -575,8 +575,6 @@ endi
 $loop_count = 0
 
 print step 7
-
-
 sql create database test3 vgroups 6;
 sql use test3;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);

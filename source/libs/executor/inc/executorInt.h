@@ -285,6 +285,8 @@ typedef struct SStreamAggSupporter {
   int16_t         stateKeyType;
   SDiskbasedBuf*  pResultBuf;
   SStateStore     stateStore;
+  STimeWindow     winRange;
+  SStorageAPI*    pSessionAPI;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -503,6 +505,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
   int64_t             dataVersion;
+  SArray*             historyWins;
+  bool                isHistoryOp;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -522,6 +526,8 @@ typedef struct SStreamStateAggOperatorInfo {
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
   int64_t             dataVersion;
+  bool                isHistoryOp;
+  SArray*             historyWins;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -678,6 +684,8 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
 void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 uint64_t calcGroupId(char* pData, int32_t len);
+void streamOpReleaseState(struct SOperatorInfo* pOperator);
+void streamOpReloadState(struct SOperatorInfo* pOperator);
 
 #ifdef __cplusplus
 }

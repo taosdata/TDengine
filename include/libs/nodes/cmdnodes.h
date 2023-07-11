@@ -319,19 +319,22 @@ typedef struct SIndexOptions {
   SNode*     pInterval;
   SNode*     pOffset;
   SNode*     pSliding;
+  int8_t     tsPrecision;
   SNode*     pStreamOptions;
 } SIndexOptions;
 
 typedef struct SCreateIndexStmt {
-  ENodeType      type;
-  EIndexType     indexType;
-  bool           ignoreExists;
-  char           indexDbName[TSDB_DB_NAME_LEN];
-  char           indexName[TSDB_INDEX_NAME_LEN];
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList*     pCols;
-  SIndexOptions* pOptions;
+  ENodeType       type;
+  EIndexType      indexType;
+  bool            ignoreExists;
+  char            indexDbName[TSDB_DB_NAME_LEN];
+  char            indexName[TSDB_INDEX_NAME_LEN];
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*      pCols;
+  SIndexOptions*  pOptions;
+  SNode*          pPrevQuery;
+  SMCreateSmaReq* pReq;
 } SCreateIndexStmt;
 
 typedef struct SDropIndexStmt {
@@ -362,7 +365,7 @@ typedef struct SCreateTopicStmt {
   char      subDbName[TSDB_DB_NAME_LEN];
   char      subSTbName[TSDB_TABLE_NAME_LEN];
   bool      ignoreExists;
-  bool      withMeta;
+  int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
 } SCreateTopicStmt;
