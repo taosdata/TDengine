@@ -87,7 +87,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setDescription(StatusEnums.LOADING.getDesc());
             // 判断是否存在参数且参数是否为-v
             if (args == null || args.length == 0) {
-                logger.info("启动参数错误，启动失败");
+                logger.info("Parameters error, startup failed.");
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
                 System.exit(0);
@@ -109,7 +109,7 @@ public class PreLoading implements CommandLineRunner {
                     System.out.println(influxdbService.fetchSchemaInfo(url, token));
                     System.exit(0);
                 } else {
-                    logger.info("查询参数错误，查询失败");
+                    logger.info("Parameters error, query failed.");
                     System.exit(1);
                 }
             } else {
@@ -159,7 +159,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());
         } catch (Exception e) {
-            logger.error("系统启动过程中发生异常，启动失败", e);
+            logger.error("An exception occurred during the system startup process and the startup failed.", e);
             // 状态异常
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
@@ -208,7 +208,7 @@ public class PreLoading implements CommandLineRunner {
                 this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
             }
         } catch (Exception e) {
-            logger.error("加载Toml文件过程中发生异常，启动失败", e);
+            logger.error("An exception occurred during the loading of the Toml file, causing startup failure.", e);
             // 状态异常
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
@@ -244,7 +244,7 @@ public class PreLoading implements CommandLineRunner {
                     }
                 }
             } catch (Exception e) {
-                logger.error("读取断点失败，将按照普通模式执行任务", e);
+                logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
     }
@@ -297,13 +297,13 @@ public class PreLoading implements CommandLineRunner {
                     threadInfo.setDescription(StatusEnums.LOADING.getDesc());
                     StatusCache.noteThread(threadInfo);
                 } catch (Exception e) {
-                    logger.error("初始化influxdb及相关线程过程中发生异常", e);
+                    logger.error("An exception occurred during the initialization of InfluxDB and related threads.", e);
                 }
             });
             // 没有bucket则报错退出
             if (BucketCache.bucketMap.size() == 0) {
                 // bucket错误
-                logger.error("The application will exit soon: bucket not found");
+                logger.error("The application will exit soon: bucket not found.");
                 System.exit(104);
             }
             // 估算任务量
@@ -331,7 +331,7 @@ public class PreLoading implements CommandLineRunner {
             threadInfo.setDescription(StatusEnums.LOADING.getDesc());
             StatusCache.noteThread(threadInfo);
         } catch (Exception e) {
-            logger.error("初始化influxdb及相关线程过程中发生异常", e);
+            logger.error("An exception occurred during the initialization of InfluxDB and related threads.", e);
         }
     }
 
@@ -403,10 +403,10 @@ public class PreLoading implements CommandLineRunner {
             Thread.sleep(2000L);
             // 判断是否变化
             if (fetchRecordsSize != StatisticCache.completedTaskSet.size() || queueRecordsSize != BucketDataCache.getBucketDataQueueSize()) {
-                logger.error("系统安全退出时内存数据发生变化");
+                logger.error("Memory data changes during system security exit.");
             }
         } catch (Exception e) {
-            logger.error("系统安全退出时判断数据变化失败", e);
+            logger.error("Failed to determine data changes during system security exit.", e);
         }
         // 操作系统临时目录
         String temporaryPath = System.getProperty("java.io.tmpdir");
@@ -415,7 +415,7 @@ public class PreLoading implements CommandLineRunner {
             String fetchRecords = StringUtils.join(StatisticCache.completedTaskSet.toArray(), RECORD_DELIMITER);
             FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_FETCH, fetchRecords);
         } catch (Exception e) {
-            logger.error("系统安全退出时保存读取记录失败", e);
+            logger.error("Failed to save read records during system security exit.", e);
         }
         // 将内存队列写入文件
         try {
@@ -428,8 +428,8 @@ public class PreLoading implements CommandLineRunner {
             }
             FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_QUEUE, sb.toString());
         } catch (Exception e) {
-            logger.error("系统安全退出时保存读取记录失败", e);
+            logger.error("Failed to save read records during system security exit.", e);
         }
-        logger.info("系统已执行安全退出。");
+        logger.info("The system has executed a secure exit.");
     }
 }
