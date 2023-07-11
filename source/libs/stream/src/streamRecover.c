@@ -553,8 +553,10 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   streamSetStatusNormal(pTask);
   atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
 
-  // todo check rsp, commit data
+  taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);
+  taosWUnLockLatch(&pMeta->lock);
+
   return 0;
 }
 
