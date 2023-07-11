@@ -204,7 +204,6 @@ int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask,
 }
 
 int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pReq) {
-  int32_t code;
   int64_t checkpointId = pReq->checkpointId;
   int32_t childId = pReq->childId;
 
