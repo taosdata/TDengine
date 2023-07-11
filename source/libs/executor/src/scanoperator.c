@@ -401,9 +401,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pCost->totalRows -= pBlock->info.rows;
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
-    int64_t st = taosGetTimestampUs();
-    doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo);
+    int32_t code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo);
+    if (code != TSDB_CODE_SUCCESS) return code;
 
+    int64_t st = taosGetTimestampUs();
     double el = (taosGetTimestampUs() - st) / 1000.0;
     pTableScanInfo->readRecorder.filterTime += el;
 
@@ -2940,7 +2941,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   } else if (kWay <= 2) {
     kWay = 2;
   } else {
-    int i = 2; 
+    int i = 2;
     while (i * 2 <= kWay) i = i * 2;
     kWay = i;
   }

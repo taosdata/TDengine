@@ -2727,11 +2727,13 @@ static bool pushDownLimitOptShouldBeOptimized(SLogicNode* pNode) {
   }
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  // push down to sort node
   if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pChild)) {
-    SLimitNode* pChildLimit = (SLimitNode*)(pChild->pLimit);
     // if we have pushed down, we skip it
-    if ((*(SSortLogicNode*)pChild).maxRows != -1) return false;
-  } else if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    if (pChild->pLimit) return false;
+  } else if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) || QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode)) {
+    // push down to table scan node
+    // if pNode is sortNode, we skip push down limit info to table scan node
     return false;
   }
   return true;
@@ -2746,13 +2748,10 @@ static int32_t pushDownLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   nodesDestroyNode(pChild->pLimit);
   if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pChild)) {
-    SLimitNode* pLimitNode = (SLimitNode*)pNode->pLimit;
-    int64_t maxRows = -1;
-    if (pLimitNode->limit != -1) {
-      maxRows = pLimitNode->limit;
-      if (pLimitNode->offset != -1) maxRows += pLimitNode->offset;
-    }
-    ((SSortLogicNode*)pChild)->maxRows = maxRows;
+    pChild->pLimit = nodesCloneNode(pNode->pLimit);
+    SLimitNode* pLimit = (SLimitNode*)pChild->pLimit;
+    pLimit->limit += pLimit->offset;
+    pLimit->offset = 0;
   } else {
     pChild->pLimit = pNode->pLimit;
     pNode->pLimit = NULL;

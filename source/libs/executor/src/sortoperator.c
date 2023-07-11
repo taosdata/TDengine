@@ -55,7 +55,11 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pOperator->exprSupp.pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
   pOperator->exprSupp.numOfExprs = numOfCols;
   calcSortOperMaxTupleLength(pInfo, pSortNode->pSortKeys);
-  pInfo->maxRows = pSortNode->maxRows;
+  pInfo->maxRows = -1;
+  if (pSortNode->node.pLimit) {
+    SLimitNode* pLimit = (SLimitNode*)pSortNode->node.pLimit;
+    if (pLimit->limit > 0) pInfo->maxRows = pLimit->limit;
+  }
 
   int32_t numOfOutputCols = 0;
   int32_t code =
@@ -718,7 +722,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    if (p->info.rows > 0) {
+    if (p->info.rows > 0 || limitReached) {
       break;
     }
   }
