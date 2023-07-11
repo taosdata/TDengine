@@ -57,7 +57,7 @@ export const PermissionMap = {
   2: 0,
 };
 export const RedirectKey = "TDengine-Redirect";
-export const ReLoginCode = ["502", "401", "432", "512"]; //重新登录的状态码
+export const ReLoginCode = ["502", "401", "432"]; //重新登录的状态码
 export const SuccessCode = ["200", "302"]; //请求成功的状态码
 export const ServerLevel = {
   FREE: 0,
