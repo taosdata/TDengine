@@ -1,4 +1,3 @@
-use anyhow::Context;
 use arrow::{
     array::{ArrayRef, TimestampMillisecondArray},
     datatypes::{Schema, SchemaRef},
@@ -8,8 +7,6 @@ use arrow::{
 use arrow_flight::{FlightClient, PutResult};
 use bytes::Bytes;
 use futures::TryStreamExt;
-use parquet::column;
-use sha2::digest::typenum::private::IsLessOrEqualPrivate;
 use std::{
     any::Any,
     collections::HashMap,
@@ -20,12 +17,11 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll,
-    time::{Duration, Instant}, ops::DerefMut, f32::consts::E,
+    task::Poll, time::Duration,
 };
 use taos::{
-    taos_query::common::{views::views_to_raw_block, Describe}, AsyncQueryable, Bindable, Dsn, Itertools,
-    RawBlock, Stmt, Taos, TaosPool, Ty,
+    AsyncQueryable, Bindable, Dsn, Itertools,
+    RawBlock, Stmt, Taos, TaosPool, Ty, AsyncFetchable, taos_query::common::Describe,
 };
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -274,17 +270,55 @@ async fn consume_lush_record(
         LushMessage::Tables(tables) => {
             let mut sql = format!("CREATE TABLE ");
             for table in tables {
-                let table_sql = table.to_sql(None).unwrap();
-                sql.push_str(table_sql.replace("CREATE TABLE", "").as_str());
+                let table_name = table.table_name();
+                let tags = table.tags();
+                if tags.is_none() {
+                    continue;
+                }
+                let tags = tags.clone().unwrap();
+                let mut query_tags_sql = format!("SELECT ");
+                for (tagname, _) in &tags {
+                    query_tags_sql.push_str(format!("`{tagname}`,").as_str());
+                }
+                query_tags_sql.pop();
+                query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
+                // log::info!("query_tags_sql: {query_tags_sql}");
+                match taos.query(query_tags_sql).await {
+                    Ok(mut rs) => {
+                        let mut rows = rs.rows();
+                        while let Some(mut row) = rows.try_next().await? {
+                            let next = row.next().unwrap();
+                            for (tagname, tagvalue) in &tags {
+                                if tagname == next.0 && tagvalue.to_sql_value() != next.1.to_sql_value() {
+                                    log::info!("table {table_name} tag value not match, new: {}, old:{}", tagvalue.to_sql_value(), next.1.to_sql_value());
+                                    let alter_set_sql = format!("alter table `{table_name}` set TAG `{tagname}`={}", tagvalue.to_sql_value());
+                                    log::info!("alter_set_sql: {alter_set_sql}");
+                                    taos.exec(alter_set_sql).await?;
+                                }
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        log::info!("query_tags_sql err: {}", err.to_string());
+                        if err.to_string().contains("0x2603") || err.to_string().contains("0x2662") {
+                            // table not exists
+                            let table_sql = table.to_sql(None).unwrap();
+                            sql.push_str(table_sql.replace("CREATE TABLE", "").as_str());
+                        }
+                    }
+                }
+                
                 if let Some(transferred) = transferred {
                     transferred.tables.fetch_add(1, Ordering::SeqCst);
                 }
             }
-            info!("Tables: {sql}");
-            taos.exec(&sql).await?;
+            if sql != "CREATE TABLE " {
+                info!("Tables: {sql}");
+                taos.exec(&sql).await?;
+            }
         }
         LushMessage::Insert(record) => {
-            
+            // let guard = mutex.lock().await;
             for record in record {
                 *records += record.num_rows();
 
@@ -314,7 +348,6 @@ async fn consume_lush_record(
                     stmt.bind(data.as_slice())?;
                     stmt.add_batch().unwrap();
                     let n = stmt.execute()?;
-
                     info!("written : [{n}] records");
                     if let Some(transferred) = transferred {
                         transferred.records.fetch_add(n as _, Ordering::SeqCst);
@@ -323,100 +356,8 @@ async fn consume_lush_record(
                             .fetch_add((n * data.len()) as _, Ordering::SeqCst);
                     }
                 }
-                // let map_data = record.to_column_views_group_by_tablename();
-                // for (k, data_vec) in &map_data {
-                //     let table_name = k.as_deref().or(record.table());
-                //     if let Some(table_name) = table_name {
-                //         if let Err(err) = stmt.set_tbname(table_name) {
-                //             tracing::warn!("table name `{}` error {err}", table_name);
-                //             if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
-                //                 info!("sql: {tb}");
-                //                 taos.exec_sync(&tb)?;
-                //                 stmt.set_tbname(table_name)?;
-                //             }
-                //         }
-                //         debug_assert!(columns.len() == data_vec.len());
-                //         let start = std::time::Instant::now();
-                //         let mut column_value_pairs: Vec<(String, String)> = Vec::new();
-                //         for (index, v) in data_vec.iter().enumerate() {
-                //             let mut i = 0;
-                //             while i < v.len() {
-                //                 let mut temp_column_value_pair = column_value_pairs.get_mut(i);
-                //                 if temp_column_value_pair.is_none() {
-                //                     let pair = (String::new(), String::new());
-                //                     column_value_pairs.insert(i, pair);
-                //                     temp_column_value_pair = column_value_pairs.get_mut(i);
-                //                 }
-                //                 let temp_column_value_pair = temp_column_value_pair.unwrap();
-                //                 if let Some(v) = v.get(i) {
-                //                     if !v.is_null() {
-                //                         temp_column_value_pair.0.push('`');
-                //                         temp_column_value_pair.0.push_str(columns[index].as_str());
-                //                         temp_column_value_pair.0.push_str("`,");
-                //                         // temp_column_value_pair.1.push('\'');
-                //                         temp_column_value_pair
-                //                             .1
-                //                             .push_str(v.into_value().to_sql_value().as_str());
-                //                         // temp_column_value_pair.1.push('\'');
-                //                         temp_column_value_pair.1.push_str(",");
-                //                     } else {
-                //                         // ignore null columnview
-                //                         log::trace!("column view {} is null", columns[index]);
-                //                     }
-                //                 } else {
-                //                     log::trace!("column view {} is null", columns[index]);
-                //                 }
-                //                 i = i + 1;
-                //             }
-                //         }
-                //         let mut count = 0;
-                //         let mut sql = format!("insert into ");
-                //         for (mut c, mut v) in column_value_pairs {
-                //             // let mut column_names = String::from("(");
-                //             // let mut values = String::from("(");
-                //             c.pop();
-                //             // column_names.push_str(c.as_str());
-                //             // column_names.push(')');
-                //             v.pop();
-                //             // values.push_str(v.as_str());
-                //             // values.push(')');
-                //             sql.push_str(format!("`{table_name}` ({}) VALUES ({}) ", c.as_str(), v.as_str()).as_str());
-                //             // let sql = format!(
-                //                 // "insert into `{table_name}` {column_names} VALUES {values}"
-                //             // );
-                            
-                //         }
-                //         let duration = start.elapsed();
-                //         // log::debug!("data prepare time cost: {:?}", duration);
-                //         log::debug!("sql: {sql}");
-                //         let start = std::time::Instant::now();
-                //         let res = taos.exec(sql).await;
-                //         let duration = start.elapsed();
-                //         // log::debug!("exec sql time cost: {:?}", duration);
-                //         match res {
-                //             Ok(num) => {
-                //                 count = count + num;
-                //             }
-                //             Err(err) => {
-                //                 log::error!("written err for {table_name} cause: {}", err);
-                //             }
-                //         }
-                //         info!("written [{count}] records for table {table_name}");
-                //     } else {
-                //         stmt.bind(data_vec.as_slice())?;
-                //         stmt.add_batch().unwrap();
-                //         let n = stmt.execute()?;
-
-                //         info!("written : [{n}] records");
-                //         if let Some(transferred) = transferred {
-                //             transferred.records.fetch_add(n as _, Ordering::SeqCst);
-                //             transferred
-                //                 .points
-                //                 .fetch_add((n * data_vec.len()) as _, Ordering::SeqCst);
-                //         }
-                //     }
-                // }
             }
+            // drop(guard);
         }
     }
     Ok(())
@@ -1006,7 +947,6 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
     let mut stmt = Stmt::init(taos)?;
 
     let mut count = 0;
-
     for record in ipc_reader {
         if let Ok(record) = record {
             let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
