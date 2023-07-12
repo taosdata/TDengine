@@ -266,20 +266,6 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
         continue;
       }
-#if 0
-    if (pRSmaInfo->taskInfo[0]) {
-      if (pRSmaInfo->iTaskInfo[0]) {
-        SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pRSmaInfo->iTaskInfo[0];
-        tdFreeRSmaInfo(pSma, pRSmaInfo, false);
-        pRSmaInfo->iTaskInfo[0] = NULL;
-      }
-    } else {
-      TSWAP(pRSmaInfo->taskInfo[0], pRSmaInfo->iTaskInfo[0]);
-    }
-
-    taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
-    smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma), *pSuid);
-#endif
     }
 
     // unlock
