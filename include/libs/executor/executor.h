@@ -41,23 +41,22 @@ typedef struct {
 } SLocalFetch;
 
 typedef struct {
-  void*   tqReader;
-  void*   config;
-  void*   vnode;
-  void*   mnd;
-  SMsgCb* pMsgCb;
-  int64_t version;
-  bool    initMetaReader;
-  bool    initTableReader;
-  bool    initTqReader;
-  int32_t numOfVgroups;
-  void*   sContext;  // SSnapContext*
+  void*       tqReader;
+  void*       config;
+  void*       vnode;
+  void*       mnd;
+  SMsgCb*     pMsgCb;
+  int64_t     version;
+  bool        initMetaReader;
+  bool        initTableReader;
+  bool        initTqReader;
+  int32_t     numOfVgroups;
+  void*       sContext;  // SSnapContext*
+  void*       pStateBackend;
+  int8_t      fillHistory;
+  STimeWindow winRange;
 
-  void*   pStateBackend;
   struct SStorageAPI api;
-
-  int8_t        fillHistory;
-  STimeWindow   winRange;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg

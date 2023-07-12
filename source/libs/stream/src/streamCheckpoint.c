@@ -219,7 +219,7 @@ int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pRe
     // anymore
     ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) > 0);
 
-    // there are still some upstream tasks not send checkpoint request
+    // there are still some upstream tasks not send checkpoint request, do nothing and wait for then
     int32_t notReady = streamAlignCheckpoint(pTask, checkpointId, childId);
     if (notReady > 0) {
       int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
@@ -230,12 +230,13 @@ int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pRe
 
     qDebug("s-task:%s received checkpoint req, all upstream sent checkpoint msg, dispatch checkpoint msg to downstream",
            pTask->id.idStr);
-    pTask->checkpointNotReadyTasks = (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH)
-                                         ? 1
-                                         : taosArrayGetSize(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
+
+    // set the needed checked downstream tasks, only when all downstream tasks do checkpoint complete, this node
+    // can start local checkpoint procedure
+    pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
 
     // if all upstreams are ready for generating checkpoint, set the status to be TASK_STATUS__CK_READY
-    // 2. dispatch check point msg to all downstream tasks
+    // dispatch check point msg to all downstream tasks
     streamTaskDispatchCheckpointMsg(pTask, checkpointId);
   }
 
@@ -257,7 +258,8 @@ int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask) {
     appendCheckpointIntoInputQ(pTask);
     streamSchedExec(pTask);
   } else {
-    qDebug("s-task:%s %d downstream tasks are not ready, wait", pTask->id.idStr, notReady);
+    int32_t total = streamTaskGetNumOfDownstream(pTask);
+    qDebug("s-task:%s %d/%d downstream tasks are not ready, wait", pTask->id.idStr, notReady, total);
   }
 
   return 0;
