@@ -117,12 +117,6 @@ endi
 if $data23_db != 0 then  # wal_retention_size
   return -1
 endi
-if $data24_db != 0 then  # wal_roll_period
-  return -1
-endi
-if $data25_db != 0 then  # wal_segment_size
-  return -1
-endi
 
 #sql show db.vgroups
 #if $data[0][4] == leader then

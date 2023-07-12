@@ -78,6 +78,7 @@ ESyncRole vnodeGetRole(SVnode *pVnode);
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
 int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg, void* arg1), void *arg);
 void   *vnodeGetIdx(void *pVnode);
 void   *vnodeGetIvtIdx(void *pVnode);
 
@@ -126,6 +127,9 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
+bool     metaTbInFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
+int32_t  metaPutTbToFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
+int32_t  metaSizeOfTbFilterCache(void *pVnode, int8_t type);
 
 int32_t  metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 
