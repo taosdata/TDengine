@@ -59,7 +59,7 @@ authentication:
           required: true
     - name: 2.x
       display: 版本 2.x
-      description: 使用 1.x 版本时，只能使用“令牌 Token”进行认证。
+      description: 使用 2.x 版本时，只能使用“令牌 Token”进行认证。
       value: true
       params:
         - name: version
