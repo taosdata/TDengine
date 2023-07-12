@@ -22,7 +22,7 @@ from taostest.performance.result_reduction import Perf_Base_func
 from datetime import datetime
 import sys
 import shutil
-class Timeline_100B(TDCase):
+class InsertScale(TDCase):
     def init(self):
         self.yaml_path = os.path.join(os.environ["TEST_ROOT"], "env")
         self.yaml_file_name = sys.argv[1].split("=")[1]
@@ -42,21 +42,21 @@ class Timeline_100B(TDCase):
         self.vgroups = 40
         self.create_table_thread_count = 40
         self.thread_count = 40
-        self.interlace_rows = 10000
+        self.interlace_rows = 1000
         self.childtable_count1 = 1000
         self.childtable_count2 = 1000
         self.childtable_count3 = 1000
         self.childtable_prefix1 = "ctb1_"
         self.childtable_prefix2 = "ctb2_"
         self.childtable_prefix3 = "ctb3_"
-        self.insert_rows = 5000000
+        self.insert_rows = 100000
         self.num_of_records_per_req = 10000
         self.batch_create_tbl_num = 10000
         self.dbname1 = "test1"
         self.dbname2 = "test2"
         self.dbname3 = "test3"
         self.stbname = "stb"
-        self.insert_mode = "taosc"
+        self.insert_mode = "stmt"
         self.buffer = 4096
         self.json_data_list = list()
         self.json_filename_list = list()
@@ -74,7 +74,6 @@ class Timeline_100B(TDCase):
           }
         ]
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
-        self.query_interval = "10m"
 
 
     def desc(self):
@@ -119,10 +118,6 @@ class Timeline_100B(TDCase):
         Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
         # Insert_file.get_process_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
         # Insert_file.get_node_exporter_info(self.get_component_by_name("prometheus"), 30, timestamp_start, timestamp_end)
-        query_res = self._remote.cmd(self.taosd_host, [f'taos -s "select count(*) from {self.dbname1}.{self.stbname} interval ({self.query_interval});"'])
-        with open(self.result_file_name, 'a') as f:
-            f.write('****************************** 10000000000 interval ******************************')
-            f.write(query_res)
 
     def dnode2scale(self, reserve_dnodes_index):
         with open(self.result_file_name, 'a') as f:
@@ -185,8 +180,8 @@ class Timeline_100B(TDCase):
 
     def run(self):
         self.dnode1scale()
-        # self.dnode2scale(0)
-        # self.dnode3scale(1)
+        self.dnode2scale(0)
+        self.dnode3scale(1)
 
         shutil.move(os.path.join(self.yaml_path, f'{self.yaml_file_name}_tmp'), os.path.join(self.yaml_path, self.yaml_file_name))
-        print(self.result_file_name)
+        self._remote.cmd("127.0.0.1", [f'cat {self.result_file_name}'])

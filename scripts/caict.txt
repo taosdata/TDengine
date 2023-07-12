@@ -5,4 +5,9 @@ taostest --setup=Caict/1C4G3W.yaml --case=Caict/performance/1C4G3W.py --keep
 taostest --setup=Caict/16C32G500W.yaml --case=Caict/performance/16C32G500W.py --keep
 
 taostest --setup=Caict/16C32G500W.yaml --case=Caict/performance/comp.py --keep
-
+taostest --setup=Caict/16C32G500W.yaml --case=Caict/performance/10ms_lastrow.py --keep
+taostest --use=Caict/10billion_interval.yaml --case=Caict/performance/10billion_interval.py --keep
+taostest --setup=Caict/insert-scale-out.yaml --case=Caict/performance/insert-scale-out.py --keep
+taostest --setup=Caict/query-scale-out.yaml --case=Caict/performance/query-scale-out.py --keep
+taostest --use=Caict/8C1GMEM.yaml --case=Caict/performance/8C1GMEM.py --keep
+taostest --setup=Caict/16C32G500W.yaml --case=Caict/performance/restart_taosd_time.py --keep
