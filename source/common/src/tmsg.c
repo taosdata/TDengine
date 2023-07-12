@@ -5382,6 +5382,48 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
   return 0;
 }
 
+
+int32_t tSerializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+  if (buf != NULL) {
+    buf = (char *)buf + headLen;
+    bufLen -= headLen;
+  }
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->consumerId) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->subKey) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  if (buf != NULL) {
+    SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
+    pHead->vgId = htonl(pReq->head.vgId);
+    pHead->contLen = htonl(tlen + headLen);
+  }
+
+  return tlen + headLen;
+}
+
+int32_t tDeserializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
+  tDecodeCStrTo(&decoder, pReq->subKey);
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   int32_t headLen = sizeof(SMsgHead);
   if (buf != NULL) {

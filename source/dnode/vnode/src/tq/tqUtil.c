@@ -214,7 +214,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   SMqMetaRsp  metaRsp = {0};
   STaosxRsp   taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, pRequest);
-  taosxRsp.reqOffset.type = offset->type;   // stroe origin type for getting offset in tmq_get_vgroup_offset
+  taosxRsp.reqOffset.type = offset->type;   // store origin type for getting offset in tmq_get_vgroup_offset
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
