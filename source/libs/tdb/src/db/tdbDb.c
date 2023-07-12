@@ -70,6 +70,11 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   if (ret < 0) {
     return -1;
   }
+
+  ret = tdbTbOpen(TDB_FREEDB_NAME, sizeof(SPgno), 0, NULL, pDb, &pDb->pFreeDb, rollback);
+  if (ret < 0) {
+    return -1;
+  }
 #endif
 
   *ppDb = pDb;
@@ -82,6 +87,7 @@ int tdbClose(TDB *pDb) {
   if (pDb) {
 #ifdef USE_MAINDB
     if (pDb->pMainDb) tdbTbClose(pDb->pMainDb);
+    if (pDb->pFreeDb) tdbTbClose(pDb->pFreeDb);
 #endif
 
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {

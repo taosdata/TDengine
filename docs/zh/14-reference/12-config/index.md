@@ -101,7 +101,7 @@ taos -C
 | 取值范围 | 10-50000000             |
 | 缺省值  | 5000                    |
 
-### numOfRpcSessions 
+### numOfRpcSessions
 
 | 属性     | 说明                    |
 | --------| ---------------------- |
@@ -120,7 +120,7 @@ taos -C
 | 缺省值   | 500000               |
 
 
-### numOfRpcSessions 
+### numOfRpcSessions
 
 | 属性     | 说明                         |
 | -------- | ---------------------------- |
@@ -717,6 +717,25 @@ charset 的有效值是 UTF-8。
 | 取值范围 | 0: 不启动；1：启动 |
 | 缺省值   | 1                  |
 
+### ttlChangeOnWrite
+
+| 属性     | 说明               |
+| -------- | ------------------ |
+| 适用范围 | 仅服务端适用       |
+| 含义     | ttl 到期时间是否伴随表的修改操作改变  |
+| 取值范围 | 0: 不改变；1：改变 |
+| 缺省值   | 0                  |
+
+### keepTimeOffset
+
+| 属性     | 说明               |
+| -------- | ------------------ |
+| 适用范围 | 仅服务端适用         |
+| 含义     | 迁移操作的延时      |
+| 单位     | 小时               |
+| 取值范围 | 0-23               |
+| 缺省值   | 0                  |
+
 ## 压缩参数
 
 ### compressMsgSize
@@ -784,6 +803,8 @@ charset 的有效值是 UTF-8。
 | 52  |        charset         | 是              | 是                              |                    |
 | 53  |          udf           | 是              | 是                              |                    |
 | 54  |     enableCoreFile     | 是              | 是                              |                    |
+| 55  |    ttlChangeOnWrite    | 否              | 是                              |                    |
+| 56  |     keepTimeOffset     | 是              | 是                              |                    |
 
 ## 2.x->3.0 的废弃参数
 
@@ -798,76 +819,74 @@ charset 的有效值是 UTF-8。
 | 7   |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                         |
 | 8   |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                     |
 | 9   |      dnodeNopLoop       | 是              | 否              | 2.6 文档中未找到此参数                               |
-| 10  |     keepTimeOffset      | 是              | 否              | 2.6 文档中未找到此参数                               |
-| 11  |        rpcTimer         | 是              | 否              | 3.0 行为未知                                         |
-| 12  |       rpcMaxTime        | 是              | 否              | 3.0 行为未知                                         |
-| 13  |       rpcForceTcp       | 是              | 否              | 默认为 TCP                                           |
-| 14  |     tcpConnTimeout      | 是              | 否              | 3.0 行为未知                                         |
-| 15  |    syncCheckInterval    | 是              | 否              | 3.0 行为未知                                         |
-| 16  |       maxTmrCtrl        | 是              | 否              | 3.0 行为未知                                         |
-| 17  |     monitorReplica      | 是              | 否              | 由 RAFT 协议管理多副本                               |
-| 18  |     smlTagNullName      | 是              | 否              | 3.0 行为未知                                         |
-| 20  |    ratioOfQueryCores    | 是              | 否              | 由 线程池 相关配置参数决定                           |
-| 21  |   maxStreamCompDelay    | 是              | 否              | 3.0 行为未知                                         |
-| 22  | maxFirstStreamCompDelay | 是              | 否              | 3.0 行为未知                                         |
-| 23  |  retryStreamCompDelay   | 是              | 否              | 3.0 行为未知                                         |
-| 24  |  streamCompDelayRatio   | 是              | 否              | 3.0 行为未知                                         |
-| 25  |     maxVgroupsPerDb     | 是              | 否              | 由 create db 的参数 vgroups 指定实际 vgroups 数量    |
-| 26  |    maxTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup               |
-| 27  |    minTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup               |
-| 28  |  tableIncStepPerVnode   | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup               |
-| 29  |          cache          | 是              | 否              | 由 buffer 代替 cache\*blocks                         |
-| 30  |         blocks          | 是              | 否              | 由 buffer 代替 cache\*blocks                         |
-| 31  |          days           | 是              | 否              | 由 create db 的参数 duration 取代                    |
-| 32  |          keep           | 是              | 否              | 由 create db 的参数 keep 取代                        |
-| 33  |         minRows         | 是              | 否              | 由 create db 的参数 minRows 取代                     |
-| 34  |         maxRows         | 是              | 否              | 由 create db 的参数 maxRows 取代                     |
-| 35  |         quorum          | 是              | 否              | 由 RAFT 协议决定                                     |
-| 36  |          comp           | 是              | 否              | 由 create db 的参数 comp 取代                        |
-| 37  |        walLevel         | 是              | 否              | 由 create db 的参数 wal_level 取代                   |
-| 38  |          fsync          | 是              | 否              | 由 create db 的参数 wal_fsync_period 取代            |
-| 39  |         replica         | 是              | 否              | 由 create db 的参数 replica 取代                     |
-| 40  |       partitions        | 是              | 否              | 3.0 行为未知                                         |
-| 41  |         update          | 是              | 否              | 允许更新部分列                                       |
-| 42  |        cachelast        | 是              | 否              | 由 create db 的参数 cacheModel 取代                  |
-| 43  |      maxSQLLength       | 是              | 否              | SQL 上限为 1MB，无需参数控制                         |
-| 44  |   maxWildCardsLength    | 是              | 否              | 3.0 行为未知                                         |
-| 45  |    maxRegexStringLen    | 是              | 否              | 3.0 行为未知                                         |
-| 46  |   maxNumOfOrderedRes    | 是              | 否              | 3.0 行为未知                                         |
-| 47  |     maxConnections      | 是              | 否              | 取决于系统配置和系统处理能力，详见后面的 Note        |
-| 48  |   mnodeEqualVnodeNum    | 是              | 否              | 3.0 行为未知                                         |
-| 49  |          http           | 是              | 否              | http 服务由 taosAdapter 提供                         |
-| 50  |   httpEnableRecordSql   | 是              | 否              | taosd 不提供 http 服务                               |
-| 51  |     httpMaxThreads      | 是              | 否              | taosd 不提供 http 服务                               |
-| 52  |     restfulRowLimit     | 是              | 否              | taosd 不提供 http 服务                               |
-| 53  |   httpDbNameMandatory   | 是              | 否              | taosd 不提供 http 服务                               |
-| 54  |      httpKeepAlive      | 是              | 否              | taosd 不提供 http 服务                               |
-| 55  |     enableRecordSql     | 是              | 否              | 3.0 行为未知                                         |
-| 56  |  maxBinaryDisplayWidth  | 是              | 否              | 3.0 行为未知                                         |
-| 57  |         stream          | 是              | 否              | 默认启用连续查询                                     |
-| 58  |  retrieveBlockingModel  | 是              | 否              | 3.0 行为未知                                         |
-| 59  |  tsdbMetaCompactRatio   | 是              | 否              | 3.0 行为未知                                         |
-| 60  |   defaultJSONStrType    | 是              | 否              | 3.0 行为未知                                         |
-| 61  |      walFlushSize       | 是              | 否              | 3.0 行为未知                                         |
-| 62  |     keepTimeOffset      | 是              | 否              | 3.0 行为未知                                         |
-| 63  |        flowctrl         | 是              | 否              | 3.0 行为未知                                         |
-| 64  |       slaveQuery        | 是              | 否              | 3.0 行为未知： slave vnode 是否能够处理查询？        |
-| 65  |      adjustMaster       | 是              | 否              | 3.0 行为未知                                         |
-| 66  |     topicBinaryLen      | 是              | 否              | 3.0 行为未知                                         |
-| 67  |   telegrafUseFieldNum   | 是              | 否              | 3.0 行为未知                                         |
-| 68  |    deadLockKillQuery    | 是              | 否              | 3.0 行为未知                                         |
-| 69  |       clientMerge       | 是              | 否              | 3.0 行为未知                                         |
-| 70  |      sdbDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
-| 71  |      odbcDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
-| 72  |      httpDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
-| 73  |      monDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
-| 74  |       cqDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
-| 75  |      shortcutFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
-| 76  |      probeSeconds       | 是              | 否              | 3.0 行为未知                                         |
-| 77  |    probeKillSeconds     | 是              | 否              | 3.0 行为未知                                         |
-| 78  |      probeInterval      | 是              | 否              | 3.0 行为未知                                         |
-| 79  |      lossyColumns       | 是              | 否              | 3.0 行为未知                                         |
-| 80  |       fPrecision        | 是              | 否              | 3.0 行为未知                                         |
-| 81  |       dPrecision        | 是              | 否              | 3.0 行为未知                                         |
-| 82  |        maxRange         | 是              | 否              | 3.0 行为未知                                         |
-| 83  |          range          | 是              | 否              | 3.0 行为未知                                         |
+| 10  |        rpcTimer         | 是              | 否              | 3.0 行为未知                                         |
+| 11  |       rpcMaxTime        | 是              | 否              | 3.0 行为未知                                         |
+| 12  |       rpcForceTcp       | 是              | 否              | 默认为 TCP                                           |
+| 13  |     tcpConnTimeout      | 是              | 否              | 3.0 行为未知                                         |
+| 14  |    syncCheckInterval    | 是              | 否              | 3.0 行为未知                                         |
+| 15  |       maxTmrCtrl        | 是              | 否              | 3.0 行为未知                                         |
+| 16  |     monitorReplica      | 是              | 否              | 由 RAFT 协议管理多副本                               |
+| 17  |     smlTagNullName      | 是              | 否              | 3.0 行为未知                                         |
+| 18  |    ratioOfQueryCores    | 是              | 否              | 由 线程池 相关配置参数决定                           |
+| 19  |   maxStreamCompDelay    | 是              | 否              | 3.0 行为未知                                         |
+| 20  | maxFirstStreamCompDelay | 是              | 否              | 3.0 行为未知                                         |
+| 21  |  retryStreamCompDelay   | 是              | 否              | 3.0 行为未知                                         |
+| 22  |  streamCompDelayRatio   | 是              | 否              | 3.0 行为未知                                         |
+| 23  |     maxVgroupsPerDb     | 是              | 否              | 由 create db 的参数 vgroups 指定实际 vgroups 数量    |
+| 24  |    maxTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup               |
+| 25  |    minTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup               |
+| 26  |  tableIncStepPerVnode   | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup               |
+| 27  |          cache          | 是              | 否              | 由 buffer 代替 cache\*blocks                         |
+| 28  |         blocks          | 是              | 否              | 由 buffer 代替 cache\*blocks                         |
+| 29  |          days           | 是              | 否              | 由 create db 的参数 duration 取代                    |
+| 30  |          keep           | 是              | 否              | 由 create db 的参数 keep 取代                        |
+| 31  |         minRows         | 是              | 否              | 由 create db 的参数 minRows 取代                     |
+| 32  |         maxRows         | 是              | 否              | 由 create db 的参数 maxRows 取代                     |
+| 33  |         quorum          | 是              | 否              | 由 RAFT 协议决定                                     |
+| 34  |          comp           | 是              | 否              | 由 create db 的参数 comp 取代                        |
+| 35  |        walLevel         | 是              | 否              | 由 create db 的参数 wal_level 取代                   |
+| 36  |          fsync          | 是              | 否              | 由 create db 的参数 wal_fsync_period 取代            |
+| 37  |         replica         | 是              | 否              | 由 create db 的参数 replica 取代                     |
+| 38  |       partitions        | 是              | 否              | 3.0 行为未知                                         |
+| 39  |         update          | 是              | 否              | 允许更新部分列                                       |
+| 40  |        cachelast        | 是              | 否              | 由 create db 的参数 cacheModel 取代                  |
+| 41  |      maxSQLLength       | 是              | 否              | SQL 上限为 1MB，无需参数控制                         |
+| 42  |   maxWildCardsLength    | 是              | 否              | 3.0 行为未知                                         |
+| 43  |    maxRegexStringLen    | 是              | 否              | 3.0 行为未知                                         |
+| 44  |   maxNumOfOrderedRes    | 是              | 否              | 3.0 行为未知                                         |
+| 45  |     maxConnections      | 是              | 否              | 取决于系统配置和系统处理能力，详见后面的 Note        |
+| 46  |   mnodeEqualVnodeNum    | 是              | 否              | 3.0 行为未知                                         |
+| 47  |          http           | 是              | 否              | http 服务由 taosAdapter 提供                         |
+| 48  |   httpEnableRecordSql   | 是              | 否              | taosd 不提供 http 服务                               |
+| 49  |     httpMaxThreads      | 是              | 否              | taosd 不提供 http 服务                               |
+| 50  |     restfulRowLimit     | 是              | 否              | taosd 不提供 http 服务                               |
+| 51  |   httpDbNameMandatory   | 是              | 否              | taosd 不提供 http 服务                               |
+| 52  |      httpKeepAlive      | 是              | 否              | taosd 不提供 http 服务                               |
+| 53  |     enableRecordSql     | 是              | 否              | 3.0 行为未知                                         |
+| 54  |  maxBinaryDisplayWidth  | 是              | 否              | 3.0 行为未知                                         |
+| 55  |         stream          | 是              | 否              | 默认启用连续查询                                     |
+| 56  |  retrieveBlockingModel  | 是              | 否              | 3.0 行为未知                                         |
+| 57  |  tsdbMetaCompactRatio   | 是              | 否              | 3.0 行为未知                                         |
+| 58  |   defaultJSONStrType    | 是              | 否              | 3.0 行为未知                                         |
+| 59  |      walFlushSize       | 是              | 否              | 3.0 行为未知                                         |
+| 60  |        flowctrl         | 是              | 否              | 3.0 行为未知                                         |
+| 61  |       slaveQuery        | 是              | 否              | 3.0 行为未知： slave vnode 是否能够处理查询？        |
+| 62  |      adjustMaster       | 是              | 否              | 3.0 行为未知                                         |
+| 63  |     topicBinaryLen      | 是              | 否              | 3.0 行为未知                                         |
+| 64  |   telegrafUseFieldNum   | 是              | 否              | 3.0 行为未知                                         |
+| 65  |    deadLockKillQuery    | 是              | 否              | 3.0 行为未知                                         |
+| 66  |       clientMerge       | 是              | 否              | 3.0 行为未知                                         |
+| 67  |      sdbDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
+| 68  |      odbcDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
+| 69  |      httpDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
+| 70  |      monDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
+| 71  |       cqDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
+| 72  |      shortcutFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                       |
+| 73  |      probeSeconds       | 是              | 否              | 3.0 行为未知                                         |
+| 74  |    probeKillSeconds     | 是              | 否              | 3.0 行为未知                                         |
+| 75  |      probeInterval      | 是              | 否              | 3.0 行为未知                                         |
+| 76  |      lossyColumns       | 是              | 否              | 3.0 行为未知                                         |
+| 77  |       fPrecision        | 是              | 否              | 3.0 行为未知                                         |
+| 78  |       dPrecision        | 是              | 否              | 3.0 行为未知                                         |
+| 79  |        maxRange         | 是              | 否              | 3.0 行为未知                                         |
+| 80  |          range          | 是              | 否              | 3.0 行为未知                                         |

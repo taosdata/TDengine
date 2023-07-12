@@ -100,12 +100,10 @@ Provides information about user-created databases. Similar to SHOW DATABASES.
 | 23  |   wal_fsync_period   | INT              | Interval at which WAL is written to disk. It should be noted that `wal_fsync_period` is a TDengine keyword and needs to be escaped with ` when used as a column name.   |
 | 24  | wal_retention_period | INT              | WAL retention period. It should be noted that `wal_retention_period` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                    |
 | 25  |  wal_retention_size  | INT              | Maximum WAL size. It should be noted that `wal_retention_size` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                    |
-| 26  |   wal_roll_period    | INT              | WAL rotation period. It should be noted that `wal_roll_period` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                  |
-| 27  |   wal_segment_size   | BIGINT | WAL file size. It should be noted that `wal_segment_size` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
-| 28  |   stt_trigger   | SMALLINT | The threshold for number of files to trigger file merging. It should be noted that `stt_trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
-| 29  |   table_prefix   | SMALLINT | The prefix length in the table name that is ignored when distributing table to vnode based on table name. It should be noted that `table_prefix` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
-| 30  |   table_suffix   | SMALLINT | The suffix length in the table name that is ignored when distributing table to vnode based on table name. It should be noted that `table_suffix` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
-| 31  |   tsdb_pagesize   | INT | The page size for internal storage engine, its unit is KB. It should be noted that `tsdb_pagesize` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
+| 26  |   stt_trigger   | SMALLINT | The threshold for number of files to trigger file merging. It should be noted that `stt_trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
+| 27  |   table_prefix   | SMALLINT | The prefix length in the table name that is ignored when distributing table to vnode based on table name. It should be noted that `table_prefix` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
+| 28  |   table_suffix   | SMALLINT | The suffix length in the table name that is ignored when distributing table to vnode based on table name. It should be noted that `table_suffix` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
+| 29  |   tsdb_pagesize   | INT | The page size for internal storage engine, its unit is KB. It should be noted that `tsdb_pagesize` is a TDengine keyword and needs to be escaped with ` when used as a column name.  |
 
 ## INS_FUNCTIONS
 
@@ -283,6 +281,8 @@ Provides dnode configuration information.
 | 2   | consumer_group | BINARY(193)  | Subscribed consumer group         |
 | 3   |   vgroup_id    | INT          | Vgroup ID for the consumer |
 | 4   |  consumer_id   | BIGINT       | Consumer ID          |
+| 5   |  offset        | BINARY(64)   | Consumption progress |
+| 6   |  rows          | BIGINT       | Number of consumption items |
 
 ## INS_STREAMS
 
