@@ -117,8 +117,7 @@ static int32_t rsmaSnapReadQTaskInfo(SRSmaSnapReader* pReader, uint8_t** ppBuf) 
       continue;
     }
 
-    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), qTaskF->suid, qTaskF->level, version, tfsGetPrimaryPath(pVnode->pTfs),
-                               fname);
+    tdRSmaQTaskInfoGetFullName(pVnode, qTaskF->suid, qTaskF->level, version, pVnode->pTfs, fname);
     if (!taosCheckExistFile(fname)) {
       smaError("vgId:%d, vnode snapshot rsma reader for qtaskinfo, table %" PRIi64 ", level %" PRIi8
                ", version %" PRIi64 " failed since %s not exist",
@@ -340,7 +339,6 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   SSmaEnv*         pEnv = NULL;
   SRSmaStat*       pStat = NULL;
   SRSmaSnapWriter* pWriter = *ppWriter;
-  const char*      primaryPath = NULL;
   char             fname[TSDB_FILENAME_LEN] = {0};
   char             fnameVer[TSDB_FILENAME_LEN] = {0};
   TdFilePtr        pOutFD = NULL;
@@ -354,7 +352,6 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   pVnode = pSma->pVnode;
   pEnv = SMA_RSMA_ENV(pSma);
   pStat = (SRSmaStat*)SMA_ENV_STAT(pEnv);
-  primaryPath = tfsGetPrimaryPath(pVnode->pTfs);
 
   // rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
@@ -375,8 +372,8 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
     for (int32_t i = 0; i < size; ++i) {
       SQTaskFile* pTaskF = TARRAY_GET_ELEM(pFS->aQTaskInf, i);
       if (pTaskF->version == pWriter->ever) {
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version, primaryPath, fnameVer);
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, -1, primaryPath, fname);
+        tdRSmaQTaskInfoGetFullName(pVnode, pTaskF->suid, pTaskF->level, pTaskF->version, pVnode->pTfs, fnameVer);
+        tdRSmaQTaskInfoGetFullName(pVnode, pTaskF->suid, pTaskF->level, -1, pVnode->pTfs, fname);
 
         pInFD = taosOpenFile(fnameVer, TD_FILE_READ);
         if (pInFD == NULL) {
@@ -486,8 +483,7 @@ static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, 
   SQTaskFile qTaskFile = {
       .nRef = 1, .level = pHdr->flag, .suid = pHdr->index, .version = pWriter->ever, .size = pHdr->size};
 
-  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pHdr->index, pHdr->flag, qTaskFile.version,
-                             tfsGetPrimaryPath(pVnode->pTfs), fname);
+  tdRSmaQTaskInfoGetFullName(pVnode, pHdr->index, pHdr->flag, qTaskFile.version, pVnode->pTfs, fname);
 
   fp = taosCreateFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!fp) {

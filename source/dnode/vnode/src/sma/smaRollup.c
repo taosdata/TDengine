@@ -260,7 +260,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     void       *pStreamState = NULL;
 
     // set the backend of stream state
-    tdRSmaQTaskInfoGetFullPathEx(TD_VID(pVnode), pRSmaInfo->suid, idx + 1, tfsGetPrimaryPath(pVnode->pTfs), taskInfDir);
+    tdRSmaQTaskInfoGetFullPathEx(pVnode, pRSmaInfo->suid, idx + 1, pVnode->pTfs, taskInfDir);
     if (!taosCheckExistFile(taskInfDir)) {
       char *s = taosStrdup(taskInfDir);
       if (taosMulMkDir(taosDirName(s)) != 0) {
@@ -1258,9 +1258,8 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
                  pRSmaInfo->suid, i + 1);
 
         // qTaskInfo file
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pRSmaInfo->suid, i + 1, -1, tfsGetPrimaryPath(pVnode->pTfs), fname);
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pRSmaInfo->suid, i + 1, version, tfsGetPrimaryPath(pVnode->pTfs),
-                                   fnameVer);
+        tdRSmaQTaskInfoGetFullName(pVnode, pRSmaInfo->suid, i + 1, -1, pVnode->pTfs, fname);
+        tdRSmaQTaskInfoGetFullName(pVnode, pRSmaInfo->suid, i + 1, version, pVnode->pTfs, fnameVer);
         if (taosCheckExistFile(fnameVer)) {
           smaWarn("vgId:%d, rsma persist, duplicate file %s exist", TD_VID(pVnode), fnameVer);
         }
