@@ -934,7 +934,6 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   };
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-
   if (pTask != NULL) {
     rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -1106,7 +1105,15 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       // 1. stop the related stream task, get the current scan wal version of stream task, ver.
       pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
       if (pStreamTask == NULL) {
-        // todo handle error
+        qError("failed to find s-task:0x%x, it may have been destroyed, drop fill history task:%s",
+               pTask->streamTaskId.taskId, pTask->id.idStr);
+
+        pTask->status.taskStatus = TASK_STATUS__DROPPING;
+        tqDebug("s-task:%s scan-history-task set status to be dropping", pId);
+
+        streamMetaSaveTask(pMeta, pTask);
+        streamMetaReleaseTask(pMeta, pTask);
+        return -1;
       }
 
       ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
@@ -1213,11 +1220,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 // notify the downstream tasks to transfer executor state after handle all history blocks.
-int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  SStreamTransferReq req;
+int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
+  char*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t len = pMsg->contLen - sizeof(SMsgHead);
+
+  SStreamTransferReq req = {0};
 
   SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+  tDecoderInit(&decoder, (uint8_t*)pReq, len);
   int32_t code = tDecodeStreamScanHistoryFinishReq(&decoder, &req);
   tDecoderClear(&decoder);
 
@@ -1227,25 +1237,33 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int
     return -1;
   }
 
+  int32_t remain = streamAlignTransferState(pTask);
+  if (remain > 0) {
+    tqDebug("s-task:%s receive transfer state msg, remain:%d", pTask->id.idStr, remain);
+    return 0;
+  }
+
   // transfer the ownership of executor state
-  streamTaskReleaseState(pTask);
-  tqDebug("s-task:%s receive state transfer req", pTask->id.idStr);
+  tqDebug("s-task:%s all upstream tasks end transfer msg", pTask->id.idStr);
 
   // related stream task load the state from the state storage backend
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     tqError("failed to find related stream task:0x%x, it may have been dropped already", req.taskId);
     return -1;
   }
 
+  // when all upstream tasks have notified the this task to start transfer state, then we start the transfer procedure.
+  streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
+  streamMetaReleaseTask(pTq->pStreamMeta, pStreamTask);
 
   ASSERT(pTask->streamTaskId.taskId != 0);
   pTask->status.transferState = true;
 
   streamSchedExec(pTask);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
   return 0;
 }
 

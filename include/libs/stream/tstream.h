@@ -346,6 +346,7 @@ struct SStreamTask {
   int32_t             refCnt;
   int64_t             checkpointingId;
   int32_t             checkpointAlignCnt;
+  int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
 };
@@ -630,6 +631,8 @@ int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStre
 
 int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
+int32_t streamAlignTransferState(SStreamTask* pTask);
+
 
 #ifdef __cplusplus
 }
