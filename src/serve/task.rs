@@ -570,7 +570,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     assert!(std::env::set_current_dir(&root).is_ok());
     match file_type.as_str() {
         "csv" => {
-            let csv_header = taosx_core::csv_header(filepath_or_filedir.as_ref(), has_header).await?;
+            let csv_header = taosx_core::csv_header(vec![filepath_or_filedir.as_ref()], has_header).await?;
             let column_names = if csv_header.columns == 0 {
                 None
             } else {

@@ -15,7 +15,6 @@ use futures_util::stream::FuturesUnordered;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
-use tokio::time::MissedTickBehavior::Skip;
 
 use taosx_ipc::prelude::ArrowDataType;
 
@@ -60,12 +59,19 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
     CsvSource::csv_path(path)
 }
 
-pub async fn csv_header(path: &str, has_header: bool) -> Result<CsvHeader> {
-    let files = CsvSource::csv_path(path)?;
-    let headers = CsvSource::read_header(&files[0], has_header).await?;
+pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader> {
+    let mut header = Vec::new();
+    for path in paths {
+        let path_header = CsvSource::read_header(path, has_header).await?;
+        if !CsvSource::is_same_header(&header, &path_header, has_header) {
+            return Err(anyhow!(format!("header of files {} is different with others", &path)));
+        }
+        header = path_header;
+    }
+
     Ok(CsvHeader {
-        columns: headers.len(),
-        headers: if has_header { headers } else { vec![] },
+        columns: header.len(),
+        headers: if has_header { header } else { vec![] },
     })
 }
 
@@ -149,16 +155,20 @@ impl CsvSource {
                 .iter()
                 .map(String::from)
                 .collect::<Vec<String>>();
-            if has_header && !headers.is_empty() && headers != file_headers {
+            if !CsvSource::is_same_header(&headers, &file_headers, has_header) {
                 return Err(anyhow!(format!("header of files {} is different with others", &path)));
             }
-            if !has_header && !headers.is_empty() && headers.len() != file_headers.len() {
-                return Err(anyhow!(format!("columns of {} if different with others", &path)));
-            }
-            headers = file_headers
+
+            headers = file_headers;
         }
 
         Ok(headers)
+    }
+
+    fn is_same_header(old_header: &Vec<String>, new_header: &Vec<String>, has_header: bool) -> bool {
+        old_header.is_empty()
+            || (has_header && old_header == new_header)
+            || (!has_header && old_header.len() == new_header.len())
     }
 
     async fn read(&mut self) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
