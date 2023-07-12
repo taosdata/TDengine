@@ -186,6 +186,13 @@ bool tsDeployOnSnode = true;
  *     TSDB_TIME_PRECISION_NANO:  60000000000L
  */
 int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
+/*
+ * millisecond by default
+ * for TSDB_TIME_PRECISION_MILLI: 3600000L
+ *     TSDB_TIME_PRECISION_MICRO: 3600000000L
+ *     TSDB_TIME_PRECISION_NANO:  3600000000000L
+ */
+int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
 
 // lossy compress 6
 char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
@@ -216,6 +223,7 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
+int32_t tsKeepTimeOffset = 0;  // latency of data migration
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -535,6 +543,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "keepTimeOffset", tsKeepTimeOffset, 0, 23, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, 0) != 0) return -1;
 
@@ -918,6 +927,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
+  tsKeepTimeOffset = cfgGetItem(pCfg, "keepTimeOffset")->i32;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
 
@@ -1472,6 +1482,19 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     if (pItem != NULL) {
       pItem->bval = tsEnableMonitor;
     }
+    return;
+  }
+
+  if (strcasecmp(option, "keepTimeOffset") == 0) {
+    int32_t newKeepTimeOffset = atoi(value);
+    if (newKeepTimeOffset < 0 || newKeepTimeOffset > 23) {
+      uError("failed to set keepTimeOffset from %d to %d. Valid range: [0, 23]", tsKeepTimeOffset, newKeepTimeOffset);
+      return;
+    }
+
+    uInfo("keepTimeOffset set from %d to %d", tsKeepTimeOffset, newKeepTimeOffset);
+    tsKeepTimeOffset = newKeepTimeOffset;
+
     return;
   }
 

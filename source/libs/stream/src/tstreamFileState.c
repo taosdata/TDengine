@@ -49,7 +49,8 @@ struct SStreamFileState {
 typedef SRowBuffPos SRowBuffInfo;
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
-                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* idstr) {
+                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId,
+                                      int64_t checkpointId) {
   if (memSize <= 0) {
     memSize = DEFAULT_MAX_STREAM_BUFFER_SIZE;
   }
@@ -83,9 +84,9 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->deleteMark = delMark;
   pFileState->flushMark = INT64_MIN;
   pFileState->maxTs = INT64_MIN;
-  pFileState->id = taosStrdup(idstr);
+  pFileState->id = taosStrdup(taskId);
 
-  recoverSnapshot(pFileState);
+  recoverSnapshot(pFileState, checkpointId);
   return pFileState;
 
 _error:
@@ -479,7 +480,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
-int32_t recoverSnapshot(SStreamFileState* pFileState) {
+int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
     int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
