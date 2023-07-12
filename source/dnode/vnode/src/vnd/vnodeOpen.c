@@ -15,6 +15,16 @@
 
 #include "vnd.h"
 
+int32_t vnodeGetAbsDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
+  if (pTfs) {
+    snprintf(buf, bufLen - 1, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
+  } else {
+    snprintf(buf, bufLen - 1, "%s", relPath);
+  }
+  buf[bufLen - 1] = '\0';
+  return 0;
+}
+
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -26,17 +36,9 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  if (pTfs) {
-    if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-      vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
-      return -1;
-    }
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    if (taosMkDir(path)) {
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  vnodeGetAbsDir(path, pTfs, dir, TSDB_FILENAME_LEN);
+  if (taosMkDir(dir)) {
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   if (pCfg) {
@@ -63,11 +65,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
-  }
+  vnodeGetAbsDir(path, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -183,15 +181,6 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     vError("vgId:%d, failed to rename dir from %s to %s since %s", dstVgId, srcPath, dstPath, terrstr());
   }
   return ret;
-}
-
-int32_t vnodeGetAbsDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
-  if (pTfs) {
-    snprintf(buf, bufLen, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
-  } else {
-    snprintf(buf, bufLen, "%s", relPath);
-  }
-  return 0;
 }
 
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs) {
