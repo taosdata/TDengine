@@ -101,6 +101,7 @@ Note: TDengine Enterprise Edition only.
 
 ```sql
 SHOW INDEXES FROM tbl_name [FROM db_name];
+SHOW INDEXES FROM [db_name.]tbl_name;
 ```
 
 Shows indices that have been created.
