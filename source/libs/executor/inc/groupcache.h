@@ -88,13 +88,8 @@ typedef struct SGcExecInfo {
   int64_t* pDownstreamBlkNum;
 } SGcExecInfo;
 
-typedef struct SGcNewGroupInfo {
-  int64_t uid;
-} SGcNewGroupInfo;
-
 typedef struct SGroupCacheOperatorInfo {
   TdThreadMutex     sessionMutex;
-  SGcNewGroupInfo   newGroup;
   SSHashObj*        pSessionHash;  
   SGroupColsInfo    groupColsInfo;
   bool              grpByUid;

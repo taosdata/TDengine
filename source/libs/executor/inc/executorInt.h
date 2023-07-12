@@ -106,7 +106,6 @@ typedef struct SExchangeOpStopInfo {
 } SExchangeOpStopInfo;
 
 typedef struct SGcOperatorParam {
-  SOperatorParam*     pChild;
   int64_t             sessionId;
   int32_t             downstreamIdx;
   bool                needCache;
@@ -151,10 +150,20 @@ typedef struct SLimitInfo {
 typedef struct SSortMergeJoinOperatorParam {
 } SSortMergeJoinOperatorParam;
 
-typedef struct SExchangeOperatorParam {
+typedef struct SExchangeOperatorBasicParam {
   int32_t         vgId;
   int32_t         srcOpType;
   SArray*         uidList;
+} SExchangeOperatorBasicParam;
+
+typedef struct SExchangeOperatorBatchParam {
+  bool            multiParams;
+  SArray*         pBatchs; // SArray<SExchangeOperatorBasicParam>
+} SExchangeOperatorBatchParam;
+
+typedef struct SExchangeOperatorParam {
+  bool                        multiParams;
+  SExchangeOperatorBasicParam basic;
 } SExchangeOperatorParam;
 
 typedef struct SExchangeInfo {

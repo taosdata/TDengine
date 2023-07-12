@@ -605,6 +605,46 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
+  if (pDst->opType != pSrc->opType) {
+    qError("different optype %d:%d for merge operator params", pDst->opType, pSrc->opType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  
+  switch (pDst->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
+      SExchangeOperatorParam* pDExc = pDst->value;
+      SExchangeOperatorParam* pSExc = pSrc->value;
+      if (!pDExc->multiParams) {
+        SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
+        if (NULL == pBatch) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        pBatch->multiParams = true;
+        pBatch->pBatchs = taosArrayInit(4, sizeof(SExchangeOperatorBasicParam));
+        if (NULL == pBatch->pBatchs) {
+          taosMemoryFree(pBatch);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        taosArrayPush(pBatch->pBatchs, &pDExc->basic);        
+        taosArrayPush(pBatch->pBatchs, &pSExc->basic);
+        destroyOperatorParamValue(pDst->value);
+        pDst->value = pBatch;
+      } else {
+        SExchangeOperatorBatchParam* pBatch = pDst->value;
+        taosArrayPush(pBatch->pBatchs, &pSExc->basic);
+      }
+      break;
+    }
+    default:
+      qError("invalid optype %d for merge operator params", (*ppDst)->opType);
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
   if (NULL == pParam) {
     pOperator->pOperatorParam = NULL;
@@ -637,7 +677,14 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pPara
   
   for (int32_t i = 0; i < childrenNum; ++i) {
     SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pOperator->pOperatorParam->pChildren, i);
-    pOperator->pDownstreamParams[pChild->downstreamIdx] = pChild;
+    if (pOperator->pDownstreamParams[pChild->downstreamIdx]) {
+      int32_t code = mergeOperatorParams(&pOperator->pDownstreamParams[pChild->downstreamIdx], pChild);
+      if (code) {
+        return code;
+      }
+    } else {
+      pOperator->pDownstreamParams[pChild->downstreamIdx] = pChild;
+    }
   }
 
   taosArrayClear(pOperator->pOperatorParam->pChildren);
