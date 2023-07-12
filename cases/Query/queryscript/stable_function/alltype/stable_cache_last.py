@@ -49,39 +49,26 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# support all table, support all data type 
-        case2:# support all int type \ double type 
-        case3:# support all int type \ double type \ ts type 
-        case4:
+        case1:# 
         '''
         return case_description
 
     #basic_param
     db = "stable_cache_last"
-    db_1 = "stable_cache_last_1"
-    db_2 = "stable_cache_last_2"
-    db_3 = "stable_cache_last_3"
-    ts = 1660000000000
+    ts = 1630000000000
     
-    table_list = ['stable_1','stable_2',]
-    table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
-    table_null_list = ['stable_null_data','stable_null_childtable']
-    table_null = str(random.sample(table_null_list,1)).replace("[","").replace("]","").replace("'","")
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
 
-    def data_create(self,db):
-        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+    def data_create(self,db):    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
         
     def db_create(self,db): 
         self.logger.info("\n\n\n=============test=============\n\n\n" )
         sql = " drop database if exists %s "  % db
-        #self.query_ignore_error(db,sql)
         self.tdSql.execute(sql,queryTimes=60)
         sql = "create database if not exists %s keep 36500  replica 1 " % db
-        #self.query_ignore_error(db,sql)
         self.tdSql.execute(sql,queryTimes=60)
         sql = "use %s" %db
         self.query_ignore_error(db,sql)
@@ -110,8 +97,7 @@ class TDTestQuery(TDCase):
     def alter_replica1_3(self,db): 
         sql = " ALTER DATABASE %s replica 3"  % db
         self.query_ignore_error(db,sql)
-        time.sleep(60)
-        # self.tdSql.execute(sql,queryTimes=200)
+        time.sleep(50)
                 
     def alter_replica3_1(self,db): 
         sql = " ALTER DATABASE %s replica 1"  % db
@@ -206,8 +192,7 @@ class TDTestQuery(TDCase):
         
     def query_ignore_error(self,db,sql):            
         rows = -1;        
-        try:
-            #self.tdSql.execute(sql,queryTimes=1)          
+        try:        
             rows = self.tdSql.execute(sql,queryTimes=1).row_count  
             if rows>=0:
                 self.logger.info(("=====sql1.rows:'%s'") %(rows))
