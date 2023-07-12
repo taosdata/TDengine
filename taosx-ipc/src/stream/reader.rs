@@ -455,6 +455,15 @@ pub struct LushInsertAttrs {
 }
 
 impl LushInsertAttrs {
+
+    pub fn table_name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn tags(&self) -> &Option<Vec<(String, Value)>> {
+        &self.tags
+    }
+
     pub fn to_sql(&self, table_name: Option<String>) -> Option<String> {
         if let Some(using) = self.using.as_ref() {
             let tags = self.tags.as_ref().unwrap();
