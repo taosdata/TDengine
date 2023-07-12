@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::fs;
 use std::path::Path;
 use anyhow::anyhow;
@@ -27,17 +26,4 @@ pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Err
     }
 
     Ok(files)
-}
-
-mod files_test {
-    use super::*;
-
-    #[test]
-    fn test_get_all_files() {
-        let result = get_files_in_dir("/Users/sunpeng/workspace/tmp", "csv");
-        assert!(result.is_ok());
-        let result = result.unwrap();
-
-        println!("{:?}", result);
-    }
 }

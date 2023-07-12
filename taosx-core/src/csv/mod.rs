@@ -104,14 +104,18 @@ impl CsvSource {
     fn new(dsn: &mut Dsn) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
         //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=&port=
-        let paths = dsn.path.as_ref().map_or_else(
-            || Err(anyhow!("csv path is null")),
-            |p| {
-                p.split(",")
-                    .flat_map(|path| CsvSource::csv_path(path))
-                    .collect::<Result<Vec<String>>>()
-            },
-        )?;
+        let dsn_paths = match &dsn.path {
+            Some(path) => path.split(",").collect_vec(),
+            None => return Err(anyhow!("csv path is null")),
+        };
+
+        let mut paths = Vec::new();
+        for path in dsn_paths {
+            let csv_paths = CsvSource::csv_path(path)?;
+            for csv_path in csv_paths {
+                paths.push(csv_path);
+            }
+        }
 
         let has_header: bool = dsn.params.remove("has_header").unwrap_or_else(|| "true".to_string()).parse()?;
         let headers = dsn.params.remove("header").unwrap_or_default();
