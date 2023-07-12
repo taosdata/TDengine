@@ -485,6 +485,7 @@ like_pattern_opt(A) ::= .                                                       
 like_pattern_opt(A) ::= LIKE NK_STRING(B).                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 table_name_cond(A) ::= table_name(B).                                             { A = createIdentifierValueNode(pCxt, &B); }
+table_name_cond(A) ::= db_name(B) NK_DOT table_name(C).                           { A = createRealTableNode(pCxt, &B, &C, NULL); }
 
 from_db_opt(A) ::= .                                                              { A = createDefaultDatabaseCondValue(pCxt); }
 from_db_opt(A) ::= FROM db_name(B).                                               { A = createIdentifierValueNode(pCxt, &B); }
