@@ -2115,9 +2115,6 @@ static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSortPhysiPlanTargets, pNode->pTargets);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkSortPhysiPlanMaxRows, pNode->maxRows);
-  }
 
   return code;
 }
@@ -2134,9 +2131,6 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSortPhysiPlanTargets, &pNode->pTargets);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkSortPhysiPlanMaxRows, &pNode->maxRows);
   }
 
   return code;

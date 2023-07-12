@@ -45,8 +45,6 @@ class TDTestCase:
             "replica":1,
             "wal_level":1,
             "wal_fsync_period":6000,
-            "wal_roll_period":0,
-            "wal_segment_size":1024,
             "vgroups":self.vgroups,
             "stt_trigger":1,
             "tsdb_pagesize":16
