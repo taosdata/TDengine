@@ -219,7 +219,7 @@ int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pRe
     // anymore
     ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) > 0);
 
-    // there are still some upstream tasks not send checkpoint request
+    // there are still some upstream tasks not send checkpoint request, do nothing and wait for then
     int32_t notReady = streamAlignCheckpoint(pTask, checkpointId, childId);
     if (notReady > 0) {
       int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
@@ -230,12 +230,13 @@ int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pRe
 
     qDebug("s-task:%s received checkpoint req, all upstream sent checkpoint msg, dispatch checkpoint msg to downstream",
            pTask->id.idStr);
-    pTask->checkpointNotReadyTasks = (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH)
-                                         ? 1
-                                         : taosArrayGetSize(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
+
+    // set the needed checked downstream tasks, only when all downstream tasks do checkpoint complete, this node
+    // can start local checkpoint procedure
+    pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
 
     // if all upstreams are ready for generating checkpoint, set the status to be TASK_STATUS__CK_READY
-    // 2. dispatch check point msg to all downstream tasks
+    // dispatch check point msg to all downstream tasks
     streamTaskDispatchCheckpointMsg(pTask, checkpointId);
   }
 
@@ -257,8 +258,38 @@ int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask) {
     appendCheckpointIntoInputQ(pTask);
     streamSchedExec(pTask);
   } else {
-    qDebug("s-task:%s %d downstream tasks are not ready, wait", pTask->id.idStr, notReady);
+    int32_t total = streamTaskGetNumOfDownstream(pTask);
+    qDebug("s-task:%s %d/%d downstream tasks are not ready, wait", pTask->id.idStr, notReady, total);
   }
 
   return 0;
+}
+
+int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
+  taosWLockLatch(&pMeta->lock);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
+    uint32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTask* p = *(SStreamTask**)taosHashGet(pMeta->pTasks, pTaskId, sizeof(*pTaskId));
+
+    ASSERT(p->chkInfo.keptCheckpointId < p->checkpointingId && p->checkpointingId == checkpointId);
+    p->chkInfo.keptCheckpointId = p->checkpointingId;
+
+    streamMetaSaveTask(pMeta, p);
+    qDebug("vgId:%d s-task:%s commit task status after checkpoint completed, checkpointId:%" PRId64
+               ", ver:%" PRId64 " currentVer:%" PRId64,
+           pMeta->vgId, p->id.idStr, checkpointId, p->chkInfo.version, p->chkInfo.currentVer);
+  }
+
+  if (streamMetaCommit(pMeta) < 0) {
+    taosWUnLockLatch(&pMeta->lock);
+    qError("vgId:%d failed to commit stream meta after do checkpoint, checkpointId:%" PRId64", since %s",
+           pMeta->vgId, checkpointId, terrstr());
+    return -1;
+  } else {
+    taosWUnLockLatch(&pMeta->lock);
+    qInfo("vgId:%d commit stream meta after do checkpoint, checkpointId:%. DONE" PRId64, pMeta->vgId, checkpointId);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

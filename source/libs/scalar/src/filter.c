@@ -1979,7 +1979,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       int32_t code = sclConvertValueToSclParam(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         qError("convert value to type[%d] failed", type);
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+        return code;
       }
 
       size_t bufBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData)
@@ -4644,11 +4644,11 @@ _return:
   FLT_RET(code);
 }
 
-bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis, int16_t numOfCols,
-                   int32_t *pResultStatus) {
+int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
+                      int16_t numOfCols, int32_t *pResultStatus) {
   if (NULL == info) {
     *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
-    return false;
+    return TSDB_CODE_SUCCESS;
   }
 
   SScalarParam output = {0};
@@ -4656,7 +4656,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
 
   int32_t code = sclCreateColumnInfoData(&type, pSrc->info.rows, &output);
   if (code != TSDB_CODE_SUCCESS) {
-    return false;
+    return code;
   }
 
   if (info->scalarMode) {
@@ -4666,7 +4666,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
 
-    FLT_ERR_RET(code); // TODO: current errcode returns as true
+    FLT_ERR_RET(code);
 
     *p = output.columnData;
 
@@ -4677,18 +4677,23 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     } else {
       *pResultStatus = FILTER_RESULT_PARTIAL_QUALIFIED;
     }
-    return false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ASSERT(false == info->scalarMode);
+  *p = output.columnData;
+  output.numOfRows = pSrc->info.rows;
+
+  if (*p == NULL) {
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  bool keepAll = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
+
+  // todo this should be return during filter procedure
+  if (keepAll) {
+    *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
   } else {
-    *p = output.columnData;
-    output.numOfRows = pSrc->info.rows;
-
-    if (*p == NULL) {
-      return false;
-    }
-
-    bool keep = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
-
-    // todo this should be return during filter procedure
     int32_t num = 0;
     for (int32_t i = 0; i < output.numOfRows; ++i) {
       if (((int8_t *)((*p)->pData))[i] == 1) {
@@ -4703,9 +4708,9 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     } else {
       *pResultStatus = FILTER_RESULT_PARTIAL_QUALIFIED;
     }
-
-    return keep;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef struct SClassifyConditionCxt {

@@ -41,23 +41,22 @@ typedef struct {
 } SLocalFetch;
 
 typedef struct {
-  void*   tqReader;
-  void*   config;
-  void*   vnode;
-  void*   mnd;
-  SMsgCb* pMsgCb;
-  int64_t version;
-  bool    initMetaReader;
-  bool    initTableReader;
-  bool    initTqReader;
-  int32_t numOfVgroups;
-  void*   sContext;  // SSnapContext*
+  void*       tqReader;
+  void*       config;
+  void*       vnode;
+  void*       mnd;
+  SMsgCb*     pMsgCb;
+  int64_t     version;
+  bool        initMetaReader;
+  bool        initTableReader;
+  bool        initTqReader;
+  int32_t     numOfVgroups;
+  void*       sContext;  // SSnapContext*
+  void*       pStateBackend;
+  int8_t      fillHistory;
+  STimeWindow winRange;
 
-  void*   pStateBackend;
   struct SStorageAPI api;
-
-  int8_t        fillHistory;
-  STimeWindow   winRange;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -98,9 +97,6 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 //void qSetTaskCode(qTaskInfo_t tinfo, int32_t code);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
-
-// todo refactor
-void qGetCheckpointVersion(qTaskInfo_t tinfo, int64_t* dataVer, int64_t* ckId);
 
 /**
  * Set multiple input data blocks for the stream scan.

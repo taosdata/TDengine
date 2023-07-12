@@ -2318,11 +2318,6 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
   return startPos;
 }
 
-static void setStreamDataVersion(SExecTaskInfo* pTaskInfo, int64_t version, int64_t ckId) {
-  pTaskInfo->streamInfo.dataVersion = version;
-  pTaskInfo->streamInfo.checkPointId = ckId;
-}
-
 static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBlock, uint64_t groupId,
                                     SSHashObj* pUpdatedMap) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)pOperatorInfo->info;
@@ -2823,7 +2818,6 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       doStreamIntervalSaveCheckpoint(pOperator);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
-      setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       pOperator->status = OP_RES_TO_RETURN;
       qDebug("===stream===return data:%s. recv datablock num:%" PRIu64,
@@ -2965,7 +2959,7 @@ void streamIntervalReloadState(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                     SExecTaskInfo* pTaskInfo, int32_t numOfChild) {
+                                                     SExecTaskInfo* pTaskInfo, int32_t numOfChild, SReadHandle* pHandle) {
   SIntervalPhysiNode*          pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
   SStreamIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamIntervalOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -3056,8 +3050,9 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
   int32_t funResSize= getMaxFunResSize(&pOperator->exprSupp, numOfCols);
-  pInfo->pState->pFileState = pAPI->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
-                                                  compareTs, pInfo->pState, pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo));
+  pInfo->pState->pFileState = pAPI->stateStore.streamFileStateInit(
+      tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
+      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pTaskInfo->streamInfo.snapshotVer);
   pInfo->dataVersion = 0;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->recvGetAll = false;
@@ -3086,7 +3081,6 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   if (res == TSDB_CODE_SUCCESS) {
     doStreamIntervalDecodeOpState(buff, pOperator);
     taosMemoryFree(buff);
-    setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
   }
 
   return pOperator;
@@ -3953,7 +3947,6 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       doStreamSessionSaveCheckpoint(pOperator);
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
-      setStreamDataVersion(pOperator->pTaskInfo, pInfo->dataVersion, pAggSup->pState->checkPointId);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       continue;
     } else {
@@ -4154,7 +4147,6 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   if (res == TSDB_CODE_SUCCESS) {
     doStreamSessionDecodeOpState(buff, pOperator);
     taosMemoryFree(buff);
-    setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->streamAggSup.pState->checkPointId);
   }
 
   setOperatorInfo(pOperator, "StreamSessionWindowAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
@@ -4256,7 +4248,6 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       doStreamSessionSaveCheckpoint(pOperator);
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
-      setStreamDataVersion(pOperator->pTaskInfo, pInfo->dataVersion, pAggSup->pState->checkPointId);
       pOperator->status = OP_RES_TO_RETURN;
       continue;
     } else {
@@ -4681,7 +4672,6 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       doStreamSessionSaveCheckpoint(pOperator);
       pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
-      setStreamDataVersion(pOperator->pTaskInfo, pInfo->dataVersion, pInfo->streamAggSup.pState->checkPointId);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       continue;
     } else {
@@ -4878,7 +4868,6 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   if (res == TSDB_CODE_SUCCESS) {
     doStreamStateDecodeOpState(buff, pOperator);
     taosMemoryFree(buff);
-    setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->streamAggSup.pState->checkPointId);
   }
 
   setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
@@ -5548,7 +5537,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       doStreamIntervalSaveCheckpoint(pOperator);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
-      setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
       pInfo->reCkBlock = true;
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       qDebug("===stream===return data:single interval. recv datablock num:%" PRIu64, pInfo->numOfDatapack);
@@ -5626,7 +5614,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo) {
+                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
   SStreamIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamIntervalOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5716,7 +5704,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pState->pFileState = pTaskInfo->storageAPI.stateStore.streamFileStateInit(
       tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
-      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo));
+      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pTaskInfo->streamInfo.snapshotVer);
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -5735,7 +5723,6 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   if (res == TSDB_CODE_SUCCESS) {
     doStreamIntervalDecodeOpState(buff, pOperator);
     taosMemoryFree(buff);
-    setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
   }
 
   initIntervalDownStream(downstream, pPhyNode->type, pInfo);

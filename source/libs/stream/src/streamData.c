@@ -120,6 +120,7 @@ SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type) {
     return NULL;
   }
 
+  pDataSubmit->ver = pData->ver;
   pDataSubmit->submit = *pData;
   *pDataSubmit->dataRef = 1;   // initialize the reference count to be 1
   pDataSubmit->type = type;

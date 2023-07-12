@@ -18,8 +18,6 @@
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD 100
 
-static int32_t updateCheckPointInfo(SStreamTask* pTask, int64_t checkpointId);
-
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
   return (status == TASK_STATUS__STOP) || (status == TASK_STATUS__DROPPING);
@@ -314,10 +312,13 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
-  qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr,
-         pStreamTask->id.idStr);
-
-  // todo handle stream task is dropped here
+  if (pStreamTask == NULL) {
+    qError("s-task:%s failed to find related stream task:0x%x, it may have been destoryed or closed",
+        pTask->id.idStr, pTask->streamTaskId.taskId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  } else {
+    qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr, pStreamTask->id.idStr);
+  }
 
   ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
@@ -432,6 +433,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       ASSERT(batchSize == 0);
       if (pTask->info.fillHistory && pTask->status.transferState) {
         int32_t code = streamTransferStateToStreamTask(pTask);
+        if (code != TSDB_CODE_SUCCESS) { // todo handle this
+          return 0;
+        }
       }
 
       // no data in the inputQ, return now
@@ -514,7 +518,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
     int32_t code = streamExecForAll(pTask);
-    if (code < 0) {
+    if (code < 0) {  // todo this status shoudl be removed
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
       return -1;
     }
@@ -532,7 +536,8 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
       if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
         streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
-        qDebug("vgId:%d do vnode wide checkpoint completed, checkpointId:%" PRId64, pMeta->vgId,
+        streamSaveTasks(pMeta, pTask->checkpointingId);
+        qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, checkpointId:%" PRId64, pMeta->vgId,
                pTask->checkpointingId);
       }
 
@@ -543,29 +548,10 @@ int32_t streamTryExec(SStreamTask* pTask) {
         code = streamTaskSendCheckpointRsp(pTask);
       }
 
-      if (code == TSDB_CODE_SUCCESS) {
-        taosWLockLatch(&pTask->pMeta->lock);
-
-        ASSERT(pTask->chkInfo.keptCheckpointId < pTask->checkpointingId);
-        pTask->chkInfo.keptCheckpointId = pTask->checkpointingId;
-
-        streamMetaSaveTask(pTask->pMeta, pTask);
-        if (streamMetaCommit(pTask->pMeta) < 0) {
-          taosWUnLockLatch(&pTask->pMeta->lock);
-          qError("s-task:%s failed to commit stream meta after do checkpoint, checkpointId:%" PRId64 ", ver:%" PRId64
-                 ", since %s",
-                 pTask->id.idStr, pTask->chkInfo.keptCheckpointId, pTask->chkInfo.version, terrstr());
-          return -1;
-        } else {
-          taosWUnLockLatch(&pTask->pMeta->lock);
-        }
-
-        qInfo("vgId:%d s-task:%s commit task status after checkpoint completed, checkpointId:%" PRId64 ", ver:%" PRId64
-              " currentVer:%" PRId64,
-              pMeta->vgId, pTask->id.idStr, pTask->chkInfo.keptCheckpointId, pTask->chkInfo.version,
-              pTask->chkInfo.currentVer);
-      } else {
+      if (code != TSDB_CODE_SUCCESS) {
         // todo: let's retry send rsp to upstream/mnode
+        qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%"PRId64", code:%s",
+              pTask->id.idStr, pTask->checkpointingId, tstrerror(code));
       }
     } else {
       if (!taosQueueEmpty(pTask->inputQueue->queue) && (!streamTaskShouldStop(&pTask->status)) &&

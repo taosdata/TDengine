@@ -254,3 +254,18 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   taosMemoryFree(pTask);
 }
+
+int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    return 0;
+  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    return 1;
+  } else {
+    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+      return 1;
+    } else {
+      SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+      return taosArrayGetSize(vgInfo);
+    }
+  }
+}
