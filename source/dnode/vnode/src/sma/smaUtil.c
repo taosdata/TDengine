@@ -15,8 +15,6 @@
 
 #include "sma.h"
 
-#define TD_QTASKINFO_FNAME_PREFIX "main.tdb"
-
 void tdRSmaQTaskInfoGetFullPath(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName) {
   tdRSmaGetDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
   int32_t rsmaLen = strlen(outputName);

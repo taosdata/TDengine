@@ -247,8 +247,9 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
 _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pSma), __func__, lino, tstrerror(code));
+  } else {
+    smaDebug("vgId:%d, %s succeed, type:%" PRIi8, SMA_VID(pSma), __func__, smaType);
   }
-  smaDebug("vgId:%d, %s succeed, type:%" PRIi8, SMA_VID(pSma), __func__, smaType);
   return code;
 }
 
@@ -278,7 +279,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       } else {
         smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
       }
-      tdSmaLoopsCheck(&nLoops, 1000);
+      TD_SMA_LOOPS_CHECK(nLoops, 1000);
     }
 
     // step 3:

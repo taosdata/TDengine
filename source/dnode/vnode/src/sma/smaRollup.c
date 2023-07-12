@@ -247,7 +247,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     tdRSmaQTaskInfoGetFullPath(TD_VID(pVnode), pRSmaInfo->suid, idx + 1, tfsGetPrimaryPath(pVnode->pTfs), taskInfDir);
     if (!taosCheckExistFile(taskInfDir)) {
       char *s = taosStrdup(taskInfDir);
-      if (taosMulMkDir(taosDirName(s)) != 0) {
+      if (taosMulMkDir(s) != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         taosMemoryFree(s);
         return TSDB_CODE_FAILED;

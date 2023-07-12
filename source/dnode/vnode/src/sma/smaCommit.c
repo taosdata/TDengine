@@ -147,7 +147,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
   if (isCommit) {
     while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
-      tdSmaLoopsCheck(&nLoops, 1000);
+      TD_SMA_LOOPS_CHECK(nLoops, 1000)
     }
   }
   // step 2: wait for all triggered fetch tasks to finish
@@ -159,7 +159,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
     } else {
       smaDebug("vgId:%d, rsma commit%d, fetch tasks are not all finished yet", SMA_VID(pSma), isCommit);
     }
-    tdSmaLoopsCheck(&nLoops, 1000);
+    TD_SMA_LOOPS_CHECK(nLoops, 1000);
   }
 
   /**
@@ -171,7 +171,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
           (void *)taosGetSelfPthreadId());
   nLoops = 0;
   while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
-    tdSmaLoopsCheck(&nLoops, 1000);
+    TD_SMA_LOOPS_CHECK(nLoops, 1000);
   }
 
   if (!isCommit) goto _exit;

@@ -187,6 +187,12 @@ typedef enum {
   RSMA_EXEC_COMMIT = 3,    // triggered by commit
 } ERsmaExecType;
 
+#define TD_SMA_LOOPS_CHECK(n, limit) \
+  if (++(n) > limit) {               \
+    sched_yield();                   \
+    (n) = 0;                         \
+  }
+
 // sma
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 void    tdDestroySmaEnv(SSmaEnv *pSmaEnv);
@@ -203,14 +209,6 @@ static FORCE_INLINE void tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   int32_t ref = T_REF_DEC(pStat);
   smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
-}
-
-static FORCE_INLINE void tdSmaLoopsCheck(int32_t *pCnt, int32_t limit) {
-  ++(*pCnt);
-  if (*pCnt > limit) {
-    sched_yield();
-    *pCnt = 0;
-  }
 }
 
 int32_t smaPreClose(SSma *pSma);
