@@ -31,7 +31,8 @@ typedef struct SStreamFileState SStreamFileState;
 typedef SList SStreamSnapshot;
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
-                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* id);
+                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId,
+                                      int64_t checkpointId);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
 bool              needClearDiskBuff(SStreamFileState* pFileState);
@@ -44,7 +45,7 @@ bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 int32_t          flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
-int32_t          recoverSnapshot(SStreamFileState* pFileState);
+int32_t          recoverSnapshot(SStreamFileState* pFileState, int64_t ckId);
 
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);

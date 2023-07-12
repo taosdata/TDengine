@@ -3050,8 +3050,9 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
   int32_t funResSize= getMaxFunResSize(&pOperator->exprSupp, numOfCols);
-  pInfo->pState->pFileState = pAPI->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
-                                                  compareTs, pInfo->pState, pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo));
+  pInfo->pState->pFileState = pAPI->stateStore.streamFileStateInit(
+      tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
+      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pTaskInfo->checkpointId);
   pInfo->dataVersion = 0;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->recvGetAll = false;
@@ -5703,7 +5704,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pState->pFileState = pTaskInfo->storageAPI.stateStore.streamFileStateInit(
       tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize, compareTs, pInfo->pState,
-      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo));
+      pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo), pTaskInfo->checkpointId);
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
