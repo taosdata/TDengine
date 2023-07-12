@@ -326,6 +326,7 @@ Note that only the information about the data blocks in the data file will be di
 
 ```sql
 SHOW TAGS FROM child_table_name [FROM db_name];
+SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 Shows all tag information in a subtable.

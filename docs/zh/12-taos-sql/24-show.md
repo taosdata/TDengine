@@ -269,6 +269,7 @@ Query OK, 24 row(s) in set (0.002444s)
 
 ```sql
 SHOW TAGS FROM child_table_name [FROM db_name];
+SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 显示子表的标签信息。
