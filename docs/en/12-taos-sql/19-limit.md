@@ -36,7 +36,7 @@ The following characters cannot occur in a password: single quotation marks ('),
 - Maximum numbers of databases, STables, tables are dependent only on the system resources.
 - The number of replicas can only be 1 or 3.
 - The maximum length of a username is 23 bytes.
-- The maximum length of a password is 128 bytes.
+- The maximum length of a password is 31 bytes.
 - The maximum number of rows depends on system resources.
 - The maximum number of vnodes in a database is 1024.
 
