@@ -3,6 +3,7 @@ use std::fs::File;
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
+use std::vec;
 
 use anyhow::{anyhow, Result};
 use arrow::array::{ArrayRef, StringArray};
@@ -101,12 +102,16 @@ struct CsvSource {
 
 impl CsvSource {
     fn new(dsn: &mut Dsn) -> Result<CsvSource> {
-        // dsn: csv:path/to/csv/path/or/file?has_header=&header=&skip=&sep=&batch_size=&concurrent=&port=
-        let paths = if let Some(path) = &dsn.path {
-            CsvSource::csv_path(&path)?
-        } else {
-            return Err(anyhow!("csv path is null"));
-        };
+        // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
+        //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=&port=
+        let paths = dsn.path.as_ref().map_or_else(
+            || Err(anyhow!("csv path is null")),
+            |p| {
+                p.split(",")
+                    .flat_map(|path| CsvSource::csv_path(path))
+                    .collect::<Result<Vec<String>>>()
+            },
+        )?;
 
         let has_header: bool = dsn.params.remove("has_header").unwrap_or_else(|| "true".to_string()).parse()?;
         let headers = dsn.params.remove("header").unwrap_or_default();
