@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tsdb.h"
+#include "vnd.h"
 
 #define ROCKS_BATCH_SIZE (4096)
 
@@ -58,16 +59,10 @@ typedef struct {
 
 static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
   SVnode *pVnode = pTsdb->pVnode;
-  if (pVnode->pTfs) {
-    if (path) {
-      snprintf(path, TSDB_FILENAME_LEN, "%s%s%s%scache.rdb", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
-               pTsdb->path, TD_DIRSEP);
-    }
-  } else {
-    if (path) {
-      snprintf(path, TSDB_FILENAME_LEN, "%s%scache.rdb", pTsdb->path, TD_DIRSEP);
-    }
-  }
+  vnodeGetAbsDir(pTsdb->path, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+
+  int32_t offset = strlen(path);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%scache.rdb", TD_DIRSEP);
 }
 
 static const char *myCmpName(void *state) {
