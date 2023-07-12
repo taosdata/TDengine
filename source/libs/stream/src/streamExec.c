@@ -532,7 +532,8 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
       if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
         streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
-        qDebug("vgId:%d do vnode wide checkpoint completed, checkpointId:%" PRId64, pMeta->vgId,
+        streamSaveTasks(pMeta, pTask->checkpointingId);
+        qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, checkpointId:%" PRId64, pMeta->vgId,
                pTask->checkpointingId);
       }
 
@@ -543,29 +544,10 @@ int32_t streamTryExec(SStreamTask* pTask) {
         code = streamTaskSendCheckpointRsp(pTask);
       }
 
-      if (code == TSDB_CODE_SUCCESS) {
-        taosWLockLatch(&pTask->pMeta->lock);
-
-        ASSERT(pTask->chkInfo.keptCheckpointId < pTask->checkpointingId);
-        pTask->chkInfo.keptCheckpointId = pTask->checkpointingId;
-
-        streamMetaSaveTask(pTask->pMeta, pTask);
-        if (streamMetaCommit(pTask->pMeta) < 0) {
-          taosWUnLockLatch(&pTask->pMeta->lock);
-          qError("s-task:%s failed to commit stream meta after do checkpoint, checkpointId:%" PRId64 ", ver:%" PRId64
-                 ", since %s",
-                 pTask->id.idStr, pTask->chkInfo.keptCheckpointId, pTask->chkInfo.version, terrstr());
-          return -1;
-        } else {
-          taosWUnLockLatch(&pTask->pMeta->lock);
-        }
-
-        qInfo("vgId:%d s-task:%s commit task status after checkpoint completed, checkpointId:%" PRId64 ", ver:%" PRId64
-              " currentVer:%" PRId64,
-              pMeta->vgId, pTask->id.idStr, pTask->chkInfo.keptCheckpointId, pTask->chkInfo.version,
-              pTask->chkInfo.currentVer);
-      } else {
+      if (code != TSDB_CODE_SUCCESS) {
         // todo: let's retry send rsp to upstream/mnode
+        qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%"PRId64", code:%s",
+              pTask->id.idStr, pTask->checkpointingId, tstrerror(code));
       }
     } else {
       if (!taosQueueEmpty(pTask->inputQueue->queue) && (!streamTaskShouldStop(&pTask->status)) &&
