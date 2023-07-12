@@ -100,6 +100,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   if (pMeta->streamBackend == NULL) {
     goto _err;
   }
+
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -107,6 +108,12 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->checkpointInUse = taosArrayInit(4, sizeof(int64_t));
   pMeta->checkpointCap = 4;
   taosInitRWLatch(&pMeta->checkpointDirLock);
+
+  code = streamBackendLoadCheckpointInfo(pMeta);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
 
   taosMemoryFree(streamPath);
 
@@ -310,7 +317,7 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
 
   qDebug("s-task:0x%x set task status:%s", taskId, streamGetTaskStatusStr(TASK_STATUS__DROPPING));
 
-  while(1) {
+  while (1) {
     taosRLockLatch(&pMeta->lock);
     ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
 

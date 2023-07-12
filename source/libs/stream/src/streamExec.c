@@ -18,8 +18,6 @@
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD 100
 
-static int32_t updateCheckPointInfo(SStreamTask* pTask, int64_t checkpointId);
-
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
   return (status == TASK_STATUS__STOP) || (status == TASK_STATUS__DROPPING);

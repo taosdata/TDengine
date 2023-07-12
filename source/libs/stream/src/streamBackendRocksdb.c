@@ -393,7 +393,7 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   for (int i = 0; i < taosArrayGetSize(checkpointDel); i++) {
     int64_t id = *(int64_t*)taosArrayGet(checkpointDel, i);
     char    tbuf[256] = {0};
-    sprintf(tbuf, "%s/checkpoint_%" PRId64 "", path, id);
+    sprintf(tbuf, "%s/checkpoint-%" PRId64 "", path, id);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
@@ -402,11 +402,63 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   return 0;
 }
 
+static int32_t compareCheckpoint(const void* a, const void* b) {
+  int64_t x = *(int64_t*)a;
+  int64_t y = *(int64_t*)b;
+  return x < y ? -1 : 1;
+}
+
+int32_t streamBackendLoadCheckpointInfo(void* arg) {
+  SStreamMeta* pMeta = arg;
+  int32_t      code = 0;
+
+  int32_t len = strlen(pMeta->path) + 30;
+  char*   checkpointPath = taosMemoryCalloc(1, len);
+  sprintf(checkpointPath, "%s/%s", pMeta->path, "checkpoints");
+
+  if (!taosDirExist(checkpointPath)) {
+    return 0;
+    // no checkpoint, nothing to load
+  }
+
+  TdDirPtr pDir = taosOpenDir(checkpointPath);
+  if (pDir == NULL) return 0;
+
+  TdDirEntryPtr de = NULL;
+  SArray*       suffix = taosArrayInit(4, sizeof(int64_t));
+
+  while ((de = taosReadDir(pDir)) != NULL) {
+    if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
+
+    if (taosDirEntryIsDir(de)) {
+      char    checkpointPrefix[32] = {0};
+      int64_t checkpointId = 0;
+
+      int ret = sscanf(taosGetDirEntryName(de), "checkpoint-%" PRId64 "", &checkpointId);
+      if (ret == 1) {
+        taosArrayPush(suffix, &checkpointId);
+      }
+    } else {
+      continue;
+    }
+  }
+  taosArraySort(suffix, compareCheckpoint);
+
+  for (int i = 0; i < taosArrayGetSize(suffix); i++) {
+    int64_t id = *(int64_t*)taosArrayGet(suffix, i);
+    taosArrayPush(pMeta->checkpointSaved, &id);
+  }
+
+  taosArrayDestroy(suffix);
+  taosCloseDir(&pDir);
+  taosMemoryFree(checkpointPath);
+  return 0;
+}
 int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
-  SStreamMeta*     pMeta = arg;
-  int64_t          backendRid = pMeta->streamBackendRid;
-  int64_t          st = taosGetTimestampMs();
-  int32_t          code = -1;
+  SStreamMeta* pMeta = arg;
+  int64_t      backendRid = pMeta->streamBackendRid;
+  int64_t      st = taosGetTimestampMs();
+  int32_t      code = -1;
 
   char path[256] = {0};
   sprintf(path, "%s/%s", pMeta->path, "checkpoints");
@@ -417,7 +469,7 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
   }
 
   char checkpointDir[256] = {0};
-  snprintf(checkpointDir, tListLen(checkpointDir),"%s/checkpoint_%" PRIu64, path, checkpointId);
+  snprintf(checkpointDir, tListLen(checkpointDir), "%s/checkpoint-%" PRId64, path, checkpointId);
 
   SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
   if (pHandle == NULL) {
@@ -1203,8 +1255,8 @@ bool streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len
   }
   return true;
 }
-rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* pChkptFileName, rocksdb_snapshot_t** snapshot,
-                                          rocksdb_readoptions_t** readOpt) {
+rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* pChkptFileName,
+                                          rocksdb_snapshot_t** snapshot, rocksdb_readoptions_t** readOpt) {
   int idx = streamStateGetCfIdx(pState, pChkptFileName);
 
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
