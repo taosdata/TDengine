@@ -1,11 +1,13 @@
 package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
+import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
+import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.consts.NettyConsts;
 import com.taosdata.netty.model.dto.MessageDto;
@@ -19,7 +21,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 推送数据线程
@@ -59,6 +63,11 @@ public class PushThread implements Runnable {
      * 批次首条
      */
     private boolean first = true;
+
+    /**
+     * 首条schema
+     */
+    private Map<String, String> fieldMap = new HashMap<>();
 
     /**
      * 当前线程/schema的arrow工具类
@@ -154,14 +163,33 @@ public class PushThread implements Runnable {
     private void push(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
         // TODO 获取并判断响应
         try {
-            // 根据Measurement获取arrow初始化信息
-            if (this.first || this.arrowUtils == null) {
-                // 判断数据非空且首条数据包含Measurement信息
-                if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0 && influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity() != null) {
-                    this.arrowUtils = new ArrowUtils(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity());
-                } else {
+            // 判断列表不为空
+            if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
+                // 获取内存中最新的measurement信息
+                InfluxdbMeasurementEntity latestMeasurementEntity = BucketCache.measurementMap.get(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity().getBucket() + ":" + influxdbBucketDataEntityList.get(0).getMeasurement());
+                // 全局变量本地化
+                Map<String, String> latestFieldMap = new HashMap<>();
+                latestFieldMap.putAll(latestMeasurementEntity.getFieldMap());
+                // 对比内存中数据与最新数据是否有差异
+                if (this.fieldMap.isEmpty()) {
+                    // 使用最新缓存
+                    this.fieldMap.putAll(latestFieldMap);
+                } else if (!this.fieldMap.equals(latestFieldMap)) {
+                    // 需要更新
+                    influxdbBucketDataEntityList.forEach(influxdbBucketDataEntity -> influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getFieldMap().putAll(latestFieldMap));
+                    // 数据写回
+                    BucketDataCache.addBucketData(influxdbBucketDataEntityList);
+                    // 断开连接
+                    this.channel.close();
+                    // 中止操作
                     return;
                 }
+            } else {
+                return;
+            }
+            // 根据Measurement获取arrow初始化信息
+            if (this.first || this.arrowUtils == null) {
+                this.arrowUtils = new ArrowUtils(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity());
             }
             MessageDto messageDto = new MessageDto();
             messageDto.setVersion(NettyConsts.VERSION);

@@ -295,6 +295,13 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                             influxdbBucketDataEntity.getTags().put(key, value);
                         }
                     });
+                    // 如果存在新增字段，需要更新缓存
+                    if (!influxdbMeasurementEntity.getFieldMap().containsKey(influxdbBucketDataEntity.getField())) {
+                        // 获取新的字段列表
+                        Map<String, String> fieldMap = getFieldsV2(influxDBClient, bucket, measurement);
+                        // 更新缓存
+                        influxdbMeasurementEntity.getFieldMap().putAll(fieldMap);
+                    }
                     // 设置表结构
                     influxdbBucketDataEntity.setInfluxdbMeasurementEntity(influxdbMeasurementEntity);
                     // 放入列表
