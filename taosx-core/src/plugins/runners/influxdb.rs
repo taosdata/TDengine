@@ -329,6 +329,7 @@ pub async fn influxdb_to_taos(
     );
 
     let child = command
+        .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
         .arg("-jar")
         .arg(&connector_path)
         .arg(&config_path)
