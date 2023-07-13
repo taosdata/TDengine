@@ -41,13 +41,12 @@ typedef struct {
 } SLocalFetch;
 
 typedef struct {
-  void*       tqReader;
-  void*       config;
+  void*       tqReader;  // todo remove it
   void*       vnode;
   void*       mnd;
   SMsgCb*     pMsgCb;
   int64_t     version;
-  bool        initMetaReader;
+  uint64_t    checkpointId;
   bool        initTableReader;
   bool        initTqReader;
   int32_t     numOfVgroups;

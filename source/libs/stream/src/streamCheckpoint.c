@@ -241,8 +241,8 @@ int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
     uint32_t*    pTaskId = taosArrayGet(pMeta->pTaskList, i);
     SStreamTask* p = *(SStreamTask**)taosHashGet(pMeta->pTasks, pTaskId, sizeof(*pTaskId));
 
-    ASSERT(p->chkInfo.keptCheckpointId < p->checkpointingId && p->checkpointingId == checkpointId);
-    p->chkInfo.keptCheckpointId = p->checkpointingId;
+    ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
+    p->chkInfo.checkpointId = p->checkpointingId;
 
     int8_t prev = p->status.taskStatus;
     p->status.taskStatus = TASK_STATUS__NORMAL;
@@ -250,7 +250,7 @@ int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
     streamMetaSaveTask(pMeta, p);
     qDebug("vgId:%d s-task:%s commit task status after checkpoint completed, checkpointId:%" PRId64 ", ver:%" PRId64
            " currentVer:%" PRId64 ", status to be normal, prev:%s",
-           pMeta->vgId, p->id.idStr, checkpointId, p->chkInfo.version, p->chkInfo.currentVer,
+           pMeta->vgId, p->id.idStr, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.currentVer,
            streamGetTaskStatusStr(prev));
   }
 

@@ -482,8 +482,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     const SStreamQueueItem* pItem = pInput;
     qDebug("s-task:%s start to process batch of blocks, num:%d, type:%d", id, batchSize, pItem->type);
 
-    int64_t ver = pTask->chkInfo.version;
-    doSetStreamInputBlock(pTask, pInput, &pTask->chkInfo.version, id);
+    int64_t ver = pTask->chkInfo.checkpointVer;
+    doSetStreamInputBlock(pTask, pInput, &pTask->chkInfo.checkpointVer, id);
 
     int64_t resSize = 0;
     int32_t totalBlocks = 0;
@@ -494,11 +494,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
            resSize / 1048576.0, totalBlocks);
 
     // update the currentVer if processing the submit blocks.
-    ASSERT(pTask->chkInfo.version <= pTask->chkInfo.currentVer && ver <= pTask->chkInfo.version);
+    ASSERT(pTask->chkInfo.checkpointVer <= pTask->chkInfo.currentVer && ver <= pTask->chkInfo.checkpointVer);
 
-    if (ver != pTask->chkInfo.version) {
+    if (ver != pTask->chkInfo.checkpointVer) {
       qDebug("s-task:%s update checkpoint ver from %" PRId64 " to %" PRId64, pTask->id.idStr, ver,
-             pTask->chkInfo.version);
+             pTask->chkInfo.checkpointVer);
     }
 
     streamFreeQitem(pInput);

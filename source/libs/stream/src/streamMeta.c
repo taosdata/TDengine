@@ -434,7 +434,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     // remove duplicate
     void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
     if (p == NULL) {
-      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
         tdbFree(pKey);
         tdbFree(pVal);
         tdbTbcClose(pCur);
