@@ -14,31 +14,24 @@
  */
 
 #include "sma.h"
+#include "vnd.h"
 
-void tdRSmaQTaskInfoGetFullPath(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName) {
-  tdRSmaGetDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
+void tdRSmaQTaskInfoGetFullPath(SVnode *pVnode, tb_uid_t suid, int8_t level, STfs *pTfs, char *outputName) {
+  tdRSmaGetDirName(pVnode, pTfs, true, outputName);
   int32_t rsmaLen = strlen(outputName);
   snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi8 "%s%" PRIi64, level, TD_DIRSEP, suid);
 }
 
-void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName) {
-  if (pdname) {
-    if (endWithSep) {
-      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP,
-               dname, TD_DIRSEP);
-    } else {
-      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP,
-               dname);
-    }
-  } else {
-#if 0
-    if (endWithSep) {
-      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%s", TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP);
-    } else {
-      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s", TD_DIRSEP, vgId, TD_DIRSEP, dname);
-    }
-#endif
-  }
+void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputName) {
+  int32_t offset = 0;
+
+  // vnode
+  vnodeGetPrimaryDir(pVnode->path, pTfs, outputName, TSDB_FILENAME_LEN);
+  offset = strlen(outputName);
+
+  // rsma
+  snprintf(outputName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s", TD_DIRSEP, VNODE_RSMA_DIR,
+           (endWithSep ? TD_DIRSEP : ""));
 }
 
 // smaXXXUtil ================

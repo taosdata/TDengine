@@ -244,7 +244,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     void       *pStreamState = NULL;
 
     // set the backend of stream state
-    tdRSmaQTaskInfoGetFullPath(TD_VID(pVnode), pRSmaInfo->suid, idx + 1, tfsGetPrimaryPath(pVnode->pTfs), taskInfDir);
+    tdRSmaQTaskInfoGetFullPath(pVnode, pRSmaInfo->suid, idx + 1, pVnode->pTfs, taskInfDir);
+
     if (!taosCheckExistFile(taskInfDir)) {
       char *s = taosStrdup(taskInfDir);
       if (taosMulMkDir(s) != 0) {

@@ -173,7 +173,6 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   SSmaEnv*         pEnv = NULL;
   SRSmaStat*       pStat = NULL;
   SRSmaSnapWriter* pWriter = *ppWriter;
-  const char*      primaryPath = NULL;
   char             fname[TSDB_FILENAME_LEN] = {0};
   char             fnameVer[TSDB_FILENAME_LEN] = {0};
   TdFilePtr        pOutFD = NULL;
@@ -187,7 +186,6 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   pVnode = pSma->pVnode;
   pEnv = SMA_RSMA_ENV(pSma);
   pStat = (SRSmaStat*)SMA_ENV_STAT(pEnv);
-  primaryPath = tfsGetPrimaryPath(pVnode->pTfs);
 
   // rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
