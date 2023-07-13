@@ -133,7 +133,7 @@ float mndGetClusterUpTime(SMnode *pMnode) {
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
-  return upTime / 86400.0f;
+  return (float)upTime;
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {

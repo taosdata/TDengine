@@ -804,7 +804,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pObj->id == pMnode->selfDnodeId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
-      pClusterInfo->master_uptime = mndGetClusterUpTime(pMnode);
+      pClusterInfo->master_uptime = mndGetClusterUpTime(pMnode) / 86400.0f;
       // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
     } else {
