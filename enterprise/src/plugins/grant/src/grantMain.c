@@ -151,6 +151,7 @@ extern int64_t   tsExpireTime;
 
 // for compatibility: grantMain.c could work with machine.o before 3.0.5.0
 SGrantConnObj grantConnObj = {.machine = grantObj.machine, .clusterId = grantObj.clusterId};
+SStatisInfo   statisInfObj = {0};
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
@@ -232,7 +233,9 @@ int32_t mndInitGrant(SMnode *pMnode) {
 #endif
   gStatus.lastCheck = (uint32_t)(taosGetTimestampMs() / 1000);
   grantHandle.lastCheck = &gStatus.lastCheck;
-  
+
+  statisInfObj.info[0] = (uint32_t)(taosGetTimestampMs() / 60000);
+
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
@@ -365,6 +368,17 @@ static void dmRefreshGrantCfg() {
   sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
 #else
   sprintf(cfgFile, "%s/taos.cfg", configDir);
+#endif
+
+#ifndef GRANTS_CFG
+  int64_t cur = GRANT_CUR_TIME(&statisInfObj);
+  int64_t tolerence = taosGetTimestampMs() / 1000 + GRANT_CODE_TOLERENCE;
+  if (cur > tolerence) {
+    uWarn("failed to refresh grant cfg since time ouf of sync:  %" PRIi64 " < %" PRIi64);
+    grantObj.granted = false;
+    return;
+  }
+  // if(mndGetClusterUpTime() < )
 #endif
   grantActiveSystem(cfgFile);
 }
@@ -513,6 +527,7 @@ _err:
  * @return int32_t
  */
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
+  atomic_add_fetch_32(&statisInfObj.info[1], tsGrantHBInterval);
   if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   SMnode *pMnode = pReq->info.node;
   int32_t dnodeSize = mndGetDnodeSize(pMnode);

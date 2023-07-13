@@ -32,6 +32,7 @@
 
 #if 1
 #define GRANT_TOLERENCE      86400  //86400
+#define GRANT_CODE_TOLERENCE 259200  // 259200
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
 #define GRANT_HEART_BEAT_MSG 60     //60seconds
 #else
@@ -77,6 +78,8 @@
 #define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
 #define GRANT_CONN_LIMITS              -1
 #define GRANT_CONN_EXPIRE_LIMITS       65535
+
+#define GRANT_CUR_TIME(s)              ((int64_t)((s)->info[0]) * 60 + atomic_load_32(&(s)->info[1]))
 
 typedef enum {
   GRANT_OBJ_SERVER = 0,
@@ -145,7 +148,13 @@ typedef struct {
   uint32_t limitAccts;
   uint32_t limitDnodes;
   uint32_t limitCpuCores;
-  uint32_t reserveKey1;
+  union {
+    uint32_t reserveKey1;
+    struct {
+      uint16_t distribute;  // distribute date since 3.1.0.0
+      uint16_t reserveKey10;
+    };
+  };
   uint32_t reserveKey2;
 } SGrantObj;
 
@@ -200,6 +209,10 @@ typedef struct {
   uint32_t      reserveKey2;
   SGrantConnMsg connectors;
 } SGrantMsg;
+
+typedef struct {
+  uint32_t info[4];  // start-up(min), elapsed(sec), reserved, ...
+} SStatisInfo;
 
 char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
