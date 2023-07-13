@@ -18,6 +18,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
+use tracing::info;
 
 use crate::{legacy::scheduler::Todo, Action};
 
@@ -67,7 +68,11 @@ impl TableOpts {
 
     pub fn from_params(dsn: &mut Dsn) -> Result<Self, parse_duration::parse::Error> {
         let mut opts = Self::new();
-        if let Some(value) = dsn.remove("restro") {
+        if let Some(value) = dsn
+            .remove("retro")
+            .or(dsn.remove("restro"))
+            .or(dsn.remove("retrospect"))
+        {
             opts.restro = parse_duration::parse(&value)?;
         }
         if let Some(value) = dsn.remove("interval") {
@@ -1004,6 +1009,7 @@ async fn sync_normal_table_schema(from: &Taos, name: &str, to: &Taos) -> anyhow:
 #[derive(Deserialize)]
 struct STableRecord {
     name: String,
+    #[allow(dead_code)]
     tables: usize,
 }
 
@@ -1016,6 +1022,7 @@ struct TableRecord {
 }
 
 impl TableRecord {
+    #[allow(dead_code)]
     fn is_normal_table(&self) -> bool {
         self.stable_name
             .as_deref()
@@ -1027,32 +1034,34 @@ impl TableRecord {
 #[async_backtrace::framed]
 async fn sync_schema(
     scheduler: &Scheduler,
-    from_pool: &TaosPool,
-    to_pool: &TaosPool,
-    connect_timeout: Duration,
-    opts: SourceOpts,
-    target_opts: TargetOpts,
+    _from_pool: &TaosPool,
+    _to_pool: &TaosPool,
+    _connect_timeout: Duration,
+    _opts: SourceOpts,
+    _target_opts: TargetOpts,
     todo: Arc<LegacyTodo>,
     concurrency: usize,
-    metrics: &Arc<LegacyMetrics>,
-    source_is_v3: bool,
-    target_is_v3: bool,
+    _metrics: &Arc<LegacyMetrics>,
+    _source_is_v3: bool,
+    _target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    let from = from_pool.get().await?;
-    let to = to_pool.get().await?;
-    let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
-    let to_is_v3 = v2.starts_with('3');
-    let v1: String = from
-        .query_one("SELECT server_version()")
-        .await
-        .context("Get server version of source error")?
-        .unwrap();
-    let is_v3 = if v1.starts_with("2") { false } else { true };
+    // let from = from_pool.get().await?;
+    // let to = to_pool.get().await?;
+    // let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
+    // let to_is_v3 = v2.starts_with('3');
+    // let v1: String = from
+    //     .query_one("SELECT server_version()")
+    //     .await
+    //     .context("Get server version of source error")?
+    //     .unwrap();
+    // let is_v3 = if v1.starts_with("2") { false } else { true };
 
     let mut readers = Vec::new();
     for stable in &todo.stables {
         let (sender, reader) = oneshot::channel();
-        scheduler.send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))?;
+        scheduler
+            .send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))
+            .await?;
         readers.push((vec![], reader));
     }
 
@@ -1087,11 +1096,13 @@ async fn sync_schema(
     for chunk in chunks {
         let (sender, reader) = oneshot::channel();
         let (stable, tables) = chunk;
-        scheduler.send(Todo::Meta(
-            stable.map(|s| Arc::new(s.to_string())),
-            tables.iter().map(|s| s.to_string()).collect_vec(),
-            Some(sender),
-        ))?;
+        scheduler
+            .send(Todo::Meta(
+                stable.map(|s| Arc::new(s.to_string())),
+                tables.iter().map(|s| s.to_string()).collect_vec(),
+                Some(sender),
+            ))
+            .await?;
 
         readers.push((tables, reader));
     }
@@ -1139,15 +1150,15 @@ async fn sync_schema(
 
 async fn sync_specified_tables_with_workers(
     scheduler: &Scheduler,
-    from: TaosPool,
-    to: TaosPool,
+    _from: TaosPool,
+    _to: TaosPool,
     opts: QueryOpts,
     tables: &[(Option<Arc<String>>, String)],
-    target_opts: TargetOpts,
+    _target_opts: TargetOpts,
     workers: usize,
     metrics: Arc<LegacyMetrics>,
-    source_is_v3: bool,
-    target_is_v3: bool,
+    _source_is_v3: bool,
+    _target_is_v3: bool,
 ) -> anyhow::Result<()> {
     log::info!("Synchronize table data with {} workers", workers);
     // let order = Ordering::SeqCst;
@@ -1177,12 +1188,14 @@ async fn sync_specified_tables_with_workers(
     let mut readers = Vec::new();
     for (stable, table) in tables {
         let (sender, reader) = oneshot::channel();
-        scheduler.send(Todo::Data(
-            stable.clone(),
-            table.to_string(),
-            opts.time_range,
-            Some(sender),
-        ))?;
+        scheduler
+            .send(Todo::Data(
+                stable.clone(),
+                table.to_string(),
+                opts.time_range,
+                Some(sender),
+            ))
+            .await?;
         readers.push(reader);
     }
     let mut fails = 0;
@@ -1469,6 +1482,7 @@ impl TargetOpts {
 }
 
 pub struct TableTodo {
+    #[allow(dead_code)]
     name: String,
     stable: Option<String>,
 }
@@ -1501,6 +1515,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
         .context("Connect to data source error with timeout")?;
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
+    info!(version = version.as_ref(), "Retrieving table list...");
 
     if let Some(stables) = opts.stables.as_ref() {
         const MAX_DISPLAY_STABLES: usize = 5;
@@ -1650,7 +1665,10 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
             // tables.sort_by_key(|f| f.0.as_deref().map(|s| s.as_str()));
             tables.sort();
 
-            log::info!(
+            info!(
+                version = version.as_ref(),
+                tables = tables.len(),
+                stables = stables.len(),
                 "Try to synchronize {} tables in {} stables and {} ordinary tables",
                 tables.len(),
                 stables.len(),
@@ -1714,11 +1732,11 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
 async fn realtime(
     scheduler: &Scheduler,
     start: DateTime<Utc>,
-    from: &Taos,
-    to: &Taos,
+    _from: &Taos,
+    _to: &Taos,
     opts: &TableOpts,
-    source_is_v3: bool,
-    target_is_v3: bool,
+    _source_is_v3: bool,
+    _target_is_v3: bool,
     todo: &LegacyTodo,
 ) -> anyhow::Result<()> {
     let mut now = start;
@@ -1729,10 +1747,19 @@ async fn realtime(
     // now is the separator of history and future data.
 
     // check if need retro back.
-    if opts.restro.is_zero() {
+    if !opts.restro.is_zero() {
         // trace back to some duration.
+        info!("Retrospect to {:?} ago.", opts.restro);
         let start = now - chrono::Duration::from_std(opts.restro)?;
         let time_range = TimeRange::new().start(start).end(now);
+
+        info!(
+            mode = "retrospect",
+            ?start,
+            end = ?now,
+            "spawning retro task for range: {:?}.",
+            time_range
+        );
 
         for (stable, table) in &todo.tables {
             scheduler
@@ -1742,18 +1769,29 @@ async fn realtime(
                     time_range.clone(),
                     None,
                 ))
+                .await
                 .unwrap();
         }
+        info!(
+            mode = "retrospect",
+            "restro tasks are all spawned. waiting..."
+        );
     }
 
-    let tick_duration = chrono::Duration::from_std(opts.interval)?;
+    // let tick_duration = chrono::Duration::from_std(opts.interval)?;
     let mut interval = tokio::time::interval(opts.interval);
     interval.tick().await;
     let mut start = now;
     loop {
-        let end = Utc::now() - tick_duration;
+        let end = Utc::now() - excursion;
         let time_range = TimeRange::new().start(start).end(end);
-        log::debug!("spawn sync task for range: {:?}", time_range);
+        info!(
+            mode = "realtime",
+            ?start,
+            ?end,
+            "spawn sync task for range: {:?}.",
+            time_range
+        );
         for (stable, table) in &todo.tables {
             scheduler
                 .send(Todo::Data(
@@ -1762,9 +1800,14 @@ async fn realtime(
                     time_range.clone(),
                     None,
                 ))
+                .await
                 .unwrap();
         }
         start = end;
+        info!(
+            mode = "realtime",
+            "tick tasks are all spawned. waiting for next interval tick..."
+        );
         let _ = interval.tick().await;
     }
 }
@@ -2091,34 +2134,12 @@ pub async fn legacy_to_taos(
             )
             .await?;
         }
-
-        _ => unreachable!(),
     }
 
-    log::info!("syncing done, wait to release resources");
-    // if to_is_v3 {
-    //     drop(to_builder);
-    // }
-    // drop(from_builder);
-
-    log::info!("done");
+    info!("syncing done, wait to release resources");
 
     println!("{}", metrics);
     Ok(())
-}
-
-fn get_precision(database_create_sql: String) -> Option<String> {
-    let vec: Vec<&str> = database_create_sql.split(' ').collect();
-    let mut index = 0;
-    while index < vec.len() {
-        if "PRECISION".eq_ignore_ascii_case(&vec[index]) {
-            index += 1;
-            return Some(String::from(vec[index]));
-        }
-        index += 1;
-    }
-    // it should't return this
-    None
 }
 
 fn database_options_2to3(options: &str) -> Option<String> {
@@ -2509,18 +2530,21 @@ mod tests {
 
     #[test]
     fn test_get_precision() {
+        fn get_precision(database_create_sql: String) -> Option<String> {
+            let vec: Vec<&str> = database_create_sql.split(' ').collect();
+            let mut index = 0;
+            while index < vec.len() {
+                if "PRECISION".eq_ignore_ascii_case(&vec[index]) {
+                    index += 1;
+                    return Some(String::from(vec[index]));
+                }
+                index += 1;
+            }
+            // it should't return this
+            None
+        }
+
         assert_eq!(get_precision(String::from("PRECISION 'ms' REPLICA 1")), get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")));
         assert_ne!(get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'us' UPDATE 0")), get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")));
-    }
-
-    #[test]
-    fn test_sort() {
-        let data = vec![
-            (Some(Arc::new("abc")), "C"),
-            (Some(Arc::new("abc1")), "C"),
-            (Some(Arc::new("abc1")), "C"),
-            (Some(Arc::new("abc")), "C"),
-        ];
-        // data.iter().group_by(|v| v.0);
     }
 }
