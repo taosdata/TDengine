@@ -97,13 +97,13 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       pTscObj->authVer = pRsp->version;
-#if 0
+
       if (pTscObj->sysInfo != pRsp->sysInfo) {
         tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, pRsp->user,
                  pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
         pTscObj->sysInfo = pRsp->sysInfo;
       }
-#endif
+
       if (pTscObj->passInfo.fp) {
         SPassInfo *passInfo = &pTscObj->passInfo;
         int32_t    oldVer = atomic_load_32(&passInfo->ver);
