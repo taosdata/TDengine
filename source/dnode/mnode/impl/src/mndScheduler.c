@@ -301,11 +301,11 @@ int32_t setEpToDownstreamTask(SStreamTask* pTask, SStreamTask* pDownstream) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (pDownstream->pUpstreamEpInfoList == NULL) {
-    pDownstream->pUpstreamEpInfoList = taosArrayInit(4, POINTER_BYTES);
+  if (pDownstream->pUpstreamInfoList == NULL) {
+    pDownstream->pUpstreamInfoList = taosArrayInit(4, POINTER_BYTES);
   }
 
-  taosArrayPush(pDownstream->pUpstreamEpInfoList, &pEpInfo);
+  taosArrayPush(pDownstream->pUpstreamInfoList, &pEpInfo);
   return TSDB_CODE_SUCCESS;
 }
 
