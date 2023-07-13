@@ -8,7 +8,7 @@
           <span class="value">{{this.license[0].expire_time | filterNull}}</span>
         </li> -->
         <li>
-          <span>{{ $t("header.version") }}：</span>
+          <span class="version">{{ $t("header.version") }}：</span>
           <span class="value">{{this.license[0].version}}</span>
         </li>
       </ul>

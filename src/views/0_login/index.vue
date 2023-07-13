@@ -452,6 +452,7 @@ export default {
     .dynamic-title {
       font-size: 28px;
       color: #fff;
+     
     }
     .inside-header {
       display: none;
@@ -519,6 +520,12 @@ export default {
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      .dynamic-title{
+        width:500px;
+        overflow: hidden;
+        display: block;
+        text-overflow: ellipsis;
+      }
       .login-title {
         font-size: 28px;
         font-weight: 500;
