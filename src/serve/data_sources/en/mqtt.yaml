@@ -2,25 +2,13 @@
 id: mqtt
 name: MQTT
 description: |
-  MQTT stands for Message Queuing Telemetry Transport. It is a
-  lightweight messaging protocol that is easy to implement and
-  use. It is ideal for connecting devices with limited resources,
-  such as battery-powered devices or devices with low bandwidth.
-  MQTT is also a good choice for applications where latency is
-  important, such as real-time control systems.
+  MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement and use. It is ideal for connecting devices with limited resources, such as battery-powered devices or devices with low bandwidth. MQTT is also a good choice for applications where latency is important, such as real-time control systems.
 
-  MQTT works by using a publish/subscribe model. This means that
-  devices can publish messages to topics, and other devices can
-  subscribe to those topics to receive the messages. This makes
-  it easy to decouple devices from each other, and to scale up
-  applications as needed.
+  MQTT works by using a publish/subscribe model. This means that devices can publish messages to topics, and other devices can subscribe to those topics to receive the messages. This makes it easy to decouple devices from each other, and to scale up applications as needed.
 
-  MQTT is a popular choice for IoT applications. It is supported
-  by a wide range of devices and platforms, and there are many
-  open source and commercial implementations available.
+  MQTT is a popular choice for IoT applications. It is supported by a wide range of devices and platforms, and there are many open source and commercial implementations available.
 
-  taosX could subscribe data from MQTT broker by a connector
-  plugin.
+  taosX could subscribe data from MQTT broker by a connector plugin.
 
   Check the help message in each part to see the details.
 type: uri

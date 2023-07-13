@@ -13,14 +13,12 @@ description: |
 
   ## Subject
 
-  TMQ data source could subscribe data from a database or
-  a specified table with fully "database.name" format.
+  TMQ data source could subscribe data from a database or a specified table with fully "database.name" format.
 type: uri
 protocol:
   display: Protocol
   description:
-    Choose a protocol scheme for websocket connection, leave it empty for
-    native connection
+    Choose a protocol scheme for websocket connection, leave it empty for native connection
   choices:
     - name: "--"
       display: Native
@@ -35,8 +33,7 @@ options:
   host:
     display: Host
     description:
-      TDengine fqdn. Leave it empty if use server localhost(relative to
-      taosX server).
+      TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).
     placeholder: server
   port:
     display: Port
@@ -90,7 +87,7 @@ groups:
             - latest
       - name: timeout
         display: Timeout
-        hint: 
+        hint:
           type: timeout
         description: |
           A timeout for polling data from the topic.
