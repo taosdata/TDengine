@@ -1514,8 +1514,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // cpu cores
-
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // cpu_cores
+    
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
@@ -1526,7 +1526,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // query time
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // querytime
 #endif
     // connectors
     ++cols;

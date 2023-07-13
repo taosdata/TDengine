@@ -44,7 +44,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (mndVgroupInDb(pVgroup, pDb->uid)) {
+    if (pVgroup->dbUid == pDb->uid) {
       if (mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
