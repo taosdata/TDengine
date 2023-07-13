@@ -126,15 +126,15 @@ async fn worker(
                                     }
 
                                     log::error!(
-                                		"[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:?}, continue next"
-                            		);
+                                        "[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:#}, continue next"
+                                    );
 
                                     if let Some(path) = opts.fails_to.as_ref() {
                                         path.lock().unwrap().write_fmt(format_args!(
                                             "meta\t{}:{}\t{}\n",
                                             stable.as_str(),
                                             tables.join(","),
-                                            format!("{err:?}").replace("\n", " ")
+                                            format!("{err:#}").replace("\n", " ")
                                         ))?;
                                     }
 
