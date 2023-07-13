@@ -234,12 +234,12 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    int32_t status = pTask->status.taskStatus;
     if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
+    int32_t status = pTask->status.taskStatus;
     if (status != TASK_STATUS__NORMAL) {
       tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
       streamMetaReleaseTask(pStreamMeta, pTask);

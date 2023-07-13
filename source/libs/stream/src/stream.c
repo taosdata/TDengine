@@ -239,7 +239,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
 
-  // if current task has received the checkpoint req from the upstream t#1, the msg from t#1 should all blocked
+  // todo: if current task has received the checkpoint req from the upstream t#1, the msg from t#1 should all blocked
 
   streamTaskEnqueueBlocks(pTask, pReq, pRsp);
   tDeleteStreamDispatchReq(pReq);
@@ -320,7 +320,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
       return code;
     }
-  } else if (type == STREAM_INPUT__CHECKPOINT) {
+  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     qDebug("s-task:%s checkpoint enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   } else if (type == STREAM_INPUT__GET_RES) {  // use the default memory limit, refactor later.

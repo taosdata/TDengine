@@ -190,7 +190,8 @@ int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, i
     }
 
     // do not merge blocks for sink node and check point data block
-    if ((pTask->info.taskLevel == TASK_LEVEL__SINK) || (qItem->type == STREAM_INPUT__CHECKPOINT)) {
+    if ((pTask->info.taskLevel == TASK_LEVEL__SINK) ||
+        (qItem->type == STREAM_INPUT__CHECKPOINT || qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER)) {
       *numOfBlocks = 1;
       *pInput = qItem;
       return TSDB_CODE_SUCCESS;

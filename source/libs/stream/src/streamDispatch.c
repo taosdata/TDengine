@@ -415,8 +415,8 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamCheckpointReq* pReq, int32_t nodeId,
-                                    SEpSet* pEpSet) {
+static int32_t doDispatchCheckpointMsg(SStreamTask* pTask, const SStreamCheckpointReq* pReq, int32_t nodeId,
+                                       SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   SRpcMsg msg = {0};
@@ -448,6 +448,45 @@ int32_t streamDispatchCheckpointMsg(SStreamTask* pTask, const SStreamCheckpointR
          pTask->info.taskLevel, pTask->info.nodeId, pReq->streamId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
+  return 0;
+}
+
+int32_t streamTaskDispatchCheckpointMsg(SStreamTask* pTask, uint64_t checkpointId) {
+  SStreamCheckpointReq req = {
+      .streamId = pTask->id.streamId,
+      .upstreamTaskId = pTask->id.taskId,
+      .upstreamNodeId = pTask->info.nodeId,
+      .downstreamNodeId = pTask->info.nodeId,
+      .downstreamTaskId = pTask->id.taskId,
+      .childId = pTask->info.selfChildId,
+      .checkpointId = checkpointId,
+  };
+
+  // serialize
+  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+    req.downstreamNodeId = pTask->fixedEpDispatcher.nodeId;
+    req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
+    doDispatchCheckpointMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
+  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+
+    int32_t numOfVgs = taosArrayGetSize(vgInfo);
+    pTask->notReadyTasks = numOfVgs;
+    pTask->checkReqIds = taosArrayInit(numOfVgs, sizeof(int64_t));
+
+    qDebug("s-task:%s dispatch %d checkpoint msg to downstream", pTask->id.idStr, numOfVgs);
+
+    for (int32_t i = 0; i < numOfVgs; i++) {
+      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      req.downstreamNodeId = pVgInfo->vgId;
+      req.downstreamTaskId = pVgInfo->taskId;
+      doDispatchCheckpointMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
+    }
+  } else {  // no need to dispatch msg to downstream task
+    qDebug("s-task:%s no down stream task, not dispatch checkpoint msg to downstream", pTask->id.idStr);
+    streamProcessCheckpointRsp(NULL, pTask);
+  }
+
   return 0;
 }
 
@@ -488,11 +527,7 @@ int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask) {
   }
 
   taosArrayClear(pTask->pRpcMsgList);
-
-  int8_t prev = pTask->status.taskStatus;
-  pTask->status.taskStatus = TASK_STATUS__NORMAL;
-  qDebug("s-task:%s level:%d source checkpoint completed msg sent to upstream, set status:%s, prev:%s", pTask->id.idStr,
-         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), streamGetTaskStatusStr(prev));
+  qDebug("s-task:%s level:%d source checkpoint completed msg sent to upstream", pTask->id.idStr);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -505,11 +540,7 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
   tmsgSendRsp(pMsg);
 
   taosArrayClear(pTask->pRpcMsgList);
-
-  int8_t prev = pTask->status.taskStatus;
-  pTask->status.taskStatus = TASK_STATUS__NORMAL;
-  qDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode, set status:%s, prev:%s", pTask->id.idStr,
-         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), streamGetTaskStatusStr(prev));
+  qDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr);
 
   return TSDB_CODE_SUCCESS;
 }

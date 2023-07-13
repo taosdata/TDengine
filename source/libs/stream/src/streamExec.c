@@ -293,6 +293,13 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
 }
 #endif
 
+static int32_t getNumOfItemsInputQ(const SStreamTask* pTask) {
+  int32_t numOfItems1 = taosQueueItemSize(pTask->inputQueue->queue);
+  int32_t numOfItems2 = taosQallItemSize(pTask->inputQueue->qall);
+
+  return numOfItems1 + numOfItems2;
+}
+
 static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
   // wait for the stream task to be idle
   int64_t st = taosGetTimestampMs();
@@ -313,11 +320,12 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    qError("s-task:%s failed to find related stream task:0x%x, it may have been destoryed or closed",
-        pTask->id.idStr, pTask->streamTaskId.taskId);
+    qError("s-task:%s failed to find related stream task:0x%x, it may have been destoryed or closed", pTask->id.idStr,
+           pTask->streamTaskId.taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
-    qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr, pStreamTask->id.idStr);
+    qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr,
+           pStreamTask->id.idStr);
   }
 
   ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
@@ -395,8 +403,8 @@ static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_
 
     SArray* pBlockList = pMerged->submits;
     int32_t numOfBlocks = taosArrayGetSize(pBlockList);
-    qDebug("s-task:%s %p set (merged) submit blocks as a batch, numOfBlocks:%d, ver:%" PRId64, id, pTask,
-           numOfBlocks, pMerged->ver);
+    qDebug("s-task:%s %p set (merged) submit blocks as a batch, numOfBlocks:%d, ver:%" PRId64, id, pTask, numOfBlocks,
+           pMerged->ver);
     qSetMultiStreamInput(pExecutor, pBlockList->pData, numOfBlocks, STREAM_INPUT__MERGED_SUBMIT);
     ASSERT((*pVer) < pMerged->ver);
     (*pVer) = pMerged->ver;
@@ -433,7 +441,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       ASSERT(batchSize == 0);
       if (pTask->info.fillHistory && pTask->status.transferState) {
         int32_t code = streamTransferStateToStreamTask(pTask);
-        if (code != TSDB_CODE_SUCCESS) { // todo handle this
+        if (code != TSDB_CODE_SUCCESS) {  // todo handle this
           return 0;
         }
       }
@@ -442,18 +450,31 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       return 0;
     }
 
-    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-      ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK || pInput->type == STREAM_INPUT__CHECKPOINT);
+    int32_t type = pInput->type;
+    if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+      ASSERT(getNumOfItemsInputQ(pTask) == 1);
+    }
 
-      if (pInput->type == STREAM_INPUT__DATA_BLOCK) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+      ASSERT(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT);
+
+      if (type == STREAM_INPUT__DATA_BLOCK) {
         qDebug("s-task:%s sink task start to sink %d blocks", id, batchSize);
         streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
         continue;
-      } else {  // for sink task, do nothing.
+      } else {  // pInput->type == STREAM_INPUT__CHECKPOINT, for sink task, do nothing.
         ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
         pTask->status.taskStatus = TASK_STATUS__CK_READY;
         return 0;
       }
+    }
+
+    // dispatch checkpoint msg to all downstream tasks
+    if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+      qDebug("s-task:%s start to dispatch checkpoint msg to downstream", id);
+
+      streamTaskDispatchCheckpointMsg(pTask, pTask->checkpointingId);
+      return 0;
     }
 
     int64_t st = taosGetTimestampMs();
@@ -475,12 +496,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // update the currentVer if processing the submit blocks.
     ASSERT(pTask->chkInfo.version <= pTask->chkInfo.currentVer && ver <= pTask->chkInfo.version);
 
-    if(ver != pTask->chkInfo.version) {
+    if (ver != pTask->chkInfo.version) {
       qDebug("s-task:%s update checkpoint ver from %" PRId64 " to %" PRId64, pTask->id.idStr, ver,
              pTask->chkInfo.version);
     }
 
-    int32_t type = pInput->type;
     streamFreeQitem(pInput);
 
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
@@ -550,8 +570,8 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
       if (code != TSDB_CODE_SUCCESS) {
         // todo: let's retry send rsp to upstream/mnode
-        qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%"PRId64", code:%s",
-              pTask->id.idStr, pTask->checkpointingId, tstrerror(code));
+        qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%" PRId64 ", code:%s",
+               pTask->id.idStr, pTask->checkpointingId, tstrerror(code));
       }
     } else {
       if (!taosQueueEmpty(pTask->inputQueue->queue) && (!streamTaskShouldStop(&pTask->status)) &&
