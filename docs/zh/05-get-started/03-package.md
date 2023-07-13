@@ -201,7 +201,7 @@ Active: inactive (dead)
 
 <TabItem label="Windows 系统" value="windows">
 
-安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。
+安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
 
 **TDengine 命令行（CLI）**
 
