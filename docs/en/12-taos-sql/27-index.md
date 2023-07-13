@@ -43,6 +43,7 @@ DROP INDEX index_name;
 ````sql
 ```sql
 SHOW INDEXES FROM tbl_name [FROM db_name];
+SHOW INDEXES FROM [db_name.]tbl_name ;
 ````
 
 Shows indices that have been created for the specified database or table.
