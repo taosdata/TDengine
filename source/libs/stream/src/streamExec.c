@@ -404,7 +404,12 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     while (pTask->taskLevel == TASK_LEVEL__SOURCE) {
       int8_t status = atomic_load_8(&pTask->status.taskStatus);
       if (status == TASK_STATUS__DROPPING) {
-        break;
+        if (pInput != NULL) {
+          streamFreeQitem(pInput);
+        }
+
+        qError("s-task:%s task is dropped, abort exec", id);
+        return TSDB_CODE_SUCCESS;
       }
 
       if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE && status != TASK_STATUS__STOP) {
