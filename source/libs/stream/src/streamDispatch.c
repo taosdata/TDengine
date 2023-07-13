@@ -157,11 +157,11 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
       .retrieveLen = dataStrLen,
   };
 
-  int32_t sz = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t sz = taosArrayGetSize(pTask->pUpstreamInfoList);
   ASSERT(sz > 0);
   for (int32_t i = 0; i < sz; i++) {
     req.reqId = tGenIdPI64();
-    SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->pUpstreamEpInfoList, i);
+    SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     req.dstNodeId = pEpInfo->nodeId;
     req.dstTaskId = pEpInfo->taskId;
     int32_t len;
@@ -516,7 +516,7 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
 // this function is usually invoked by sink/agg task
 int32_t streamTaskSendCheckpointRsp(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->pRpcMsgList);
-  ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) == num);
+  ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) == num);
 
   qDebug("s-task:%s level:%d checkpoint completed msg sent to %d upstream tasks", pTask->id.idStr, pTask->info.taskLevel,
          num);

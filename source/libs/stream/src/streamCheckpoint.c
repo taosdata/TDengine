@@ -114,7 +114,7 @@ int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRs
 }
 
 static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, int32_t childId) {
-  int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
   int64_t old = atomic_val_compare_exchange_32(&pTask->checkpointAlignCnt, 0, num);
   if (old == 0) {
     qDebug("s-task:%s set initial align upstream num:%d", pTask->id.idStr, num);
@@ -180,13 +180,14 @@ int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pRe
     streamSchedExec(pTask);
     qDebug("s-task:%s sink task set to checkpoint ready, start to send rsp to upstream", pTask->id.idStr);
   } else {
-    // todo close the inputQ for data from childId, which means data from childId are not allowed to put into intpuQ
-    // anymore
-    ASSERT(taosArrayGetSize(pTask->pUpstreamEpInfoList) > 0);
+    ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
+
+    // close the inputQ for data from upstream task.
+    streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
 
     // there are still some upstream tasks not send checkpoint request, do nothing and wait for then
     int32_t notReady = streamAlignCheckpoint(pTask, checkpointId, childId);
-    int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+    int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
     if (notReady > 0) {
       qDebug("s-task:%s received checkpoint req, %d upstream tasks not send checkpoint info yet, total:%d",
              pTask->id.idStr, notReady, num);

@@ -249,6 +249,7 @@ typedef struct SStreamChildEpInfo {
   int32_t childId;
   int32_t taskId;
   SEpSet  epSet;
+  bool    dataAllowed;   // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
 } SStreamChildEpInfo;
 
 typedef struct SStreamId {
@@ -310,8 +311,9 @@ struct SStreamTask {
   SHistDataRange   dataRange;
   SStreamId        historyTaskId;
   SStreamId        streamTaskId;
-  SArray*          pUpstreamEpInfoList;  // SArray<SStreamChildEpInfo*>, // children info
-  SArray*          pRpcMsgList;     // SArray<SRpcMsg*>
+  SArray*          pUpstreamInfoList;    // SArray<SStreamChildEpInfo*>, // children info
+  SArray*          pRpcMsgList;          // SArray<SRpcMsg*>
+
   // output
   union {
     STaskDispatcherFixedEp fixedEpDispatcher;
@@ -554,6 +556,8 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
+void    streamTaskOpenUpstreamInput(SStreamTask* pTask);
+void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);

@@ -59,7 +59,7 @@ FAIL:
 }
 
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->pUpstreamEpInfoList) != 0);
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->pUpstreamInfoList) != 0);
 
   pTask->refCnt = 1;
   pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
@@ -82,7 +82,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     return -1;
   }
 
-  int32_t numOfChildEp = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t numOfChildEp = taosArrayGetSize(pTask->pUpstreamInfoList);
   SReadHandle handle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState, .fillHistory = pTask->info.fillHistory };
   initStreamStateAPI(&handle.api);
 

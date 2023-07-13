@@ -99,10 +99,10 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI64(pEncoder, pTask->dataRange.window.skey)) return -1;
   if (tEncodeI64(pEncoder, pTask->dataRange.window.ekey)) return -1;
 
-  int32_t epSz = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t epSz = taosArrayGetSize(pTask->pUpstreamInfoList);
   if (tEncodeI32(pEncoder, epSz) < 0) return -1;
   for (int32_t i = 0; i < epSz; i++) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamEpInfoList, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     if (tEncodeStreamEpInfo(pEncoder, pInfo) < 0) return -1;
   }
 
@@ -165,7 +165,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   int32_t epSz;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;
 
-  pTask->pUpstreamEpInfoList = taosArrayInit(epSz, POINTER_BYTES);
+  pTask->pUpstreamInfoList = taosArrayInit(epSz, POINTER_BYTES);
   for (int32_t i = 0; i < epSz; i++) {
     SStreamChildEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamChildEpInfo));
     if (pInfo == NULL) return -1;
@@ -173,7 +173,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
       taosMemoryFreeClear(pInfo);
       return -1;
     }
-    taosArrayPush(pTask->pUpstreamEpInfoList, &pInfo);
+    taosArrayPush(pTask->pUpstreamInfoList, &pInfo);
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
@@ -226,7 +226,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     walCloseReader(pTask->exec.pWalReader);
   }
 
-  taosArrayDestroyP(pTask->pUpstreamEpInfoList, taosMemoryFree);
+  taosArrayDestroyP(pTask->pUpstreamInfoList, taosMemoryFree);
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);

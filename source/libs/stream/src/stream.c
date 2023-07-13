@@ -356,3 +356,26 @@ void* streamQueueNextItem(SStreamQueue* pQueue) {
 }
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED); }
+
+void streamTaskOpenUpstreamInput(SStreamTask* pTask) {
+  int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
+  if (num == 0) {
+    return;
+  }
+
+  for(int32_t i = 0; i < num; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
+    pInfo->dataAllowed = true;
+  }
+}
+
+void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+  int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
+  for(int32_t i = 0; i < num; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
+    if (pInfo->taskId == taskId) {
+      pInfo->dataAllowed = false;
+      break;
+    }
+  }
+}

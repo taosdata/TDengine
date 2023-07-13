@@ -814,7 +814,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
       return -1;
     }
 
-    int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->pUpstreamEpInfoList);
+    int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->pUpstreamInfoList);
     SReadHandle handle = {
         .checkpointId = pTask->chkInfo.checkpointId,
         .vnode = NULL,
@@ -865,6 +865,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond);
   }
 
+  streamTaskOpenUpstreamInput(pTask);
   streamSetupScheduleTrigger(pTask);
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
 
