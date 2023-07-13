@@ -758,12 +758,11 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->pMeta = pTq->pStreamMeta;
 
   // checkpoint exists, restore from the last checkpoint
-  if (pTask->chkInfo.keptCheckpointId != 0) {
-    ASSERT(pTask->chkInfo.version > 0);
-    pTask->chkInfo.currentVer = pTask->chkInfo.version;
-    pTask->dataRange.range.maxVer = pTask->chkInfo.version;
-    pTask->dataRange.range.minVer = pTask->chkInfo.version;
-    pTask->chkInfo.currentVer = pTask->chkInfo.version;
+  if (pTask->chkInfo.checkpointId != 0) {
+    ASSERT(pTask->chkInfo.checkpointVer > 0);
+    pTask->chkInfo.currentVer = pTask->chkInfo.checkpointVer;
+    pTask->dataRange.range.maxVer = pTask->chkInfo.checkpointVer;
+    pTask->dataRange.range.minVer = pTask->chkInfo.checkpointVer;
   } else {
     pTask->chkInfo.currentVer = ver;
     pTask->dataRange.range.maxVer = ver;
@@ -785,7 +784,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     }
 
     SReadHandle handle = {
-        .version = pTask->chkInfo.currentVer,
+        .checkpointId = pTask->chkInfo.checkpointId,
         .vnode = pTq->pVnode,
         .initTqReader = 1,
         .pStateBackend = pTask->pState,
@@ -817,7 +816,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
     int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->pUpstreamEpInfoList);
     SReadHandle handle = {
-        .version = pTask->chkInfo.currentVer,
+        .checkpointId = pTask->chkInfo.checkpointId,
         .vnode = NULL,
         .numOfVgroups = numOfVgroups,
         .pStateBackend = pTask->pState,
@@ -871,12 +870,12 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " currentVer:%" PRId64
          " child id:%d, level:%d, scan-history:%d, trigger:%" PRId64 " ms",
-         vgId, pTask->id.idStr, pChkInfo->keptCheckpointId, pChkInfo->version, pChkInfo->currentVer,
+         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer,
          pTask->info.selfChildId, pTask->info.taskLevel, pTask->info.fillHistory, pTask->triggerParam);
 
-  if (pTask->chkInfo.keptCheckpointId != 0) {
+  if (pTask->chkInfo.checkpointId != 0) {
     tqInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
-           pChkInfo->keptCheckpointId, pChkInfo->version, pChkInfo->currentVer);
+           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer);
   }
 
   return 0;
@@ -1277,7 +1276,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int8_t status = pTask->status.taskStatus;
   if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT || status == TASK_STATUS__CK) {
     tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
-            pTask->chkInfo.version);
+            pTask->chkInfo.checkpointVer);
     streamProcessRunReq(pTask);
   } else {
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);

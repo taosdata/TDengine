@@ -258,9 +258,9 @@ typedef struct SStreamId {
 } SStreamId;
 
 typedef struct SCheckpointInfo {
-  int64_t keptCheckpointId;
-  int64_t version;     // latest checkpointId version
-  int64_t currentVer;  // current offset in WAL, not serialize it
+  int64_t checkpointId;
+  int64_t checkpointVer;     // latest checkpointId version
+  int64_t currentVer;        // current offset in WAL, not serialize it
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
