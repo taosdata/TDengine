@@ -4,6 +4,8 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+print step 1
+
 print =============== create database
 sql create database test vgroups 1;
 
@@ -23,7 +25,7 @@ sleep 1000
 sql select * from streamt;
 
 $loop_count = $loop_count + 1
-if $loop_count == 20 then
+if $loop_count == 10 then
   return -1
 endi
 
@@ -43,11 +45,11 @@ if $data02 != 3 then
   goto loop0
 endi
 
-print waiting for checkpoint generation ......
+print waiting for checkpoint generation 1 ......
 
 sleep 25000
 
-print restart taosd
+print restart taosd 01 ......
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
@@ -63,7 +65,7 @@ sleep 1000
 sql select * from streamt;
 
 $loop_count = $loop_count + 1
-if $loop_count == 20 then
+if $loop_count == 10 then
   return -1
 endi
 
@@ -93,7 +95,7 @@ sleep 1000
 sql select * from streamt;
 
 $loop_count = $loop_count + 1
-if $loop_count == 20 then
+if $loop_count == 10 then
   return -1
 endi
 
@@ -115,20 +117,66 @@ endi
 
 # row 1
 if $data11 != 1 then
-  print =====data01=$data01
+  print =====data11=$data11
   goto loop2
 endi
 
 if $data12 != 4 then
-  print =====data02=$data02
+  print =====data12=$data12
   goto loop2
 endi
 
 
+print restart taosd 02 ......
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+system sh/exec.sh -n dnode1 -s start
+
+sql insert into t1 values(1648791223003,5,2,3,1.1);
+
+loop20:
+sleep 1000
+
+sql select * from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows  expect 2
+  goto loop20
+endi
+
+# row 0
+if $data01 != 3 then
+  print =====data01=$data01
+  goto loop20
+endi
+
+if $data02 != 6 then
+  print =====data02=$data02
+  goto loop20
+endi
+
+# row 1
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop20
+endi
+
+if $data12 != 9 then
+  print =====data12=$data12
+  goto loop20
+endi
+
+print step 2
+
 sql create database test1 vgroups 4;
 
 sql use test1;
-
 
 sql create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
@@ -147,7 +195,7 @@ sleep 1000
 sql select * from streamt1;
 
 $loop_count = $loop_count + 1
-if $loop_count == 20 then
+if $loop_count == 10 then
   return -1
 endi
 
@@ -167,7 +215,7 @@ if $data02 != 3 then
   goto loop2
 endi
 
-print waiting for checkpoint generation ......
+print waiting for checkpoint generation 2 ......
 
 sleep 25000
 
@@ -187,7 +235,7 @@ sleep 1000
 sql select * from streamt1;
 
 $loop_count = $loop_count + 1
-if $loop_count == 20 then
+if $loop_count == 10 then
   return -1
 endi
 
@@ -209,12 +257,12 @@ endi
 
 # row 1
 if $data11 != 1 then
-  print =====data01=$data01
+  print =====data11=$data11
   goto loop3
 endi
 
 if $data12 != 4 then
-  print =====data02=$data02
+  print =====data12=$data12
   goto loop3
 endi
 
