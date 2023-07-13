@@ -703,6 +703,7 @@ int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* 
 typedef struct {
   char      user[TSDB_USER_LEN];
   int32_t   version;
+  int32_t   passVer;
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
