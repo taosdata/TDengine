@@ -61,7 +61,7 @@
       :rules="rules"
       ref="ruleForm"
       style="width: 80%; margin-top: 20px"
-      label-width="100px"
+      label-width="120px"
     >
       <el-form-item
         :label="$t('datasource.stable_prefix')"

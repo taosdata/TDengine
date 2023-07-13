@@ -11,10 +11,10 @@
       </section>
       <div class="source-name" v-if="isEditable">
         <div class="block-title">
-          <span>数据源名称</span>
+          <span>{{$t('datasource.sourcename')}}</span>
         </div>
         <div class="name">
-          <span class="label">名称</span>
+          <span class="label">{{$t('name')}}</span>
           <el-input
             v-model="sourceName"
             placeholder="请输入数据源名称"
@@ -1511,6 +1511,7 @@ export default {
   .right-ui {
     margin-left: 20px;
     padding-top: 50px;
+    width:500px;
     :deep {
       .v-note-panel {
         border-radius: 12px;

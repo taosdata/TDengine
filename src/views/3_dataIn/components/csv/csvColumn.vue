@@ -9,68 +9,63 @@
         : '',
     ]"
   >
-    <li class="primary">
-      <el-checkbox
-        :value="colData['name'] == currentKey.primary"
-        @change="changePrimary(colData['name'])"
-        >&nbsp;</el-checkbox
-      >
-    </li>
-    <li class="ascolumn">
-      <el-checkbox
-        v-model="columnChecked"
-        @change="setColumnChecked"
-        :disabled="!colData.name || colData.name == currentKey.primary"
-      >
-        &nbsp;
-      </el-checkbox>
-    </li>
-    <li class="astag">
-      <el-checkbox
-        v-model="tagChecked"
-        @change="setTagChecked"
-        :disabled="
-          tagDisable || !colData.name || colData.name == currentKey.primary
+    <li style="max-width: 150px; margin-right: 10px">
+      <el-select
+        :value="
+          colData.parser.parse[csvColName].alias
+            ? colData.parser.parse[csvColName].alias
+            : csvColName
         "
-      >
-        &nbsp;
-      </el-checkbox>
-    </li>
-    <li>
-      <template v-if="constcols.includes(colData['name'])">
-        <span class="forbidden">{{ colData["name"] }}</span>
-      </template>
-      <el-input
-        :value="colData['name']"
+        filterable
         size="mini"
-        v-else
-        @input="watchFieldVal"
-      ></el-input>
-    </li>
-    <li>
-      <template v-if="constcols.includes(colData['name'])">
-        <span class="forbidden">
-          <i class="el-icon-close"></i>
-        </span>
-      </template>
-      <el-input v-model="colData['alias']" size="mini" v-else></el-input>
+        :filter-method="handleFilter"
+        placeholder="请选择"
+        clearable
+        @visible-change="
+          (visible) =>
+            handleVisble(
+              visible,
+              colData.parser.parse[csvColName].alias
+                ? colData.parser.parse[csvColName].alias
+                : csvColName
+            )
+        "
+        @change="handledbChange($event, 0)"
+      >
+        <el-option
+          v-for="(item, index) in dbOptions"
+          :key="item.field"
+          :label="item.field"
+          :value="item.field"
+          :disabled="item.disabled"
+        >
+          <span style="float: left">{{ item.field }}</span>
+          <span
+            v-if="item.newByInpt"
+            class="el-icon-close"
+            style="
+              float: right;
+              color: #8492a6;
+              font-size: 13px;
+              line-height: 36px;
+              cursor: pointer;
+            "
+            @click.stop="handleClear(index)"
+          ></span>
+        </el-option>
+      </el-select>
     </li>
     <li
       style="
         position: relative;
         display: flex;
         justify-content: center;
-        max-width: 135px;
+        max-width: 150px;
       "
     >
-      <template v-if="constcols.includes(colData['name'])">
-        <span class="forbidden">
-          <i class="el-icon-close"></i>
-        </span>
-      </template>
-      <template v-else>
+      <template>
         <el-select
-          :value="colData['cast']"
+          :value="colData.parser.parse[csvColName].as.toUpperCase()"
           size="mini"
           @change="changeType"
           placeholder=""
@@ -108,11 +103,40 @@
         ></el-input-number> -->
       </template>
     </li>
+    <li class="primary">
+      <el-checkbox
+        :value="this.colData.parser.parse[this.csvColName].alias
+            ? (this.colData.parser.parse[this.csvColName].alias==colData.parser.model.tags[0])
+            : (this.csvColName==colData.parser.model.tags[0])  "
+        @change="changePrimary(colData.parser.model.tags[0])"
+        >&nbsp;</el-checkbox
+      >
+    </li>
+    <li class="ascolumn">
+      <el-checkbox
+        v-model="columnChecked"
+        @change="setColumnChecked"
+        :disabled="!colData.name || colData.name == currentKey.primary"
+      >
+        &nbsp;
+      </el-checkbox>
+    </li>
+    <li class="astag">
+      <el-checkbox
+        v-model="tagChecked"
+        @change="setTagChecked"
+        :disabled="
+          tagDisable || !colData.name || colData.name == currentKey.primary
+        "
+      >
+        &nbsp;
+      </el-checkbox>
+    </li>
   </ul>
 </template>
 <script>
 import { Message } from "element-ui";
-import { dataType } from  "../../../2_explorer/views/components/utils/index" 
+import { dataType } from "../../../2_explorer/views/components/utils/index";
 const timestamps = [
   {
     label: "TIMESTAMP(us)",
@@ -127,6 +151,16 @@ export default {
   name: "NewMqttColumn",
   inject: ["currentKey"],
   props: {
+    csvColName: {
+      type: String,
+      default: "",
+    },
+    dbOptions: {
+      type: Array,
+      default: () => {
+        return [];
+      },
+    },
     index: {
       type: Number,
       default: 0,
@@ -145,6 +179,8 @@ export default {
 
   data() {
     return {
+      value: ["", "", ""],
+      oldValue: ["", "", ""],
       columnChecked: false,
       tagChecked: false,
       tagDisable: false,
@@ -180,6 +216,22 @@ export default {
     },
   },
   methods: {
+    handleVisble(visible, value) {
+      console.log(visible, value, "visible");
+      this.$emit("handleVisble", visible, value);
+    },
+    handleFilter(value) {
+      console.log(
+        value,
+        "filter",
+        this.colData.parser.parse[this.csvColName],
+        this.csvColName
+      );
+      this.$emit("handleFilter", value);
+    },
+    handleClear(index) {
+      console.log(index, "调用父组件clear方法");
+    },
     //获取上次store中parser的值,并重新生成新的parser
     getPreveiousParser(val, type) {
       let oldparser = this.$store.state.app.mqttParser;
@@ -224,21 +276,56 @@ export default {
       this.getPreveiousParser(this.colData["name"], "tag");
     },
     changeType(val) {
-      this.colData["cast"] = val;
+      this.colData.parser.parse[this.csvColName].as = val;
       if (
-        !this.colData["cast"].toLowerCase().includes("timestamp") &&
+        !this.colData.parser.parse[this.csvColName].as
+          .toLowerCase()
+          .includes("timestamp") &&
         this.colData["name"] == this.currentKey.primary
       ) {
         this.changePrimary("ts");
       }
     },
+    handledbChange(val, index) {
+      this.colData.parser.parse[this.csvColName].alias = val;
+      let result = this.dbOptions.find((item) => item.field == val);
+      if (Object.hasOwnProperty.call(result, "newByInpt")) {
+        console.log("判断");
+        this.colData.parser.parse[this.csvColName].as = "";
+      } else {
+        this.colData.parser.parse[this.csvColName].as = result.type;
+      }
+      console.log(val, index, "自定义输入", this.csvColName, result);
+      this.$emit("handledbChange", val, index);
+    },
     handleChange(val) {
+      // this.colData.parser.parse[this.csvColName].alias = val;
       this.colData["cast"] = this.colData["cast"] + "(" + val + ")";
     },
     changePrimary(val) {
+      if (
+        !this.colData.parser.model.tags.includes(
+          this.colData.parser.parse[this.csvColName].alias
+            ? this.colData.parser.parse[this.csvColName].alias
+            : this.csvColName
+        )
+      ) {
+        this.colData.parser.model.tags.unshift(
+          this.colData.parser.parse[this.csvColName].alias
+            ? this.colData.parser.parse[this.csvColName].alias
+            : this.csvColName
+        );
+      }
+
+      console.log(val, "选择主见9999---", this.colData.parser.model);
       this.columnChecked = true;
       this.tagChecked = false;
-      this.$emit("changePrimary", val);
+      this.$emit(
+        "changePrimary",
+        this.colData.parser.parse[this.csvColName].alias
+          ? this.colData.parser.parse[this.csvColName].alias
+          : this.csvColName
+      );
       this.getPreveiousParser(val, "column");
     },
     watchFieldVal(val) {
@@ -258,19 +345,19 @@ export default {
 
     //回显tag或者column选中
     echoColOrTag() {
-      let oldparser = this.$store.state.app.mqttParser;
-      let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
-      if (columns.includes(this.colData.name)) {
-        this.columnChecked = true;
-      }
-      if (tags.includes(this.colData.name)) {
-        this.tagChecked = true;
-      }
+      // let oldparser = this.$store.state.app.mqttParser;
+      // let columns = oldparser.model.columns;
+      // let tags = oldparser.model.tags;
+      // if (columns.includes(this.colData.name)) {
+      //   this.columnChecked = true;
+      // }
+      // if (tags.includes(this.colData.name)) {
+      //   this.tagChecked = true;
+      // }
     },
   },
   mounted() {
-    console.log(this.colData,'csv----column');
+    console.log(this.colData, "csv----column");
     if (
       this.currentKey.primary &&
       this.currentKey.primary == this.colData.name
@@ -293,34 +380,34 @@ export default {
     "currentKey.primary": {
       immediate: true,
       handler(val, oldVal) {
-        let oldparser = this.$store.state.app.mqttParser;
-        let columns = oldparser.model.columns;
-        if (oldVal) {
-          if (this.colData.name == oldVal) {
-            this.columnChecked = false;
-          }
-          if (columns.includes(oldVal)) {
-            columns.splice(columns.indexOf(oldVal), 1);
-          }
-        }
-        if (val == this.colData.name) {
-          this.columnChecked = true;
-        }
+        // let oldparser = this.$store.state.app.mqttParser;
+        // let columns = oldparser.model.columns;
+        // if (oldVal) {
+        //   if (this.colData.name == oldVal) {
+        //     this.columnChecked = false;
+        //   }
+        //   if (columns.includes(oldVal)) {
+        //     columns.splice(columns.indexOf(oldVal), 1);
+        //   }
+        // }
+        // if (val == this.colData.name) {
+        //   this.columnChecked = true;
+        // }
       },
     },
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {
-        if (val.model.columns.includes(this.colData.name)) {
-          this.columnChecked = true;
-        }else{
-          this.columnChecked = false;
-        }
-        if (val.model.tags.includes(this.colData.name)) {
-          this.tagChecked = true;
-        }else{
-          this.tagChecked = false;
-        }
+        // if (val.model.columns.includes(this.colData.name)) {
+        //   this.columnChecked = true;
+        // } else {
+        //   this.columnChecked = false;
+        // }
+        // if (val.model.tags.includes(this.colData.name)) {
+        //   this.tagChecked = true;
+        // } else {
+        //   this.tagChecked = false;
+        // }
       },
     },
   },
@@ -345,11 +432,29 @@ export default {
 }
 .csv-column {
   display: grid;
-  grid-template-columns: 2fr 2fr 2fr 3fr 3fr 3fr 0.5fr;
+  grid-template-columns: 1.5fr 1.5fr 1fr 1fr 1fr;
   column-gap: 10px;
   border-top: 1px solid #ebeef5;
   padding-top: 8px;
   padding-bottom: 8px;
+  position: relative;
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  &:not(:last-child) {
+    &::before {
+      content: "";
+      height: 1px;
+      bottom: -1px;
+      right: 815px;
+      left: -130px;
+      background: #ebeef5;
+      position: absolute;
+    }
+  }
+
   &.edit {
     position: relative;
     &::before {
