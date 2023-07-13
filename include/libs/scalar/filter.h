@@ -41,7 +41,7 @@ typedef struct SFilterColumnParam {
 } SFilterColumnParam;
 
 extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options);
-extern bool    filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
+extern int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
                              int16_t numOfCols, int32_t *pFilterResStatus);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
 extern int32_t filterSetDataFromColId(SFilterInfo *info, void *param);

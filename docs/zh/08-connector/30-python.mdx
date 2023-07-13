@@ -71,7 +71,7 @@ Python Connector 的所有数据库操作如果出现异常，都会直接抛出
 {{#include docs/examples/python/handle_exception.py}}
 ```
 
-TDengine DataType 和 Python DataType
+## TDengine DataType 和 Python DataType
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对应类型转换如下：
 
@@ -277,7 +277,7 @@ Transfer-Encoding: chunked
 </TabItem>
 </Tabs>
 
-### 使用连接器建立连接
+### 指定 Host 和 Properties 获取连接
 
 以下示例代码假设 TDengine 安装在本机， 且 FQDN 和 serverPort 都使用了默认配置。
 
@@ -333,7 +333,68 @@ Transfer-Encoding: chunked
 </TabItem>
 </Tabs>
 
+### 配置参数的优先级
+
+如果配置参数在参数和客户端配置文件中有重复，则参数的优先级由高到低分别如下：
+
+1. 连接参数
+2. 使用原生连接时，TDengine 客户端驱动的配置文件 taos.cfg
+
 ## 使用示例
+
+### 创建数据库和表
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="原生连接">
+
+```python
+conn = taos.connect()
+# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
+conn.execute("DROP DATABASE IF EXISTS test")
+conn.execute("CREATE DATABASE test")
+# change database. same as execute "USE db"
+conn.select_db("test")
+conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+```
+
+</TabItem>
+
+<TabItem value="rest" label="REST 连接">
+
+```python
+conn = taosrest.connect(url="http://localhost:6041")
+# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
+conn.execute("DROP DATABASE IF EXISTS test")
+conn.execute("CREATE DATABASE test")
+conn.execute("USE test")
+conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+```
+
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+conn = taosws.connect(url="ws://localhost:6041")
+# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
+conn.execute("DROP DATABASE IF EXISTS test")
+conn.execute("CREATE DATABASE test")
+conn.execute("USE test")
+conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+```
+
+</TabItem>
+</Tabs>
+
+### 插入数据
+
+```python
+conn.execute("INSERT INTO t1 USING weather TAGS(1) VALUES (now, 23.5) (now+1m, 23.5) (now+2m, 24.4)")
+```
+
+:::
+now 为系统内部函数，默认为客户端所在计算机当前时间。 now + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)，n(月)，y(年)。
+:::
 
 ### 基本使用
 
@@ -373,7 +434,6 @@ Transfer-Encoding: chunked
 
 :::note
 TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
-
 :::
 
 </TabItem>
@@ -456,7 +516,7 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 </TabItem>
 </Tabs>
 
-### 与 req_id 一起使用
+### 执行带有 reqId 的 SQL
 
 使用可选的 req_id 参数，指定请求 id，可以用于 tracing
 
@@ -552,224 +612,6 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 
 ```python
 {{#include docs/examples/python/conn_websocket_pandas.py}}
-```
-
-</TabItem>
-</Tabs>
-
-### 数据订阅
-
-连接器支持数据订阅功能，数据订阅功能请参考 [数据订阅文档](../../develop/tmq/)。
-
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
-
-`Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API。
-
-##### 创建 Consumer
-
-创建 Consumer 语法为 `consumer = Consumer(configs)`，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
-
-```python
-from taos.tmq import Consumer
-
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
-```
-
-##### 订阅 topics
-
-Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
-
-```python
-consumer.subscribe(['topic1', 'topic2'])
-```
-
-##### 消费数据
-
-Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
-
-```python
-while True:
-    res = consumer.poll(1)
-    if not res:
-        continue
-    err = res.error()
-    if err is not None:
-        raise err
-    val = res.value()
-
-    for block in val:
-        print(block.fetchall())
-```
-
-##### 获取消费进度
-
-Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
-
-```python
-assignments = consumer.assignment()
-```
-
-##### 指定订阅 Offset
-
-Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置，方法参数类型为 TopicPartition。
-
-```python
-tp = TopicPartition(topic='topic1', partition=0, offset=0)
-consumer.seek(tp)
-```
-
-##### 关闭订阅
-
-消费结束后，应当取消订阅，并关闭 Consumer。
-
-```python
-consumer.unsubscribe()
-consumer.close()
-```
-
-##### 完整示例
-
-```python
-{{#include docs/examples/python/tmq_example.py}}
-```
-
-##### 获取和重置消费进度示例代码
-
-```python
-{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
-```
-
-</TabItem>
-
-<TabItem value="websocket" label="WebSocket 连接">
-
-除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据，使用 websocket 方式订阅 TMQ 数据需要安装 `taos-ws-py`。
-
-taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。
-
-##### 创建 Consumer
-
-创建 Consumer 语法为 `consumer = Consumer(conf=configs)`，使用时需要指定 `td.connect.websocket.scheme` 参数值为 "ws"，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
-
-```python
-import taosws
-
-consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
-```
-
-##### 订阅 topics
-
-Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
-
-```python
-consumer.subscribe(['topic1', 'topic2'])
-```
-
-##### 消费数据
-
-Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
-
-```python
-while True:
-    res = consumer.poll(timeout=1.0)
-    if not res:
-        continue
-    err = res.error()
-    if err is not None:
-        raise err
-    for block in message:
-        for row in block:
-            print(row)
-```
-
-##### 获取消费进度
-
-Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
-
-```python
-assignments = consumer.assignment()
-```
-
-##### 重置消费进度
-
-Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置。
-
-```python
-consumer.seek(topic='topic1', partition=0, offset=0)
-```
-
-##### 结束消费
-
-消费结束后，应当取消订阅，并关闭 Consumer。
-
-```python
-consumer.unsubscribe()
-consumer.close()
-```
-
-##### tmq 订阅示例代码
-
-```python
-{{#include docs/examples/python/tmq_websocket_example.py}}
-```
-
-连接器提供了 `assignment` 接口，用于获取 topic assignment 的功能，可以查询订阅的 topic 的消费进度，并提供 `seek` 接口，用于重置 topic 的消费进度。
-
-##### 获取和重置消费进度示例代码
-
-```python
-{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
-```
-
-</TabItem>
-</Tabs>
-
-### 无模式写入
-
-连接器支持无模式写入功能。
-
-<Tabs defaultValue="list">
-<TabItem value="list" label="List 写入">
-
-##### 简单写入
-
-```python
-{{#include docs/examples/python/schemaless_insert.py}}
-```
-
-##### 带有 ttl 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_ttl.py}}
-```
-
-##### 带有 req_id 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_req_id.py}}
-```
-
-</TabItem>
-
-<TabItem value="raw" label="Raw 写入">
-
-##### 简单写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw.py}}
-```
-
-##### 带有 ttl 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
-```
-
-##### 带有 req_id 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
 ```
 
 </TabItem>
@@ -907,6 +749,264 @@ stmt.close()
 ```python
 {{#include docs/examples/python/stmt_websocket_example.py}}
 ```
+</TabItem>
+</Tabs>
+
+### 无模式写入
+
+连接器支持无模式写入功能。
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List 写入">
+
+##### 简单写入
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+##### 带有 ttl 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+##### 带有 req_id 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw 写入">
+
+##### 简单写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+##### 带有 ttl 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+##### 带有 req_id 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+```
+
+</TabItem>
+</Tabs>
+
+### 执行带有 reqId 的无模式写入
+
+连接器的 `schemaless_insert` 和 `schemaless_insert_raw` 方法支持 `req_id` 可选参数，此 `req_Id` 可用于请求链路追踪。
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+```
+
+### 数据订阅
+
+连接器支持数据订阅功能，数据订阅功能请参考 [数据订阅文档](../../develop/tmq/)。
+
+#### 创建 Topic
+
+创建 Topic 相关请参考 [数据订阅文档](../../develop/tmq/#创建-topic)。
+
+#### 创建 Consumer
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="原生连接">
+
+`Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API。创建 Consumer 语法为 `consumer = Consumer(configs)`，参数定义请参考 [数据订阅文档](../../develop/tmq/#创建消费者-consumer)。
+
+```python
+from taos.tmq import Consumer
+
+consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+```
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket 连接">
+
+除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据，使用 websocket 方式订阅 TMQ 数据需要安装 `taos-ws-py`。
+
+taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。创建 Consumer 语法为 `consumer = Consumer(conf=configs)`，使用时需要指定 `td.connect.websocket.scheme` 参数值为 "ws"，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
+
+```python
+import taosws
+
+consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+```
+
+</TabItem>
+</Tabs>
+
+#### 订阅 topics
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="原生连接">
+
+Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
+
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
+
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
+
+</TabItem>
+</Tabs>
+
+#### 消费数据
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="原生连接">
+
+Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
+
+```python
+while True:
+    res = consumer.poll(1)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    val = res.value()
+
+    for block in val:
+        print(block.fetchall())
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
+
+```python
+while True:
+    res = consumer.poll(timeout=1.0)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    for block in message:
+        for row in block:
+            print(row)
+```
+
+</TabItem>
+</Tabs>
+
+#### 获取消费进度
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="原生连接">
+
+Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
+
+```python
+assignments = consumer.assignment()
+```
+
+Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置，方法参数类型为 TopicPartition。
+
+```python
+tp = TopicPartition(topic='topic1', partition=0, offset=0)
+consumer.seek(tp)
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
+
+```python
+assignments = consumer.assignment()
+```
+
+Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置。
+
+```python
+consumer.seek(topic='topic1', partition=0, offset=0)
+```
+
+</TabItem>
+</Tabs>
+
+#### 关闭订阅
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="原生连接">
+
+消费结束后，应当取消订阅，并关闭 Consumer。
+
+```python
+consumer.unsubscribe()
+consumer.close()
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+消费结束后，应当取消订阅，并关闭 Consumer。
+
+```python
+consumer.unsubscribe()
+consumer.close()
+```
+
+</TabItem>
+</Tabs>
+
+#### 完整示例
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="原生连接">
+
+```python
+{{#include docs/examples/python/tmq_example.py}}
+```
+
+```python
+{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+{{#include docs/examples/python/tmq_websocket_example.py}}
+```
+
+```python
+{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
+```
+
 </TabItem>
 </Tabs>
 
