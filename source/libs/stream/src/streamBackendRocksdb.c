@@ -1494,7 +1494,7 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pVLen != NULL) {
       size_t      vlen = 0;
       const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
-      *pVLen = decodeValueFunc((void*)valStr, vlen, NULL, (char**)&pVal);
+      *pVLen = decodeValueFunc((void*)valStr, vlen, NULL, (char**)pVal);
     }
 
     *pKey = pKtmp->key;
