@@ -91,12 +91,11 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   // FIXME: if commit multiple times and the config changed?
   if (!pReader->cfgDone) {
     char fName[TSDB_FILENAME_LEN];
-    if (pReader->pVnode->pTfs) {
-      snprintf(fName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pReader->pVnode->pTfs), TD_DIRSEP,
-               pReader->pVnode->path, TD_DIRSEP, VND_INFO_FNAME);
-    } else {
-      snprintf(fName, TSDB_FILENAME_LEN, "%s%s%s", pReader->pVnode->path, TD_DIRSEP, VND_INFO_FNAME);
-    }
+    int32_t offset = 0;
+
+    vnodeGetPrimaryDir(pReader->pVnode->path, pReader->pVnode->pTfs, fName, TSDB_FILENAME_LEN);
+    offset = strlen(fName);
+    snprintf(fName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
 
     TdFilePtr pFile = taosOpenFile(fName, TD_FILE_READ);
     if (NULL == pFile) {
@@ -344,11 +343,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
                               .applyTerm = pWriter->info.state.commitTerm};
     pVnode->statis = pWriter->info.statis;
     char dir[TSDB_FILENAME_LEN] = {0};
-    if (pWriter->pVnode->pTfs) {
-      snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-    } else {
-      snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
-    }
+    vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
     vnodeCommitInfo(dir);
   } else {
@@ -400,12 +395,7 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
 
   // modify info as needed
   char dir[TSDB_FILENAME_LEN] = {0};
-  if (pWriter->pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pWriter->pVnode->pTfs), TD_DIRSEP,
-             pWriter->pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
-  }
+  vnodeGetPrimaryDir(pWriter->pVnode->path, pWriter->pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   SVnodeStats vndStats = pWriter->info.config.vndStats;
   SVnode     *pVnode = pWriter->pVnode;
