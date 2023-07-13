@@ -34,6 +34,8 @@ namespace {
 void printSubResults(void* pRes, int32_t* totalRows) {
   char buf[1024];
 
+  int32_t vgId = tmq_get_vgroup_id(pRes);
+  int64_t offset = tmq_get_vgroup_offset(pRes);
   while (1) {
     TAOS_ROW row = taos_fetch_row(pRes);
     if (row == NULL) {
@@ -45,7 +47,7 @@ void printSubResults(void* pRes, int32_t* totalRows) {
     int32_t precision = taos_result_precision(pRes);
     taos_print_row(buf, row, fields, numOfFields);
     *totalRows += 1;
-    printf("precision: %d, row content: %s\n", precision, buf);
+    printf("vgId: %d, offset: %"PRId64", precision: %d, row content: %s\n", vgId, offset, precision, buf);
   }
 
 //  taos_free_result(pRes);
@@ -1160,6 +1162,7 @@ TEST(clientCase, td_25129) {
   }
 
   while (1) {
+    printf("start to poll\n");
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
     if (pRes) {
       char buf[128];
@@ -1173,9 +1176,24 @@ TEST(clientCase, td_25129) {
 //      printf("vgroup id: %d\n", vgroupId);
 
       printSubResults(pRes, &totalRows);
+
+      code = tmq_get_topic_assignment(tmq, "tp", &pAssign, &numOfAssign);
+      if (code != 0) {
+        printf("error occurs:%s\n", tmq_err2str(code));
+        tmq_free_assignment(pAssign);
+        tmq_consumer_close(tmq);
+        taos_close(pConn);
+        fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+        return;
+      }
+
+      for(int i = 0; i < numOfAssign; i++){
+        printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+      }
     } else {
       tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].currentOffset);
       tmq_offset_seek(tmq, "tp", pAssign[1].vgId, pAssign[1].currentOffset);
+      tmq_commit_sync(tmq, pRes);
       continue;
     }
 
