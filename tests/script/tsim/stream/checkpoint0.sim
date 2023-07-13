@@ -49,6 +49,12 @@ if $data02 != 3 then
   goto loop0
 endi
 
+print waiting for checkpoint generation ......
+
+sleep 25000
+
+print restart taosd
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 system sh/exec.sh -n dnode1 -s start

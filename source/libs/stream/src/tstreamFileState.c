@@ -509,6 +509,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       taosMemoryFreeClear(pNode);
       break;
     }
+    ASSERT(pVLen == pFileState->rowSize);
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
     code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
