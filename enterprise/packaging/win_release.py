@@ -360,7 +360,7 @@ def process_package_OEM_client():
                 /DMyAppIco=\"{ico_path}\" \
                 /DMyAppInstallDir=\"C:\{tdCustomer.Name}\" \
                 /DMyAppVersion=\"{td_version.version}\" \
-                /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe,taosadapter.exe,create_table.exe,runUdf.exe,udfd.exe,dumper.exe\" \
+                /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe,taosadapter.exe,create_table.exe,runUdf.exe,udfd.exe,*dump.exe,dumper.exe,*Benchmark.exe\" \
                 /DCusName=\"{tdCustomer.Name}\" \
                 /DCusPrompt=\"{tdCustomer.Prompt}\" \
                 {iss_path} /O..\\release")

@@ -63,6 +63,8 @@ elif [ "$cpuType" = "arm" ] || [ "$cpuType" = "aarch32" ]; then
   arch=arm
 elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
   arch=arm64
+elif [ "$cpuType" = "mips64" ]; then
+  arch=mips64le
 else
   arch=$cpuType
 fi
