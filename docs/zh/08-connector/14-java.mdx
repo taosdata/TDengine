@@ -1022,11 +1022,13 @@ while(true) {
 #### 指定订阅 Offset
 
 ```java
+// 获取 offset
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
 Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
 
+// 指定下一次 poll 中使用的 offset
 void seek(TopicPartition partition, long offset) throws SQLException;
 ```
 

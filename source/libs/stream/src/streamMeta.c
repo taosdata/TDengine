@@ -264,8 +264,9 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask != NULL) {
     if (!streamTaskShouldStop(&(*ppTask)->status)) {
-      atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
+      int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
       taosRUnLockLatch(&pMeta->lock);
+      qDebug("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
       return *ppTask;
     }
   }
@@ -275,12 +276,24 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
 }
 
 void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
-  int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
-  if (left < 0) {
-    qError("task ref is invalid, ref:%d, %s", left, pTask->id.idStr);
-  } else if (left == 0) {
+  int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
+  if (ref > 0) {
+    qDebug("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
+  } else if (ref == 0) {
     ASSERT(streamTaskShouldStop(&pTask->status));
     tFreeStreamTask(pTask);
+  } else if (ref < 0) {
+    qError("task ref is invalid, ref:%d, %s", ref, pTask->id.idStr);
+  }
+}
+
+static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, int32_t taskId) {
+  for (int32_t i = 0; i < num; ++i) {
+    int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    if (*pTaskId == taskId) {
+      taosArrayRemove(pMeta->pTaskList, i);
+      break;
+    }
   }
 }
 
@@ -333,17 +346,17 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
 
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
     qDebug("s-task:%s set the drop task flag, remain running s-task:%d", pTask->id.idStr, num - 1);
-    for (int32_t i = 0; i < num; ++i) {
-      int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
-      if (*pTaskId == taskId) {
-        taosArrayRemove(pMeta->pTaskList, i);
-        break;
-      }
+    doRemoveIdFromList(pMeta, num, pTask->id.taskId);
+
+    // remove the ref by timer
+    if (pTask->triggerParam != 0) {
+      taosTmrStop(pTask->schedTimer);
+      streamMetaReleaseTask(pMeta, pTask);
     }
 
     streamMetaReleaseTask(pMeta, pTask);
   } else {
-    qDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
+    qDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", pMeta->vgId, taskId);
   }
 
   taosWUnLockLatch(&pMeta->lock);

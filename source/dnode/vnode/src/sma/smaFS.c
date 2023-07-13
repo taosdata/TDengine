@@ -14,6 +14,7 @@
  */
 
 #include "sma.h"
+#include "vnd.h"
 
 // =================================================================================================
 
@@ -157,25 +158,15 @@ _exit:
 
 static void tdRSmaGetCurrentFName(SSma *pSma, char *current, char *current_t) {
   SVnode *pVnode = pSma->pVnode;
-  if (pVnode->pTfs) {
-    if (current) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sPRESENT", tfsGetPrimaryPath(pVnode->pTfs),
-               TD_DIRSEP, TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP, TD_DIRSEP);
-    }
-    if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%svnode%svnode%d%srsma%sPRESENT.t", tfsGetPrimaryPath(pVnode->pTfs),
-               TD_DIRSEP, TD_DIRSEP, TD_VID(pVnode), TD_DIRSEP, TD_DIRSEP);
-    }
-  } else {
-#if 0
-    if (current) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sPRESENT", pTsdb->path, TD_DIRSEP);
-    }
-    if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sPRESENT.t", pTsdb->path, TD_DIRSEP);
-    }
-#endif
-  }
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, current, TSDB_FILENAME_LEN);
+  offset = strlen(current);
+  snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sPRESENT", TD_DIRSEP, VNODE_RSMA_DIR, TD_DIRSEP);
+
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
+  offset = strlen(current_t);
+  snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sPRESENT.t", TD_DIRSEP, VNODE_RSMA_DIR, TD_DIRSEP);
 }
 
 static int32_t tdRSmaLoadFSFromFile(const char *fname, SRSmaFS *pFS) {
@@ -309,8 +300,7 @@ static int32_t tdRSmaFSApplyChange(SSma *pSma, SRSmaFS *pFSNew) {
 
       nRef = atomic_sub_fetch_32(&preTaskF->nRef, 1);
       if (nRef <= 0) {
-        tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), preTaskF->suid, preTaskF->level, preTaskF->version,
-                                   tfsGetPrimaryPath(pVnode->pTfs), fname);
+        tdRSmaQTaskInfoGetFullName(pVnode, preTaskF->suid, preTaskF->level, preTaskF->version, pVnode->pTfs, fname);
         (void)taosRemoveFile(fname);
         taosArrayRemove(pFSOld->aQTaskInf, idx);
       }
@@ -341,9 +331,9 @@ static int32_t tdRSmaFSScanAndTryFix(SSma *pSma) {
     SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFS->aQTaskInf, i);
 
     // main.tdb =========
-    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version,
-                               tfsGetPrimaryPath(pVnode->pTfs), fnameVer);
-    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, -1, tfsGetPrimaryPath(pVnode->pTfs), fname);
+    tdRSmaQTaskInfoGetFullName(pVnode, pTaskF->suid, pTaskF->level, pTaskF->version,
+                               pVnode->pTfs, fnameVer);
+    tdRSmaQTaskInfoGetFullName(pVnode, pTaskF->suid, pTaskF->level, -1, pVnode->pTfs, fname);
 
     if (taosCheckExistFile(fnameVer)) {
       if (taosRenameFile(fnameVer, fname) < 0) {
@@ -597,8 +587,7 @@ void tdRSmaFSUnRef(SSma *pSma, SRSmaFS *pFS) {
 
     nRef = atomic_sub_fetch_32(&pTaskF->nRef, 1);
     if (nRef == 0) {
-      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->suid, pTaskF->level, pTaskF->version,
-                                 tfsGetPrimaryPath(pVnode->pTfs), fname);
+      tdRSmaQTaskInfoGetFullName(pVnode, pTaskF->suid, pTaskF->level, pTaskF->version, pVnode->pTfs, fname);
       if (taosRemoveFile(fname) < 0) {
         smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), fname, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       } else {
