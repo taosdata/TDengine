@@ -1490,6 +1490,7 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pKtmp->opNum != pCur->number) {
       return -1;
     }
+
     size_t vlen = 0;
     if (pVal != NULL) *pVal = (char*)rocksdb_iter_value(pCur->iter, &vlen);
     if (pVLen != NULL) *pVLen = vlen;
@@ -1555,19 +1556,18 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
   const SStateKey maxStateKey = {.key = {.groupId = UINT64_MAX, .ts = INT64_MAX}, .opNum = INT64_MAX};
   STREAM_STATE_PUT_ROCKSDB(pState, "state", &maxStateKey, "", 0);
 
-  char             buf[128] = {0};
-  int32_t          klen = stateKeyEncode((void*)&maxStateKey, buf);
+  char    buf[128] = {0};
+  int32_t klen = stateKeyEncode((void*)&maxStateKey, buf);
+
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
 
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  pCur->db = wrapper->rocksdb;
+  pCur->db = ((SBackendCfWrapper*)pState->pTdbState->pBackendCfWrapper)->rocksdb;
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
   rocksdb_iter_seek(pCur->iter, buf, (size_t)klen);
-
   rocksdb_iter_prev(pCur->iter);
   while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
     rocksdb_iter_prev(pCur->iter);
