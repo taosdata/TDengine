@@ -883,7 +883,7 @@ int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   SStreamValue key = {0};
   char*        p = value;
   if (streamStateValueIsStale(p)) {
-    *dest = NULL;
+    if (dest != NULL) *dest = NULL;
     return -1;
   }
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
