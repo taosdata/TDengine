@@ -366,9 +366,7 @@ async fn sync_single_table(
         if let Some(Value::Timestamp(ts)) = records.pop().and_then(|mut v| v.pop()) {
             Ok(Utc.from_local_datetime(&ts.to_naive_datetime()).unwrap())
         } else {
-            Err(taos::Error::Any(anyhow::format_err!(
-                "Invalid sql for timestamp: {sql}"
-            )))
+            Err(taos::Error::from_string("Invalid sql for timestamp: {sql}"))
         }
     }
     match (time_range.has_start(), time_range.has_end()) {
@@ -1110,7 +1108,7 @@ async fn sync_schema(
         match reader.await? {
             Ok(_) => {}
             Err(err) => {
-                log::error!("Error: {err:?}",);
+                log::error!("Error: {err:#}",);
                 fails += 1;
             }
         }
@@ -1194,7 +1192,7 @@ async fn sync_specified_tables_with_workers(
         match reader.await? {
             Ok(_) => {}
             Err(err) => {
-                log::error!("Syncing error: {err:?}",);
+                log::error!("Syncing error: {err:#}",);
                 fails += 1;
             }
         }
