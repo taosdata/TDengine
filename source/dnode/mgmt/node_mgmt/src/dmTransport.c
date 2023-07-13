@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
+#include "tversion.h"
 
 static inline void dmSendRsp(SRpcMsg *pMsg) { rpcSendResponse(pMsg); }
 
@@ -72,6 +73,13 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   const STraceId *trace = &pRpc->info.traceId;
   dGTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
+
+  int32_t svrVer = 0;
+  taosVersionStrToInt(version, &svrVer);
+  if (0 != taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) {
+    dError("Version not compatible, cli ver: %d, svr ver: %d", pRpc->info.cliVer, svrVer);
+    goto _OVER;
+  }
 
   switch (pRpc->msgType) {
     case TDMT_DND_NET_TEST:
@@ -305,6 +313,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -339,7 +348,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
-
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
     dError("failed to init dnode rpc server");

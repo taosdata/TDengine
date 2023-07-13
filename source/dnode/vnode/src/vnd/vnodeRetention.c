@@ -113,7 +113,7 @@ int32_t vnodeAsyncRentention(SVnode *pVnode, int64_t now) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pInfo->pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
     if (pInfo) taosMemoryFree(pInfo);
   } else {
     vInfo("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);

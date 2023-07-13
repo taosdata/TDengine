@@ -152,6 +152,7 @@ class TDTestCase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
 
         cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
                 
