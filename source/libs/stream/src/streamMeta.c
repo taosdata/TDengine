@@ -96,18 +96,18 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  pMeta->streamBackend = streamBackendInit(streamPath);
-  if (pMeta->streamBackend == NULL) {
-    goto _err;
-  }
-
-  pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pMeta->checkpointSaved = taosArrayInit(4, sizeof(int64_t));
   pMeta->checkpointInUse = taosArrayInit(4, sizeof(int64_t));
   pMeta->checkpointCap = 4;
   taosInitRWLatch(&pMeta->checkpointDirLock);
+
+  pMeta->streamBackend = streamBackendInit(streamPath);
+  if (pMeta->streamBackend == NULL) {
+    goto _err;
+  }
+  pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   code = streamBackendLoadCheckpointInfo(pMeta);
   if (code != 0) {

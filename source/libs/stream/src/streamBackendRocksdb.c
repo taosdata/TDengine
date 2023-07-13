@@ -417,8 +417,8 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
   sprintf(checkpointPath, "%s/%s", pMeta->path, "checkpoints");
 
   if (!taosDirExist(checkpointPath)) {
-    return 0;
     // no checkpoint, nothing to load
+    return 0;
   }
 
   TdDirPtr pDir = taosOpenDir(checkpointPath);
@@ -1053,7 +1053,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
         inst->pCompares = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t*));
 
         inst->dbOpt = handle->dbOpt;
-        rocksdb_writeoptions_disable_WAL(inst->wOpt, 1);
+        //rocksdb_writeoptions_disable_WAL(inst->wOpt, 1);
         taosHashPut(handle->cfInst, idstr, strlen(idstr) + 1, &inst, sizeof(void*));
       } else {
         inst = *pInst;
@@ -1174,7 +1174,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   taosThreadRwlockInit(&pBackendCfWrapper->rwLock, NULL);
   SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
   pBackendCfWrapper->pComparNode = streamBackendAddCompare(handle, &compare);
-  rocksdb_writeoptions_disable_WAL(pBackendCfWrapper->writeOpts, 1);
+  //rocksdb_writeoptions_disable_WAL(pBackendCfWrapper->writeOpts, 1);
   memcpy(pBackendCfWrapper->idstr, pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr));
 
   int64_t id = taosAddRef(streamBackendCfWrapperId, pBackendCfWrapper);

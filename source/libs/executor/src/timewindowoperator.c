@@ -2959,7 +2959,7 @@ void streamIntervalReloadState(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                     SExecTaskInfo* pTaskInfo, int32_t numOfChild) {
+                                                     SExecTaskInfo* pTaskInfo, int32_t numOfChild, SReadHandle* pHandle) {
   SIntervalPhysiNode*          pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
   SStreamIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamIntervalOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -5614,7 +5614,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo) {
+                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
   SStreamIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamIntervalOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {

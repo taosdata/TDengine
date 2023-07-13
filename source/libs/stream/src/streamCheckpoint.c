@@ -256,12 +256,12 @@ int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
 
   if (streamMetaCommit(pMeta) < 0) {
     taosWUnLockLatch(&pMeta->lock);
-    qError("vgId:%d failed to commit stream meta after do checkpoint, checkpointId:%" PRId64", since %s",
-           pMeta->vgId, checkpointId, terrstr());
+    qError("vgId:%d failed to commit stream meta after do checkpoint, checkpointId:%" PRId64 ", since %s", pMeta->vgId,
+           checkpointId, terrstr());
     return -1;
   } else {
     taosWUnLockLatch(&pMeta->lock);
-    qInfo("vgId:%d commit stream meta after do checkpoint, checkpointId:%. DONE" PRId64, pMeta->vgId, checkpointId);
+    qInfo("vgId:%d commit stream meta after do checkpoint, checkpointId:%" PRId64 " DONE", pMeta->vgId, checkpointId);
   }
 
   return TSDB_CODE_SUCCESS;
