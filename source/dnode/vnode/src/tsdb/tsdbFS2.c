@@ -15,6 +15,7 @@
 
 #include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
+#include "vnd.h"
 
 extern int vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
@@ -69,23 +70,12 @@ static int32_t destroy_fs(STFileSystem **fs) {
 }
 
 int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
-  if (pTsdb->pVnode->pTfs) {
-    snprintf(fname,                                   //
-             TSDB_FILENAME_LEN,                       //
-             "%s%s%s%s%s",                            //
-             tfsGetPrimaryPath(pTsdb->pVnode->pTfs),  //
-             TD_DIRSEP,                               //
-             pTsdb->path,                             //
-             TD_DIRSEP,                               //
-             gCurrentFname[ftype]);
-  } else {
-    snprintf(fname,              //
-             TSDB_FILENAME_LEN,  //
-             "%s%s%s",           //
-             pTsdb->path,        //
-             TD_DIRSEP,          //
-             gCurrentFname[ftype]);
-  }
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  offset = strlen(fname);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
+
   return 0;
 }
 
