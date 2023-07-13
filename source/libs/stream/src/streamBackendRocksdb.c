@@ -883,7 +883,7 @@ int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   SStreamValue key = {0};
   char*        p = value;
   if (streamStateValueIsStale(p)) {
-    *dest = NULL;
+    if (dest != NULL) *dest = NULL;
     return -1;
   }
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
@@ -1490,9 +1490,13 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pKtmp->opNum != pCur->number) {
       return -1;
     }
-    size_t vlen = 0;
-    if (pVal != NULL) *pVal = (char*)rocksdb_iter_value(pCur->iter, &vlen);
-    if (pVLen != NULL) *pVLen = vlen;
+
+    if (pVLen != NULL) {
+      size_t      vlen = 0;
+      const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
+      *pVLen = decodeValueFunc((void*)valStr, vlen, NULL, (char**)pVal);
+    }
+
     *pKey = pKtmp->key;
     return 0;
   }
@@ -1555,19 +1559,18 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
   const SStateKey maxStateKey = {.key = {.groupId = UINT64_MAX, .ts = INT64_MAX}, .opNum = INT64_MAX};
   STREAM_STATE_PUT_ROCKSDB(pState, "state", &maxStateKey, "", 0);
 
-  char             buf[128] = {0};
-  int32_t          klen = stateKeyEncode((void*)&maxStateKey, buf);
+  char    buf[128] = {0};
+  int32_t klen = stateKeyEncode((void*)&maxStateKey, buf);
+
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
 
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  pCur->db = wrapper->rocksdb;
+  pCur->db = ((SBackendCfWrapper*)pState->pTdbState->pBackendCfWrapper)->rocksdb;
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
   rocksdb_iter_seek(pCur->iter, buf, (size_t)klen);
-
   rocksdb_iter_prev(pCur->iter);
   while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
     rocksdb_iter_prev(pCur->iter);
@@ -1600,18 +1603,14 @@ SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* 
   rocksdb_iter_seek(pCur->iter, buf, len);
 
   if (rocksdb_iter_valid(pCur->iter) && !iterValueIsStale(pCur->iter)) {
-    size_t vlen;
-    char*  val = (char*)rocksdb_iter_value(pCur->iter, &vlen);
-    if (!streamStateValueIsStale(val)) {
-      SStateKey curKey;
-      size_t    kLen = 0;
-      char*     keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
-      stateKeyDecode((void*)&curKey, keyStr);
+    SStateKey curKey;
+    size_t    kLen = 0;
+    char*     keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    stateKeyDecode((void*)&curKey, keyStr);
 
-      if (stateKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) == 0) {
-        pCur->number = pState->number;
-        return pCur;
-      }
+    if (stateKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) == 0) {
+      pCur->number = pState->number;
+      return pCur;
     }
   }
   streamStateFreeCur(pCur);
@@ -1900,8 +1899,7 @@ int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, 
   winKeyDecode(&winKey, keyStr);
 
   const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
-  // char*       dst = NULL;
-  int32_t len = decodeValueFunc((void*)valStr, vlen, NULL, (char**)pVal);
+  int32_t     len = decodeValueFunc((void*)valStr, vlen, NULL, (char**)pVal);
   if (len < 0) {
     return -1;
   }

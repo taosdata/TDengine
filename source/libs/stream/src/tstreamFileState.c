@@ -386,7 +386,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
                                        0, buf);
     // todo handle failure
     memset(buf, 0, len);
-//    qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
+    //    qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
   }
   taosMemoryFree(buf);
 
@@ -397,8 +397,8 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   streamStateClearBatch(batch);
 
   int64_t elapsed = taosGetTimestampMs() - st;
-  qDebug("%s flush to disk in batch model completed, rows:%d, batch size:%d, elapsed time:%"PRId64"ms", pFileState->id, numOfElems,
-         BATCH_LIMIT, elapsed);
+  qDebug("%s flush to disk in batch model completed, rows:%d, batch size:%d, elapsed time:%" PRId64 "ms",
+         pFileState->id, numOfElems, BATCH_LIMIT, elapsed);
 
   if (flushState) {
     const char* taskKey = "streamFileState";
@@ -488,8 +488,6 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
                        : pFileState->maxTs - pFileState->deleteMark;
     deleteExpiredCheckPoint(pFileState, mark);
   }
-  void*   pStVal = NULL;
-  int32_t len = 0;
 
   SWinKey          key = {.groupId = 0, .ts = 0};
   SStreamStateCur* pCur = streamStateSeekToLast_rocksdb(pFileState->pFileStore, &key);
@@ -511,6 +509,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       taosMemoryFreeClear(pNode);
       break;
     }
+    ASSERT(pVLen == pFileState->rowSize);
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
     code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
