@@ -212,7 +212,7 @@ enum OPCConfigMode {
 }
 
 impl OPCConfig {
-    fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode) -> Result<Self, OpcError> {
+    async fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode) -> Result<Self, OpcError> {
         debug_assert!(dsn.driver == "opc" || dsn.driver == "opcua" || dsn.driver == "opcda");
         macro_rules! parse_int_at {
             ($n:expr) => {
@@ -311,7 +311,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").await
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
@@ -375,7 +375,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")
+                    get_string_vec_from_param_or_file(&mut dsn, "da.tags").await
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut da_nodes_vec = Vec::new();
@@ -593,7 +593,7 @@ impl OPCConfig {
     }
 }
 
-pub(super) fn get_string_vec_from_param_or_file(
+pub(super) async fn get_string_vec_from_param_or_file(
     dsn: &mut Dsn,
     key: &str,
 ) -> Result<Vec<String>, String> {
@@ -607,11 +607,27 @@ pub(super) fn get_string_vec_from_param_or_file(
         // dbg!(&files, &node_config);
         for file in files {
             log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+            let rdr = csv_async::AsyncReader::from_reader(
+                tokio::fs::File::open(&file[1..]).await.map_err(|err| format!("opc csv config file read error: cause: {}", err.to_string()))?
+            );
+            let mut records = rdr.records();
+            // while let Some(record) = records.next().await {
+            //     let record = record?;
+            //     match record.get(1) {
+            //         Some(reg) if reg == region => 
+            //             wri.write_record(record
+            //                 .iter()
+            //                 .enumerate()
+            //                 .filter(|(i, _)| *i != 1)
+            //                 .map(|(_, s)| s)
+            //             ).await?,
+            //         _ => {},
+            //     }
+            // }
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
                 log::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
                 continue;
-                // return Err("file read error".to_string());
             }
             let buf = std::io::BufReader::new(f.unwrap());
             let mut file_data = buf.lines().collect_vec();
@@ -687,16 +703,13 @@ pub(crate) async fn opc_config_from(
     dsn: &Dsn,
     port: u16,
 ) -> anyhow::Result<OpcTableConfig> {
-    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
+    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect).await?;
     config.parse_tables_with(taos).await
 }
-pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
-    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
+pub async fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
+    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect).await?;
     Ok(config)
 }
-
-pub(crate) const DEFAULT_TS_COLUMN_NAME: &str = "ts";
-pub(crate) const DEFAULT_SERVER_TS_COLUMN_NAME: &str = "server_ts";
 
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
@@ -723,7 +736,7 @@ pub async fn opc_to_taos(
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
-    let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect)?;
+    let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect).await?;
     if config.opc_table_config.is_none() {
         anyhow::bail!("should config opc table config");
     }
@@ -907,7 +920,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let mut config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
+    let mut config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points).await?;
     let points_config = PointsConfig {
         limit: req.limit,
         regex: req.pattern.clone(),
