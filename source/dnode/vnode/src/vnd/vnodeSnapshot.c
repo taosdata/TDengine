@@ -93,7 +93,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     char fName[TSDB_FILENAME_LEN];
     int32_t offset = 0;
 
-    vnodeGetAbsDir(pReader->pVnode->path, pReader->pVnode->pTfs, fName, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryDir(pReader->pVnode->path, pReader->pVnode->pTfs, fName, TSDB_FILENAME_LEN);
     offset = strlen(fName);
     snprintf(fName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
 
@@ -343,7 +343,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
                               .applyTerm = pWriter->info.state.commitTerm};
     pVnode->statis = pWriter->info.statis;
     char dir[TSDB_FILENAME_LEN] = {0};
-    vnodeGetAbsDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
     vnodeCommitInfo(dir);
   } else {
@@ -395,7 +395,7 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
 
   // modify info as needed
   char dir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetAbsDir(pWriter->pVnode->path, pWriter->pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pWriter->pVnode->path, pWriter->pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   SVnodeStats vndStats = pWriter->info.config.vndStats;
   SVnode     *pVnode = pWriter->pVnode;

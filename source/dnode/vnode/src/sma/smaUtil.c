@@ -44,7 +44,7 @@ void tdRSmaGetFileName(SVnode *pVnode, STfs *pTfs, const char *fname, int64_t su
   int32_t offset = 0;
 
   // vnode
-  vnodeGetAbsDir(pVnode->path, pTfs, outputName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pTfs, outputName, TSDB_FILENAME_LEN);
   offset = strlen(outputName);
 
   // rsma
@@ -74,7 +74,7 @@ void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputN
   int32_t offset = 0;
 
   // vnode
-  vnodeGetAbsDir(pVnode->path, pTfs, outputName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pTfs, outputName, TSDB_FILENAME_LEN);
   offset = strlen(outputName);
 
   // rsma

@@ -87,7 +87,7 @@ void    vnodeBufPoolAddToFreeList(SVBufPool* pPool);
 int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeOpen.c
-int32_t vnodeGetAbsDir(const char* relPath, STfs* pTfs, char* buf, size_t bufLen);
+int32_t vnodeGetPrimaryDir(const char* relPath, STfs* pTfs, char* buf, size_t bufLen);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);

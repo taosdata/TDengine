@@ -160,11 +160,11 @@ static void tdRSmaGetCurrentFName(SSma *pSma, char *current, char *current_t) {
   SVnode *pVnode = pSma->pVnode;
   int32_t offset = 0;
 
-  vnodeGetAbsDir(pVnode->path, pVnode->pTfs, current, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, current, TSDB_FILENAME_LEN);
   offset = strlen(current);
   snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%srsma%sPRESENT", TD_DIRSEP, TD_DIRSEP);
 
-  vnodeGetAbsDir(pVnode->path, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
   offset = strlen(current_t);
   snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%srsma%sPRESENT.t", TD_DIRSEP, TD_DIRSEP);
 }

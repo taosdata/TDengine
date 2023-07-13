@@ -35,7 +35,7 @@ static int32_t vnodePrepareRentention(SVnode *pVnode, SRetentionInfo *pInfo) {
   pInfo->commitID = ++pVnode->state.commitID;
 
   char dir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetAbsDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   if (vnodeLoadInfo(dir, &pInfo->info) < 0) {
     code = terrno;
@@ -60,7 +60,7 @@ static int32_t vnodeRetentionTask(void *param) {
   SVnode         *pVnode = pInfo->pVnode;
   char            dir[TSDB_FILENAME_LEN] = {0};
 
-  vnodeGetAbsDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   // save info
   pInfo->info.state.commitID = pInfo->commitID;

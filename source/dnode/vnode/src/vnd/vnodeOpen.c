@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-int32_t vnodeGetAbsDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
+int32_t vnodeGetPrimaryDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
   if (pTfs) {
     snprintf(buf, bufLen - 1, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
   } else {
@@ -36,7 +36,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  vnodeGetAbsDir(path, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, pTfs, dir, TSDB_FILENAME_LEN);
   if (taosMkDir(dir)) {
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -65,7 +65,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  vnodeGetAbsDir(path, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -188,7 +188,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -247,7 +247,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
 
-  vnodeGetAbsDir(dstPath, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(dstPath, pTfs, dir, TSDB_FILENAME_LEN);
   if (vnodeLoadInfo(dir, &info) == 0) {
     if (info.config.vgId != dstVgId) {
       vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
@@ -256,7 +256,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
     return dstVgId;
   }
 
-  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
   if (vnodeLoadInfo(dir, &info) < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
     return -1;
@@ -291,7 +291,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
 
-  vnodeGetAbsDir(path, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, pTfs, dir, TSDB_FILENAME_LEN);
 
   info.config = vnodeCfgDefault;
 
