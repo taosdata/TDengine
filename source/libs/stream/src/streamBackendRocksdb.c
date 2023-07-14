@@ -189,8 +189,8 @@ void streamBackendCleanup(void* arg) {
   taosThreadMutexDestroy(&pHandle->mutex);
 
   taosThreadMutexDestroy(&pHandle->cfMutex);
-  qDebug("destroy stream backend backend:%p", pHandle);
 
+  qDebug("destroy stream backend backend:%p", pHandle);
   taosMemoryFree(pHandle);
   return;
 }
