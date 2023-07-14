@@ -247,6 +247,7 @@ typedef struct SSortLogicNode {
   SNodeList* pSortKeys;
   bool       groupSort;
   int64_t    maxRows;
+  bool       skipPKSortOpt;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
