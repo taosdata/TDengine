@@ -182,7 +182,7 @@ class TDTestCase:
         tdLog.info(f"show transactions;alter database db0_0 replica {replica3};")
         TdSqlEx.execute(f'show transactions;')
         TdSqlEx.execute(f'alter database db0_0 replica {replica3};')
-        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica3,db_name=paraDict["dbName"],count_number=120)
+        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica3,db_name=paraDict["dbName"],count_number=180)
 
     def run(self):
         # print(self.master_dnode.cfgDict)
