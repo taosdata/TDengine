@@ -49,10 +49,12 @@ authentication:
         display: 用户名
         description: TDengine 用户名，默认使用 `root`。
         placeholder: root
+        value: root
       password:
         display: Password
         description: TDengine 密码，默认为 `taosdata`。
         placeholder: taosdata
+        value: taosdata
     - name: token
       display: 令牌认证
       description: 使用云服务令牌进行认证。

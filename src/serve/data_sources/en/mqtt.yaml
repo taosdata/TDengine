@@ -109,6 +109,7 @@ groups:
           e.g: topic1::0,topic2::1
         hint:
           type: str
+        placeholder: topic1::0,topic2::1
 
   - name: Others
     display_order: 2

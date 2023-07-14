@@ -55,6 +55,7 @@ groups:
         description: |-
           DA 连接超时间隔，单位为：秒 (s)。
         placeholder: 10
+        value: 10
         hint:
           type: integer
           min: 1
@@ -68,6 +69,7 @@ groups:
           max: 60
         description: DA 数据采集超时间隔，单位为：秒 (s)。
         placeholder: 10
+        value: 10
         
   - name: 库表配置
     display_order: 4
@@ -98,6 +100,7 @@ groups:
           type: integer
           min: 1
           max: 100
+        value: 1
       - name: batch_size
         display: 批次大小
         hint:
@@ -106,6 +109,7 @@ groups:
           max: 10000
         description: 每次采集上报的最大数据量。
         placeholder: 100
+        value: 1
       - name: batch_timeout
         display: 上报超时
         hint:
@@ -114,6 +118,7 @@ groups:
           max: 60
         description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
         placeholder: 20
+        value: 1
         
       - name: debug
         display: 开启 Debug 日志

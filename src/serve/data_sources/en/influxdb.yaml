@@ -109,6 +109,7 @@ groups:
         display: Read Window
         description: Select a type of read window, if empty, it defaults to minute
         placeholder:
+        value: M
         hint:
           type: str
           choices:
