@@ -431,6 +431,8 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
     tDecoderClear(&decoder);
 
     chkpId = TMAX(chkpId, pTask->chkInfo.checkpointId);
+
+    taosMemoryFree(pTask);  // fix mem leak later
   }
 
 _err:
