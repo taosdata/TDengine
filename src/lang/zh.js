@@ -1477,9 +1477,10 @@ export default {
       enddesc1: "。",
     },
     dashboard:{
+      monitortip:'请遵循以下步骤用Grafana去监控TDengine的运行状态',
       dashboarddesc:`我们建议在此处使用最新的<a href='https://grafana.com/'>Grafana</a> 8 或 9 版本。您可以在任何<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'>支持的操作系统</a>中，按照 <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>Grafana官方文档安装说明</a>  安装 <a href='https://grafana.com/'>Grafana</a>。`,
       step1:'安装 Grafana',
-      step2:'安装 TDengine 数据源插件',
+      step2:'安装 TDengine 插件',
       step3:'启动 Grafana 服务',
       step4:'登录到 Grafana',
       step5:'添加 TDengine 数据源',

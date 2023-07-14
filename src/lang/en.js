@@ -1713,6 +1713,7 @@ export default {
       enddesc1: ".",
     },
     dashboard: {
+      monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
       dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here。You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>  to install <a href='https://grafana.com/'>Grafana</a>。`,
       step1: 'Install Grafana',
       step2: 'Install TDengine Plugin',
