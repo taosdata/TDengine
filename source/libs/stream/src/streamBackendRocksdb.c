@@ -262,8 +262,8 @@ void streamBackendCleanup(void* arg) {
 
   taosThreadMutexDestroy(&pHandle->cfMutex);
 
-  taosMemoryFree(pHandle);
   qDebug("destroy stream backend backend:%p", pHandle);
+  taosMemoryFree(pHandle);
   return;
 }
 void streamBackendHandleCleanup(void* arg) {
@@ -1294,8 +1294,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* pChk
     int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                  \
     rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);               \
     if (err != NULL) {                                                                                                 \
-      taosMemoryFree(err);                                                                                             \
       qError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                           \
+      taosMemoryFree(err);                                                                                             \
       code = -1;                                                                                                       \
     } else {                                                                                                           \
       qTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d", toString, funcname, vLen, ttlVLen); \
