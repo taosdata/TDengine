@@ -689,7 +689,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
-extern int32_t vnodeSyncRetention(SVnode *pVnode, int64_t now);
+extern int32_t vnodeDoRetention(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t     code = 0;
@@ -703,7 +703,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
   vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
-  code = vnodeSyncRetention(pVnode, trimReq.timestamp);
+  code = vnodeDoRetention(pVnode, trimReq.timestamp);
 
 _exit:
   return code;
@@ -728,7 +728,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-  vnodeSyncRetention(pVnode, ttlReq.timestampSec);
+  vnodeDoRetention(pVnode, ttlReq.timestampSec);
 
 end:
   taosArrayDestroy(tbUids);

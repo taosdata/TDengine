@@ -16,8 +16,9 @@
 #include "vnd.h"
 
 extern int32_t tsdbSyncRetention(STsdb *tsdb, int64_t now);
+extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now, int64_t *taskid);
 
-int32_t vnodeSyncRetention(SVnode *pVnode, int64_t now) {
+int32_t vnodeDoRetention(SVnode *pVnode, int64_t now) {
   int32_t code;
   int32_t lino;
 
@@ -30,7 +31,8 @@ int32_t vnodeSyncRetention(SVnode *pVnode, int64_t now) {
     // TSDB_CHECK_CODE(code, lino, _exit);
     tsem_post(&pVnode->canCommit);
   } else {
-    code = tsdbSyncRetention(pVnode->pTsdb, now);
+    int64_t taskid;
+    code = tsdbAsyncRetention(pVnode->pTsdb, now, &taskid);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
