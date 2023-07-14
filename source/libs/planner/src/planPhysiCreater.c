@@ -988,6 +988,7 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   pGrpCache->grpColsMayBeNull = pLogicNode->grpColsMayBeNull;
   pGrpCache->grpByUid = pLogicNode->grpByUid;
   pGrpCache->globalGrp = pLogicNode->globalGrp;
+  pGrpCache->enableCache = pLogicNode->enableCache;
   SDataBlockDescNode* pChildDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
   int32_t             code = TSDB_CODE_SUCCESS;
   if (TSDB_CODE_SUCCESS == code) {

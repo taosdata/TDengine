@@ -108,7 +108,6 @@ typedef struct SExchangeOpStopInfo {
 typedef struct SGcOperatorParam {
   int64_t             sessionId;
   int32_t             downstreamIdx;
-  bool                needCache;
   int32_t             vgId;
   int64_t             tbUid;
 } SGcOperatorParam;

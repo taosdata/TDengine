@@ -66,6 +66,7 @@ typedef struct SOperatorInfo {
   int16_t                resultDataBlockId;
   bool                   blocking;  // block operator or not
   bool                   transparent;
+  bool                   dynamicTask;
   uint8_t                status;    // denote if current operator is completed
   char*                  name;      // name, for debug purpose
   void*                  info;      // extension attribution

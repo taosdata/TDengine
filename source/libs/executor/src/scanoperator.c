@@ -799,8 +799,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   
   qDebug("add total %d dynamic tables to scan", num);
 
-  taosArrayClear(pListInfo->pTableList);
-  taosHashClear(pListInfo->map);
+  pListInfo->oneTableForEachGroup = true;
   
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* pUid = taosArrayGet(pParam->pUidList, i);
@@ -838,6 +837,10 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   
   SSDataBlock* result = doGroupedTableScan(pOperator);
   if (result != NULL) {
+    if (pInfo->base.pTableListInfo->oneTableForEachGroup) {
+      STableKeyInfo* pKeyInfo = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentGroupId);
+      result->info.id.groupId = pKeyInfo->uid;
+    }
     return result;
   }
   
@@ -851,14 +854,14 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
 
   if (pOperator->pOperatorParam) {
+    pOperator->dynamicTask = true;
     int32_t code = createTableListInfoFromParam(pOperator);
     pOperator->pOperatorParam = NULL;
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
-    
-    if (pInfo->currentGroupId != -1) {
+    if (pOperator->status == OP_EXEC_DONE) {
       pInfo->currentGroupId = 0;
       return startNextGroupScan(pOperator);
     }
@@ -922,11 +925,19 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
     if (result != NULL) {
+      if (pInfo->base.pTableListInfo->oneTableForEachGroup) {
+        STableKeyInfo* pKeyInfo = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentGroupId);
+        result->info.id.groupId = pKeyInfo->uid;
+      }
       return result;
     }
 
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
       setOperatorCompleted(pOperator);
+      if (pOperator->dynamicTask) {
+        taosArrayClear(pInfo->base.pTableListInfo->pTableList);
+        taosHashClear(pInfo->base.pTableListInfo->map);
+      }
       return NULL;
     }
 

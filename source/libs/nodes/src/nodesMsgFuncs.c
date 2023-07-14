@@ -3530,6 +3530,7 @@ enum {
   PHY_GROUP_CACHE_CODE_GROUP_COLS_MAY_BE_NULL,
   PHY_GROUP_CACHE_CODE_GROUP_BY_UID,
   PHY_GROUP_CACHE_CODE_GLOBAL_GROUP,
+  PHY_GROUP_CACHE_CODE_ENABLE_CACHE,
   PHY_GROUP_CACHE_CODE_GROUP_COLUMNS
 };
 
@@ -3548,6 +3549,9 @@ static int32_t physiGroupCacheNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_GROUP_CACHE_CODE_GLOBAL_GROUP, pNode->globalGrp);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_GROUP_CACHE_CODE_ENABLE_CACHE, pNode->enableCache);
   }
 
   return code;
@@ -3574,6 +3578,9 @@ static int32_t msgToPhysiGroupCacheNode(STlvDecoder* pDecoder, void* pObj) {
         break;    
       case PHY_GROUP_CACHE_CODE_GLOBAL_GROUP:
         code = tlvDecodeBool(pTlv, &pNode->globalGrp);
+        break;    
+      case PHY_GROUP_CACHE_CODE_ENABLE_CACHE:
+        code = tlvDecodeBool(pTlv, &pNode->enableCache);
         break;    
       default:
         break;

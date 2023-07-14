@@ -45,7 +45,6 @@ typedef struct SGroupCacheData {
   TdThreadMutex  mutex;
   SArray*        waitQueue;
   bool           fetchDone;
-  bool           needCache;
   SSDataBlock*   pBlock;
   SGcVgroupCtx*  pVgCtx;
   int32_t        downstreamIdx;
@@ -89,17 +88,19 @@ typedef struct SGcDownstreamCtx {
   SSDataBlock*  pBaseBlock;
   SArray*       pFreeBlock;
   int64_t       lastBlkUid;
+  SHashObj*     pSessions;  
+  SHashObj*     pWaitSessions;  
 } SGcDownstreamCtx;
 
 typedef struct SGcSessionCtx {
   int32_t           downstreamIdx;
-  bool              needCache;
   SGcOperatorParam* pParam;
   SGroupCacheData*  pGroupData;
   int64_t           lastBlkId;
   int64_t           nextOffset;
   bool              semInit;
   tsem_t            waitSem;
+  bool              newFetch;
 } SGcSessionCtx;
 
 typedef struct SGcExecInfo {
@@ -112,11 +113,6 @@ typedef struct SGcCacheFile {
   uint32_t grpDone;
   int64_t  fileSize;
 } SGcCacheFile;
-
-typedef struct SGcReadBlkInfo {
-  SSDataBlock* pBlock;
-  int64_t      nextOffset;
-} SGcReadBlkInfo;
 
 typedef struct SGcBlkCacheInfo {
   SRWLatch       dirtyLock;
@@ -132,10 +128,10 @@ typedef struct SGroupCacheOperatorInfo {
   TdThreadMutex     sessionMutex;
   int64_t           maxCacheSize;
   int64_t           currentBlkId;
-  SHashObj*         pSessionHash;  
   SGroupColsInfo    groupColsInfo;
   bool              globalGrp;
   bool              grpByUid;
+  bool              enableCache;
   SGcDownstreamCtx* pDownstreams;
   SGcBlkCacheInfo   blkCache;
   SHashObj*         pGrpHash;  

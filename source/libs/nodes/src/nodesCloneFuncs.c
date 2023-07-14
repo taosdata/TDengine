@@ -537,6 +537,10 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
 
 static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCacheLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(grpColsMayBeNull);
+  COPY_SCALAR_FIELD(grpByUid);
+  COPY_SCALAR_FIELD(globalGrp);
+  COPY_SCALAR_FIELD(enableCache);
   CLONE_NODE_LIST_FIELD(pGroupCols);
   return TSDB_CODE_SUCCESS;
 }
