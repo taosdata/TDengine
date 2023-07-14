@@ -232,25 +232,42 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
   return 0;
 }
 
-int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId) {
+int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
+  SMqPollReq req = {0};
+  if (tDeserializeSMqPollReq(pHandle->msg->pCont, pHandle->msg->contLen, &req) < 0) {
+    tqError("tDeserializeSMqPollReq %d failed", pHandle->msg->contLen);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
   SMqDataRsp dataRsp = {0};
-  dataRsp.head.consumerId = pHandle->consumerId;
-  dataRsp.head.epoch = pHandle->epoch;
-  dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
-
-  int64_t sver = 0, ever = 0;
-  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
-  tqDoSendDataRsp(&pHandle->msg->info, &dataRsp, pHandle->epoch, pHandle->consumerId, TMQ_MSG_TYPE__POLL_RSP, sver,
-                  ever);
-
-  char buf1[TSDB_OFFSET_LEN] = {0};
-  char buf2[TSDB_OFFSET_LEN] = {0};
-  tFormatOffset(buf1, tListLen(buf1), &dataRsp.reqOffset);
-  tFormatOffset(buf2, tListLen(buf2), &dataRsp.rspOffset);
-  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s", vgId,
-          dataRsp.head.consumerId, dataRsp.head.epoch, dataRsp.blockNum, buf1, buf2);
+  tqInitDataRsp(&dataRsp, &req);
+  dataRsp.blockNum = 0;
+  dataRsp.rspOffset = dataRsp.reqOffset;
+  tqSendDataRsp(pHandle, pHandle->msg, &req, &dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
+  tDeleteMqDataRsp(&dataRsp);
   return 0;
 }
+
+//int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId) {
+//  SMqDataRsp dataRsp = {0};
+//  dataRsp.head.consumerId = pHandle->consumerId;
+//  dataRsp.head.epoch = pHandle->epoch;
+//  dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+//
+//  int64_t sver = 0, ever = 0;
+//  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+//  tqDoSendDataRsp(&pHandle->msg->info, &dataRsp, pHandle->epoch, pHandle->consumerId, TMQ_MSG_TYPE__POLL_RSP, sver,
+//                  ever);
+//
+//  char buf1[TSDB_OFFSET_LEN] = {0};
+//  char buf2[TSDB_OFFSET_LEN] = {0};
+//  tFormatOffset(buf1, tListLen(buf1), &dataRsp.reqOffset);
+//  tFormatOffset(buf2, tListLen(buf2), &dataRsp.rspOffset);
+//  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s", vgId,
+//          dataRsp.head.consumerId, dataRsp.head.epoch, dataRsp.blockNum, buf1, buf2);
+//  return 0;
+//}
 
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId) {
@@ -313,86 +330,124 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   return 0;
 }
 
-int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  SMqVgOffset vgOffset = {0};
+int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
+  SMqSeekReq  req = {0};
   int32_t     vgId = TD_VID(pTq->pVnode);
+  SRpcMsg     rsp = {.info = pMsg->info};
+  int         code = 0;
 
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
-    tqError("vgId:%d failed to decode seek msg", vgId);
-    return -1;
+  tqDebug("tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s", req.consumerId, vgId, req.subKey);
+  if (tDeserializeSMqSeekReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
   }
 
-  tDecoderClear(&decoder);
-
-  tqDebug("topic:%s, vgId:%d process offset seek by consumer:0x%" PRIx64 ", req offset:%" PRId64,
-          vgOffset.offset.subKey, vgId, vgOffset.consumerId, vgOffset.offset.val.version);
-
-  STqOffset* pOffset = &vgOffset.offset;
-  if (pOffset->val.type != TMQ_OFFSET__LOG) {
-    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, pOffset->subKey, pOffset->val.type);
-    return -1;
-  }
-
-  STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
-    tqError("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", vgOffset.consumerId, vgId, pOffset->subKey);
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    tqWarn("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", req.consumerId, vgId, req.subKey);
+    code = 0;
+    goto end;
   }
 
   // 2. check consumer-vg assignment status
   taosRLockLatch(&pTq->lock);
-  if (pHandle->consumerId != vgOffset.consumerId) {
-    tqDebug("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            vgOffset.consumerId, vgId, pOffset->subKey, pHandle->consumerId);
-    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+  if (pHandle->consumerId != req.consumerId) {
+    tqError("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            req.consumerId, vgId, req.subKey, pHandle->consumerId);
     taosRUnLockLatch(&pTq->lock);
-    return -1;
+    code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    goto end;
   }
+
+  //if consumer register to push manager, push empty to consumer to change vg status from TMQ_VG_STATUS__WAIT to TMQ_VG_STATUS__IDLE,
+  //otherwise poll data failed after seek.
+  tqUnregisterPushHandle(pTq, pHandle);
   taosRUnLockLatch(&pTq->lock);
 
-  // 3. check the offset info
-  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
-  if (pSavedOffset != NULL) {
-    if (pSavedOffset->val.type != TMQ_OFFSET__LOG) {
-      tqError("invalid saved offset type, vgId:%d sub:%s", vgId, pOffset->subKey);
-      return 0;  // no need to update the offset value
-    }
-
-    if (pSavedOffset->val.version == pOffset->val.version) {
-      tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey,
-              pOffset->val.version, pSavedOffset->val.version);
-      return 0;
-    }
-  }
-
-  int64_t sver = 0, ever = 0;
-  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
-  if (pOffset->val.version < sver) {
-    pOffset->val.version = sver;
-  } else if (pOffset->val.version > ever) {
-    pOffset->val.version = ever;
-  }
-
-  // save the new offset value
-  if (pSavedOffset != NULL) {
-    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
-            pSavedOffset->val.version);
-  } else {
-    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " not saved yet", vgId, pOffset->subKey, pOffset->val.version);
-  }
-
-  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
-    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);
-    return -1;
-  }
-
-  tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
-          vgOffset.consumerId, vgOffset.offset.val.version);
-
+end:
+  rsp.code = code;
+  tmsgSendRsp(&rsp);
   return 0;
+
+//  SMqVgOffset vgOffset = {0};
+//  int32_t     vgId = TD_VID(pTq->pVnode);
+//
+//  SDecoder decoder;
+//  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+//  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
+//    tqError("vgId:%d failed to decode seek msg", vgId);
+//    return -1;
+//  }
+//
+//  tDecoderClear(&decoder);
+//
+//  tqDebug("topic:%s, vgId:%d process offset seek by consumer:0x%" PRIx64 ", req offset:%" PRId64,
+//          vgOffset.offset.subKey, vgId, vgOffset.consumerId, vgOffset.offset.val.version);
+//
+//  STqOffset* pOffset = &vgOffset.offset;
+//  if (pOffset->val.type != TMQ_OFFSET__LOG) {
+//    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, pOffset->subKey, pOffset->val.type);
+//    return -1;
+//  }
+//
+//  STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
+//  if (pHandle == NULL) {
+//    tqError("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", vgOffset.consumerId, vgId, pOffset->subKey);
+//    terrno = TSDB_CODE_INVALID_MSG;
+//    return -1;
+//  }
+//
+//  // 2. check consumer-vg assignment status
+//  taosRLockLatch(&pTq->lock);
+//  if (pHandle->consumerId != vgOffset.consumerId) {
+//    tqDebug("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+//            vgOffset.consumerId, vgId, pOffset->subKey, pHandle->consumerId);
+//    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+//    taosRUnLockLatch(&pTq->lock);
+//    return -1;
+//  }
+//  taosRUnLockLatch(&pTq->lock);
+//
+//  // 3. check the offset info
+//  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+//  if (pSavedOffset != NULL) {
+//    if (pSavedOffset->val.type != TMQ_OFFSET__LOG) {
+//      tqError("invalid saved offset type, vgId:%d sub:%s", vgId, pOffset->subKey);
+//      return 0;  // no need to update the offset value
+//    }
+//
+//    if (pSavedOffset->val.version == pOffset->val.version) {
+//      tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey,
+//              pOffset->val.version, pSavedOffset->val.version);
+//      return 0;
+//    }
+//  }
+//
+//  int64_t sver = 0, ever = 0;
+//  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+//  if (pOffset->val.version < sver) {
+//    pOffset->val.version = sver;
+//  } else if (pOffset->val.version > ever) {
+//    pOffset->val.version = ever;
+//  }
+//
+//  // save the new offset value
+//  if (pSavedOffset != NULL) {
+//    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
+//            pSavedOffset->val.version);
+//  } else {
+//    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " not saved yet", vgId, pOffset->subKey, pOffset->val.version);
+//  }
+//
+//  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
+//    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);
+//    return -1;
+//  }
+//
+//  tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
+//          vgOffset.consumerId, vgOffset.offset.val.version);
+//
+//  return 0;
 }
 
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
@@ -490,7 +545,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (!exec) {
       tqSetHandleExec(pHandle);
       //      qSetTaskCode(pHandle->execHandle.task, TDB_CODE_SUCCESS);
-      tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId,
+      tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId,
               req.subKey, pHandle);
       taosWUnLockLatch(&pTq->lock);
       break;
@@ -510,7 +565,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     pHandle->epoch = reqEpoch;
   }
 
-  char buf[TSDB_OFFSET_LEN];
+  char buf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(buf, TSDB_OFFSET_LEN, &reqOffset);
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, reqId:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
@@ -518,7 +573,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
   tqSetHandleIdle(pHandle);
 
-  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, , set handle idle, pHandle:%p", consumerId, vgId,
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle idle, pHandle:%p", consumerId, vgId,
           req.subKey, pHandle);
   return code;
 }
@@ -560,48 +615,47 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, &req);
 
-  STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
-  if (pOffset != NULL) {
-    if (pOffset->val.type != TMQ_OFFSET__LOG) {
-      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s use snapshot, no valid wal info", consumerId, vgId, req.subKey);
-      terrno = TSDB_CODE_INVALID_PARA;
-      tDeleteMqDataRsp(&dataRsp);
-      return -1;
-    }
+  if (req.useSnapshot == true) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
+    terrno = TSDB_CODE_INVALID_PARA;
+    tDeleteMqDataRsp(&dataRsp);
+    return -1;
+  }
 
-    dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
-    dataRsp.rspOffset.version = pOffset->val.version;
-  } else {
-    if (req.useSnapshot == true) {
-      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
-      terrno = TSDB_CODE_INVALID_PARA;
-      tDeleteMqDataRsp(&dataRsp);
-      return -1;
-    }
+  dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
 
-    dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
-
-    if (reqOffset.type == TMQ_OFFSET__LOG) {
-      int64_t currentVer = walReaderGetCurrentVer(pHandle->execHandle.pTqReader->pWalReader);
-      if (currentVer == -1) {  // not start to read data from wal yet, return req offset directly
-        dataRsp.rspOffset.version = reqOffset.version;
-      } else {
-        dataRsp.rspOffset.version = currentVer;  // return current consume offset value
+  if (reqOffset.type == TMQ_OFFSET__LOG) {
+    dataRsp.rspOffset.version = reqOffset.version;
+  } else if(reqOffset.type < 0){
+    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
+    if (pOffset != NULL) {
+      if (pOffset->val.type != TMQ_OFFSET__LOG) {
+        tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s, no valid wal info", consumerId, vgId, req.subKey);
+        terrno = TSDB_CODE_INVALID_PARA;
+        tDeleteMqDataRsp(&dataRsp);
+        return -1;
       }
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
-      dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-      dataRsp.rspOffset.version = ever;
-    } else {
-      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
-              reqOffset.type);
-      terrno = TSDB_CODE_INVALID_PARA;
-      tDeleteMqDataRsp(&dataRsp);
-      return -1;
+
+      dataRsp.rspOffset.version = pOffset->val.version;
+      tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%"PRId64, consumerId, vgId, req.subKey, dataRsp.rspOffset.version);
+    }else{
+      if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
+        dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
+      } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
+        dataRsp.rspOffset.version = ever;
+      }
+      tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from init:%"PRId64, consumerId, vgId, req.subKey, dataRsp.rspOffset.version);
     }
+  } else {
+    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
+            reqOffset.type);
+    terrno = TSDB_CODE_INVALID_PARA;
+    tDeleteMqDataRsp(&dataRsp);
+    return -1;
   }
 
   tqDoSendDataRsp(&pMsg->info, &dataRsp, req.epoch, req.consumerId, TMQ_MSG_TYPE__WALINFO_RSP, sver, ever);
+  tDeleteMqDataRsp(&dataRsp);
   return 0;
 }
 

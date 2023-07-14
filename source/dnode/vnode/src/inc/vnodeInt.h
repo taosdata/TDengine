@@ -136,6 +136,7 @@ typedef struct STbUidStore STbUidStore;
 #define META_BEGIN_HEAP_NIL        2
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
+int             metaUpgrade(SVnode* pVnode, SMeta** ppMeta);
 int             metaClose(SMeta** pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
 TXN*            metaGetTxn(SMeta* pMeta);
@@ -227,7 +228,7 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t m
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen);
+int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);

@@ -626,8 +626,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_UPDATE,                 "Rsma fs update erro
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is invalid")
 
+//scalar
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to specific type")
+
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SNAPSHOT_ERROR,             "Can not operate in snapshot mode")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_VERSION_OUT_OF_RANGE,       "Offset out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_VGID,               "VgId does not belong to this consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_TOPIC,              "Topic does not belong to this consumer")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_CLOSED,            "Consumer closed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_ERROR,             "Consumer error, to see log")
@@ -675,7 +682,7 @@ const char* tstrerror(int32_t err) {
   if ((err & 0x00ff0000) == 0x00ff0000) {
     int32_t code = err & 0x0000ffff;
     // strerror can handle any invalid code
-    // invalid code return Unknown error 
+    // invalid code return Unknown error
     return strerror(code);
   }
   int32_t s = 0;

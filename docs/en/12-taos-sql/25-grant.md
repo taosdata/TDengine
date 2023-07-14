@@ -16,7 +16,7 @@ This statement creates a user account.
 
 The maximum length of user_name is 23 bytes.
 
-The maximum length of password is 128 bytes. The password can include leters, digits, and special characters excluding single quotation marks, double quotation marks, backticks, backslashes, and spaces. The password cannot be empty.
+The maximum length of password is 31 bytes. The password can include leters, digits, and special characters excluding single quotation marks, double quotation marks, backticks, backslashes, and spaces. The password cannot be empty.
 
 `SYSINFO` indicates whether the user is allowed to view system information. `1` means allowed, `0` means not allowed. System information includes server configuration, dnode, vnode, storage. The default value is `1`.
 

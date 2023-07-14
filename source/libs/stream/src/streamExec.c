@@ -403,7 +403,16 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // wait for the task to be ready to go
     while (pTask->taskLevel == TASK_LEVEL__SOURCE) {
       int8_t status = atomic_load_8(&pTask->status.taskStatus);
-      if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE) {
+      if (status == TASK_STATUS__DROPPING) {
+        if (pInput != NULL) {
+          streamFreeQitem(pInput);
+        }
+
+        qError("s-task:%s task is dropped, abort exec", id);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE && status != TASK_STATUS__STOP) {
         qError("stream task wait for the end of fill history, s-task:%s, status:%d", id, status);
         taosMsleep(100);
       } else {
