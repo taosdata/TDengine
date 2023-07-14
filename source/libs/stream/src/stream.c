@@ -143,10 +143,10 @@ int32_t streamSchedExec(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
   int8_t status = 0;
 
-  SStreamDataBlock* pBlock = createStreamBlockFromDispatchMsg(pReq, STREAM_INPUT__DATA_BLOCK, pReq->dataSrcVgId);
+  SStreamDataBlock* pBlock = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
   if (pBlock == NULL) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
@@ -239,9 +239,12 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
 
-  // todo: if current task has received the checkpoint req from the upstream t#1, the msg from t#1 should all blocked
+  // Current task has received the checkpoint req from the upstream task, from which the message should all be blocked
+  if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+  }
 
-  streamTaskEnqueueBlocks(pTask, pReq, pRsp);
+  streamTaskAppendInputBlocks(pTask, pReq, pRsp);
   tDeleteStreamDispatchReq(pReq);
 
   if (exec) {
@@ -322,7 +325,8 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     }
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
-    qDebug("s-task:%s checkpoint enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
+    qDebug("s-task:%s level:%d checkpoint(trigger) enqueue inputQ, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr,
+           pTask->info.taskLevel, total, size);
   } else if (type == STREAM_INPUT__GET_RES) {  // use the default memory limit, refactor later.
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     qDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
@@ -357,25 +361,33 @@ void* streamQueueNextItem(SStreamQueue* pQueue) {
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED); }
 
-void streamTaskOpenUpstreamInput(SStreamTask* pTask) {
+void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
   if (num == 0) {
     return;
   }
 
   for(int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     pInfo->dataAllowed = true;
   }
 }
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  if (pInfo != NULL) {
+    pInfo->dataAllowed = false;
+  }
+}
+
+SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
   int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
   for(int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     if (pInfo->taskId == taskId) {
-      pInfo->dataAllowed = false;
-      break;
+      return pInfo;
     }
   }
+
+  return NULL;
 }

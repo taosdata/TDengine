@@ -673,10 +673,8 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
       return tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECKPOINT:
-      return tqProcessStreamCheckPointReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECKPOINT_RSP:
-      return tqProcessStreamCheckPointRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY:
+      return tqProcessStreamTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;

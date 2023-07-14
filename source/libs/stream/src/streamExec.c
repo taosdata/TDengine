@@ -57,8 +57,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize,
-                                  int32_t* totalBlocks) {
+static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
 
@@ -413,9 +412,9 @@ static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_
     const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)pInput;
     qSetMultiStreamInput(pExecutor, pRefBlock->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
 
-  } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
+  } else if (pItem->type == STREAM_INPUT__CHECKPOINT || pItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
     const SStreamCheckpoint* pCheckpoint = (const SStreamCheckpoint*)pInput;
-    qSetMultiStreamInput(pExecutor, pCheckpoint->pBlock, 1, STREAM_INPUT__CHECKPOINT);
+    qSetMultiStreamInput(pExecutor, pCheckpoint->pBlock, 1, pItem->type);
 
   } else {
     ASSERT(0);
@@ -434,9 +433,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     SStreamQueueItem* pInput = NULL;
 
     // merge multiple input data if possible in the input queue.
-    qDebug("s-task:%s start to extract data block from inputQ", id);
-
-    /*int32_t code = */ extractBlocksFromInputQ(pTask, &pInput, &batchSize, id);
+    extractBlocksFromInputQ(pTask, &pInput, &batchSize);
     if (pInput == NULL) {
       ASSERT(batchSize == 0);
       if (pTask->info.fillHistory && pTask->status.transferState) {
@@ -451,8 +448,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     int32_t type = pInput->type;
-    if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      ASSERT(getNumOfItemsInputQ(pTask) == 1);
+
+    // dispatch checkpoint msg to all downstream tasks
+    if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+      streamProcessCheckpointBlock(pTask, (SStreamDataBlock*)pInput);
+      continue;
     }
 
     if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
@@ -462,19 +462,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         qDebug("s-task:%s sink task start to sink %d blocks", id, batchSize);
         streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
         continue;
-      } else {  // pInput->type == STREAM_INPUT__CHECKPOINT, for sink task, do nothing.
-        ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
-        pTask->status.taskStatus = TASK_STATUS__CK_READY;
-        return 0;
       }
-    }
-
-    // dispatch checkpoint msg to all downstream tasks
-    if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      qDebug("s-task:%s start to dispatch checkpoint msg to downstream", id);
-
-      streamTaskDispatchCheckpointMsg(pTask, pTask->checkpointingId);
-      return 0;
     }
 
     int64_t st = taosGetTimestampMs();
@@ -565,7 +553,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
         code = streamTaskSendCheckpointSourceRsp(pTask);
       } else {
-        code = streamTaskSendCheckpointRsp(pTask);
+        code = streamTaskSendCheckpointReadyMsg(pTask);
       }
 
       if (code != TSDB_CODE_SUCCESS) {

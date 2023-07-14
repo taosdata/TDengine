@@ -221,8 +221,7 @@ int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int     tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
 int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamCheckPointReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamCheckPointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqCheckStreamStatus(STQ* pTq);
 
 int     tqCommit(STQ*);

@@ -123,7 +123,7 @@ typedef struct {
   int8_t  type;
 
   int32_t srcVgId;
-  int32_t childId;
+  int32_t srcTaskId;
   int64_t sourceVer;
   int64_t reqId;
 
@@ -312,7 +312,7 @@ struct SStreamTask {
   SStreamId        historyTaskId;
   SStreamId        streamTaskId;
   SArray*          pUpstreamInfoList;    // SArray<SStreamChildEpInfo*>, // children info
-  SArray*          pRpcMsgList;          // SArray<SRpcMsg*>
+  SArray*          pReadyMsgList;          // SArray<SStreamChkptReadyInfo*>
 
   // output
   union {
@@ -368,7 +368,6 @@ typedef struct SStreamMeta {
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
 
-//  uint64_t checkpointId;
   int32_t  chkptNotReadyTasks;
   SArray*  checkpointSaved;
   SArray*  checkpointInUse;
@@ -396,7 +395,8 @@ typedef struct {
 typedef struct {
   int64_t streamId;
   int32_t taskId;
-  int32_t dataSrcVgId;
+  int32_t type;
+  int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
@@ -503,24 +503,10 @@ typedef struct {
   int32_t  upstreamTaskId;
   int32_t  upstreamNodeId;
   int32_t  childId;
-} SStreamCheckpointReq;
+} SStreamCheckpointReadyMsg;
 
-typedef struct {
-  SMsgHead msgHead;
-  int64_t  streamId;
-  int64_t  checkpointId;
-  int32_t  downstreamTaskId;
-  int32_t  downstreamNodeId;
-  int32_t  upstreamTaskId;
-  int32_t  upstreamNodeId;
-  int32_t  childId;
-} SStreamCheckpointRsp;
-
-int32_t tEncodeStreamCheckpointReq(SEncoder* pEncoder, const SStreamCheckpointReq* pReq);
-int32_t tDecodeStreamCheckpointReq(SDecoder* pDecoder, SStreamCheckpointReq* pReq);
-
-int32_t tEncodeStreamCheckpointRsp(SEncoder* pEncoder, const SStreamCheckpointRsp* pRsp);
-int32_t tDecodeStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pRsp);
+int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pRsp);
+int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp);
 
 typedef struct {
   int64_t streamId;
@@ -541,12 +527,12 @@ int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq)
 int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp);
 int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp);
 
+int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq);
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
+
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
 void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
 
-int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId, int32_t numOfBlocks,
-                               int64_t dstTaskId);
 void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
@@ -556,8 +542,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
-void    streamTaskOpenUpstreamInput(SStreamTask* pTask);
+void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
+SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
@@ -623,16 +610,16 @@ int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
 
 // checkpoint
-int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
-int32_t streamProcessCheckpointReq(SStreamTask* pTask, SStreamCheckpointReq* pReq);
-int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
+int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
+int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 
 int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,
                                         SStreamTask* pTask);
-int32_t streamAddCheckpointRspMsg(SStreamCheckpointReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask);
+int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
 
 #ifdef __cplusplus
 }

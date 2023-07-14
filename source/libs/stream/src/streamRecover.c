@@ -132,7 +132,7 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
     }
   } else {
     pTask->status.downstreamReady = 1;
-    qDebug("s-task:%s (vgId:%d) no downstream tasks, set downstream checked, try to launch scan-history-data, status:%s",
+    qDebug("s-task:%s (vgId:%d) set downstream checked since no downstream, try to launch scan-history-data, status:%s",
            pTask->id.idStr, pTask->info.nodeId, streamGetTaskStatusStr(pTask->status.taskStatus));
 
     streamTaskLaunchScanHistory(pTask);

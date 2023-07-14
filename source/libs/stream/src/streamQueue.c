@@ -167,13 +167,14 @@ SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* 
 }
 #endif
 
-int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, const char* id) {
+int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks) {
   int32_t retryTimes = 0;
   int32_t MAX_RETRY_TIMES = 5;
+  const char* id = pTask->id.idStr;
 
   while (1) {
     if (streamTaskShouldPause(&pTask->status)) {
-      qDebug("s-task:%s task should pause, input blocks:%d", pTask->id.idStr, *numOfBlocks);
+      qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -181,17 +182,24 @@ int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, i
     if (qItem == NULL) {
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(10);
-        qDebug("===stream===try again batchSize:%d, retry:%d", *numOfBlocks, retryTimes);
+        qDebug("===stream===try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
         continue;
       }
 
-      qDebug("===stream===break batchSize:%d", *numOfBlocks);
+      qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
       return TSDB_CODE_SUCCESS;
     }
 
     // do not merge blocks for sink node and check point data block
     if ((pTask->info.taskLevel == TASK_LEVEL__SINK) ||
         (qItem->type == STREAM_INPUT__CHECKPOINT || qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER)) {
+
+      if (qItem->type == STREAM_INPUT__CHECKPOINT || qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+        qDebug("s-task:%s checkpoint msg extracted, start to process immediately", id);
+      } else {
+        qDebug("s-task:%s sink task handle result block one-by-one", id);
+      }
+
       *numOfBlocks = 1;
       *pInput = qItem;
       return TSDB_CODE_SUCCESS;

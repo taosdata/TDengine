@@ -242,7 +242,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
   }
 
-  pTask->pRpcMsgList = taosArrayDestroy(pTask->pRpcMsgList);
+  pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
 
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
