@@ -40,16 +40,8 @@ typedef struct {
   rocksdb_comparator_t**           pCompares;
 } RocksdbCfInst;
 
-uint32_t nextPow2(uint32_t x) {
-  if (x <= 1) return 2;
-  x = x - 1;
-  x = x | (x >> 1);
-  x = x | (x >> 2);
-  x = x | (x >> 4);
-  x = x | (x >> 8);
-  x = x | (x >> 16);
-  return x + 1;
-}
+uint32_t nextPow2(uint32_t x);
+
 int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t nCf);
 
 void destroyRocksdbCfInst(RocksdbCfInst* inst);
@@ -2360,4 +2352,14 @@ int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
     return -1;
   }
   return 0;
+}
+uint32_t nextPow2(uint32_t x) {
+  if (x <= 1) return 2;
+  x = x - 1;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  return x + 1;
 }
