@@ -196,7 +196,7 @@ export default {
       ) {
         viewEl.style.position = "relative";
         viewEl.style.top = "0";
-        viewEl.style.width = "83%";
+        viewEl.style.width = "100%";
         viewEl.style["z-index"] = "0";
         this.langFixed[acLang].fixed = false;
       }
@@ -244,7 +244,7 @@ export default {
       color: white;
     }
     ::v-deep(.view-header) {
-      width: 85%;
+      width: 100%;
     }
   }
   .topic-title {

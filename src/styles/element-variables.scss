@@ -167,3 +167,6 @@ $step_icon_size: 48px;
 .el-descriptions .is-bordered .el-descriptions-item__cell {
   padding: 6px 5px;
 }
+.el-message-box__message p {
+  overflow-x: auto;
+}

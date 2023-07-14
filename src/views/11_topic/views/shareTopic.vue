@@ -11,6 +11,7 @@
         class="topic-select-content"
         v-model="currentTopic"
         @change="$emit('change')"
+        size="small"
       >
         <el-option
           v-for="item in topicList"
@@ -68,7 +69,7 @@ export default {
   position: relative;
   .topic-example-select {
     position: absolute;
-    right: 8px;
+    right: 0px;
     top: -5px;
   }
   .topic-title {

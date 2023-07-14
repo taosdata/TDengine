@@ -998,7 +998,13 @@ export default {
     connectorTip: "使用您选择的编程语言<a target='_blank' href='https://docs.taosdata.com/taos-sql/select/'>使用SQL</a>查询数据。",
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
-    subscriptions:'数据订阅'
+    subscriptions:'数据订阅',
+    startTime: '开始时间',
+    endTime: '结束时间',
+    cols: '列',
+    tags: '标签',
+    kafka: 'Kafka',
+    kafkaTopic: 'Kafka Topic'
   },
   docs: {
     connector: {
@@ -1329,7 +1335,7 @@ export default {
         step33: "示例配置文件",
         step34: "配置文件示例",
         step35: "插入场景 JSON 配置文件示例",
-        step4: "配置文件参数详解",
+        step4: "配置文件参数",
         step41: "通用配置参数",
         step41desc: "本节所列参数适用于所有功能模式。",
         step41desc1: "：要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。",
@@ -1562,10 +1568,11 @@ export default {
     fromsourceRequired: '请选择来源',
     targetdsnRequired: '请输入目标DSN',
     directoryRequired: '请输入目录',
-    activationLicense: '激活',
+    activationLicense: '激活许可证',
     activeCode: '激活码',
     cActiveCode: '连接器激活码',
-    dataRestoration: '数据恢复'
+    dataRestoration: '数据恢复',
+    activeTip: '联系TDengine客户成功团队获取激活码'
   },
   taosagents:{
     edittitle:'编辑代理',

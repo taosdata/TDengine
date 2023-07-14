@@ -24,7 +24,7 @@
     ></SQLEditor>
     <template v-if="model == 'Wizard'">
       <el-form-item :label="$t('topic.topicName')" prop="topic_name">
-        <el-input v-model="info.topic_name"> </el-input>
+        <el-input v-model="info.topic_name" maxlength="32"> </el-input>
       </el-form-item>
       <!-- <SQuery
         ref="subquery"
