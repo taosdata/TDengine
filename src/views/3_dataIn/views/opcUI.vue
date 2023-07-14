@@ -1313,7 +1313,6 @@ export default {
 </script>
 <style>
 .el-select-dropdown__item {
-  font-family: "element-icons" !important;
   font-weight: 500;
 }
 </style>

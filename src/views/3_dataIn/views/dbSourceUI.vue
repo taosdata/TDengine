@@ -17,7 +17,7 @@
           <span class="label">{{$t('name')}}</span>
           <el-input
             v-model="sourceName"
-            placeholder="请输入数据源名称"
+            placeholder=""
             style="width: 200px"
           ></el-input>
         </div>
@@ -482,11 +482,34 @@
                   <el-input v-model="p.value" placeholder=""></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
-                  <template v-if="p.hint.choices">
+                  <div v-if="p.hint.choices" class="select-with-btn">
                     <el-select
+                      v-if="['bucket','measurements'].includes(p.name)"
                       v-model="p.value"
                       placeholder=""
-                      style="margin-left: -15px"
+                      :style="
+                        p.name === 'bucket' 
+                        ? {width: '80%', marginLeft: '-15px',marginRight: '8px'} 
+                        : {marginLeft: '-15px'}
+                      "
+                      :allow-create="true"
+                      filterable
+                      default-first-option
+                      :multiple="p.multiple"
+                      @change="value => changeBucket(value,p.name)"
+                    >
+                      <el-option
+                        v-for="c in (p.name == 'bucket') ? bucketList: measurementList[0]?.children"
+                        :key="c.id || c"
+                        :label="c.id || c"
+                        :value="c.id || c"
+                      ></el-option>
+                    </el-select>
+                    <el-select
+                      v-else
+                      v-model="p.value"
+                      placeholder=""
+                      style="margin-left: -15px;"
                     >
                       <el-option
                         v-for="c in p.hint.choices"
@@ -495,7 +518,13 @@
                         :value="c"
                       ></el-option>
                     </el-select>
-                  </template>
+                    <el-button 
+                      v-if="p.name === 'bucket'" 
+                      size="medium" type="primary" plain 
+                      :disable="btnLoading"
+                      :loading="btnLoading"
+                      @click="getSchema">获取 Schema</el-button>
+                  </div>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
@@ -523,7 +552,7 @@
                   ></el-input-number>
                 </template>
                 <template v-if="p.hint == 'time' || p.hint?.type == 'time'">
-                  <el-date-picker
+                  <DatePicker
                     v-model="p.value"
                     value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
@@ -533,8 +562,8 @@
                     "
                     :placeholder="p.placeholder"
                   >
-                  </el-date-picker>
-                  <el-date-picker
+                  </DatePicker>
+                  <DatePicker
                     v-model="p.value"
                     value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
@@ -549,7 +578,7 @@
                     "
                     :placeholder="p.placeholder"
                   >
-                  </el-date-picker>
+                  </DatePicker>
                 </template>
                 <!-- <template v-if="p.hint?.type == 'datetime'">
                   <el-date-picker
@@ -604,11 +633,14 @@
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import DatePicker from '@/components/date-picker'
 import { Message } from "element-ui";
 import marked from "marked";
 import { debounce } from "@/utils/index";
+import { switchTimezone } from '@/utils/date-util'
 export default {
   name: "DbSourceUI",
+  components: {DatePicker},
   props: {
     // sourceName: {
     //   type: String,
@@ -716,12 +748,16 @@ export default {
       configurationdata: [],
       activeDataSet: {},
       dbsource: [],
+      btnLoading: false,
+      bucketList: [],
+      measurementList: []
     };
   },
   created() {
     this.getDatabases();
     if (this.isEditable) {
       this.dbname = this.dbName;
+      this.handleDatatime()
     }
     this.dbsource = this.dbsourceList;
   },
@@ -741,6 +777,19 @@ export default {
     },
   },
   methods: {
+    handleDatatime() {
+      this.$nextTick(() => {
+        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+          group.params.map((p) => {
+            if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
+                p.value = switchTimezone(p.value)
+              }
+              return p
+            });
+            return group
+          });
+      })
+    },
     changeHost(host) {
       if (this.tagName == "influxdb") {
         this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
@@ -1177,6 +1226,213 @@ export default {
         this.loading = false;
       }
     }, 100),
+    changeBucket(value, name, choices) {
+      if(name === 'bucket') {
+        this.measurementList = this.bucketList.filter(item => item.id == value)
+        // 清空 Measurements
+        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+          group.params.map((p) => {
+            if (p.name === 'measurements') {
+              p.value = []
+            }
+            return p
+          });
+          return group
+        });
+      }
+    },
+    getSchema() {
+      this.btnLoading = true
+      let dns = "";
+      let id = localStorage.getItem("local_clusterID");
+      let data = this.dbsource[0];
+      let enterTip = this.$t("dataIn.enterTip");
+      try {
+        if (data.protocol && data.protocol.value) {
+          dns += Object.is(data.protocol.value, "--")
+            ? ""
+            : data.protocol.value;
+        }
+        
+        for (let key of Object.keys(data.options)) {
+          if (
+            Object.hasOwnProperty.call(data.options[key], "required") &&
+            (data.options[key]["value"] == "" ||
+              data.options[key]["value"] == undefined)
+          ) {
+            Message({
+              type: "warning",
+              message: `${enterTip} ${data.options[key].display} `,
+            });
+            return;
+          }
+        }
+        // tagName === "datasource" 是tmq
+        if (this.tagName === "datasource") {
+          if (data.authentication.value == "plain") {
+            let userinfo = data.authentication.alternatives.filter(
+              (item) => item.name == "plain"
+            )[0];
+            let username = window.encodeURIComponent(userinfo.username.value);
+            let pwd = window.encodeURIComponent(userinfo.password.value);
+            dns += `://`;
+            if (this.handleEmptyValue(username)) {
+              dns += `${username}`;
+            }
+            if (this.handleEmptyValue(pwd)) {
+              dns += `:${pwd}`;
+            }
+          } else if (data.authentication.value == "token") {
+            let userinfo = data.authentication.alternatives.filter(
+              (item) => item.name == "token"
+            )[0];
+            let token = window.encodeURIComponent(userinfo.params[0].value);
+            if (this.handleEmptyValue(token)) {
+              dns += `${token}`;
+            }
+          }
+          dns = dns.includes("://") ? dns : dns + "://";
+          // if(this.handleEmptyValue(data.options.host.value)){
+          dns += `@${data.options.host.value ? data.options.host.value : ""}`;
+          // }
+        } else {
+          if (this.tagName == "influxdb") {
+            this.changeHost(data.options.host.value);
+            if (data.options.host.value && !this.isIP) {
+              Message.warning(this.$t("datasource.iptip"));
+              return;
+            }
+          }
+          dns += `://${data.options.host.value ? data.options.host.value : ""}`;
+        }
+
+        if (data.options.port) {
+          if (!this.isPort && this.tagName == "influxdb") {
+            Message.warning(this.$t("datasource.porttip"));
+            return;
+          }
+          dns +=
+            (Object.is(data.options.port.value, null) ||
+            !data.options.port.value
+              ? ""
+              : ":") +
+            `${data.options.port.value ? data.options.port.value : ""}`;
+        }
+
+        dns += data.options.subject.value
+          ? "/" + data.options.subject.value
+          : "";
+        let reg = /\s+/g;
+        dns = dns.replace(reg, "").trim();
+        let querystr = "";
+        // groups 是否需要校验必填
+        for (let index = 0; index < data.groups.length; index++) {
+          for (let g of Object.keys(data.groups[index].params)) {
+              if (data.groups[index].params[g].value) {
+                querystr +=
+                  `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                  "&";
+              }
+          }
+        }
+        // 
+        if (this.tagName == "influxdb") {
+          let result = this.dbsource[0].authentication.alternatives.filter(
+            (item) => item.name == this.dbsource[0].authentication.value
+          );
+          result[0].params.forEach((p) => {
+            querystr += `${p.name}=${p.value}&`;
+          });
+
+          let requireTip = "";
+          //influxdb需要校验authentication和task
+          result.forEach((item) => {
+            item.params.forEach((p) => {
+              if (
+                Object.hasOwnProperty.call(p, "required") &&
+                p.value == null
+              ) {
+                requireTip += `${p.display}` + ",";
+              }
+            });
+          });
+          this.dbsource[0].groups.forEach((group) => {
+            group.params.forEach((p) => {
+              if (
+                Object.hasOwnProperty.call(p, "required") &&
+                p.value == null
+              ) {
+                requireTip += `${p.display}` + ",";
+              }
+            });
+          });
+        }
+        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        
+        let apiParams = {
+          from:
+            "tmq" +
+            (data.protocol
+              ? Object.is(data.protocol.value, "--")
+                ? ""
+                : "+"
+              : "") +
+            dns,
+          name: this.sourceName,
+          categories:["nodes"],
+          pattern: "api",
+          offset:0,
+          limit:10,
+        };
+        if (this.$parent.agentID) {
+          apiParams["via"] = this.$parent.agentID;
+        }
+        if (this.tagName === "datasource") {
+          getUaAndDaData(apiParams)
+          .then((res) => {
+            console.log('apiParams',res);
+          })
+          .catch((err) => {
+            Message({
+              type: "error",
+              message: err,
+            });
+          });         
+        } else {
+          let piParams = {
+            from:
+              this.tagName == "influxdb"
+                ? "influxdb" + dns
+                : this.tagName + dns,
+            categories:["nodes"],
+            pattern: "api",
+            offset:0,
+            limit:10,
+            };
+          if (this.$parent.agentID) {
+            piParams["via"] = this.$parent.agentID;
+          }
+            getUaAndDaData(piParams)
+            .then((res) => {
+              this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
+                return {id: item, children: JSON.parse(res[0].id)[item][0]}
+              }) 
+              this.btnLoading = false
+            })
+            .catch((err) => {
+              console.log('err',err);
+              this.btnLoading = false
+              Message({
+                type: "error",
+                message: err,
+              });
+            });
+        }
+      } catch (err) {
+        this.btnLoading = false
+        console.log('err');
+      }
+    },
   },
 };
 </script>
@@ -1328,6 +1584,10 @@ export default {
         white-space: nowrap;
         align-items: baseline;
         margin-bottom: 8px;
+      }
+      .select-with-btn {
+        width: 100%;
+        margin-bottom: 0 !important;
       }
       .label-value {
         flex: auto;

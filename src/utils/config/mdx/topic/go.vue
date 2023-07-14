@@ -154,6 +154,14 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data(){
     return {
@@ -164,10 +172,11 @@ export default {
   },
   computed: {
     tmq() {
+      // root:taosdata@ws(localhost:6041)
       const wsPrefix = this.url.startsWith("https") ? "wss" : "ws";
-      const uri = this.url.replace(/https?:\/\//, "");
-      const tokenStr = this.token;
-      return `${wsPrefix}://${uri}/rest/tmq?token=${tokenStr}`;
+      let uri = this.url.replace(/https?:\/\//, "");
+      // const tokenStr = this.token;
+      return `${this.user}:${this.password}@${wsPrefix}(${uri})`;
     },
     org() {
       return this.$store.state.currentOrganization?.orgName || "";

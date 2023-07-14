@@ -85,6 +85,11 @@ export function isArray(arg) {
   return Array.isArray(arg);
 }
 
+/**
+ * 只允许数字、字母、下划线
+ * @param {*} str 
+ * @returns {Boolean}
+ */
 export function validDatabaseName(str) {
   const reg = /^[a-zA-Z_]\w*$/;
   return reg.test(str);

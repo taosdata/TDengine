@@ -22,8 +22,12 @@
 
       <el-table-column :label="$t('taosuser.status')" prop="status"></el-table-column>
       <el-table-column :label="$t('taosuser.reason')" prop="reason"></el-table-column>
-      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at"></el-table-column>
-      <el-table-column :label="$t('taosuser.createat')" prop="created_at"></el-table-column>
+      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.createat')" prop="created_at">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+      </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
           <el-switch
@@ -133,6 +137,7 @@ import {
 import _ from "lodash";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/taosbenchmark.vue";
+import { parsinginZone } from '@/utils'
 export default {
   data() {
     return {
@@ -161,6 +166,7 @@ export default {
         ],
       },
       topicList: [],
+      parsinginZone
     };
   },
   computed: {

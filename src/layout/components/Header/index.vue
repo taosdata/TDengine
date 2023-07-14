@@ -2,20 +2,21 @@
   <div class="header">
     <div class="headerLeft">
       <!-- <ClusterSelector></ClusterSelector> -->
-      <ul class="license" v-if="this.license[0]">
+      <ul class="license" v-if="license[0]">
         <!-- <li>
           <span>{{ $t("dashboard.expiretime") }}：</span>
           <span class="value">{{this.license[0].expire_time | filterNull}}</span>
         </li> -->
         <li>
-          <span>{{ $t("header.version") }}：</span>
-          <span class="value">{{this.license[0].version}}</span>
+          <span class="version">{{ $t("header.version") }}：</span>
+          <span class="value">{{ version }}</span>
         </li>
       </ul>
     </div>
     <div class="headerRight">
+      <Timezone></Timezone>
+      <!-- <Document v-if="docUrl"></Document> -->
 
-      
       <!-- <Support v-if="supportUrl"></Support>
       <Document v-if="docUrl"></Document> -->
       <!-- <Github></Github> -->
@@ -27,6 +28,7 @@
         </router-link>
       </el-tooltip>
       <Help></Help> -->
+      
       <Avatar></Avatar>
     </div>
   </div>
@@ -34,25 +36,33 @@
 
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
-import { Avatar, ClusterSelector, Help, Support, Document } from "./components";
+import {
+  Avatar,
+  ClusterSelector,
+  Help,
+  Support,
+  Document,
+  Timezone,
+} from "./components";
 export default {
-  components: { Avatar, ClusterSelector, Help, Support, Document },
+  components: { Avatar, ClusterSelector, Help, Support, Document, Timezone },
   data() {
     return {
       issueTypeList: [],
-      license:[],
+      license: [],
+      version: "",
       supportUrl: localStorage.getItem("supportWebsite"),
       docUrl: localStorage.getItem("documentWebsite"),
     };
   },
-  filters:{
-    filterNull(val){
-      if(Object.is(val,null)){
-        return 0
-      }else{
-        return val
+  filters: {
+    filterNull(val) {
+      if (Object.is(val, null)) {
+        return 0;
+      } else {
+        return val;
       }
-    }
+    },
   },
   computed: {
     alerts() {
@@ -62,20 +72,51 @@ export default {
       return this.$store.getters.role == "1";
     },
   },
-  created(){
-    this.getLicense()
+  created() {
+    this.getLicense();
   },
   methods: {
+    getVersion(val) {
+      return val.substr(0, val.lastIndexOf("."));
+    },
     async getLicense() {
       try {
-        await sendSQLReq(`show cluster`).then((res) => {
-          this.license= res.data.map((data) => {
+        await sendSQLReq(
+          `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
+        ).then((res) => {
+          this.license = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
                 return [item[0], data[index]];
               })
             );
           });
+          this.version =
+            this.getVersion(this.license[0]["server_version()"]) +
+            " " +
+            this.license[0].version.charAt(0).toUpperCase() +
+            this.license[0].version.slice(1) +
+            " " +
+            (this.license[0].version == "trial"
+              ? this.license[0].valid
+                ? "Expired"
+                : ""
+              : this.license[0].valid
+              ? "License Expired"
+              : "");
+          console.log(
+            this.version,
+            "this.license---header",
+            this.license[0].version,
+            this.license[0].valid,
+            this.license[0].version == "trial"
+              ? this.license[0].valid
+                ? "Expired"
+                : ""
+              : this.license[0].valid
+              ? "License Expired"
+              : ""
+          );
         });
       } catch (error) {
         console.log(error);
@@ -148,16 +189,16 @@ export default {
   flex-direction: row;
   align-items: center;
 }
-.license{
-  display:flex;
-  span{
+.license {
+  display: flex;
+  span {
     font-size: 18px;
   }
-  .value{
-    color:#4259ce;
+  .value {
+    color: #4259ce;
   }
-  li{
-    margin-right:50px;
+  li {
+    margin-right: 50px;
   }
 }
 </style>

@@ -91,14 +91,29 @@ async fn main() -> anyhow::Result<()> {
 
     let port = args.port.unwrap();
     let args = web::Data::new(args);
+    let cors = args.cors.unwrap_or_default();
 
     info!("Explorer service at http://0.0.0.0:{port}");
 
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header();
+        let cors = if cors {
+            Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header()
+        } else {
+            Cors::default()
+                .allowed_origin_fn(|origin, req_head| {
+                    req_head
+                        .headers()
+                        .get("Host")
+                        .map(|host| origin.as_bytes().ends_with(host.as_bytes()))
+                        .unwrap_or(false)
+                })
+                .allow_any_method()
+                .allow_any_header()
+                .max_age(3600)
+        };
         App::new()
             .wrap(TracingLogger::default())
             .wrap(Logger::default())
@@ -378,6 +393,11 @@ struct Args {
     #[clap(short, long, global = true, env = "EXPLORER_PORT")]
     #[serde(default)]
     port: Option<u16>,
+
+    /// Allow all origins or not.
+    #[clap(skip)]
+    #[serde(default)]
+    cors: Option<bool>,
 
     /// For verbosity logging.
     #[clap(flatten)]

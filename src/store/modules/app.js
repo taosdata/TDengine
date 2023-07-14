@@ -12,6 +12,7 @@ import router from "@/router";
 import { Message } from "element-ui";
 import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
+import { getLocalTimezone } from '@/utils'
 
 const state = {
   token: getToken(),
@@ -24,7 +25,7 @@ const state = {
   current_cluster: {},
   regionUrlMap: {},
   cluster_info: {},
-  timeZone: "",
+  timeZone: getLocalTimezone(),
   clusterStatus: "Suspended",
   appShow: true,
   isGuide: false,

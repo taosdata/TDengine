@@ -60,7 +60,7 @@
       :model="opcConfig"
       :rules="rules"
       ref="ruleForm"
-      style="width: 80%; margin-top: 20px"
+      style="width: 100%; margin-top: 20px"
       label-width="120px"
     >
       <el-form-item
@@ -192,7 +192,7 @@ export default {
 }
 .singleton-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr ;
   column-gap: 10px;
   border-top: 1px solid #ebeef5;
   padding-top: 8px;
@@ -208,7 +208,7 @@ export default {
 .singleton-cols {
   display: grid;
   width: 100%;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr ;
   border-bottom: 1px solid #ebeef5;
   border-top: none;
   li {

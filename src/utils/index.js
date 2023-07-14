@@ -2,6 +2,7 @@ import { viewFile } from "@/api/gateway/support";
 import axios from "axios";
 import { marked } from "marked";
 import moment from "moment";
+import momentTimezone from 'moment-timezone';
 import { Message } from "element-ui";
 import { $bus } from "@/const";
 import CryptoJS from "crypto-js";
@@ -302,4 +303,23 @@ export function decrypt(encryptedData) {
   let decryptedMessage = CryptoJS.AES.decrypt(encryptedData,'pwd').toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
 
   return decryptedMessage;
+}
+
+// 获取时区
+export function getLocalTimezone() {
+  return localStorage.getItem('timezone') || 'Greenwich'
+}
+
+// format time
+export function parsinginZone(value,format) {
+  let timezone = getLocalTimezone()
+  return momentTimezone(value).tz(timezone).format(format)
+}
+
+export function getBrowserLang() {
+  const nav = window.navigator;
+  const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
+  if (browserLang.includes('zh')) return 'zh';
+  if (browserLang.includes('en')) return 'en';
+  return 'zh';
 }

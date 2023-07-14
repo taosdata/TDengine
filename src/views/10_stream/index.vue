@@ -10,7 +10,9 @@
         </div>
         <el-table style="margin-top: 20px" size="mini" :data="streamList">
           <el-table-column :label="$t('stream.streamName')" width="200" prop="stream_name"></el-table-column>
-          <el-table-column :label="$t('createTime')" width="200" prop="create_time"></el-table-column>
+          <el-table-column :label="$t('createTime')" width="200" prop="create_time">
+            <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
+          </el-table-column>
           <el-table-column label="sql" min-width="200" prop="sql">
             <template slot-scope="scope">
               <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
@@ -22,7 +24,7 @@
           <el-table-column width="120" :label="$t('stream.sourceDB')" prop="source_db"></el-table-column>
           <el-table-column width="120" :label="$t('stream.targetDB')" prop="target_db"></el-table-column>
           <el-table-column width="120" :label="$t('stream.targetTable')" prop="target_table"></el-table-column>
-          <el-table-column width="100" :label="watermarkdetail" prop="watermark"></el-table-column>
+          <el-table-column width="140" :label="watermarkdetail" prop="watermark"></el-table-column>
           <el-table-column width="100" :label="$t('stream.trigger')" prop="trigger"></el-table-column>
 
           <el-table-column :label="$t('operate')" width="80">
@@ -83,6 +85,7 @@
   import AddForm from "./components/addStream.vue";
   import { getStreams, createStream, delStream } from "@/api/stream";
   import { StreamDocsUrl } from "@/const";
+  import { parsinginZone } from '@/utils';
   export default {
     components: {
       AddForm,
@@ -109,6 +112,7 @@
         pageSize: 10,
         total: 0,
         sqlTip: `CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name AS subquery`,
+        parsinginZone
       };
     },
     computed: {

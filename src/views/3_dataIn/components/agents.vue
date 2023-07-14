@@ -33,7 +33,9 @@
       <el-table-column
         :label="$t('taosagents.created_at')"
         prop="created_at"
-      ></el-table-column>
+      >
+        <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+      </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.dsn')"
         prop="dsn"
@@ -199,6 +201,7 @@ import {
 import { copy } from "@/utils/index";
 import { getUIData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
+import { parsinginZone } from '@/utils';
 export default {
   name: "Agent",
   data() {
@@ -238,6 +241,7 @@ export default {
       agentList: [],
 
       connectorList: [],
+      parsinginZone
     };
   },
   computed: {

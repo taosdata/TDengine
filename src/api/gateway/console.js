@@ -1,6 +1,6 @@
 import { request } from "@/utils/request";
 import store from "@/store";
-import { compHeadAndData } from "@/utils";
+import { compHeadAndData, getLocalTimezone } from "@/utils";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
     baseURL:'http://192.168.0.201:6060',
