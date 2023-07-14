@@ -1,6 +1,6 @@
 use std::{
-    collections::HashMap, fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
-    sync::Arc, time::Duration,
+    collections::{HashMap, HashSet}, fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
+    sync::Arc, time::Duration, ops::Index, 
 };
 
 use file_rotate::{
@@ -12,9 +12,9 @@ use file_rotate::{
 use anyhow::Context;
 use itertools::Itertools;
 use taos::{
-    taos_query::helpers::ColumnMeta, AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty,
+    AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty,
 };
-use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
+use taosx_ipc::{types::OptionSet, prelude::IpcDataType};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -91,10 +91,23 @@ pub struct OPCConfig {
     opc_table_config: Option<TableConfig>,
 }
 
+// #[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+// pub struct StableConfig {
+//     pub stable: Option<String>,
+//     pub stable_prefix: Option<String>,
+// }
+
+// #[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+// pub struct StableColumnConfig {
+//     pub column_configs: Vec<ColumnConfig>,
+//     pub tag_configs: Option<Vec<ColumnConfig>>,
+// }
+
 #[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
 pub struct TableConfig {
-    pub stable_prefix: String,
+    pub stable_prefix: Option<String>,
     pub column_configs: Vec<ColumnConfig>,
+    pub tag_configs: Option<Vec<TagConfig>>,
 }
 
 #[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
@@ -103,6 +116,12 @@ pub struct ColumnConfig {
     pub column_type: Option<Ty>,
     pub column_alias: Option<String>,
     pub is_primary_key: bool,
+}
+
+#[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+pub struct TagConfig {
+    pub column_name: String,
+    pub column_type: IpcDataType,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -228,7 +247,6 @@ impl OPCConfig {
         let connect;
         let collect;
         let mut param_mapping = HashMap::new();
-        let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
         match dsn.driver.as_str() {
             "opc" => {
                 if dsn.protocol.is_none() {
@@ -311,7 +329,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").await
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
@@ -375,7 +393,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags").await
+                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut da_nodes_vec = Vec::new();
@@ -435,18 +453,6 @@ impl OPCConfig {
         } else {
             false
         };
-        // let use_received_time = if let Some(v) = dsn
-        //     .remove("use_received_time")
-        //     .map(|v| {
-        //         v.parse::<bool>()
-        //             .map_err(|err| OpcError::ParseError("use_received_time", v))
-        //     })
-        //     .transpose()?
-        // {
-        //     v
-        // } else {
-        //     false
-        // };
 
         let report = ReportConfig {
             remote,
@@ -463,137 +469,164 @@ impl OPCConfig {
         Ok(OPCConfig {
             opc_type,
             debug,
-            // use_received_time,
             points: None,
             connect,
             collect,
             report,
             param_mapping,
-            // table_info,
             opc_table_config
         })
     }
 
     pub async fn parse_tables_with(&self, taos: &Taos) -> anyhow::Result<OpcTableConfig> {
-        // let mut ts_cloumn_name_map = HashMap::new();
-        // for (table_name, field_info) in &self.table_info {
-        //     let res = taos.describe(&table_name).await;
-        //     if res.is_err() {
-        //         // table not exists, will create normal table
-        //         let mut sql = if self.use_received_time {
-        //             ts_cloumn_name_map.insert(
-        //                 table_name.clone(),
-        //                 (
-        //                     String::from(DEFAULT_TS_COLUMN_NAME),
-        //                     Some(String::from(DEFAULT_SERVER_TS_COLUMN_NAME)),
-        //                 ),
-        //             );
-        //             log::info!("table {table_name} use `ts` as ts column, use `server_ts` as second ts column");
-        //             format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP, {DEFAULT_SERVER_TS_COLUMN_NAME} TIMESTAMP ")
-        //         } else {
-        //             ts_cloumn_name_map.insert(
-        //                 table_name.clone(),
-        //                 (String::from(DEFAULT_TS_COLUMN_NAME), None),
-        //             );
-        //             log::info!("table {table_name} use `ts` as ts column");
-        //             format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP")
-        //         };
-        //         for (field, field_type) in field_info {
-        //             sql.push_str(format!(", `{field}` {field_type}").as_str());
-        //         }
-        //         sql.push_str(")");
-        //         log::info!("create normal table: {table_name}, sql: {sql}");
-        //         taos.exec(&sql).await?;
-        //     } else {
-        //         // table exists and check normal table or child table
-        //         let desc = res.unwrap();
-        //         let mut field_map = HashMap::new();
-        //         desc.iter().for_each(|c: &ColumnMeta| match c {
-        //             ColumnMeta::Column(d) => {
-        //                 field_map.insert(d.field.clone(), d.ty.to_string());
-        //             }
-        //             _ => (),
-        //         });
-        //         // insert ts column
-        //         if self.use_received_time {
-        //             if desc.len() < 2 || desc[1].ty != Ty::Timestamp {
-        //                 anyhow::bail!("table: {} column type not match[len < 2 or second column is not timestamp]", table_name);
-        //             }
-        //             log::info!(
-        //                 "table {table_name} use `{}` as ts column, use `{}` as sever ts column",
-        //                 desc[0].field,
-        //                 desc[1].field
-        //             );
-        //             ts_cloumn_name_map.insert(
-        //                 table_name.clone(),
-        //                 (desc[0].field.clone(), Some(desc[1].field.clone())),
-        //             );
-        //         } else {
-        //             log::info!("table {table_name} use `{}` as ts column", desc[0].field);
-        //             ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), None));
-        //         }
-        //         if desc.is_stable() {
-        //             // child table.
-        //             for (field, field_type) in field_info {
-        //                 let field_get = field_map.get(field);
-        //                 if field_get.is_none() {
-        //                     anyhow::bail!("field: {} not found in table: {}", field, table_name);
-        //                 }
-        //                 if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-        //                     anyhow::bail!(
-        //                         "field: {} type: {} not match in child table: {} which type is {}",
-        //                         field,
-        //                         field_type,
-        //                         table_name,
-        //                         field_get.unwrap()
-        //                     );
-        //                 }
-        //             }
-        //         } else {
-        //             // ordinary table.
-        //             let mut columns_to_add = HashMap::new();
-        //             for (field, field_type) in field_info {
-        //                 let field_get = field_map.get(field);
-        //                 if field_get.is_none() {
-        //                     // column not exists and alter table
-        //                     columns_to_add.insert(field, field_type);
-        //                 } else if !check_field_type(
-        //                     field_get.unwrap(),
-        //                     field_type.to_ascii_lowercase(),
-        //                 ) {
-        //                     anyhow::bail!(
-        //                         "field: {} type: {} not match in normal table: {} which type is {} ",
-        //                         field,
-        //                         field_type,
-        //                         table_name,
-        //                         field_get.unwrap()
-        //                     );
-        //                 }
-        //             }
-        //             if columns_to_add.len() > 0 {
-        //                 for (field_name, field_type) in columns_to_add {
-        //                     let alter_sql = format!(
-        //                         "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
-        //                     );
-        //                     log::info!("alter table sql: {}", alter_sql);
-        //                     taos.exec(alter_sql).await?;
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        let id_code_map = self.param_mapping.iter().map(|(id, code)| {
+            (id.clone(), PointConfig{
+                code: code.clone(),
+                stable: None,
+                enabled: None,
+            })
+        }).collect();
         let c = OpcTableConfig {
-            // table_info: self.param_mapping.clone(),
-            // ts_cloumn_name: ts_cloumn_name_map.clone(),
-            // use_received_time: self.use_received_time,
-            id_code_map: self.param_mapping.clone(),
+            id_code_map,
             table_config: self.opc_table_config.clone().unwrap(),
         };
         Ok(c)
     }
 }
 
-pub(super) async fn get_string_vec_from_param_or_file(
+pub use tokio_stream::StreamExt;
+
+const CSV_CONFIG_COLUMNS: [&str; 4] = ["point_id", "tbname", "type", "stable"];
+
+pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Result<OpcTableConfig> {
+    if let Some(nodes) = dsn.remove(key) {
+        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
+        let mut tag_config = Vec::new();
+        let mut column_config = Vec::new();
+        for file in files {
+            log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+            if !file.ends_with(".csv") {
+                log::warn!("file {file} is not a csv config");
+                continue;
+            }
+            let mut rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
+            let mut records = rdr.records();
+            // skip first line(desc)
+            records.next().await;
+            let header = records.next().await; 
+            if header.is_none() {
+                log::warn!("file {file} should have 2 lines at least");
+                continue;
+            }
+            let header = header.unwrap()?;
+            // header parse
+            let mut column_map = HashMap::new();
+            let mut column = 0;
+            let temp_column = CSV_CONFIG_COLUMNS.iter().map(|s| s.to_string()).collect_vec().clone();
+            let mut column_set: HashSet<&String> = HashSet::from_iter(temp_column.iter());
+            header.iter().for_each(|column_name| {
+                column_map.insert(column, column_name.clone());
+                column += 1;
+                column_set.remove(&column_name.to_string());
+            });
+            if column_set.len() != 0 {
+                anyhow::bail!("csv config miss column: {}", column_set.iter().next().unwrap());
+            }
+            let mut line = 3;
+            while let Some(record) = records.next().await {
+                match record {
+                    Ok(record) => {
+                        let mut record_map = HashMap::new(); // column_name, column_data
+                        for (index, column_name) in column_map.iter() {
+                            let data = record.get(index.clone()).unwrap();
+                            if column_name.starts_with("tag") {
+                                // is tag config tag::type::name e.g. tag::varchar(123)::unit
+                                let mut split_tag = column_name.split("::").collect_vec();
+                                if split_tag.len() != 3 {
+                                    anyhow::bail!("file {file} column {column_name} config error, pattern is tag::type::name");
+                                }
+                                let column_type = IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| anyhow::Error::msg(err))?;
+                                tag_config.push(TagConfig {
+                                    column_name: split_tag.get(2).unwrap().to_string(),
+                                    column_type,
+                                });
+                            }
+                            record_map.insert(column_name.to_string(), data.to_string());
+                        }
+                        let stable = record_map.get("stable").unwrap().clone();
+                        if record_map.get("tbname").unwrap().contains("{") { // maybe should use pattern match?
+                            // should be a expression d00{point_id}_{tag1}_{tag2}
+                            // TODO PATTERN HANDLE and reset tbname
+                        }
+                        let column_type = Ty::from_str(record_map.get("type").unwrap()).map_err(|err| anyhow::Error::msg(err))?;
+                        column_config.push(ColumnConfig {
+                            column_name: "value".to_string(),
+                            column_type: Some(column_type),
+                            column_alias: Some(record_map.get("value_col").ok_or("val".to_string()).unwrap().clone()),
+                            is_primary_key: false,
+                        });
+                        column_config.push(ColumnConfig {
+                            column_name: "quality".to_string(),
+                            column_type: Some(Ty::Int),
+                            column_alias: Some(record_map.get("quality_col").ok_or("quality".to_string()).unwrap().clone()),
+                            is_primary_key: false,
+                        });
+                        let received_time_col = record_map.get("received_time_col");
+                        let mut has_primary_key = false;
+                        if received_time_col.is_some() {
+                            has_primary_key = true;
+                            column_config.push(ColumnConfig {
+                                column_name: "received_time".to_string(),
+                                column_type: Some(column_type),
+                                column_alias: Some(record_map.get("received_time_col").ok_or("received_time".to_string()).unwrap().clone()),
+                                is_primary_key: has_primary_key,
+                            });
+                        }
+                        column_config.push(ColumnConfig {
+                            column_name: "ts".to_string(),
+                            column_type: Some(Ty::Timestamp),
+                            column_alias: Some(record_map.get("ts_col").ok_or("ts".to_string()).unwrap().clone()),
+                            is_primary_key: !has_primary_key,
+                        });
+                        let enabled = record_map.get("enabled");
+                        let enabled = if enabled.is_none() {
+                            None
+                        } else {
+                            if enabled.unwrap() == "1" {
+                                Some(true)
+                            } else {
+                                Some(false)
+                            }
+                        };
+                        id_code_map.insert(record_map.get("point_id").unwrap().clone(), 
+                            PointConfig {
+                                code: record_map.get("tbname").unwrap().clone(),
+                                stable: Some(stable),
+                                enabled,
+                            });
+                    },
+                    Err(e) => log::warn!("line {line} have different with other previous lines")
+                }
+                line += 1;
+            }
+        }
+        let tag_configs = if tag_config.len() == 0 {
+            None
+        } else {
+            Some(tag_config)
+        };
+        return Ok(OpcTableConfig { id_code_map, table_config: TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } });
+    }
+    anyhow::bail!("should config {key}");
+}
+
+pub(super) fn get_string_vec_from_param_or_file(
     dsn: &mut Dsn,
     key: &str,
 ) -> Result<Vec<String>, String> {
@@ -607,27 +640,11 @@ pub(super) async fn get_string_vec_from_param_or_file(
         // dbg!(&files, &node_config);
         for file in files {
             log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
-            let rdr = csv_async::AsyncReader::from_reader(
-                tokio::fs::File::open(&file[1..]).await.map_err(|err| format!("opc csv config file read error: cause: {}", err.to_string()))?
-            );
-            let mut records = rdr.records();
-            // while let Some(record) = records.next().await {
-            //     let record = record?;
-            //     match record.get(1) {
-            //         Some(reg) if reg == region => 
-            //             wri.write_record(record
-            //                 .iter()
-            //                 .enumerate()
-            //                 .filter(|(i, _)| *i != 1)
-            //                 .map(|(_, s)| s)
-            //             ).await?,
-            //         _ => {},
-            //     }
-            // }
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
                 log::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
                 continue;
+                // return Err("file read error".to_string());
             }
             let buf = std::io::BufReader::new(f.unwrap());
             let mut file_data = buf.lines().collect_vec();
@@ -706,9 +723,12 @@ pub(crate) async fn opc_config_from(
     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect).await?;
     config.parse_tables_with(taos).await
 }
-pub async fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
-    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect).await?;
-    Ok(config)
+pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
+    let runtime = tokio::runtime::Runtime::new()?;
+    runtime.block_on(async {
+        let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect).await?;
+        Ok(config)
+    })
 }
 
 #[instrument(skip(port_pool))]
@@ -901,17 +921,20 @@ fn check_field_type(field_type_config: &String, field_type: String) -> bool {
 
 #[derive(Clone, Debug)]
 pub struct OpcTableConfig {
-    /// table_info: table_name, Vec<(field, type)>
-    // pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
 
-    /// table_name, ts column
-    // pub(crate) ts_cloumn_name: HashMap<String, (String, Option<String>)>,
-
-    // pub(crate) use_received_time: bool,
-
-    pub(crate) id_code_map: HashMap<String, String>,
+    // id, (code, stable, enabled)
+    // code for child table name, stable maybe none when use ui config, casue stabel_prefix exists
+    // when stable is none stable_prefix will be enabled
+    pub(crate) id_code_map: HashMap<String, PointConfig>,
 
     pub(crate) table_config: TableConfig,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PointConfig {
+    pub code: String,
+    pub stable: Option<String>,
+    pub enabled: Option<bool>,
 }
 
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
@@ -1067,8 +1090,9 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     };
     column_configs.push(column_config);
     let opc_table_config = TableConfig {
-        stable_prefix: "meters".to_string(),
+        stable_prefix: Some("meters".to_string()),
         column_configs,
+        tag_configs: None,
     };
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
