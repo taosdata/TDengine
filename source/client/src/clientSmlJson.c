@@ -456,7 +456,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset) {
 static inline int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *metric, SSmlLineInfo *elements) {
   elements->measureLen = strlen(metric->valuestring);
   if (IS_INVALID_TABLE_LEN(elements->measureLen)) {
-    uError("OTD:0x%" PRIx64 " Metric lenght is 0 or large than 192", info->id);
+    uError("OTD:0x%" PRIx64 " Metric length is 0 or large than 192", info->id);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 

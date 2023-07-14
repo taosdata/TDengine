@@ -369,6 +369,9 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 8. `topic.per.stable`: 如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
 9. `topic.ignore.db`: topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix><topic.delimiter><stable.name>`，false 表示规则为 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`，默认 false。此配置项在 `topic.per.stable` 设置为 false 时不生效。
 10. `topic.delimiter`: topic 名称分割符，默认为 `-`。
+11. `read.method`: 从 TDengine 读取数据方式，query 或是 subscription。默认为 subscription。
+12. `subscription.group.id`: 指定 TDengine 数据订阅的组 id，当 `read.method` 为 subscription 时，此项为必填项。
+13. `subscription.from`: 指定 TDengine 数据订阅起始位置，latest 或是 earliest。默认为 latest。
 
 ## 其他说明
 

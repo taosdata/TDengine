@@ -77,8 +77,7 @@ static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock*
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
-static void    extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep,
-                                                   int32_t status);
+static void    extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
 static int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
@@ -501,20 +500,26 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
-  int32_t            code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  SColumnInfoData*   p = NULL;
 
-  SColumnInfoData* p = NULL;
-  int32_t          status = 0;
+  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
 
-  // todo the keep seems never to be True??
-  bool keep = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
-  extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
+  int32_t status = 0;
+  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  extractQualifiedTupleByFilterResult(pBlock, p, status);
 
   if (pColMatchInfo != NULL) {
     size_t size = taosArrayGetSize(pColMatchInfo->pList);
@@ -529,16 +534,15 @@ void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pCol
       }
     }
   }
+  code = TSDB_CODE_SUCCESS;
 
+_err:
   colDataDestroy(p);
   taosMemoryFree(p);
+  return code;
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep, int32_t status) {
-  if (keep) {
-    return;
-  }
-
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {
   int8_t* pIndicator = (int8_t*)p->pData;
   int32_t totalRows = pBlock->info.rows;
 
@@ -546,7 +550,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
-  } else {
+  } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
     int32_t bmLen = BitmapLen(totalRows);
     char*   pBitmap = NULL;
     int32_t maxRows = 0;
@@ -674,6 +678,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
     if (pBitmap != NULL) {
       taosMemoryFree(pBitmap);
     }
+  } else {
+    qError("unknown filter result type: %d", status);
   }
 }
 
@@ -715,7 +721,7 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
           pCtx[j].resultInfo->numOfRes = pRow->numOfRows;
         }
       }
-      
+
       blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
       int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       if (TAOS_FAILED(code)) {

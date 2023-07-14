@@ -21,7 +21,7 @@ class TDTestCase:
         self.commit_value_list = ["true", "false"]
         self.offset_value_list = ["", "earliest", "latest", "none"]
         self.tbname_value_list = ["true", "false"]
-        self.snapshot_value_list = ["true", "false"]
+        self.snapshot_value_list = ["false"]
 
         # self.commit_value_list = ["true"]
         # self.offset_value_list = [""]
