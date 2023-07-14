@@ -1,10 +1,10 @@
-use std::{time::Duration, io::BufRead, };
+use std::{time::Duration, io::BufRead};
 
 use anyhow::{bail, Context, Result};
 use taos::*;
 
 use taosx_core::{
-    influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
+    kafka_to_taos, influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
     query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, utils::{port_pool::PortPool, self}, Action,
 };
 
@@ -104,8 +104,7 @@ impl Cli {
                         args.jobs,
                         Default::default(),
                         Default::default(),
-                    )
-                    .await
+                    ).await
                     {
                         Ok(_) => break,
                         Err(err) if err.to_string().contains("[0xE002]") => {
@@ -130,8 +129,7 @@ impl Cli {
                         opts.yes_i_really_mean_it,
                         Default::default(),
                         Default::default(),
-                    )
-                    .await
+                    ).await
                     {
                         Ok(_) => break,
                         Err(err) if err.to_string().contains("[0xE002]") => {
@@ -169,8 +167,7 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                )
-                .await?;
+                ).await?;
                 log::debug!("main scheduler done");
             }
             ("influxdb", "taos") => {
@@ -184,8 +181,7 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                )
-                .await?;
+                ).await?;
                 log::debug!("main scheduler done");
             }
             ("opc" | "opcua" | "opcda", "taos") => {
@@ -199,8 +195,7 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                )
-                .await?;
+                ).await?;
                 log::debug!("opc main scheduler done");
             }
             ("mqtt", "taos") => {
@@ -227,9 +222,31 @@ impl Cli {
                     Default::default(),
                     None,
                     None, // how to save the transferred number
-                )
-                .await?;
+                ).await?;
                 log::debug!("opc main scheduler done");
+            }
+            ("kafka", "taos") => {
+                let parser = if args.parser.is_some() {
+                    let p = args.parser.unwrap();
+                    println!("parser: {}", p);
+                    let json = serde_json::from_str(&p).unwrap();
+                    Some(json)
+                } else {
+                    None
+                };
+
+                kafka_to_taos(
+                    args.from,
+                    parser,
+                    args.transform,
+                    args.to,
+                    args.jobs,
+                    &PortPool::default(),
+                    Default::default(),
+                    None,
+                    None,
+                ).await?;
+                log::debug!("kafka main scheduler done");
             }
             (_, _) => bail!(
                 "unsupported source or dest: from `{}` to `{}`",

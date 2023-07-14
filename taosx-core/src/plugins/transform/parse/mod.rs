@@ -190,13 +190,13 @@ mod model_serde {
 ///   "parse": { "payload": {
 ///      "json": ["metric", "location::nchar", "value::double"]
 ///   } },
-///   "model": {
-///     "table": "{topic}-{location}",
+///   "model": [{
+///     "name": "{topic}-{location}",
 ///     "using": "{metric}",
 ///     "tags": ["topic", "location"],
 ///     "columns": ["ts", "value", "qos"]
 ///   }
-/// }
+/// }]
 /// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {

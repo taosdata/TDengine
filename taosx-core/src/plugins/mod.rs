@@ -10,7 +10,7 @@ use futures::TryStreamExt;
 pub use runners::opc::opc_to_taos;
 pub use runners::opc::OPCConfig;
 pub use sink::IpcStreamWorker;
-
+pub use runners::kafka::kafka_to_taos;
 pub use runners::influxdb::influxdb_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;

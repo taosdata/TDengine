@@ -1,0 +1,59 @@
+---
+id: kafka
+name: Kafka
+description: |
+  Apache Kafka是一个开源的分布式事件流平台，被成千上万的公司用于高性能数据管道、流分析、数据集成和关键任务应用程序。
+  
+  TaosX 可以高效地读取 Kafka 中的数据，并通过 taosx-kafka 连接器将其写入 TDengine 来实现历史数据迁移或实时数据同步。
+strict: false
+options:
+  bootstrap-servers:
+    display: bootstrap-servers
+    description: kafka bootstrap-servers
+    placeholder: "127.0.0.1:9092"
+    required: true
+groups:
+  - name: Consumer
+    display_order: 1
+    description: 配置数据采集任务
+    required: false
+    params:
+      - name: group
+        display: group
+        description: >
+          指定Kafka consumer的消费者组ID。当配置group参数为一个空字符串（""）时，consumer为无组的。例如：group=my_group
+        placeholder: ""
+        required: no
+      - name: topics
+        display: topics
+        description: >
+          指定要消费的topic。可以配置多个topic，例如：topics=tp1,tp2。topics参数不是必需的，当配置了topic_partitions参数时，可以不配置
+          topics参数。
+        placeholder: ""
+        required: `topics`参数和`topic_partitions`参数两者，至少需要配置一个。
+      - name: topic_partitions
+        display: topic_partitions
+        description: >
+          指定要消费的topic和partition。可以指定多个topic和partition，例如：topic_partitions=tp1,tp2:2,tp3:0..9。
+          topic_partitions参数不是必需的，当配置了topics参数时，可以不配置topic_partitions参数。
+        placeholder: ""
+        required: `topics`参数和`topic_partitions`参数两者，至少需要配置一个。
+      - name: fallback_offset
+        display: fallback_offset
+        description: >
+          fallback_offset参数可以指定以下值：
+          * Earliest: 用于请求最早的offset.
+          * Latest: 用于请求最晚的offset.
+          * ByTime: 用于请求在特定时间(毫秒)之前的所有消息; 时间戳为毫秒精度.
+          fallback_offset的默认值为Earliest。例如：fallback_offset=Earliest
+        placeholder: Earliest
+        required: no
+      - name: offset_storage
+        display: offset_storage
+        description: >
+          定义在获取或提交组偏移量时要使用的可用存储类型。
+          * Zookeeper:基于Zookeeper的存储(从kafka 0.8.1开始可用)
+          * Kafka:基于Kafka的存储(从Kafka 0.8.2开始可用)，推荐使用Kafka作为offset_storage的值。
+          默认是Kafka。例如：offset_storage=Kafka
+        placeholder: Kafka
+        required: no
