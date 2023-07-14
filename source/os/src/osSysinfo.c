@@ -332,14 +332,14 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
   if (!getWinVersionReleaseName(releaseName, maxLen)) {
     snprintf(releaseName, maxLen, "Windows");
   }
-  snprintf(sName, maxLen, "Windows");
+  if(sName) snprintf(sName, maxLen, "Windows");
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
   size_t osversion_len = sizeof(osversion) - 1;
   int osversion_name[] = { CTL_KERN, KERN_OSRELEASE };
 
-  snprintf(sName, maxLen, "macOS");
+  if(sName) snprintf(sName, maxLen, "macOS");
   if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
     return -1;
   }
@@ -378,6 +378,7 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
     } else {
       continue;
     }
+    if (!dest) continue;
     const char *p = strchr(line, '=') + 1;
     if (*p == '"') {
       p++;
