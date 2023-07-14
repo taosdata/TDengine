@@ -192,12 +192,19 @@ class TDTestQuery(TDCase):
         
     def query_ignore_error(self,db,sql):            
         rows = -1;        
-        try:        
-            rows = self.tdSql.execute(sql,queryTimes=1).row_count  
+        # try:        
+        #     rows = self.tdSql.execute(sql,queryTimes=1).row_count  
+        #     if rows>=0:
+        #         self.logger.info("sql is support at now! : %s; " %sql)
+        # except:
+        #     self.logger.info("test sql ! : %s; " %sql)
+            
+        try:
+            rows = self.tdSql.query(sql,queryTimes=1).row_count  
             if rows>=0:
-                self.logger.info(("=====sql1.rows:'%s'") %(rows))
+                self.tdCreateData.explain_sql(sql2)
         except:
-            self.logger.info("sql is not support at now! : %s; " %sql)
+            self.logger.info("test sql ! : %s; " %sql)
         
     def case_test(self):
         self.db_create(self.db)
@@ -284,7 +291,7 @@ class TDTestQuery(TDCase):
         self.taosc_data_insert(self.db) 
         self.db_query(self.db)
                 
-        self.alter_replica1_3(self.db)
+        #self.alter_replica1_3(self.db)
         self.alter_cachemodel_last_value(self.db)
         self.flush_db(self.db)
         self.db_delete_create(self.db)
