@@ -807,7 +807,6 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
     colDataSetVal(pColInfo, i, value, false);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    valueLen = 0;
     cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
     varDataSetLen(scope, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);

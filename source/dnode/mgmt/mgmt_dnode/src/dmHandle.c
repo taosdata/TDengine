@@ -265,6 +265,12 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataSetVal(pColInfo, i, value, false);
 
+    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    varDataSetLen(scope, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataSetVal(pColInfo, i, scope, false);
+
     numOfRows++;
   }
 
