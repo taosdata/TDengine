@@ -611,7 +611,6 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
-int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 
 int32_t streamTaskReleaseState(SStreamTask* pTask);
@@ -619,7 +618,6 @@ int32_t streamTaskReloadState(SStreamTask* pTask);
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,
                                         SStreamTask* pTask);
-int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
 
 #ifdef __cplusplus
 }
