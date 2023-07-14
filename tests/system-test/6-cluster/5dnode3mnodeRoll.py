@@ -25,8 +25,7 @@ import subprocess
 from multiprocessing import Process
 import threading
 import time
-import inspect
-import ctypes
+import json
 
 BASEVERSION = "3.0.5.0"
 
@@ -106,32 +105,22 @@ class TDTestCase:
 
     def buildTaosd(self,bPath):
         # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
-        os.system(f" cd {bPath} ")
+        os.system(f" cd {bPath}/ && make install ")
 
     def is_list_same_as_ordered_list(self,unordered_list, ordered_list):
         sorted_list = sorted(unordered_list)
         return sorted_list == ordered_list
 
-    def insertAllData(self,cPath):
-        tableNumbers=100
-        recordNumbers1=100
-        recordNumbers2=1000
+    def insertAllData(self,cPath,dbname,tableNumbers,recordNumbers):
         tdLog.info(f"insertAllData")
-        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -c {cPath} -n {recordNumbers1} -a 3 -y -k '-1' -z 5 ")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -c {cPath} -n {recordNumbers1} -a 3 -y -k '-1' -z 5 ")
-        # os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
-        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
-        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
-        print(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/compa4096.json ")
+        # tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -d dbtest -t {tableNumbers} -c {cPath} -n {recordNumbers} -v 2 -a 3 -y -k 10 -z 5 ")
+        # os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -d dbtest -t {tableNumbers} -c {cPath} -n {recordNumbers} -v 2 -a 3 -y -k 10 -z 5 ")
         
-        os.system(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/compa4096.json ")
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "alter database test WAL_RETENTION_PERIOD 1000" ')
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+        print(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath}\",/' 6-cluster/rollup.json  && sed -i '0,/\"name\":.*/s/\"name\":.*/\"name\": \"{dbname}\",/' 6-cluster/rollup.json && sed -i 's/\"childtable_count\":.*/\"childtable_count\": {tableNumbers},/' 6-cluster/rollup.json && sed -i 's/\"insert_rows\":.*/\"insert_rows\": {recordNumbers},/' 6-cluster/rollup.json" )
+        os.system(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath}\",/' 6-cluster/rollup.json  && sed -i '0,/\"name\":.*/s/\"name\":.*/\"name\": \"{dbname}\",/' 6-cluster/rollup.json && sed -i 's/\"childtable_count\":.*/\"childtable_count\": {tableNumbers},/' 6-cluster/rollup.json && sed -i 's/\"insert_rows\":.*/\"insert_rows\": {recordNumbers},/' 6-cluster/rollup.json")   
+        print("LD_LIBRARY_PATH=/usr/lib taosBenchmark -f 6-cluster/rollup.json -y -k 10 -z 5")
+        os.system("LD_LIBRARY_PATH=/usr/lib taosBenchmark -f 6-cluster/rollup.json -y -k 10 -z 5 ")  
+
 
     def insertData(self,countstart,countstop):
         # fisrt add data : db\stable\childtable\general table
@@ -214,22 +203,52 @@ class TDTestCase:
         for i in range(1,dnodeNumbers):
             dnode_id = tdDnodes[i].cfgDict["fqdn"] +  ":" + tdDnodes[i].cfgDict["serverPort"]
             os.system(f" LD_LIBRARY_PATH=/usr/lib taos -s  'create dnode \"{dnode_id}\" ' ")
-
-        os.system(" LD_LIBRARY_PATH=/usr/lib taos -s  'show dnodes' ")   
         sleep(5)     
+        os.system(" LD_LIBRARY_PATH=/usr/lib taos -s  'show dnodes' ")   
+
+        for i in range(2,dnodeNumbers+1):
+            os.system(f" LD_LIBRARY_PATH=/usr/lib taos -s  'create mnode on dnode {i} ' ")
+        sleep(10)     
+        os.system(" LD_LIBRARY_PATH=/usr/lib taos -s  'show mnodes' ")   
+
         tdLog.info("====step1.3: insert data, includes time data, tmq and stream ====")
-        tableNumbers=100
-        recordNumbers1=100
+        tableNumbers1=100
+        recordNumbers1=100000
         recordNumbers2=1000
 
-        dbname = "test"
+        dbname = "dbtest"
         stb = f"{dbname}.meters"
+        cPath_temp=cPath.replace("/","\/")
+
         # os.system("echo 'debugFlag 143' > /etc/taos/taos.cfg ")
+        # create database and tables 
+        print(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/' 6-cluster/rollup_db.json  && sed -i '0,/\"name\":.*/s/\"name\":.*/\"name\": \"{dbname}\",/' 6-cluster/rollup_db.json ")
+        os.system(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/' 6-cluster/rollup_db.json  && sed -i '0,/\"name\":.*/s/\"name\":.*/\"name\": \"{dbname}\",/' 6-cluster/rollup_db.json") 
+        print("LD_LIBRARY_PATH=/usr/lib taosBenchmark -f 6-cluster/rollup_db.json -y ")
+        os.system("LD_LIBRARY_PATH=/usr/lib taosBenchmark -f 6-cluster/rollup_db.json -y")             
+        # insert data 
+        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -d test -t {tableNumbers1} -c {cPath} -n {recordNumbers2} -v 2 -a 3 -y -k 10 -z 5 ")
+        os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -d test -t {tableNumbers1} -c {cPath} -n {recordNumbers2} -v 2 -a 3 -y -k 10 -z 5 ")
+        
+        # os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
+        # os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
+        # os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
+        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "alter database test WAL_RETENTION_PERIOD 1000" ')
+        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
+        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
+        
+        print(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/' 0-others/compa4096.json ")
+        os.system(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/'0-others/compa4096.json ")
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y   -k 10 -z 5  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y   -k 10 -z 5 ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+        self.buildTaosd(bPath)
+
         threads=[]
-        threads.append(threading.Thread(target=self.insertAllData, args=(cPath,)))
+        threads.append(threading.Thread(target=self.insertAllData, args=(cPath_temp,dbname,tableNumbers1,recordNumbers1)))
         for tr in threads:
             tr.start()
-        sleep(10)
         tdLog.printNoPrefix("==========step2:start to rolling upgdade ")
         for i in range(dnodeNumbers):
             tdDnodes[i].running = 1
@@ -239,43 +258,47 @@ class TDTestCase:
 
         for tr in threads:
             tr.join()
-
+        #  waiting 10s for  taosd cluster  ready
+        sleep(10)
         tdsql=tdCom.newTdSql()
         print(tdsql)
         tdsql.query("select * from information_schema.ins_dnodes;")
         tdLog.info(tdsql.queryResult)
         tdsql.checkData(2,1,'%s:6230'%self.host)
         tdSql=tdCom.newTdSql()
+        print(tdSql)
         clusterComCheck.checkDnodes(dnodeNumbers)
 
-        tdsql.query(f"SELECT SERVER_VERSION();")
-        nowServerVersion=tdsql.queryResult[0][0]
+        tdsql1=tdCom.newTdSql()
+        print(tdsql1)
+        tdsql1.query(f"SELECT SERVER_VERSION();")
+        nowServerVersion=tdsql1.queryResult[0][0]
         tdLog.info(f"New server version is {nowServerVersion}")
-        tdsql.query(f"SELECT CLIENT_VERSION();")
-        nowClientVersion=tdsql.queryResult[0][0]
+        tdsql1.query(f"SELECT CLIENT_VERSION();")
+        nowClientVersion=tdsql1.queryResult[0][0]
         tdLog.info(f"New client version is {nowClientVersion}")
 
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
-        tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers1)
-        tdsql.query(f"select count(*) from db4096.stb0")
-        tdsql.checkData(0,0,50000)
+        tdsql1.query(f"select count(*) from {stb}")
+        tdsql1.checkData(0,0,tableNumbers1*recordNumbers1)
+        tdsql1.query(f"select count(*) from db4096.stb0")
+        tdsql1.checkData(0,0,50000)
 
-        # tdsql.query("show streams;")
-        # tdsql.checkRows(2)
-        tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
-        tdsql.checkRows(6)
+        # tdsql1.query("show streams;")
+        # tdsql1.checkRows(2)
+        tdsql1.query("select *,tbname from d0.almlog where mcid='m0103';")
+        tdsql1.checkRows(6)
         expectList = [0,3003,20031,20032,20033,30031]
         resultList = []
         for i in range(6):
-            resultList.append(tdsql.queryResult[i][3])
+            resultList.append(tdsql1.queryResult[i][3])
         print(resultList)
         if self.is_list_same_as_ordered_list(resultList,expectList):
             print("The unordered list is the same as the ordered list.")
         else:
             tdlog.error("The unordered list is not the same as the ordered list.")
-        tdsql.execute("insert into test.d80 values (now+1s, 11, 103, 0.21);")
-        tdsql.execute("insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
+        tdsql1.execute(f"insert into test.d80 values (now+1s, 11, 103, 0.21);")
+        tdsql1.execute(f"insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
 
         conn = taos.connect()
 
@@ -302,8 +325,8 @@ class TDTestCase:
 
             for block in val:
                 print(block.fetchall())
-        tdsql.query("show topics;")
-        tdsql.checkRows(1)
+        tdsql1.query("show topics;")
+        tdsql1.checkRows(1)
 
         
         # #check mnode status
