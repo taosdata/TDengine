@@ -1,17 +1,17 @@
 <template>
   <section class="slide-header" :class="sider_style">
     <Logo></Logo>
-    <MenuTrigger :class="['menuTrigger',isOem?'oem':'']"></MenuTrigger>
+    <MenuTrigger :class="['menuTrigger', isOem ? 'oem' : '']"></MenuTrigger>
   </section>
 </template>
 
 <script>
 import { Logo, MenuTrigger } from "./index.js";
 export default {
-  data(){
+  data() {
     return {
-      isOem:process.env.VUE_APP_CUS_NAME!==''
-    }
+      isOem: process.env.VUE_APP_CUS_NAME !== "",
+    };
   },
   components: { MenuTrigger, Logo },
   computed: {
@@ -22,7 +22,7 @@ export default {
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .slide-header {
   position: relative;
   z-index: 2;
@@ -35,14 +35,24 @@ export default {
   right: -10px;
   top: 18px;
 }
-.menuTrigger.oem{
-  top:60px;
+.menuTrigger.oem {
+  top: 60px;
 }
 .sider_fold {
   width: 60px;
+  ::v-deep {
+    .oem {
+      max-width: 60px;
+    }
+  }
 }
 
 .sider_unfold {
   width: 202px;
+  ::v-deep {
+    .oem {
+      max-width: 200px;
+    }
+  }
 }
 </style>

@@ -66,6 +66,11 @@ export default {
     menuClick(val) {
       let url = localStorage.getItem("local_grafana");
       if (val === "Dashboard" || val === "面板") {
+        // this.$notify({
+        //   title: 'Tips:',
+        //   message: 'You can use Grafana to monitor the TDengine running status, please follow the steps below: ',
+        //   duration: 0
+        // });
         // window.open('https://docs.taosdata.com/reference/tdinsight/#','_blank')
         if (url) {
           OpenNewTab(url);

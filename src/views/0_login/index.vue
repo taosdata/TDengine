@@ -373,7 +373,8 @@ export default {
     async getUserAuthority() {
       try {
         return await sendSQLReq(
-          `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+          // `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+          `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         ).then((res) => {
           this.loading = false;
           if (res) {
@@ -384,6 +385,7 @@ export default {
                 })
               );
             });
+            console.log(result,'===pp');
             if (
               result.length > 0 &&
               ["official", "trial"].includes(result[0].version)
@@ -452,6 +454,7 @@ export default {
     .dynamic-title {
       font-size: 28px;
       color: #fff;
+     
     }
     .inside-header {
       display: none;
@@ -519,6 +522,12 @@ export default {
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      .dynamic-title{
+        width:500px;
+        overflow: hidden;
+        display: block;
+        text-overflow: ellipsis;
+      }
       .login-title {
         font-size: 28px;
         font-weight: 500;

@@ -1,11 +1,17 @@
 <template>
-  <div>
+  <div >
+    <div class="float">
+      You can use Grafana to monitor the TDengine running status, please follow
+      the steps below:
+    </div>
+
     <p v-html="$t('docs.dashboard.dashboarddesc')"></p>
 
     <h2 id="install-grafana">{{ $t("docs.dashboard.step1") }}</h2>
     <el-tabs value="tab1">
       <el-tab-pane name="tab1" :label="$t('docs.dashboard.tab1')">
         <pre
+          class="first"
         ><code class="language-bash">sudo apt-get install -y apt-transport-https
 sudo apt-get install -y software-properties-common wget
 wget -q -O - https://packages.grafana.com/gpg.key |\
@@ -14,10 +20,17 @@ echo "deb https://packages.grafana.com/oss/deb stable main" |\
   sudo tee -a /etc/apt/sources.list.d/grafana.list
 sudo apt-get update
 sudo apt-get install grafana
-</code></pre>
+</code>
+<span class="copy-icon" @click="copyCode('first')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
+</pre>
       </el-tab-pane>
       <el-tab-pane name="tab2" :label="$t('docs.dashboard.tab2')">
-        <pre ><code class="language-bash">sudo tee /etc/yum.repos.d/grafana.repo &lt;&lt; EOF
+        <pre
+          class="second"
+        ><code class="language-bash">sudo tee /etc/yum.repos.d/grafana.repo &lt;&lt; EOF
 [grafana]
 name=grafana
 baseurl=https://packages.grafana.com/oss/rpm
@@ -29,23 +42,33 @@ sslverify=1
 sslcacert=/etc/pki/tls/certs/ca-bundle.crt
 EOF
 sudo yum install grafana
-</code></pre>
-<p>{{$t('docs.dashboard.tab2sub')}}</p>
-<pre >
+</code>
+ <span class="copy-icon2" @click="copyCode('second')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
+</pre>
+        <p>{{ $t("docs.dashboard.tab2sub") }}</p>
+
+        <pre class="third">
 <code class="language-bash">wget https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm
 sudo yum install grafana-7.5.11-1.x86_64.rpm
 # or
 sudo yum install \
   https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm</code>
+  <span class="copy-icon3" @click="copyCode('third')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
 </pre>
       </el-tab-pane>
     </el-tabs>
-    
+
     <h2 id="install-tdengine-plugin">{{ $t("docs.dashboard.step2") }}</h2>
     <el-tabs value="tb1">
       <el-tab-pane name="tb1" :label="$t('docs.dashboard.pluginname1')">
-         <p>{{$t('docs.dashboard.plugin1')}}</p>
-      <pre  >
+        <p>{{ $t("docs.dashboard.plugin1") }}</p>
+        <pre class="fourth">
 <code class="language-bash">get_latest_release() {
   curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
     grep '"tag_name":' |
@@ -56,52 +79,63 @@ sudo grafana-cli \
   --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip \
   plugins install tdengine-datasource
         </code>
+        <span class="copy-icon4" @click="copyCode('fourth')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
       </pre>
       </el-tab-pane>
-     
-       <el-tab-pane name="tb2" :label="$t('docs.dashboard.pluginname2')">
+
+      <el-tab-pane name="tb2" :label="$t('docs.dashboard.pluginname2')">
         <p v-html="$t('docs.dashboard.plugin2')"></p>
-        <pre>
+        <pre class="fifth">
 <code class="language-bash">wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
 chmod +x TDinsight.sh
 ./TDinsight.sh</code>
+<span class="copy-icon5" @click="copyCode('fifth')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
         </pre>
         <p v-html="$t('docs.dashboard.pluginsub2')"></p>
-       </el-tab-pane>
+      </el-tab-pane>
     </el-tabs>
-    
-   
+
     <h2 id="start-grafana-server">{{ $t("docs.dashboard.step3") }}</h2>
-    <pre>
+    <pre class="sixth">
 <code class="language-bash">sudo systemctl start grafana-server
 sudo systemctl enable grafana-server</code>
+<span class="copy-icon6" @click="copyCode('sixth')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
     </pre>
     <h2 id="login-in-grafana">{{ $t("docs.dashboard.step4") }}</h2>
     <p v-html="$t('docs.dashboard.logingrafana')"></p>
-    <h2 id="add-grafana-dbsource">{{$t("docs.dashboard.step5")}}</h2>
+    <h2 id="add-grafana-dbsource">{{ $t("docs.dashboard.step5") }}</h2>
     <p v-html="$t('docs.dashboard.nav')"></p>
-    <p >
+    <p>
       <img
         src="./assets/dashboard/configuration.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
     <p v-html="$t('docs.dashboard.subsearch')"></p>
-     <p >
+    <p>
       <img
         src="./assets/dashboard/add.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
-    <p>{{$t('docs.dashboard.settingtd')}}</p>
-     <p >
+    <p>{{ $t("docs.dashboard.settingtd") }}</p>
+    <p>
       <img
         src="./assets/dashboard/howto-add-datasource.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
-    <p>{{$t('docs.dashboard.savetest')}}</p>
-    <p >
+    <p>{{ $t("docs.dashboard.savetest") }}</p>
+    <p>
       <img
         src="./assets/dashboard/done.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
@@ -110,36 +144,36 @@ sudo systemctl enable grafana-server</code>
     <h2 id="import-dashboard">{{ $t("docs.dashboard.step6") }}</h2>
 
     <p v-html="$t('docs.dashboard.import')"></p>
-    <p >
+    <p>
       <img
         src="./assets/dashboard/import.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
     <p v-html="$t('docs.dashboard.cont1')"></p>
-     <p v-html="$t('docs.dashboard.cont2')"></p>
-    <p >
+    <p v-html="$t('docs.dashboard.cont2')"></p>
+    <p>
       <img
         src="./assets/dashboard/search.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
     <p v-html="$t('docs.dashboard.cont3')"></p>
-    <p >
+    <p>
       <img
         src="./assets/dashboard/keeper.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
     <p>{{ $t("docs.dashboard.cont4") }}</p>
-    
   </div>
 </template>
 
 <script>
-import Prism from 'prismjs'
-import 'prismjs/themes/prism.css'
-import 'prismjs/components/prism-bash'
+import Prism from "prismjs";
+import "prismjs/themes/prism.css";
+import "prismjs/components/prism-bash";
+import { copy } from "@/utils/index";
 export default {
   props: {
     token: {
@@ -166,8 +200,83 @@ export default {
       return this.isOEM ? "" : "TDENGINE";
     },
   },
-  mounted(){
-    Prism.highlightAll()
-  }
+  mounted() {
+    Prism.highlightAll();
+  },
+  methods: {
+    copyCode(val) {
+      let text = document.querySelector(`.${val}`);
+      copy(text.children[0].innerText);
+    },
+  },
 };
 </script>
+<style lang="scss" scoped>
+img {
+  width: 894px;
+  height: 229px;
+}
+.copy-icon,
+.copy-icon2,
+.copy-icon3,
+.copy-icon4,
+.copy-icon5,
+.copy-icon6 {
+  visibility: hidden;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #4259ce;
+  position: absolute;
+  right: 20px;
+  top: 20px;
+}
+.first:hover {
+  .copy-icon {
+    visibility: visible;
+  }
+}
+.second:hover {
+  .copy-icon2 {
+    visibility: visible;
+  }
+}
+.third:hover {
+  .copy-icon3 {
+    visibility: visible;
+  }
+}
+.fourth:hover {
+  .copy-icon4 {
+    visibility: visible;
+  }
+}
+.fifth:hover {
+  .copy-icon5 {
+    visibility: visible;
+  }
+}
+.sixth:hover {
+  .copy-icon6 {
+    visibility: visible;
+  }
+}
+.float {
+  position: absolute;
+  top: -80px;
+  right: -30px;
+  z-index: 9999;
+  display: flex;
+  width: 330px;
+  padding: 14px 26px 14px 13px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  border: 1px solid #ebeef5;
+  background-color: #fff;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  transition: opacity 0.3s, transform 0.3s, left 0.3s, right 0.3s, top 0.4s,
+    bottom 0.3s;
+  overflow: hidden;
+}
+</style>
