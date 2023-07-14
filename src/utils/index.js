@@ -315,3 +315,11 @@ export function parsinginZone(value,format) {
   let timezone = getLocalTimezone()
   return momentTimezone(value).tz(timezone).format(format)
 }
+
+export function getBrowserLang() {
+  const nav = window.navigator;
+  const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
+  if (browserLang.includes('zh')) return 'zh';
+  if (browserLang.includes('en')) return 'en';
+  return 'zh';
+}

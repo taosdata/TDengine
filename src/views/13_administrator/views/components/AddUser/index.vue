@@ -35,7 +35,6 @@
       >
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
-            <label class="db-label">{{ item }}</label>
             <el-checkbox-group
               v-model="selectedDatabasePrivileges[item]"
               class="db-pri"
@@ -45,6 +44,7 @@
               <el-checkbox label="Write">{{ $t('write') }}</el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
             </el-checkbox-group>
+            <label class="db-label">{{ item }}</label>
           </li>
         </ul>
       </el-form-item>
@@ -55,13 +55,13 @@
       >
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
-            <label class="db-label">{{ item }}</label>
             <el-checkbox-group
               v-model="selectedTopicPrivileges[item]"
-              class="topic-pri"
+              class="topic-pri nowrap"
             >
-              <el-checkbox label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
+              <el-checkbox label="Subscribe">{{ item }}</el-checkbox>
             </el-checkbox-group>
+            <!-- <label class="db-label">{{ item }}</label> -->
           </li>
         </ul>
       </el-form-item>
@@ -295,8 +295,8 @@ export default {
 .db-label {
   display: inline-block;
   margin-right: 30px;
-  width: 100px;
-  text-align: right;
+  width: 240px;
+  text-align: left;
 }
 
 .db-pri {
@@ -306,7 +306,8 @@ export default {
 }
 .topic-pri {
   display: inline-block;
-  width: 215px;
+  width: 455px;
   text-align: left;
+  margin-right: 30px;
 }
 </style>
