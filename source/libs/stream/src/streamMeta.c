@@ -23,6 +23,8 @@ static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
 int32_t             streamBackendCfWrapperId = 0;
 
+int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
+
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
@@ -103,7 +105,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->checkpointCap = 4;
   taosInitRWLatch(&pMeta->checkpointDirLock);
 
-  pMeta->streamBackend = streamBackendInit(streamPath);
+  int64_t chkpId = streamGetLatestCheckpointId(pMeta);
+
+  pMeta->streamBackend = streamBackendInit(pMeta->path, chkpId);
   if (pMeta->streamBackend == NULL) {
     goto _err;
   }
@@ -443,7 +447,7 @@ _err:
   return chkpId;
 }
 int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
-  int64_t checkpointId = streamGetLatestCheckpointId(pMeta);
+  int64_t checkpointId = 0;
 
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
