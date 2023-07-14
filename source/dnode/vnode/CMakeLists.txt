@@ -26,15 +26,14 @@ set(
     "src/meta/metaCache.c"
     "src/meta/metaTtl.c"
 
-  # sma
-  "src/sma/smaEnv.c"
-  "src/sma/smaUtil.c"
-  "src/sma/smaFS.c"
-  "src/sma/smaOpen.c"
-  "src/sma/smaCommit.c"
-  "src/sma/smaRollup.c"
-  "src/sma/smaSnapshot.c"
-  "src/sma/smaTimeRange.c"
+    # sma
+    "src/sma/smaEnv.c"
+    "src/sma/smaUtil.c"
+    "src/sma/smaOpen.c"
+    "src/sma/smaCommit.c"
+    "src/sma/smaRollup.c"
+    "src/sma/smaSnapshot.c"
+    "src/sma/smaTimeRange.c"
 
   # # tsdb
   # "src/tsdb/tsdbCommit.c"

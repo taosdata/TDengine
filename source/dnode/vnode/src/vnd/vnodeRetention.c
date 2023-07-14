@@ -19,12 +19,21 @@ extern int32_t tsdbSyncRetention(STsdb *tsdb, int64_t now);
 
 int32_t vnodeSyncRetention(SVnode *pVnode, int64_t now) {
   int32_t code;
+  int32_t lino;
+
   if (pVnode->config.sttTrigger == 1) {
     tsem_wait(&pVnode->canCommit);
     code = tsdbSyncRetention(pVnode->pTsdb, now);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    // code = smaDoRetention(pVnode->pSma, now);
+    // TSDB_CHECK_CODE(code, lino, _exit);
     tsem_post(&pVnode->canCommit);
   } else {
     code = tsdbSyncRetention(pVnode->pTsdb, now);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+_exit:
   return code;
 }

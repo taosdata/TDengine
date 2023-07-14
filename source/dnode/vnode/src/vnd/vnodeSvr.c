@@ -1376,7 +1376,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       if (info.suid) {
-        metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+        code = metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+        ASSERT(code == 0);
       }
 
       if (pSubmitTbData->sver != info.skmVer) {

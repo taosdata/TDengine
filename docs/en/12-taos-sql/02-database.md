@@ -41,7 +41,7 @@ database_option: {
 
 ## Parameters
 
-- BUFFER: specifies the size (in MB) of the write buffer for each vnode. Enter a value between 3 and 16384. The default value is 96.
+- BUFFER: specifies the size (in MB) of the write buffer for each vnode. Enter a value between 3 and 16384. The default value is 256.
 - CACHEMODEL: specifies how the latest data in subtables is stored in the cache. The default value is none.
   - none: The latest data is not cached.
   - last_row: The last row of each subtable is cached. This option significantly improves the performance of the LAST_ROW function.
