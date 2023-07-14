@@ -275,7 +275,7 @@ static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pI
 
     taosHashPut(pOutput->pSub->consumerHash, &consumerId, sizeof(int64_t), &newConsumerEp, sizeof(SMqConsumerEp));
     taosArrayPush(pOutput->newConsumers, &consumerId);
-    mInfo("sub:%s mq rebalance add new consumer:%" PRIx64, pSubKey, consumerId);
+    mInfo("sub:%s mq rebalance add new consumer:0x%" PRIx64, pSubKey, consumerId);
   }
 }
 
@@ -597,7 +597,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   for (int32_t i = 0; i < consumerNum; i++) {
     int64_t         consumerId = *(int64_t *)taosArrayGet(pOutput->modifyConsumers, i);
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    pConsumerNew->updateType = CONSUMER_UPDATE_REB_MODIFY_NOTOPIC;
+    pConsumerNew->updateType = CONSUMER_UPDATE_REB;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       tDeleteSMqConsumerObj(pConsumerNew, true);
 
@@ -613,7 +613,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   for (int32_t i = 0; i < consumerNum; i++) {
     int64_t consumerId = *(int64_t *)taosArrayGet(pOutput->newConsumers, i);
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    pConsumerNew->updateType = CONSUMER_UPDATE_REB_MODIFY_TOPIC;
+    pConsumerNew->updateType = CONSUMER_ADD_REB;
 
     char* topicTmp = taosStrdup(topic);
     taosArrayPush(pConsumerNew->rebNewTopics, &topicTmp);
@@ -633,7 +633,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     int64_t consumerId = *(int64_t *)taosArrayGet(pOutput->removedConsumers, i);
 
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    pConsumerNew->updateType = CONSUMER_UPDATE_REB_MODIFY_REMOVE;
+    pConsumerNew->updateType = CONSUMER_REMOVE_REB;
 
     char* topicTmp = taosStrdup(topic);
     taosArrayPush(pConsumerNew->rebRemovedTopics, &topicTmp);

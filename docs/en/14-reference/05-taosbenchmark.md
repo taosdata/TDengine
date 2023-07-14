@@ -470,3 +470,26 @@ The configuration parameters for subscribing to a super table are set in `super_
   - **sql**: The SQL command to be executed. For the query SQL of super table, keep "xxxx" in the SQL command. The program will automatically replace it with all the sub-table names of the super table.
     Replace it with all the sub-table names in the super table.
   - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.
+
+#### data type on taosBenchmark
+
+| #   |   **TDengine**     | **taosBenchmark** 
+| --- | :----------------: | :---------------:
+| 1   |  TIMESTAMP         |    timestamp
+| 2   |  INT               |    int
+| 3   |  INT UNSIGNED      |    uint
+| 4   |  BIGINT            |    bigint
+| 5   |  BIGINT UNSIGNED   |    ubigint
+| 6   |  FLOAT             |    float
+| 7   |  DOUBLE            |    double
+| 8   |  BINARY            |    binary
+| 9   |  SMALLINT          |    smallint
+| 10  |  SMALLINT UNSIGNED |    usmallint
+| 11  |  TINYINT           |    tinyint
+| 12  |  TINYINT UNSIGNED  |    utinyint
+| 13  |  BOOL              |    bool
+| 14  |  NCHAR             |    nchar
+| 15  |  VARCHAR           |    varchar
+| 15  |  JSON              |    json
+
+note：Lowercase characters must be used on taosBenchmark datatype

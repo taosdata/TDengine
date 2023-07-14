@@ -184,7 +184,7 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   }
 
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
-  pConsumerNew->updateType = CONSUMER_UPDATE_RECOVER;
+  pConsumerNew->updateType = CONSUMER_UPDATE_REC;
 
   mndReleaseConsumer(pMnode, pConsumer);
 
@@ -419,6 +419,9 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     mDebug("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
+    if(pSub == NULL){
+      continue;
+    }
     taosWLockLatch(&pSub->lock);
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &consumerId, sizeof(int64_t));
     if(pConsumerEp){
@@ -698,7 +701,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     pConsumerNew->autoCommitInterval = subscribe.autoCommitInterval;
     pConsumerNew->resetOffsetCfg = subscribe.resetOffsetCfg;
 
-//  pConsumerNew->updateType = CONSUMER_UPDATE_SUB_MODIFY;   // use insert logic
+//  pConsumerNew->updateType = CONSUMER_UPDATE_SUB;   // use insert logic
     taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
@@ -728,7 +731,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     }
 
     // set the update type
-    pConsumerNew->updateType = CONSUMER_UPDATE_SUB_MODIFY;
+    pConsumerNew->updateType = CONSUMER_UPDATE_SUB;
     taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
@@ -981,7 +984,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
   taosWLockLatch(&pOldConsumer->lock);
 
-  if (pNewConsumer->updateType == CONSUMER_UPDATE_SUB_MODIFY) {
+  if (pNewConsumer->updateType == CONSUMER_UPDATE_SUB) {
     TSWAP(pOldConsumer->rebNewTopics, pNewConsumer->rebNewTopics);
     TSWAP(pOldConsumer->rebRemovedTopics, pNewConsumer->rebRemovedTopics);
     TSWAP(pOldConsumer->assignedTopics, pNewConsumer->assignedTopics);
@@ -1001,7 +1004,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 //    mInfo("consumer:0x%" PRIx64 " timer update, timer lost. state %s -> %s, reb-time:%" PRId64 ", reb-removed-topics:%d",
 //           pOldConsumer->consumerId, mndConsumerStatusName(prevStatus), mndConsumerStatusName(pOldConsumer->status),
 //           pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_RECOVER) {
+  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REC) {
     int32_t sz = taosArrayGetSize(pOldConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
       char *topic = taosStrdup(taosArrayGetP(pOldConsumer->assignedTopics, i));
@@ -1010,12 +1013,12 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     pOldConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
     mInfo("consumer:0x%" PRIx64 " timer update, timer recover",pOldConsumer->consumerId);
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB_MODIFY_NOTOPIC) {
+  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
     mInfo("consumer:0x%" PRIx64 " reb update, only rebalance time", pOldConsumer->consumerId);
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB_MODIFY_TOPIC) {
+  } else if (pNewConsumer->updateType == CONSUMER_ADD_REB) {
     char *pNewTopic = taosStrdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
 
     // check if exist in current topic
@@ -1046,7 +1049,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
            (int)taosArrayGetSize(pOldConsumer->currentTopics), (int)taosArrayGetSize(pOldConsumer->rebNewTopics),
            (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
 
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB_MODIFY_REMOVE) {
+  } else if (pNewConsumer->updateType == CONSUMER_REMOVE_REB) {
     char *removedTopic = taosArrayGetP(pNewConsumer->rebRemovedTopics, 0);
 
     // remove from removed topic
