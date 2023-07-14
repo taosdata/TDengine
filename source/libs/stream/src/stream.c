@@ -61,7 +61,7 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   return taosStrdup(buf);
 }
 
-void streamSchedByTimer(void* param, void* tmrId) {
+static void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
   int8_t status = atomic_load_8(&pTask->triggerStatus);

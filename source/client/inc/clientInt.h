@@ -63,7 +63,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
-  int32_t passKeyCnt;   // with passVer call back
+  int8_t  connHbFlag;   // 0 init, 1 send req, 2 get resp
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -83,8 +83,9 @@ typedef struct {
   int8_t        threadStop;
   int8_t        quitByKill;
   TdThread      thread;
-  TdThreadMutex lock;  // used when app init and cleanup
+  TdThreadMutex lock;       // used when app init and cleanup
   SHashObj*     appSummary;
+  SHashObj*     appHbHash;  // key: clusterId
   SArray*       appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle  reqHandle[CONN_TYPE__MAX];
   FHbRspHandle  rspHandle[CONN_TYPE__MAX];
@@ -146,6 +147,7 @@ typedef struct STscObj {
   int64_t       id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
+  int32_t       authVer;
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
   SPassInfo     passInfo;

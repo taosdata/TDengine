@@ -289,6 +289,10 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
 static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) {
   int32_t i = 0, j = 0;
 
+  if (j < pSupInfo->numOfCols && PRIMARYKEY_TIMESTAMP_COL_ID == pSupInfo->colId[j]) {
+    j += 1;
+  }
+  
   while (i < pSchema->numOfCols && j < pSupInfo->numOfCols) {
     STColumn* pTCol = &pSchema->columns[i];
     if (pTCol->colId == pSupInfo->colId[j]) {
@@ -3064,6 +3068,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
     // only check here, since the iterate data in memory is very fast.
     if (pReader->code != TSDB_CODE_SUCCESS) {
       tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", strerror(pReader->code), pReader->idStr);
+      taosArrayDestroy(pIndexList);
       return pReader->code;
     }
 
@@ -5586,4 +5591,3 @@ void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
 }
 
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
-

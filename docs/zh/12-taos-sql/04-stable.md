@@ -52,6 +52,11 @@ DESCRIBE [db_name.]stb_name;
 ### 获取超级表中所有子表的标签信息
 
 ```
+SHOW TABLE TAGS FROM table_name [FROM db_name];
+SHOW TABLE TAGS FROM [db_name.]table_name;
+```
+
+```
 taos> SHOW TABLE TAGS FROM st1;
              tbname             |     id      |         loc          |
 ======================================================================

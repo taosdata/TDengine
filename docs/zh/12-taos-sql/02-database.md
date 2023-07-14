@@ -41,7 +41,7 @@ database_option: {
 
 ### 参数说明
 
-- BUFFER: 一个 VNODE 写入内存池大小，单位为 MB，默认为 96，最小为 3，最大为 16384。
+- BUFFER: 一个 VNODE 写入内存池大小，单位为 MB，默认为 256，最小为 3，最大为 16384。
 - CACHEMODEL：表示是否在内存中缓存子表的最近数据。默认为 none。
   - none：表示不缓存。
   - last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。

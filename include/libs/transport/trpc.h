@@ -46,6 +46,7 @@ typedef struct SRpcHandleInfo {
   int8_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp)
   int8_t  persistHandle;  // persist handle or not
   int8_t  hasEpSet;
+  int32_t cliVer;
 
   // app info
   void *ahandle;  // app handle set by client
@@ -83,6 +84,7 @@ typedef struct SRpcInit {
   int32_t  sessions;      // number of sessions allowed
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
+  int32_t  compatibilityVer;
 
   int32_t retryMinInterval;  // retry init interval
   int32_t retryStepFactor;   // retry interval factor

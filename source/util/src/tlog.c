@@ -486,24 +486,11 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
-#if 0 
-    // DEBUG_FATAL and DEBUG_ERROR are duplicated
-    // fsync will cause thread blocking and may also generate log misalignment in case of asyncLog
-    if (tsAsyncLog && level != DEBUG_FATAL) {
-      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
-    } else {
-      taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
-      if (level == DEBUG_FATAL) {
-        taosFsyncFile(tsLogObj.logHandle->pFile);
-      }
-    }
-#else
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
     }
-#endif
 
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
