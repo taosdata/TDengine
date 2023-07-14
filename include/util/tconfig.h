@@ -50,6 +50,12 @@ typedef enum {
   CFG_DTYPE_TIMEZONE
 } ECfgDataType;
 
+typedef enum {
+  CFG_SCOPE_SERVER,
+  CFG_SCOPE_CLIENT,
+  CFG_SCOPE_BOTH
+} ECfgScopeType;
+
 typedef struct SConfigItem {
   ECfgSrcType  stype;
   ECfgDataType dtype;
@@ -106,6 +112,7 @@ const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
 
 void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 

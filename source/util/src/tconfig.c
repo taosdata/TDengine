@@ -543,6 +543,27 @@ void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *p
   *pLen = len;
 }
 
+void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
+  int32_t len = 0;
+  switch ((int8_t)pItem->tsc) {
+    case CFG_SCOPE_SERVER:
+      len = snprintf(buf, bufSize, "server");
+      break;
+    case CFG_SCOPE_CLIENT:
+      len = snprintf(buf, bufSize, "client");
+      break;
+    case CFG_SCOPE_BOTH:
+      len = snprintf(buf, bufSize, "both");
+      break;
+  }
+
+  if (len > bufSize) {
+    len = bufSize;
+  }
+
+  *pLen = len;
+}
+
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
     printf("                     global config");
