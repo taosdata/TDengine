@@ -373,7 +373,8 @@ export default {
     async getUserAuthority() {
       try {
         return await sendSQLReq(
-          `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+          // `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+          `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         ).then((res) => {
           this.loading = false;
           if (res) {
@@ -384,6 +385,7 @@ export default {
                 })
               );
             });
+            console.log(result,'===pp');
             if (
               result.length > 0 &&
               ["official", "trial"].includes(result[0].version)
