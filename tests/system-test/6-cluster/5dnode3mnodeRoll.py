@@ -27,7 +27,7 @@ import threading
 import time
 import json
 
-BASEVERSION = "3.0.5.0"
+BASEVERSION = "3.0.7.0"
 
 class TDTestCase:
 
@@ -243,12 +243,14 @@ class TDTestCase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y   -k 10 -z 5 ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
-        self.buildTaosd(bPath)
+        # self.buildTaosd(bPath)
 
         threads=[]
         threads.append(threading.Thread(target=self.insertAllData, args=(cPath_temp,dbname,tableNumbers1,recordNumbers1)))
         for tr in threads:
             tr.start()
+         # when  inserting data porcess has been started  up ,we can upgrade taosd
+        sleep(5)
         tdLog.printNoPrefix("==========step2:start to rolling upgdade ")
         for i in range(dnodeNumbers):
             tdDnodes[i].running = 1
@@ -258,7 +260,7 @@ class TDTestCase:
 
         for tr in threads:
             tr.join()
-        #  waiting 10s for  taosd cluster  ready
+        #  wait 10s for  taosd cluster  ready
         sleep(10)
         tdsql=tdCom.newTdSql()
         print(tdsql)
