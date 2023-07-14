@@ -745,23 +745,44 @@ _error:
   return code;
 }
 
-int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
+int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasicParam* pBasicParam) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
-  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperator->pOperatorParam->value;
-  int32_t* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pParam->vgId, sizeof(pParam->vgId));
+  int32_t* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
   if (NULL == pIdx) {
-    qError("No exchange source for vgId: %d", pParam->vgId);
-    pOperator->pTaskInfo->code = TSDB_CODE_INVALID_PARA;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+    qError("No exchange source for vgId: %d", pBasicParam->vgId);
+    return TSDB_CODE_INVALID_PARA;
   }
-
+  
   SSourceDataInfo dataInfo = {0};
   dataInfo.status = EX_SOURCE_DATA_NOT_READY;
   dataInfo.taskId = GET_TASKID(pOperator->pTaskInfo);
   dataInfo.index = *pIdx;
-  dataInfo.pSrcUidList = taosArrayDup(pParam->uidList, NULL);
-  dataInfo.srcOpType = pParam->srcOpType;
+  dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
+  dataInfo.srcOpType = pBasicParam->srcOpType;
   taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SExchangeOperatorBasicParam* pBasicParam = NULL;
+  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperator->pOperatorParam->value;
+  if (pParam->multiParams) {
+    SExchangeOperatorBatchParam* pBatch = (SExchangeOperatorBatchParam*)pOperator->pOperatorParam->value;
+    int32_t iter = 0;
+    while (pBasicParam = tSimpleHashIterate(pBatch->pBatchs, pBasicParam, &iter)) {
+      code = addSingleExchangeSource(pOperator, pBasicParam);
+      if (code) {
+        return code;
+      }
+    }
+  } else {
+    pBasicParam = &pParam->basic;
+    code = addSingleExchangeSource(pOperator, pBasicParam);
+  }
 
   pOperator->pOperatorParam = NULL;
 

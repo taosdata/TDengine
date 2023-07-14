@@ -3527,6 +3527,9 @@ static int32_t msgToPhysiDeleteNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_GROUP_CACHE_CODE_BASE_NODE = 1,
+  PHY_GROUP_CACHE_CODE_GROUP_COLS_MAY_BE_NULL,
+  PHY_GROUP_CACHE_CODE_GROUP_BY_UID,
+  PHY_GROUP_CACHE_CODE_GLOBAL_GROUP,
   PHY_GROUP_CACHE_CODE_GROUP_COLUMNS
 };
 
@@ -3537,6 +3540,16 @@ static int32_t physiGroupCacheNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_GROUP_CACHE_CODE_GROUP_COLUMNS, nodeListToMsg, pNode->pGroupCols);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_GROUP_CACHE_CODE_GROUP_COLS_MAY_BE_NULL, pNode->grpColsMayBeNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_GROUP_CACHE_CODE_GROUP_BY_UID, pNode->grpByUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_GROUP_CACHE_CODE_GLOBAL_GROUP, pNode->globalGrp);
+  }
+
   return code;
 }
 
@@ -3553,6 +3566,15 @@ static int32_t msgToPhysiGroupCacheNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_GROUP_CACHE_CODE_GROUP_COLUMNS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pGroupCols);
         break;
+      case PHY_GROUP_CACHE_CODE_GROUP_COLS_MAY_BE_NULL:
+        code = tlvDecodeBool(pTlv, &pNode->grpColsMayBeNull);
+        break;    
+      case PHY_GROUP_CACHE_CODE_GROUP_BY_UID:
+        code = tlvDecodeBool(pTlv, &pNode->grpByUid);
+        break;    
+      case PHY_GROUP_CACHE_CODE_GLOBAL_GROUP:
+        code = tlvDecodeBool(pTlv, &pNode->globalGrp);
+        break;    
       default:
         break;
     }

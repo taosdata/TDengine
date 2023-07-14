@@ -616,28 +616,37 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
       SExchangeOperatorParam* pDExc = pDst->value;
       SExchangeOperatorParam* pSExc = pSrc->value;
       if (!pDExc->multiParams) {
-        SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
-        if (NULL == pBatch) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+        if (pSExc->basic.vgId != pDExc->basic.vgId) {
+          SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
+          if (NULL == pBatch) {
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
+          pBatch->multiParams = true;
+          pBatch->pBatchs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+          if (NULL == pBatch->pBatchs) {
+            taosMemoryFree(pBatch);
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
+          tSimpleHashPut(pBatch->pBatchs, &pDExc->basic.vgId, sizeof(pDExc->basic.vgId), &pDExc->basic, sizeof(pDExc->basic));        
+          tSimpleHashPut(pBatch->pBatchs, &pSExc->basic.vgId, sizeof(pSExc->basic.vgId), &pSExc->basic, sizeof(pSExc->basic));        
+          destroyOperatorParamValue(pDst->value);
+          pDst->value = pBatch;
+        } else {
+          taosArrayAddAll(pDExc->basic.uidList, pSExc->basic.uidList);
         }
-        pBatch->multiParams = true;
-        pBatch->pBatchs = taosArrayInit(4, sizeof(SExchangeOperatorBasicParam));
-        if (NULL == pBatch->pBatchs) {
-          taosMemoryFree(pBatch);
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-        taosArrayPush(pBatch->pBatchs, &pDExc->basic);        
-        taosArrayPush(pBatch->pBatchs, &pSExc->basic);
-        destroyOperatorParamValue(pDst->value);
-        pDst->value = pBatch;
       } else {
         SExchangeOperatorBatchParam* pBatch = pDst->value;
-        taosArrayPush(pBatch->pBatchs, &pSExc->basic);
+        SExchangeOperatorBasicParam* pBasic = tSimpleHashGet(pBatch->pBatchs, &pSExc->basic.vgId, sizeof(pSExc->basic.vgId));
+        if (pBasic) {
+          taosArrayAddAll(pBasic->uidList, pSExc->basic.uidList);          
+        } else {
+          tSimpleHashPut(pBatch->pBatchs, &pSExc->basic.vgId, sizeof(pSExc->basic.vgId), &pSExc->basic, sizeof(pSExc->basic));        
+        }
       }
       break;
     }
     default:
-      qError("invalid optype %d for merge operator params", (*ppDst)->opType);
+      qError("invalid optype %d for merge operator params", pDst->opType);
       return TSDB_CODE_INVALID_PARA;
   }
 
@@ -678,7 +687,7 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pPara
   for (int32_t i = 0; i < childrenNum; ++i) {
     SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pOperator->pOperatorParam->pChildren, i);
     if (pOperator->pDownstreamParams[pChild->downstreamIdx]) {
-      int32_t code = mergeOperatorParams(&pOperator->pDownstreamParams[pChild->downstreamIdx], pChild);
+      int32_t code = mergeOperatorParams(pOperator->pDownstreamParams[pChild->downstreamIdx], pChild);
       if (code) {
         return code;
       }

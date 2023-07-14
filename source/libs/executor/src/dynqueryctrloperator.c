@@ -36,7 +36,7 @@ static void destroyDynQueryCtrlOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, bool needCache, void* pGrpValue, int32_t grpValSize, SOperatorParam* pChild) {
+static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, bool needCache, int32_t vgId, int64_t tbUid, SOperatorParam* pChild) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -57,8 +57,8 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
   pGc->sessionId = atomic_add_fetch_64(&gSessionId, 1);
   pGc->downstreamIdx = downstreamIdx;
   pGc->needCache = needCache;
-  pGc->pGroupValue = pGrpValue;
-  pGc->groupValueSize = grpValSize;
+  pGc->vgId = vgId;
+  pGc->tbUid = tbUid;
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
   (*ppRes)->downstreamIdx = downstreamIdx;
@@ -78,15 +78,16 @@ static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, i
   if (NULL == pExc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  
-  pExc->vgId = *pVgId;
-  pExc->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pExc->uidList = taosArrayInit(1, sizeof(int64_t));
-  if (NULL == pExc->uidList) {
+
+  pExc->multiParams = false;
+  pExc->basic.vgId = *pVgId;
+  pExc->basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  pExc->basic.uidList = taosArrayInit(1, sizeof(int64_t));
+  if (NULL == pExc->basic.uidList) {
     taosMemoryFree(pExc);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  taosArrayPush(pExc->uidList, pUid);
+  taosArrayPush(pExc->basic.uidList, pUid);
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   (*ppRes)->downstreamIdx = downstreamIdx;
@@ -145,10 +146,10 @@ static int32_t buildStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJ
     code = buildExchangeOperatorParam(&pExcParam1, 1, rightVg, rightUid, NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam0, 0, false, leftUid, pUid0->info.bytes, pExcParam0);
+    code = buildGroupCacheOperatorParam(&pGcParam0, 0, false, *leftVg, *leftUid, pExcParam0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam1, 1, false, rightUid, pUid1->info.bytes, pExcParam1);
+    code = buildGroupCacheOperatorParam(&pGcParam1, 1, false, *rightVg, *rightUid, pExcParam1);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildMergeJoinOperatorParam(ppParam, pGcParam0, pGcParam1);

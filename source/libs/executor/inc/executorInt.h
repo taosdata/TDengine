@@ -109,8 +109,8 @@ typedef struct SGcOperatorParam {
   int64_t             sessionId;
   int32_t             downstreamIdx;
   bool                needCache;
-  void*               pGroupValue;
-  int32_t             groupValueSize;
+  int32_t             vgId;
+  int64_t             tbUid;
 } SGcOperatorParam;
 
 typedef struct SExprSupp {
@@ -158,7 +158,7 @@ typedef struct SExchangeOperatorBasicParam {
 
 typedef struct SExchangeOperatorBatchParam {
   bool            multiParams;
-  SArray*         pBatchs; // SArray<SExchangeOperatorBasicParam>
+  SSHashObj*      pBatchs; // SExchangeOperatorBasicParam
 } SExchangeOperatorBatchParam;
 
 typedef struct SExchangeOperatorParam {
@@ -716,6 +716,9 @@ void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 uint64_t calcGroupId(char* pData, int32_t len);
 void streamOpReleaseState(struct SOperatorInfo* pOperator);
 void streamOpReloadState(struct SOperatorInfo* pOperator);
+
+void destroyOperatorParamValue(void* pValues);
+int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 
 #ifdef __cplusplus
 }

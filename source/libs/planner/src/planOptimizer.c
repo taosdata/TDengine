@@ -3231,6 +3231,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
   
   pGrpCache->node.dynamicOp = true;
   pGrpCache->grpColsMayBeNull = false;
+  pGrpCache->grpByUid = true;
   pGrpCache->node.pChildren = pChildren;
   pGrpCache->node.pTargets = nodesMakeList();
   if (NULL == pGrpCache->node.pTargets) {
@@ -3252,11 +3253,16 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
     }
   }
 
+  bool hasCond = false;
   SNode* pNode = NULL;
   FOREACH(pNode, pChildren) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (pScan->node.pConditions) {
+      hasCond = true;
+    }
     pScan->node.pParent = (SLogicNode*)pGrpCache;
   }
+  pGrpCache->globalGrp = !hasCond;
 
   if (TSDB_CODE_SUCCESS == code) {
     *ppLogic = (SLogicNode*)pGrpCache;
