@@ -72,7 +72,7 @@
               >
                 <div v-html="scope.row.last_modified_at" slot="content"></div>
                 <div slot="content" v-html="scope.row.reason" 
-                style="height:200px;overflow:auto;"></div>
+                style="max-height:200px;overflow:auto;"></div>
                 <span style="width: 60px; display: inline-block">{{
                   scope.row.status
                 }}</span>

@@ -1,8 +1,7 @@
 <template>
   <div >
     <div class="float">
-      You can use Grafana to monitor the TDengine running status, please follow
-      the steps below:
+      {{$t('docs.dashboard.monitortip')}}
     </div>
 
     <p v-html="$t('docs.dashboard.dashboarddesc')"></p>
@@ -266,7 +265,7 @@ img {
   position: absolute;
   top: -80px;
   right: -30px;
-  z-index: 9999;
+  z-index: 999;
   display: flex;
   width: 330px;
   padding: 14px 26px 14px 13px;
