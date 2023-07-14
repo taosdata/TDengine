@@ -452,7 +452,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     }
   }
 
-  if (diffIdx == -1 && diffIdx == 0) {
+  if (diffIdx == -1 || diffIdx == 0) {
     goto _err;
   }
 
@@ -939,7 +939,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t timePointMs, SArray *tbUids) {
     return 0;
   }
 
-  metaInfo("ttl find expired table count: %zu" , TARRAY_SIZE(tbUids));
+  metaInfo("ttl find expired table count: %zu", TARRAY_SIZE(tbUids));
 
   metaDropTables(pMeta, tbUids);
   return 0;

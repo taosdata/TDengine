@@ -507,10 +507,12 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       destroyRowBuffPos(pNewPos);
       SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
       taosMemoryFreeClear(pNode);
+      taosMemoryFreeClear(pVal);
       break;
     }
     ASSERT(pVLen == pFileState->rowSize);
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
+    taosMemoryFreeClear(pVal);
     code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);

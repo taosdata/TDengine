@@ -240,6 +240,7 @@
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/basic3.sim
 ./test.sh -f tsim/stream/basic4.sim
+./test.sh -f tsim/stream/checkpointInterval0.sim
 ./test.sh -f tsim/stream/checkStreamSTable1.sim
 ./test.sh -f tsim/stream/checkStreamSTable.sim
 ./test.sh -f tsim/stream/deleteInterval.sim

@@ -40,16 +40,8 @@ typedef struct {
   rocksdb_comparator_t**           pCompares;
 } RocksdbCfInst;
 
-uint32_t nextPow2(uint32_t x) {
-  if (x <= 1) return 2;
-  x = x - 1;
-  x = x | (x >> 1);
-  x = x | (x >> 2);
-  x = x | (x >> 4);
-  x = x | (x >> 8);
-  x = x | (x >> 16);
-  return x + 1;
-}
+uint32_t nextPow2(uint32_t x);
+
 int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t nCf);
 
 void destroyRocksdbCfInst(RocksdbCfInst* inst);
@@ -262,8 +254,8 @@ void streamBackendCleanup(void* arg) {
 
   taosThreadMutexDestroy(&pHandle->cfMutex);
 
-  taosMemoryFree(pHandle);
   qDebug("destroy stream backend backend:%p", pHandle);
+  taosMemoryFree(pHandle);
   return;
 }
 void streamBackendHandleCleanup(void* arg) {
@@ -986,8 +978,8 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   char             suffix[64] = {0};
 
   rocksdb_options_t**              cfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
-  RocksdbCfParam*                  params = taosMemoryCalloc(nCf, sizeof(RocksdbCfParam*));
-  rocksdb_comparator_t**           pCompare = taosMemoryCalloc(nCf, sizeof(rocksdb_comparator_t**));
+  RocksdbCfParam*                  params = taosMemoryCalloc(nCf, sizeof(RocksdbCfParam));
+  rocksdb_comparator_t**           pCompare = taosMemoryCalloc(nCf, sizeof(rocksdb_comparator_t*));
   rocksdb_column_family_handle_t** cfHandle = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
 
   for (int i = 0; i < nCf; i++) {
@@ -1153,7 +1145,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     param[i].tableOpt = tableOpt;
   };
 
-  rocksdb_comparator_t** pCompare = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t**));
+  rocksdb_comparator_t** pCompare = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t*));
   for (int i = 0; i < cfLen; i++) {
     SCfInit* cf = &ginitDict[i];
 
@@ -1294,8 +1286,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* pChk
     int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                  \
     rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);               \
     if (err != NULL) {                                                                                                 \
-      taosMemoryFree(err);                                                                                             \
       qError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                           \
+      taosMemoryFree(err);                                                                                             \
       code = -1;                                                                                                       \
     } else {                                                                                                           \
       qTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d", toString, funcname, vLen, ttlVLen); \
@@ -2360,4 +2352,14 @@ int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
     return -1;
   }
   return 0;
+}
+uint32_t nextPow2(uint32_t x) {
+  if (x <= 1) return 2;
+  x = x - 1;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  return x + 1;
 }

@@ -1788,10 +1788,13 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
   buf = decodeSTimeWindowAggSupp(buf, &pInfo->twAggSup);
   int32_t tlen = len - (pBuff - buf);
 
-  void* pUpInfo = pInfo->stateStore.updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0, pInfo->igCheckUpdate);
+  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   int32_t code = pInfo->stateStore.updateInfoDeserialize(buf, tlen, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
+    pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
     pInfo->pUpdateInfo = pUpInfo;
+  } else {
+    taosMemoryFree(pUpInfo);
   }
 }
 
