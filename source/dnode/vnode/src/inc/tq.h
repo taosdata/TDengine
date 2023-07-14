@@ -168,7 +168,7 @@ char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver, int64_t checkpointId);
 int32_t tqStreamTasksScanWal(STQ* pTq);
 int32_t tqStreamTasksStatusCheck(STQ* pTq);
 

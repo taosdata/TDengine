@@ -836,48 +836,48 @@ _OVER:
   return code;
 }
 
-static int32_t mndCreateCheckpoint(SMnode *pMnode, int32_t vgId, SList *pStreamList) {
-  void   *buf = NULL;
-  int32_t tlen = 0;
-  int32_t checkpointId = tGenIdPI64();
+// static int32_t mndCreateCheckpoint(SMnode *pMnode, int32_t vgId, SList *pStreamList) {
+//   void   *buf = NULL;
+//   int32_t tlen = 0;
+//   int32_t checkpointId = tGenIdPI64();
 
-  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
-  SArray *stream = taosArrayInit(64, sizeof(void *));
+//   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
+//   SArray *stream = taosArrayInit(64, sizeof(void *));
 
-  SListIter iter = {0};
-  tdListInitIter(pStreamList, &iter, TD_LIST_FORWARD);
-  SListNode *pNode = NULL;
-  while ((pNode = tdListNext(&iter)) != NULL) {
-    char streamName[TSDB_STREAM_FNAME_LEN] = {0};
-    tdListNodeGetData(pStreamList, pNode, streamName);
-    SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
-    taosArrayPush(stream, &pStream);
-  }
+//   SListIter iter = {0};
+//   tdListInitIter(pStreamList, &iter, TD_LIST_FORWARD);
+//   SListNode *pNode = NULL;
+//   while ((pNode = tdListNext(&iter)) != NULL) {
+//     char streamName[TSDB_STREAM_FNAME_LEN] = {0};
+//     tdListNodeGetData(pStreamList, pNode, streamName);
+//     SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
+//     taosArrayPush(stream, &pStream);
+//   }
 
-  if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, vgId, checkpointId, 0, 0) < 0) {
-    mndReleaseVgroup(pMnode, pVgObj);
-    for (int i = 0; i < taosArrayGetSize(stream); i++) {
-      SStreamObj *p = taosArrayGetP(stream, i);
-      mndReleaseStream(pMnode, p);
-    }
-    taosArrayDestroy(stream);
-    return -1;
+//   if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, vgId, checkpointId, 0, 0) < 0) {
+//     mndReleaseVgroup(pMnode, pVgObj);
+//     for (int i = 0; i < taosArrayGetSize(stream); i++) {
+//       SStreamObj *p = taosArrayGetP(stream, i);
+//       mndReleaseStream(pMnode, p);
+//     }
+//     taosArrayDestroy(stream);
+//     return -1;
 
-    STransAction action = {0};
-    action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
-    action.pCont = buf;
-    action.contLen = tlen;
-    action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
-  }
-  mndReleaseVgroup(pMnode, pVgObj);
+//     STransAction action = {0};
+//     action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+//     action.pCont = buf;
+//     action.contLen = tlen;
+//     action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
+//   }
+//   mndReleaseVgroup(pMnode, pVgObj);
 
-  for (int i = 0; i < taosArrayGetSize(stream); i++) {
-    SStreamObj *p = taosArrayGetP(stream, i);
-    mndReleaseStream(pMnode, p);
-  }
-  taosArrayDestroy(stream);
-  return 0;
-}
+//   for (int i = 0; i < taosArrayGetSize(stream); i++) {
+//     SStreamObj *p = taosArrayGetP(stream, i);
+//     mndReleaseStream(pMnode, p);
+//   }
+//   taosArrayDestroy(stream);
+//   return 0;
+// }
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -979,106 +979,107 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
 
   return 0;
 }
-static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId) {
-  int64_t timestampMs = taosGetTimestampMs();
-  if (timestampMs - pStream->checkpointFreq < tsStreamCheckpointTickInterval * 1000) {
-    return -1;
-  }
+// static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId) {
+//   int64_t timestampMs = taosGetTimestampMs();
+//   if (timestampMs - pStream->checkpointFreq < tsStreamCheckpointTickInterval * 1000) {
+//     return -1;
+//   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
-  if (pTrans == NULL) return -1;
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
-    mError("failed to checkpoint of stream name%s, checkpointId: %" PRId64 ", reason:%s", pStream->name, checkpointId,
-           tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  mDebug("start to trigger checkpoint for stream:%s, checkpoint: %" PRId64 "", pStream->name, checkpointId);
-  atomic_store_64(&pStream->currentTick, 1);
-  taosWLockLatch(&pStream->lock);
-  // 1. redo action: broadcast checkpoint source msg for all source vg
-  int32_t totLevel = taosArrayGetSize(pStream->tasks);
-  for (int32_t i = 0; i < totLevel; i++) {
-    SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
-    SStreamTask *pTask = taosArrayGetP(pLevel, 0);
-    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-      int32_t sz = taosArrayGetSize(pLevel);
-      for (int32_t j = 0; j < sz; j++) {
-        SStreamTask *pTask = taosArrayGetP(pLevel, j);
-        /*A(pTask->info.nodeId > 0);*/
-        SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
-        if (pVgObj == NULL) {
-          taosWUnLockLatch(&pStream->lock);
-          mndTransDrop(pTrans);
-          return -1;
-        }
+//   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
+//   if (pTrans == NULL) return -1;
+//   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+//   if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+//     mError("failed to checkpoint of stream name%s, checkpointId: %" PRId64 ", reason:%s", pStream->name,
+//     checkpointId,
+//            tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
+//     mndTransDrop(pTrans);
+//     return -1;
+//   }
+//   mDebug("start to trigger checkpoint for stream:%s, checkpoint: %" PRId64 "", pStream->name, checkpointId);
+//   atomic_store_64(&pStream->currentTick, 1);
+//   taosWLockLatch(&pStream->lock);
+//   // 1. redo action: broadcast checkpoint source msg for all source vg
+//   int32_t totLevel = taosArrayGetSize(pStream->tasks);
+//   for (int32_t i = 0; i < totLevel; i++) {
+//     SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+//     SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+//     if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+//       int32_t sz = taosArrayGetSize(pLevel);
+//       for (int32_t j = 0; j < sz; j++) {
+//         SStreamTask *pTask = taosArrayGetP(pLevel, j);
+//         /*A(pTask->info.nodeId > 0);*/
+//         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
+//         if (pVgObj == NULL) {
+//           taosWUnLockLatch(&pStream->lock);
+//           mndTransDrop(pTrans);
+//           return -1;
+//         }
 
-        void   *buf;
-        int32_t tlen;
-        if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
-                                               pTask->id.taskId) < 0) {
-          mndReleaseVgroup(pMnode, pVgObj);
-          taosWUnLockLatch(&pStream->lock);
-          mndTransDrop(pTrans);
-          return -1;
-        }
+//         void   *buf;
+//         int32_t tlen;
+//         if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
+//                                                pTask->id.taskId) < 0) {
+//           mndReleaseVgroup(pMnode, pVgObj);
+//           taosWUnLockLatch(&pStream->lock);
+//           mndTransDrop(pTrans);
+//           return -1;
+//         }
 
-        STransAction action = {0};
-        action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
-        action.pCont = buf;
-        action.contLen = tlen;
-        action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
+//         STransAction action = {0};
+//         action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+//         action.pCont = buf;
+//         action.contLen = tlen;
+//         action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
 
-        mndReleaseVgroup(pMnode, pVgObj);
+//         mndReleaseVgroup(pMnode, pVgObj);
 
-        if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-          taosMemoryFree(buf);
-          taosWUnLockLatch(&pStream->lock);
-          mndReleaseStream(pMnode, pStream);
-          mndTransDrop(pTrans);
-          return -1;
-        }
-      }
-    }
-  }
-  // 2. reset tick
-  pStream->checkpointFreq = checkpointId;
-  pStream->checkpointId = checkpointId;
-  pStream->checkpointFreq = taosGetTimestampMs();
-  atomic_store_64(&pStream->currentTick, 0);
-  // 3. commit log: stream checkpoint info
-  pStream->version = pStream->version + 1;
-  taosWUnLockLatch(&pStream->lock);
+//         if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+//           taosMemoryFree(buf);
+//           taosWUnLockLatch(&pStream->lock);
+//           mndReleaseStream(pMnode, pStream);
+//           mndTransDrop(pTrans);
+//           return -1;
+//         }
+//       }
+//     }
+//   }
+//   // 2. reset tick
+//   pStream->checkpointFreq = checkpointId;
+//   pStream->checkpointId = checkpointId;
+//   pStream->checkpointFreq = taosGetTimestampMs();
+//   atomic_store_64(&pStream->currentTick, 0);
+//   // 3. commit log: stream checkpoint info
+//   pStream->version = pStream->version + 1;
+//   taosWUnLockLatch(&pStream->lock);
 
-  //   // code condtion
+//   //   // code condtion
 
-  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
-  if (pCommitRaw == NULL) {
-    mError("failed to prepare trans rebalance since %s", terrstr());
-    goto _ERR;
-  }
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    sdbFreeRaw(pCommitRaw);
-    mError("failed to prepare trans rebalance since %s", terrstr());
-    goto _ERR;
-  }
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) {
-    sdbFreeRaw(pCommitRaw);
-    mError("failed to prepare trans rebalance since %s", terrstr());
-    goto _ERR;
-  }
+//   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
+//   if (pCommitRaw == NULL) {
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+//   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+//     sdbFreeRaw(pCommitRaw);
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+//   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) {
+//     sdbFreeRaw(pCommitRaw);
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("failed to prepare trans rebalance since %s", terrstr());
-    goto _ERR;
-  }
-  mndTransDrop(pTrans);
-  return 0;
-_ERR:
-  mndTransDrop(pTrans);
-  return -1;
-}
+//   if (mndTransPrepare(pMnode, pTrans) != 0) {
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+//   mndTransDrop(pTrans);
+//   return 0;
+// _ERR:
+//   mndTransDrop(pTrans);
+//   return -1;
+// }
 
 static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream, SMnode *pMnode,
                                              int64_t checkpointId) {

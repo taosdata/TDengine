@@ -241,9 +241,11 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
 // add to the ready tasks hash map, not the restored tasks hash map
 int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
+  int64_t checkpointId = 0;
+
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver, checkpointId) < 0) {
       tFreeStreamTask(pTask);
       return -1;
     }
@@ -404,7 +406,45 @@ int32_t streamMetaAbort(SStreamMeta* pMeta) {
   return 0;
 }
 
+int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
+  int64_t chkpId = 0;
+
+  TBC* pCur = NULL;
+  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
+    return chkpId;
+  }
+  void*    pKey = NULL;
+  int32_t  kLen = 0;
+  void*    pVal = NULL;
+  int32_t  vLen = 0;
+  SDecoder decoder;
+
+  tdbTbcMoveToFirst(pCur);
+  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+    SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+    if (pTask == NULL) {
+      goto _err;
+    }
+
+    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+    tDecodeStreamTask(&decoder, pTask);
+    tDecoderClear(&decoder);
+
+    chkpId = TMAX(chkpId, pTask->chkInfo.checkpointId);
+
+    taosMemoryFree(pTask);  // fix mem leak later
+  }
+
+_err:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+
+  return chkpId;
+}
 int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
+  int64_t checkpointId = streamGetLatestCheckpointId(pMeta);
+
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     return -1;
@@ -417,7 +457,6 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
   SDecoder decoder;
 
   tdbTbcMoveToFirst(pCur);
-
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
     if (pTask == NULL) {
@@ -434,7 +473,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     // remove duplicate
     void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
     if (p == NULL) {
-      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer, checkpointId) < 0) {
         tdbFree(pKey);
         tdbFree(pVal);
         tdbTbcClose(pCur);
