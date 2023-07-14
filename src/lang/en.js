@@ -258,7 +258,7 @@ export default {
     programming: "Programming",
     healthreport: 'Health Report',
     backup: "Backup",
-    admin: "System management",
+    admin: "Management",
     cluster: 'Cluster'
   },
   login: {
