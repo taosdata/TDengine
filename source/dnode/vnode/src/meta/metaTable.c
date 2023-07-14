@@ -974,7 +974,15 @@ static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
 }
 
 static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
+  if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
+
   STtlDelTtlCtx ctx = {.uid = pME->uid, .pTxn = pMeta->txn};
+  if (pME->type == TSDB_CHILD_TABLE) {
+    ctx.ttlDays = pME->ctbEntry.ttlDays;
+  } else {
+    ctx.ttlDays = pME->ntbEntry.ttlDays;
+  }
+
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
@@ -1973,7 +1981,6 @@ static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
 
   STtlUpdTtlCtx ctx = {.uid = pME->uid};
-
   if (pME->type == TSDB_CHILD_TABLE) {
     ctx.ttlDays = pME->ctbEntry.ttlDays;
     ctx.changeTimeMs = pME->ctbEntry.btime;
