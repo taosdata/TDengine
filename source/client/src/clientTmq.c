@@ -1901,7 +1901,7 @@ static void updateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal
 
   // update the valid wal version range
   pVg->offsetInfo.walVerBegin = sver;
-  pVg->offsetInfo.walVerEnd = ever;
+  pVg->offsetInfo.walVerEnd = ever + 1;
 //  pVg->receivedInfoFromVnode = true;
 }
 
@@ -2541,7 +2541,7 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
     SMqRspHead* pHead = pMsg->pData;
 
     tmq_topic_assignment assignment = {.begin = pHead->walsver,
-                                       .end = pHead->walever,
+                                       .end = pHead->walever + 1,
                                        .currentOffset = rsp.rspOffset.version,
                                        .vgId = pParam->vgId};
 
@@ -2600,7 +2600,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   *numOfAssignment = taosArrayGetSize(pTopic->vgs);
   for (int32_t j = 0; j < (*numOfAssignment); ++j) {
     SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, j);
-    int32_t type = pClientVg->offsetInfo.currentOffset.type;
+    int32_t type = pClientVg->offsetInfo.seekOffset.type;
     if (isInSnapshotMode(type, tmq->useSnapshot)) {
       tscError("consumer:0x%" PRIx64 " offset type:%d not wal version, assignment not allowed", tmq->consumerId, type);
       code = TSDB_CODE_TMQ_SNAPSHOT_ERROR;
@@ -2620,7 +2620,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
   for (int32_t j = 0; j < (*numOfAssignment); ++j) {
     SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, j);
-    if (pClientVg->offsetInfo.currentOffset.type != TMQ_OFFSET__LOG) {
+    if (pClientVg->offsetInfo.seekOffset.type != TMQ_OFFSET__LOG) {
       needFetch = true;
       break;
     }
@@ -2705,7 +2705,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
       int64_t transporterId = 0;
       char    offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
-      tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.currentOffset);
+      tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.seekOffset);
 
       tscInfo("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s, reqId:0x%" PRIx64,
               tmq->consumerId, pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
@@ -2825,7 +2825,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   // update the offset, and then commit to vnode
   pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
-  pOffsetInfo->currentOffset.version = offset >= 1 ? offset - 1 : 0;
+  pOffsetInfo->currentOffset.version = offset;
   pOffsetInfo->seekOffset = pOffsetInfo->currentOffset;
 //  pOffsetInfo->committedOffset.version = INT64_MIN;
   pVg->seekUpdated = true;
