@@ -1166,7 +1166,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     mError("failed to trigger checkpoint, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return -1;
   }
-  mDebug("start to trigger checkpoint");
+  mDebug("start to trigger checkpoint, checkpointId: %" PRId64 "", checkpointId);
 
   mndTransSetDbName(pTrans, "checkpoint", "checkpoint");
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -1181,11 +1181,10 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     code = mndAddStreamCheckpointToTrans(pTrans, pStream, pMnode, checkpointId);
+    sdbRelease(pSdb, pStream);
     if (code == -1) {
-      sdbRelease(pSdb, pStream);
       break;
     }
-    sdbRelease(pSdb, pStream);
   }
   if (code == 0) {
     if (mndTransPrepare(pMnode, pTrans) != 0) {
