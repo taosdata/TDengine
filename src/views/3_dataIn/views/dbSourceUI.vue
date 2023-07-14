@@ -11,13 +11,13 @@
       </section>
       <div class="source-name" v-if="isEditable">
         <div class="block-title">
-          <span>数据源名称</span>
+          <span>{{$t('datasource.sourcename')}}</span>
         </div>
         <div class="name">
-          <span class="label">名称</span>
+          <span class="label">{{$t('name')}}</span>
           <el-input
             v-model="sourceName"
-            placeholder="请输入数据源名称"
+            placeholder=""
             style="width: 200px"
           ></el-input>
         </div>
