@@ -385,6 +385,7 @@ struct SVnode {
   SVState   state;
   SVStatis  statis;
   STfs*     pTfs;
+  int32_t   diskPrimary;
   SMsgCb    msgCb;
 
   // Buffer Pool

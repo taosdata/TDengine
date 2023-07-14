@@ -17,6 +17,12 @@
 #include "vmInt.h"
 #include "vnd.h"
 
+int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
+  // search fs
+  // alloc
+  return 0;
+}
+
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
 
@@ -52,6 +58,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 
   pVnode->vgId = pCfg->vgId;
   pVnode->vgVersion = pCfg->vgVersion;
+  pVnode->diskPrimary = pCfg->diskPrimary;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
   pVnode->path = taosStrdup(pCfg->path);
@@ -169,7 +176,8 @@ static int32_t vmRestoreVgroupId(SWrapperCfg *pCfg, STfs *pTfs) {
   snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
   snprintf(dstPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, dstVgId);
 
-  int32_t vgId = vnodeRestoreVgroupId(srcPath, dstPath, srcVgId, dstVgId, pTfs);
+  int32_t diskPrimary = pCfg->diskPrimary;
+  int32_t vgId = vnodeRestoreVgroupId(srcPath, dstPath, srcVgId, dstVgId, diskPrimary, pTfs);
   if (vgId <= 0) {
     dError("vgId:%d, failed to restore vgroup id. srcPath: %s", pCfg->vgId, srcPath);
     return -1;
@@ -205,9 +213,10 @@ static void *vmOpenVnodeInThread(void *param) {
       pThread->updateVnodesList = true;
     }
 
+    int32_t diskPrimary = pCfg->diskPrimary;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
 
-    SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
