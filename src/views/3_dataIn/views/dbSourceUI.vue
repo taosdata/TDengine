@@ -552,7 +552,7 @@
                   ></el-input-number>
                 </template>
                 <template v-if="p.hint == 'time' || p.hint?.type == 'time'">
-                  <el-date-picker
+                  <DatePicker
                     v-model="p.value"
                     value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
@@ -562,8 +562,8 @@
                     "
                     :placeholder="p.placeholder"
                   >
-                  </el-date-picker>
-                  <el-date-picker
+                  </DatePicker>
+                  <DatePicker
                     v-model="p.value"
                     value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
@@ -578,7 +578,7 @@
                     "
                     :placeholder="p.placeholder"
                   >
-                  </el-date-picker>
+                  </DatePicker>
                 </template>
                 <!-- <template v-if="p.hint?.type == 'datetime'">
                   <el-date-picker
@@ -633,11 +633,14 @@
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import DatePicker from '@/components/date-picker'
 import { Message } from "element-ui";
 import marked from "marked";
 import { debounce } from "@/utils/index";
+import { switchTimezone } from '@/utils/date-util'
 export default {
   name: "DbSourceUI",
+  components: {DatePicker},
   props: {
     // sourceName: {
     //   type: String,
@@ -754,6 +757,7 @@ export default {
     this.getDatabases();
     if (this.isEditable) {
       this.dbname = this.dbName;
+      this.handleDatatime()
     }
     this.dbsource = this.dbsourceList;
   },
@@ -773,6 +777,19 @@ export default {
     },
   },
   methods: {
+    handleDatatime() {
+      this.$nextTick(() => {
+        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+          group.params.map((p) => {
+            if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
+                p.value = switchTimezone(p.value)
+              }
+              return p
+            });
+            return group
+          });
+      })
+    },
     changeHost(host) {
       if (this.tagName == "influxdb") {
         this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
