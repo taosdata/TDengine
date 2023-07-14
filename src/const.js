@@ -328,7 +328,7 @@ export const TDengineSqlKeywrods = [
   "TOP",
   "TOPIC",
   "TOPICS",
-  "TO_ISO0861",
+  "TO_ISO8601",
   "TO_JSON",
   "TO_UNIXTIMESTAMP",
   "TRIGGER",
@@ -607,7 +607,7 @@ export const CoversionFn = [
     supportDatatype:StringType.concat(IntegerType)
   },
   {
-    label: "TO_ISO0861",
+    label: "TO_ISO8601",
     supportDatatype:['int','timestamp']
   },
   {
