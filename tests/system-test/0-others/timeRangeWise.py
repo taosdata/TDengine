@@ -217,7 +217,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), True)
 
     # check query result same
-    def queryDouble(self, sql):
+    def queryDoubleImpl(self, sql):
         # sql
         sql1 = sql.replace('@db_name', self.db1)
         tdLog.info(sql1)
@@ -237,7 +237,7 @@ class TDTestCase:
         rowlen2 = len(res2)
 
         if rowlen1 != rowlen2:
-            tdLog.exit(f"rowlen1={rowlen1} rowlen2={rowlen2} both not equal.")
+            tdLog.info(f"check error. rowlen1={rowlen1} rowlen2={rowlen2} both not equal.")
             return False
         
         for i in range(rowlen1):
@@ -246,7 +246,7 @@ class TDTestCase:
             collen1 = len(row1)
             collen2 = len(row2)
             if collen1 != collen2:
-                tdLog.exit(f"collen1={collen1} collen2={collen2} both not equal.")
+                tdLog.info(f"checkerror. collen1={collen1} collen2={collen2} both not equal.")
                 return False
             for j in range(collen1):
                 if row1[j] != row2[j]:
@@ -261,6 +261,17 @@ class TDTestCase:
 
         return True
 
+    # check query result same
+    def queryDouble(self, sql, tryCount=60, gap=1):
+        for i in range(tryCount):
+            if self.queryDoubleImpl(sql):
+                return True
+            # error
+            tdLog.info(f"queryDouble return false, try loop={i}")
+            time.sleep(gap)
+
+        tdLog.exit(f"queryDouble try {tryCount} times, but all failed.")
+        return False
 
     # check result
     def checkResult(self):
