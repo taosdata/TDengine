@@ -3,8 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
-using Nett; // Nett is a popular TOML library for C#
 using System.Text;
+using Tomlyn;
 
 namespace TDPIConnector.Core
 {
@@ -85,7 +85,16 @@ namespace TDPIConnector.Core
         {
             tomlConfig = new TomlConfig();
             if (tomlConfigFile != null && tomlConfigFile != "") {
-                tomlConfig = Toml.ReadFile<TomlConfig>(tomlConfigFile);
+
+                string fileData = System.IO.File.ReadAllText(tomlConfigFile);
+
+                var tomlOption = new TomlModelOptions();
+                tomlOption.IgnoreMissingProperties = true;
+                tomlOption.ConvertPropertyName = (propertyName) =>
+                {
+                    return propertyName;
+                };
+                tomlConfig = Toml.ToModel<TomlConfig>(fileData, null, tomlOption);
                 log.Info($"toml file: {tomlConfig.ConfigString()}");
             }
 

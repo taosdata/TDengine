@@ -550,6 +550,22 @@ impl LushMessageInit {
         &self.name
     }
 
+    pub fn columns(&self) -> Vec<(String, IpcDataType)> {
+        let mut columns = Vec::new();
+        for ele in &self.columns {
+            columns.push((ele.name.clone(), ele.r#type.clone()));
+        }
+        columns
+    }
+
+    pub fn tags(&self) -> Vec<(String, IpcDataType)> {
+        let mut tags = Vec::new();
+        for ele in &self.tags {
+            tags.push((ele.name.clone(), ele.r#type.clone()))
+        }
+        tags
+    }
+
     pub fn column_data_type(&self, name: &str) -> Option<&IpcDataType> {
         self.columns
             .iter()

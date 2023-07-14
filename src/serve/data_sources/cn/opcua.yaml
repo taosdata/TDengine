@@ -51,7 +51,7 @@ authentication:
       display: 证书访问
       description: 使用私钥及证书反问 OPC 服务器。
       params:
-        
+
         - name: security_mode
           display: 安全模式
           description: |
@@ -167,11 +167,12 @@ groups:
           choices:
             - observe
             - subscribe
+        value: observe
   - name: 库表配置
     display_order: 4
-    description: | 
+    description: |
       超级表创建配置
- 
+
       - **received_time**: 采集时间戳。<br>
       - **original_time**: 原始时间戳。<br>
       - **value**: 采集点值。<br>

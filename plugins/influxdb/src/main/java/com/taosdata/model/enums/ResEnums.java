@@ -10,23 +10,23 @@ public enum ResEnums {
     /**
      * 成功
      */
-    SUCCESS("200", "成功"),
+    SUCCESS("200", "Success"),
 
     /**
      * 失败
      */
-    FAILED("201", "失败"),
+    FAILED("201", "Failed"),
 
     /**
      * 错误
      */
-    ERR_PARAM("301", "参数转换错误"),
-    ERR_DATABASE("302", "数据库错误"),
+    ERR_PARAM("301", "Parameter parsing error"),
+    ERR_DATABASE("302", "Database error"),
 
     /**
      * 异常
      */
-    EXCEPTION("500", "系统异常");
+    EXCEPTION("500", "System error");
 
     /**
      * 响应代码

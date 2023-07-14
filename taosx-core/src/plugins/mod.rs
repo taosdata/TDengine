@@ -12,6 +12,7 @@ pub use runners::opc::OPCConfig;
 pub use sink::IpcStreamWorker;
 pub use runners::kafka::kafka_to_taos;
 pub use runners::influxdb::influxdb_to_taos;
+pub use runners::influxdb::influxdb_datasets;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::pi::pi_to_taos;
@@ -70,6 +71,10 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
         "opc" | "opcua" | "opcda" => {
             // opc
             return opc_datasets(data).await;
+        }
+        "influxdb" => {
+            // influxdb
+            return influxdb_datasets(from).await;
         }
         _ => Ok(vec![]),
     }

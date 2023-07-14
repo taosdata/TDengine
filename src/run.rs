@@ -1,5 +1,4 @@
 use std::{time::Duration, io::BufRead};
-
 use anyhow::{bail, Context, Result};
 use taos::*;
 
@@ -42,7 +41,6 @@ pub(super) struct Cli {
     #[clap(short, long)]
     parser: Option<String>,
     // parser: Option<taosx_core::Parser>,
-
     /// Transformer actions.
     ///
     /// Supported action format:
@@ -201,11 +199,16 @@ impl Cli {
             ("mqtt", "taos") => {
                 let port_pool = PortPool::default();
                 let parser = if args.parser.is_some() {
-                    let file_content = utils::get_string_content_from_file_path(args.parser.unwrap().as_str());
+                    let file_content =
+                        utils::get_string_content_from_file_path(args.parser.unwrap().as_str());
                     if file_content.is_none() {
                         None
                     } else {
-                        Some(serde_json::from_str(file_content.unwrap().as_str()).with_context(|| format!("file content deserialize error")).unwrap())
+                        Some(
+                            serde_json::from_str(file_content.unwrap().as_str())
+                                .with_context(|| format!("file content deserialize error"))
+                                .unwrap(),
+                        )
                     }
                 } else {
                     None

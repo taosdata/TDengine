@@ -20,6 +20,7 @@ import com.taosdata.threads.*;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
+import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +65,9 @@ public class PreLoading implements CommandLineRunner {
     private InfluxdbPoolAutoConfig influxdbPool;
 
     @Resource
+    private InfluxdbV1PoolAutoConfig influxdbV1Pool;
+
+    @Resource
     private InfluxdbService influxdbService;
 
     @Resource
@@ -83,23 +87,41 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setDescription(StatusEnums.LOADING.getDesc());
             // 判断是否存在参数且参数是否为-v
             if (args == null || args.length == 0) {
-                logger.info("启动参数错误，启动失败");
+                logger.info("Parameters error, startup failed.");
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
                 System.exit(0);
-            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 3) {
-                // 获取连接参数
-                String url = args[1];
-                String token = args[2];
-                // 查询并输出查询结果
-                System.out.println(influxdbService.fetchSchemaInfo(url, token));
-                System.exit(0);
+            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 2) {
+                // 获取并判断版本
+                if (args[1].matches("1.*") && args.length >= 5) {
+                    // 获取连接参数
+                    String url = args[2];
+                    String username = args[3];
+                    String password = args[4];
+                    // 查询并输出查询结果
+                    System.out.println(influxdbService.fetchSchemaInfoV1(url, username, password));
+                    System.exit(0);
+                } else if (args[1].matches("2.*") && args.length >= 4) {
+                    // 获取连接参数
+                    String url = args[2];
+                    String token = args[3];
+                    // 查询并输出查询结果
+                    System.out.println(influxdbService.fetchSchemaInfo(url, token));
+                    System.exit(0);
+                } else {
+                    logger.info("Parameters error, query failed.");
+                    System.exit(1);
+                }
             } else {
                 // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
                 loadToml(args[0].trim());
             }
             // 创建influxdb连接池
-            this.influxdbPool.createInluxdbClientPool();
+            if (StringUtils.isEmpty(this.influxdbConfig.getVersion()) || this.influxdbConfig.getVersion().matches("2.*")) {
+                this.influxdbPool.createInluxdbClientPool();
+            } else {
+                this.influxdbV1Pool.createInluxdbV1ClientPool();
+            }
             // 启动线程MonitorThread
             MonitorThread monitor = new MonitorThread();
             Thread monitorThread = new Thread(monitor);
@@ -137,7 +159,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());
         } catch (Exception e) {
-            logger.error("系统启动过程中发生异常，启动失败", e);
+            logger.error("An exception occurred during the system startup process and the startup failed.", e);
             // 状态异常
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
@@ -156,23 +178,37 @@ public class PreLoading implements CommandLineRunner {
             // 解析配置内容
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置
-            this.influxdbConfig.setUrl((String) tomlParseResult.get("influx.url"));
-            this.influxdbConfig.setToken((String) tomlParseResult.get("influx.token"));
-            this.influxdbConfig.setOrgId((String) tomlParseResult.get("influx.orgId"));
-            this.nettyClientConfig.setHost((String) tomlParseResult.get("taosx.host"));
-            this.nettyClientConfig.setPort(((Long) tomlParseResult.get("taosx.port")).intValue());
-            this.taskConfig.setMode((String) tomlParseResult.get("task.mode"));
-            this.taskConfig.setBuckets(Arrays.asList((String) tomlParseResult.get("task.bucket")));
+            this.influxdbConfig.setUrl(tomlParseResult.getString("influx.url", String::new));
+            this.influxdbConfig.setVersion(tomlParseResult.getString("influx.version", String::new));
+            this.influxdbConfig.setUsername(tomlParseResult.getString("influx.username", String::new));
+            this.influxdbConfig.setPassword(tomlParseResult.getString("influx.password", String::new));
+            this.influxdbConfig.setToken(tomlParseResult.getString("influx.token", String::new));
+            this.influxdbConfig.setOrgId(tomlParseResult.getString("influx.orgId", String::new));
+            this.nettyClientConfig.setHost(tomlParseResult.getString("taosx.host", String::new));
+            this.nettyClientConfig.setPort((int) tomlParseResult.getLong("taosx.port", () -> 0L));
+            this.taskConfig.setMode(tomlParseResult.getString("task.mode", String::new));
+            this.taskConfig.setBuckets(Arrays.asList(tomlParseResult.getString("task.bucket", String::new)));
             Set<String> measurements = new HashSet<>();
             TomlArray tomlArray = tomlParseResult.getArrayOrEmpty("task.measurements");
             for (int i = 0; i < tomlArray.size(); i++) {
                 measurements.add((String) tomlArray.get(i));
             }
             this.taskConfig.setMeasurements(measurements);
-            this.taskConfig.setBeginTime((String) tomlParseResult.get("task.beginTime"));
-            this.taskConfig.setEndTime((String) tomlParseResult.get("task.endTime"));
+            this.taskConfig.setBeginTime(tomlParseResult.getString("task.beginTime", String::new));
+            this.taskConfig.setEndTime(tomlParseResult.getString("task.endTime", String::new));
+            this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
+            // 如果设置了性能参数，则覆盖默认值
+            if (tomlParseResult.getLong("performance.limitConnect") != null) {
+                this.performanceConfig.setLimitConnect(tomlParseResult.getLong("performance.limitConnect").intValue());
+            }
+            if (tomlParseResult.getLong("performance.limitSpeed") != null) {
+                this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());
+            }
+            if (tomlParseResult.getLong("performance.queueSizeD") != null) {
+                this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
+            }
         } catch (Exception e) {
-            logger.error("加载Toml文件过程中发生异常，启动失败", e);
+            logger.error("An exception occurred during the loading of the Toml file, causing startup failure.", e);
             // 状态异常
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
@@ -208,7 +244,7 @@ public class PreLoading implements CommandLineRunner {
                     }
                 }
             } catch (Exception e) {
-                logger.error("读取断点失败，将按照普通模式执行任务", e);
+                logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
     }
@@ -261,13 +297,13 @@ public class PreLoading implements CommandLineRunner {
                     threadInfo.setDescription(StatusEnums.LOADING.getDesc());
                     StatusCache.noteThread(threadInfo);
                 } catch (Exception e) {
-                    logger.error("初始化influxdb及相关线程过程中发生异常", e);
+                    logger.error("An exception occurred during the initialization of InfluxDB and related threads.", e);
                 }
             });
             // 没有bucket则报错退出
             if (BucketCache.bucketMap.size() == 0) {
                 // bucket错误
-                logger.error("The application will exit soon: bucket not found");
+                logger.error("The application will exit soon: bucket not found.");
                 System.exit(104);
             }
             // 估算任务量
@@ -295,7 +331,7 @@ public class PreLoading implements CommandLineRunner {
             threadInfo.setDescription(StatusEnums.LOADING.getDesc());
             StatusCache.noteThread(threadInfo);
         } catch (Exception e) {
-            logger.error("初始化influxdb及相关线程过程中发生异常", e);
+            logger.error("An exception occurred during the initialization of InfluxDB and related threads.", e);
         }
     }
 
@@ -367,10 +403,10 @@ public class PreLoading implements CommandLineRunner {
             Thread.sleep(2000L);
             // 判断是否变化
             if (fetchRecordsSize != StatisticCache.completedTaskSet.size() || queueRecordsSize != BucketDataCache.getBucketDataQueueSize()) {
-                logger.error("系统安全退出时内存数据发生变化");
+                logger.error("Memory data changes during system security exit.");
             }
         } catch (Exception e) {
-            logger.error("系统安全退出时判断数据变化失败", e);
+            logger.error("Failed to determine data changes during system security exit.", e);
         }
         // 操作系统临时目录
         String temporaryPath = System.getProperty("java.io.tmpdir");
@@ -379,7 +415,7 @@ public class PreLoading implements CommandLineRunner {
             String fetchRecords = StringUtils.join(StatisticCache.completedTaskSet.toArray(), RECORD_DELIMITER);
             FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_FETCH, fetchRecords);
         } catch (Exception e) {
-            logger.error("系统安全退出时保存读取记录失败", e);
+            logger.error("Failed to save read records during system security exit.", e);
         }
         // 将内存队列写入文件
         try {
@@ -392,8 +428,8 @@ public class PreLoading implements CommandLineRunner {
             }
             FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_QUEUE, sb.toString());
         } catch (Exception e) {
-            logger.error("系统安全退出时保存读取记录失败", e);
+            logger.error("Failed to save read records during system security exit.", e);
         }
-        logger.info("系统已执行安全退出。");
+        logger.info("The system has executed a secure exit.");
     }
 }

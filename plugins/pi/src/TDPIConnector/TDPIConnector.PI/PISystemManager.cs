@@ -66,7 +66,7 @@ namespace TDPIConnector.PI
             {
                 foreach (var attribute in element.Attributes)
                 {
-                    if (attribute.IsPIPointDataReference)
+                    if (attribute.PIPoint != null && attribute.IsPIPointDataReference)
                     {
                         if (!piPoints.ContainsKey(attribute.PIPoint.ID))
                             piPoints.Add(attribute.PIPoint.ID, attribute.PIPoint);

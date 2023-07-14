@@ -1,20 +1,24 @@
 use std::{fs, io::prelude::*, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
-
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
+use std::process::Output;
+use std::ptr::null;
 
 use anyhow::Context;
+use file_rotate::{
+    compression::Compression,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+};
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
+use crate::{Action, DataSet, plugins::sink, Transferred, utils::port_pool::PortPool};
 
 use super::get_plugin_dir;
+
+const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
+const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
 
 #[derive(Debug, serde::Serialize)]
 struct InfluxdbConfig {
@@ -24,6 +28,8 @@ struct InfluxdbConfig {
     taosx: TaosxConfig,
     // the task config
     task: TaskConfig,
+    // the performance config
+    performance: PerformanceConfig,
 
     // others
     #[serde(skip)]
@@ -37,6 +43,12 @@ struct InfluxdbConfig {
 struct InfluxConfig {
     #[serde(rename = "url")]
     influx_url: String,
+    #[serde(rename = "version")]
+    influx_version: String,
+    #[serde(rename = "username")]
+    influx_username: String,
+    #[serde(rename = "password")]
+    influx_password: String,
     #[serde(rename = "token")]
     influx_token: String,
     #[serde(rename = "orgId")]
@@ -57,16 +69,30 @@ struct TaskConfig {
     task_mode: String,
     #[serde(rename = "bucket")]
     task_bucket: String,
+    #[serde(rename = "measurements")]
+    task_measurements: Vec<String>,
     #[serde(rename = "beginTime")]
     task_begin_time: String,
     #[serde(rename = "endTime")]
     task_end_time: Option<String>,
 }
 
+#[derive(Debug, serde::Serialize)]
+struct PerformanceConfig {
+    #[serde(rename = "readWindow")]
+    performance_read_window: Option<String>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum InfluxdbError {
     #[error("The access address of InfluxDB is required: {0}")]
     InfluxUrlIsRequired(Dsn),
+    #[error("The version of InfluxDB is required: {0}")]
+    InfluxVersionIsRequired(Dsn),
+    #[error("The username is required: {0}")]
+    InfluxUsernameIsRequired(Dsn),
+    #[error("The password is required: {0}")]
+    InfluxPasswordIsRequired(Dsn),
     #[error("The access token is required: {0}")]
     InfluxTokenIsRequired(Dsn),
     #[error("The organization id is required: {0}")]
@@ -94,9 +120,21 @@ impl InfluxdbConfig {
             .and_then(|addr| addr.port.clone())
             .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
         let influx_url = format!("http://{}:{}/", host, port);
-        let influx_token = dsn
-            .remove("token")
-            .ok_or_else(|| InfluxdbError::InfluxTokenIsRequired(dsn.clone()))?;
+        let influx_version = dsn
+            .remove("version")
+            .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+        // On version 1.x, only username/password mode can be used
+        // On version 2.x, only access token mode can be used.
+        let influx_username = dsn.remove("username").unwrap_or("".to_string());
+        let influx_password = dsn.remove("password").unwrap_or("".to_string());
+        let influx_token = dsn.remove("token").unwrap_or("".to_string());
+        if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+            return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()));
+        } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+            return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()));
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+            return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()));
+        }
         let influx_org_id = dsn
             .remove("orgId")
             .ok_or_else(|| InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()))?;
@@ -110,16 +148,30 @@ impl InfluxdbConfig {
         let task_bucket = dsn
             .remove("bucket")
             .ok_or_else(|| InfluxdbError::TaskBucketIsRequired(dsn.clone()))?;
+        let task_measurements = dsn
+            .remove("measurements")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
         let task_begin_time = dsn
             .remove("beginTime")
             .ok_or_else(|| InfluxdbError::TaskBeginTimeIsRequired(dsn.clone()))?;
         let task_end_ime = dsn.remove("endTime");
+
+        // the performance config
+        let performance_read_window = dsn.remove("readWindow");
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
 
         let influx = InfluxConfig {
             influx_url,
+            influx_version,
+            influx_username,
+            influx_password,
             influx_token,
             influx_org_id,
         };
@@ -132,14 +184,20 @@ impl InfluxdbConfig {
         let task = TaskConfig {
             task_mode,
             task_bucket,
+            task_measurements,
             task_begin_time,
             task_end_time: task_end_ime,
+        };
+
+        let performance = PerformanceConfig {
+            performance_read_window,
         };
 
         Ok(Self {
             influx,
             taosx,
             task,
+            performance,
             td_database,
             ipc_stream,
         })
@@ -271,6 +329,7 @@ pub async fn influxdb_to_taos(
     );
 
     let child = command
+        .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
         .arg("-jar")
         .arg(&connector_path)
         .arg(&config_path)
@@ -337,4 +396,81 @@ pub async fn influxdb_to_taos(
         }).await??;
     }
     Ok(())
+}
+
+pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let host = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.host.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let port = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.port.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let influx_url = format!("http://{}:{}/", host, port);
+    let influx_version = dsn
+        .remove("version")
+        .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+    // On version 1.x, only username/password mode can be used
+    // On version 2.x, only access token mode can be used.
+    let influx_username = dsn.remove("username").unwrap_or("".to_string());
+    let influx_password = dsn.remove("password").unwrap_or("".to_string());
+    let influx_token = dsn.remove("token").unwrap_or("".to_string());
+    if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+        anyhow::bail!("The username is required");
+    } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+        anyhow::bail!("The password is required");
+    } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+        anyhow::bail!("The access token is required");
+    }
+    // 连接器路径
+    let connector_path = influxdb_jar_path();
+    // startup the connector
+    let mut command = tokio::process::Command::new("java");
+    // 查询命令
+    let mut output;
+    // 不同版本不同参数
+    if INFLUXDB_V1.contains(&influx_version.as_str()) {
+        // 查询命令
+        output = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg("-fetch")
+            .arg(&influx_version)
+            .arg(&influx_url)
+            .arg(&influx_username)
+            .arg(&influx_password)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+            .with_context(|| "Start InfluxDB collector error")?;
+    } else {
+        output = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg("-fetch")
+            .arg(&influx_version)
+            .arg(&influx_url)
+            .arg(&influx_token)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+            .with_context(|| "Start InfluxDB collector error")?;
+    }
+    let s = String::from_utf8(output.stdout.clone())?;
+    dbg!(&s);
+    let mut vec = Vec::new();
+    vec.push(DataSet {
+        id: s,
+        name: None,
+        category: None,
+        r#type: None,
+        options: None,
+        format: None,
+    });
+    Ok(vec)
 }

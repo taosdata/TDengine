@@ -2,24 +2,16 @@
 id: opcua
 name: OPC-UA
 description: |
-  OPC is one of interoperability standard for the secure and  
-  reliable exchange of data in the industrial automation  
-  space and in other industries.
+  OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space and in other industries.
 
-  OPC UA is the next generation beyond the classic OPC  
-  specification, a platform-independent, service-oriented  
-  architecture specification that integrates all functionality  
-  from the existing OPC Classic specifications, providing a  
-  migration path to a more secure and scalable solution.
+  OPC UA is the next generation beyond the classic OPC specification, a platform-independent, service-oriented architecture specification that integrates all functionality from the existing OPC Classic specifications, providing a migration path to a more secure and scalable solution.
 
-  For more about OPC UA we introduce you to read the  
-  [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as  
+  For more about OPC UA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
 
-  taosX could pull data from OPC server by a OPC connector  
-  plugin.
+  taosX could pull data from OPC server by a OPC connector plugin.
 
   Check the help message in each part to see the details.
 type: uri
@@ -62,7 +54,7 @@ authentication:
       display: Certificates
       description: Use certificate file and private key.
       params:
-        
+
         - name: security_mode
           display: Security Mode
           description: |
@@ -170,10 +162,11 @@ groups:
           choices:
             - observe
             - subscribe
+        value: observe
 
   - name: Table Config
     display_order: 4
-    description: | 
+    description: |
       Stable Config
 
       - **received_time**: time opc collector received<br>
@@ -216,7 +209,7 @@ groups:
           max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
-        
+
       - name: debug
         display: Enable Debug Log
         hint:
