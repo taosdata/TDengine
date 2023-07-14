@@ -9,7 +9,7 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
-      <el-table-column width="200" :label="$t('createTime')" prop="create_time">
+      <el-table-column width="210" :label="$t('createTime')" prop="create_time">
         <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
       </el-table-column>
       <el-table-column min-width="200" label="SQL" prop="sql">
@@ -175,7 +175,10 @@
               this.requestIng = false;
               this.currentPage = 1;
               this.getTopics();
-            });
+            })
+            .catch((res) => {
+              this.$message.error(res?.desc);
+            })
         });
       },
       handlePageChange() {

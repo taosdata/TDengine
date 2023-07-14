@@ -19,7 +19,7 @@
       <el-table-column
         :label="$t('taoscluster.createtime')"
         prop="create_time"
-        width="200"
+        width="240"
       ></el-table-column>
 
       <el-table-column :label="$t('taoscluster.action')" width="65">
