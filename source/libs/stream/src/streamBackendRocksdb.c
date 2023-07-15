@@ -144,12 +144,46 @@ SCfInit ginitDict[] = {
      encodeValueFunc, decodeValueFunc},
 };
 
-int32_t streamBackendRebuildDirFromCheckpoint(const char* stateDir, const char* chkpDir) {
-  // impl later
+bool isValidCheckpoint(const char* dir) { return true; }
 
-  return 0;
+int32_t copyFiles(const char* src, const char* dst) {
+  int32_t code = 0;
+  // opt later, just hard link
+  int32_t sLen = strlen(src);
+  int32_t dLen = strlen(dst);
+  char*   absSrcPath = taosMemoryCalloc(1, sLen + 64);
+  char*   absDstPath = taosMemoryCalloc(1, dLen + 64);
+
+  TdDirPtr pDir = taosOpenDir(src);
+  if (pDir == NULL) return 0;
+
+  TdDirEntryPtr de = NULL;
+
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char* name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+    sprintf(absSrcPath, "%s/%s", src, name);
+    sprintf(absDstPath, "%s/%s", dst, name);
+    if (!taosDirEntryIsDir(de)) {
+      code = taosCopyFile(absSrcPath, absDstPath);
+      if (code == -1) {
+        goto _err;
+      }
+    }
+
+    memset(absSrcPath, 0, sLen + 64);
+    memset(absDstPath, 0, dLen + 64);
+  }
+
+_err:
+  taosMemoryFreeClear(absSrcPath);
+  taosMemoryFreeClear(absDstPath);
+  taosCloseDir(&pDir);
+  return code;
 }
-void* streamBackendInit(const char* path, int64_t chkpId) {
+int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
+  // impl later
   int32_t code = 0;
   char*   state = taosMemoryCalloc(1, strlen(path) + 32);
 
@@ -157,14 +191,14 @@ void* streamBackendInit(const char* path, int64_t chkpId) {
   if (chkpId != 0) {
     char* chkp = taosMemoryCalloc(1, strlen(path) + 64);
     sprintf(chkp, "%s/%s/checkpoint-%" PRId64 "", path, "checkpoints", chkpId);
-    if (taosIsDir(chkp)) {
+    if (taosIsDir(chkp) && isValidCheckpoint(chkp)) {
       if (taosIsDir(state)) {
         // remove dir if exists
         // taosRenameFile(const char *oldName, const char *newName)
         taosRemoveDir(state);
       }
       taosMkDir(state);
-      code = streamBackendRebuildDirFromCheckpoint(state, chkp);
+      code = copyFiles(chkp, state);
       if (code != 0) {
         qError("failed to restart stream backend from  %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       }
@@ -174,8 +208,15 @@ void* streamBackendInit(const char* path, int64_t chkpId) {
       taosMkDir(state);
     }
   }
+  *dst = state;
 
+  return 0;
+}
+void* streamBackendInit(const char* path, int64_t chkpId) {
   uint32_t dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
+
+  char*   state = NULL;
+  int32_t code = rebuildDirFromCheckpoint(path, chkpId, &state);
 
   qDebug("start to init stream backend at %s", state);
   SBackendWrapper* pHandle = taosMemoryCalloc(1, sizeof(SBackendWrapper));
@@ -232,6 +273,7 @@ void* streamBackendInit(const char* path, int64_t chkpId) {
     rocksdb_list_column_families_destroy(cfs, nCf);
   }
   qDebug("succ to init stream backend at %s, backend:%p", state, pHandle);
+  taosMemoryFreeClear(state);
 
   return (void*)pHandle;
 _EXIT:
@@ -243,6 +285,7 @@ _EXIT:
   taosHashCleanup(pHandle->cfInst);
   rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
   tdListFree(pHandle->list);
+  taosMemoryFree(state);
   taosMemoryFree(pHandle);
   qDebug("failed to init stream backend at %s", path);
   return NULL;

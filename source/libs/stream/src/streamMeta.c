@@ -249,7 +249,7 @@ int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* 
 
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver, checkpointId) < 0) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
       tFreeStreamTask(pTask);
       return -1;
     }
@@ -447,8 +447,6 @@ _err:
   return chkpId;
 }
 int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
-  int64_t checkpointId = 0;
-
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     return -1;
@@ -477,7 +475,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     // remove duplicate
     void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
     if (p == NULL) {
-      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer, checkpointId) < 0) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
         tdbFree(pKey);
         tdbFree(pVal);
         tdbTbcClose(pCur);
