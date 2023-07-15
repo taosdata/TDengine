@@ -83,7 +83,7 @@ class TDTestCase:
         value += f"{self.ts})"
         
         # move next 1s interval
-        self.ts += 100
+        self.ts += 1
 
         return value
 
@@ -148,7 +148,7 @@ class TDTestCase:
         self.vgroups2  = 4
         self.db1 = "db1" # no sma
         self.db2 = "db2" # have sma
-        self.smaClause = "interval(1h)"
+        self.smaClause = "interval(10s)"
         
         # total
         self.c1Cnt = 0
@@ -254,10 +254,11 @@ class TDTestCase:
                     return False
 
         # warning performance
-        diff = (spend2 - spend1)*100/spend1
-        tdLog.info("spend1=%.6fs spend2=%.6fs diff=%.1f%%"%(spend1, spend2, diff))
-        if spend2 > spend1 and diff > 20:
-            tdLog.info("warning: the diff for performance after spliting is over 20%")
+        multiple = spend1/spend2
+        tdLog.info("spend1=%.6fs spend2=%.6fs multiple=%.1f"%(spend1, spend2, multiple))
+        if spend2 > spend1 and multiple < 4:
+            tdLog.info(f"performace not reached: multiple(spend1/spend)={multiple} require is >=4 ")
+            return False
 
         return True
 
