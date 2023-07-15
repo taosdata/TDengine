@@ -20,18 +20,18 @@
 #define STR_STR_CMP(s, d)    (strstr((s), (d)))
 #define STR_INT_CMP(s, d, c) (taosStr2Int32(s, 0, 10) c(d))
 #define STR_STR_SIGN         ("ia")
-#define DM_INIT_MON()                                    \
-  do {                                                   \
-    code = (int32_t)((2147483648 | ((0) << 7 | (298)))); \
-    strncpy(stName, tsVersionName, 64);                  \
-    monCfg.maxLogs = tsMonitorMaxLogs;                   \
-    monCfg.port = tsMonitorPort;                         \
-    monCfg.server = tsMonitorFqdn;                       \
-    monCfg.comp = tsMonitorComp;                         \
-    if (monInit(&monCfg) != 0) {                         \
-      if (terrno != 0) code = terrno;                    \
-      goto _exit;                                        \
-    }                                                    \
+#define DM_INIT_MON()                   \
+  do {                                  \
+    code = (int32_t)(2147483648 | 298); \
+    strncpy(stName, tsVersionName, 64); \
+    monCfg.maxLogs = tsMonitorMaxLogs;  \
+    monCfg.port = tsMonitorPort;        \
+    monCfg.server = tsMonitorFqdn;      \
+    monCfg.comp = tsMonitorComp;        \
+    if (monInit(&monCfg) != 0) {        \
+      if (terrno != 0) code = terrno;   \
+      goto _exit;                       \
+    }                                   \
   } while (0)
 
 #define DM_ERR_RTN(c) \
@@ -76,7 +76,7 @@ static int32_t dmInitMonitor() {
     DM_ERR_RTN(0);
   }
   if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
-    goto _exit;
+    DM_ERR_RTN(code);
   }
   if (STR_CASE_CMP(stName, dmOS[0])) {
     if (STR_INT_CMP(ver, 17, >)) {

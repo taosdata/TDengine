@@ -373,6 +373,7 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
       dest = sName;
     } else if (strncmp(line, "PRETTY_NAME", 11) == 0) {
       dest = releaseName;
+      code = 0;
     } else if (strncmp(line, "VERSION_ID", 10) == 0) {
       dest = ver;
     } else {
@@ -386,10 +387,7 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
     }
     tstrncpy(dest, p, maxLen);
 
-    if (++cnt >= 3) {
-      code = 0;
-      break;
-    }
+    if (++cnt >= 3) break;
   }
 
   taosCloseFile(&pFile);
