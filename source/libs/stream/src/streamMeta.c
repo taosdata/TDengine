@@ -51,8 +51,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
     goto _err;
   }
-  memset(streamPath, 0, len);
 
+  memset(streamPath, 0, len);
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
   code = taosMulModeMkDir(streamPath, 0755);
   if (code != 0) {
@@ -90,13 +90,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
-  memset(streamPath, 0, len);
-  sprintf(streamPath, "%s/%s", pMeta->path, "state");
-  code = taosMulModeMkDir(streamPath, 0755);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    goto _err;
-  }
+  // memset(streamPath, 0, len);
+  // sprintf(streamPath, "%s/%s", pMeta->path, "state");
+  // code = taosMulModeMkDir(streamPath, 0755);
+  // if (code != 0) {
+  //   terrno = TAOS_SYSTEM_ERROR(code);
+  //   goto _err;
+  // }
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);

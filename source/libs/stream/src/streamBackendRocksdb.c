@@ -212,13 +212,13 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 
   return 0;
 }
-void* streamBackendInit(const char* path, int64_t chkpId) {
-  uint32_t dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
+void* streamBackendInit(const char* streamPath, int64_t chkpId) {
+  char*   backendPath = NULL;
+  int32_t code = rebuildDirFromCheckpoint(streamPath, chkpId, &backendPath);
 
-  char*   state = NULL;
-  int32_t code = rebuildDirFromCheckpoint(path, chkpId, &state);
+  qDebug("start to init stream backend at %s", backendPath);
 
-  qDebug("start to init stream backend at %s", state);
+  uint32_t         dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
   SBackendWrapper* pHandle = taosMemoryCalloc(1, sizeof(SBackendWrapper));
   pHandle->list = tdListNew(sizeof(SCfComparator));
   taosThreadMutexInit(&pHandle->mutex, NULL);
@@ -254,12 +254,12 @@ void* streamBackendInit(const char* path, int64_t chkpId) {
   char*  err = NULL;
   size_t nCf = 0;
 
-  char** cfs = rocksdb_list_column_families(opts, state, &nCf, &err);
+  char** cfs = rocksdb_list_column_families(opts, backendPath, &nCf, &err);
   if (nCf == 0 || nCf == 1 || err != NULL) {
     taosMemoryFreeClear(err);
-    pHandle->db = rocksdb_open(opts, path, &err);
+    pHandle->db = rocksdb_open(opts, backendPath, &err);
     if (err != NULL) {
-      qError("failed to open rocksdb, path:%s, reason:%s", path, err);
+      qError("failed to open rocksdb, path:%s, reason:%s", backendPath, err);
       taosMemoryFreeClear(err);
       goto _EXIT;
     }
@@ -267,13 +267,13 @@ void* streamBackendInit(const char* path, int64_t chkpId) {
     /*
       list all cf and get prefix
     */
-    streamStateOpenBackendCf(pHandle, (char*)state, cfs, nCf);
+    streamStateOpenBackendCf(pHandle, (char*)backendPath, cfs, nCf);
   }
   if (cfs != NULL) {
     rocksdb_list_column_families_destroy(cfs, nCf);
   }
-  qDebug("succ to init stream backend at %s, backend:%p", state, pHandle);
-  taosMemoryFreeClear(state);
+  qDebug("succ to init stream backend at %s, backend:%p", backendPath, pHandle);
+  taosMemoryFreeClear(backendPath);
 
   return (void*)pHandle;
 _EXIT:
@@ -285,9 +285,9 @@ _EXIT:
   taosHashCleanup(pHandle->cfInst);
   rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
   tdListFree(pHandle->list);
-  taosMemoryFree(state);
+  taosMemoryFree(backendPath);
   taosMemoryFree(pHandle);
-  qDebug("failed to init stream backend at %s", path);
+  qDebug("failed to init stream backend at %s", backendPath);
   return NULL;
 }
 void streamBackendCleanup(void* arg) {
