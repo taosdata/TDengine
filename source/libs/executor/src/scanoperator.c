@@ -53,6 +53,7 @@ typedef struct STableMergeScanSortSourceParam {
   SOperatorInfo* pOperator;
   int32_t        readerIdx;
   uint64_t       uid;
+  STsdbReader*   reader;
 } STableMergeScanSortSourceParam;
 
 typedef struct STableCountScanOperatorInfo {
@@ -2733,27 +2734,11 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  int32_t                         readIdx = source->readerIdx;
   SSDataBlock*                    pBlock = pInfo->pReaderBlock;
   int32_t                         code = 0;
 
   int64_t      st = taosGetTimestampUs();
-  void*        p = tableListGetInfo(pInfo->base.pTableListInfo, readIdx + pInfo->tableStartIndex);
-  SReadHandle* pHandle = &pInfo->base.readHandle;
-
   bool         hasNext = false;
-
-  if (NULL == pInfo->base.dataReader) {
-    code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, p, 1, pBlock, (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, NULL);
-    if (code != 0) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
-    pInfo->readIdx = readIdx + pInfo->tableStartIndex ;
-  } else if (pInfo->readIdx != readIdx + pInfo->tableStartIndex) {
-    pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, p, 1);
-    pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-    pInfo->readIdx = readIdx + pInfo->tableStartIndex ;
-  }
 
   STsdbReader* reader = pInfo->base.dataReader;
   while (true) {
@@ -2837,6 +2822,8 @@ int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* 
 int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  SReadHandle* pHandle = &pInfo->base.readHandle;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   {
     size_t  numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
@@ -2866,21 +2853,15 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
 
-  for (int32_t i = 0; i < numOfTable; ++i) {
-    STableMergeScanSortSourceParam param = {0};
-    param.readerIdx = i;
-    param.pOperator = pOperator;
+  STableMergeScanSortSourceParam param = {0};
+  param.pOperator = pOperator;
+  STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
+  pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock, (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, NULL);
 
-    taosArrayPush(pInfo->sortSourceParams, &param);
-  }
-
-  for (int32_t i = 0; i < numOfTable; ++i) {
-    SSortSource*                    ps = taosMemoryCalloc(1, sizeof(SSortSource));
-    STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, i);
-    ps->param = param;
-    ps->onlyRef = true;
-    tsortAddSource(pInfo->pSortHandle, ps);
-  }
+  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
+  ps->param = &param;
+  ps->onlyRef = true;
+  tsortAddSource(pInfo->pSortHandle, ps);
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
 
@@ -2903,7 +2884,10 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   pInfo->sortExecInfo.readBytes += sortExecInfo.readBytes;
   pInfo->sortExecInfo.writeBytes += sortExecInfo.writeBytes;
 
-  taosArrayClear(pInfo->sortSourceParams);
+  if (pInfo->base.dataReader != NULL) {
+    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
+    pInfo->base.dataReader = NULL;
+  }
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;

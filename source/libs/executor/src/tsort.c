@@ -937,22 +937,20 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     // pHandle->numOfPages = 1024; //todo check sortbufsize
     createPageBuf(pHandle);
 
-    for (int i = 0; i < nSrc; ++i) {
+    SSortSource* pSrc = taosArrayGetP(pHandle->pOrderedSource, 0);
+    SSDataBlock* pBlk = pHandle->fetchfp(pSrc->param);
+    while (pBlk != NULL) {
       SArray* aPgId = taosArrayInit(8, sizeof(int32_t));
-
-      SSortSource* pSrc = taosArrayGetP(pHandle->pOrderedSource, i);
-      SSDataBlock* pBlk = pHandle->fetchfp(pSrc->param);
-      while (pBlk != NULL) {
-        addDataBlockToPageBuf(pHandle, pBlk, aPgId);
-        pBlk = pHandle->fetchfp(pSrc->param);
-      }
-      SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
-      code = doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pBlock, &pHandle->sourceId, aPgId);
+      addDataBlockToPageBuf(pHandle, pBlk, aPgId);
+      SSDataBlock* pMemSrcBlk = createOneDataBlock(pHandle->pDataBlock, false);
+      code = doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pMemSrcBlk, &pHandle->sourceId, aPgId);
       if (code != TSDB_CODE_SUCCESS) {
-        taosArrayDestroy(aExtSrc);
-        return code;
+      taosArrayDestroy(aExtSrc);
+      return code;
       }
+      pBlk = pHandle->fetchfp(pSrc->param);
     }
+
     tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
     taosArrayAddAll(pHandle->pOrderedSource, aExtSrc);
     taosArrayDestroy(aExtSrc);
