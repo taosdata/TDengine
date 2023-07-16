@@ -244,10 +244,10 @@ int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
     uint32_t*    pTaskId = taosArrayGet(pMeta->pTaskList, i);
     SStreamTask* p = *(SStreamTask**)taosHashGet(pMeta->pTasks, pTaskId, sizeof(*pTaskId));
 
-    ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
-    p->chkInfo.checkpointId = p->checkpointingId;
-
     int8_t prev = p->status.taskStatus;
+    ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
+
+    p->chkInfo.checkpointId = p->checkpointingId;
     p->status.taskStatus = TASK_STATUS__NORMAL;
 
     // save the task

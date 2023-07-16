@@ -761,17 +761,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver, int64_t checkpoi
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->pMeta = pTq->pStreamMeta;
 
-  // checkpoint exists, restore from the last checkpoint
-  // if (pTask->chkInfo.checkpointId != 0) {
-  //   ASSERT(pTask->chkInfo.checkpointVer > 0);
-  //   pTask->chkInfo.currentVer = pTask->chkInfo.checkpointVer;
-  //   pTask->dataRange.range.maxVer = pTask->chkInfo.checkpointVer;
-  //   pTask->dataRange.range.minVer = pTask->chkInfo.checkpointVer;
-  // } else {
   pTask->chkInfo.currentVer = ver;
   pTask->dataRange.range.maxVer = ver;
   pTask->dataRange.range.minVer = ver;
-  //}
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SStreamTask* pSateTask = pTask;

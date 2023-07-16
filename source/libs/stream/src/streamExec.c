@@ -512,7 +512,7 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
   }
 
   // blocked by downstream task
-  if (pTask->outputStatus == TASK_OUTPUT_STATUS__BLOCKED) {
+  if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     return false;
   }
 

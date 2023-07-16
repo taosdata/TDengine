@@ -794,13 +794,13 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
   return 0;
 }
 
-// todo record the idle time for dispatch data
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     // dispatch message failed: network error, or node not available.
     // in case of the input queue is full, the code will be TSDB_CODE_SUCCESS, the and pRsp>inputStatus will be set
     // flag. here we need to retry dispatch this message to downstream task immediately. handle the case the failure
-    // happened too fast. todo handle the shuffle dispatch failure
+    // happened too fast.
+    // todo handle the shuffle dispatch failure
     qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
            pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
     int32_t ret = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
@@ -810,7 +810,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("s-task:%s receive dispatch rsp, output status:%d code:%d", pTask->id.idStr, pRsp->inputStatus, code);
+  qDebug("s-task:%s recv dispatch rsp, downstream task input status:%d code:%d", pTask->id.idStr, pRsp->inputStatus,
+         code);
 
   // there are other dispatch message not response yet
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -828,14 +829,12 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   // the input queue of the (down stream) task that receive the output data is full,
   // so the TASK_INPUT_STATUS_BLOCKED is rsp
-  // todo blocking the output status
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+    pTask->inputStatus = TASK_INPUT_STATUS__BLOCKED;   // block the input of current task, to push pressure to upstream
     pTask->msgInfo.blockingTs = taosGetTimestampMs();  // record the blocking start time
-
-    int32_t waitDuration = 300;  //  300 ms
     qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64 "wait for %dms and retry dispatch data",
-           pTask->id.idStr, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, waitDuration);
-    streamRetryDispatchStreamBlock(pTask, waitDuration);
+           pTask->id.idStr, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS);
+    streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
   } else {  // pipeline send data in output queue
     // this message has been sent successfully, let's try next one.
     destroyStreamDataBlock(pTask->msgInfo.pData);
@@ -843,8 +842,12 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
     if (pTask->msgInfo.blockingTs != 0) {
       int64_t el = taosGetTimestampMs() - pTask->msgInfo.blockingTs;
-      qDebug("s-task:%s resume to normal from inputQ blocking, idle time:%" PRId64 "ms", pTask->id.idStr, el);
+      qDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
+             pTask->id.idStr, pRsp->downstreamTaskId, el);
       pTask->msgInfo.blockingTs = 0;
+
+      // put data into inputQ of current task is also allowed
+      pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
     }
 
     // now ready for next data output

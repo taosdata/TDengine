@@ -240,14 +240,21 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     int32_t status = pTask->status.taskStatus;
+    const char* pStatus = streamGetTaskStatusStr(status);
     if (status != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
+      tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
     if (tInputQueueIsFull(pTask)) {
       tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
+      streamMetaReleaseTask(pStreamMeta, pTask);
+      continue;
+    }
+
+    if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+      tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
