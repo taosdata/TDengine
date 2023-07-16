@@ -72,11 +72,10 @@ static int32_t dmInitMonitor() {
 
   DM_INIT_MON();
 
-#ifndef WINDOWS
+  dInfo("%s:%d stName is %s", __func__, __LINE__, stName);
   if (STR_STR_CMP(stName, STR_STR_SIGN)) {
     DM_ERR_RTN(0);
   }
-#endif
   if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
     DM_ERR_RTN(code);
   }
