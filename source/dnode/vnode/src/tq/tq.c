@@ -743,7 +743,7 @@ end:
 
 void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver, int64_t checkpointId) {
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);

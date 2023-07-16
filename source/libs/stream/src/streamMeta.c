@@ -23,6 +23,8 @@ static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
 int32_t             streamBackendCfWrapperId = 0;
 
+int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
+
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
@@ -49,8 +51,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
     goto _err;
   }
-  memset(streamPath, 0, len);
 
+  memset(streamPath, 0, len);
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
   code = taosMulModeMkDir(streamPath, 0755);
   if (code != 0) {
@@ -88,13 +90,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
-  memset(streamPath, 0, len);
-  sprintf(streamPath, "%s/%s", pMeta->path, "state");
-  code = taosMulModeMkDir(streamPath, 0755);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    goto _err;
-  }
+  // memset(streamPath, 0, len);
+  // sprintf(streamPath, "%s/%s", pMeta->path, "state");
+  // code = taosMulModeMkDir(streamPath, 0755);
+  // if (code != 0) {
+  //   terrno = TAOS_SYSTEM_ERROR(code);
+  //   goto _err;
+  // }
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -103,7 +105,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->checkpointCap = 4;
   taosInitRWLatch(&pMeta->checkpointDirLock);
 
-  pMeta->streamBackend = streamBackendInit(streamPath);
+  int64_t chkpId = streamGetLatestCheckpointId(pMeta);
+
+  pMeta->streamBackend = streamBackendInit(pMeta->path, chkpId);
   if (pMeta->streamBackend == NULL) {
     goto _err;
   }
@@ -245,7 +249,7 @@ int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* 
 
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver, checkpointId) < 0) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
       tFreeStreamTask(pTask);
       return -1;
     }
@@ -443,8 +447,6 @@ _err:
   return chkpId;
 }
 int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
-  int64_t checkpointId = streamGetLatestCheckpointId(pMeta);
-
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     return -1;
@@ -473,7 +475,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     // remove duplicate
     void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
     if (p == NULL) {
-      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer, checkpointId) < 0) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
         tdbFree(pKey);
         tdbFree(pVal);
         tdbTbcClose(pCur);
