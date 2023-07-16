@@ -769,6 +769,61 @@ int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols) {
   return pgSize;
 }
 
+static int32_t createPageBuf(SSortHandle* pHandle) {
+  if (pHandle->pBuf == NULL) {
+    if (!osTempSpaceAvailable()) {
+      terrno = TSDB_CODE_NO_DISKSPACE;
+      qError("create page buf failed since %s, tempDir:%s", terrstr(), tsTempDir);
+      return terrno;
+    }
+
+    int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
+                                      "tableBlocksBuf", tsTempDir);
+    dBufSetPrintInfo(pHandle->pBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return 0;
+}
+
+static int32_t addDataBlockToPageBuf(SSortHandle * pHandle, SSDataBlock* pDataBlock, SArray* aPgId) {
+  int32_t start = 0;
+  while (start < pDataBlock->info.rows) {
+    int32_t stop = 0;
+    blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pHandle->pageSize);
+    SSDataBlock* p = blockDataExtractBlock(pDataBlock, start, stop - start + 1);
+    if (p == NULL) {
+      taosArrayDestroy(aPgId);
+      return terrno;
+    }
+
+    int32_t pageId = -1;
+    void*   pPage = getNewBufPage(pHandle->pBuf, &pageId);
+    if (pPage == NULL) {
+      taosArrayDestroy(aPgId);
+      blockDataDestroy(p);
+      return terrno;
+    }
+
+    taosArrayPush(aPgId, &pageId);
+
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
+    ASSERT(size <= getBufPageSize(pHandle->pBuf));
+
+    blockDataToBuf(pPage, p);
+
+    setBufPageDirty(pPage, true);
+    releaseBufPage(pHandle->pBuf, pPage);
+
+    blockDataDestroy(p);
+    start = stop + 1;
+  }
+
+  blockDataCleanup(pDataBlock);
+  return 0;
+}
+
 static int32_t createInitialSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
   int32_t code = 0;
@@ -875,6 +930,35 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         code = doAddToBuf(pHandle->pDataBlock, pHandle);
       }
     }
+  } else if (pHandle->type == SORT_TABLE_MERGE_SCAN) {
+    size_t nSrc = taosArrayGetSize(pHandle->pOrderedSource);
+    SArray* aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
+
+    // pHandle->numOfPages = 1024; //todo check sortbufsize
+    createPageBuf(pHandle);
+
+    for (int i = 0; i < nSrc; ++i) {
+      SArray* aPgId = taosArrayInit(8, sizeof(int32_t));
+
+      SSortSource* pSrc = taosArrayGetP(pHandle->pOrderedSource, i);
+      SSDataBlock* pBlk = pHandle->fetchfp(pSrc->param);
+      while (pBlk != NULL) {
+        addDataBlockToPageBuf(pHandle, pBlk, aPgId);
+        pBlk = pHandle->fetchfp(pSrc->param);
+      }
+      SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
+      code = doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pBlock, &pHandle->sourceId, aPgId);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(aExtSrc);
+        return code;
+      }
+    }
+    tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
+    taosArrayAddAll(pHandle->pOrderedSource, aExtSrc);
+    taosArrayDestroy(aExtSrc);
+
+    pHandle->type = SORT_SINGLESOURCE_SORT;
+
   }
 
   return code;
