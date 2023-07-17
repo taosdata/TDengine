@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet}, fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
-    sync::Arc, time::Duration, ops::Index, 
+    sync::Arc, time::Duration, 
 };
 
 use file_rotate::{
@@ -83,7 +83,7 @@ pub struct OPCConfig {
     report: ReportConfig,
 
     #[serde(skip)]
-    param_mapping: HashMap<String, String>,
+    param_mapping: HashMap<String, PointConfig>,
     // #[serde(skip)]
     /// table_info: table_name, Vec<(field, type)>
     // table_info: HashMap<String, Vec<(String, String)>>,
@@ -263,6 +263,16 @@ impl OPCConfig {
         }
         let interval = parse_int_at!("interval");
         let limit = parse_int_at!("limit");
+        let use_csv_config = if let Some(assert) = dsn.remove("use_csv_config") {
+            match assert.as_str() {
+                "false" => false,
+                "" | "true" => true,
+                _ => return Err(OpcError::ConfigError("use_csv_config", "should config true or false".to_string())),
+            }
+        } else {
+            false
+        };
+        let mut opc_table_config = None;
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -328,6 +338,10 @@ impl OPCConfig {
 
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
+                } else if use_csv_config {
+                    let res =  generate_opcconfig_from_csv(&mut dsn, "ua.nodes").await.map_err(|err| OpcError::ConfigError("ua.nodes", err.to_string()))?;
+                    opc_table_config = Some(res.0);
+                    res.1
                 } else {
                     get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
                         .map_err(|s| OpcError::FileParseFound(s))?
@@ -341,23 +355,21 @@ impl OPCConfig {
                     }
                     let id = String::from(pair[0]);
                     let code = String::from(pair[1]);
-                    // let field = String::from(pair[2]);
-                    // let value_type = String::from(pair[3]);
                     let ua_node_config = UANodeConfig {
                         id: id.clone(),
-                        // value_type: value_type.clone(),
                     };
-                    param_mapping.insert(
-                        id,
-                        code,
-                        // (
-                        //     table.clone(),
-                        //     field.clone(),
-                        //     IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap(),
-                        // ),
-                    );
+                    if !use_csv_config {
+                        param_mapping.insert(
+                            id,
+                            PointConfig {
+                                code,
+                                stable: None,
+                                enabled: None,
+                                tag_values: None,
+                            }
+                        );
+                    }
                     ua_node_config_vec.push(ua_node_config);
-                    // process_table_info(&mut table_info, table, field, value_type);
                 }
                 let collect_mode = dsn.remove("collect_mode").unwrap_or("observe".to_string());
                 let collect_ua_config = UaCollectConfig {
@@ -392,10 +404,15 @@ impl OPCConfig {
                 };
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
+                } else if use_csv_config {
+                    let res =  generate_opcconfig_from_csv(&mut dsn, "da.tags").await.map_err(|err| OpcError::ConfigError("da.tags", err.to_string()))?;
+                    opc_table_config = Some(res.0);
+                    res.1
                 } else {
                     get_string_vec_from_param_or_file(&mut dsn, "da.tags")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
+                
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -405,22 +422,20 @@ impl OPCConfig {
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
-                    // let field = String::from(pair[2]);
-                    // let value_type = String::from(pair[3]);
                     da_nodes_vec.push(DaNodeConfig {
                         tag: tag.clone(),
-                        // value_type: value_type.clone(),
                     });
-                    param_mapping.insert(
-                        tag,
-                        code,
-                        // (
-                            // table.clone(),
-                            // field.clone(),
-                            // IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap(),
-                        // ),
-                    );
-                    // process_table_info(&mut table_info, table, field, value_type);
+                    if !use_csv_config {
+                        param_mapping.insert(
+                            tag,
+                            PointConfig {
+                                code,
+                                stable: None,
+                                enabled: None,
+                                tag_values: None,
+                            }
+                        );
+                    }
                 }
                 collect = CollectConfig {
                     interval,
@@ -460,12 +475,18 @@ impl OPCConfig {
             batch_size,
             batch_timeout,
         };
-        let opc_table_config = dsn.remove("opc_table_config");
-        let opc_table_config: Option<TableConfig> = if opc_table_config.is_some() {
-            Some(serde_json::from_str(opc_table_config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?)
+        let table_config: Option<TableConfig>;
+        if opc_table_config.is_none() {
+            let config = dsn.remove("opc_table_config");
+            if config.is_none() {
+                return Err(OpcError::ConfigError("opc_table_config", "should config opc_table_config or use csv config file".to_string()));
+            }
+            table_config = Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?);
         } else {
-            None
-        };
+            let opc_table_config = opc_table_config.unwrap();
+            table_config = Some(opc_table_config.table_config.clone());
+            param_mapping = opc_table_config.id_code_map.clone();
+        }
         Ok(OPCConfig {
             opc_type,
             debug,
@@ -474,17 +495,13 @@ impl OPCConfig {
             collect,
             report,
             param_mapping,
-            opc_table_config
+            opc_table_config: table_config,
         })
     }
 
     pub async fn parse_tables_with(&self, taos: &Taos) -> anyhow::Result<OpcTableConfig> {
         let id_code_map = self.param_mapping.iter().map(|(id, code)| {
-            (id.clone(), PointConfig{
-                code: code.clone(),
-                stable: None,
-                enabled: None,
-            })
+            (id.clone(), code.clone())
         }).collect();
         let c = OpcTableConfig {
             id_code_map,
@@ -494,13 +511,13 @@ impl OPCConfig {
     }
 }
 
-pub use tokio_stream::StreamExt;
 
 const CSV_CONFIG_COLUMNS: [&str; 4] = ["point_id", "tbname", "type", "stable"];
 
-pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Result<OpcTableConfig> {
+pub use tokio_stream::StreamExt;
+pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Result<(OpcTableConfig, Vec<String>)> {
     if let Some(nodes) = dsn.remove(key) {
-        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
+        let (files, _): (Vec<_>, Vec<_>) = nodes
             .split(",")
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
@@ -509,6 +526,7 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
         let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
         let mut tag_config = Vec::new();
         let mut column_config = Vec::new();
+        let mut node_config_old = Vec::new();
         for file in files {
             log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
             if !file.ends_with(".csv") {
@@ -530,34 +548,40 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
             let mut column = 0;
             let temp_column = CSV_CONFIG_COLUMNS.iter().map(|s| s.to_string()).collect_vec().clone();
             let mut column_set: HashSet<&String> = HashSet::from_iter(temp_column.iter());
-            header.iter().for_each(|column_name| {
+            for column_name in header.iter() {
                 column_map.insert(column, column_name.clone());
+                if column_name.starts_with("tag") {
+                    // is tag config tag::type::name e.g. tag::varchar(123)::unit
+                    let split_tag = column_name.split("::").collect_vec();
+                    if split_tag.len() != 3 {
+                        anyhow::bail!("file {file} column {column_name} config error, pattern is tag::type::name");
+                    }
+                    let column_type = IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| anyhow::Error::msg(err))?;
+                    tag_config.push(TagConfig {
+                        column_name: split_tag.get(2).unwrap().to_string(),
+                        column_type,
+                    });
+                }
                 column += 1;
                 column_set.remove(&column_name.to_string());
-            });
+            }
             if column_set.len() != 0 {
                 anyhow::bail!("csv config miss column: {}", column_set.iter().next().unwrap());
             }
+            dbg!(&column_map);
             let mut line = 3;
             while let Some(record) = records.next().await {
                 match record {
                     Ok(record) => {
                         let mut record_map = HashMap::new(); // column_name, column_data
+                        let mut tag_values = Vec::new();
                         for (index, column_name) in column_map.iter() {
                             let data = record.get(index.clone()).unwrap();
-                            if column_name.starts_with("tag") {
-                                // is tag config tag::type::name e.g. tag::varchar(123)::unit
-                                let mut split_tag = column_name.split("::").collect_vec();
-                                if split_tag.len() != 3 {
-                                    anyhow::bail!("file {file} column {column_name} config error, pattern is tag::type::name");
-                                }
-                                let column_type = IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| anyhow::Error::msg(err))?;
-                                tag_config.push(TagConfig {
-                                    column_name: split_tag.get(2).unwrap().to_string(),
-                                    column_type,
-                                });
+                            if column_name.starts_with("tag::") {
+                                tag_values.push(data.to_string());
+                            } else {
+                                record_map.insert(column_name.to_string(), data.to_string());
                             }
-                            record_map.insert(column_name.to_string(), data.to_string());
                         }
                         let stable = record_map.get("stable").unwrap().clone();
                         if record_map.get("tbname").unwrap().contains("{") { // maybe should use pattern match?
@@ -604,14 +628,23 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                                 Some(false)
                             }
                         };
-                        id_code_map.insert(record_map.get("point_id").unwrap().clone(), 
+                        let point_id = record_map.get("point_id").unwrap();
+                        let code = record_map.get("tbname").unwrap();
+                        let tag_values = if tag_values.len() == 0 {
+                            None
+                        } else {
+                            Some(tag_values)
+                        };
+                        id_code_map.insert(point_id.clone(), 
                             PointConfig {
-                                code: record_map.get("tbname").unwrap().clone(),
+                                code: code.clone(),
                                 stable: Some(stable),
+                                tag_values,
                                 enabled,
                             });
+                            node_config_old.push(format!("{point_id}::{code}"))
                     },
-                    Err(e) => log::warn!("line {line} have different with other previous lines")
+                    Err(e) => log::warn!("line {line} have different with other previous lines ", )
                 }
                 line += 1;
             }
@@ -621,7 +654,7 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
         } else {
             Some(tag_config)
         };
-        return Ok(OpcTableConfig { id_code_map, table_config: TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } });
+        return Ok((OpcTableConfig { id_code_map, table_config: TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } }, node_config_old));
     }
     anyhow::bail!("should config {key}");
 }
@@ -934,6 +967,7 @@ pub struct OpcTableConfig {
 pub(crate) struct PointConfig {
     pub code: String,
     pub stable: Option<String>,
+    pub tag_values: Option<Vec<String>>,
     pub enabled: Option<bool>,
 }
 
@@ -1060,12 +1094,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let mut map = HashMap::new();
     map.insert(
         String::from("123"),
-        String::from("567"),
-        // (
-        //     String::from("meter"),
-        //     String::from("cu"),
-        //     IpcDataType::Float32,
-        // ),
+        PointConfig { code: "567".to_string(), stable: None, enabled: None, tag_values: None }
     );
     let mut column_configs = Vec::new();
     let column_config = ColumnConfig {
