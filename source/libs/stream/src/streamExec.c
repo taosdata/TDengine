@@ -598,7 +598,7 @@ int32_t streamTaskReloadState(SStreamTask* pTask) {
 }
 
 int32_t streamAlignTransferState(SStreamTask* pTask) {
-  int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
   int32_t old = atomic_val_compare_exchange_32(&pTask->transferStateAlignCnt, 0, numOfUpstream);
   if (old == 0) {
     qDebug("s-task:%s set the transfer state aligncnt %d", pTask->id.idStr, numOfUpstream);

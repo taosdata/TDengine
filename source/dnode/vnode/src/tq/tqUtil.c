@@ -454,7 +454,3 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   (*pRefBlock)->pBlock = pDelBlock;
   return TSDB_CODE_SUCCESS;
 }
-
-int32_t tqCreateCheckpointBlock(SStreamCheckpoint** pCheckpointBlock) {
-  return 0;
-}
