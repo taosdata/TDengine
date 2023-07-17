@@ -615,6 +615,30 @@ void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* 
   if (pCfg->ttl > 0) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " TTL %d", pCfg->ttl);
   }
+
+  if (TSDB_SUPER_TABLE == pCfg->tableType || TSDB_NORMAL_TABLE == pCfg->tableType) {
+    int32_t nSma = 0;
+    for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
+      if (IS_BSMA_ON(pCfg->pSchemas + i)) {
+        ++nSma;
+      }
+    }
+
+    if (nSma < pCfg->numOfColumns && nSma > 0) {
+      bool smaOn = false;
+      for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
+        if (IS_BSMA_ON(pCfg->pSchemas + i)) {
+          if (smaOn) {
+            *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ",`%s`", (pCfg->pSchemas + i)->name);
+          } else {
+            smaOn = true;
+            *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " SMA(`%s`", (pCfg->pSchemas + i)->name);
+          }
+        }
+      }
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ")");
+    }
+  }
 }
 
 static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg) {
