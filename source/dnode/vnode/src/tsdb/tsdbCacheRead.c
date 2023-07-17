@@ -144,10 +144,10 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->pVnode = pVnode;
   p->pTsdb = p->pVnode->pTsdb;
   p->info.verRange = (SVersionRange){.minVer = 0, .maxVer = UINT64_MAX};
+  p->info.suid = suid;
   p->numOfCols = numOfCols;
   p->pCidList = pCidList;
   p->pSlotIds = pSlotIds;
-  p->suid = suid;
 
   if (numOfTables == 0) {
     *pReader = p;
