@@ -2,7 +2,7 @@
 id: opcua
 name: OPC-UA
 description: |
-  OPC is one of interoperability standard for the secure and
+  OPC is an interoperability standard for the secure and
   reliable exchange of data in the industrial automation
   space and in other industries.
 
@@ -12,13 +12,13 @@ description: |
   from the existing OPC Classic specifications, providing a
   migration path to a more secure and scalable solution.
 
-  For more about OPC UA we introduce you to read the
-  [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
+  For more about OPC UA we recommend you read the
+  [OPC Foundation site](https://opcfoundation.org/){:target=”_blank”}, and some useful blogs, such as
 
-  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
-  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
+  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/){:target=”_blank”}
+  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/){:target=”_blank”}.
 
-  taosX could pull data from OPC server by a OPC connector
+  taosX can pull data from OPC servers by using the OPC connector
   plugin.
 
   Check the help message in each part to see the details.
