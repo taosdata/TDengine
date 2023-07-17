@@ -900,7 +900,6 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
 
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pVgroup);
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -1289,6 +1288,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
       terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
       mError("stream:%s, create ast error", pStream->name);
       sdbRelease(pSdb, pStream);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -1308,6 +1308,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
         sdbRelease(pSdb, pStream);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
       mInfo("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
@@ -1337,6 +1338,7 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
       terrno = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
              pSma->name, stbFullName, suid, colId);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -1357,6 +1359,7 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
         sdbRelease(pSdb, pSma);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
       mInfo("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);

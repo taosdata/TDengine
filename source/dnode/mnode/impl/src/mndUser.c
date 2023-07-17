@@ -1444,7 +1444,10 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
     if (pIter == NULL) break;
 
     code = -1;
-    if (mndUserDupObj(pUser, &newUser) != 0) break;
+    if (mndUserDupObj(pUser, &newUser) != 0) {
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
 
     bool inRead = (taosHashGet(newUser.readDbs, db, len) != NULL);
     bool inWrite = (taosHashGet(newUser.writeDbs, db, len) != NULL);
@@ -1453,7 +1456,10 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
       (void)taosHashRemove(newUser.writeDbs, db, len);
 
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        break;
+      }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
     }
 
@@ -1484,6 +1490,7 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
 
     code = -1;
     if (mndUserDupObj(pUser, &newUser) != 0) {
+      sdbCancelFetch(pSdb, pIter);
       break;
     }
 
@@ -1491,7 +1498,10 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
     if (inTopic) {
       (void)taosHashRemove(newUser.topics, topic, len);
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        break;
+      }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
     }
 

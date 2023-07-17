@@ -831,6 +831,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
       memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
+      sdbCancelFetch(pSdb, pIter);
       return 0;
     }
 

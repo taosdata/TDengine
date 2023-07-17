@@ -513,6 +513,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
         goto _OUT;
       }
       void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -522,6 +523,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (tEncodeSTqCheckInfo(&encoder, &info) < 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
         goto _OUT;
       }
       tEncoderClear(&encoder);
@@ -535,6 +537,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
         goto _OUT;
       }
       buf = NULL;
@@ -697,6 +700,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       if (strcmp(name, pTopic->name) == 0) {
         mndReleaseConsumer(pMnode, pConsumer);
         mndReleaseTopic(pMnode, pTopic);
+        sdbCancelFetch(pSdb, pIter);
         terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
         mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
                dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
@@ -710,6 +714,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       if (strcmp(name, pTopic->name) == 0) {
         mndReleaseConsumer(pMnode, pConsumer);
         mndReleaseTopic(pMnode, pTopic);
+        sdbCancelFetch(pSdb, pIter);
         terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
         mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
                dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
@@ -723,6 +728,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       if (strcmp(name, pTopic->name) == 0) {
         mndReleaseConsumer(pMnode, pConsumer);
         mndReleaseTopic(pMnode, pTopic);
+        sdbCancelFetch(pSdb, pIter);
         terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
         mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb remove)",
                dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
@@ -789,6 +795,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
         mndReleaseTopic(pMnode, pTopic);
+        sdbCancelFetch(pSdb, pIter);
         mndTransDrop(pTrans);
         return -1;
       }
