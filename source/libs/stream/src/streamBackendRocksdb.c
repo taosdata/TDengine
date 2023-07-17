@@ -2424,7 +2424,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   {
     char tbuf[256] = {0};
     ginitDict[cfIdx].toStrFunc((void*)key, tbuf);
-    qDebug("stream state: %s succ to state", tbuf);
+    qDebug("streamState str: %s succ to write to %s", tbuf, ginitDict[cfIdx].key);
   }
   return 0;
 }
