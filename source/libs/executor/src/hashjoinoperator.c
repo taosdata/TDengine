@@ -369,9 +369,6 @@ static FORCE_INLINE void appendHJoinResToBlock(struct SOperatorInfo* pOperator, 
 
   pRes->info.rows = resNum;
   pCtx->rowRemains = pCtx->pBuildRow ? true : false;
-  if (!pCtx->rowRemains) {
-    pCtx->probeIdx++;
-  }
 }
 
 
@@ -423,8 +420,8 @@ static void doHashJoinImpl(struct SOperatorInfo* pOperator) {
     }
   }
 
-  for (int32_t i = pCtx->probeIdx; i < pCtx->pProbeData->info.rows; ++i) {
-    copyKeyColsDataToBuf(pProbe, i, &bufLen);
+  for (; pCtx->probeIdx < pCtx->pProbeData->info.rows; ++pCtx->probeIdx) {
+    copyKeyColsDataToBuf(pProbe, pCtx->probeIdx, &bufLen);
     SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
     if (pGroup) {
       pCtx->pBuildRow = pGroup->rows;

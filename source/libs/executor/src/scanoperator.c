@@ -797,7 +797,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  qDebug("add total %d dynamic tables to scan, exist num:%d", num, taosArrayGetSize(pListInfo->pTableList));
+  qDebug("add total %d dynamic tables to scan, exist num:%" PRId64, num, (int64_t)taosArrayGetSize(pListInfo->pTableList));
 
   pListInfo->oneTableForEachGroup = true;
   
