@@ -38,10 +38,11 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   }
 
   // create vnode env
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
-  if (taosMkDir(dir)) {
+  if ((pTfs) ? tfsMkdir(pTfs, path) : taosMkDir(path)) {
+    vError("vgId:%d, failed to mkdir since %s, dir: %s", pCfg->vgId, strerror(errno), path);
     return TAOS_SYSTEM_ERROR(errno);
   }
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   if (pCfg) {
     info.config = *pCfg;
@@ -339,6 +340,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
+  pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;

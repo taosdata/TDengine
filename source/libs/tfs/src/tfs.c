@@ -113,6 +113,15 @@ SDiskSize tfsGetSize(STfs *pTfs) {
   return size;
 }
 
+int32_t tfsGetDisksAtLevel(STfs *pTfs, int32_t level) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    return 0;
+  }
+
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+  return pTier->ndisk;
+}
+
 int32_t tfsGetLevel(STfs *pTfs) { return pTfs->nlevel; }
 
 int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
@@ -277,7 +286,7 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       SDiskID did = {.id = id, .level = level};
-      if (tfsMkdirAt(pTfs, rname, did) < 0) {
+      if (tfsMkdirRecurAt(pTfs, rname, did) < 0) {
         return -1;
       }
     }
@@ -333,6 +342,23 @@ int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname) {
   }
 
   return 0;
+}
+
+int32_t tfsSearch(STfs *pTfs, int32_t level, const char *fname) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    return -1;
+  }
+  char      path[TMPNAME_LEN] = {0};
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+
+  for (int32_t id = 0; id < pTier->ndisk; id++) {
+    STfsDisk *pDisk = pTier->disks[id];
+    snprintf(path, TMPNAME_LEN - 1, "%s%s%s", pDisk->path, TD_DIRSEP, fname);
+    if (taosCheckExistFile(path)) {
+      return id;
+    }
+  }
+  return -1;
 }
 
 STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {

@@ -15,12 +15,62 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "tfs.h"
 #include "vnd.h"
 
 int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
+  STfs   *pTfs = pMgmt->pTfs;
+  int32_t diskId = 0;
+  if (!pTfs) {
+    return diskId;
+  }
+
   // search fs
+  char vnodePath[TSDB_FILENAME_LEN] = {0};
+  snprintf(vnodePath, TSDB_FILENAME_LEN - 1, "vnode%svnode%d", TD_DIRSEP, vgId);
+  char fname[TSDB_FILENAME_LEN] = {0};
+  char fnameTmp[TSDB_FILENAME_LEN] = {0};
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s", vnodePath, TD_DIRSEP, VND_INFO_FNAME);
+  snprintf(fnameTmp, TSDB_FILENAME_LEN - 1, "%s%s%s", vnodePath, TD_DIRSEP, VND_INFO_FNAME_TMP);
+
+  diskId = tfsSearch(pTfs, 0, fname);
+  if (diskId >= 0) {
+    return diskId;
+  }
+  diskId = tfsSearch(pTfs, 0, fnameTmp);
+  if (diskId >= 0) {
+    return diskId;
+  }
+
   // alloc
-  return 0;
+  int32_t     disks[TFS_MAX_DISKS_PER_TIER] = {0};
+  int32_t     numOfVnodes = 0;
+  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  for (int32_t v = 0; v < numOfVnodes; v++) {
+    SVnodeObj *pVnode = ppVnodes[v];
+    disks[pVnode->diskPrimary] += 1;
+  }
+
+  int32_t minVal = INT_MAX;
+  int32_t ndisk = tfsGetDisksAtLevel(pTfs, 0);
+  diskId = 0;
+  for (int32_t id = 0; id < ndisk; id++) {
+    if (minVal > disks[id]) {
+      minVal = disks[id];
+      diskId = id;
+    }
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    if (ppVnodes == NULL || ppVnodes[i] == NULL) continue;
+    vmReleaseVnode(pMgmt, ppVnodes[i]);
+  }
+  if (ppVnodes != NULL) {
+    taosMemoryFree(ppVnodes);
+  }
+
+  dInfo("vgId:%d, alloc disk:%d of level 0. ndisk:%d, vnodes: %d", vgId, diskId, ndisk, numOfVnodes);
+  return diskId;
 }
 
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {

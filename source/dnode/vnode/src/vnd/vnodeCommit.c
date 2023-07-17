@@ -16,8 +16,6 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 
-#define VND_INFO_FNAME_TMP "vnode_tmp.json"
-
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int vnodeCommitImpl(SCommitInfo *pInfo);
 
