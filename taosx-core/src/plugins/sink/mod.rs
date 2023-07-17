@@ -5,6 +5,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_flight::{FlightClient, PutResult};
+use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use std::{
@@ -191,6 +192,7 @@ async fn ipc_tcp_forward(
 }
 
 // #[instrument(skip_all)]
+#[framed]
 async fn ipc_tcp_read(
     client: String,
     pool: TaosPool,
@@ -307,7 +309,7 @@ async fn consume_lush_record(
                         }
                     }
                 }
-                
+
                 if let Some(transferred) = transferred {
                     transferred.tables.fetch_add(1, Ordering::SeqCst);
                 }
@@ -1090,6 +1092,7 @@ pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &V
 }
 
 #[instrument(skip(pool, ipc_reader, ipc_ack_writer, config))]
+#[framed]
 async fn ipc_process<R: Read, W: Write>(
     client: String,
     pool: TaosPool,
@@ -1182,7 +1185,7 @@ async fn ipc_process<R: Read, W: Write>(
                     }
                 }
             }
-            
+
         }
         drop(guard)
     }
