@@ -11,10 +11,10 @@
       </section>
       <div class="source-name" v-if="isEditable">
         <div class="block-title">
-          <span>{{$t('datasource.sourcename')}}</span>
+          <span>{{ $t("datasource.sourcename") }}</span>
         </div>
         <div class="name">
-          <span class="label">{{$t('name')}}</span>
+          <span class="label">{{ $t("name") }}</span>
           <el-input
             v-model="sourceName"
             placeholder="请输入数据源名称"
@@ -22,7 +22,7 @@
           ></el-input>
         </div>
       </div>
-      <section class="basics" v-if="tagName!=='csv'">
+      <section class="basics" v-if="tagName !== 'csv'">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
@@ -299,11 +299,11 @@
                     @keydown.enter.native="searchDatas"
                   ></el-input>
                   <div>
-                    <div
-                      class="searchList"
-                      v-loading="loading"
-                    >
-                      <el-empty :image-size="80" v-if="configurationdata.length <=0"></el-empty>
+                    <div class="searchList" v-loading="loading">
+                      <el-empty
+                        :image-size="80"
+                        v-if="configurationdata.length <= 0"
+                      ></el-empty>
                       <template v-else>
                         <div
                           class="searchListItem"
@@ -396,16 +396,14 @@
                     v-if="
                       p.hint === 'str' ||
                       p.hint === 'timeout' ||
-                      (p.hint&&p.hint.type == 'file')
+                      (p.hint && p.hint.type == 'file')
                     "
                   >
                     <el-input
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
                       :type="
-                        p.hint && p.hint.type == 'file'
-                          ? 'textarea'
-                          : 'text'
+                        p.hint && p.hint.type == 'file' ? 'textarea' : 'text'
                       "
                     ></el-input>
                   </template>
@@ -428,7 +426,8 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || (p.hint&&p.hint.type === 'bool')) &&
+                      (p.hint === 'bool' ||
+                        (p.hint && p.hint.type === 'bool')) &&
                       p.name == 'clean_session'
                     "
                   >
@@ -504,7 +503,8 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || (p.hint&&p.hint.type === 'bool')) &&
+                      (p.hint === 'bool' ||
+                        (p.hint && p.hint.type === 'bool')) &&
                       p.name == 'clean_session'
                     "
                   >
@@ -581,8 +581,8 @@
           ></MqttConnector>
         </div>
       </section>
-      <section v-if="tagName=='csv'">
-        <CsvData></CsvData>
+      <section v-if="tagName == 'csv'">
+        <CsvData :isEditable="isEditable" :echoData="echoData"></CsvData>
       </section>
       <section class="choose-db" v-else>
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
@@ -616,7 +616,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import CsvData from '../components/csvData.vue'
+import CsvData from "../components/csvData.vue";
 import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
@@ -627,7 +627,7 @@ export default {
     "p-three-checkbox": PThreeCheckbox,
     MqttConnector,
     opcConnector,
-    CsvData
+    CsvData,
   },
   props: {
     // sourceName: {
@@ -687,7 +687,7 @@ export default {
   },
   data() {
     return {
-      sourceName:localStorage.getItem('datainName'),
+      sourceName: localStorage.getItem("datainName"),
       openSSL: false,
       constmqttCols: [],
       textareas: ["ca", "cert", "cert_key", "certificate"],
@@ -735,22 +735,22 @@ export default {
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
-      this.dbsource[0].authentication.alternatives = 
-      this.dbsource[0].authentication.alternatives.map(item => {
-        if(item.name === 'certificates') {
-          item.params.map((par,index) => {
-            if(par.name === 'security_mode') {
-              this.policyDisabled = par.value && par.value === 'None'
-              if(par.value && par.value !== 'None') {
-                item.params[2].required = true
-                item.params[3].required = true
+      this.dbsource[0].authentication.alternatives =
+        this.dbsource[0].authentication.alternatives.map((item) => {
+          if (item.name === "certificates") {
+            item.params.map((par, index) => {
+              if (par.name === "security_mode") {
+                this.policyDisabled = par.value && par.value === "None";
+                if (par.value && par.value !== "None") {
+                  item.params[2].required = true;
+                  item.params[3].required = true;
+                }
               }
-            }
-            return par
-          })
-        }
-        return item
-      })
+              return par;
+            });
+          }
+          return item;
+        });
     }
   },
   mounted() {
@@ -809,25 +809,25 @@ export default {
     },
 
     handleAuthentication(p) {
-      if(p.name === 'security_mode') {
-        this.dbsource[0].authentication.alternatives = 
-        this.dbsource[0].authentication.alternatives.map(item => {
-          if(item.name === 'certificates') {
-            item.params.map(par => {
-              if(['certificate','private_key'].includes(par.name)) {
-                par.required = p.value === 'None' ? false : true
-              } 
-              if(par.name === 'security_policy') {
-                this.policyDisabled = p.value === 'None'
-                if(p.value === 'None') {
-                  par.value = ''
+      if (p.name === "security_mode") {
+        this.dbsource[0].authentication.alternatives =
+          this.dbsource[0].authentication.alternatives.map((item) => {
+            if (item.name === "certificates") {
+              item.params.map((par) => {
+                if (["certificate", "private_key"].includes(par.name)) {
+                  par.required = p.value === "None" ? false : true;
                 }
-              }
-              return par
-            })
-          }
-          return item
-        })
+                if (par.name === "security_policy") {
+                  this.policyDisabled = p.value === "None";
+                  if (p.value === "None") {
+                    par.value = "";
+                  }
+                }
+                return par;
+              });
+            }
+            return item;
+          });
       }
     },
 
@@ -836,30 +836,36 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
+      if (this.tagName == "csv") {
+        console.log(this.$store.state.app.csvParser, "csv要保存的内容");
+      }
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
             ? ""
             : data.protocol.value;
         }
-        for (let key of Object.keys(data.options)) {
-          if (
-            Object.hasOwnProperty.call(data.options[key], "required") &&
-            (data.options[key]["value"] == "" ||
-              data.options[key]["value"] == undefined)
-          ) {
-            Message({
-              type: "warning",
-              message:
-                this.$t("datasource.msg") +
-                ":" +
-                `${data.options[key].display} `,
-            });
-            return;
+        if (this.tagName != "csv") {
+          for (let key of Object.keys(data.options)) {
+            if (
+              Object.hasOwnProperty.call(data.options[key], "required") &&
+              (data.options[key]["value"] == "" ||
+                data.options[key]["value"] == undefined)
+            ) {
+              Message({
+                type: "warning",
+                message:
+                  this.$t("datasource.msg") +
+                  ":" +
+                  `${data.options[key].display} `,
+              });
+              return;
+            }
           }
         }
+
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
-        if (data.authentication.value == "plain") {
+        if (data.authentication && data.authentication.value == "plain") {
           if (
             data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
               .username.value
@@ -1002,10 +1008,10 @@ export default {
             }
           }
         }
-        if (data.authentication.value == "certificates") {
-          // data.authentication.alternatives[2].params.forEach((val) => {
-          //   querystr += val.value ? `${val.name}=${val.value}&` : "";
-          // })
+        if (
+          data.authentication &&
+          data.authentication.value == "certificates"
+        ) {
           for (
             let i = 0;
             i < data.authentication.alternatives[2].params.length;
@@ -1122,14 +1128,8 @@ export default {
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
-            // (data.protocol
-            //   ? Object.is(data.protocol.value, "--")
-            //     ? ""
-            //     : "+"
-            //   : "") +
             dns,
           name: this.sourceName,
-          //localStorage.getItem("datainName"),
           to:
             "taos+" +
             localStorage.getItem("base_url") +
@@ -1146,6 +1146,7 @@ export default {
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
         }
+
         if (this.isEditable) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
@@ -1187,8 +1188,8 @@ export default {
       );
       let enterTip = this.$t("dataIn.enterTip");
       // let format = curData[0].id;
-      let format = curData[0].format
-      format = format.replace('{id}',curData[0].id)
+      let format = curData[0].format;
+      format = format.replace("{id}", curData[0].id);
       let options = curData[0].options;
       for (let i = 0; i < options.length; i++) {
         if (options[i].required && !options[i].value) {
@@ -1200,8 +1201,8 @@ export default {
         }
         // format += `::${options[i].value}`;
         if (format.indexOf(options[i].name) !== -1) {
-          format = format.replace(`{${options[i].name}}`, options[i].value)
-        } 
+          format = format.replace(`{${options[i].name}}`, options[i].value);
+        }
       }
       let categories = [];
       categories = this.dbsource[0].datasets.categories.map((cate) => {
@@ -1345,11 +1346,11 @@ export default {
       content: "";
       background: #f2f6fc40;
       position: absolute;
-      top:0;
+      top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      z-index:100;
+      z-index: 100;
     }
   }
   .left-ui {
@@ -1510,7 +1511,7 @@ export default {
   .right-ui {
     margin-left: 20px;
     padding-top: 50px;
-    width:500px;
+    width: 500px;
     :deep {
       .v-note-panel {
         border-radius: 12px;

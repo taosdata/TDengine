@@ -4,7 +4,7 @@
       'csv-column',
       isEditable &&
       (this.nonEditableCols.includes(colData['name']) ||
-        colData['name'] == currentKey.primary)
+        colData['name'] == colData.parser.model.tags[0])
         ? 'edit'
         : '',
     ]"
@@ -13,21 +13,17 @@
       <el-select
         :value="
           colData.parser.parse[csvColName].alias
-            ? colData.parser.parse[csvColName].alias
-            : csvColName
         "
         filterable
         size="mini"
         :filter-method="handleFilter"
-        placeholder="请选择"
+        placeholder=""
         clearable
         @visible-change="
           (visible) =>
             handleVisble(
               visible,
               colData.parser.parse[csvColName].alias
-                ? colData.parser.parse[csvColName].alias
-                : csvColName
             )
         "
         @change="handledbChange($event, 0)"
@@ -105,10 +101,10 @@
     </li>
     <li class="primary">
       <el-checkbox
-        :value="this.colData.parser.parse[this.csvColName].alias
-            ? (this.colData.parser.parse[this.csvColName].alias==colData.parser.model.tags[0])
-            : (this.csvColName==colData.parser.model.tags[0])  "
-        @change="changePrimary(colData.parser.model.tags[0])"
+      :disabled="!colData.parser.parse[csvColName].as.toUpperCase().includes('TIMESTAMP')"
+        :value="colData.parser.parse[csvColName].alias==colData.parser.model.tags[0]
+            "
+        @change="changePrimary(colData.parser.parse[csvColName].alias)"
         >&nbsp;</el-checkbox
       >
     </li>
@@ -116,7 +112,9 @@
       <el-checkbox
         v-model="columnChecked"
         @change="setColumnChecked"
-        :disabled="!colData.name || colData.name == currentKey.primary"
+        :disabled="
+          colData.parser.parse[csvColName].alias == colData.parser.model.tags[0]
+        "
       >
         &nbsp;
       </el-checkbox>
@@ -126,7 +124,7 @@
         v-model="tagChecked"
         @change="setTagChecked"
         :disabled="
-          tagDisable || !colData.name || colData.name == currentKey.primary
+          colData.parser.parse[csvColName].alias == colData.parser.model.tags[0]
         "
       >
         &nbsp;
@@ -199,9 +197,6 @@ export default {
     };
   },
   computed: {
-    // getParserObj() {
-    //   return this.mqttParserObj();
-    // },
     addStatus() {
       if (!this.colData.name) {
         return true;
@@ -233,10 +228,25 @@ export default {
       console.log(index, "调用父组件clear方法");
     },
     //获取上次store中parser的值,并重新生成新的parser
-    getPreveiousParser(val, type) {
-      let oldparser = this.$store.state.app.mqttParser;
-      let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
+    getPreveiousParser(val, type,key) {
+      let oldparser = this.$store.state.app.csvParser;
+      let columns = oldparser.parser.model.columns;
+      let tags = oldparser.parser.model.tags;
+      if(key=='primary'){
+        if(!tags.includes(val)){
+          tags.unshift(val)
+        }else{
+          tags.splice(0,1)
+        }
+        if(columns.includes(val)){
+          this.columnChecked=false
+          columns.splice(columns.indexOf(val), 1);
+        }else{
+          columns.push(val)
+        }
+        
+        console.log(tags,'主键999');
+      }
       if (type == "tag") {
         if (columns.includes(val)) {
           columns.splice(columns.indexOf(val), 1);
@@ -249,13 +259,14 @@ export default {
           tags.splice(tags.indexOf(val), 1);
         }
       }
-      if (type == "column") {
+      if (type == "column"&&key!='primary') {
         if (tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
+        console.log('column主键',this.currentKey.primary,columns,this.colData.parser.parse[this.csvColName].alias);
         if (this.columnChecked) {
           if (!columns.includes(val)) {
-            if (this.colData.name == this.currentKey.primary) {
+            if (this.colData.parser.parse[this.csvColName].alias == this.colData.parser.model.tags[0]) {
               columns.unshift(val);
             } else {
               columns.push(val);
@@ -265,7 +276,8 @@ export default {
           columns.splice(columns.indexOf(val), 1);
         }
       }
-      this.$store.commit("app/SET_MQTT_PARSER", oldparser);
+      this.$store.commit("app/SET_CSV_PARSER", oldparser);
+      console.log( this.$store.state.app.csvParser,' this.$store.state.app.csvParser');
     },
     setColumnChecked() {
       this.tagChecked = false;
@@ -277,56 +289,34 @@ export default {
     },
     changeType(val) {
       this.colData.parser.parse[this.csvColName].as = val;
-      if (
-        !this.colData.parser.parse[this.csvColName].as
-          .toLowerCase()
-          .includes("timestamp") &&
-        this.colData["name"] == this.currentKey.primary
-      ) {
-        this.changePrimary("ts");
-      }
+      // if (
+      //   !this.colData.parser.parse[this.csvColName].as
+      //     .toLowerCase()
+      //     .includes("timestamp") &&
+      //   this.colData["name"] == this.colData.parser.model.tags[0]
+      // ) {
+      //   this.changePrimary("ts");
+      // }
     },
     handledbChange(val, index) {
       this.colData.parser.parse[this.csvColName].alias = val;
       let result = this.dbOptions.find((item) => item.field == val);
       if (Object.hasOwnProperty.call(result, "newByInpt")) {
-        console.log("判断");
         this.colData.parser.parse[this.csvColName].as = "";
       } else {
         this.colData.parser.parse[this.csvColName].as = result.type;
       }
-      console.log(val, index, "自定义输入", this.csvColName, result);
       this.$emit("handledbChange", val, index);
     },
     handleChange(val) {
-      // this.colData.parser.parse[this.csvColName].alias = val;
-      this.colData["cast"] = this.colData["cast"] + "(" + val + ")";
+      this.colData.parser.parse[this.csvColName].as=val
     },
+    //选择主键
     changePrimary(val) {
-      if (
-        !this.colData.parser.model.tags.includes(
-          this.colData.parser.parse[this.csvColName].alias
-            ? this.colData.parser.parse[this.csvColName].alias
-            : this.csvColName
-        )
-      ) {
-        this.colData.parser.model.tags.unshift(
-          this.colData.parser.parse[this.csvColName].alias
-            ? this.colData.parser.parse[this.csvColName].alias
-            : this.csvColName
-        );
-      }
-
-      console.log(val, "选择主见9999---", this.colData.parser.model);
+      console.log(val,'主键');
       this.columnChecked = true;
       this.tagChecked = false;
-      this.$emit(
-        "changePrimary",
-        this.colData.parser.parse[this.csvColName].alias
-          ? this.colData.parser.parse[this.csvColName].alias
-          : this.csvColName
-      );
-      this.getPreveiousParser(val, "column");
+      this.getPreveiousParser(val, "column",'primary');
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {
@@ -335,12 +325,6 @@ export default {
       } else {
         this.colData["name"] = val;
       }
-    },
-
-    addRow() {
-      if (this.addStatus) return;
-      this.$emit("addRow");
-      this.addStatus = true;
     },
 
     //回显tag或者column选中
@@ -358,41 +342,12 @@ export default {
   },
   mounted() {
     console.log(this.colData, "csv----column");
-    if (
-      this.currentKey.primary &&
-      this.currentKey.primary == this.colData.name
-    ) {
-      this.columnChecked = true;
-    }
-    if (!this.nonEditableCols.includes(this.currentKey.primary)) {
-      this.nonEditableCols.concat(this.currentKey.primary);
-    }
-
-    this.echoColOrTag();
   },
   watch: {
     addStatus: {
       deep: true,
       handler(val) {
         this.$emit("changeAddStatus");
-      },
-    },
-    "currentKey.primary": {
-      immediate: true,
-      handler(val, oldVal) {
-        // let oldparser = this.$store.state.app.mqttParser;
-        // let columns = oldparser.model.columns;
-        // if (oldVal) {
-        //   if (this.colData.name == oldVal) {
-        //     this.columnChecked = false;
-        //   }
-        //   if (columns.includes(oldVal)) {
-        //     columns.splice(columns.indexOf(oldVal), 1);
-        //   }
-        // }
-        // if (val == this.colData.name) {
-        //   this.columnChecked = true;
-        // }
       },
     },
     "$store.state.app.mqttParser": {

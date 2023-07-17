@@ -36,7 +36,8 @@ const state = {
   currentPricePlan: null, //当前账号的计费方案
   currentPricePlanList: [], //当前region的计费方案列表
   mqttParser:null,//专供mqtt parser使用
-  opcConfig:null,//opc的单例泪痣
+  opcConfig:null,//opc的单例配置
+  csvParser:null
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -63,6 +64,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_CSV_PARSER:(state,data)=>{
+    state.csvParser=data
+  },
   SET_OPC_CONFIG:(state,data)=>{
     state.opcConfig=data
   },

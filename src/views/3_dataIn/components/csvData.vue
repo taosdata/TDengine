@@ -38,7 +38,7 @@
         >{{ $t("datasource.csvNext") }}</el-button
       >
     </div>
-    <div class="csv-config">
+    <div class="csv-config" v-if="showConfig">
       <ul class="csv-tableheader">
         <li>{{ $t("datasource.csvcol") }}</li>
         <li>{{ $t("datasource.dbcol") }}</li>
@@ -72,13 +72,24 @@
 <script>
 import CsvParameter from "./csv/csvParameter.vue";
 import CsvColumn from "./csv/csvColumn.vue";
-import csvParser from "./csvparser.json";
 import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 export default {
   name: "CsvData",
   components: { CsvParameter, CsvColumn },
+  props:{
+    isEditable:{
+      type:Boolean,
+      default:false
+    },
+    echoData:{
+      type:Object,
+      default:()=>{
+        return null
+      }
+    }
+  },
   provide() {
     return {
       currentKey: this.currentKey,
@@ -86,11 +97,11 @@ export default {
   },
   data() {
     return {
+      showConfig:false,
       csvParserConf: {},
       uploadData: {
         req_id: new Date().getTime(),
       },
-      isEditable: false,
       dbValues: [],
       oldDbValues: [],
       currentKey: {
@@ -105,6 +116,9 @@ export default {
     };
   },
   mounted() {
+    if(this.isEditable){
+      //编辑状态直接从返回值去csv 的parser
+    }
     this.getDBColumns();
   },
   methods: {
@@ -185,7 +199,6 @@ export default {
     handleClick() {},
     handleSuccess(response, file, fileList) {
       this.fileList = fileList;
-      console.log(response, file, fileList, "success");
     },
     submitUpload() {
       this.$refs.upload.submit();
@@ -218,7 +231,6 @@ export default {
             },
           };
           this.csvColumns = result.file_header.column_names;
-          console.log(result, "kkkkk", result.file_header.column_names);
           result.file_header.column_names.forEach((item) => {
             this.csvParserConf.parser.parse[item] = {
               as: "",
@@ -226,14 +238,9 @@ export default {
             };
           });
           this.localcsv = deepClone(this.csvParserConf);
-
+          this.$store.commit('app/SET_CSV_PARSER',this.localcsv)
           this.initDbOptions();
-          console.log(
-            result,
-            this.csvParserConf,
-            this.$refs.param.ruleForm,
-            "参数"
-          );
+          this.showConfig=true
         }
       } catch (error) {
         console.log(error);
