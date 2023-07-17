@@ -530,19 +530,18 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
         for file in files {
             log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
             if !file.ends_with(".csv") {
-                log::warn!("file {file} is not a csv config");
-                continue;
+                anyhow::bail!("file {file} is not a csv config");
             }
             let mut rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
             let mut records = rdr.records();
             // skip first line(desc)
-            records.next().await;
             let header = records.next().await; 
             if header.is_none() {
                 log::warn!("file {file} should have 2 lines at least");
                 continue;
             }
             let header = header.unwrap()?;
+            dbg!(&header);
             // header parse
             let mut column_map = HashMap::new();
             let mut column = 0;
@@ -563,7 +562,9 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                     });
                 }
                 column += 1;
+                log::info!("&column_name to remove: {}", column_name);
                 column_set.remove(&column_name.to_string());
+                dbg!(&column_set);
             }
             if column_set.len() != 0 {
                 anyhow::bail!("csv config miss column: {}", column_set.iter().next().unwrap());
@@ -613,7 +614,7 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                             });
                         }
                         column_config.push(ColumnConfig {
-                            column_name: "ts".to_string(),
+                            column_name: "original_time".to_string(),
                             column_type: Some(Ty::Timestamp),
                             column_alias: Some(record_map.get("ts_col").ok_or("ts".to_string()).unwrap().clone()),
                             is_primary_key: !has_primary_key,

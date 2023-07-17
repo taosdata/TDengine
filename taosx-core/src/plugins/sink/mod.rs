@@ -479,7 +479,7 @@ async fn consume_point_record(
                 );
                 columns.insert_str(
                     0,
-                    format!("{prinmary_key_column_alias} TIMESTAMP,").as_str(),
+                    format!("`{prinmary_key_column_alias}` TIMESTAMP,").as_str(),
                 );
             } else {
                 let primary_key_column_name = column_config.column_name.clone();
@@ -499,11 +499,12 @@ async fn consume_point_record(
         }
         // remove last char
         columns.pop();
+        dbg!(&columns);
         let mut tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string();
         if table_config.tag_configs.is_some() {
             let tag_configs = table_config.tag_configs.clone().unwrap();
             for tag in tag_configs {
-                tags.push_str(format!(" `{}` {}", tag.column_name, tag.column_type.sql_repr()).as_str());
+                tags.push_str(format!(" ,`{}` {}", tag.column_name, tag.column_type.sql_repr()).as_str());
             }
         }
         
@@ -522,32 +523,14 @@ async fn consume_point_record(
             } else {
                 anyhow::bail!("id: {id} failded to get stable");
             };
-            // let stable_name = if point_config.stable.is_some() {
-            //     point_config.stable.clone().unwrap()
-            // } else {
-            //     if stable_prefix.is_some() {
-            //         let mut stable_prefix = stable_prefix.clone().unwrap();
-            //         if value_type.contains("varchar") {
-            //             stable_prefix.push_str("_varchar");
-            //             stable_prefix
-            //         } else if value_type.contains("nchar") {
-            //             stable_prefix.push_str("_nchar");
-            //             stable_prefix
-            //         } else {
-            //             stable_prefix.push_str(format!("_{value_type}").as_str());
-            //             stable_prefix
-            //         }
-            //     } else {
-            //         anyhow::bail!("id: {id} failded to get stable");
-            //     }
-            // };
+
             let mut child_table_name = stable_name.clone();
             child_table_name.push_str(format!("_{}", point_config.code).as_str());
             let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
             let mut value_cloumn_name = "value";
             let mut value_cloumn_length = 128;
-            let mut columns = String::new();
+            let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &columns_insert {
                 if temp_name == "received_time" {
                     values.push_str(
@@ -588,7 +571,7 @@ async fn consume_point_record(
                     values.push_str(format!("{value_column},").as_str());
                     value_cloumn_name = temp_alias;
                     value_cloumn_length = value_column.len();
-                } else if temp_name == "status" {
+                } else if temp_name == "quality" {
                     values.push_str(
                         format!(
                             "{},",
@@ -603,10 +586,10 @@ async fn consume_point_record(
                         .as_str(),
                     );
                 }
-                columns.push_str(format!("`{temp_alias}`,").as_str());
+                columns_in_insert.push_str(format!("`{temp_alias}`,").as_str());
             }
             values.pop();
-            columns.pop();
+            columns_in_insert.pop();
             let point_name = name_cv
                 .slice(i..i + 1)
                 .unwrap()
@@ -620,7 +603,14 @@ async fn consume_point_record(
                 for ele in table_config.tag_configs.as_ref().unwrap() {
                     tag_names.push_str(format!("`{}`,", ele.column_name).as_str());
                     let value = point_config.tag_values.as_ref().unwrap().get(index).unwrap();
-                    // let value = ele.column_type.
+                    let value = match ele.column_type {
+                        IpcDataType::VarChar(_) | IpcDataType::NChar(_) | IpcDataType::Json => {
+                            format!("\"{value}\"")
+                        }
+                        _ => {
+                            value.to_string()
+                        }
+                    };
                     tag_values.push_str(format!("{value},", ).as_str());
                     index += 1;
                 }
@@ -629,18 +619,18 @@ async fn consume_point_record(
             }
             let tag_sql = if tag_names.is_empty() {
                 format!(
-                    " USING `{stable_name}` (`point_id`, `point_name`) TAGS (\"{id}\", {}) ({columns})",
+                    " USING `{stable_name}` (`point_id`, `point_name`) TAGS (\"{id}\", {}) ({columns_in_insert})",
                     &point_name
                 )
             } else {
                 format!(
-                    " USING `{stable_name}` (`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values}) ({columns})",
+                    " USING `{stable_name}` (`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values}) ({columns_in_insert})",
                     &point_name
                 )
             };
             insert_sql.push_str(tag_sql.as_str());
             insert_sql.push_str(format!(" VALUES ({})", values).as_str());
-            debug!("insert sql: {}", insert_sql);
+            debug!("point message insert sql: {}", insert_sql);
             loop {
                 let sql_res = taos.exec(&insert_sql).await;
                 match sql_res {
