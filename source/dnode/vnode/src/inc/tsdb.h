@@ -802,6 +802,10 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
 
+struct SSttFileReader;
+typedef int32_t (*_load_tomb_fn)(STsdbReader *pReader, struct SSttFileReader *pSttFileReader,
+                                 SSttBlockLoadInfo *pLoadInfo);
+
 typedef struct {
   int8_t        backward;
   STsdb        *pTsdb;
@@ -815,6 +819,7 @@ typedef struct {
   STSchema     *pSchema;
   int16_t      *pCols;
   int32_t       numOfCols;
+  _load_tomb_fn loadTombFn;
   void         *pReader;
   void         *idstr;
 } SMergeTreeConf;
@@ -851,7 +856,6 @@ typedef struct STsdbReaderInfo {
 typedef struct SCacheRowsReader {
   STsdb          *pTsdb;
   STsdbReaderInfo info;
-  int8_t          cacheReader;  // always true for cache reader
   TdThreadMutex   readerMutex;
   SVnode         *pVnode;
   STSchema       *pSchema;

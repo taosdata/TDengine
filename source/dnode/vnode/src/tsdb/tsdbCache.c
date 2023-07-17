@@ -1720,6 +1720,24 @@ typedef struct {
   SMergeTree *pMergeTree;
 } SFSLastIter;
 
+static int32_t loadSttTombData(STsdbReader *pReader, SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pLoadInfo) {
+  int32_t code = 0;
+  /*
+  if (pLoadInfo->pTombBlockArray == NULL) {
+    pLoadInfo->pTombBlockArray = taosArrayInit(4, POINTER_BYTES);
+  }
+
+  const TTombBlkArray *pBlkArray = NULL;
+  int32_t              code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return doLoadTombDataFromTombBlk(pBlkArray, pReader, pSttFileReader, false);
+  */
+  return code;
+}
+
 static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                             tb_uid_t uid, SCacheRowsReader *pr, int64_t lastTs, int16_t *aCols, int nCols) {
   int32_t code = 0;
@@ -1742,6 +1760,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .pSttFileBlockIterArray = pr->pLDataIterArray,
       .pCols = aCols,
       .numOfCols = nCols,
+      .loadTombFn = loadSttTombData,
       .pReader = pr,
       .idstr = pr->idstr,
   };
@@ -2742,6 +2761,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
     for (int i = 0; i < nMax; ++i) {
       TSDBKEY maxKey1 = TSDBROW_KEY(max[i]);
 
+      // TODO: build skyline here
       bool deleted = tsdbKeyDeleted(&maxKey1, pIter->pSkyline, &pIter->iSkyline);
       if (!deleted) {
         iMerge[nMerge] = iMax[i];

@@ -191,7 +191,6 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   taosThreadMutexInit(&p->readerMutex, NULL);
 
   p->lastTs = INT64_MIN;
-  p->cacheReader = 1;
 
   *pReader = p;
   return TSDB_CODE_SUCCESS;

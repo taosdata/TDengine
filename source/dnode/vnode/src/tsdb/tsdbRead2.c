@@ -2108,6 +2108,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
       .pSttFileBlockIterArray = pReader->status.pLDataIterArray,
       .pCols = pReader->suppInfo.colId,
       .numOfCols = pReader->suppInfo.numOfCols,
+      .loadTombFn = loadSttTombDataForAll,
       .pReader = pReader,
       .idstr = pReader->idStr,
   };
