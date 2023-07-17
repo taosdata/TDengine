@@ -1723,9 +1723,9 @@ typedef struct {
 static int32_t lastIterClose(SFSLastIter **iter) {
   int32_t code = 0;
 
-  if (iter->pMergeTree) {
-    tMergeTreeClose(iter->pMergeTree);
-    iter->pMergeTree = NULL;
+  if ((*iter)->pMergeTree) {
+    tMergeTreeClose((*iter)->pMergeTree);
+    (*iter)->pMergeTree = NULL;
   }
 
   *iter = NULL;
@@ -1819,6 +1819,7 @@ typedef struct SFSNextRowIter {
   SFSLastIter              lastIter;
   SFSLastIter             *pLastIter;
   TSDBROW                 *pLastRow;
+  SCacheRowsReader        *pr;
   struct CacheNextRowIter *pRowIter;
 } SFSNextRowIter;
 
@@ -1842,7 +1843,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       state->pFileSet = TARRAY2_GET(state->aDFileSet, state->iFileSet);
     }
 
-    STFileObj **pFileObj = pFileSet->farr;
+    STFileObj **pFileObj = state->pFileSet->farr;
     if (pFileObj[0] != NULL || pFileObj[3] != NULL) {
       SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.szPage};
       const char           *filesName[4] = {0};
@@ -2032,6 +2033,38 @@ _err:
 
   *ppRow = NULL;
 
+  return code;
+}
+
+int32_t clearNextRowFromFS(void *iter) {
+  int32_t code = 0;
+
+  SFSNextRowIter *state = (SFSNextRowIter *)iter;
+  if (!state) {
+    return code;
+  }
+  /*
+  if (state->pDataFReader) {
+    tsdbDataFReaderClose(&state->pDataFReader);
+    state->pDataFReader = NULL;
+    }
+  if (state->aBlockIdx) {
+    // taosArrayDestroy(state->aBlockIdx);
+    tsdbBICacheRelease(state->pTsdb->biCache, state->aBlockIdxHandle);
+
+    state->aBlockIdxHandle = NULL;
+    state->aBlockIdx = NULL;
+  }
+  if (state->pBlockData) {
+    // tBlockDataDestroy(&state->blockData, 1);
+    tBlockDataDestroy(state->pBlockData);
+    state->pBlockData = NULL;
+  }
+
+  if (state->blockMap.pData != NULL) {
+    tMapDataClear(&state->blockMap);
+  }
+*/
   return code;
 }
 
@@ -2313,8 +2346,6 @@ _err:
   return code;
 }
 
-#endif
-
 int32_t clearNextRowFromFS(void *iter) {
   int32_t code = 0;
 
@@ -2346,6 +2377,7 @@ int32_t clearNextRowFromFS(void *iter) {
 
   return code;
 }
+#endif
 
 typedef enum SMEMNEXTROWSTATES {
   SMEMNEXTROW_ENTER,
@@ -2581,7 +2613,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsState.pTSchema = pTSchema;
   pIter->fsState.suid = suid;
   pIter->fsState.uid = uid;
-  pIter->fsState.pDataFReader = pDataFReader;
+  // pIter->fsState.pDataFReader = pDataFReader;
   pIter->fsState.lastTs = lastTs;
 
   pIter->input[0] = (TsdbNextRowState){&pIter->memRow, true, false, false, &pIter->memState, getNextRowFromMem, NULL};
