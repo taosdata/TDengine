@@ -1240,6 +1240,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
       terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
       mError("topic:%s, create ast error", pTopic->name);
       sdbRelease(pSdb, pTopic);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -1260,6 +1261,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
         mError("topic:%s, check colId:%d conflicted", pTopic->name, pCol->colId);
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
+        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pTopic);
         return -1;
       }
@@ -2268,6 +2270,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
     if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
       if (pTopic->stbUid == suid) {
         sdbRelease(pSdb, pTopic);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }
@@ -2282,6 +2285,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
       terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
       mError("topic:%s, create ast error", pTopic->name);
       sdbRelease(pSdb, pTopic);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -2295,6 +2299,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
         sdbRelease(pSdb, pTopic);
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       } else {
         goto NEXT;

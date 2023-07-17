@@ -647,7 +647,6 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
   code = 0;
 
 _OVER:
-  mndTransDrop(pTrans);
   return code;
 }
 
@@ -735,6 +734,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
+    mndReleaseTopic(pMnode, pTopic);
     return -1;
   }
 
@@ -788,6 +788,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
+        mndReleaseTopic(pMnode, pTopic);
         mndTransDrop(pTrans);
         return -1;
       }
@@ -796,6 +797,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   int32_t code = mndDropTopic(pMnode, pTrans, pReq, pTopic);
   mndReleaseTopic(pMnode, pTopic);
+  mndTransDrop(pTrans);
 
   if (code != 0) {
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
@@ -999,6 +1001,7 @@ bool mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb) {
 
     if (pTopic->dbUid == pDb->uid) {
       sdbRelease(pSdb, pTopic);
+      sdbCancelFetch(pSdb, pIter);
       return true;
     }
 
