@@ -90,7 +90,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   // CONFIG ==============
   // FIXME: if commit multiple times and the config changed?
   if (!pReader->cfgDone) {
-    char fName[TSDB_FILENAME_LEN];
+    char    fName[TSDB_FILENAME_LEN];
     int32_t offset = 0;
 
     vnodeGetPrimaryDir(pReader->pVnode->path, pReader->pVnode->pTfs, fName, TSDB_FILENAME_LEN);
@@ -242,7 +242,11 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     if (pReader->pStreamStateReader == NULL) {
       code =
           streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamStateReader);
-      if (code) goto _err;
+      if (code) {
+        pReader->streamStateDone = 1;
+        pReader->pStreamStateReader = NULL;
+        goto _err;
+      }
     }
     code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
     if (code) {

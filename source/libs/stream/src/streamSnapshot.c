@@ -98,8 +98,10 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path) {
   }
 
   SBanckendFile* pFile = taosMemoryCalloc(1, sizeof(SBanckendFile));
+  pHandle->pBackendFile = pFile;
   pHandle->checkpointId = 0;
   pHandle->seraial = 0;
+
   pFile->path = taosStrdup(path);
   pFile->pSst = taosArrayInit(16, sizeof(void*));
 
@@ -133,7 +135,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path) {
 
   if (pFile->pCurrent == NULL) {
     code = -1;
-    return code;
+    goto _err;
   }
   SArray* list = taosArrayInit(64, sizeof(SBackendFileItem));
 
@@ -197,7 +199,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   taosMemoryFree(pFile->pMainfest);
   taosMemoryFree(pFile->pOptions);
   taosMemoryFree(pFile->path);
-  for (int i = 0; pFile->pSst != NULL && i < taosArrayGetSize(pFile->pSst); i++) {
+  for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
     char* sst = taosArrayGetP(pFile->pSst, i);
     taosMemoryFree(sst);
   }

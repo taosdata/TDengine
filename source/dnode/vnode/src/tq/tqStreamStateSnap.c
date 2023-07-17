@@ -49,6 +49,10 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "checkpoints");
   if (streamSnapReaderOpen(pTq, sver, ever, tdir, &pSnapReader) == 0) {
     pReader->complete = 1;
+  } else {
+    code = -1;
+    taosMemoryFree(pReader);
+    goto _err;
   }
   pReader->pReaderImpl = pSnapReader;
 
