@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -2567,11 +2568,13 @@ void* decodeSPullWindowInfoArray(void *buf, SArray* pPullInfos) {
   return buf;
 }
 
-int32_t doStreamIntervalEncodeOpState(void **buf, SOperatorInfo* pOperator) {
+int32_t doStreamIntervalEncodeOpState(void **buf, int32_t len, SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   if (!pInfo) {
     return 0;
   }
+
+  void* pData = (buf == NULL) ? NULL : *buf;
 
   // 1.pResultRowHashTable
   int32_t tlen = 0;
@@ -2613,13 +2616,30 @@ int32_t doStreamIntervalEncodeOpState(void **buf, SOperatorInfo* pOperator) {
   // 5.dataVersion
   tlen += taosEncodeFixedI64(buf, pInfo->dataVersion);
 
+  // 6.checksum
+  if (buf) {
+    uint32_t cksum = taosCalcChecksum(0, pData, len - sizeof(uint32_t));
+    tlen += taosEncodeFixedU32(buf, cksum);
+  } else {
+    tlen += sizeof(uint32_t);
+  }
+
   return tlen;
 }
 
-void doStreamIntervalDecodeOpState(void* buf, SOperatorInfo* pOperator) {
+void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperator) {
     SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   if (!pInfo) {
     return ;
+  }
+
+  // 6.checksum
+  int32_t dataLen = len - sizeof(uint32_t);
+  void* pCksum = POINTER_SHIFT(buf, dataLen);
+  if (taosCheckChecksum(buf, dataLen, *(uint32_t*)pCksum) != TSDB_CODE_SUCCESS) {
+    ASSERT(0); // debug
+    qError("stream interval state is invalid");
+    return;
   }
 
   // 1.pResultRowHashTable
@@ -2662,10 +2682,10 @@ void doStreamIntervalDecodeOpState(void* buf, SOperatorInfo* pOperator) {
 
 void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-  int32_t                      len = doStreamIntervalEncodeOpState(NULL, pOperator);
+  int32_t                      len = doStreamIntervalEncodeOpState(NULL, 0, pOperator);
   void*                        buf = taosMemoryCalloc(1, len);
   void*                        pBuf = buf;
-  len = doStreamIntervalEncodeOpState(&pBuf, pOperator);
+  len = doStreamIntervalEncodeOpState(&pBuf, len, pOperator);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME,
                                         strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), buf, len);
   taosMemoryFree(buf);
@@ -2816,8 +2836,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
-      doStreamIntervalSaveCheckpoint(pOperator);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
+      doStreamIntervalSaveCheckpoint(pOperator);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       continue;
     } else {
@@ -3075,7 +3095,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   int32_t len = 0;
   int32_t res = pAPI->stateStore.streamStateGetInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME, strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), &buff, &len);
   if (res == TSDB_CODE_SUCCESS) {
-    doStreamIntervalDecodeOpState(buff, pOperator);
+    doStreamIntervalDecodeOpState(buff, len, pOperator);
     taosMemoryFree(buff);
   }
 
@@ -3794,11 +3814,13 @@ void* decodeSResultWindowInfo(void *buf, SResultWindowInfo* key, int32_t outLen)
   return buf;
 }
 
-int32_t doStreamSessionEncodeOpState(void **buf, SOperatorInfo* pOperator) {
+int32_t doStreamSessionEncodeOpState(void **buf, int32_t len, SOperatorInfo* pOperator, bool isParent) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   if (!pInfo) {
     return 0;
   }
+
+  void* pData = (buf == NULL) ? NULL : *buf;
 
   // 1.streamAggSup.pResultRows
   int32_t tlen = 0;
@@ -3821,19 +3843,40 @@ int32_t doStreamSessionEncodeOpState(void **buf, SOperatorInfo* pOperator) {
   tlen += taosEncodeFixedI32(buf, size);
   for (int32_t i = 0; i < size; i++) {
     SOperatorInfo* pChOp = taosArrayGetP(pInfo->pChildren, i);
-    tlen += doStreamSessionEncodeOpState(buf, pChOp);
+    tlen += doStreamSessionEncodeOpState(buf, 0, pChOp, false);
   }
 
   // 4.dataVersion
   tlen += taosEncodeFixedI32(buf, pInfo->dataVersion);
 
+  // 5.checksum
+  if (isParent) {
+    if (buf) {
+      uint32_t cksum = taosCalcChecksum(0, pData, len - sizeof(uint32_t));
+      tlen += taosEncodeFixedU32(buf, cksum);
+    } else {
+      tlen += sizeof(uint32_t);
+    }
+  }
+
   return tlen;
 }
 
-void* doStreamSessionDecodeOpState(void* buf, SOperatorInfo* pOperator) {
+void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperator, bool isParent) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   if (!pInfo) {
     return buf;
+  }
+
+  // 5.checksum
+  if (isParent) {
+    int32_t dataLen = len - sizeof(uint32_t);
+    void* pCksum = POINTER_SHIFT(buf, dataLen);
+    if (taosCheckChecksum(buf, dataLen, *(uint32_t*)pCksum) != TSDB_CODE_SUCCESS) {
+      ASSERT(0); // debug
+      qError("stream interval state is invalid");
+      return buf;
+    }
   }
 
   // 1.streamAggSup.pResultRows
@@ -3856,7 +3899,7 @@ void* doStreamSessionDecodeOpState(void* buf, SOperatorInfo* pOperator) {
   ASSERT(size <= taosArrayGetSize(pInfo->pChildren));
   for (int32_t i = 0; i < size; i++) {
     SOperatorInfo* pChOp = taosArrayGetP(pInfo->pChildren, i);
-    buf = doStreamSessionDecodeOpState(buf, pChOp);
+    buf = doStreamSessionDecodeOpState(buf, 0, pChOp, false);
   }
 
   // 4.dataVersion
@@ -3866,10 +3909,10 @@ void* doStreamSessionDecodeOpState(void* buf, SOperatorInfo* pOperator) {
 
 void doStreamSessionSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                        len = doStreamSessionEncodeOpState(NULL, pOperator);
+  int32_t                        len = doStreamSessionEncodeOpState(NULL, 0, pOperator, true);
   void*                          buf = taosMemoryCalloc(1, len);
   void*                          pBuf = buf;
-  len = doStreamSessionEncodeOpState(&pBuf, pOperator);
+  len = doStreamSessionEncodeOpState(&pBuf, len, pOperator, true);
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
                                                      strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), buf, len);
 }
@@ -3941,8 +3984,8 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
-      doStreamSessionSaveCheckpoint(pOperator);
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
+      doStreamSessionSaveCheckpoint(pOperator);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       continue;
     } else {
@@ -4141,7 +4184,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   int32_t len = 0;
   int32_t res = pInfo->streamAggSup.stateStore.streamStateGetInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME, strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), &buff, &len);
   if (res == TSDB_CODE_SUCCESS) {
-    doStreamSessionDecodeOpState(buff, pOperator);
+    doStreamSessionDecodeOpState(buff, len, pOperator, true);
     taosMemoryFree(buff);
   }
 
@@ -4242,8 +4285,8 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
-      doStreamSessionSaveCheckpoint(pOperator);
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
+      doStreamSessionSaveCheckpoint(pOperator);
       continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
@@ -4541,11 +4584,13 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   }
 }
 
-int32_t doStreamStateEncodeOpState(void **buf, SOperatorInfo* pOperator) {
+int32_t doStreamStateEncodeOpState(void **buf, int32_t len, SOperatorInfo* pOperator, bool isParent) {
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   if (!pInfo) {
     return 0;
   }
+
+  void* pData = (buf == NULL) ? NULL : *buf;
 
   // 1.streamAggSup.pResultRows
   int32_t tlen = 0;
@@ -4568,19 +4613,40 @@ int32_t doStreamStateEncodeOpState(void **buf, SOperatorInfo* pOperator) {
   tlen += taosEncodeFixedI32(buf, size);
   for (int32_t i = 0; i < size; i++) {
     SOperatorInfo* pChOp = taosArrayGetP(pInfo->pChildren, i);
-    tlen += doStreamSessionEncodeOpState(buf, pChOp);
+    tlen += doStreamStateEncodeOpState(buf, 0, pChOp, false);
   }
 
   // 4.dataVersion
   tlen += taosEncodeFixedI32(buf, pInfo->dataVersion);
 
+  // 5.checksum
+  if (isParent) {
+    if (buf) {
+      uint32_t cksum = taosCalcChecksum(0, pData, len - sizeof(uint32_t));
+      tlen += taosEncodeFixedU32(buf, cksum);
+    } else {
+      tlen += sizeof(uint32_t);
+    }
+  }
+
   return tlen;
 }
 
-void* doStreamStateDecodeOpState(void* buf, SOperatorInfo* pOperator) {
+void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperator, bool isParent) {
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   if (!pInfo) {
     return buf;
+  }
+
+  // 5.checksum
+  if (isParent) {
+    int32_t dataLen = len - sizeof(uint32_t);
+    void* pCksum = POINTER_SHIFT(buf, dataLen);
+    if (taosCheckChecksum(buf, dataLen, *(uint32_t*)pCksum) != TSDB_CODE_SUCCESS) {
+      ASSERT(0); // debug
+      qError("stream interval state is invalid");
+      return buf;
+    }
   }
 
   // 1.streamAggSup.pResultRows
@@ -4603,12 +4669,22 @@ void* doStreamStateDecodeOpState(void* buf, SOperatorInfo* pOperator) {
   ASSERT(size <= taosArrayGetSize(pInfo->pChildren));
   for (int32_t i = 0; i < size; i++) {
     SOperatorInfo* pChOp = taosArrayGetP(pInfo->pChildren, i);
-    buf = doStreamStateDecodeOpState(buf, pChOp);
+    buf = doStreamStateDecodeOpState(buf, 0, pChOp, false);
   }
 
   // 4.dataVersion
   buf = taosDecodeFixedI64(buf, &pInfo->dataVersion);
   return buf;
+}
+
+void doStreamStateSaveCheckpoint(SOperatorInfo* pOperator) {
+  SStreamStateAggOperatorInfo* pInfo = pOperator->info;
+  int32_t                      len = doStreamStateEncodeOpState(NULL, 0, pOperator, true);
+  void*                        buf = taosMemoryCalloc(1, len);
+  void*                        pBuf = buf;
+  len = doStreamStateEncodeOpState(&pBuf, len, pOperator, true);
+  pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_CHECKPOINT_NAME,
+                                                     strlen(STREAM_STATE_OP_CHECKPOINT_NAME), buf, len);
 }
 
 static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
@@ -4665,8 +4741,8 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
-      doStreamSessionSaveCheckpoint(pOperator);
       pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
+      doStreamSessionSaveCheckpoint(pOperator);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       continue;
     } else {
@@ -4861,7 +4937,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   int32_t len = 0;
   int32_t res = pInfo->streamAggSup.stateStore.streamStateGetInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_CHECKPOINT_NAME, strlen(STREAM_STATE_OP_CHECKPOINT_NAME), &buff, &len);
   if (res == TSDB_CODE_SUCCESS) {
-    doStreamStateDecodeOpState(buff, pOperator);
+    doStreamStateDecodeOpState(buff, len, pOperator, true);
     taosMemoryFree(buff);
   }
 
@@ -5530,8 +5606,8 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       printDataBlock(pBlock, "single interval");
       return pBlock;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
-      doStreamIntervalSaveCheckpoint(pOperator);
       pAPI->stateStore.streamStateCommit(pInfo->pState);
+      doStreamIntervalSaveCheckpoint(pOperator);
       pInfo->reCkBlock = true;
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
       continue;
@@ -5714,7 +5790,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   int32_t len = 0;
   int32_t res = pAPI->stateStore.streamStateGetInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME, strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), &buff, &len);
   if (res == TSDB_CODE_SUCCESS) {
-    doStreamIntervalDecodeOpState(buff, pOperator);
+    doStreamIntervalDecodeOpState(buff, len, pOperator);
     taosMemoryFree(buff);
   }
 
