@@ -1525,6 +1525,9 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
     useDb = taosHashIterate(pRsp->useDbs, useDb);
   }
 
+  // since 3.0.7.0
+  if (tEncodeI32(pEncoder, pRsp->passVer) < 0) return -1;
+
   return 0;
 }
 
@@ -1645,6 +1648,12 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if (tDecodeI32(pDecoder, &ref) < 0) return -1;
       taosHashPut(pRsp->useDbs, key, strlen(key), &ref, sizeof(ref));
       taosMemoryFree(key);
+    }
+    // since 3.0.7.0
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeI32(pDecoder, &pRsp->passVer) < 0) return -1;
+    } else {
+      pRsp->passVer = 0;
     }
   }
 
@@ -3031,59 +3040,6 @@ void tFreeSUserAuthBatchRsp(SUserAuthBatchRsp *pRsp) {
   taosArrayDestroy(pRsp->pArray);
 }
 
-int32_t tSerializeSUserPassBatchRsp(void *buf, int32_t bufLen, SUserPassBatchRsp *pRsp) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-
-  if (tStartEncode(&encoder) < 0) return -1;
-
-  int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
-  if (tEncodeI32(&encoder, numOfBatch) < 0) return -1;
-  for (int32_t i = 0; i < numOfBatch; ++i) {
-    SGetUserPassRsp *pUserPassRsp = taosArrayGet(pRsp->pArray, i);
-    if (tEncodeCStr(&encoder, pUserPassRsp->user) < 0) return -1;
-    if (tEncodeI32(&encoder, pUserPassRsp->version) < 0) return -1;
-  }
-  tEndEncode(&encoder);
-
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
-
-int32_t tDeserializeSUserPassBatchRsp(void *buf, int32_t bufLen, SUserPassBatchRsp *pRsp) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-
-  if (tStartDecode(&decoder) < 0) return -1;
-
-  int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
-  if (tDecodeI32(&decoder, &numOfBatch) < 0) return -1;
-
-  pRsp->pArray = taosArrayInit(numOfBatch, sizeof(SGetUserPassRsp));
-  if (pRsp->pArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  for (int32_t i = 0; i < numOfBatch; ++i) {
-    SGetUserPassRsp rsp = {0};
-    if (tDecodeCStrTo(&decoder, rsp.user) < 0) return -1;
-    if (tDecodeI32(&decoder, &rsp.version) < 0) return -1;
-    taosArrayPush(pRsp->pArray, &rsp);
-  }
-  tEndDecode(&decoder);
-
-  tDecoderClear(&decoder);
-  return 0;
-}
-
-void tFreeSUserPassBatchRsp(SUserPassBatchRsp *pRsp) {
-  if(pRsp) {
-    taosArrayDestroy(pRsp->pArray);
-  }
-}
-
 int32_t tSerializeSDbCfgReq(void *buf, int32_t bufLen, SDbCfgReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -4161,6 +4117,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeCStr(&encoder, pRsp->sVer) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->sDetailVer) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->passVer) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->authVer) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4189,6 +4146,12 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     if (tDecodeI32(&decoder, &pRsp->passVer) < 0) return -1;
   } else {
     pRsp->passVer = 0;
+  }
+  // since 3.0.7.0
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pRsp->authVer) < 0) return -1;
+  } else {
+    pRsp->authVer = 0;
   }
 
   tEndDecode(&decoder);

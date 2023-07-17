@@ -662,11 +662,8 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TRANSFER_STATE: {
-      char* pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-      int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqProcessTaskTransferStateReq(pVnode->pTq, 0, pReq, len);
-    }
+    case TDMT_STREAM_TRANSFER_STATE:
+      return tqProcessTaskTransferStateReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
       return tqProcessStreamTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
@@ -1386,7 +1383,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
 
       if (info.suid) {
-        metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+        code = metaGetInfo(pVnode->pMeta, info.suid, &info, NULL);
+        ASSERT(code == 0);
       }
 
       if (pSubmitTbData->sver != info.skmVer) {
