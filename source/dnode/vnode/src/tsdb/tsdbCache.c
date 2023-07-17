@@ -14,6 +14,7 @@
  */
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
+#include "tsdbReadUtil.h"
 #include "vnd.h"
 
 #define ROCKS_BATCH_SIZE (4096)
@@ -1720,19 +1721,22 @@ typedef struct {
   SMergeTree *pMergeTree;
 } SFSLastIter;
 
-static int32_t loadSttTombData(STsdbReader *pReader, SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pLoadInfo) {
+static int32_t loadSttTombData(STsdbReader *pTsdbReader, SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pLoadInfo) {
   int32_t code = 0;
-  /*
+
+  SCacheRowsReader *pReader = (SCacheRowsReader *)pTsdbReader;
+
   if (pLoadInfo->pTombBlockArray == NULL) {
     pLoadInfo->pTombBlockArray = taosArrayInit(4, POINTER_BYTES);
   }
 
   const TTombBlkArray *pBlkArray = NULL;
-  int32_t              code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
+  code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
+  /*
   return doLoadTombDataFromTombBlk(pBlkArray, pReader, pSttFileReader, false);
   */
   return code;
@@ -2482,45 +2486,6 @@ _err:
   return code;
 }
 
-/* static int32_t tsRowFromTsdbRow(STSchema *pTSchema, TSDBROW *pRow, STSRow **ppRow) { */
-/*   int32_t code = 0; */
-
-/*   SColVal *pColVal = &(SColVal){0}; */
-
-/*   if (pRow->type == 0) { */
-/*     *ppRow = tdRowDup(pRow->pTSRow); */
-/*   } else { */
-/*     SArray *pArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal)); */
-/*     if (pArray == NULL) { */
-/*       code = TSDB_CODE_OUT_OF_MEMORY; */
-/*       goto _exit; */
-/*     } */
-
-/*     TSDBKEY   key = TSDBROW_KEY(pRow); */
-/*     STColumn *pTColumn = &pTSchema->columns[0]; */
-/*     *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts}); */
-
-/*     if (taosArrayPush(pArray, pColVal) == NULL) { */
-/*       code = TSDB_CODE_OUT_OF_MEMORY; */
-/*       goto _exit; */
-/*     } */
-
-/*     for (int16_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) { */
-/*       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal); */
-/*       if (taosArrayPush(pArray, pColVal) == NULL) { */
-/*         code = TSDB_CODE_OUT_OF_MEMORY; */
-/*         goto _exit; */
-/*       } */
-/*     } */
-
-/*     code = tdSTSRowNew(pArray, pTSchema, ppRow); */
-/*     if (code) goto _exit; */
-/*   } */
-
-/* _exit: */
-/*   return code; */
-/* } */
-
 static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
   bool deleted = false;
   while (*iSkyline > 0) {
@@ -2567,22 +2532,21 @@ typedef struct {
 } TsdbNextRowState;
 
 typedef struct CacheNextRowIter {
-  SArray *pSkyline;
-  int64_t iSkyline;
-
-  SBlockIdx       idx;
-  SMemNextRowIter memState;
-  SMemNextRowIter imemState;
-  SFSNextRowIter  fsState;
-  TSDBROW         memRow, imemRow, fsLastRow, fsRow;
-
+  SArray          *pMemDelData;
+  SArray          *pSkyline;
+  int64_t          iSkyline;
+  SBlockIdx        idx;
+  SMemNextRowIter  memState;
+  SMemNextRowIter  imemState;
+  SFSNextRowIter   fsState;
+  TSDBROW          memRow, imemRow, fsLastRow, fsRow;
   TsdbNextRowState input[4];
   STsdb           *pTsdb;
 } CacheNextRowIter;
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                                SArray *pLDataIterArray, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
-                               SDataFReader **pDataFReaderLast, int64_t lastTs) {
+                               SDataFReader **pDataFReaderLast, int64_t lastTs, SCacheRowsReader *pr) {
   int code = 0;
 
   STbData *pMem = NULL;
@@ -2596,6 +2560,9 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   }
 
   pIter->pTsdb = pTsdb;
+
+  pIter->pMemDelData = NULL;
+  loadMemTombData(&pIter->pMemDelData, pMem, pIMem, pr->info.verRange.maxVer);
 
   pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
 #if 0
@@ -2698,6 +2665,10 @@ static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
 
   if (pIter->pSkyline) {
     taosArrayDestroy(pIter->pSkyline);
+  }
+
+  if (pIter->pMemDelData) {
+    taosArrayDestroy(pIter->pMemDelData);
   }
 
 _err:
@@ -2865,7 +2836,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
   CacheNextRowIter iter = {0};
   nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLDataIterArray, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast, pr->lastTs);
+                  &pr->pDataFReaderLast, pr->lastTs, pr);
 
   do {
     TSDBROW *pRow = NULL;
@@ -3035,7 +3006,7 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
 
   CacheNextRowIter iter = {0};
   nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLDataIterArray, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast, pr->lastTs);
+                  &pr->pDataFReaderLast, pr->lastTs, pr);
 
   do {
     TSDBROW *pRow = NULL;

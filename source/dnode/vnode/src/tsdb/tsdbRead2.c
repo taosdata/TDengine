@@ -2037,7 +2037,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
     return code;
   }
 
-  loadMemTombData(pBlockScanInfo, d, di, pReader->info.verRange.maxVer);
+  loadMemTombData(&pBlockScanInfo->pMemDelData, d, di, pReader->info.verRange.maxVer);
 
   pBlockScanInfo->iterInit = true;
   return TSDB_CODE_SUCCESS;

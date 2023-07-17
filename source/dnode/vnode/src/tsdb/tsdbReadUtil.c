@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbReadUtil.h"
 #include "osDef.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
@@ -20,7 +21,6 @@
 #include "tsdbMerge.h"
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
-#include "tsdbReadUtil.h"
 
 static int32_t uidComparFunc(const void* p1, const void* p2) {
   uint64_t pu1 = *(uint64_t*)p1;
@@ -167,7 +167,7 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
 
     tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
     tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
-        pScanInfo->lastKey, pTsdbReader->idStr);
+              pScanInfo->lastKey, pTsdbReader->idStr);
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -518,8 +518,8 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
 }
 
 // load tomb data API
-static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STsdbReader* pReader,
-                                         void* pFileReader, bool isFile) {
+static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STsdbReader* pReader, void* pFileReader,
+                                         bool isFile) {
   int32_t        code = 0;
   STableUidList* pList = &pReader->status.uidList;
   int32_t        numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
@@ -595,7 +595,7 @@ int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileRead
   }
 
   const TTombBlkArray* pBlkArray = NULL;
-  int32_t code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
+  int32_t              code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -603,17 +603,19 @@ int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileRead
   return doLoadTombDataFromTombBlk(pBlkArray, pReader, pSttFileReader, false);
 }
 
-void loadMemTombData(STableBlockScanInfo* pScanInfo, STbData* pMemTbData, STbData* piMemTbData, int64_t ver) {
-  if (pScanInfo->pMemDelData == NULL) {
-    pScanInfo->pMemDelData = taosArrayInit(4, sizeof(SDelData));
+void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver) {
+  if (*ppMemDelData == NULL) {
+    *ppMemDelData = taosArrayInit(4, sizeof(SDelData));
   }
+
+  SArray* pMemDelData = *ppMemDelData;
 
   SDelData* p = NULL;
   if (pMemTbData != NULL) {
     p = pMemTbData->pHead;
     while (p) {
       if (p->version <= ver) {
-        taosArrayPush(pScanInfo->pMemDelData, p);
+        taosArrayPush(pMemDelData, p);
       }
 
       p = p->pNext;
@@ -624,7 +626,7 @@ void loadMemTombData(STableBlockScanInfo* pScanInfo, STbData* pMemTbData, STbDat
     p = piMemTbData->pHead;
     while (p) {
       if (p->version <= ver) {
-        taosArrayPush(pScanInfo->pMemDelData, p);
+        taosArrayPush(pMemDelData, p);
       }
       p = p->pNext;
     }
