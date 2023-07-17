@@ -18,9 +18,9 @@
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
 #include "tsdbMerge.h"
+#include "tsdbReadUtil.h"
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
-#include "tsdbReadUtil.h"
 
 #define ASCENDING_TRAVERSE(o)        (o == TSDB_ORDER_ASC)
 #define getCurrentKeyInLastBlock(_r) ((_r)->currentKey)
@@ -100,7 +100,7 @@ static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInf
 
       i += 1;
       j += 1;
-    } else if (pTCol->colId < pSupInfo->colId[j]) { // do nothing
+    } else if (pTCol->colId < pSupInfo->colId[j]) {  // do nothing
       i += 1;
     } else {
       return TSDB_CODE_INVALID_PARA;
@@ -3815,7 +3815,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   SReaderStatus*  pStatus = &pReader->status;
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
-  initFilesetIterator(&pStatus->fileIter, pReader->status.pfSetArray, pReader);
+  initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
   resetDataBlockIterator(&pStatus->blockIter, pReader->info.order);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3842,7 +3842,6 @@ static void freeSchemaFunc(void* param) {
 static void clearSharedPtr(STsdbReader* p) {
   p->status.pTableMap = NULL;
   p->status.uidList.tableUidList = NULL;
-  p->status.pfSetArray = NULL;
   p->info.pSchema = NULL;
   p->pReadSnap = NULL;
   p->pSchemaMap = NULL;
@@ -3851,7 +3850,8 @@ static void clearSharedPtr(STsdbReader* p) {
 static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
   pDst->status.pTableMap = pSrc->status.pTableMap;
   pDst->status.uidList = pSrc->status.uidList;
-  pDst->status.pfSetArray = pSrc->status.pfSetArray;
+  // pDst->status.pfSetArray = pSrc->status.pfSetArray;
+  pDst->pReadSnap->pfSetArray = pSrc->pReadSnap->pfSetArray;
   pDst->info.pSchema = pSrc->info.pSchema;
   pDst->pSchemaMap = pSrc->pSchemaMap;
   pDst->pReadSnap = pSrc->pReadSnap;
@@ -4633,7 +4633,7 @@ int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 
   int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
 
-  initFilesetIterator(&pStatus->fileIter, pReader->status.pfSetArray, pReader);
+  initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
   resetDataBlockIterator(pBlockIter, pReader->info.order);
   resetTableListIndex(&pReader->status);
 
@@ -4886,7 +4886,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   }
 
   // fs
-  code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pReader->status.pfSetArray);
+  code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pSnap->pfSetArray);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _exit;
@@ -4929,7 +4929,7 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
     taosMemoryFree(pSnap);
 
-    tsdbFSDestroyRefSnapshot(&pReader->status.pfSetArray);
+    tsdbFSDestroyRefSnapshot(&pSnap->pfSetArray);
   }
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }

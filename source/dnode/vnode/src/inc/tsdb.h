@@ -368,20 +368,20 @@ typedef struct {
 } SCacheFlushState;
 
 struct STsdb {
-  char            *path;
-  SVnode          *pVnode;
-  STsdbKeepCfg     keepCfg;
-  TdThreadRwlock   rwLock;
-  SMemTable       *mem;
-  SMemTable       *imem;
-  STsdbFS          fs;    // old
-  SLRUCache       *lruCache;
-  SCacheFlushState flushState;
-  TdThreadMutex    lruMutex;
-  SLRUCache       *biCache;
-  TdThreadMutex    biMutex;
+  char                *path;
+  SVnode              *pVnode;
+  STsdbKeepCfg         keepCfg;
+  TdThreadRwlock       rwLock;
+  SMemTable           *mem;
+  SMemTable           *imem;
+  STsdbFS              fs;  // old
+  SLRUCache           *lruCache;
+  SCacheFlushState     flushState;
+  TdThreadMutex        lruMutex;
+  SLRUCache           *biCache;
+  TdThreadMutex        biMutex;
   struct STFileSystem *pFS;  // new
-  SRocksCache      rCache;
+  SRocksCache          rCache;
 };
 
 struct TSDBKEY {
@@ -659,12 +659,19 @@ struct SDelFWriter {
   uint8_t *aBuf[1];
 };
 
+#include "tarray2.h"
+//#include "tsdbFS2.h"
+// struct STFileSet;
+typedef struct STFileSet STFileSet;
+typedef TARRAY2(STFileSet *) TFileSetArray;
+
 struct STsdbReadSnap {
-  SMemTable  *pMem;
-  SQueryNode *pNode;
-  SMemTable  *pIMem;
-  SQueryNode *pINode;
-  STsdbFS     fs;
+  SMemTable     *pMem;
+  SQueryNode    *pNode;
+  SMemTable     *pIMem;
+  SQueryNode    *pINode;
+  TFileSetArray *pfSetArray;
+  STsdbFS        fs;
 };
 
 struct SDataFWriter {
@@ -777,7 +784,7 @@ struct SDiskDataBuilder {
 typedef struct SLDataIter {
   SRBTreeNode            node;
   SSttBlk               *pSttBlk;
-  int32_t                iStt;       // for debug purpose
+  int32_t                iStt;  // for debug purpose
   int8_t                 backward;
   int32_t                iSttBlk;
   int32_t                iRow;
@@ -796,22 +803,22 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
 
 typedef struct {
-  int8_t         backward;
-  STsdb         *pTsdb;
-  uint64_t       suid;
-  uint64_t       uid;
-  STimeWindow    timewindow;
-  SVersionRange  verRange;
-  bool           strictTimeRange;
-  SArray        *pSttFileBlockIterArray;
-  void          *pCurrentFileset;
-  STSchema      *pSchema;
-  int16_t       *pCols;
-  int32_t        numOfCols;
-  void          *pReader;
-  void          *idstr;
+  int8_t        backward;
+  STsdb        *pTsdb;
+  uint64_t      suid;
+  uint64_t      uid;
+  STimeWindow   timewindow;
+  SVersionRange verRange;
+  bool          strictTimeRange;
+  SArray       *pSttFileBlockIterArray;
+  void         *pCurrentFileset;
+  STSchema     *pSchema;
+  int16_t      *pCols;
+  int32_t       numOfCols;
+  void         *pReader;
+  void         *idstr;
 } SMergeTreeConf;
-int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf* pConf);
+int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);
@@ -827,29 +834,28 @@ void              *destroySttBlockReader(SArray *pLDataIterArray, int64_t *block
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
-  STsdb             *pTsdb;
-  SVersionRange      verRange;
-  TdThreadMutex      readerMutex;
-  SVnode            *pVnode;
-  STSchema          *pSchema;
-  STSchema          *pCurrSchema;
-  uint64_t           uid;
-  uint64_t           suid;
-  char             **transferBuf;  // todo remove it soon
-  int32_t            numOfCols;
-  SArray            *pCidList;
-  int32_t           *pSlotIds;
-  int32_t            type;
-  int32_t            tableIndex;  // currently returned result tables
-  STableKeyInfo     *pTableList;  // table id list
-  int32_t            numOfTables;
-  SSttBlockLoadInfo *pLoadInfo;
-  SLDataIter        *pDataIter;
-  STsdbReadSnap     *pReadSnap;
-  SDataFReader      *pDataFReader;
-  SDataFReader      *pDataFReaderLast;
-  const char        *idstr;
-  int64_t            lastTs;
+  STsdb         *pTsdb;
+  SVersionRange  verRange;
+  TdThreadMutex  readerMutex;
+  SVnode        *pVnode;
+  STSchema      *pSchema;
+  STSchema      *pCurrSchema;
+  uint64_t       uid;
+  uint64_t       suid;
+  char         **transferBuf;  // todo remove it soon
+  int32_t        numOfCols;
+  SArray        *pCidList;
+  int32_t       *pSlotIds;
+  int32_t        type;
+  int32_t        tableIndex;  // currently returned result tables
+  STableKeyInfo *pTableList;  // table id list
+  int32_t        numOfTables;
+  SArray        *pLDataIterArray;
+  STsdbReadSnap *pReadSnap;
+  SDataFReader  *pDataFReader;
+  SDataFReader  *pDataFReaderLast;
+  char          *idstr;
+  int64_t        lastTs;
 } SCacheRowsReader;
 
 typedef struct {

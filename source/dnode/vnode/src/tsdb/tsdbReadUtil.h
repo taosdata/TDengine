@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "tsdbUtil2.h"
 #include "tsdbDataFileRW.h"
+#include "tsdbUtil2.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
@@ -196,7 +196,6 @@ typedef struct SReaderStatus {
   SArray*               pLDataIterArray;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
-  TFileSetArray*        pfSetArray;
 } SReaderStatus;
 
 struct STsdbReader {
