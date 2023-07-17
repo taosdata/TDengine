@@ -19,7 +19,10 @@ use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
+use crate::{
+    get_log_keep_days, plugins::sink, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
+    Transferred,
+};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -311,7 +314,9 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        return Err(OpcError::NodeConfig(format!("node config: {pair} split result len is not 2")));
+                        return Err(OpcError::NodeConfig(format!(
+                            "node config: {pair} split result len is not 2"
+                        )));
                     }
                     let id = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -351,15 +356,26 @@ impl OPCConfig {
                 opc_type = OpcType::OPCDA;
                 let server = dsn.subject.clone();
                 if server.is_none() {
-                    return Err(OpcError::ConfigError("subject", format!("should config subject for opc da")));
+                    return Err(OpcError::ConfigError(
+                        "subject",
+                        format!("should config subject for opc da"),
+                    ));
                 }
                 let nodes = dsn.addresses.clone();
                 if nodes.is_empty() {
-                    return Err(OpcError::ConfigError("host", format!("should config at least one host")));
+                    return Err(OpcError::ConfigError(
+                        "host",
+                        format!("should config at least one host"),
+                    ));
                 }
-                let nodes = nodes.into_iter().map(|addr| addr.host.unwrap().clone())
+                let nodes = nodes
+                    .into_iter()
+                    .map(|addr| addr.host.unwrap().clone())
                     .collect_vec();
-                let connect_da_config = DaConnectConfig { server: server.unwrap(), nodes };
+                let connect_da_config = DaConnectConfig {
+                    server: server.unwrap(),
+                    nodes,
+                };
                 connect = ConnectConfig {
                     ua: None,
                     da: Some(connect_da_config),
@@ -375,7 +391,9 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        return Err(OpcError::NodeConfig(format!("node config: {pair} split result len is not 2")));
+                        return Err(OpcError::NodeConfig(format!(
+                            "node config: {pair} split result len is not 2"
+                        )));
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -389,9 +407,9 @@ impl OPCConfig {
                         tag,
                         code,
                         // (
-                            // table.clone(),
-                            // field.clone(),
-                            // IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap(),
+                        // table.clone(),
+                        // field.clone(),
+                        // IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap(),
                         // ),
                     );
                     // process_table_info(&mut table_info, table, field, value_type);
@@ -448,7 +466,10 @@ impl OPCConfig {
         };
         let opc_table_config = dsn.remove("opc_table_config");
         let opc_table_config: Option<TableConfig> = if opc_table_config.is_some() {
-            Some(serde_json::from_str(opc_table_config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?)
+            Some(
+                serde_json::from_str(opc_table_config.unwrap().as_str())
+                    .map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?,
+            )
         } else {
             None
         };
@@ -462,7 +483,7 @@ impl OPCConfig {
             report,
             param_mapping,
             // table_info,
-            opc_table_config
+            opc_table_config,
         })
     }
 
@@ -706,7 +727,10 @@ pub async fn opc_to_taos(
     let exe_exists = std::path::Path::new(&exe_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", exe_path().to_str().unwrap());
-        Err(OpcError::ExeNotFound(format!("{}", exe_path().to_str().unwrap())))?;
+        Err(OpcError::ExeNotFound(format!(
+            "{}",
+            exe_path().to_str().unwrap()
+        )))?;
     }
 
     if to.subject.is_none() {
@@ -781,11 +805,13 @@ pub async fn opc_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
@@ -887,7 +913,6 @@ pub struct OpcTableConfig {
     // pub(crate) ts_cloumn_name: HashMap<String, (String, Option<String>)>,
 
     // pub(crate) use_received_time: bool,
-
     pub(crate) id_code_map: HashMap<String, String>,
 
     pub(crate) table_config: TableConfig,
@@ -959,19 +984,17 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
         match lang.as_str() {
             "zh" => ("编码".to_string(), "点位编码".to_string()),
-            _ => ("Code".to_string(), "Point Code".to_string())
+            _ => ("Code".to_string(), "Point Code".to_string()),
         }
     } else {
-        ("Code".to_string(),"Point Code".to_string())
+        ("Code".to_string(), "Point Code".to_string())
     };
-    let options = vec![
-        OptionSet {
-            name: "code".to_string(),
-            display: option_set_code_display,
-            description: Some(option_set_code_desc),
-            required: true,
-        },
-    ];
+    let options = vec![OptionSet {
+        name: "code".to_string(),
+        display: option_set_code_display,
+        description: Some(option_set_code_desc),
+        required: true,
+    }];
     let format = Some("{id}::{code}".to_string());
     if let Some(pattern) = req.pattern.as_deref() {
         let regex = regex::Regex::from_str(pattern)?;
