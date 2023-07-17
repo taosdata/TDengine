@@ -466,7 +466,9 @@ async fn consume_point_record(
         };
         let mut columns = String::new();
         let mut columns_insert: Vec<(String, String)> = Vec::new(); // first is primary key info, its type should be timestamp
+        let mut value_column = None;
         for column_config in &table_config.column_configs {
+            
             if column_config.is_primary_key {
                 let primary_key_column_name = column_config.column_name.clone();
                 let prinmary_key_column_alias = column_config
@@ -493,13 +495,15 @@ async fn consume_point_record(
                 } else {
                     value_type.clone()
                 };
-                columns
-                    .push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
+                if column_config.column_name == "value" {
+                    value_column = Some(column_config.clone());
+                } else {
+                    columns.push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
+                }
             }
         }
         // remove last char
         columns.pop();
-        dbg!(&columns);
         let mut tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string();
         if table_config.tag_configs.is_some() {
             let tag_configs = table_config.tag_configs.clone().unwrap();
@@ -642,8 +646,23 @@ async fn consume_point_record(
                     Err(err) => {
                         let errstr = err.to_string();
                         log::warn!("error: {}", errstr);
-                        if errstr.contains("[0x2603]") {
+                        if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
                             // stable not exists
+                            let value_column_type = if point_config.value_type.is_some() {
+                                // maybe should replace value column type
+                                point_config.value_type.clone().unwrap().sql_repr()
+                            } else {
+                                value_type.clone()
+                                // value_column.unwrap().column_type
+                            };
+                            // should be some
+                            let value_column_config = value_column.as_ref().unwrap();
+                            let primary_key_column_name = value_column_config.column_name.clone();
+                            let prinmary_key_column_alias = value_column_config
+                                .column_alias
+                                .clone()
+                                .unwrap_or(primary_key_column_name.clone());
+                            columns.push_str(format!(",`{prinmary_key_column_alias}` {value_column_type}").as_str());
                             let stable_sql = format!(
                                 "create table if not exists `{}` ({}) tags ({})",
                                 stable_name, columns, tags);
