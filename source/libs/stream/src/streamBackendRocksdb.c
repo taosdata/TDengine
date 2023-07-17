@@ -1323,9 +1323,9 @@ bool streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len
   }
   return true;
 }
-rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* pChkptFileName,
+rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKeyName,
                                           rocksdb_snapshot_t** snapshot, rocksdb_readoptions_t** readOpt) {
-  int idx = streamStateGetCfIdx(pState, pChkptFileName);
+  int idx = streamStateGetCfIdx(pState, cfKeyName);
 
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
   if (snapshot != NULL) {
@@ -2387,13 +2387,13 @@ int32_t streamStateGetBatchSize(void* pBatch) {
 
 void    streamStateClearBatch(void* pBatch) { rocksdb_writebatch_clear((rocksdb_writebatch_t*)pBatch); }
 void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rocksdb_writebatch_t*)pBatch); }
-int32_t streamStatePutBatch(SStreamState* pState, const char* pChkptFileName, rocksdb_writebatch_t* pBatch, void* key,
+int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb_writebatch_t* pBatch, void* key,
                             void* val, int32_t vlen, int64_t ttl) {
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  int                i = streamStateGetCfIdx(pState, pChkptFileName);
+  int                i = streamStateGetCfIdx(pState, cfKeyName);
 
   if (i < 0) {
-    qError("streamState failed to put to cf name:%s", pChkptFileName);
+    qError("streamState failed to put to cf name:%s", cfKeyName);
     return -1;
   }
 
