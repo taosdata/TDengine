@@ -29,8 +29,8 @@ class Test16C32G500W(TDCase):
         self.vgroups = 16
         self.create_table_thread_count = 16
         self.thread_count = 16
-        self.childtable_count = 10000
-        self.insert_rows = 100000
+        self.childtable_count = 1000
+        self.insert_rows = 10000
         self.num_of_records_per_req = 10000
         self.batch_create_tbl_num = 10000
         self.dbname = "test"

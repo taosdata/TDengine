@@ -14,7 +14,6 @@ settings:
             logDir: /var/log/taos
             debugFlag: 131
             asynclog: 0
-            numOfCommitThreads: 8
       reserve_dnodes:
         - endpoint: u1-56:6030
           config_dir: /etc/taos
@@ -24,7 +23,6 @@ settings:
             logDir: /var/log/taos
             debugFlag: 131
             asynclog: 0
-            numOfCommitThreads: 8
         - endpoint: u1-57:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -33,7 +31,6 @@ settings:
             logDir: /var/log/taos
             debugFlag: 131
             asynclog: 0
-            numOfCommitThreads: 8
 
   - name: taospy
     fqdn: [u1-55]

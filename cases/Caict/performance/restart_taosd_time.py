@@ -35,7 +35,7 @@ class RestartTaosdTime(TDCase):
         self.create_table_thread_count = 32
         self.thread_count = 32
         self.interlace_rows = 10000
-        self.childtable_count1 = 10
+        self.childtable_count1 = 10000
         self.childtable_prefix1 = "ctb1_"
         self.insert_rows1 = 10000
         self.insert_rows2 = 50000

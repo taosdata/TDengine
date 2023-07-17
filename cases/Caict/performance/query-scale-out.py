@@ -116,9 +116,8 @@ class QueryScale(TDCase):
     def taosBenchmark_insert(self):
         taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
-        self.tdCom.createDb(dbname=self.dbname1, vgroups=self.vgroups, buffer=self.buffer)
         self.json_filename_list.append(self.file_name1)
-        dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, drop="no")
+        dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, buffer=self.buffer)
         stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count1, childtable_prefix=self.childtable_prefix1, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
 

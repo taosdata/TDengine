@@ -17,6 +17,9 @@ from fabric2 import Connection
 import os
 import platform
 import sys
+import taos
+from taos.tmq import Consumer
+from apscheduler.schedulers.background import BackgroundScheduler
 
 class Common:
     def __init__(self):
@@ -40,6 +43,10 @@ class Common:
             return True
         else:
             raise AssertionError(f"checkEqual error, elm={elm} expect_elm={expect_elm}")
+    def add_back_ground_scheduler(self, func, trigger, seconds, max_instances, args):
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(func, trigger, seconds=seconds, max_instances=max_instances, args=args)
+        scheduler.start()
 
 class Remote:
     def __init__(self):
@@ -127,10 +134,16 @@ class XTYTest:
         self.dbname = "test"
         self.stbname = "stb"
         self.ctbname = "ctb"
+        self.topic_name = "tp1"
         self.time_out = 300
         self.host_setting_dict = self.container.gen_host_setting_dict(self.container_setting, self.container_setting["dnode_count"])
         self.start_ts = time.time()
         self.end_ts = time.time()
+        self.conn = taos.connect()
+        self.start_time = time.time()
+        self.end_time = time.time()
+        self.start_value = 1
+        self.pre_rows = 100
 
     def start_container_dnodes(self):
         print('==========  starting dnodes ==========')
@@ -205,6 +218,62 @@ class XTYTest:
         print('==========  checking restart time ==========')
         self.common.checkEqual(self.end_ts-self.start_ts <= 100, True)
         print(f'\033[1;32m********  restart {self.container_setting["dnode_count"]} dnodes cluster use {self.end_ts-self.start_ts}s ********\033[0m')
+
+    def _init_tmq_env(self):
+        self.conn.execute(f"drop topic if exists {self.topic_name};")
+        self.conn.execute(f"drop database if exists {self.dbname}")
+        self.conn.execute(f"create database if not exists {self.dbname} wal_retention_period 3600")
+        self.conn.select_db(self.dbname)
+        self.conn.execute(f"create stable if not exists {self.stbname} (ts timestamp, c1 int) tags(t1 int)")
+        self.conn.execute(f"create table if not exists {self.ctbname} using {self.stbname} tags(1)")
+        self.conn.execute(f"create topic if not exists {self.topic_name} as select ts, c1 from {self.stbname}")
+
+    def _insert_1by1(self):
+        print("==========  starting insert ==========")
+        self.start_time = round(time.time()*1000)
+        print("==========  start_time ==========", self.start_time)
+        self.conn.execute(f'insert into {self.ctbname} values ({self.start_time}, {self.start_value})')
+
+    def _consumer_poll(self, consumer):
+        print("==========  starting poll ==========")
+        while True:
+            res = consumer.poll(1)
+            if not res:
+                break
+            val = res.value()
+            for block in val:
+                print("==========  All DATA ==========", block.fetchall())
+                if block.fetchall()[-1][-1] == self.start_value:
+                    self.end_time = round(time.time()*1000)
+                    print("==========  start_time ==========", self.start_time)
+                    print("==========  end_time ==========", self.end_time)
+                    self.start_value += 1
+            print(f"\033[1;32m********  subscribe use: {self.end_time - self.start_time}ms ********\033[0m")
+
+    def _cleanup(self):
+        self.conn.execute(f"drop topic if exists {self.topic_name};")
+        self.conn.execute(f"drop database if exists {self.dbname}")
+
+    def update_delay_10ms(self):
+        self._init_tmq_env()
+        consumer_dict = {
+            "group.id": "csm1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.commit.interval.ms": "1",
+            "enable.auto.commit": "true",
+            "auto.offset.reset": "earliest",
+            "msg.with.table.name": "true"
+        }
+        consumer = Consumer(consumer_dict)
+        consumer.subscribe([self.topic_name])
+        run_tlist = list()
+        run_tlist.append(threading.Thread(target=self._insert_1by1, args=()))
+        run_tlist.append(threading.Thread(target=self._consumer_poll, args=(consumer,)))
+        self.common.multi_thread_run(run_tlist)
+        consumer.unsubscribe()
+        consumer.close()
+        self._cleanup()
 
 if  __name__ == '__main__':
     container_config = {"fqdn": ["u1-60"], "net_name":"taostest_net", "subnet": "172.12.0.1/16", "image": "tdengine/tdengine", "dnode_count": 100}

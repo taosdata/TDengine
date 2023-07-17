@@ -40,7 +40,7 @@ class Timeline_100B(TDCase):
         self.childtable_count1 = 33333333
         self.childtable_count2 = 33333333
         self.childtable_count3 = 33333334
-        self.interlace_rows = 10000
+        self.interlace_rows = 0
         # self.childtable_count1 = 100
         # self.childtable_count2 = 100
         # self.childtable_count3 = 100
@@ -48,7 +48,7 @@ class Timeline_100B(TDCase):
         self.childtable_prefix1 = "ctb1_"
         self.childtable_prefix2 = "ctb2_"
         self.childtable_prefix3 = "ctb3_"
-        self.insert_rows = 1
+        self.insert_rows = 0
         self.num_of_records_per_req = 10000
         self.batch_create_tbl_num = 10000
         self.dbname = "dbt"

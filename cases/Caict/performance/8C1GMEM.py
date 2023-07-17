@@ -17,7 +17,7 @@ from taostest import TDCase
 from taostest.components.taosd import TaosD
 from taostest.util.remote import Remote
 from taostest.performance.result_reduction import Perf_Base_func
-
+import sys
 class Timeline_100B(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -58,6 +58,7 @@ class Timeline_100B(TDCase):
           }
         ]
         self.interval = "2h"
+        self.insert = False
 
     def desc(self):
         pass
@@ -100,4 +101,6 @@ class Timeline_100B(TDCase):
             f.write(self._remote.cmd(self.taosd_host, [f'taos -s "select * from {self.dbname1}.{self.stbname} limit 100 >> test.sql;"']))
         print(self.result_file_name)
     def run(self):
-        self.query_interval(insert=False)
+        if "--setup" in sys.argv[1]:
+            self.insert = True
+        self.query_interval(self.insert)

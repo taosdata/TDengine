@@ -98,5 +98,3 @@ class Test10msLastRow(TDCase):
 
     def run(self):
         self.query_interval()
-        with open(self.result_file_name, 'r') as f:
-          self._remote._logger.info(f.readlines())

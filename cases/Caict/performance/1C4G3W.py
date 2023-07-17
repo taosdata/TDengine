@@ -36,6 +36,7 @@ class Test1C4G3W(TDCase):
         self.dbname = "test"
         self.stbname = "stb"
         self.insert_mode = "stmt"
+        self.buffer = 2048
 
     def desc(self):
         pass
@@ -70,7 +71,7 @@ class Test1C4G3W(TDCase):
         json_filename_list = list()
 
         json_filename_list.append(self.file_name)
-        dbinfo = self.tdCom.setDBinfo(name=self.dbname, vgroups=self.vgroups)
+        dbinfo = self.tdCom.setDBinfo(name=self.dbname, vgroups=self.vgroups, buffer=self.buffer)
         stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
