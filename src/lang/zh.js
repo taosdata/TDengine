@@ -1488,10 +1488,10 @@ export default {
       tab1:'基于 Debian 或 Ubuntu 系统',
       tab2:'基于 CentOS / RHEL 系统',
       tab2sub:'或者用 RPM 安装',
-      pluginname1:'手动设置 TDinsight',
-      pluginname2:'自动部署 TDinsight',
+      pluginname2:'手动设置 TDinsight',
+      pluginname1:'自动部署 TDinsight',
       plugin1:'从 GitHub 安装 TDengine 最新版数据源插件。',
-      plugin2:`我们提供了一个自动化安装脚本 TDinsight.sh 脚本以便用户快速进行安装配置。<br/>
+      plugin2:`我们提供了一个自动化安装脚本 <code>TDinsight.sh</code> 脚本以便用户快速进行安装配置。<br/>
 
       您可以通过 wget 或其他工具下载该脚本：`,
       pluginsub2:`这个脚本会自动下载最新的<a href='https://github.com/taosdata/grafanaplugin/releases/tag/v3.3.2'>Grafana TDengine 数据源插件</a> 和 <a href='https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json'>TDinsight 仪表盘</a> ，将命令行选项中的可配置参数转为 <a href='https://grafana.com/docs/grafana/latest/administration/provisioning/'>Grafana Provisioning</a> 配置文件，以进行自动化部署及更新等操作。利用该脚本提供的告警设置选项，你还可以获得内置的阿里云短信告警通知支持。`,
@@ -1500,7 +1500,7 @@ export default {
      
       nav:`指向 <strong>Configurations -> Data Sources</strong> 菜单，然后点击 <strong>Add data source</strong> 按钮。`,
       subsearch:'搜索并选择<strong>TDengine</strong>。',
-      settingtd:'配置 TDengine 数据源。',
+      settingtd:`配置 TDengine 数据源。例如：<code>http://localhost:6041</code>`,
       savetest:"保存并测试，正常情况下会报告 'TDengine Data source is working'。",
       
       import:`在配置 TDengine 数据源界面，点击 <strong>Dashboards</strong> tab。`,
