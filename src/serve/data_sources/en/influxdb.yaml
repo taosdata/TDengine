@@ -30,7 +30,7 @@ authentication:
         - name: version
           display: Version
           description: Specify the version of the source database
-          placeholder:
+          placeholder: Please select the version of InfluxDB
           hint:
             type: str
             choices:
@@ -63,7 +63,7 @@ authentication:
         - name: version
           display: Version
           description: Specify the version of the source database
-          placeholder:
+          placeholder: Please select the version of InfluxDB
           hint:
             type: str
             choices:
@@ -108,7 +108,8 @@ groups:
       - name: readWindow
         display: Read Window
         description: Select a type of read window, if empty, it defaults to minute
-        placeholder:
+        placeholder: Please select the type of read window
+        value: 'M'
         hint:
           type: str
           choices:
@@ -118,7 +119,7 @@ groups:
       - name: bucket
         display: Bucket
         description: Select a specified bucket to migrate
-        placeholder: bucket
+        placeholder: Please select the bucket
         hint:
           type: str
           choices:
@@ -127,7 +128,7 @@ groups:
       - name: measurements
         display: Measurements
         description: Select one or more specified measurements to migrate, if empty, migrate all
-        placeholder: bucket
+        placeholder: Please select the measurements
         multiple: true
         editable: true
         hint:

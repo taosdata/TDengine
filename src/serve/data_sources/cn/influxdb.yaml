@@ -32,7 +32,7 @@ authentication:
         - name: version
           display: 版本
           description: 指定数据库的版本。
-          placeholder:
+          placeholder: 请选择 InfluxDB 版本
           hint:
             type: str
             choices:
@@ -65,7 +65,7 @@ authentication:
         - name: version
           display: 版本
           description: 指定数据库的版本。
-          placeholder:
+          placeholder: 请选择 InfluxDB 版本
           hint:
             type: str
             choices:
@@ -110,7 +110,8 @@ groups:
       - name: readWindow
         display: 读取窗口
         description: 选择一个读取窗口类型，如果未指定，默认按分钟
-        placeholder:
+        placeholder: 请选择读取窗口类型
+        value: 'M'
         hint:
           type: str
           choices:
@@ -120,7 +121,7 @@ groups:
       - name: bucket
         display: 桶 Bucket
         description: 指定需要同步的 Bucket 。
-        placeholder: bucket
+        placeholder: 请选择 Bucket
         hint:
           type: str
           choices:
@@ -129,7 +130,7 @@ groups:
       - name: measurements
         display: 测量值 Measurements
         description: 指定需要同步的 Measurements ，未指定则同步全部。
-        placeholder: bucket
+        placeholder: 请选择 Measurements
         multiple: true
         editable: true
         hint:
