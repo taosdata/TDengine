@@ -755,11 +755,11 @@ export default {
   },
   created() {
     this.getDatabases();
+    this.dbsource = this.dbsourceList;
     if (this.isEditable) {
       this.dbname = this.dbName;
-      this.handleDatatime()
+      this.handleEditData()
     }
-    this.dbsource = this.dbsourceList;
   },
   mounted() {
     this.activeName = this.dbsource[0].datasets
@@ -777,18 +777,21 @@ export default {
     },
   },
   methods: {
-    handleDatatime() {
-      this.$nextTick(() => {
-        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-          group.params.map((p) => {
-            if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
-                p.value = switchTimezone(p.value)
-              }
-              return p
-            });
-            return group
+    handleEditData() {
+      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+        group.params.map((p) => {
+          if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
+            p.value = switchTimezone(p.value)
+          }
+          if (p.multiple && p.value && typeof p.value =='string') {
+            // 多选下拉框的返回值改为数组
+            let newVal = p.value.split()
+            p.value = newVal
+          }
+            return p
           });
-      })
+          return group
+        });
     },
     changeHost(host) {
       if (this.tagName == "influxdb") {
