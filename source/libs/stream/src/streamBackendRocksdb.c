@@ -185,7 +185,9 @@ _err:
 int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
   // impl later
   int32_t code = 0;
-  char*   state = taosMemoryCalloc(1, strlen(path) + 32);
+
+  // chkpId = 0;
+  char* state = taosMemoryCalloc(1, strlen(path) + 32);
   sprintf(state, "%s/%s", path, "state");
   if (chkpId != 0) {
     char* chkp = taosMemoryCalloc(1, strlen(path) + 64);
