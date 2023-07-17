@@ -327,17 +327,19 @@ bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
 }
 #endif
 
-int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
+int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t maxLen) {
 #ifdef WINDOWS
   if (!getWinVersionReleaseName(releaseName, maxLen)) {
     snprintf(releaseName, maxLen, "Windows");
   }
+  if(sName) snprintf(sName, maxLen, "Windows");
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
   size_t osversion_len = sizeof(osversion) - 1;
   int osversion_name[] = { CTL_KERN, KERN_OSRELEASE };
 
+  if(sName) snprintf(sName, maxLen, "macOS");
   if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
     return -1;
   }
@@ -357,24 +359,35 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
   return 0;
 #else
   char    line[1024];
+  char   *dest = NULL;
   size_t  size = 0;
   int32_t code = -1;
+  int32_t cnt = 0;
 
   TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
+  if (pFile == NULL) return code;
 
   while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
     line[size - 1] = '\0';
-    if (strncmp(line, "PRETTY_NAME", 11) == 0) {
-      const char *p = strchr(line, '=') + 1;
-      if (*p == '"') {
-        p++;
-        line[size - 2] = 0;
-      }
-      tstrncpy(releaseName, p, maxLen);
+    if (strncmp(line, "NAME", 4) == 0) {
+      dest = sName;
+    } else if (strncmp(line, "PRETTY_NAME", 11) == 0) {
+      dest = releaseName;
       code = 0;
-      break;
+    } else if (strncmp(line, "VERSION_ID", 10) == 0) {
+      dest = ver;
+    } else {
+      continue;
     }
+    if (!dest) continue;
+    const char *p = strchr(line, '=') + 1;
+    if (*p == '"') {
+      p++;
+      line[size - 2] = 0;
+    }
+    tstrncpy(dest, p, maxLen);
+
+    if (++cnt >= 3) break;
   }
 
   taosCloseFile(&pFile);
