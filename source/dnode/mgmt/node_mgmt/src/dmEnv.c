@@ -40,7 +40,6 @@
     goto _exit;       \
   } while (0)
 
-extern char        tsVersionName[16];
 static SDnode      globalDnode = {0};
 static const char *dmOS[10] = {"Ubuntu",  "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",
                                "FreeBSD", "openSUSE",     "SLES",    "Fedora",     "MacOS"};
@@ -72,7 +71,6 @@ static int32_t dmInitMonitor() {
 
   DM_INIT_MON();
 
-  dInfo("%s:%d stName is %s", __func__, __LINE__, stName);
   if (STR_STR_CMP(stName, STR_STR_SIGN)) {
     DM_ERR_RTN(0);
   }
