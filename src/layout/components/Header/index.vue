@@ -15,7 +15,7 @@
     </div>
     <div class="headerRight">
       <Timezone></Timezone>
-      <!-- <Document v-if="docUrl"></Document> -->
+      <Document v-if="docUrl"></Document>
 
       <!-- <Support v-if="supportUrl"></Support>
       <Document v-if="docUrl"></Document> -->
