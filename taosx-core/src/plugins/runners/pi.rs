@@ -1,5 +1,5 @@
 use std::{
-    fs, io::prelude::*, num::ParseIntError, path::PathBuf, process::Stdio, str::FromStr, sync::Arc,
+    fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc,
     time::Duration,
 };
 
@@ -19,6 +19,7 @@ use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 
 use crate::{
+    get_log_keep_days,
     plugins::{service::spawn_rest_service, sink},
     utils::{port_pool::PortPool, stop_thread},
     Action, DataSet, DataSetsReq, Transferred,
@@ -274,7 +275,10 @@ pub async fn pi_to_taos(
     let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
-        Err(PiError::ExeNotFound(format!("{}", pi_exe_path().to_str().unwrap())))?;
+        Err(PiError::ExeNotFound(format!(
+            "{}",
+            pi_exe_path().to_str().unwrap()
+        )))?;
     }
 
     let td_database = to.subject.clone();
@@ -360,11 +364,13 @@ pub async fn pi_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
