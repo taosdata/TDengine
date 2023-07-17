@@ -483,20 +483,41 @@ impl DataSourceDefinition {
                 }
             }
         }
-        for (name, auth) in self
-            .authentication
-            .alternatives
-            .iter_mut()
-            .filter(|item| item.name != "plain")
-            .flat_map(|auth| auth.params.iter_mut().map(|param| (&auth.name, param)))
-        {
-            if let Some(value) = dsn.remove(&auth.name) {
-                self.authentication.value.replace(name.to_string());
-                if !value.is_empty() {
-                    auth.value.replace(value);
+
+        for auth_item in self.authentication.alternatives.iter_mut().filter(|item| item.name != "plain") {
+            let mut is_current_auth = true;
+            for param in &auth_item.params {
+                if !dsn.params.contains_key(&(param.name.clone())) {
+                    is_current_auth = false;
+                    break;
+                }
+            }
+            if is_current_auth {
+                self.authentication.value.replace(auth_item.name.clone());
+                for param in auth_item.params.iter_mut() {
+                    if let Some(value) = dsn.remove(param.name.clone()) {
+                        if !value.is_empty() {
+                            param.value.replace(value);
+                        }
+                    }
                 }
             }
         }
+
+        // for (name, auth) in self
+        //     .authentication
+        //     .alternatives
+        //     .iter_mut()
+        //     .filter(|item| item.name != "plain")
+        //     .flat_map(|auth| auth.params.iter_mut().map(|param| (&auth.name, param)))
+        // {
+        //     if let Some(value) = dsn.remove(&auth.name) {
+        //         self.authentication.value.replace(name.to_string());
+        //         if !value.is_empty() {
+        //             auth.value.replace(value);
+        //         }
+        //     }
+        // }
         for group in self.groups.as_mut_slice() {
             // TD-25111
             match (&group.short_description, &group.description) {

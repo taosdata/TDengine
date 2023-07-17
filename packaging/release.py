@@ -105,9 +105,9 @@ def get_package_name():
     if release_info.Target == "agent":
         target = taosx_agent_name
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
+        return  f'{target}-{release_info.TaosXVersion}-{release_info.OS.lower()}-{release_info.CpuType}-installer'
     else:
-        return f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
+        return f'{target}-{release_info.TaosXVersion}-{release_info.OS.lower()}-{release_info.CpuType}-installer'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统

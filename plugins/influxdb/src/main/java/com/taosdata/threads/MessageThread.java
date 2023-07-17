@@ -47,7 +47,7 @@ public class MessageThread implements Runnable {
                 if (StringUtils.isEmpty(this.name)) {
                     this.name = "MessageThread";
                 }
-                logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 取出内存中消息
                 MessageDto messageDto = MessageCache.getReqMessage();
                 // 判断消息类型并解析消息包体
@@ -64,7 +64,7 @@ public class MessageThread implements Runnable {
                     if (body != null && body.length > 0) {
                         processMessage(seq, body);
                     } else {
-                        logger.error("服务端REQ消息内容为空，不予处理，Message={}", messageDto.toString());
+                        logger.error("The server's REQ message is null and will not be processed, Message={}", messageDto.toString());
                     }
                 } else if (messageDto.getMsgType() == MessageTypeEnums.MSG_RES.getValue()) {
                     // 服务端返回的响应数据
@@ -80,7 +80,7 @@ public class MessageThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
                 }
             }
         }
@@ -98,7 +98,7 @@ public class MessageThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.debug(this.name + "#Thread finished (Take time " + (end - start) + " ms)#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -114,7 +114,7 @@ public class MessageThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        logger.error(this.name + "#Thread exception (Take time " + (end - start) + " ms)#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -124,7 +124,7 @@ public class MessageThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
@@ -143,14 +143,14 @@ public class MessageThread implements Runnable {
             MessageBodyDto messageBodyDto = new ObjectMapper().readValue(bodyStr, MessageBodyDto.class);
             // 判断消息类型
             if (messageBodyDto == null) {
-                logger.error("解析为未定义的消息体类型，bodyStr=" + bodyStr);
+                logger.error("Resolve to an undefined message body type，bodyStr=" + bodyStr);
             } else if (messageBodyDto instanceof MessageBodyInfluxdbDto) {
                 // Influxdb信息，创建Influxdb连接并启动BucketThread线程与ScheduleThread线程
                 // initInfluxdb((MessageBodyInfluxdbDto) messageBodyDto);
             }
             // TODO 生成响应
         } catch (Exception e) {
-            logger.error("解析消息体过程中发生异常，body=" + body, e);
+            logger.error("An exception occurred during the parsing of the message body，body=" + body, e);
         }
     }
 }

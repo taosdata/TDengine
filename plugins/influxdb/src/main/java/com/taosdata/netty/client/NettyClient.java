@@ -101,9 +101,9 @@ public class NettyClient {
                     threadInfo.setStatus(StatusEnums.LOADING.getCode());
                     threadInfo.setDescription(StatusEnums.LOADING.getDesc());
                     StatusCache.noteThread(threadInfo);
-                    logger.info("建立连接并创建发送线程成功，thread: {}", threadName);
+                    logger.info("Successfully established connection and created sending thread，thread: {}", threadName);
                 } else {
-                    logger.error("建立连接失败，将在5秒后进行重连");
+                    logger.error("Failed to establish connection, will reconnect in 5 seconds.");
                     listener.channel().eventLoop().schedule(() -> connect(new Bootstrap(), eventLoop, dataSourceKey), 5, TimeUnit.SECONDS);
                     // 删除Netty连接信息
                     StatusCache.forgetNetty(clientId);
@@ -112,7 +112,7 @@ public class NettyClient {
             // 监听到结束信号后关闭
             channelFuture.channel().closeFuture().sync();
         } catch (InterruptedException e) {
-            logger.error("Netty客户端启动失败", e);
+            logger.error("Netty client startup failed", e);
         } finally {
             // 如果加了这行就没有重连机制
             // workGroup.shutdownGracefully();

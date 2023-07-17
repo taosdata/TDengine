@@ -2,21 +2,11 @@
 id: pibackfill
 name: PIBACKFILL
 description: |
-  The PI System is a suite of software products that are used
-  for data collection, historicizing, finding, analyzing,
-  delivering, and visualizing. It is marketed as an enterprise
-  infrastructure for management of real-time data and
-  events.
-  The term PI System is often used to refer to the PI Server
-  but the two are not the same. The PI  System refers to all
-  OSIsoft software products whereas the PI Server is the
-  core product of the PI System. Data can be automatically
-  collected from many sources (control systems, lab
-  equipment, calculations, manual entry or custom
-  software).
+  The PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.
 
-  taosX could pull history data from PI System by a PIBACKFILL
-  connector plugin.
+  The term PI System is often used to refer to the PI Server but the two are not the same. The PI  System refers to all OSIsoft software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).
+
+  taosX could pull history data from PI System by a PIBACKFILL connector plugin.
 type: uri
 options:
   host:
@@ -111,7 +101,6 @@ datasets:
   - category: PointList
     display: Point List
     description: |
-      # Title
       The point names exists in pi system.
     target:
       name: PointList
@@ -123,7 +112,6 @@ datasets:
   - category: TemplateForPIPoint
     display: Template For PI Point
     description: |
-      # Title
       The template names exists in pi system.
     target:
       name: TemplateForPIPoint
@@ -135,7 +123,6 @@ datasets:
   - category: TemplateForAFElement
     display: Template For AF Element
     description: |
-      # Title
       The template names exists in pi system.
     target:
       name: TemplateForAFElement

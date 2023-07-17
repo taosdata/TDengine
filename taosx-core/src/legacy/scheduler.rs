@@ -126,15 +126,15 @@ async fn worker(
                                     }
 
                                     log::error!(
-                                		"[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:?}, continue next"
-                            		);
+                                        "[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:#}, continue next"
+                                    );
 
                                     if let Some(path) = opts.fails_to.as_ref() {
                                         path.lock().unwrap().write_fmt(format_args!(
                                             "meta\t{}:{}\t{}\n",
                                             stable.as_str(),
                                             tables.join(","),
-                                            format!("{err:?}").replace("\n", " ")
+                                            format!("{err:#}").replace("\n", " ")
                                         ))?;
                                     }
 
@@ -254,8 +254,8 @@ impl Scheduler {
         source_is_v3: bool,
         target_is_v3: bool,
     ) -> Self {
-        let (sender, receiver) = flume::unbounded();
         let workers = std::cmp::max(1, workers);
+        let (sender, receiver) = flume::bounded((workers * 2) as usize);
         let handles = (0..workers)
             .map(|i| {
                 tokio::spawn(worker(
@@ -282,8 +282,8 @@ impl Scheduler {
             handles,
         }
     }
-    pub fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
-        self.sender.send(todo)
+    pub async fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
+        self.sender.send_async(todo).await
     }
 
     // pub fn abort(&self) {
