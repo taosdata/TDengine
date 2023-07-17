@@ -665,13 +665,13 @@ void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
       pRange->range.minVer = 0;
       pRange->range.maxVer = ver;
 
-      qDebug("s-task:%s level:%d fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
+      qDebug("s-task:%s level:%d related fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
              ", ver range:%" PRId64 " - %" PRId64,
              pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
              pRange->range.maxVer);
     } else {
       SHistDataRange* pRange = &pTask->dataRange;
-      qDebug("s-task:%s no associated scan-history task, stream time window:%" PRId64 " - %" PRId64
+      qDebug("s-task:%s no related fill-history task, stream time window:%" PRId64 " - %" PRId64
              ", ver range:%" PRId64 " - %" PRId64,
              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     }
