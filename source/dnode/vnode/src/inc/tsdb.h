@@ -851,27 +851,27 @@ typedef struct STsdbReaderInfo {
 typedef struct SCacheRowsReader {
   STsdb          *pTsdb;
   STsdbReaderInfo info;
-  // SVersionRange  verRange;
-  TdThreadMutex  readerMutex;
-  SVnode        *pVnode;
-  STSchema      *pSchema;
-  STSchema      *pCurrSchema;
-  uint64_t       uid;
-  uint64_t       suid;
-  char         **transferBuf;  // todo remove it soon
-  int32_t        numOfCols;
-  SArray        *pCidList;
-  int32_t       *pSlotIds;
-  int32_t        type;
-  int32_t        tableIndex;  // currently returned result tables
-  STableKeyInfo *pTableList;  // table id list
-  int32_t        numOfTables;
-  SArray        *pLDataIterArray;
-  STsdbReadSnap *pReadSnap;
-  SDataFReader  *pDataFReader;
-  SDataFReader  *pDataFReaderLast;
-  char          *idstr;
-  int64_t        lastTs;
+  int8_t          cacheReader;  // always true for cache reader
+  TdThreadMutex   readerMutex;
+  SVnode         *pVnode;
+  STSchema       *pSchema;
+  STSchema       *pCurrSchema;
+  uint64_t        uid;
+  uint64_t        suid;
+  char          **transferBuf;  // todo remove it soon
+  int32_t         numOfCols;
+  SArray         *pCidList;
+  int32_t        *pSlotIds;
+  int32_t         type;
+  int32_t         tableIndex;  // currently returned result tables
+  STableKeyInfo  *pTableList;  // table id list
+  int32_t         numOfTables;
+  SArray         *pLDataIterArray;
+  STsdbReadSnap  *pReadSnap;
+  SDataFReader   *pDataFReader;
+  SDataFReader   *pDataFReaderLast;
+  char           *idstr;
+  int64_t         lastTs;
 } SCacheRowsReader;
 
 typedef struct {

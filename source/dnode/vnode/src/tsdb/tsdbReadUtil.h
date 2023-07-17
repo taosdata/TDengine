@@ -186,6 +186,7 @@ typedef struct SReaderStatus {
 struct STsdbReader {
   STsdb*             pTsdb;
   STsdbReaderInfo    info;
+  int8_t             cacheReader;  // always false for tsdb reader
   TdThreadMutex      readerMutex;
   EReaderStatus      flag;
   int32_t            code;
