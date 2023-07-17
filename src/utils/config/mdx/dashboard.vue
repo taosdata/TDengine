@@ -1,7 +1,7 @@
 <template>
-  <div >
+  <div>
     <div class="float">
-      {{$t('docs.dashboard.monitortip')}}
+      {{ $t("docs.dashboard.monitortip") }}
     </div>
 
     <p v-html="$t('docs.dashboard.dashboarddesc')"></p>
@@ -66,7 +66,21 @@ sudo yum install \
     <h2 id="install-tdengine-plugin">{{ $t("docs.dashboard.step2") }}</h2>
     <el-tabs value="tb1">
       <el-tab-pane name="tb1" :label="$t('docs.dashboard.pluginname1')">
-        <p>{{ $t("docs.dashboard.plugin1") }}</p>
+        <p v-html="$t('docs.dashboard.plugin2')"></p>
+        <pre class="fifth">
+<code class="language-bash">wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
+chmod +x TDinsight.sh
+./TDinsight.sh</code>
+<span class="copy-icon5" @click="copyCode('fifth')">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
+        </pre>
+        <p v-html="$t('docs.dashboard.pluginsub2')"></p>
+      </el-tab-pane>
+
+      <el-tab-pane name="tb2" :label="$t('docs.dashboard.pluginname2')">
+        <p v-html="$t('docs.dashboard.plugin1')"></p>
         <pre class="fourth">
 <code class="language-bash">get_latest_release() {
   curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
@@ -83,20 +97,6 @@ sudo grafana-cli \
           {{ $t("copy") }}
         </span>
       </pre>
-      </el-tab-pane>
-
-      <el-tab-pane name="tb2" :label="$t('docs.dashboard.pluginname2')">
-        <p v-html="$t('docs.dashboard.plugin2')"></p>
-        <pre class="fifth">
-<code class="language-bash">wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
-chmod +x TDinsight.sh
-./TDinsight.sh</code>
-<span class="copy-icon5" @click="copyCode('fifth')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-        </pre>
-        <p v-html="$t('docs.dashboard.pluginsub2')"></p>
       </el-tab-pane>
     </el-tabs>
 
@@ -126,7 +126,7 @@ sudo systemctl enable grafana-server</code>
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
-    <p>{{ $t("docs.dashboard.settingtd") }}</p>
+    <p v-html="$t('docs.dashboard.settingtd')"></p>
     <p>
       <img
         src="./assets/dashboard/howto-add-datasource.webp"
@@ -213,7 +213,7 @@ export default {
 <style lang="scss" scoped>
 img {
   width: 894px;
-  height: 229px;
+  // height: 229px;
 }
 .copy-icon,
 .copy-icon2,
@@ -230,6 +230,10 @@ img {
   position: absolute;
   right: 20px;
   top: 20px;
+}
+.first,.second,.fifth,.fourth,.sixth{
+  padding-bottom: 5px;
+  line-height: 0.5!important;
 }
 .first:hover {
   .copy-icon {
@@ -277,5 +281,12 @@ img {
   transition: opacity 0.3s, transform 0.3s, left 0.3s, right 0.3s, top 0.4s,
     bottom 0.3s;
   overflow: hidden;
+}
+</style>
+<style lang="scss">
+::v-deep {
+  .markdown-body pre {
+    line-height: 0.1 !important;
+  }
 }
 </style>

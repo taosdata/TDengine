@@ -1714,18 +1714,18 @@ export default {
     },
     dashboard: {
       monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
-      dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here。You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>  to install <a href='https://grafana.com/'>Grafana</a>。`,
+      dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here.You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>.`,
       step1: 'Install Grafana',
       step2: 'Install TDengine Plugin',
       step3: 'Start Grafana',
       step4: 'Login Grafana',
       step5: 'Add Data Source',
       step6: 'Import Dashboard',
-      tab1: 'Installing Grafana on Debian or Ubuntu',
-      tab2: 'Install Grafana on CentOS / RHEL',
+      tab2: 'Installing Grafana on Debian or Ubuntu',
+      tab1: 'Install Grafana on CentOS / RHEL',
       tab2sub: 'Or install it with RPM package.',
-      pluginname1: 'Set up TDinsight manually',
-      pluginname2: 'Automated deployment of TDinsight',
+      pluginname2: 'Set up TDinsight manually',
+      pluginname1: 'Set up TDinsight automatically',
       plugin1: 'Install the latest version of the TDengine Data Source plugin from GitHub.',
       plugin2: `We provide an installation script <code>TDinsight.sh</code> to allow users to configure the installation automatically and quickly.<br/>
 
@@ -1736,7 +1736,7 @@ export default {
 
       nav: `Point to the <strong>Configurations -> Data Sources</strong> menu, and click the <strong>Add data source</strong> button.`,
       subsearch: 'Search for and select<strong> TDengine</strong>。',
-      settingtd: 'Configure the TDengine datasource.',
+      settingtd:  `Configure the TDengine datasource. For e.g.<code>http://localhost:6041</code>.`,
       savetest: "Save and test. It will report 'TDengine Data source is working' under normal circumstances.",
 
       import: `In the page of configuring data source, click<strong> Dashboards</strong> tab.`,

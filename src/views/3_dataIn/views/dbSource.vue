@@ -99,7 +99,8 @@ export default {
     async getData() {
       try {
         await getUIData().then((result) => {
-          this.sourceList = result;
+          this.sourceList = result.filter(item=>item.id!=='csv');
+          console.log(this.sourceList,'this.sourceList');
         });
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
