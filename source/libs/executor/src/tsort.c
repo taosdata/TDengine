@@ -473,6 +473,7 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         pSource->src.rowIndex = -1;
         pSource->pageIndex = -1;
         pSource->src.pBlock = blockDataDestroy(pSource->src.pBlock);
+        uInfo("adjust merge tree. %d source completed", *numOfCompleted);
       } else {
         int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
@@ -668,6 +669,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
     // Only *numOfInputSources* can be loaded into buffer to perform the external sort.
     for (int32_t i = 0; i < sortGroup; ++i) {
+      uInfo("internal merge sort pass %d group %d. num input sources %d ", t, i, numOfInputSources);
       pHandle->sourceId += 1;
 
       int32_t end = (i + 1) * numOfInputSources - 1;
@@ -1001,7 +1003,6 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     size_t nSrc = taosArrayGetSize(pHandle->pOrderedSource);
     SArray* aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
 
-    pHandle->numOfPages = 1024; //todo check sortbufsize
     size_t maxBufSize = pHandle->numOfPages * pHandle->pageSize;
     createPageBuf(pHandle);
 
@@ -1021,6 +1022,8 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
 
       if (szSort > maxBufSize) {
         sortBlocksToExtSource(pHandle, aBlkSort, pOrder, aExtSrc);
+        uInfo("initial source %zu created for %zu blocks", taosArrayGetSize(aExtSrc), taosArrayGetSize(aBlkSort));
+
         for (int i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
           blockDataDestroy(taosArrayGetP(aBlkSort, i));
         }
@@ -1042,7 +1045,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     taosArrayDestroy(aExtSrc);
 
     pHandle->type = SORT_SINGLESOURCE_SORT;
-
+    uInfo("create initial sources for table merge scan ended");
   }
 
   return code;
