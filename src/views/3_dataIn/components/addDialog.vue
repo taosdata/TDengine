@@ -20,6 +20,9 @@
         :label="$t('datasource.agent')"
         prop="agent"
         v-model="ruleForm.agent"
+        :rules="{
+          required: checked, message: $t('datasource.agenttip'), trigger: 'blur'
+        }"
       >
         <span slot="label">
           <el-checkbox v-model="checked">
@@ -137,12 +140,12 @@ export default {
     },
     rules() {
       return {
-        agent: [
-          {
-            required: this.checked,
-            message: this.$t("datasource.agenttip"),
-          },
-        ],
+        // agent: [
+        //   {
+        //     required: this.checked,
+        //     message: this.$t("datasource.agenttip"),
+        //   },
+        // ],
         type: [
           {
             required: true,
@@ -169,7 +172,7 @@ export default {
         ["opcda", "OPC-DA"],
         ["opcua", "OPC-UA"],
       ]),
-      checked: true,
+      checked: false,
       disabledAgent: false,
       rules1: {
         agent: [
