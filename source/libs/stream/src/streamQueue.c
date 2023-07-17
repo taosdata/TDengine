@@ -174,7 +174,7 @@ int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, i
 
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {  // extract block from inputQ, one-by-one
     while (1) {
-      if (streamTaskShouldPause(&pTask->status)) {
+      if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
         qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
         return TSDB_CODE_SUCCESS;
       }
@@ -200,7 +200,7 @@ int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, i
 
   // non sink task
   while (1) {
-    if (streamTaskShouldPause(&pTask->status)) {
+    if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
       qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
       return TSDB_CODE_SUCCESS;
     }

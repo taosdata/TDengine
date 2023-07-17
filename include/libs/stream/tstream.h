@@ -136,7 +136,7 @@ typedef struct {
 typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
-} SStreamTrigger, SStreamCheckpoint;
+} SStreamTrigger;
 
 typedef struct SStreamQueueNode SStreamQueueNode;
 
