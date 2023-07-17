@@ -36,8 +36,8 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
-|          3.2.4          |                     Subscription add the enable.auto.commit parameter and the unsubscribe() method in the WebSocket connection                     | 3.0.5.0 or later |
-|          3.2.3          |                                                 Fixed resultSet data parsing failure in some cases                                                 | 3.0.5.0 or later |
+|          3.2.4          |                     Subscription add the enable.auto.commit parameter and the unsubscribe() method in the WebSocket connection                     |        -         |
+|          3.2.3          |                                                 Fixed resultSet data parsing failure in some cases                                                 |        -         |
 |          3.2.2          |                                                           Subscription add seek function                                                           | 3.0.5.0 or later |
 |          3.2.1          |                                      JDBC REST connection supports schemaless/prepareStatement over WebSocket                                      | 3.0.3.0 or later |
 |          3.2.0          |                                                          This version has been deprecated                                                          |        -         |
@@ -1019,11 +1019,13 @@ while(true) {
 #### Assignment subscription Offset
 
 ```java
+// get offset
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
 Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
 
+// Overrides the fetch offsets that the consumer will use on the next poll(timeout).
 void seek(TopicPartition partition, long offset) throws SQLException;
 ```
 

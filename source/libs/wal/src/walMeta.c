@@ -596,18 +596,18 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   // ftruncate idx file
   if (offset < fileSize) {
     if (taosFtruncateFile(pIdxFile, offset) < 0) {
-      wError("vgId:%d, failed to ftruncate file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-             strerror(errno), offset, fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
+      wError("vgId:%d, failed to ftruncate file since %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, terrstr(),
+             offset, fnameStr);
       goto _err;
     }
   }
 
   // rebuild idx file
   if (taosLSeekFile(pIdxFile, 0, SEEK_END) < 0) {
-    wError("vgId:%d, failed to seek file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
-           offset, fnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, failed to seek file since %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, terrstr(), offset,
+           fnameStr);
     goto _err;
   }
 
@@ -619,11 +619,12 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     idxEntry.offset += sizeof(SWalCkHead) + ckHead.head.bodyLen;
 
     if (walReadLogHead(pLogFile, idxEntry.offset, &ckHead) < 0) {
-      wError("vgId:%d, failed to read wal log head since %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, terrstr(),
-             idxEntry.offset, fLogNameStr);
+      wError("vgId:%d, failed to read wal log head since %s. index:%" PRId64 ", offset:%" PRId64 ", file:%s",
+             pWal->cfg.vgId, terrstr(), idxEntry.ver, idxEntry.offset, fLogNameStr);
       goto _err;
     }
     if (taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
       wError("vgId:%d, failed to append file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
       goto _err;
     }
@@ -631,6 +632,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   }
 
   if (taosFsyncFile(pIdxFile) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, faild to fsync file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
     goto _err;
   }

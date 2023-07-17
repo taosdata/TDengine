@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vnd.h"
 
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   int32_t n = 0;
@@ -282,8 +283,12 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
 
 // SDelFile ===============================================
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  offset = strlen(fname);
+  snprintf((char *)fname + offset, TSDB_FILENAME_LEN - offset - 1, "%sv%dver%" PRId64 ".del", TD_DIRSEP,
+           TD_VID(pTsdb->pVnode), pFile->commitID);
 }
 
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {

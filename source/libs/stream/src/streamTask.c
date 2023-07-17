@@ -206,13 +206,16 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
 void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:%s", pTask->id.idStr);
+
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {
     streamQueueClose(pTask->inputQueue);
   }
+
   if (pTask->outputQueue) {
     streamQueueClose(pTask->outputQueue);
   }
+
   if (pTask->exec.qmsg) {
     taosMemoryFree(pTask->exec.qmsg);
   }
@@ -231,9 +234,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
     tSimpleHashCleanup(pTask->tbSink.pTblInfo);
-  }
-
-  if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
     pTask->checkReqIds =taosArrayDestroy(pTask->checkReqIds);
   }

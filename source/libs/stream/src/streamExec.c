@@ -221,8 +221,9 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     }
 
     if (taosArrayGetSize(pRes) == 0) {
+      taosArrayDestroy(pRes);
+
       if (finished) {
-        taosArrayDestroy(pRes);
         qDebug("s-task:%s finish recover exec task ", pTask->id.idStr);
         break;
       } else {
@@ -319,11 +320,11 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    qError("s-task:%s failed to find related stream task:0x%x, it may have been destoryed or closed", pTask->id.idStr,
-           pTask->streamTaskId.taskId);
+    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed",
+        pTask->id.idStr, pTask->streamTaskId.taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
-    qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr,
+    qDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
            pStreamTask->id.idStr);
   }
 
@@ -337,6 +338,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   } else {
     ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+    qDebug("s-task:%s status: halt by related fill history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
   // wait for the stream task to be idle
@@ -438,7 +440,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       ASSERT(batchSize == 0);
       if (pTask->info.fillHistory && pTask->status.transferState) {
         int32_t code = streamTransferStateToStreamTask(pTask);
-        if (code != TSDB_CODE_SUCCESS) {  // todo handle this
+        pTask->status.transferState = false;  // reset this value, to avoid transfer state again
+        if (code != TSDB_CODE_SUCCESS) { // todo handle this
           return 0;
         }
       }
@@ -592,4 +595,14 @@ int32_t streamTaskReloadState(SStreamTask* pTask) {
   } else {
     return TSDB_CODE_SUCCESS;
   }
+}
+
+int32_t streamAlignTransferState(SStreamTask* pTask) {
+  int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t old = atomic_val_compare_exchange_32(&pTask->transferStateAlignCnt, 0, numOfUpstream);
+  if (old == 0) {
+    qDebug("s-task:%s set the transfer state aligncnt %d", pTask->id.idStr, numOfUpstream);
+  }
+
+  return atomic_sub_fetch_32(&pTask->transferStateAlignCnt, 1);
 }
