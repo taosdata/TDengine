@@ -40,6 +40,8 @@ time = { version = "0.3", features = ["formatting", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["time", "local-time",] }
 tracing-appender = "0.2"
 
+file-rotate = "0.7.5"
+
 [build-dependencies]
 dotenv = "0.15.0"
 shadow-rs = "0.21.0"

@@ -13,7 +13,7 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{Action, DataSet, plugins::sink, Transferred, utils::port_pool::PortPool};
+use crate::{Action, DataSet, get_log_keep_days, plugins::sink, Transferred, utils::port_pool::PortPool};
 
 use super::get_plugin_dir;
 
@@ -246,7 +246,10 @@ pub async fn influxdb_to_taos(
     let exe_exists = std::path::Path::new(&influxdb_jar_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", influxdb_jar_path().to_str().unwrap());
-        Err(InfluxdbError::ExeNotFound(format!("{}", influxdb_jar_path().to_str().unwrap())))?;
+        Err(InfluxdbError::ExeNotFound(format!(
+            "{}",
+            influxdb_jar_path().to_str().unwrap()
+        )))?;
     }
 
     // tdengine
@@ -315,11 +318,13 @@ pub async fn influxdb_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),

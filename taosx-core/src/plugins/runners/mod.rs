@@ -53,6 +53,16 @@ pub fn get_log_dir(plugin: &str) -> PathBuf {
     get_logs_home_dir().join(plugin)
 }
 
+#[inline]
+pub fn get_log_keep_days() -> i64 {
+    const ENV_TAOSX_LOGS_KEEP_DAYS: &'static str = "TAOSX_LOGS_KEEP_DAYS";
+    const DEFAULT_LOGS_KEEP_DAYS: i64 = 30;
+    std::env::var(ENV_TAOSX_LOGS_KEEP_DAYS)
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(DEFAULT_LOGS_KEEP_DAYS)
+}
+
 pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
     let mut plugins = Vec::new();
     if let Ok(info) = opc::info() {
