@@ -162,7 +162,6 @@ typedef struct SGroupCacheLogicNode {
   bool        grpColsMayBeNull;  
   bool        grpByUid;
   bool        globalGrp;
-  bool        enableCache;
   SNodeList*  pGroupCols;
 } SGroupCacheLogicNode;
 
@@ -446,7 +445,6 @@ typedef struct SGroupCachePhysiNode {
   bool       grpColsMayBeNull;
   bool       grpByUid;
   bool       globalGrp;
-  bool       enableCache;
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 

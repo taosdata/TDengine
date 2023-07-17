@@ -1185,7 +1185,6 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
 static const char* jkGroupCacheLogicPlanGrpColsMayBeNull = "GroupColsMayBeNull";
 static const char* jkGroupCacheLogicPlanGroupByUid = "GroupByUid";
 static const char* jkGroupCacheLogicPlanGlobalGroup = "GlobalGroup";
-static const char* jkGroupCacheLogicPlanEnableCache = "EnableCache";
 static const char* jkGroupCacheLogicPlanGroupCols = "GroupCols";
 
 static int32_t logicGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
@@ -1200,9 +1199,6 @@ static int32_t logicGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCacheLogicPlanGlobalGroup, pNode->globalGrp);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkGroupCacheLogicPlanEnableCache, pNode->enableCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCacheLogicPlanGroupCols, pNode->pGroupCols);
@@ -1223,9 +1219,6 @@ static int32_t jsonToLogicGroupCacheNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkGroupCacheLogicPlanGlobalGroup, &pNode->globalGrp);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkGroupCacheLogicPlanEnableCache, &pNode->enableCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkGroupCacheLogicPlanGroupCols, &pNode->pGroupCols);
@@ -2936,7 +2929,6 @@ static const char* jkGroupCachePhysiPlanGroupCols = "GroupColumns";
 static const char* jkGroupCachePhysiPlanGrpColsMayBeNull = "GroupColumnsMayBeNull";
 static const char* jkGroupCachePhysiPlanGroupByUid = "GroupByUid";
 static const char* jkGroupCachePhysiPlanGlobalGroup = "GlobalGroup";
-static const char* jkGroupCachePhysiPlanEnableCache = "EnableCache";
 
 
 static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
@@ -2951,9 +2943,6 @@ static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   }  
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGlobalGroup, pNode->globalGrp);
-  }  
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanEnableCache, pNode->enableCache);
   }  
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCachePhysiPlanGroupCols, pNode->pGroupCols);
@@ -2973,9 +2962,6 @@ static int32_t jsonToPhysiGroupCacheNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkGroupCachePhysiPlanGlobalGroup, &pNode->globalGrp);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkGroupCachePhysiPlanEnableCache, &pNode->enableCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkGroupCachePhysiPlanGroupCols, &pNode->pGroupCols);

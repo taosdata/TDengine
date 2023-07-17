@@ -540,7 +540,6 @@ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCache
   COPY_SCALAR_FIELD(grpColsMayBeNull);
   COPY_SCALAR_FIELD(grpByUid);
   COPY_SCALAR_FIELD(globalGrp);
-  COPY_SCALAR_FIELD(enableCache);
   CLONE_NODE_LIST_FIELD(pGroupCols);
   return TSDB_CODE_SUCCESS;
 }

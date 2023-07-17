@@ -3262,8 +3262,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
     }
     pScan->node.pParent = (SLogicNode*)pGrpCache;
   }
-  pGrpCache->globalGrp = !hasCond;
-  pGrpCache->enableCache = pGrpCache->globalGrp;
+  pGrpCache->globalGrp = false;
   
   if (TSDB_CODE_SUCCESS == code) {
     *ppLogic = (SLogicNode*)pGrpCache;
