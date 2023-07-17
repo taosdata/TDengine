@@ -197,7 +197,13 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   pSortHandle->pOrderedSource = taosArrayInit(4, POINTER_BYTES);
   pSortHandle->cmpParam.orderInfo = pSortInfo;
   pSortHandle->cmpParam.cmpGroupId = false;
-
+  pSortHandle->cmpParam.sortType = type;
+  if (type == SORT_TABLE_MERGE_SCAN) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pSortInfo, 0);
+    pSortHandle->cmpParam.tsSlotId = pOrder->slotId;
+    pSortHandle->cmpParam.order = pOrder->order;
+    pSortHandle->cmpParam.cmpFn = (pOrder->order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
+  }
   tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
@@ -489,6 +495,8 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         }
 
         releaseBufPage(pHandle->pBuf, pPage);
+        if (pSource->pageIndex % 256 == 0)
+          uInfo("got block from page %d from ext mem source %p", pSource->pageIndex, pSource);
       }
     } else {
       int64_t st = taosGetTimestampUs();      
@@ -498,6 +506,7 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
+        uInfo("adjust merge tree. %d source completed", *numOfCompleted);
       }
     }
   }
@@ -578,53 +587,63 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     }
   }
 
-  for (int32_t i = 0; i < pInfo->size; ++i) {
-    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
-    SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
+  if (pParam->sortType == SORT_TABLE_MERGE_SCAN) {
+    SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pParam->tsSlotId);
+    SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pParam->tsSlotId);
+    int64_t*            left1 = (int64_t*)(pLeftColInfoData->pData) + pLeftSource->src.rowIndex;
+    int64_t*            right1 =  (int64_t*)(pRightColInfoData->pData) + pRightSource->src.rowIndex;
 
-    bool leftNull = false;
-    if (pLeftColInfoData->hasNull) {
-      if (pLeftBlock->pBlockAgg == NULL) {
-        leftNull = colDataIsNull_s(pLeftColInfoData, pLeftSource->src.rowIndex);
-      } else {
-        leftNull =
-            colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg[i]);
+    int ret = pParam->cmpFn(left1, right1);
+    return ret;
+  } else {
+    for (int32_t i = 0; i < pInfo->size; ++i) {
+      SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
+      SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
+      SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+
+      bool leftNull = false;
+      if (pLeftColInfoData->hasNull) {
+        if (pLeftBlock->pBlockAgg == NULL) {
+          leftNull = colDataIsNull_s(pLeftColInfoData, pLeftSource->src.rowIndex);
+        } else {
+          leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
+                                   pLeftBlock->pBlockAgg[i]);
+        }
       }
-    }
 
-    SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
-    bool             rightNull = false;
-    if (pRightColInfoData->hasNull) {
-      if (pRightBlock->pBlockAgg == NULL) {
-        rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
-      } else {
-        rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
-                                  pRightBlock->pBlockAgg[i]);
+      bool rightNull = false;
+      if (pRightColInfoData->hasNull) {
+        if (pRightBlock->pBlockAgg == NULL) {
+          rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
+        } else {
+          rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
+                                    pRightBlock->pBlockAgg[i]);
+        }
       }
-    }
 
-    if (leftNull && rightNull) {
-      continue;  // continue to next slot
-    }
+      if (leftNull && rightNull) {
+        continue;  // continue to next slot
+      }
 
-    if (rightNull) {
-      return pOrder->nullFirst ? 1 : -1;
-    }
+      if (rightNull) {
+        return pOrder->nullFirst ? 1 : -1;
+      }
 
-    if (leftNull) {
-      return pOrder->nullFirst ? -1 : 1;
-    }
+      if (leftNull) {
+        return pOrder->nullFirst ? -1 : 1;
+      }
 
-    void* left1 = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
-    void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
+      void* left1 = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
+      void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
 
-    __compar_fn_t fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
+      __compar_fn_t fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
 
-    int ret = fn(left1, right1);
-    if (ret == 0) {
-      continue;
-    } else {
-      return ret;
+      int ret = fn(left1, right1);
+      if (ret == 0) {
+        continue;
+      } else {
+        return ret;
+      }
     }
   }
   return 0;

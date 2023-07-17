@@ -54,6 +54,12 @@ typedef struct SMsortComparParam {
   int32_t numOfSources;
   SArray* orderInfo;  // SArray<SBlockOrderInfo>
   bool    cmpGroupId;
+
+  int32_t sortType;
+  // the following field to speed up when sortType == SORT_TABLE_MERGE_SCAN
+  int32_t tsSlotId;
+  int32_t order;
+  __compar_fn_t cmpFn;
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
