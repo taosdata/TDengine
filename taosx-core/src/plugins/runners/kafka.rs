@@ -62,8 +62,9 @@ pub async fn kafka_to_taos(
 
         for ms in message_sets.iter() {
             for m in ms.messages() {
-                print_message(&ms, &m);
-                timestamp.append_value(chrono::Utc::now().timestamp_nanos());
+                let ts = chrono::Utc::now().timestamp_nanos();
+                // print_message(&ms, &m, &ts);
+                timestamp.append_value(ts);
                 topic.append_value(ms.topic());
                 partition.append_value(ms.partition());
                 offset.append_value(m.offset.clone());
@@ -84,12 +85,12 @@ pub async fn kafka_to_taos(
             ],
         )?;
         writer.write(&batch)?;
+        ipc.send(());
 
         consumer.commit_consumed().unwrap();
         start = chrono::Utc::now().timestamp_millis();
     }
 
-    ipc.send(());
     println!("{} kafka_to_taos stopped", chrono::Utc::now().to_string());
     Ok(())
 }
@@ -191,8 +192,8 @@ fn build_consumer(dsn: &Dsn) -> Consumer {
     consumer.create().unwrap()
 }
 
-fn print_message(ms: &MessageSet, m: &Message) {
-    println!("topic: {}, partition: {}, offset: {}, key: {}, values: {}", ms.topic(), ms.partition(), m.offset, String::from_utf8_lossy(m.key), String::from_utf8_lossy(m.value));
+fn print_message(ms: &MessageSet, m: &Message, ts: &i64) {
+    println!("topic: {}, partition: {}, offset: {},ts: {}, key: {}, values: {}", ms.topic(), ms.partition(), m.offset, ts, String::from_utf8_lossy(m.key), String::from_utf8_lossy(m.value));
 }
 
 fn parse_timeout(dsn: &Dsn) -> i64 {
