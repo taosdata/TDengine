@@ -685,6 +685,8 @@ static void setHJoinDone(struct SOperatorInfo* pOperator) {
 
   SHJoinOperatorInfo* pInfo = pOperator->info;
   destroyHJoinKeyHash(&pInfo->pKeyHash);
+
+  qError("hash Join done");  
 }
 
 static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
@@ -693,9 +695,14 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
   SSDataBlock* pRes = pJoin->pRes;
   pRes->info.rows = 0;
+  int64_t st = 0;
+
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    goto _return;
   }
   
   if (!pJoin->keyHashBuilt) {
@@ -709,7 +716,7 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
 
     if (tSimpleHashGetSize(pJoin->pKeyHash) <= 0) {
       setHJoinDone(pOperator);
-      return NULL;
+      goto _return;
     }
   }
 
@@ -747,6 +754,12 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
     if (pRes->info.rows > 0) {
       break;
     }
+  }
+
+_return:
+
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
   
   return (pRes->info.rows > 0) ? pRes : NULL;
@@ -827,6 +840,8 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
   }
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doHashJoin, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+
+  qError("create hash Join operator done");
 
   return pOperator;
 

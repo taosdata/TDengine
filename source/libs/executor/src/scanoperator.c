@@ -797,7 +797,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  qDebug("add total %d dynamic tables to scan, exist num:%" PRId64, num, (int64_t)taosArrayGetSize(pListInfo->pTableList));
+  qError("add total %d dynamic tables to scan, exist num:%" PRId64, num, (int64_t)taosArrayGetSize(pListInfo->pTableList));
 
   pListInfo->oneTableForEachGroup = true;
   
@@ -812,7 +812,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
 
     taosHashPut(pListInfo->map, pUid, sizeof(uint64_t), &i, sizeof(int32_t));
 
-    qTrace("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+    qError("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
   }
   
   return code;

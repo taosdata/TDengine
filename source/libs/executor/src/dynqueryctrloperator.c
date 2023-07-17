@@ -138,7 +138,7 @@ static int32_t buildStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJ
   int32_t*                    rightVg = (int32_t*)(pVg1->pData + pVg1->info.bytes * rowIdx);
   int64_t*                    rightUid = (int64_t*)(pUid1->pData + pUid1->info.bytes * rowIdx);
 
-  qDebug("start stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, *leftVg, *leftUid, *rightVg, *rightUid);
+  qError("start stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, *leftVg, *leftUid, *rightVg, *rightUid);
   
   int32_t code = buildExchangeOperatorParam(&pExcParam0, 0, leftVg, leftUid, NULL);
   if (TSDB_CODE_SUCCESS == code) {
@@ -169,14 +169,15 @@ static void seqJoinLaunchPostJoin(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
   }
 
+  qError("dynamic post task begin");
   *ppRes = pOperator->pDownstream[1]->fpSet.getNextExtFn(pOperator->pDownstream[1], pParam);
   if (*ppRes) {
     pPost->isStarted = true;
     pInfo->execInfo.postBlkNum++;
     pInfo->execInfo.postBlkRows += (*ppRes)->info.rows;
-    qDebug("join res block retrieved");
+    qError("join res block retrieved");
   } else {
-    qDebug("Empty join res block retrieved");
+    qError("Empty join res block retrieved");
   }
 }
 

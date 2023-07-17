@@ -656,11 +656,11 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
 
     pJoinInfo->leftPos = 0;
     if (pJoinInfo->pLeft == NULL) {
-      qDebug("merge join left got empty block");
+      qError("merge join left got empty block");
       setMergeJoinDone(pOperator);
       return false;
     } else {
-      qDebug("merge join left got block");
+      qError("merge join left got block");
     }
   }
 
@@ -669,11 +669,11 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
 
     pJoinInfo->rightPos = 0;
     if (pJoinInfo->pRight == NULL) {
-      qDebug("merge join right got empty block");
+      qError("merge join right got empty block");
       setMergeJoinDone(pOperator);
       return false;
     } else {
-      qDebug("merge join right got block");
+      qError("merge join right got block");
     }
   }
   // only the timestamp match support for ordinary table
