@@ -4928,9 +4928,10 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
     tsdbFSUnref(pTsdb, &pSnap->fs);
     if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
-    taosMemoryFree(pSnap);
 
     tsdbFSDestroyRefSnapshot(&pSnap->pfSetArray);
+
+    taosMemoryFree(pSnap);
   }
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }

@@ -426,7 +426,6 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
       return code;
     }
 
-    // code = loadSttTombDataForAll(pReader1, pIter->pReader, pBlockLoadInfo);
     code = loadTombFn(pReader1, pIter->pReader, pBlockLoadInfo);
 
     double el = (taosGetTimestampUs() - st) / 1000.0;
