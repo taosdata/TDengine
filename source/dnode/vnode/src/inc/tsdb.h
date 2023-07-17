@@ -833,9 +833,25 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void              *destroySttBlockReader(SArray *pLDataIterArray, int64_t *blocks, double *el);
 
 // tsdbCache ==============================================================================================
+typedef enum {
+  READ_MODE_COUNT_ONLY = 0x1,
+  READ_MODE_ALL,
+} EReadMode;
+
+typedef struct STsdbReaderInfo {
+  uint64_t      suid;
+  STSchema     *pSchema;
+  EReadMode     readMode;
+  uint64_t      rowsNum;
+  STimeWindow   window;
+  SVersionRange verRange;
+  int16_t       order;
+} STsdbReaderInfo;
+
 typedef struct SCacheRowsReader {
-  STsdb         *pTsdb;
-  SVersionRange  verRange;
+  STsdb          *pTsdb;
+  STsdbReaderInfo info;
+  // SVersionRange  verRange;
   TdThreadMutex  readerMutex;
   SVnode        *pVnode;
   STSchema      *pSchema;

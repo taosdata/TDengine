@@ -31,11 +31,6 @@ typedef enum {
 } EReaderStatus;
 
 typedef enum {
-  READ_MODE_COUNT_ONLY = 0x1,
-  READ_MODE_ALL,
-} EReadMode;
-
-typedef enum {
   EXTERNAL_ROWS_PREV = 0x1,
   EXTERNAL_ROWS_MAIN = 0x2,
   EXTERNAL_ROWS_NEXT = 0x3,
@@ -68,16 +63,6 @@ typedef struct STableBlockScanInfo {
   int32_t   lastBlockDelIndex;  // delete index for last block
   bool      iterInit;           // whether to initialize the in-memory skip list iterator or not
 } STableBlockScanInfo;
-
-typedef struct STsdbReaderInfo {
-  uint64_t      suid;
-  STSchema*     pSchema;
-  EReadMode     readMode;
-  uint64_t      rowsNum;
-  STimeWindow   window;
-  SVersionRange verRange;
-  int16_t       order;
-} STsdbReaderInfo;
 
 typedef struct SResultBlockInfo {
   SSDataBlock* pResBlock;
