@@ -3851,11 +3851,10 @@ static void clearSharedPtr(STsdbReader* p) {
 static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
   pDst->status.pTableMap = pSrc->status.pTableMap;
   pDst->status.uidList = pSrc->status.uidList;
-  // pDst->status.pfSetArray = pSrc->status.pfSetArray;
-  pDst->pReadSnap->pfSetArray = pSrc->pReadSnap->pfSetArray;
   pDst->info.pSchema = pSrc->info.pSchema;
   pDst->pSchemaMap = pSrc->pSchemaMap;
   pDst->pReadSnap = pSrc->pReadSnap;
+  pDst->pReadSnap->pfSetArray = pSrc->pReadSnap->pfSetArray;
 
   if (pDst->info.pSchema) {
     tsdbRowMergerInit(&pDst->status.merger, pDst->info.pSchema);
