@@ -145,70 +145,97 @@ class TDCreateData():
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         self.tdSql.execute('''create stable stable_2 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
 
         self.tdSql.execute('''create stable stable_null_childtable (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
 
         #self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0') ;''' 
+        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '%d' , '%d', '%d' , '%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
         #self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' , \'1999-09-09 09:09:09.090\') ;''' 
+        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '%d' , '%d', '%d' , '%d', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' , \'1999-09-09 09:09:09.090\') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) , 
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
-        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_1_5 using stable_1 tags('stable_1_5', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
+        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
+        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' ,'0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_1_5 using stable_1 tags('stable_1_5', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_1_6 using stable_1 tags('stable_1_6', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
+        self.tdSql.execute('''create table stable_1_6 using stable_1 tags('stable_1_6', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
 
         #self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1' , '0' , '0' , '0' , '0' , 0 , 'binary21' , 'nchar21' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
+        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
-        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_3 using stable_2 tags('stable_2_3', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
+        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_2_3 using stable_2 tags('stable_2_3', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_2_4 using stable_2 tags('stable_2_4', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
+        self.tdSql.execute('''create table stable_2_4 using stable_2 tags('stable_2_4', '%d' , '%d', '%d' , '%d', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_2_5 using stable_2 tags('stable_2_5', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
+        self.tdSql.execute('''create table stable_2_5 using stable_2 tags('stable_2_5', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_2_6 using stable_2 tags('stable_2_6', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
+        self.tdSql.execute('''create table stable_2_6 using stable_2 tags('stable_2_6', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
 
-        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
-        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #regular table
         self.tdSql.execute('''create table regular_table_1 \
@@ -428,54 +455,66 @@ class TDCreateData():
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp,\
                 latitude double , longitude double , elevation double , velocity double , heading double , grade double , fuel_consumption double , load_capacity double , fuel_capacity double , nominal_fuel_consumption double ) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp,\
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp,\
                     name binary(30) , fleet binary(30) , driver binary(30) , model binary(30) , device_version binary(30));''')
         self.tdSql.execute('''create stable stable_2 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp, \
                 fuel_state double , current_load double  ,status tinyint , load_capacity double , fuel_capacity double , nominal_fuel_consumption double ) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp ,\
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp ,\
                     name binary(30) , fleet binary(30) , driver binary(30) , model binary(30) , device_version binary(30));''')
         
         self.tdSql.execute('''create stable stable_null_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
 
         self.tdSql.execute('''create stable stable_null_childtable (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         for i in range(self.stable_child_num):
             if i == 1 or i == 2 :
-                self.tdSql.execute('''create table stable_1_%d using stable_1 tags('stable_1_%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', NULL, 'v2.3') ;''' 
+                self.tdSql.execute('''create table stable_1_%d using stable_1 tags('stable_1_%d', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', NULL, 'v2.3') ;''' 
                       %(i , i , fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(), i , i , i )) 
             else :
-                self.tdSql.execute('''create table stable_1_%d using stable_1 tags('stable_1_%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', 'H-%d', 'v2.3') ;''' 
+                self.tdSql.execute('''create table stable_1_%d using stable_1 tags('stable_1_%d', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', 'H-%d', 'v2.3') ;''' 
                       %(i , i , fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(), i , i , i , i )) 
         
         for i in range(self.stable_child_num):
             if i /2 == 0 :
-                self.tdSql.execute('''create table stable_2_%d using stable_2 tags('stable_2_%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', NULL, 'v2.3') ;''' 
+                self.tdSql.execute('''create table stable_2_%d using stable_2 tags('stable_2_%d', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d' , 0 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', NULL, 'v2.3') ;''' 
                       %(i , i , fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(), i , i , i )) 
             else :
-                self.tdSql.execute('''create table stable_2_%d using stable_2 tags('stable_2_%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', 'H-%d', 'v2.3') ;''' 
+                self.tdSql.execute('''create table stable_2_%d using stable_2 tags('stable_2_%d', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d' , 0 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', 'H-%d', 'v2.3') ;''' 
                       %(i , i , fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(), i , i , i , i )) 
         
 
-        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #regular table
         self.tdSql.execute('''create table regular_table_1 \
@@ -525,7 +564,7 @@ class TDCreateData():
             for j in range(self.stable_child_num):       
                 self.tdSql.execute('''insert into stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts ,\
                                 latitude ,longitude ,elevation ,velocity ,heading ,grade ,fuel_consumption ,load_capacity ,fuel_capacity ,nominal_fuel_consumption) \
-                                values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f) ;''' 
+                                values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f) ;''' 
                             % ( j, self.ts + i*15000000, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
@@ -538,7 +577,7 @@ class TDCreateData():
                 
                 self.tdSql.execute('''insert into stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts ,\
                                 latitude ,longitude ,elevation ,velocity ,heading ,grade ,fuel_consumption ,load_capacity ,fuel_capacity ,nominal_fuel_consumption) \
-                                values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f) ;''' 
+                                values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f) ;''' 
                             % ( j, self.ts + i*15000000-1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
@@ -551,7 +590,7 @@ class TDCreateData():
                 
                 self.tdSql.execute('''insert into stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts ,\
                                   latitude ,longitude ,elevation ,velocity ,heading ,grade ,fuel_consumption ,load_capacity ,fuel_capacity ,nominal_fuel_consumption) \
-                                  values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f) ;''' 
+                                  values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f) ;''' 
                             % ( j, self.ts + i*15000000+1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
@@ -563,7 +602,7 @@ class TDCreateData():
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=1000, max=10000, step=1),fake.random_int(min=100, max=1000, step=1)))
                 
                 self.tdSql.execute('''insert into stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                                  values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                                  values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % ( j, self.ts + i*15000000+10, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
@@ -651,50 +690,62 @@ class TDCreateData():
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         self.tdSql.execute('''create stable stable_2 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
 
         self.tdSql.execute('''create stable stable_null_childtable (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         #self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0') ;''' 
+        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '%d' , '%d', '%d' , '%d' , %d, %d, %d, %d, 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
         #self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' , \'1999-09-09 09:09:09.090\') ;''' 
+        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '%d' , '%d', '%d' , '%d' , %d, %d, %d, %d, 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' , \'1999-09-09 09:09:09.090\') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
-        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
+        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' ,'0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1' , '0' , '0' , '0' , '0' , 0 , 'binary21' , 'nchar21' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
+        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1', '%d' , '%d', '%d' , '%d' , %d, %d, %d, %d, 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
         #self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2', '%d' , '%d', '%d' , '%d' , 0 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
+        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2', '%d' , '%d', '%d' , '%d' , %d, %d, %d, %d, 0 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
                       %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.random_int(min=0, max=4294967295, step=1), 
+                        fake.random_int(min=0, max=18446744073709551615, step=1), 
+                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
 
-        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' ,'0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
         
-        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' ,0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #regular table
         self.tdSql.execute('''create table regular_table_1 \
@@ -822,40 +873,40 @@ class TDCreateData():
                 q_binary1 binary(100) , q_nchar1 nchar(100) ,q_binary2 binary(100) , q_nchar2 nchar(100) ,q_binary3 binary(100) , q_nchar3 nchar(100) ,q_binary4 binary(100) , q_nchar4 nchar(100) ,\
                 q_binary5 binary(100) , q_nchar5 nchar(100) ,q_binary6 binary(100) , q_nchar6 nchar(100) ,q_binary7 binary(100) , q_nchar7 nchar(100) ,q_binary8 binary(100) , q_nchar8 nchar(100) ,\
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         self.tdSql.execute('''create stable stable_2 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_binary1 binary(100) , q_nchar1 nchar(100) ,q_binary2 binary(100) , q_nchar2 nchar(100) ,q_binary3 binary(100) , q_nchar3 nchar(100) ,q_binary4 binary(100) , q_nchar4 nchar(100) ,\
                 q_binary5 binary(100) , q_nchar5 nchar(100) ,q_binary6 binary(100) , q_nchar6 nchar(100) ,q_binary7 binary(100) , q_nchar7 nchar(100) ,q_binary8 binary(100) , q_nchar8 nchar(100) ,\
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_binary1 binary(100) , q_nchar1 nchar(100) ,q_binary2 binary(100) , q_nchar2 nchar(100) ,q_binary3 binary(100) , q_nchar3 nchar(100) ,q_binary4 binary(100) , q_nchar4 nchar(100) ,\
                 q_binary5 binary(100) , q_nchar5 nchar(100) ,q_binary6 binary(100) , q_nchar6 nchar(100) ,q_binary7 binary(100) , q_nchar7 nchar(100) ,q_binary8 binary(100) , q_nchar8 nchar(100) ,\
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
 
         self.tdSql.execute('''create stable stable_null_childtable (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_binary1 binary(100) , q_nchar1 nchar(100) ,q_binary2 binary(100) , q_nchar2 nchar(100) ,q_binary3 binary(100) , q_nchar3 nchar(100) ,q_binary4 binary(100) , q_nchar4 nchar(100) ,\
                 q_binary5 binary(100) , q_nchar5 nchar(100) ,q_binary6 binary(100) , q_nchar6 nchar(100) ,q_binary7 binary(100) , q_nchar7 nchar(100) ,q_binary8 binary(100) , q_nchar8 nchar(100) ,\
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
         self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
-                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
-        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
+        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
+        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
-        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1' , '0' , '0' , '0' , '0' , 0 , 'binary21' , 'nchar21' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1' , '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , 'binary21' , 'nchar21' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
-        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
-        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #regular table
         self.tdSql.execute('''create table regular_table_1 \
@@ -1030,15 +1081,15 @@ class TDCreateData():
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(20) , q_nchar nchar(20) , q_ts timestamp ,  \
                     q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp)  \
-                    tags(loc nchar(20) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(20) , t_nchar nchar(20) ,t_float float , t_double double , t_ts timestamp);''')
+                    tags(loc nchar(20) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(20) , t_nchar nchar(20) ,t_float float , t_double double , t_ts timestamp);''')
         self.tdSql.execute('''create stable stable_2 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(20) , q_nchar nchar(20) , q_ts timestamp ,  \
                     q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp)  \
-                    tags(loc nchar(20) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(20) , t_nchar nchar(20) ,t_float float , t_double double , t_ts timestamp);''')
+                    tags(loc nchar(20) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(20) , t_nchar nchar(20) ,t_float float , t_double double , t_ts timestamp);''')
         
-        self.tdSql.execute('''create table table_1 using stable_1 tags('table_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table table_2 using stable_1 tags('table_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table table_3 using stable_1 tags('table_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table table_21 using stable_2 tags('table_21' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table table_1 using stable_1 tags('table_1', '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        self.tdSql.execute('''create table table_2 using stable_1 tags('table_2', '2147483647' , '9223372036854775807' , '32767' , '127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
+        self.tdSql.execute('''create table table_3 using stable_1 tags('table_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
+        self.tdSql.execute('''create table table_21 using stable_2 tags('table_21' , '0' , '0' , '0' , '0' ,'4294967295' , '18446744073709551615' , '65535' , '255' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
         
         self.tdSql.execute('''create table regular_table_1 \
                     (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(20) , q_nchar nchar(20) , q_ts timestamp ,  \
@@ -1051,36 +1102,36 @@ class TDCreateData():
                     q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
         
         for i in range(self.num_null):        
-            self.tdSql.execute('''insert into table_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, i, i, i, i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into table_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000, i, i, i, i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into  regular_table_1 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into  regular_table_1 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, i, i, i, i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into  regular_table_1 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into  regular_table_1 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000 , i, i, i, i, i, i, i, i, self.ts + i))
 
-            self.tdSql.execute('''insert into table_21  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_21  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, i, i, i, i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into table_21  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_21  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000, i, i, i, i, i, i, i, i, self.ts + i))
 
-            self.tdSql.execute('''insert into table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, 2147483647-i, 9223372036854775807-i, 32767-i, 127-i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000, 2147483647-i, 9223372036854775807-i, 32767-i, 127-i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, 2147483647-i, 9223372036854775807-i, 32767-i, 127-i, i, i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000 , 2147483647-i, 9223372036854775807-i, 32767-i, 127-i, i, i, i, i, self.ts + i))
 
-            self.tdSql.execute('''insert into table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, -2147483647+i, -9223372036854775807+i, -32767+i, -127+i, -i, -i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %d, %d, %d, %d,%f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000, -2147483647+i, -9223372036854775807+i, -32767+i, -127+i, -i, -i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into regular_table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into regular_table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*10000, -2147483647+i, -9223372036854775807+i, -32767+i, -127+i, -i, -i, i, i, self.ts + i))
-            self.tdSql.execute('''insert into regular_table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+            self.tdSql.execute('''insert into regular_table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000 , -2147483647+i, -9223372036854775807+i, -32767+i, -127+i, -i, -i, i, i, self.ts + i))
 
         i = random.randint(0,1)
