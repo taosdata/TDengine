@@ -129,6 +129,12 @@ class TDTestCase:
         tdSql.query(f'select * from information_schema.ins_topics where topic_name = "{topic_name}"')
         tdSql.checkEqual(tdSql.queryResult[0][3],f'create topic {topic_name} as select c0 from {self.dbname}.{stbname}')
         tdSql.execute(f'drop topic {topic_name}')
+
+        #TD-25222
+        long_topic_name="hhhhjjhhhhqwertyuiasdfghjklzxcvbnmhhhhjjhhhhqwertyuiasdfghjklzxcvbnmhhhhjjhhhhqwertyuiasdfghjklzxcvbnm"
+        tdSql.execute(f'create topic {long_topic_name} as select * from {self.dbname}.{stbname}')
+        tdSql.execute(f'drop topic {long_topic_name}')
+
         tdSql.execute(f'drop database {self.dbname}')
 
     def drop_stream_check(self):
