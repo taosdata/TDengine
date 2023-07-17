@@ -33,8 +33,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb3.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxTopic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
@@ -207,6 +211,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionUS.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
@@ -319,6 +324,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/orderBy.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py
@@ -750,6 +756,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
+,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
+,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
 
 #tsim test
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim

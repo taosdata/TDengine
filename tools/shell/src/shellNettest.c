@@ -15,6 +15,7 @@
 
 #define _GNU_SOURCE
 #include "shellInt.h"
+#include "tversion.h"
 
 static void shellWorkAsClient() {
   SShellArgs *pArgs = &shell.args;
@@ -33,6 +34,7 @@ static void shellWorkAsClient() {
   rpcInit.user = "_dnd";
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
     printf("failed to init net test client since %s\r\n", terrstr());
@@ -122,6 +124,8 @@ static void shellWorkAsServer() {
   rpcInit.sessions = 10;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
+
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   void *serverRpc = rpcOpen(&rpcInit);
   if (serverRpc == NULL) {

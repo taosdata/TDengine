@@ -26,7 +26,7 @@
 #include "tpagedbuf.h"
 #include "tref.h"
 #include "tsched.h"
-
+#include "tversion.h"
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 
@@ -237,8 +237,9 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj** pNewRequest) {
-  int32_t code = buildRequest(pRequest->pTscObj->id, sql, strlen(sql), pRequest, pRequest->validateOnly, pNewRequest, 0);
+int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest) {
+  int32_t code =
+      buildRequest(pRequest->pTscObj->id, sql, strlen(sql), pRequest, pRequest->validateOnly, pNewRequest, 0);
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->relation.prevRefId = (*pNewRequest)->self;
     (*pNewRequest)->relation.nextRefId = pRequest->self;
@@ -502,8 +503,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     pResInfo->userFields[i].bytes = pSchema[i].bytes;
     pResInfo->userFields[i].type = pSchema[i].type;
 
-    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR ||
-        pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
@@ -891,7 +891,7 @@ static bool incompletaFileParsing(SNode* pStmt) {
 
 void continuePostSubQuery(SRequestObj* pRequest, TAOS_ROW row) {
   SSqlCallbackWrapper* pWrapper = pRequest->pWrapper;
-  int32_t code = nodesAcquireAllocator(pWrapper->pParseCtx->allocatorId);
+  int32_t              code = nodesAcquireAllocator(pWrapper->pParseCtx->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t analyseStart = taosGetTimestampUs();
     code = qContinueParsePostQuery(pWrapper->pParseCtx, pRequest->pQuery, (void**)row);
@@ -934,7 +934,7 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
 
   TAOS_ROW row = NULL;
   if (rowNum > 0) {
-    row = taos_fetch_row(res); // for single row only now
+    row = taos_fetch_row(res);  // for single row only now
   }
 
   SRequestObj* pNextReq = acquireRequest(pRequest->relation.nextRefId);
@@ -2135,6 +2135,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
@@ -2494,11 +2495,10 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
   return pRequest;
 }
 
+static void fetchCallback(void* pResult, void* param, int32_t code) {
+  SRequestObj* pRequest = (SRequestObj*)param;
 
-static void fetchCallback(void *pResult, void *param, int32_t code) {
-  SRequestObj *pRequest = (SRequestObj *)param;
-
-  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+  SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);
@@ -2520,7 +2520,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   }
 
   pRequest->code =
-      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, true);
+      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4, true);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;
@@ -2531,19 +2531,19 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
 
-    STscObj            *pTscObj = pRequest->pTscObj;
-    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+    atomic_add_fetch_64((int64_t*)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
   }
 
   pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
-void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param) {
+void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
   pRequest->body.fetchFp = fp;
   pRequest->body.param = param;
 
-  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+  SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   // this query has no results or error exists, return directly
   if (taos_num_fields(pRequest) == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
@@ -2578,5 +2578,3 @@ void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param
 
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
-
-

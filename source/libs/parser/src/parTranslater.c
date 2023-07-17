@@ -509,6 +509,10 @@ static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int
 }
 
 static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo* pInfo) {
+  if (IS_SYS_DBNAME(pDbName)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SParseContext* pParCxt = pCxt->pParseCxt;
   SName          name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
@@ -878,6 +882,7 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
                    (igTags ? 0 : ((TSDB_SUPER_TABLE == pMeta->tableType) ? pMeta->tableInfo.numOfTags : 0));
     for (int32_t i = 0; i < nums; ++i) {
       if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        pCxt->pParseCxt->hasInvisibleCol = true;
         continue;
       }
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
@@ -3203,7 +3208,11 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateFillValues(pCxt, pSelect);
   }
   if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
-    code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
+    if (pCxt->pParseCxt->hasInvisibleCol) {
+      code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    } else {
+      code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
+    }
   }
   return code;
 }
@@ -6102,6 +6111,9 @@ static int32_t checkCollectTopicTags(STranslateContext* pCxt, SCreateTopicStmt* 
 //    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
       SSchema* column = &pMeta->schema[0];
       SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      if (NULL == col) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       strcpy(col->colName, column->name);
       strcpy(col->node.aliasName, col->colName);
       strcpy(col->node.userAlias, col->colName);
@@ -6212,7 +6224,7 @@ static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pSt
   char* p = strchr(pStmt->config, ' ');
   if (NULL != p) {
     *p = 0;
-    strcpy(pStmt->value, p + 1);
+    tstrncpy(pStmt->value, p + 1, sizeof(pStmt->value));
   }
   return TSDB_CODE_SUCCESS;
 }

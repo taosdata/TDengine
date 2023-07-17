@@ -419,6 +419,9 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     mDebug("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
+    if(pSub == NULL){
+      continue;
+    }
     taosWLockLatch(&pSub->lock);
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &consumerId, sizeof(int64_t));
     if(pConsumerEp){

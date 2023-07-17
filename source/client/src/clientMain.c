@@ -135,11 +135,6 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
       taosThreadMutexLock(&pObj->mutex);
-      if (fp && !pObj->passInfo.fp) {
-        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
-      } else if (!fp && pObj->passInfo.fp) {
-        atomic_sub_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
-      }
       pObj->passInfo.fp = fp;
       pObj->passInfo.param = param;
       taosThreadMutexUnlock(&pObj->mutex);
@@ -563,13 +558,12 @@ int taos_select_db(TAOS *taos, const char *db) {
   return code;
 }
 
-
 void taos_stop_query(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return;
   }
 
-  stopAllQueries((SRequestObj*)res);
+  stopAllQueries((SRequestObj *)res);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -790,14 +784,13 @@ void destorySqlCallbackWrapper(SSqlCallbackWrapper *pWrapper) {
   taosMemoryFree(pWrapper);
 }
 
-void destroyCtxInRequest(SRequestObj* pRequest) {
+void destroyCtxInRequest(SRequestObj *pRequest) {
   schedulerFreeJob(&pRequest->body.queryJob, 0);
   qDestroyQuery(pRequest->pQuery);
   pRequest->pQuery = NULL;
   destorySqlCallbackWrapper(pRequest->pWrapper);
   pRequest->pWrapper = NULL;
 }
-
 
 static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t code) {
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
@@ -812,15 +805,15 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   if (TSDB_CODE_SUCCESS == code) {
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
-  
+
   pRequest->metric.analyseCostUs += taosGetTimestampUs() - analyseStart;
-  
+
   handleQueryAnslyseRes(pWrapper, pResultMeta, code);
 }
 
-int32_t cloneCatalogReq(SCatalogReq*     * ppTarget, SCatalogReq* pSrc) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SCatalogReq* pTarget = taosMemoryCalloc(1, sizeof(SCatalogReq));
+int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SCatalogReq *pTarget = taosMemoryCalloc(1, sizeof(SCatalogReq));
   if (pTarget == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
@@ -847,17 +840,16 @@ int32_t cloneCatalogReq(SCatalogReq*     * ppTarget, SCatalogReq* pSrc) {
   return code;
 }
 
-
-void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, SNode* pRoot) {
-  SRequestObj* pNewRequest = NULL;
-  SSqlCallbackWrapper* pNewWrapper = NULL;
-  int32_t code = buildPreviousRequest(pWrapper->pRequest, pWrapper->pRequest->sqlstr, &pNewRequest);
+void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, SNode *pRoot) {
+  SRequestObj         *pNewRequest = NULL;
+  SSqlCallbackWrapper *pNewWrapper = NULL;
+  int32_t              code = buildPreviousRequest(pWrapper->pRequest, pWrapper->pRequest->sqlstr, &pNewRequest);
   if (code) {
     handleQueryAnslyseRes(pWrapper, pResultMeta, code);
     return;
   }
 
-  pNewRequest->pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  pNewRequest->pQuery = (SQuery *)nodesMakeNode(QUERY_NODE_QUERY);
   if (NULL == pNewRequest->pQuery) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
@@ -876,16 +868,16 @@ void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResult
 }
 
 void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code) {
-  SRequestObj         *pRequest = pWrapper->pRequest;
-  SQuery              *pQuery = pRequest->pQuery;
+  SRequestObj *pRequest = pWrapper->pRequest;
+  SQuery      *pQuery = pRequest->pQuery;
 
   if (code == TSDB_CODE_SUCCESS && pQuery->pPrevRoot) {
-    SNode* prevRoot = pQuery->pPrevRoot;
+    SNode *prevRoot = pQuery->pPrevRoot;
     pQuery->pPrevRoot = NULL;
     handleSubQueryFromAnalyse(pWrapper, pResultMeta, prevRoot);
     return;
   }
-  
+
   if (code == TSDB_CODE_SUCCESS) {
     pRequest->stableQuery = pQuery->stableQuery;
     if (pQuery->pRoot) {
@@ -1048,7 +1040,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
 }
 
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t              code = TSDB_CODE_SUCCESS;
   STscObj             *pTscObj = pRequest->pTscObj;
   SSqlCallbackWrapper *pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
   if (pWrapper == NULL) {
@@ -1085,7 +1077,6 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
 
   return code;
 }
-
 
 void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
@@ -1133,12 +1124,12 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 }
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
-  int32_t reqIdx = 0;
+  int32_t      reqIdx = 0;
   SRequestObj *pReqList[16] = {NULL};
   SRequestObj *pUserReq = NULL;
   pReqList[0] = pRequest;
-  uint64_t tmpRefId = 0;
-  SRequestObj* pTmp = pRequest;
+  uint64_t     tmpRefId = 0;
+  SRequestObj *pTmp = pRequest;
   while (pTmp->relation.prevRefId) {
     tmpRefId = pTmp->relation.prevRefId;
     pTmp = acquireRequest(tmpRefId);
@@ -1146,9 +1137,9 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self,
-               tmpRefId, pTmp->requestId);
-      break;         
+      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
+               pTmp->requestId);
+      break;
     }
   }
 
@@ -1157,11 +1148,11 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
     pTmp = acquireRequest(tmpRefId);
     if (pTmp) {
       tmpRefId = pTmp->relation.nextRefId;
-      removeRequest(pTmp->self);      
+      removeRequest(pTmp->self);
       releaseRequest(pTmp->self);
     } else {
       tscError("0x%" PRIx64 " is not there", tmpRefId);
-      break;         
+      break;
     }
   }
 

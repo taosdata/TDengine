@@ -207,7 +207,10 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     tb_uid_t uid = *(tb_uid_t *)pData;
     tdbFree(pData);
     SMetaInfo info;
-    metaGetInfo(pMeta, uid, &info, NULL);
+    if (metaGetInfo(pMeta, uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
+      terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return -1;
+    }
     if (info.uid == info.suid) {
       return 0;
     } else {
@@ -939,7 +942,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t timePointMs, SArray *tbUids) {
     return 0;
   }
 
-  metaInfo("ttl find expired table count: %zu" , TARRAY_SIZE(tbUids));
+  metaInfo("ttl find expired table count: %zu", TARRAY_SIZE(tbUids));
 
   metaDropTables(pMeta, tbUids);
   return 0;
@@ -971,7 +974,15 @@ static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
 }
 
 static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
+  if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
+
   STtlDelTtlCtx ctx = {.uid = pME->uid, .pTxn = pMeta->txn};
+  if (pME->type == TSDB_CHILD_TABLE) {
+    ctx.ttlDays = pME->ctbEntry.ttlDays;
+  } else {
+    ctx.ttlDays = pME->ntbEntry.ttlDays;
+  }
+
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
@@ -1965,7 +1976,6 @@ static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
 
   STtlUpdTtlCtx ctx = {.uid = pME->uid};
-
   if (pME->type == TSDB_CHILD_TABLE) {
     ctx.ttlDays = pME->ctbEntry.ttlDays;
     ctx.changeTimeMs = pME->ctbEntry.btime;
