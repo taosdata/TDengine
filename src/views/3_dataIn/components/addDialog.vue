@@ -21,20 +21,19 @@
         prop="agent"
         v-model="ruleForm.agent"
         :rules="{
-          required: checked, message: $t('datasource.agenttip'), trigger: 'blur'
+          required: checked,
+          message: $t('datasource.agenttip'),
+          trigger: 'blur',
         }"
       >
         <span slot="label">
           <el-checkbox v-model="checked">
-            {{ $t('datasource.agent') }} 
+            {{ $t("datasource.agent") }}
           </el-checkbox>
-          <el-tooltip
-            effect="light"
-            placement="top"
-          >
+          <el-tooltip effect="light" placement="top">
             <span slot="content" v-html="$t('datasource.agentInfo')"></span>
             <i class="el-icon-info"></i>
-        </el-tooltip>
+          </el-tooltip>
         </span>
         <!-- <el-cascader
           v-model="ruleForm.agent"
@@ -44,18 +43,22 @@
           :disabled="disabledAgent"
           >
         </el-cascader> -->
-        <el-select 
+        <el-select
           v-model="ruleForm.agent"
-          :placeholder="checked ? $t('datasource.agenttip') : this.$t('disbleagent')"
+          :placeholder="
+            checked ? $t('datasource.agenttip') : this.$t('disbleagent')
+          "
           :disabled="disabledAgent"
         >
           <el-option
             v-for="item in this.agentList"
             :key="item.value"
             :label="item.label"
-            :value="item.value">
+            :value="item.value"
+          >
           </el-option>
         </el-select>
+        <el-button type="primary">{{$t("taosagents.createnewagent")}}</el-button>
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcetype')" prop="type">
         <el-select
@@ -69,13 +72,17 @@
             :key="item.id"
           ></el-option>
         </el-select>
-        <span style="color:red;font-size:12px;display:flex;margin-top:4px;" v-if="ruleForm.type=='influxdb'">{{$t('datasource.influxdbtip')}}</span>
+        <span
+          style="color: red; font-size: 12px; display: flex; margin-top: 4px"
+          v-if="ruleForm.type == 'influxdb'"
+          >{{ $t("datasource.influxdbtip") }}</span
+        >
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcename')" prop="name">
         <el-input
           v-model="ruleForm.name"
           :placeholder="$t('datasource.nametip')"
-          :maxlength=20
+          :maxlength="20"
         ></el-input>
       </el-form-item>
     </el-form>
@@ -115,7 +122,7 @@ export default {
   computed: {
     confirmStatus() {
       if (!this.ruleForm.agent && this.checked) {
-        return true
+        return true;
       }
       if (!this.ruleForm.type) {
         return true;
@@ -128,15 +135,15 @@ export default {
     options() {
       return [
         {
-          value: 'disableAgent',
-          label: this.$t('disbleagent'),
+          value: "disableAgent",
+          label: this.$t("disbleagent"),
         },
         {
-          value: 'start',
-          label: this.$t('enableagent'),
-          children: this.agentList
-        }
-      ]
+          value: "start",
+          label: this.$t("enableagent"),
+          children: this.agentList,
+        },
+      ];
     },
     rules() {
       return {
@@ -153,7 +160,7 @@ export default {
           },
         ],
         name: [{ required: true, message: this.$t("datasource.nametip") }],
-      }
+      };
     },
   },
   data() {
@@ -205,11 +212,11 @@ export default {
 
     selectAgenttype() {
       this.ruleForm.type = "";
-      if(this.ruleForm.agent[0] === 'add') {
-        this.$emit('addAgent')
+      if (this.ruleForm.agent[0] === "add") {
+        this.$emit("addAgent");
         this.$nextTick(() => {
-          this.closeDialog()
-        })
+          this.closeDialog();
+        });
       }
     },
 
@@ -225,14 +232,20 @@ export default {
           localStorage.getItem("local_clusterID"),
           localStorage.getItem("username")
         );
-        this.agentList = this.agentList.map(agent => {
+        this.agentList = this.agentList.map((agent) => {
           return {
             value: agent.id,
-            label: agent.id + '.' + agent.name + ((new Date(agent.expire_date)<Date.now())?'（'+this.$t('datasource.expired')+'）':''),
-            disabled:new Date(agent.expire_date)<Date.now(),
-            ...agent
-          }
-        })
+            label:
+              agent.id +
+              "." +
+              agent.name +
+              (new Date(agent.expire_date) < Date.now()
+                ? "（" + this.$t("datasource.expired") + "）"
+                : ""),
+            disabled: new Date(agent.expire_date) < Date.now(),
+            ...agent,
+          };
+        });
       } catch (error) {
         console.log(error);
       }
@@ -243,14 +256,14 @@ export default {
       deep: true,
       handler(val) {
         if (val == "mqtt") {
-        //   this.$emit("showMqttDialog");
+          //   this.$emit("showMqttDialog");
         }
       },
     },
     checked(val) {
-      this.disabledAgent = !val
-      this.ruleForm.agent = ''
-    }
+      this.disabledAgent = !val;
+      this.ruleForm.agent = "";
+    },
   },
 };
 </script>
@@ -280,5 +293,10 @@ export default {
 .el-select {
   display: flex;
   flex: 1;
+}
+::v-deep {
+  .el-form-item__content {
+    display: flex;
+  }
 }
 </style>
