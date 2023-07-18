@@ -70,6 +70,8 @@ static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
+
 int32_t mndInitDnode(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_DNODE,
@@ -1061,22 +1063,19 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "keeptimeoffset", 14) == 0) {
-    if (' ' != cfgReq.config[14] && 0 != cfgReq.config[14]) {
-      mError("dnode:%d, failed to config keeptimeoffset since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
-      terrno = TSDB_CODE_INVALID_CFG;
-      return -1;
-    }
+    int32_t optLen = strlen("keeptimeoffset");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
 
-    const char *value = cfgReq.value;
-    int32_t     offset = atoi(value);
-    if (offset < 0 || offset > 23) {
-      mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, offset);
+    if (flag < 0 || flag > 23) {
+      mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
       return -1;
     }
 
     strcpy(dcfgReq.config, "keeptimeoffset");
-    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", offset);
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #ifdef TD_ENTERPRISE
   } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
@@ -1308,4 +1307,29 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+// get int32_t value from 'SMCfgDnodeReq'
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int32_t *pOutValue) {
+  terrno = 0;
+  if (' ' != pMCfgReq->config[opLen] && 0 != pMCfgReq->config[opLen]) {
+    goto _err;
+  }
+
+  if (' ' == pMCfgReq->config[opLen]) {
+    // 'key value'
+    if (strlen(pMCfgReq->value) != 0) goto _err;
+    *pOutValue = atoi(pMCfgReq->config + opLen + 1);
+  } else {
+    // 'key' 'value'
+    if (strlen(pMCfgReq->value) == 0) goto _err;
+    *pOutValue = atoi(pMCfgReq->value);
+  }
+
+  return 0;
+
+_err:
+  mError("dnode:%d, failed to config keeptimeoffset since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
+  terrno = TSDB_CODE_INVALID_CFG;
+  return -1;
 }
