@@ -131,6 +131,15 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname);
 int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId);
 
 /**
+ * @brief Recursive make directory at all levels in tfs.
+ *
+ * @param pTfs The fs object.
+ * @param rname The rel name of directory.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t tfsMkdirRecur(STfs *pTfs, const char *rname);
+
+/**
  * @brief Recursive create directories in tfs.
  *
  * @param pTfs The fs object.

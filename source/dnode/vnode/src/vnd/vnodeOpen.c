@@ -27,6 +27,14 @@ int32_t vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs,
   return 0;
 }
 
+static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
+  if (pTfs) {
+    return tfsMkdirRecur(pTfs, path);
+  } else {
+    return taosMkDir(path);
+  }
+}
+
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -38,8 +46,8 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   }
 
   // create vnode env
-  if ((pTfs) ? tfsMkdir(pTfs, path) : taosMkDir(path)) {
-    vError("vgId:%d, failed to mkdir since %s, dir: %s", pCfg->vgId, strerror(errno), path);
+  if (vnodeMkDir(pTfs, path)) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(errno), path);
     return TAOS_SYSTEM_ERROR(errno);
   }
   vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);

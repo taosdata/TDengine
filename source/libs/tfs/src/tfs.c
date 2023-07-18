@@ -281,12 +281,26 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   return 0;
 }
 
-int32_t tfsMkdir(STfs *pTfs, const char *rname) {
+int32_t tfsMkdirRecur(STfs *pTfs, const char *rname) {
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       SDiskID did = {.id = id, .level = level};
       if (tfsMkdirRecurAt(pTfs, rname, did) < 0) {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int32_t tfsMkdir(STfs *pTfs, const char *rname) {
+  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+    STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+    for (int32_t id = 0; id < pTier->ndisk; id++) {
+      SDiskID did = {.id = id, .level = level};
+      if (tfsMkdirAt(pTfs, rname, did) < 0) {
         return -1;
       }
     }
