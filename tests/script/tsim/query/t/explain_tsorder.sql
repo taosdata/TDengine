@@ -98,3 +98,65 @@ select last(ts), c2 as d from d1 group by c2 order by c2 asc limit 9,1;
 select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 asc limit 10;
 select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 asc limit 2,8;
 select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 asc limit 9,1;
+
+explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100\G;
+explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart desc\G;
+explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart asc\G;
+
+explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend desc\G;
+explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend asc\G;
+
+select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100;
+select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart desc;
+select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart asc;
+
+select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend desc;
+select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend asc;
+
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc\G;
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc\G;
+
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
+
+select _wstart, _wend, count(*) from meters session(ts, 1h);
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc;
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc;
+
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc;
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc;
+
+
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc\G;
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc\G;
+
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
+explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
+
+select _wstart, _wend, count(*) from meters session(ts, 1h);
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc;
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc;
+
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc;
+select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc;
+
+explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2)\G;
+explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc\G;
+explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc\G;
+
+explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc\G;
+explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc\G;
+
+select _wstart, _wend, count(*), last(ts) from meters state_window(c2);
+select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc;
+select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc;
+
+select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc;
+select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc;
+
+explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc, count(*) desc\G;
+
+explain verbose true select _wstart, _wend, last(ts) from (select _wstart as ts, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc) interval(1h) order by _wstart desc\G;
+explain verbose true select _wstart, _wend, last(ts) from (select _wstart as ts, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc) interval(1h) order by _wstart desc\G;

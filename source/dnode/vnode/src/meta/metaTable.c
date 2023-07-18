@@ -455,7 +455,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     }
   }
 
-  if (diffIdx == -1 && diffIdx == 0) {
+  if (diffIdx == -1 || diffIdx == 0) {
     goto _err;
   }
 
@@ -974,7 +974,15 @@ static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
 }
 
 static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
+  if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
+
   STtlDelTtlCtx ctx = {.uid = pME->uid, .pTxn = pMeta->txn};
+  if (pME->type == TSDB_CHILD_TABLE) {
+    ctx.ttlDays = pME->ctbEntry.ttlDays;
+  } else {
+    ctx.ttlDays = pME->ntbEntry.ttlDays;
+  }
+
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
@@ -1654,10 +1662,11 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
   if (ret < 0) {
     terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     return -1;
+  } else {
+    uid = *(tb_uid_t *)pVal;
+    tdbFree(pVal);
+    pVal = NULL;
   }
-  uid = *(tb_uid_t *)pVal;
-  tdbFree(pVal);
-  pVal = NULL;
 
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
     ret = -1;
@@ -1736,12 +1745,16 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
       nTagData = tDataTypes[pCol->type].bytes;
     }
     if (metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, uid, &pTagIdxKey, &nTagIdxKey) < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
       metaDestroyTagIdxKey(pTagIdxKey);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaDestroyTagIdxKey(pTagIdxKey);
   }
+  tdbTbcClose(pCtbIdxc);
   return 0;
 
 _err:
@@ -1968,7 +1981,6 @@ static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
 
   STtlUpdTtlCtx ctx = {.uid = pME->uid};
-
   if (pME->type == TSDB_CHILD_TABLE) {
     ctx.ttlDays = pME->ctbEntry.ttlDays;
     ctx.changeTimeMs = pME->ctbEntry.btime;
