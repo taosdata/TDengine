@@ -59,6 +59,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.7.2"
 zstd = "0.12.1"
+csv = "1.2"
 
 actix-cors = "0.6.4"
 actix-web = "4"
@@ -103,6 +104,7 @@ rand = "0.8"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
+md5 = "0.7.0"
 
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
