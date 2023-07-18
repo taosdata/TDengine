@@ -5,6 +5,7 @@ package opcda
 
 import (
 	"collector/common"
+	"collector/connector"
 	"container/list"
 	"context"
 	"errors"
@@ -47,6 +48,7 @@ type reader struct {
 	pointRegex  *regexp.Regexp
 	mutex       sync.Mutex
 	done        chan struct{}
+	dumper      *connector.CsvDumper
 	containsBad bool
 	debug       bool
 }
@@ -95,6 +97,14 @@ func newReader(config common.Config) (*reader, error) {
 		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag]}
 	}
 	r.tags = tags
+	if config.Collect.Dump.Enable {
+		dumper, err := connector.NewCsvDumper(config.Collect.Dump.Path, config.Collect.Dump.Keep)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dump file: %w", err)
+		}
+
+		r.dumper = dumper
+	}
 
 	return &r, nil
 }
@@ -143,10 +153,10 @@ func (r *reader) disconnect() {
 func (r *reader) stop(_ context.Context) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-
 	defer close(r.done)
 
 	r.disconnect()
+	r.dumper.Close()
 }
 
 func (r *reader) ensureConnect(ctx context.Context) error {
@@ -219,7 +229,7 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 			tags[id].valueType = valueType
 		}
 
-		values = append(values, &common.NodeValue{
+		nodeValue := &common.NodeValue{
 			Identifier: id,
 			Name:       tags[id].name,
 			Timestamp:  item.Timestamp,
@@ -227,7 +237,14 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 			Value:      value,
 			ValueType:  valueType,
 			Status:     int64(uint32(item.Quality)),
-		})
+		}
+
+		if err := r.dump(nodeValue); err != nil {
+			logger.Error("## dump data error", "err", err)
+			panic(fmt.Errorf("dump data error. %v", err))
+		}
+
+		values = append(values, nodeValue)
 	}
 	return values
 }
@@ -279,6 +296,14 @@ func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
 	return
 }
 
+func (r *reader) dump(value *common.NodeValue) error {
+	if r.dumper == nil {
+		return nil
+	}
+
+	return r.dumper.Dump(value)
+}
+
 func toValueType(k reflect.Kind) (common.ValueType, error) {
 	switch k {
 	case reflect.Bool:
@@ -311,5 +336,30 @@ func toValueType(k reflect.Kind) (common.ValueType, error) {
 		return common.VARCHAR, nil
 	default:
 		return common.Invalid, fmt.Errorf("unsupported type %s", k.String())
+	}
+}
+
+func opcDaStatusString(status int64) string {
+	switch status {
+	case 0:
+		return "Bad"
+	case 192, 216:
+		return "Good"
+	case 64:
+		return "Uncertain"
+	case 6:
+		return "Disconnected"
+	case 2:
+		return "Failed"
+	case 3:
+		return "Noconfig"
+	case 1:
+		return "Running"
+	case 4:
+		return "Suspended"
+	case 5:
+		return "Test"
+	default:
+		return "Unknown"
 	}
 }
