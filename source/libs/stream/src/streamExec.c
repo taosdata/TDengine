@@ -295,7 +295,7 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
 }
 #endif
 
-static int32_t getNumOfItemsInputQ(const SStreamTask* pTask) {
+int32_t streamTaskGetInputQItems(const SStreamTask* pTask) {
   int32_t numOfItems1 = taosQueueItemSize(pTask->inputQueue->queue);
   int32_t numOfItems2 = taosQallItemSize(pTask->inputQueue->qall);
 

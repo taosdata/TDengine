@@ -268,14 +268,22 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    int32_t numOfItemsInQ = taosQueueItemSize(pTask->inputQueue->queue);
+    int32_t numOfItems = streamTaskGetInputQItems(pTask);
 
     // append the data for the stream
     SStreamQueueItem* pItem = NULL;
     code = extractMsgFromWal(pTask->exec.pWalReader, (void**) &pItem, pTask->id.idStr);
 
-    if ((code != TSDB_CODE_SUCCESS || pItem == NULL) && (numOfItemsInQ == 0)) {  // failed, continue
+    if ((code != TSDB_CODE_SUCCESS || pItem == NULL) && (numOfItems == 0)) {  // failed, continue
       streamMetaReleaseTask(pStreamMeta, pTask);
+      continue;
+    }
+
+    taosThreadMutexLock(&pTask->lock);
+
+    if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
+      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
+      taosThreadMutexUnlock(&pTask->lock);
       continue;
     }
 
@@ -292,7 +300,9 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       }
     }
 
-    if ((code == TSDB_CODE_SUCCESS) || (numOfItemsInQ > 0)) {
+    taosThreadMutexUnlock(&pTask->lock);
+
+    if ((code == TSDB_CODE_SUCCESS) || (numOfItems > 0)) {
       code = streamSchedExec(pTask);
       if (code != TSDB_CODE_SUCCESS) {
         streamMetaReleaseTask(pStreamMeta, pTask);
