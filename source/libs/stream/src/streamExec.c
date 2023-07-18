@@ -545,6 +545,8 @@ int32_t streamTryExec(SStreamTask* pTask) {
     if (pTask->status.taskStatus == TASK_STATUS__CK_READY) {
       // check for all tasks, and do generate the vnode-wide checkpoint data.
       // todo extract method
+
+
       SStreamMeta* pMeta = pTask->pMeta;
       int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
       ASSERT(remain >= 0);
@@ -554,6 +556,9 @@ int32_t streamTryExec(SStreamTask* pTask) {
         streamSaveTasks(pMeta, pTask->checkpointingId);
         qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, checkpointId:%" PRId64, pMeta->vgId,
                pTask->checkpointingId);
+      } else {
+        qDebug("vgId:%d vnode wide tasks not reach checkpoint ready status:%d, total:%d", pMeta->vgId, remain,
+               (int32_t)taosArrayGetSize(pMeta->pTaskList));
       }
 
       // send check point response to upstream task

@@ -174,6 +174,16 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   // set task status
   pTask->status.taskStatus = TASK_STATUS__CK;
 
+  { // todo: remove this when the pipeline checkpoint generating is used.
+    SStreamMeta* pMeta = pTask->pMeta;
+    taosWLockLatch(&pMeta->lock);
+    if (pMeta->chkptNotReadyTasks == 0) {
+      pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
+    }
+
+    taosWUnLockLatch(&pMeta->lock);
+  }
+
   //todo fix race condition: set the status and append checkpoint block
   int32_t taskLevel = pTask->info.taskLevel;
   if (taskLevel == TASK_LEVEL__SOURCE) {

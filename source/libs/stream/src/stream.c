@@ -248,7 +248,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   ASSERT(pInfo != NULL);
 
   if (!pInfo->dataAllowed) {
-    qWarn("s-task:%s data from task:0x%x is denied", pTask->id.idStr, pReq->upstreamTaskId);
+    qWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr, pReq->upstreamTaskId);
     status = TASK_INPUT_STATUS__BLOCKED;
   } else {
     // Current task has received the checkpoint req from the upstream task, from which the message should all be blocked
