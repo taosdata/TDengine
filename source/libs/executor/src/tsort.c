@@ -475,12 +475,14 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
     if (pHandle->type == SORT_SINGLESOURCE_SORT) {
       pSource->pageIndex++;
       if (pSource->pageIndex >= taosArrayGetSize(pSource->pageIdList)) {
-        qInfo("adjust merge tree. %d source completed %d", *numOfCompleted, pSource->pageIndex);
+        uInfo("adjust merge tree. %d source completed %d", *numOfCompleted, pSource->pageIndex);
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
         pSource->pageIndex = -1;
         pSource->src.pBlock = blockDataDestroy(pSource->src.pBlock);
       } else {
+        if (pSource->pageIndex % 512 == 0) uInfo("begin source %p page %d", pSource, pSource->pageIndex);
+
         int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
         void*   pPage = getBufPage(pHandle->pBuf, *pPgId);
@@ -493,7 +495,6 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
-
         releaseBufPage(pHandle->pBuf, pPage);
       }
     } else {
@@ -504,7 +505,7 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
-        qInfo("adjust merge tree. %d source completed", *numOfCompleted);
+        uInfo("adjust merge tree. %d source completed", *numOfCompleted);
       }
     }
   }
@@ -686,7 +687,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
     // Only *numOfInputSources* can be loaded into buffer to perform the external sort.
     for (int32_t i = 0; i < sortGroup; ++i) {
-      qInfo("internal merge sort pass %d group %d. num input sources %d ", t, i, numOfInputSources);
+      uInfo("internal merge sort pass %d group %d. num input sources %d ", t, i, numOfInputSources);
       pHandle->sourceId += 1;
 
       int32_t end = (i + 1) * numOfInputSources - 1;
@@ -981,6 +982,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       }
       taosArrayClear(aBlkSort);
       szSort = 0;
+      uInfo("source %zu created", taosArrayGetSize(aExtSrc));
     }
     if (pBlk == NULL) {
       break;
