@@ -2648,6 +2648,7 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   for (int32_t i = 0; i < mapSize; i++) {
     SWinKey key = {0};
     SRowBuffPos* pPos = taosMemoryCalloc(1, sizeof(SRowBuffPos));
+    pPos->pKey = taosMemoryCalloc(1, sizeof(SWinKey));
     buf = decodeSWinKey(buf, &key);
     buf = decodeSRowBuffPos(buf, pPos);
     tSimpleHashPut(pInfo->aggSup.pResultRowHashTable, &key, sizeof(SWinKey), &pPos, POINTER_BYTES);
