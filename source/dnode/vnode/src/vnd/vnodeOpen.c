@@ -298,6 +298,19 @@ void vnodeDestroy(const char *path, STfs *pTfs) {
   tfsRmdir(pTfs, path);
 }
 
+static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
+  int32_t ndisk = 1;
+  if (pTfs) {
+    ndisk = tfsGetDisksAtLevel(pTfs, 0);
+  }
+  if (diskPrimary < 0 || diskPrimary >= ndisk) {
+    vError("disk:%d is unavailable from the %d disks mounted at level 0", diskPrimary, ndisk);
+    terrno = TSDB_CODE_FS_INVLD_CFG;
+    return -1;
+  }
+  return 0;
+}
+
 SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
@@ -305,6 +318,10 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
 
+  if (vnodeCheckDisk(diskPrimary, pTfs)) {
+    vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
+    return NULL;
+  }
   vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   info.config = vnodeCfgDefault;
