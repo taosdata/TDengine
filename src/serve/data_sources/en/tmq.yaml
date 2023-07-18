@@ -56,10 +56,12 @@ authentication:
         display: Username
         description: TDengine username. The default is root.
         placeholder: root
+        value: root
       password:
         display: Password
         description: TDengine password. The default is taosdata.
         placeholder: taosdata
+        value: taosdata
     - name: token
       display: Token
       description: Use token in parameters.

@@ -100,7 +100,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_agents)
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
-            .service(upload_files);
+            .service(upload_files)
+            .service(filemeta);
     }
 }
 impl Cli {
@@ -151,6 +152,7 @@ impl Cli {
                     LangQuery,
                     Lang,
                     UploadForm,
+                    FileMetaRequest,
                     // DataSet,
 
                 ),
@@ -169,6 +171,7 @@ impl Cli {
                 task::get_task_offsets_by_id,
                 task::get_task_activities_by_id,
                 task::upload_files,
+                task::filemeta,
 
                 metrics::metrics_exporter,
 
