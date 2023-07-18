@@ -131,6 +131,8 @@ typedef struct SGroupCacheOperatorInfo {
   SGroupColsInfo    groupColsInfo;
   bool              globalGrp;
   bool              grpByUid;
+  bool              batchFetch;
+  bool              fetchDone;
   SGcDownstreamCtx* pDownstreams;
   SGcBlkCacheInfo   blkCache;
   SHashObj*         pGrpHash;  

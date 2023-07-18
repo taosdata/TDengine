@@ -29,15 +29,24 @@
 
 int64_t gSessionId = 0;
 
+void freeVgTableList(void* ptr) { 
+  taosArrayDestroy(*(SArray**)ptr); 
+}
+
+
 static void destroyDynQueryCtrlOperator(void* param) {
   SDynQueryCtrlOperatorInfo* pDyn = (SDynQueryCtrlOperatorInfo*)param;
   qDebug("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64, 
          pDyn->execInfo.prevBlkNum, pDyn->execInfo.prevBlkRows, pDyn->execInfo.postBlkNum, pDyn->execInfo.postBlkRows);
 
-  tSimpleHashClear(pDyn->stbJoin.ctx.prev.leftVg);
-  tSimpleHashClear(pDyn->stbJoin.ctx.prev.rightVg);
-  tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.leftVg);
-  tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.rightVg);
+  if (pDyn->stbJoin.ctx.prev.leftVg) {
+    tSimpleHashSetFreeFp(pDyn->stbJoin.ctx.prev.leftVg, freeVgTableList);
+    tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.leftVg);
+  }
+  if (pDyn->stbJoin.ctx.prev.rightVg) {
+    tSimpleHashSetFreeFp(pDyn->stbJoin.ctx.prev.rightVg, freeVgTableList);
+    tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.rightVg);
+  }
 
   taosMemoryFreeClear(param);
 }
@@ -55,6 +64,8 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
     if (NULL == taosArrayPush((*ppRes)->pChildren, &pChild)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+  } else {
+    (*ppRes)->pChildren = NULL;
   }
 
   SGcOperatorParam* pGc = taosMemoryMalloc(sizeof(SGcOperatorParam));
@@ -497,6 +508,8 @@ static void seqBatchJoinLaunchRetrieve(SOperatorInfo* pOperator, SSDataBlock** p
     }
     
     seqJoinLaunchPostJoin(pOperator, ppRes);
+    pPrev->pListHead->readIdx++;
+    
     if (*ppRes) {
       return;
     }
@@ -533,23 +546,16 @@ SSDataBlock* seqBatchStableJoin(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-void freeVgTableList(void* ptr) { 
-  taosArrayDestroy(*(SArray**)ptr); 
-}
-
-
 int32_t initBatchStbJoinVgHash(SStbJoinPrevJoinCtx* pPrev) {
   pPrev->leftVg = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   if (NULL == pPrev->leftVg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSimpleHashSetFreeFp(pPrev->leftVg, freeVgTableList);
 
   pPrev->rightVg = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   if (NULL == pPrev->rightVg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSimpleHashSetFreeFp(pPrev->rightVg, freeVgTableList);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -576,7 +582,7 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
   switch (pInfo->qType) {
     case DYN_QTYPE_STB_HASH:
       memcpy(&pInfo->stbJoin.basic, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
-      pInfo->stbJoin.basic.batchJoin = false;
+      pInfo->stbJoin.basic.batchJoin = true;
       if (pInfo->stbJoin.basic.batchJoin) {
         code = initBatchStbJoinVgHash(&pInfo->stbJoin.ctx.prev);
         if (TSDB_CODE_SUCCESS != code) {
