@@ -1093,6 +1093,9 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
+        if (pTask->info.fillHistory == 1) {
+          continue;
+        }
         /*A(pTask->info.nodeId > 0);*/
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
         if (pVgObj == NULL) {
