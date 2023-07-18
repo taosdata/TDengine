@@ -439,7 +439,7 @@ pub async fn pi_to_taos(
                 if !status.success() {
                     let _ = ipc.send(());
                     stop_thread(server);
-                    anyhow::bail!("PI connector or PI backfill exist with {}", status);
+                    anyhow::bail!("PI connector or PI backfill exit with {}", status);
                 }
             },
             _ = tokio::signal::ctrl_c() => {
