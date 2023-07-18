@@ -381,8 +381,11 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);
-int32_t      tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem);
-bool         tInputQueueIsFull(const SStreamTask* pTask);
+
+int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
+
+int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem);
+bool    tInputQueueIsFull(const SStreamTask* pTask);
 
 typedef struct {
   SMsgHead head;
@@ -614,7 +617,6 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
-
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask);
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);

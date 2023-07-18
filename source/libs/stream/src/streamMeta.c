@@ -438,18 +438,14 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
-    if (pTask == NULL) {
-      goto _err;
-    }
-
+    SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeStreamTask(&decoder, pTask);
+    if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      continue;
+    }
     tDecoderClear(&decoder);
 
-    chkpId = TMAX(chkpId, pTask->chkInfo.checkpointId);
-
-    taosMemoryFree(pTask);  // fix mem leak later
+    chkpId = TMAX(chkpId, info.checkpointId);
   }
 
 _err:
