@@ -1,24 +1,16 @@
-use std::{any::Any, collections::HashMap, sync::Arc, task::Poll};
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
     array::{
-        make_builder, Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array, BooleanArray,
+        make_builder, Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array,
+        Int16Array, Int32Array, Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array,
+        UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     record_batch::RecordBatch,
 };
-use bytes::Bytes;
-use either::Either;
-use futures::{Sink, Stream};
 use itertools::Itertools;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
-use taos::{
-    taos_query::common::{Describe, RawData},
-    JsonMeta, RawBlock, Value,
-};
 
 use serde_json::Value as JsonValue;
 
@@ -106,7 +98,7 @@ impl TransformExt for Json {
                                 let schema_ref = Arc::new(schema);
                                 let row = v.records.num_rows();
 
-                                let builder: HashMap<_, _> = schema_ref
+                                let _builder: HashMap<_, _> = schema_ref
                                     .fields()
                                     .iter()
                                     .map(|f| (f.name(), make_builder(f.data_type(), row)))
@@ -171,7 +163,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -190,7 +182,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -209,7 +201,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -228,7 +220,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -247,7 +239,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -266,7 +258,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -285,7 +277,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -304,7 +296,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -323,7 +315,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -342,7 +334,7 @@ impl TransformExt for Json {
                                             //
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -360,7 +352,7 @@ impl TransformExt for Json {
                                         DataType::Utf8 | DataType::LargeUtf8 => {
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -377,7 +369,7 @@ impl TransformExt for Json {
                                         DataType::Binary | DataType::LargeBinary => {
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -394,7 +386,7 @@ impl TransformExt for Json {
                                         DataType::Boolean => {
                                             let values = json_values
                                                 .iter()
-                                                .map(|(n, v)| {
+                                                .map(|(_n, v)| {
                                                     if let Some(v) =
                                                         v.as_ref().and_then(|v| v.get(name))
                                                     {
@@ -434,7 +426,7 @@ impl TransformExt for Json {
 #[cfg(test)]
 mod tests {
     use arrow::array::ArrayRef;
-    use futures::{SinkExt, StreamExt};
+    use futures::StreamExt;
 
     use crate::plugins::transform::MessageTableMeta;
 

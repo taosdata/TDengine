@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
 
 use arrow::{
-    array::{Array, ArrayBuilder, ArrayRef, StructBuilder, UInt8Array},
+    array::{ArrayRef, StructBuilder, UInt8Array},
     datatypes::{DataType, Field, Fields, Schema, TimeUnit},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -437,6 +437,9 @@ impl IpcField {
             dict_is_ordered,
         )
     }
+    pub fn is_nullable(&self) -> bool {
+        self.nullable
+    }
 }
 
 pub struct LushInsertBuilder<'a> {
@@ -444,7 +447,9 @@ pub struct LushInsertBuilder<'a> {
     columns_builder: ListOfStructBuilder,
     attrs_builder: AttrsBuilder,
     table: Option<String>,
+    #[allow(dead_code)]
     tag_idx: usize,
+    #[allow(dead_code)]
     using: Option<String>,
 }
 
@@ -464,9 +469,12 @@ pub struct LushMessageInit {
 
 pub struct ChildTablesBuilder<'a> {
     schema: &'a LushMessageBuilder,
+    #[allow(dead_code)]
     fields: Vec<Field>,
     builder: ListOfStructBuilder,
+    #[allow(dead_code)]
     name: Option<String>,
+    #[allow(dead_code)]
     tag_index: usize,
     attrs_builder: AttrsBuilder,
     columns_builder: ListOfStructBuilder,
@@ -508,8 +516,7 @@ impl<'a> ChildTablesBuilder<'a> {
     }
 
     pub fn append(&mut self, value: &dyn Any) -> &mut Self {
-        self.builder.append(value);
-
+        let _ = self.builder.append(value);
         self
     }
     pub fn append_null(&mut self) -> &mut Self {
@@ -715,7 +722,7 @@ impl LushMessageBuilder {
         }
     }
 
-    fn create_fields(&self) -> Vec<Field> {
+    fn _create_fields(&self) -> Vec<Field> {
         let columns = DataType::Struct(
             self.columns
                 .iter()

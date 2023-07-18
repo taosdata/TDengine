@@ -1,17 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Context;
-use arrow::ipc::RecordBatch;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder, TaosPool};
+use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
 
-use crate::serve::controller::{
-    transferred::{ConnectorTransferred, Transferred},
-    Task, TaskControllerRef, TaskDetail,
-};
+use crate::serve::controller::{transferred::ConnectorTransferred, TaskControllerRef, TaskDetail};
 
 #[derive(Debug)]
 pub struct PutStream {

@@ -1,6 +1,5 @@
 use itertools::Itertools;
-use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Code, TaosBuilder, TaosPool, Value};
-use tokio::task::JoinHandle;
+use taos::{AsyncFetchable, AsyncQueryable, Code, TaosPool};
 
 struct RestBuilder {
     taos: TaosPool,
@@ -33,7 +32,7 @@ impl From<taos::Error> for RestErrResponse {
             }
         } else {
             RestErrResponse {
-                code: Code::Failed,
+                code: Code::FAILED,
                 desc: err_str,
             }
         }
@@ -43,7 +42,7 @@ impl RestBuilder {
     pub async fn query(&self, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
         log::info!("SQL: {sql}");
         let conn = self.taos.get().await.map_err(|err| RestErrResponse {
-            code: Code::Failed,
+            code: Code::FAILED,
             desc: err.to_string(),
         })?;
         log::info!("Got connection, querying");
@@ -71,7 +70,7 @@ impl RestBuilder {
             .collect_vec();
         log::info!("SQL result: {data:?}");
         Ok(RestOkResponse {
-            code: Code::Success,
+            code: Code::SUCCESS,
             column_meta,
             rows: data.len() as _,
             data,

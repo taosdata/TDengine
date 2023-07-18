@@ -29,7 +29,7 @@ pub(super) async fn create_agent(
     match task_store.create_agent(agent.into_inner()).await {
         Ok(agent) => HttpResponse::Ok().json(&agent),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -51,7 +51,7 @@ pub(super) async fn delete_agent(
     match task_store.delete_agent(agent_id.into_inner()).await {
         Ok(_) => HttpResponse::Ok().json(serde_json::Value::Null),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -68,7 +68,7 @@ pub(super) async fn delete_agent(
         AgentFilter,
     )
 )]
-#[get("/agents")]
+#[get("/agents/")]
 pub(super) async fn get_agents(
     task_store: Data<TaskControllerRef>,
     filter: Query<AgentFilter>,
@@ -78,7 +78,34 @@ pub(super) async fn get_agents(
             .append_header(("Count", agents.len()))
             .json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
+            message: err.to_string(),
+        }),
+    }
+}
+
+/// List agents with specified `cluster_id` and `user_id`
+///
+#[utoipa::path(
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [Agent])
+    ),
+    params(
+        AgentFilter,
+    )
+)]
+#[get("/agents/{agent_id}/tasks")]
+pub(super) async fn get_agent_tasks(
+    task_store: Data<TaskControllerRef>,
+    agent_id: Path<i64>,
+) -> impl Responder {
+    match task_store.get_tasks_of_agent(agent_id.into_inner()).await {
+        Ok(agents) => HttpResponse::Ok()
+            .append_header(("Count", agents.len()))
+            .json(&agents),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -105,7 +132,7 @@ pub(super) async fn update_agent(
     {
         Ok(agents) => HttpResponse::Ok().json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }

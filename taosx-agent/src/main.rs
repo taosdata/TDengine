@@ -5,6 +5,11 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
@@ -13,19 +18,11 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
     Layer as _,
 };
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
 
-use taosx_core::{
-    get_log_dir, 
-    get_log_keep_days,
-};
+use taosx_core::{get_log_dir, get_log_keep_days};
 
 use crate::runner::TaskStatus;
 

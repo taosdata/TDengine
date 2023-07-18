@@ -11,10 +11,8 @@ use file_rotate::{
 
 use anyhow::Context;
 use itertools::Itertools;
-use taos::{
-    taos_query::helpers::ColumnMeta, AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty,
-};
-use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
+use taos::{AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
+use taosx_ipc::types::OptionSet;
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -55,12 +53,12 @@ enum OpcError {
     DatabaseIsRequired(Dsn),
     #[error("Username and password are both required for UserName authentication method in {0}")]
     UserPassRequired(Dsn),
-    #[error("config file not found: {0}")]
-    FileNotFound(String),
+    // #[error("config file not found: {0}")]
+    // FileNotFound(String),
     #[error("file parse error: {0}")]
     FileParseFound(String),
-    #[error("config file content is empty in {0}")]
-    EmptyConfig(String),
+    // #[error("config file content is empty in {0}")]
+    // EmptyConfig(String),
     #[error("node config error {0}")]
     NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
@@ -231,7 +229,7 @@ impl OPCConfig {
         let connect;
         let collect;
         let mut param_mapping = HashMap::new();
-        let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        // let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
         match dsn.driver.as_str() {
             "opc" => {
                 if dsn.protocol.is_none() {
@@ -437,7 +435,7 @@ impl OPCConfig {
             .remove("debug")
             .map(|v| {
                 v.parse::<bool>()
-                    .map_err(|err| OpcError::ParseError("debug", v))
+                    .map_err(|_| OpcError::ParseError("debug", v))
             })
             .transpose()?
         {
@@ -487,7 +485,7 @@ impl OPCConfig {
         })
     }
 
-    pub async fn parse_tables_with(&self, taos: &Taos) -> anyhow::Result<OpcTableConfig> {
+    pub async fn parse_tables_with(&self, _taos: &Taos) -> anyhow::Result<OpcTableConfig> {
         // let mut ts_cloumn_name_map = HashMap::new();
         // for (table_name, field_info) in &self.table_info {
         //     let res = taos.describe(&table_name).await;
@@ -619,10 +617,17 @@ pub(super) fn get_string_vec_from_param_or_file(
             .partition(|v| v.starts_with("@"));
         // dbg!(&files, &node_config);
         for file in files {
-            log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+            log::info!(
+                "current log: {}",
+                std::env::current_dir().unwrap().to_str().unwrap()
+            );
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
+                log::warn!(
+                    "file: {} read error, cause: {}",
+                    &file[1..],
+                    f.err().unwrap()
+                );
                 continue;
                 // return Err("file read error".to_string());
             }
@@ -650,21 +655,21 @@ pub(super) fn get_string_vec_from_param_or_file(
     return Err("Nodes not set".to_string());
 }
 
-fn process_table_info(
-    table_info: &mut HashMap<String, Vec<(String, String)>>,
-    table: String,
-    field: String,
-    value_type: String,
-) {
-    if table_info.get_mut(&table).is_none() {
-        let mut t_v = Vec::new();
-        t_v.push((field, value_type));
-        table_info.insert(table, t_v);
-    } else {
-        let t_v = table_info.get_mut(&table).unwrap();
-        t_v.push((field, value_type));
-    };
-}
+// fn process_table_info(
+//     table_info: &mut HashMap<String, Vec<(String, String)>>,
+//     table: String,
+//     field: String,
+//     value_type: String,
+// ) {
+//     if table_info.get_mut(&table).is_none() {
+//         let mut t_v = Vec::new();
+//         t_v.push((field, value_type));
+//         table_info.insert(table, t_v);
+//     } else {
+//         let t_v = table_info.get_mut(&table).unwrap();
+//         t_v.push((field, value_type));
+//     };
+// }
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -695,21 +700,21 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
         String::from_utf8_lossy(&output.stdout).trim().to_string(),
     ))
 }
-pub(crate) async fn opc_config_from(
-    taos: &Taos,
-    dsn: &Dsn,
-    port: u16,
-) -> anyhow::Result<OpcTableConfig> {
-    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
-    config.parse_tables_with(taos).await
-}
-pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
+// pub(crate) async fn opc_config_from(
+//     taos: &Taos,
+//     dsn: &Dsn,
+//     port: u16,
+// ) -> anyhow::Result<OpcTableConfig> {
+//     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
+//     config.parse_tables_with(taos).await
+// }
+pub fn opc_config_blocking(_taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
     Ok(config)
 }
 
-pub(crate) const DEFAULT_TS_COLUMN_NAME: &str = "ts";
-pub(crate) const DEFAULT_SERVER_TS_COLUMN_NAME: &str = "server_ts";
+// pub(crate) const DEFAULT_TS_COLUMN_NAME: &str = "ts";
+// pub(crate) const DEFAULT_SERVER_TS_COLUMN_NAME: &str = "server_ts";
 
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
@@ -888,21 +893,21 @@ pub async fn opc_to_taos(
 /// return true if matched
 /// if type equals return true else false
 /// if type is binary|varchar|nchar check whether type configed contains those characters
-fn check_field_type(field_type_config: &String, field_type: String) -> bool {
-    let field_type_config = field_type_config.to_ascii_lowercase();
-    if field_type.contains("binary")
-        || field_type.contains("varchar")
-        || field_type.contains("nchar")
-    {
-        field_type_config.contains("binary")
-            || field_type_config.contains("varchar")
-            || field_type_config.contains("nchar")
-    } else if field_type_config == field_type {
-        true
-    } else {
-        false
-    }
-}
+// fn check_field_type(field_type_config: &String, field_type: String) -> bool {
+//     let field_type_config = field_type_config.to_ascii_lowercase();
+//     if field_type.contains("binary")
+//         || field_type.contains("varchar")
+//         || field_type.contains("nchar")
+//     {
+//         field_type_config.contains("binary")
+//             || field_type_config.contains("varchar")
+//             || field_type_config.contains("nchar")
+//     } else if field_type_config == field_type {
+//         true
+//     } else {
+//         false
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct OpcTableConfig {

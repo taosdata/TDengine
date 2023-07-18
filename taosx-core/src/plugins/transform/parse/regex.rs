@@ -1,9 +1,7 @@
-use std::any::Any;
-use std::str::FromStr;
 use std::sync::Arc;
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array, Int32Array,
+        Array, ArrayRef, BinaryArray, Int16Array, Int32Array,
         Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
@@ -12,8 +10,6 @@ use arrow::{
 use arrow::datatypes::Field;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use crate::Parser;
-use crate::plugins::transform::parse::{ParseError, ParserError};
 
 use crate::plugins::transform::Select;
 
