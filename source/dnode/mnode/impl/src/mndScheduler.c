@@ -25,6 +25,7 @@
 #define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
+static int32_t setEpToDownstreamTask(SStreamTask* pTask, SStreamTask* pDownstream);
 static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId,
                                       SVgObj* pVgroup, int32_t fillHistory);
 static void    setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask);
@@ -265,6 +266,11 @@ static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTas
 
   if (mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup) < 0) {
     return terrno;
+  }
+
+  for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
+    SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
+    setEpToDownstreamTask(pTask, pSinkTask);
   }
 
   return TSDB_CODE_SUCCESS;

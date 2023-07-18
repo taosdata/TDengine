@@ -259,10 +259,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     return 0;
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    return 1;
   } else {
-    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+    int32_t type = pTask->outputType;
+    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__TABLE) {
       return 1;
     } else {
       SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;

@@ -194,6 +194,11 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
   }
 }
 
+static void freeItems(void* param) {
+  SSDataBlock* pBlock = param;
+  taosArrayDestroy(pBlock->pDataBlock);
+}
+
 void streamFreeQitem(SStreamQueueItem* data) {
   int8_t type = data->type;
   if (type == STREAM_INPUT__GET_RES) {
@@ -227,5 +232,9 @@ void streamFreeQitem(SStreamQueueItem* data) {
     SStreamRefDataBlock* pRefBlock = (SStreamRefDataBlock*)data;
     blockDataDestroy(pRefBlock->pBlock);
     taosFreeQitem(pRefBlock);
+  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    SStreamDataBlock* pBlock = (SStreamDataBlock*) data;
+    taosArrayDestroyEx(pBlock->blocks, freeItems);
+    taosFreeQitem(pBlock);
   }
 }

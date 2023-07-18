@@ -135,7 +135,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
   pTask->status.taskStatus = TASK_STATUS__CK;
   pTask->checkpointingId = pReq->checkpointId;
-  pTask->checkpointNotReadyTasks = 1;
+  pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
 
   // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
   //    inputQ, to make sure all blocks with less version have been handled by this task already.
@@ -149,9 +149,10 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
   int32_t code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
   if (code == 0) {
     streamDispatchStreamBlock(pTask);
+  } else {
+    streamFreeQitem((SStreamQueueItem*)pBlock);
   }
 
-  streamFreeQitem((SStreamQueueItem*)pBlock);
   return code;
 }
 
@@ -176,16 +177,18 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       continueDispatchCheckpointBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
       streamProcessCheckpointReadyMsg(pTask);
+      streamFreeQitem((SStreamQueueItem*)pBlock);
     }
-  } else if (taskLevel == TASK_LEVEL__SINK) {
+  } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
     // todo: sink node needs alignment??
-    ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
-    pTask->status.taskStatus = TASK_STATUS__CK_READY;
+    /*    ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
+        pTask->status.taskStatus = TASK_STATUS__CK_READY;
 
-    // update the child Id for downstream tasks
-    streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
-    qDebug("s-task:%s sink task do checkpoint ready, send ready msg to upstream", id);
-  } else {
+        // update the child Id for downstream tasks
+        streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
+        qDebug("s-task:%s sink task do checkpoint ready, send ready msg to upstream", id);
+        streamFreeQitem((SStreamQueueItem*)pBlock);
+      } else {*/
     ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
 
     // update the child Id for downstream tasks
@@ -197,24 +200,33 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     if (notReady > 0) {
       qDebug("s-task:%s received checkpoint block, idx:%d, %d upstream tasks not send checkpoint info yet, total:%d",
              id, pTask->info.selfChildId, notReady, num);
+      streamFreeQitem((SStreamQueueItem*)pBlock);
       return code;
     }
 
-    qDebug(
-        "s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, dispatch checkpoint msg downstream",
-        id, num);
 
-    // set the needed checked downstream tasks, only when all downstream tasks do checkpoint complete, this task
-    // can start local checkpoint procedure
-    pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
 
-    // if all upstreams are ready for generating checkpoint, set the status to be TASK_STATUS__CK_READY
-    // put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
-    // already. And then, dispatch check point msg to all downstream tasks
-    code = continueDispatchCheckpointBlock(pBlock, pTask);
+    if (taskLevel == TASK_LEVEL__SINK) {
+      pTask->status.taskStatus = TASK_STATUS__CK_READY;
+      qDebug("s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, send ready msg to upstream",
+             id, num);
+      streamFreeQitem((SStreamQueueItem*)pBlock);
+    } else {
+      qDebug(
+          "s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, dispatch checkpoint msg "
+          "downstream", id, num);
+
+      // set the needed checked downstream tasks, only when all downstream tasks do checkpoint complete, this task
+      // can start local checkpoint procedure
+      pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
+
+      // if all upstreams are ready for generating checkpoint, set the status to be TASK_STATUS__CK_READY
+      // put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
+      // already. And then, dispatch check point msg to all downstream tasks
+      code = continueDispatchCheckpointBlock(pBlock, pTask);
+    }
   }
 
-  streamFreeQitem((SStreamQueueItem*)pBlock);
   return code;
 }
 

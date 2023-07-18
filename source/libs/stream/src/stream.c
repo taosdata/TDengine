@@ -245,6 +245,8 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   int32_t status = 0;
 
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
+  ASSERT(pInfo != NULL);
+
   if (!pInfo->dataAllowed) {
     qWarn("s-task:%s data from task:0x%x is denied", pTask->id.idStr, pReq->upstreamTaskId);
     status = TASK_INPUT_STATUS__BLOCKED;
@@ -402,5 +404,6 @@ SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t 
     }
   }
 
+  qError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
   return NULL;
 }
