@@ -199,7 +199,6 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncCanRead = 0;
           roleChanged = true;
         }
-        sdbCancelFetch(pSdb, pIter);
         break;
       }
     }
