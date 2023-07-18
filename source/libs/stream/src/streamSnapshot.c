@@ -219,6 +219,7 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   }
   // const char* path = NULL;
   if (streamSnapHandleInit(&pReader->handle, (char*)path) < 0) {
+    taosMemoryFree(pReader);
     return -1;
   }
 

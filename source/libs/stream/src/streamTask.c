@@ -132,6 +132,35 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   return pEncoder->pos;
 }
 
+int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo) {
+  int64_t skip64;
+  int8_t  skip8;
+  int32_t skip32;
+  int16_t skip16;
+  SEpSet  epSet;
+
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+  if (tDecodeI16(pDecoder, &skip16) < 0) return -1;
+
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
+
+  if (tDecodeI64(pDecoder, &pChkpInfo->checkpointId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pChkpInfo->checkpointVer) < 0) return -1;
+
+  tEndDecode(pDecoder);
+  return 0;
+}
+
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
@@ -236,7 +265,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tSimpleHashCleanup(pTask->tbSink.pTblInfo);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
-    pTask->checkReqIds =taosArrayDestroy(pTask->checkReqIds);
+    pTask->checkReqIds = taosArrayDestroy(pTask->checkReqIds);
   }
 
   if (pTask->pState) {
