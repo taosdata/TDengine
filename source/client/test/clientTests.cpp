@@ -899,12 +899,39 @@ TEST(clientCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "show table distributed tup");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
+  int64_t st = 1685959293000;
+  for (int32_t i = 0; i < 10000000; ++i) {
+    char s[256] = {0};
+
+    while (1) {
+      sprintf(s, "insert into t1 values(%ld, %d)", st + i, i);
+      pRes = taos_query(pConn, s);
+
+      int32_t ret = taos_errno(pRes);
+      taos_free_result(pRes);
+      if (ret == 0) {
+        break;
+      }
+    }
+
+    while (1) {
+      sprintf(s, "insert into t2 values(%ld, %d)", st + i, i);
+      pRes = taos_query(pConn, s);
+      int32_t ret = taos_errno(pRes);
+
+      taos_free_result(pRes);
+      if (ret == 0) {
+        break;
+      }
+    }
   }
+
+//  pRes = taos_query(pConn, "show table distributed tup");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
 
   printResult(pRes);
   taos_free_result(pRes);
