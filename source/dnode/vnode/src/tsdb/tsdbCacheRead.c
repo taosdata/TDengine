@@ -132,6 +132,21 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t uidComparFunc(const void* p1, const void* p2) {
+  uint64_t pu1 = *(uint64_t*)p1;
+  uint64_t pu2 = *(uint64_t*)p2;
+  if (pu1 == pu2) {
+    return 0;
+  } else {
+    return (pu1 < pu2) ? -1 : 1;
+  }
+}
+
+static void freeTableInfoFunc(void* param) {
+  void** p = (void**)param;
+  taosMemoryFreeClear(*p);
+}
+
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
@@ -156,6 +171,27 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->pTableList = pTableIdList;
   p->numOfTables = numOfTables;
+
+  p->pTableMap = tSimpleHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (p->pTableMap == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  p->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
+  if (p->uidList == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    uint64_t uid = p->pTableList[i].uid;
+    p->uidList[i] = uid;
+    STableLoadInfo* pInfo = taosMemoryMalloc(sizeof(STableLoadInfo));
+    tSimpleHashPut(p->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+  }
+
+  tSimpleHashSetFreeFp(p->pTableMap, freeTableInfoFunc);
+
+  taosSort(p->uidList, numOfTables, sizeof(uint64_t), uidComparFunc);
 
   int32_t code = setTableSchema(p, suid, idstr);
   if (code != TSDB_CODE_SUCCESS) {
@@ -219,6 +255,20 @@ void* tsdbCacherowsReaderClose(void* pReader) {
 
   taosMemoryFree((void*)p->idstr);
   taosThreadMutexDestroy(&p->readerMutex);
+
+  if (p->pTableMap) {
+    void*   pe = NULL;
+    int32_t iter = 0;
+    while ((pe = tSimpleHashIterate(p->pTableMap, pe, &iter)) != NULL) {
+      STableLoadInfo* pInfo = *(STableLoadInfo**)pe;
+      pInfo->pTombData = taosArrayDestroy(pInfo->pTombData);
+    }
+
+    tSimpleHashCleanup(p->pTableMap);
+  }
+  if (p->uidList) {
+    taosMemoryFree(p->uidList);
+  }
 
   taosMemoryFree(pReader);
   return NULL;

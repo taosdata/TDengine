@@ -853,6 +853,10 @@ typedef struct STsdbReaderInfo {
   int16_t       order;
 } STsdbReaderInfo;
 
+typedef struct {
+  SArray *pTombData;
+} STableLoadInfo;
+
 typedef struct SCacheRowsReader {
   STsdb          *pTsdb;
   STsdbReaderInfo info;
@@ -869,6 +873,8 @@ typedef struct SCacheRowsReader {
   int32_t         tableIndex;  // currently returned result tables
   STableKeyInfo  *pTableList;  // table id list
   int32_t         numOfTables;
+  uint64_t       *uidList;
+  SSHashObj      *pTableMap;
   SArray         *pLDataIterArray;
   STsdbReadSnap  *pReadSnap;
   char           *idstr;
