@@ -300,8 +300,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
-  pr->pDataFReader = NULL;
-  pr->pDataFReaderLast = NULL;
 
   int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
 
@@ -422,15 +420,13 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
 _end:
-  tsdbDataFReaderClose(&pr->pDataFReaderLast);
-  tsdbDataFReaderClose(&pr->pDataFReader);
+  tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
 
   int64_t loadBlocks = 0;
   double  elapse = 0;
   pr->pLDataIterArray = destroySttBlockReader(pr->pLDataIterArray, &loadBlocks, &elapse);
   pr->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
-  tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
   taosThreadMutexUnlock(&pr->readerMutex);
 
   if (pRes != NULL) {

@@ -1691,37 +1691,27 @@ _err:
   }
   return code;
 }
-/*
-static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t uid, SDelIdx *pDelIdx) {
+
+static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsReader *pReader, void *pFileReader,
+                               bool isFile) {
   int32_t code = 0;
-  SArray *pDelIdxArray = NULL;
 
-  // SMapData delIdxMap;
-  pDelIdxArray = taosArrayInit(32, sizeof(SDelIdx));
-  SDelIdx idx = {.suid = suid, .uid = uid};
-
-  // tMapDataReset(&delIdxMap);
-  code = tsdbReadDelIdx(pDelFReader, pDelIdxArray);
-  if (code) goto _err;
-
-  // code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
-  SDelIdx *pIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
-
-  *pDelIdx = *pIdx;
-
-_err:
-  if (pDelIdxArray) {
-    taosArrayDestroy(pDelIdxArray);
-  }
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
-*/
-typedef struct {
-  SMergeTree  mergeTree;
-  SMergeTree *pMergeTree;
-} SFSLastIter;
 
-static int32_t loadSttTombData(STsdbReader *pTsdbReader, SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pLoadInfo) {
+static int32_t loadDataTomb(SCacheRowsReader *pReader, SDataFileReader *pFileReader) {
+  int32_t code = 0;
+
+  const TTombBlkArray *pBlkArray = NULL;
+  code = tsdbDataFileReadTombBlk(pFileReader, &pBlkArray);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return loadTombFromBlk(pBlkArray, pReader, pFileReader, true);
+}
+
+static int32_t loadSttTomb(STsdbReader *pTsdbReader, SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pLoadInfo) {
   int32_t code = 0;
 
   SCacheRowsReader *pReader = (SCacheRowsReader *)pTsdbReader;
@@ -1736,11 +1726,13 @@ static int32_t loadSttTombData(STsdbReader *pTsdbReader, SSttFileReader *pSttFil
     return code;
   }
 
-  /*
-  return doLoadTombDataFromTombBlk(pBlkArray, pReader, pSttFileReader, false);
-  */
-  return code;
+  return loadTombFromBlk(pBlkArray, pReader, pSttFileReader, false);
 }
+
+typedef struct {
+  SMergeTree  mergeTree;
+  SMergeTree *pMergeTree;
+} SFSLastIter;
 
 static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                             tb_uid_t uid, SCacheRowsReader *pr, int64_t lastTs, int16_t *aCols, int nCols) {
@@ -1764,7 +1756,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .pSttFileBlockIterArray = pr->pLDataIterArray,
       .pCols = aCols,
       .numOfCols = nCols,
-      .loadTombFn = loadSttTombData,
+      .loadTombFn = loadSttTomb,
       .pReader = pr,
       .idstr = pr->idstr,
   };
@@ -2545,8 +2537,8 @@ typedef struct CacheNextRowIter {
 } CacheNextRowIter;
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
-                               SArray *pLDataIterArray, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
-                               SDataFReader **pDataFReaderLast, int64_t lastTs, SCacheRowsReader *pr) {
+                               SArray *pLDataIterArray, STsdbReadSnap *pReadSnap, int64_t lastTs,
+                               SCacheRowsReader *pr) {
   int code = 0;
 
   STbData *pMem = NULL;
@@ -2630,7 +2622,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 pIter->input[2] = (TsdbNextRowState){
       &pIter->fsLastRow, false, true, false, &pIter->fsLastState, getNextRowFromFSLast, clearNextRowFromFSLast};
   */
-  pIter->input[3] =
+  pIter->input[2] =
       (TsdbNextRowState){&pIter->fsRow, false, true, false, &pIter->fsState, getNextRowFromFS, clearNextRowFromFS};
 
   if (pMem) {
@@ -2680,7 +2672,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
                               int16_t *aCols, int nCols) {
   int code = 0;
   for (;;) {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 3; ++i) {
       if (pIter->input[i].next && !pIter->input[i].stop) {
         code = pIter->input[i].nextRowFn(pIter->input[i].iter, &pIter->input[i].pRow, &pIter->input[i].ignoreEarlierTs,
                                          isLast, aCols, nCols);
@@ -2835,8 +2827,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast, pr->lastTs, pr);
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
 
   do {
     TSDBROW *pRow = NULL;
@@ -3005,8 +2996,7 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast, pr->lastTs, pr);
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
 
   do {
     TSDBROW *pRow = NULL;

@@ -871,8 +871,6 @@ typedef struct SCacheRowsReader {
   int32_t         numOfTables;
   SArray         *pLDataIterArray;
   STsdbReadSnap  *pReadSnap;
-  SDataFReader   *pDataFReader;
-  SDataFReader   *pDataFReaderLast;
   char           *idstr;
   int64_t         lastTs;
 } SCacheRowsReader;
