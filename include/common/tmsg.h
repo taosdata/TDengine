@@ -2044,6 +2044,7 @@ typedef struct SOperatorParam {
 } SOperatorParam;
 
 typedef struct STableScanOperatorParam {
+  bool                tableSeq;
   SArray*             pUidList;
 } STableScanOperatorParam;
 

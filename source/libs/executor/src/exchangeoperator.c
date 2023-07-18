@@ -42,6 +42,7 @@ typedef struct SSourceDataInfo {
   const char*        taskId;
   SArray*            pSrcUidList;
   int32_t            srcOpType;
+  bool               tableSeq;
 } SSourceDataInfo;
 
 static void  destroyExchangeOperatorInfo(void* param);
@@ -417,7 +418,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType) {
+int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -432,6 +433,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   if (NULL == pScan->pUidList) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pScan->tableSeq = tableSeq;
   
   (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
@@ -472,7 +474,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
     if (pDataInfo->pSrcUidList) {
-      int32_t code = buildTableScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
+      int32_t code = buildTableScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->tableSeq);
       taosArrayDestroy(pDataInfo->pSrcUidList);
       pDataInfo->pSrcUidList = NULL;
       if (TSDB_CODE_SUCCESS != code) {
@@ -759,6 +761,8 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
   dataInfo.index = *pIdx;
   dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
   dataInfo.srcOpType = pBasicParam->srcOpType;
+  dataInfo.tableSeq = pBasicParam->tableSeq;
+  
   taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
 
   return TSDB_CODE_SUCCESS;

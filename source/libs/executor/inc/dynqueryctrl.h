@@ -26,9 +26,24 @@ typedef struct SDynQueryCtrlExecInfo {
   int64_t postBlkRows;
 } SDynQueryCtrlExecInfo;
 
+typedef struct SStbJoinTableList {
+  void    *pNext;
+  int64_t  uidNum;
+  int64_t  readIdx;
+  int32_t *pLeftVg;
+  int64_t *pLeftUid;
+  int32_t *pRightVg;
+  int64_t *pRightUid;
+} SStbJoinTableList;
+
 typedef struct SStbJoinPrevJoinCtx {
-  SSDataBlock* pLastBlk;
-  int32_t      lastRow;
+  SSDataBlock*       pLastBlk;
+  int32_t            lastRow;
+  bool               joinBuild;
+  SSHashObj*         leftVg;
+  SSHashObj*         rightVg;
+  int64_t            tableNum;
+  SStbJoinTableList* pListHead;
 } SStbJoinPrevJoinCtx;
 
 typedef struct SStbJoinPostJoinCtx {

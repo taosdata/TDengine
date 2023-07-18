@@ -5470,6 +5470,7 @@ int32_t tSerializeSOperatorParam(SEncoder* pEncoder, SOperatorParam* pOpParam) {
   switch (pOpParam->opType) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam* pScan = (STableScanOperatorParam*)pOpParam->value;
+      if (tEncodeI8(pEncoder, pScan->tableSeq) < 0) return -1;
       int32_t uidNum = taosArrayGetSize(pScan->pUidList);
       if (tEncodeI32(pEncoder, uidNum) < 0) return -1;
       for (int32_t m = 0; m < uidNum; ++m) {
@@ -5499,6 +5500,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam* pOpParam)
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
       if (NULL == pScan) return -1;
+      if (tDecodeI8(pDecoder, (int8_t*)&pScan->tableSeq) < 0) return -1;
       int32_t uidNum = 0;
       int64_t uid = 0;
       if (tDecodeI32(pDecoder, &uidNum) < 0) return -1;

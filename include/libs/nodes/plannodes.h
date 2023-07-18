@@ -451,6 +451,7 @@ typedef struct SGroupCachePhysiNode {
 typedef struct SStbJoinDynCtrlBasic {
   int32_t  vgSlot[2];
   int32_t  uidSlot[2];
+  bool     batchJoin;
 } SStbJoinDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {

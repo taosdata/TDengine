@@ -797,9 +797,14 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  qError("add total %d dynamic tables to scan, exist num:%" PRId64, num, (int64_t)taosArrayGetSize(pListInfo->pTableList));
+  qError("add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList));
 
-  pListInfo->oneTableForEachGroup = true;
+  if (pParam->tableSeq) {
+    pListInfo->oneTableForEachGroup = true;
+  } else {
+    pListInfo->oneTableForEachGroup = false;
+    pListInfo->numOfOuputGroups = 1;
+  }
   
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* pUid = taosArrayGet(pParam->pUidList, i);
@@ -846,7 +851,7 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   
   SSDataBlock* result = doGroupedTableScan(pOperator);
   if (result != NULL) {
-    if (pInfo->base.pTableListInfo->oneTableForEachGroup) {
+    if (pOperator->dynamicTask) {
       STableKeyInfo* pKeyInfo = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentGroupId);
       result->info.id.groupId = pKeyInfo->uid;
     }
@@ -885,7 +890,7 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
 
   SSDataBlock* result = doGroupedTableScan(pOperator);
   if (result != NULL) {
-    if (pInfo->base.pTableListInfo->oneTableForEachGroup) {
+    if (pOperator->dynamicTask) {
       STableKeyInfo* pKeyInfo = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentGroupId);
       result->info.id.groupId = pKeyInfo->uid;
     }

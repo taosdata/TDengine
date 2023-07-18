@@ -152,6 +152,7 @@ typedef struct SSortMergeJoinOperatorParam {
 typedef struct SExchangeOperatorBasicParam {
   int32_t         vgId;
   int32_t         srcOpType;
+  bool            tableSeq;
   SArray*         uidList;
 } SExchangeOperatorBasicParam;
 
