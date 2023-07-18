@@ -268,7 +268,7 @@ static void *vmOpenVnodeInThread(void *param) {
 
     SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
     if (pImpl == NULL) {
-      dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
+      dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
       pThread->failed++;
       continue;
     }
@@ -355,6 +355,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   if (pMgmt->state.openVnodes != pMgmt->state.totalVnodes) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
+    terrno = TSDB_CODE_VND_INIT_FAILED;
     return -1;
   }
 
@@ -577,7 +578,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tmsgReportStartup("vnode-worker", "initialized");
 
   if (vmOpenVnodes(pMgmt) != 0) {
-    dError("failed to open vnode since %s", terrstr());
+    dError("failed to open all vnodes since %s", terrstr());
     goto _OVER;
   }
   tmsgReportStartup("vnode-vnodes", "initialized");
