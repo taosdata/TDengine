@@ -53,6 +53,56 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// read_first: only read first file or first string config when set true
+/// append: append all values into a single string (contains line break) when set true
+pub fn get_string_content_from_param_value(param_value: &str, read_fisrt: bool, append: bool) -> anyhow::Result<Option<String>> {
+    let (files, str_contents): (Vec<String>, Vec<String>) = param_value.split(",")
+        .map(|s| s.trim()).filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .partition(|v| v.starts_with("@"));
+    let mut result = String::new();
+    let mut index = 0;
+    let len = if read_fisrt {
+        1
+    } else {
+        if files.len() > str_contents.len() {
+            files.len()
+        } else {
+            str_contents.len()
+        }
+    };
+    for file in files {
+        if index >= len {
+            break;
+        }
+        let f = std::fs::File::open(&file[1..]);
+        if let Err(err) = f {
+            anyhow::bail!("file: {} read error, cause: {}", file, err.to_string());
+        } else {
+            let buf = std::io::BufReader::new(f.unwrap());
+            let file_data = buf.lines().collect_vec().iter().filter_map(|r| r.as_ref().ok()).join("");
+            result.push_str(file_data.as_str());
+        }
+        index += 1;
+    }
+    if result.is_empty() && append {
+        for content in str_contents {
+            if index >= len {
+                break;
+            }
+            result.push_str(content.as_str());
+            index += 1;
+        }
+    }
+    
+    if result.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(result))
+    }
+}
+
+
 pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
     let (files, _str_contents): (Vec<String>, Vec<String>) = file_path.split(",")
         .map(|s| s.trim()).filter(|s| !s.is_empty())
@@ -114,4 +164,9 @@ async fn test_clear_database() -> anyhow::Result<()> {
     taos.exec(format!("drop database {db}")).await?;
 
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_get_string_content_from_param_value() {
+    
 }

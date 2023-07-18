@@ -3,7 +3,7 @@ use std::{
     path::PathBuf,
     pin::Pin,
     sync::{atomic::AtomicUsize, Arc},
-    task::Poll,
+    task::Poll, io::BufRead, collections::BTreeMap,
 };
 
 use arrow::{
@@ -12,8 +12,11 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_backtrace::framed;
+use base64::{Engine, engine::general_purpose};
 use futures::{Stream, StreamExt, TryStreamExt};
+use itertools::Itertools;
 use serde::Deserialize;
+use taos::{Dsn, IntoDsn};
 use taosx_core::ListResponse;
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -38,7 +41,7 @@ use crate::serve::{
     rpc::put::PutStream,
 };
 
-use super::controller::{AgentAction, TaskControllerRef};
+use super::controller::{AgentAction, TaskControllerRef, Task};
 
 mod put;
 
@@ -418,7 +421,11 @@ impl FlightService for FlightServiceImpl {
                     match data {
                         AgentAction::Run(id) => {
                             let task = controller.get(id).await?;
-                            if let Some(task) = task {
+                            if let Some(mut task) = task {
+                                // TODO handle dsn(from) params contains file(@)
+                                dbg!(&task);
+                                modify_task_dsn_params(&mut task.task).await?;
+                                dbg!(&task);
                                 let context: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     serde_json::to_string(&task).unwrap(),
                                 ]));
@@ -534,6 +541,57 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::ListActionsStream>, Status> {
         Err(Status::unimplemented("Implement list_actions"))
     }
+}
+
+use taosx_core::utils::get_string_content_from_param_value;
+async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()>{
+    let mut dsn = task.from.clone().into_dsn()?;
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn.params {
+        let mut new_value = String::new();
+        if k == "ua.nodes" || k == "da.tags" {
+            // TODO use mime instead
+            let (files, strs): (Vec<String>, Vec<String>) = v
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+            let file_len = files.len();
+            for file in files {
+                // let mut reader = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
+                // let header = reader.headers().await?;
+                log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+                let f = std::fs::File::open(&file[1..])?;
+                let buf = std::io::BufReader::new(f);
+                let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
+                new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());
+                new_value.push_str(",");
+            }
+            if file_len > 0 {
+                new_value.pop();
+            }
+            let str_len = strs.len();
+            for content in strs {
+                new_value.push_str(content.as_str());
+                new_value.push_str(",");
+            }
+            if str_len > 0 {
+                new_value.pop();
+            }
+        } else if v.contains("@") {
+            new_value.push_str(get_string_content_from_param_value(&k.as_str(), false, true)?.unwrap_or(String::new()).as_str());
+        }
+        let new_value = if new_value.is_empty() {
+            v
+        } else {
+            new_value
+        };
+        map.insert(k, new_value);
+    }
+    dsn.params = map;
+    task.from = dsn.to_string();
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]

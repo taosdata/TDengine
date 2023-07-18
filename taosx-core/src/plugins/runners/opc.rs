@@ -3,6 +3,7 @@ use std::{
     sync::Arc, time::Duration, 
 };
 
+use base64::{Engine, engine::general_purpose};
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
@@ -15,11 +16,11 @@ use taos::{
     AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty, AsyncQueryable,
 };
 use taosx_ipc::{types::OptionSet, prelude::IpcDataType};
-use tokio::io::AsyncBufReadExt;
+use tokio::{io::{AsyncBufReadExt, }, fs::File};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{plugins::sink, utils::{port_pool::PortPool, get_string_content_from_file_path}, Action, DataSet, DataSetsReq, Transferred};
+use crate::{plugins::sink, utils::{port_pool::PortPool, get_string_content_from_file_path, get_string_content_from_param_value}, Action, DataSet, DataSetsReq, Transferred};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -296,12 +297,12 @@ impl OPCConfig {
                 let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
 
                 let certificate = if let Some(cert) = dsn.remove("certificate") {
-                    get_string_content_from_file_path(&cert)
+                    get_string_content_from_param_value(&cert, true, false).map_err(|err| OpcError::ConfigError("certificate", err.to_string()))?
                 } else {
                     None
                 };
                 let private_key = if let Some(private_key) = dsn.remove("private_key") {
-                    get_string_content_from_file_path(&private_key)
+                    get_string_content_from_param_value(&private_key, true, false).map_err(|err| OpcError::ConfigError("private_key", err.to_string()))?
                 } else {
                     None
                 };
@@ -528,26 +529,40 @@ pub use tokio_stream::StreamExt;
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
     if let Some(nodes) = dsn.remove(key) {
-        let (files, _): (Vec<_>, Vec<_>) = nodes
+        let files_or_strings = nodes
             .split(",")
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .partition(|v| v.starts_with("@"));
+            .map(|s| s.to_string());
+            // .partition(|v| v.starts_with("@"));
         let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
         let mut tag_config = Vec::new();
         let mut column_config = Vec::new();
         let mut node_config_old = Vec::new();
         let mut tables_to_drop = Vec::new();
-        for file in files {
+        for mut file in files_or_strings {
             log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
-            if !file.ends_with(".csv") {
-                anyhow::bail!("file {file} is not a csv config");
+            // if !file.ends_with(".csv") {
+                // anyhow::bail!("file {file} is not a csv config");
+            // }
+            let mut rdr;
+            if !file.starts_with("@") {
+                // TODO use mime instead
+                let decoded = general_purpose::STANDARD_NO_PAD.decode(&file)?;
+                let mut temp_file = tempfile::NamedTempFile::new()?;
+                let res = String::from_utf8(decoded)?;
+                dbg!(&res);
+                write!(temp_file, "{}", res)?;
+                file = format!("@{}", temp_file.path().to_str().unwrap());
+                rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
+                temp_file.into_temp_path();
+            } else {
+                rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
             }
-            let mut rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
+            // let mut 
             let mut records = rdr.records();
-            // skip first line(desc)
             let header = records.next().await; 
+            // skip first line(desc)
             if header.is_none() {
                 log::warn!("file {file} should have 2 lines at least");
                 continue;
@@ -680,8 +695,11 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
         } else {
             Some(tag_config)
         };
-        return Ok((OpcTableConfig { id_code_map, 
-            table_config: TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } }, 
+        return Ok((OpcTableConfig { 
+            id_code_map, 
+            table_config: 
+                TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } 
+            }, 
             node_config_old, 
             tables_to_drop,
         ));
