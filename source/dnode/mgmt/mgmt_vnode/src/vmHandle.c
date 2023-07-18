@@ -263,8 +263,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return 0;
   }
 
-  int32_t diskPrimary = vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
-  wrapperCfg.diskPrimary = diskPrimary;
+  wrapperCfg.diskPrimary = vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
@@ -402,15 +402,16 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to close vnode", vgId);
-  int32_t     diskPrimary = pVnode->diskPrimary;
   SWrapperCfg wrapperCfg = {
       .dropped = pVnode->dropped,
       .vgId = pVnode->vgId,
       .vgVersion = pVnode->vgVersion,
+      .diskPrimary = pVnode->diskPrimary,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   vmCloseVnode(pMgmt, pVnode, false);
 
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
   char path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
 
@@ -490,7 +491,6 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  int32_t     diskPrimary = pVnode->diskPrimary;
   SWrapperCfg wrapperCfg = {
       .dropped = pVnode->dropped,
       .vgId = dstVgId,
@@ -509,6 +509,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, close vnode", srcVgId);
   vmCloseVnode(pMgmt, pVnode, true);
 
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
   char srcPath[TSDB_FILENAME_LEN] = {0};
   char dstPath[TSDB_FILENAME_LEN] = {0};
   snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
@@ -604,7 +605,6 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to close vnode", vgId);
-  int32_t     diskPrimary = pVnode->diskPrimary;
   SWrapperCfg wrapperCfg = {
       .dropped = pVnode->dropped,
       .vgId = pVnode->vgId,
@@ -614,6 +614,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   vmCloseVnode(pMgmt, pVnode, false);
 
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
   char path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
 
