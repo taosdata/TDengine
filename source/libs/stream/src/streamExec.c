@@ -113,6 +113,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
         // TODO
       }
       continue;
+    } else if (output->info.type == STREAM_CHECKPOINT) {
+      continue; // checkpoint block not dispatch to downstream tasks
     }
 
     SSDataBlock block = {0};

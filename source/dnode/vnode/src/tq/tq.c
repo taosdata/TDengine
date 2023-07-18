@@ -1673,7 +1673,8 @@ int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
     return code;
   }
 
-  tqDebug("vgId:%d s-task:%s received the checkpoint ready msg, handle it", vgId, pTask->id.idStr);
+  tqDebug("vgId:%d s-task:%s received the checkpoint ready msg from task:0x%x (vgId:%d), handle it", vgId,
+          pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
 
   streamProcessCheckpointReadyMsg(pTask);
   streamMetaReleaseTask(pMeta, pTask);
