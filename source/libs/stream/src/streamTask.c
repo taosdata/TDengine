@@ -244,6 +244,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
+  taosThreadMutexDestroy(&pTask->lock);
 
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);

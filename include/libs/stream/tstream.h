@@ -310,6 +310,7 @@ struct SStreamTask {
   SStreamId        streamTaskId;
   SArray*          pUpstreamInfoList;  // SArray<SStreamChildEpInfo*>, // children info
   SArray*          pReadyMsgList;      // SArray<SStreamChkptReadyInfo*>
+  TdThreadMutex    lock;               // secure the operation of set task status and puting data into inputQ
 
   // output
   union {
@@ -566,6 +567,7 @@ int32_t streamCheckHistoryTaskDownstream(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
 void    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask);
+int32_t streamTaskGetInputQItems(const SStreamTask* pTask);
 
 bool    streamTaskRecoverScanStep1Finished(SStreamTask* pTask);
 bool    streamTaskRecoverScanStep2Finished(SStreamTask* pTask);
@@ -615,9 +617,7 @@ int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 
-
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask);
-int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
 
 #ifdef __cplusplus
 }

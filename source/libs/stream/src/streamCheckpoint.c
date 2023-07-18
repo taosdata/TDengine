@@ -133,13 +133,18 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
+  taosThreadMutexLock(&pTask->lock);
+
   pTask->status.taskStatus = TASK_STATUS__CK;
   pTask->checkpointingId = pReq->checkpointId;
   pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
 
   // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
   //    inputQ, to make sure all blocks with less version have been handled by this task already.
-  return appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
+  int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return code;
 }
 
 static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStreamTask* pTask) {
@@ -180,15 +185,6 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
-    // todo: sink node needs alignment??
-    /*    ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
-        pTask->status.taskStatus = TASK_STATUS__CK_READY;
-
-        // update the child Id for downstream tasks
-        streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
-        qDebug("s-task:%s sink task do checkpoint ready, send ready msg to upstream", id);
-        streamFreeQitem((SStreamQueueItem*)pBlock);
-      } else {*/
     ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
 
     // update the child Id for downstream tasks
@@ -203,8 +199,6 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       streamFreeQitem((SStreamQueueItem*)pBlock);
       return code;
     }
-
-
 
     if (taskLevel == TASK_LEVEL__SINK) {
       pTask->status.taskStatus = TASK_STATUS__CK_READY;
