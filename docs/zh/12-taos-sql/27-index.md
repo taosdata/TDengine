@@ -4,12 +4,13 @@ title: 索引
 description: 索引功能的使用细节
 ---
 
-TDengine 从 3.0.0.0 版本开始引入了索引功能，支持 SMA 索引和 FULLTEXT 索引。
+TDengine 从 3.0.0.0 版本开始引入了索引功能，支持 SMA 索引和 tag 索引。
 
 ## 创建索引
 
 ```sql
-CREATE FULLTEXT INDEX index_name ON tb_name (col_name [, col_name] ...)
+
+CREATE INDEX index_name ON tb_name index_option
 
 CREATE SMA INDEX index_name ON tb_name index_option
 
@@ -45,10 +46,6 @@ SELECT _wstart,_wend,_wduration,max(c2),min(c1) FROM st1 INTERVAL(5m,10s) SLIDIN
 -- 从原始数据查询
 ALTER LOCAL 'querySmaOptimize' '0'; 
 ```
-
-### FULLTEXT 索引
-
-对指定列建立文本索引，可以提升含有文本过滤的查询的性能。FULLTEXT 索引不支持 index_option 语法。现阶段只支持对 JSON 类型的标签列创建 FULLTEXT 索引。不支持多列联合索引，但可以为每个列分布创建 FULLTEXT 索引。
 
 ## 删除索引
 
