@@ -3,7 +3,7 @@ use std::{path::PathBuf, fs};
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query, },
-    HttpResponse, Responder, 
+    HttpResponse, Responder,
 };
 
 use anyhow::Context;
@@ -17,7 +17,7 @@ use tokio_cron_scheduler::Job;
 use utoipa::*;
 
 use crate::serve::{
-    controller::TaskControllerRef, NewTask, TaskController, TaskDecorator, TaskFilter, UpdateTask,
+    controller::TaskControllerRef, NewTask, TaskDecorator, TaskFilter, UpdateTask,
 };
 
 /// Task endpoint error responses
@@ -63,7 +63,7 @@ pub(super) async fn get_tasks(
                     .collect_vec(),
             ),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -93,7 +93,7 @@ pub(super) async fn get_tasks_count(
     match task_store.tasks_count(filter.into_inner()).await {
         Ok(tasks) => HttpResponse::Ok().body(format!("{tasks}")),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -130,7 +130,7 @@ pub(super) async fn create_task(
     if let Some(trigger) = task.trigger.as_deref() {
         if !trigger.starts_with("schedule:") {
             return HttpResponse::InternalServerError().json(Failed {
-                code: Code::Failed,
+                code: Code::FAILED,
                 message: format!(
                     "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
                 ),
@@ -163,7 +163,7 @@ pub(super) async fn create_task(
                         log::info!("add job for task: {task:?}");
                         if let Err(_err) = sched.add(job).await {
                             return HttpResponse::InternalServerError().json(Failed {
-                                code: Code::Failed,
+                                code: Code::FAILED,
                                 message: format!(
                     "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
                 ),
@@ -179,7 +179,7 @@ pub(super) async fn create_task(
             HttpResponse::Created().json(task.decorate(&decorator))
         }
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -250,7 +250,7 @@ pub(super) async fn update_task(
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -286,7 +286,7 @@ pub(super) async fn delete_task(
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -319,7 +319,7 @@ pub(super) async fn get_task_by_id(
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -349,11 +349,11 @@ pub(super) async fn start_task(
     match task_store.start(id).await {
         Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: format!("Task {id} not found"),
         }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -383,11 +383,11 @@ pub(super) async fn stop_task(
     match task_store.stop(id).await {
         Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: format!("Task {id} not found"),
         }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -417,7 +417,7 @@ pub(super) async fn get_task_offsets_by_id(
         Ok(Some(offsets)) => HttpResponse::Ok().body(format!("{:?}", offsets)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -443,7 +443,7 @@ pub(super) async fn get_task_activities_by_id(
     match task_store.task_activities(id).await {
         Ok(acts) => HttpResponse::Ok().json(acts),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -473,7 +473,7 @@ pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>, ) -> i
     match save_files(MultipartForm(form),).await {
         Ok(file_saved) => HttpResponse::Created().json(file_saved),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
         }),
     }
@@ -530,8 +530,8 @@ pub struct FileMeta {
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams, ToSchema)]
 #[serde(default)]
 pub struct FileMetaRequest {
-    file_path: String, 
-    file_type: String, 
+    file_path: String,
+    file_type: String,
     has_header: bool,
 }
 
@@ -557,7 +557,7 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
     match get_filemeta(filemeta_request.into_inner()).await {
         Ok(filemeta) => HttpResponse::Ok().json(filemeta),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
         }),
     }

@@ -3,32 +3,11 @@
 //!
 use std::fmt::Display;
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
-use itertools::Itertools;
+use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Encode, FromRow};
-use tokio_util::sync::CancellationToken;
 use utoipa::{IntoParams, ToSchema};
-
-use super::Task;
-
-// pub struct IpcWorker {}
-
-pub struct AgentWorker {
-    cancel: CancellationToken,
-    task: Task,
-}
-
-impl AgentWorker {
-    pub fn spawn(&self) {
-        if self.task.from.starts_with("opc") {
-            // opc
-        }
-    }
-    pub fn sender(&self) {}
-    pub fn send(&self) {}
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -114,11 +93,11 @@ pub struct AgentUpdates {
     pub name: String,
 }
 
-impl AgentUpdates {
-    pub fn update_agent_with(&self, id: i64) -> String {
-        format!("UPDATE agents SET `name` = {} WHERE id = {id}", self.name)
-    }
-}
+// impl AgentUpdates {
+//     pub fn update_agent_with(&self, id: i64) -> String {
+//         format!("UPDATE agents SET `name` = {} WHERE id = {id}", self.name)
+//     }
+// }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AgentClaims {
     /// The agent id

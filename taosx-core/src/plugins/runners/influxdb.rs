@@ -1,19 +1,19 @@
-use std::{fs, io::prelude::*, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
-use std::process::Output;
-use std::ptr::null;
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{Action, DataSet, get_log_keep_days, plugins::sink, Transferred, utils::port_pool::PortPool};
+use crate::{
+    get_log_keep_days, plugins::sink, utils::port_pool::PortPool, Action, DataSet, Transferred,
+};
 
 use super::get_plugin_dir;
 
@@ -435,7 +435,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
-    let mut output;
+    let output;
     // 不同版本不同参数
     if INFLUXDB_V1.contains(&influx_version.as_str()) {
         // 查询命令

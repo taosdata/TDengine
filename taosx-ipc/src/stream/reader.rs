@@ -7,7 +7,7 @@ use arrow::{
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
         UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
-    datatypes::{DataType, Schema, SchemaRef},
+    datatypes::{DataType, Schema},
     error::ArrowError,
     ipc::reader::StreamReader,
     record_batch::RecordBatch,
@@ -75,7 +75,7 @@ impl IpcParser {
                                 let i = LushMessageInsert {
                                     attrs,
                                     records,
-                                    schema: self.schema.clone(),
+                                    // schema: self.schema.clone(),
                                     metadata: self.metadata.clone(),
                                 };
                                 message.push(i);
@@ -93,7 +93,7 @@ impl IpcParser {
                                 let i = LushMessageInsert {
                                     attrs: None,
                                     records,
-                                    schema: self.schema.clone(),
+                                    // schema: self.schema.clone(),
                                     metadata: self.metadata.clone(),
                                 };
                                 message.push(i);
@@ -400,29 +400,29 @@ impl IpcParser {
             .next()
     }
 
-    fn parse_records(&self, arrow: ArrayRef) -> LushInsertRecords {
-        let s = arrow
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .expect("parse records list");
-        let v = s.value(0);
-        let s = v
-            .as_any()
-            .downcast_ref::<StructArray>()
-            .expect("parse records struct");
+    // fn parse_records(&self, arrow: ArrayRef) -> LushInsertRecords {
+    //     let s = arrow
+    //         .as_any()
+    //         .downcast_ref::<ListArray>()
+    //         .expect("parse records list");
+    //     let v = s.value(0);
+    //     let s = v
+    //         .as_any()
+    //         .downcast_ref::<StructArray>()
+    //         .expect("parse records struct");
 
-        // todo!()
-        let names = s.column_names();
-        let columns = s.columns();
-        let record = RecordBatch::try_from_iter(
-            names
-                .into_iter()
-                .zip(columns)
-                .map(|(name, value)| (name, value.clone())),
-        )
-        .unwrap();
-        LushInsertRecords { record }
-    }
+    //     // todo!()
+    //     let names = s.column_names();
+    //     let columns = s.columns();
+    //     let record = RecordBatch::try_from_iter(
+    //         names
+    //             .into_iter()
+    //             .zip(columns)
+    //             .map(|(name, value)| (name, value.clone())),
+    //     )
+    //     .unwrap();
+    //     LushInsertRecords { record }
+    // }
 }
 
 pub struct IpcReader<R: Read> {
@@ -516,7 +516,7 @@ impl From<Arc<dyn Array>> for LushInsertRecords {
 
 #[derive(Debug)]
 pub struct LushMessageInsert {
-    schema: SchemaRef,
+    // schema: SchemaRef,
     metadata: Arc<IpcMetadata>,
     attrs: Option<LushInsertAttrs>,
     records: LushInsertRecords,
@@ -703,7 +703,7 @@ mod arrow_to_taos {
                     TimeUnit::Microsecond => ColumnView::from_micros_timestamp(v),
                     TimeUnit::Nanosecond => ColumnView::from_nanos_timestamp(v),
                 }
-                
+
             }
             crate::prelude::IpcDataType::VarChar(_) => {
                 ColumnView::from_varchar::<&str, _, _, _>(data)

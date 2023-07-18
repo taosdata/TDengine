@@ -193,8 +193,6 @@ async fn write_meta(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<()> {
-    let order = std::sync::atomic::Ordering::SeqCst;
-
     let cur = metrics
         .messages_of_meta
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -285,7 +283,7 @@ async fn sync(
                 } else {
                     vec![]
                 };
-                
+
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     if assignment.is_empty() {

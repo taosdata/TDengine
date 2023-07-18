@@ -108,7 +108,7 @@ impl Cli {
     pub(super) async fn run_with(
         self,
         _opts: super::GlobalOpts,
-        rt: impl Into<Option<tokio::runtime::Runtime>>,
+        _rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
@@ -247,7 +247,7 @@ impl Cli {
         .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
         .run();
 
-        let mut flight = rpc::RpcConfig::default();
+        let flight = rpc::RpcConfig::default();
 
         tokio::select! {
             _ = server => {
