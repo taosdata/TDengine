@@ -1,42 +1,29 @@
 //no-unused-vars
 import router, { addRoutes } from "@/router/index.js";
 import { getToken } from "@/utils/token.js";
+import { getUrls } from "@/api/explorer/login";
 import store from "./store";
-import { NoInstanceAccessRoute, InitClusterStatus, BaseRoute, InactiveStatus } from "@/const";
-const whiteList=['Login']
+
+const whiteList = ["Login"];
 
 router.beforeEach(async (to, from, next) => {
+  let result = await getUrls();
+
+  if (
+    result.cluster != localStorage.getItem("base_url") &&
+    to.name != "Login"
+  ) {
+    next(`/login`);
+    next();
+  }
   const hasToken = getToken();
-  if(!hasToken){
-    if(whiteList.includes(to.name)){
-      next()
-    }else{
-      next(`/login`)
+  if (!hasToken) {
+    if (whiteList.includes(to.name)) {
+      next();
+    } else {
+      next(`/login`);
     }
   }
-  // if (hasToken) {
-  //   if (!store.state.app.userInfo) {
-  //     // 获取用户信息
-  //     await store.dispatch("app/getUserInfo");
-  //     // 添加路由
-  //     addRoutes(store.getters.role);
-  //     // 获取region信息
-  //     await store.dispatch("app/getCloud");
-  //     await store.dispatch("app/getCurrentPricePlanList");
-  //     // 获取集群列表，根据集群状态进行相应的跳转
-  //     await store.dispatch("app/getClusterList");
-  //     store.dispatch("app/getGlobalData");
-  //     // 添加路由后必须步骤（除clusterStatus外）
-  //     return next(handleReplacePath(to));
-  //   }
-  //   if (!store.getters.hasCluster && !NoInstanceAccessRoute.includes(to.path) && store.getters.role == "1") return next(NoInstanceAccessRoute[0]);
-  //   if (InitClusterStatus.includes(store.getters.clusterStatus) && to.path != "/intanceStatus") return next("/intanceStatus");
-  //   if (InactiveStatus.includes(store.getters.clusterStatus) && !BaseRoute.some(item => to.path.startsWith(item))) return next("/instances");
-  //   if (NoInstanceAccessRoute.includes(to.path) && (store.getters.hasCluster || store.getters.role != "1")) return next("/instances");
-  //   next();
-  // } else {
-  //   store.commit("app/LOGIN");
-  // }
   next();
 });
 // 切换标签页之后返回页面，查询token
@@ -59,6 +46,4 @@ function handleReplacePath(to) {
     replace: true,
   };
 }
-// let timer = setInterval(()=>{
-//   console.log(getToken(),'获取cookie');
-// },1000)
+
