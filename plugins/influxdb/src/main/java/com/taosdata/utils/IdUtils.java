@@ -53,10 +53,10 @@ public class IdUtils {
      */
     public IdUtils(long workerId, long dataCenterId) {
         if (workerId > maxWorkerId || workerId < 0) {
-            throw new IllegalArgumentException(String.format("应用节点ID不能大于%d或小于0", maxWorkerId));
+            throw new IllegalArgumentException(String.format("The application node ID cannot be greater than %d or less than 0", maxWorkerId));
         }
         if (dataCenterId > maxDataCenterId || dataCenterId < 0) {
-            throw new IllegalArgumentException(String.format("数据中心ID不能大于%d或小于0", maxDataCenterId));
+            throw new IllegalArgumentException(String.format("The data center ID cannot be greater than %d or less than 0", maxDataCenterId));
         }
         this.workerId = workerId;
         this.dataCenterId = dataCenterId;

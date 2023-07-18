@@ -28,7 +28,7 @@ pub(super) async fn get_cluster_connector_transferred(
     match task_store.cluster_transferred(id).await {
         Ok(offsets) => HttpResponse::Ok().json(&offsets),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }

@@ -110,7 +110,7 @@ impl taos::AsyncInlinable for Header {
             );
         }
         let ts = reader.read_u64().await?;
-        let created = Local.timestamp_millis(ts as _);
+        let created = Local.timestamp_millis_opt(ts as _).unwrap();
         let database = reader.read_inlined_str::<1>().await?;
         Ok(Self {
             version,

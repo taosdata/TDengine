@@ -20,7 +20,10 @@ use tokio::{io::{AsyncBufReadExt, }, fs::File};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{plugins::sink, utils::{port_pool::PortPool, get_string_content_from_file_path, get_string_content_from_param_value}, Action, DataSet, DataSetsReq, Transferred};
+use crate::{
+    get_log_keep_days, plugins::sink, utils::{port_pool::PortPool, get_string_content_from_file_path, get_string_content_from_param_value}, Action, DataSet, DataSetsReq,
+    Transferred,
+};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -53,12 +56,12 @@ enum OpcError {
     DatabaseIsRequired(Dsn),
     #[error("Username and password are both required for UserName authentication method in {0}")]
     UserPassRequired(Dsn),
-    #[error("config file not found: {0}")]
-    FileNotFound(String),
+    // #[error("config file not found: {0}")]
+    // FileNotFound(String),
     #[error("file parse error: {0}")]
     FileParseFound(String),
-    #[error("config file content is empty in {0}")]
-    EmptyConfig(String),
+    // #[error("config file content is empty in {0}")]
+    // EmptyConfig(String),
     #[error("node config error {0}")]
     NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
@@ -356,7 +359,9 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        return Err(OpcError::NodeConfig(format!("node config: {pair} split result len is not 2")));
+                        return Err(OpcError::NodeConfig(format!(
+                            "node config: {pair} split result len is not 2"
+                        )));
                     }
                     let id = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -395,15 +400,26 @@ impl OPCConfig {
                 opc_type = OpcType::OPCDA;
                 let server = dsn.subject.clone();
                 if server.is_none() {
-                    return Err(OpcError::ConfigError("subject", format!("should config subject for opc da")));
+                    return Err(OpcError::ConfigError(
+                        "subject",
+                        format!("should config subject for opc da"),
+                    ));
                 }
                 let nodes = dsn.addresses.clone();
                 if nodes.is_empty() {
-                    return Err(OpcError::ConfigError("host", format!("should config at least one host")));
+                    return Err(OpcError::ConfigError(
+                        "host",
+                        format!("should config at least one host"),
+                    ));
                 }
-                let nodes = nodes.into_iter().map(|addr| addr.host.unwrap().clone())
+                let nodes = nodes
+                    .into_iter()
+                    .map(|addr| addr.host.unwrap().clone())
                     .collect_vec();
-                let connect_da_config = DaConnectConfig { server: server.unwrap(), nodes };
+                let connect_da_config = DaConnectConfig {
+                    server: server.unwrap(),
+                    nodes,
+                };
                 connect = ConnectConfig {
                     ua: None,
                     da: Some(connect_da_config),
@@ -428,7 +444,9 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        return Err(OpcError::NodeConfig(format!("node config: {pair} split result len is not 2")));
+                        return Err(OpcError::NodeConfig(format!(
+                            "node config: {pair} split result len is not 2"
+                        )));
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -471,7 +489,7 @@ impl OPCConfig {
             .remove("debug")
             .map(|v| {
                 v.parse::<bool>()
-                    .map_err(|err| OpcError::ParseError("debug", v))
+                    .map_err(|_| OpcError::ParseError("debug", v))
             })
             .transpose()?
         {
@@ -492,7 +510,10 @@ impl OPCConfig {
             if config.is_none() {
                 return Err(OpcError::ConfigError("opc_table_config", "should config opc_table_config or use csv config file".to_string()));
             }
-            table_config = Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?);
+            table_config = Some(
+                serde_json::from_str(config.unwrap().as_str())
+                    .map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?,
+            );
         } else {
             let opc_table_config = opc_table_config.unwrap();
             table_config = Some(opc_table_config.table_config.clone());
@@ -720,10 +741,17 @@ pub(super) fn get_string_vec_from_param_or_file(
             .partition(|v| v.starts_with("@"));
         // dbg!(&files, &node_config);
         for file in files {
-            log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+            log::info!(
+                "current log: {}",
+                std::env::current_dir().unwrap().to_str().unwrap()
+            );
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
+                log::warn!(
+                    "file: {} read error, cause: {}",
+                    &file[1..],
+                    f.err().unwrap()
+                );
                 continue;
                 // return Err("file read error".to_string());
             }
@@ -751,21 +779,21 @@ pub(super) fn get_string_vec_from_param_or_file(
     return Err("Nodes not set".to_string());
 }
 
-fn process_table_info(
-    table_info: &mut HashMap<String, Vec<(String, String)>>,
-    table: String,
-    field: String,
-    value_type: String,
-) {
-    if table_info.get_mut(&table).is_none() {
-        let mut t_v = Vec::new();
-        t_v.push((field, value_type));
-        table_info.insert(table, t_v);
-    } else {
-        let t_v = table_info.get_mut(&table).unwrap();
-        t_v.push((field, value_type));
-    };
-}
+// fn process_table_info(
+//     table_info: &mut HashMap<String, Vec<(String, String)>>,
+//     table: String,
+//     field: String,
+//     value_type: String,
+// ) {
+//     if table_info.get_mut(&table).is_none() {
+//         let mut t_v = Vec::new();
+//         t_v.push((field, value_type));
+//         table_info.insert(table, t_v);
+//     } else {
+//         let t_v = table_info.get_mut(&table).unwrap();
+//         t_v.push((field, value_type));
+//     };
+// }
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -796,14 +824,14 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
         String::from_utf8_lossy(&output.stdout).trim().to_string(),
     ))
 }
-pub(crate) async fn opc_config_from(
-    taos: &Taos,
-    dsn: &Dsn,
-    port: u16,
-) -> anyhow::Result<OpcTableConfig> {
-    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
-    config.parse_tables_with(taos).await
-}
+// pub(crate) async fn opc_config_from(
+//     taos: &Taos,
+//     dsn: &Dsn,
+//     port: u16,
+// ) -> anyhow::Result<OpcTableConfig> {
+//     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
+//     config.parse_tables_with(taos).await
+// }
 pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
@@ -828,7 +856,10 @@ pub async fn opc_to_taos(
     let exe_exists = std::path::Path::new(&exe_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", exe_path().to_str().unwrap());
-        Err(OpcError::ExeNotFound(format!("{}", exe_path().to_str().unwrap())))?;
+        Err(OpcError::ExeNotFound(format!(
+            "{}",
+            exe_path().to_str().unwrap()
+        )))?;
     }
 
     if to.subject.is_none() {
@@ -905,11 +936,13 @@ pub async fn opc_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
@@ -950,7 +983,7 @@ pub async fn opc_to_taos(
                     log::info!("OPC exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
-                        anyhow::bail!("OPC exist with {}", status);
+                        anyhow::bail!("OPC exit with {}", status);
                         // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
                     }
                 },
@@ -986,21 +1019,21 @@ pub async fn opc_to_taos(
 /// return true if matched
 /// if type equals return true else false
 /// if type is binary|varchar|nchar check whether type configed contains those characters
-fn check_field_type(field_type_config: &String, field_type: String) -> bool {
-    let field_type_config = field_type_config.to_ascii_lowercase();
-    if field_type.contains("binary")
-        || field_type.contains("varchar")
-        || field_type.contains("nchar")
-    {
-        field_type_config.contains("binary")
-            || field_type_config.contains("varchar")
-            || field_type_config.contains("nchar")
-    } else if field_type_config == field_type {
-        true
-    } else {
-        false
-    }
-}
+// fn check_field_type(field_type_config: &String, field_type: String) -> bool {
+//     let field_type_config = field_type_config.to_ascii_lowercase();
+//     if field_type.contains("binary")
+//         || field_type.contains("varchar")
+//         || field_type.contains("nchar")
+//     {
+//         field_type_config.contains("binary")
+//             || field_type_config.contains("varchar")
+//             || field_type_config.contains("nchar")
+//     } else if field_type_config == field_type {
+//         true
+//     } else {
+//         false
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct OpcTableConfig {
@@ -1088,19 +1121,17 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
         match lang.as_str() {
             "zh" => ("编码".to_string(), "点位编码".to_string()),
-            _ => ("Code".to_string(), "Point Code".to_string())
+            _ => ("Code".to_string(), "Point Code".to_string()),
         }
     } else {
-        ("Code".to_string(),"Point Code".to_string())
+        ("Code".to_string(), "Point Code".to_string())
     };
-    let options = vec![
-        OptionSet {
-            name: "code".to_string(),
-            display: option_set_code_display,
-            description: Some(option_set_code_desc),
-            required: true,
-        },
-    ];
+    let options = vec![OptionSet {
+        name: "code".to_string(),
+        display: option_set_code_display,
+        description: Some(option_set_code_desc),
+        required: true,
+    }];
     let format = Some("{id}::{code}".to_string());
     if let Some(pattern) = req.pattern.as_deref() {
         let regex = regex::Regex::from_str(pattern)?;

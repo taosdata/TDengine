@@ -83,15 +83,15 @@ def get_taosx_version():
     cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
     with open(cargo_toml_path, 'r') as f:
         cargo_toml = toml.load(f)
-        version = cargo_toml['package']['version']
+        version = cargo_toml['workspace']['package']['version']
     return version
 
 def get_taosx_agent_version():
     version = ""
-    cargo_toml_path = os.path.join(taosx_dir, "taosx-agent", "Cargo.toml")
+    cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
     with open(cargo_toml_path, 'r') as f:
         cargo_toml = toml.load(f)
-        version = cargo_toml['package']['version']
+        version = cargo_toml['workspace']['package']['version']
     return version
 
 def get_install_path():
@@ -105,9 +105,9 @@ def get_package_name():
     if release_info.Target == "agent":
         target = taosx_agent_name
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
+        return  f'{target}-{release_info.TaosXVersion}-{release_info.OS.lower()}-{release_info.CpuType}-installer'
     else:
-        return f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
+        return f'{target}-{release_info.TaosXVersion}-{release_info.OS.lower()}-{release_info.CpuType}-installer'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
@@ -453,7 +453,7 @@ def build_and_install_taos_explorer(mode):
         copy_taos_explorer_on_windows(explorer_path)
 
 def package_on_windows():
-    os.chdir(script_dir) 
+    os.chdir(script_dir)
     target = taosx_name
     sub_directory = "taosX"
     app_before_install_txt = "info_before_install.txt"
@@ -509,7 +509,7 @@ def check_directory(path):
 
 def init_install_directory():
     print("initInstallDirectory {}...".format(release_info.InstallPath))
-    check_directory(release_info.InstallPath)
+    init_directory(release_info.InstallPath)
     check_directory(os.path.join(release_info.InstallPath, "config"))
 
     opc_install_path = os.path.join(release_info.InstallPath, "plugins", opc_connector)
@@ -574,7 +574,7 @@ if __name__ == '__main__':
     if test_process != "":
         test_handle(test_process)
         sys.exit()
-        
+
     if release_info.OS.lower() == 'linux':
         for task in sub_module:
             if taos_explorer_name == task.Name:

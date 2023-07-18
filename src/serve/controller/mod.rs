@@ -119,6 +119,7 @@ pub enum AgentAction {
     Run(i64),
     Cancel(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
+    #[allow(dead_code)]
     RetrieveDataSets(DataSetsReq, Vec<DataSet>),
 }
 pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
@@ -134,7 +135,7 @@ pub struct AgentTasks {
 }
 
 impl AgentTasks {
-    pub fn new(current: Vec<TaskDetail>) -> Self {
+    pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::broadcast::channel(10);
         Self {
             current: Arc::new(DashSet::new()),
@@ -189,6 +190,8 @@ pub struct TaskStatus {
     at: DateTime<Utc>,
     action: String,
     message: Option<String>,
+    // TODO: use context as task activity level
+    #[allow(dead_code)]
     context: Option<String>,
 }
 
@@ -227,12 +230,12 @@ impl Debug for TaskController {
     }
 }
 
-pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> anyhow::Result<()> {
-    // log::info!("")
-    TaskControllerRef(controller)
-        .start_all_with_schedule()
-        .await
-}
+// pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> anyhow::Result<()> {
+//     // log::info!("")
+//     TaskControllerRef(controller)
+//         .start_all_with_schedule()
+//         .await
+// }
 
 #[derive(Debug, Clone)]
 pub(super) struct TaskControllerRef(Arc<TaskController>);
@@ -416,10 +419,10 @@ impl TaskController {
         })
     }
 
-    pub fn with_runtime(mut self, rt: tokio::runtime::Runtime) -> Self {
-        self.runtime = Some(rt);
-        self
-    }
+    // pub fn with_runtime(mut self, rt: tokio::runtime::Runtime) -> Self {
+    //     self.runtime = Some(rt);
+    //     self
+    // }
 
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
@@ -570,7 +573,9 @@ impl TaskController {
 
         let task_handler = async move {
             // set current dir for upload files
-            let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.clone().replace("files", "");
+            let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT
+                .clone()
+                .replace("files", "");
             let root = std::path::Path::new(path.as_str());
             assert!(env::set_current_dir(&root).is_ok());
             let now = Utc::now();
@@ -1459,15 +1464,11 @@ impl TaskController {
         Ok(agent)
     }
 
-    pub async fn get_or_insert_agent_worker(&self, task_id: i64) -> anyhow::Result<()> {
-        Ok(())
-    }
-
     pub async fn init_agent_worker(&self, agent_id: i64) {
         let exists = { self.agent_tasks.read().await.contains_key(&agent_id) };
         if !exists {
             let mut write = self.agent_tasks.write().await;
-            write.insert(agent_id, AgentTasks::new(vec![]));
+            write.insert(agent_id, AgentTasks::new());
             write.get(&agent_id).unwrap().spawn_listener();
         }
     }
@@ -1476,6 +1477,7 @@ impl TaskController {
         self.agent_tasks.read().await.contains_key(&agent_id)
     }
 
+    #[allow(dead_code)]
     pub async fn agent_connected_with_token(
         &self,
         token: &AgentToken,
@@ -1581,11 +1583,7 @@ impl TaskController {
     }
 
     pub async fn get_tasks_of_agent(&self, agent_id: i64) -> anyhow::Result<Vec<TaskDetail>> {
-        let conn = self.pool.acquire().await?;
-        let trans = self.pool.begin().await?;
-        self.tasks(TaskFilter::default().via(agent_id)).await?;
-        // self
-        todo!()
+        self.tasks(TaskFilter::default().via(agent_id)).await
     }
 
     pub async fn list_datasets_via_agent(
@@ -1850,6 +1848,10 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
+        for ds in &mut def {
+            ds.compute();
+        }
         def
     };
     pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
@@ -1861,6 +1863,10 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
+        for ds in &mut def {
+            ds.compute();
+        }
         def
     };
     /// This is an example for using doc comment attributes
@@ -1873,6 +1879,10 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
+        for ds in &mut def {
+            ds.compute();
+        }
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
     pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
@@ -1884,6 +1894,10 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
+        for ds in &mut def {
+            ds.compute();
+        }
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
@@ -2522,6 +2536,7 @@ impl TaskFilter {
         }
     }
 
+    #[allow(dead_code)]
     fn via(mut self, agent_id: i64) -> Self {
         self.via.replace(agent_id);
         self

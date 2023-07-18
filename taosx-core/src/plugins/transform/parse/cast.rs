@@ -1,10 +1,7 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use arrow::{
-    array::{
-        Int64Array, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, TimestampSecondArray,
-    },
+    array::{Int64Array, StringArray},
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
@@ -32,6 +29,7 @@ impl Cast {
             alias: None,
         }
     }
+    #[allow(dead_code)]
     pub fn alias(mut self, alias: impl ToString) -> Self {
         self.alias.replace(alias.to_string());
         self
@@ -94,7 +92,7 @@ impl Parse for Cast {
         let dt = self.r#as.arrow_data_type();
         let field = Field::new(name, dt, true).with_metadata(m);
 
-        let array = if let IpcDataType::Timestamp(time_unit) = &self.r#as {
+        let array = if let IpcDataType::Timestamp(_unit) = &self.r#as {
             if let Some(with) = self.with.as_deref() {
                 let strings = arrow::compute::cast(array, &DataType::Utf8)?;
                 let strings = strings.as_any().downcast_ref::<StringArray>().unwrap();

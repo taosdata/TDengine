@@ -4,7 +4,6 @@ use std::{
     io::{BufRead, Write},
     num::ParseIntError,
     path::PathBuf,
-    process::Stdio,
     str::ParseBoolError,
     sync::Arc,
     time::Duration,
@@ -22,6 +21,7 @@ use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    get_log_keep_days,
     plugins::{runners::get_plugin_dir, sink},
     utils::port_pool::PortPool,
     Parser, Transferred,
@@ -193,7 +193,10 @@ pub async fn mqtt_to_taos(
     let exe_exists = std::path::Path::new(&mqtt_exe_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
-        Err(MqttConfigError::ExeNotFound(format!("{}", mqtt_exe_path().to_str().unwrap())))?;
+        Err(MqttConfigError::ExeNotFound(format!(
+            "{}",
+            mqtt_exe_path().to_str().unwrap()
+        )))?;
     }
 
     if to.subject.is_none() {
@@ -261,11 +264,13 @@ pub async fn mqtt_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),

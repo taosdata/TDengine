@@ -71,7 +71,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询进程信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'Process Information', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -110,7 +110,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询线程信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'Thread Information', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -149,7 +149,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询线程信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'Queue Information', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -188,7 +188,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询Influxdb连接信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'InfluxDB Connection Information', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -227,7 +227,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询Socket连接信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'Socket Connection Information', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -267,7 +267,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询速度信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'Speed Information', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -310,7 +310,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询任务统计过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'Task Statistics', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -375,7 +375,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询全部监控数据过程中发生异常，exception={}", e.getMessage());
+            logger.error("An exception occurred during the process of querying 'All Monitoring Data', exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());

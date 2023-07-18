@@ -416,7 +416,7 @@ impl Parse for Json {
                 DataType::Boolean => {
                     let values = json_values
                         .iter()
-                        .map(|(n, v)| {
+                        .map(|(_n, v)| {
                             if let Some(v) =
                                 v.as_ref().and_then(|v| v.get(name))
                             {

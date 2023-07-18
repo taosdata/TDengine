@@ -1,13 +1,19 @@
 use std::{path::PathBuf, time::Duration};
 
-use chrono::Utc;
+use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
 use time::macros::format_description;
+use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::LocalTime},
+    fmt::{format::FmtSpan, time::OffsetTime},
     prelude::__tracing_subscriber_SubscriberExt,
     util::SubscriberInitExt,
     Layer as _,
@@ -16,7 +22,7 @@ use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
 
-use taosx_core::get_log_dir;
+use taosx_core::{get_log_dir, get_log_keep_days};
 
 use crate::runner::TaskStatus;
 
@@ -165,7 +171,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
-            for task in tasks.iter() {                
+            for task in tasks.iter() {
                 let status = TaskStatus::new(
                     *task.key(),
                     Utc::now(),
@@ -226,15 +232,44 @@ fn main() -> anyhow::Result<()> {
         args.endpoint, args.token
     );
 
-    let log_dir = get_log_dir("agent");
+    let mut log_path = get_log_dir("agent");
 
-    let file_appender = tracing_appender::rolling::daily(log_dir, LOG_FILE);
+    log_path.push(LOG_FILE);
 
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let log_keep_days = get_log_keep_days();
+
+    println!("log keep days: {}", &log_keep_days);
+
+    let log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Hourly),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
 
     // let timer = LocalTime::new(format_description!(
     //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
     // ));
+
+    let chrono_local = Local::now();
+    let timezone_offset = (chrono_local.offset().local_minus_utc()
+        / chrono::Duration::hours(1).num_seconds() as i32) as i8;
+
+    println!("local timezone offset: {}", timezone_offset);
+
+    let timer = OffsetTime::new(
+        UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
+    );
+
     let level_filter =
         tracing_subscriber::filter::LevelFilter::from_level(args.log_level.unwrap_or(Level::INFO));
 
@@ -242,6 +277,7 @@ fn main() -> anyhow::Result<()> {
 
     layers.push(
         tracing_subscriber::fmt::layer()
+            .with_timer(timer.clone())
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
@@ -255,6 +291,7 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         layers.push(
             tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
@@ -270,6 +307,8 @@ fn main() -> anyhow::Result<()> {
     log::info!("version: {version}");
     log::info!("commit id: {commit_id}");
     log::info!("build time: {build_time}");
+
+    log::info!("log keep days: {}", &log_keep_days);
 
     log::info!("Start");
 

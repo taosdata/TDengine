@@ -2,24 +2,16 @@
 id: opcua
 name: OPC-UA
 description: |
-  OPC is one of interoperability standard for the secure and
-  reliable exchange of data in the industrial automation
-  space and in other industries.
+  OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space and in other industries.
 
-  OPC UA is the next generation beyond the classic OPC
-  specification, a platform-independent, service-oriented
-  architecture specification that integrates all functionality
-  from the existing OPC Classic specifications, providing a
-  migration path to a more secure and scalable solution.
+  OPC UA is the next generation beyond the classic OPC specification, a platform-independent, service-oriented architecture specification that integrates all functionality from the existing OPC Classic specifications, providing a migration path to a more secure and scalable solution.
 
-  For more about OPC UA we introduce you to read the
-  [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
+  For more about OPC UA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
 
-  taosX could pull data from OPC server by a OPC connector
-  plugin.
+  taosX could pull data from OPC server by a OPC connector plugin.
 
   Check the help message in each part to see the details.
 type: uri
@@ -125,6 +117,7 @@ groups:
         description: |-
           Timeout for connect to endpoint in seconds.
         placeholder: 10
+        value: 1
         hint:
           type: integer
           min: 1
@@ -137,6 +130,7 @@ groups:
           max: 60
         description: Timeout for a request in seconds.
         placeholder: 10
+        value: 1
 
   - name: Collect
     display_order: 3
@@ -145,11 +139,12 @@ groups:
       - name: interval
         display: Collect interval
         description: |-
-          collect data interval in second
+          Collect data interval in second
         hint:
           type: integer
           min: 1
           max: 60
+        value: 1
 
       - name: limit
         display: Collect limit
@@ -157,7 +152,7 @@ groups:
           The upper limit of points for one request for registration
         hint:
           type: integer
-          min: 0
+          min: 1
           max: 1000
 
       - name: collect_mode
@@ -201,6 +196,7 @@ groups:
           type: integer
           min: 1
           max: 100
+        value: 1
       - name: batch_size
         display: Batch Size
         hint:
@@ -209,6 +205,7 @@ groups:
           max: 10000
         description: Max batch size for each record batch while reporting to target.
         placeholder: 100
+        value: 1
       - name: batch_timeout
         display: Batch Timeout
         hint:
@@ -217,6 +214,7 @@ groups:
           max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
+        value: 1
 
       - name: debug
         display: Enable Debug Log

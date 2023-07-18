@@ -2,24 +2,17 @@
 id: opcda
 name: OPC-DA
 description: |
-  OPC is one of interoperability standard for the secure and  
-  reliable exchange of data in the industrial automation space  
-  and in other industries.
+  OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space   and in other industries.
 
-  OPC DA (Data Access) is a classic COM-based specification that  
-  works only on Windows.
-  OPC DA is widely used even though it isn't the newest and most  
-  efficient data communication specification out there. This is  
-  mainly because of older devices that only support the OPC DA.
+  OPC DA (Data Access) is a classic COM-based specification that works only on Windows.
+  OPC DA is widely used even though it isn't the newest and most efficient data communication specification out there. This is mainly because of older devices that only support the OPC DA.
 
-  For more about OPC DA we introduce you to read the [OPC  
-  Foundation site](https://opcfoundation.org/), and some useful blogs, such as
+  For more about OPC DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC DA](https://plcynergy.com/opc-da/),
 
-  taosX could pull data from OPC server by a OPC 
-  connector plugin.
+  taosX could pull data from OPC server by a OPC connector plugin.
 
   Check the help message in each part to see the details.
 type: uri
@@ -44,7 +37,7 @@ datasets:
       OPC DA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
     target:
       name: da.tags
-      description: | 
+      description: |
         OPC DA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
       required: true
       multiple: true
@@ -61,6 +54,7 @@ groups:
         description: |-
           Timeout for connect to endpoint in seconds.
         placeholder: 10
+        value: 10
         hint:
           type: integer
           min: 1
@@ -74,10 +68,11 @@ groups:
           max: 60
         description: Timeout for a request in seconds.
         placeholder: 10
-        
+        value: 10
+
   - name: Table Config
     display_order: 4
-    description: | 
+    description: |
       Stable Config
 
       - **received_time**: time opc collector received<br>
@@ -104,6 +99,7 @@ groups:
           type: integer
           min: 1
           max: 100
+        value: 1
       - name: batch_size
         display: Batch Size
         hint:
@@ -112,6 +108,7 @@ groups:
           max: 10000
         description: Max batch size for each record batch while reporting to target.
         placeholder: 100
+        value: 1
       - name: batch_timeout
         display: Batch Timeout
         hint:
@@ -120,7 +117,8 @@ groups:
           max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
-      
+        value: 1
+
       - name: debug
         display: Enable Debug Log
         hint:

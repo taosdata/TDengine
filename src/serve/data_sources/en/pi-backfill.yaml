@@ -2,21 +2,11 @@
 id: pibackfill
 name: PIBACKFILL
 description: |
-  The PI System is a suite of software products that are used
-  for data collection, historicizing, finding, analyzing,
-  delivering, and visualizing. It is marketed as an enterprise
-  infrastructure for management of real-time data and
-  events.
-  The term PI System is often used to refer to the PI Server
-  but the two are not the same. The PI  System refers to all
-  OSIsoft software products whereas the PI Server is the
-  core product of the PI System. Data can be automatically
-  collected from many sources (control systems, lab
-  equipment, calculations, manual entry or custom
-  software).
+  The PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.
 
-  taosX could pull history data from PI System by a PIBACKFILL
-  connector plugin.
+  The term PI System is often used to refer to the PI Server but the two are not the same. The PI  System refers to all OSIsoft software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).
+
+  taosX could pull history data from PI System by a PIBACKFILL connector plugin.
 type: uri
 options:
   host:
@@ -63,16 +53,17 @@ groups:
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start
-      time will be the earliest time available.
+      The start time for backfilling data.
+
+      If not provided, the start time will be the earliest time available(10 days ago from now).
     placeholder: "YYYY-MM-DD HH:mm:ss"
   - name: BackfillEndTime
     display: Backfill End Time
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start
-      time will be the earliest time available.
+      The end time for backfilling data. The default is now.
+
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
 - name: Data Queue
@@ -87,6 +78,7 @@ groups:
       type: integer
       min: 1
       max: 10000
+    value: 1000
   - name: UpdateInterval
     display: Update Interval (in ms)
     hint:
@@ -95,12 +87,14 @@ groups:
       max: 60000
     description: Pull Data from PI System Interval in `ms`.
     placeholder: 10000
+    value: 1000
   - name: MaxBackfillRangeDays
     display: Max Backfill Range(in days)
     hint:
       type: integer
     description: Max backfill time range in days.
     placeholder: 1
+    value: 1
 
 datasets:
   name: Data Sets
@@ -109,7 +103,6 @@ datasets:
   - category: PointList
     display: Point List
     description: |
-      # Title
       The point names exists in pi system.
     target:
       name: PointList
@@ -121,7 +114,6 @@ datasets:
   - category: TemplateForPIPoint
     display: Template For PI Point
     description: |
-      # Title
       The template names exists in pi system.
     target:
       name: TemplateForPIPoint
@@ -133,7 +125,6 @@ datasets:
   - category: TemplateForAFElement
     display: Template For AF Element
     description: |
-      # Title
       The template names exists in pi system.
     target:
       name: TemplateForAFElement

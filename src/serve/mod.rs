@@ -101,14 +101,15 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
             .service(download_files)
-            .service(upload_files);
+            .service(upload_files)
+            .service(filemeta);
     }
 }
 impl Cli {
     pub(super) async fn run_with(
         self,
         _opts: super::GlobalOpts,
-        rt: impl Into<Option<tokio::runtime::Runtime>>,
+        _rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
@@ -152,6 +153,7 @@ impl Cli {
                     LangQuery,
                     Lang,
                     UploadForm,
+                    FileMetaRequest,
                     // DataSet,
 
                 ),
@@ -170,6 +172,7 @@ impl Cli {
                 task::get_task_offsets_by_id,
                 task::get_task_activities_by_id,
                 task::upload_files,
+                task::filemeta,
                 task::download_files,
 
                 metrics::metrics_exporter,
@@ -246,7 +249,7 @@ impl Cli {
         .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
         .run();
 
-        let mut flight = rpc::RpcConfig::default();
+        let flight = rpc::RpcConfig::default();
 
         tokio::select! {
             _ = server => {

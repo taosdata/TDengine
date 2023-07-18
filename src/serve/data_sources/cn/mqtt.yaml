@@ -108,6 +108,7 @@ groups:
           使用如下格式设置： `topic1::0,topic2::1`
         hint:
           type: str
+        placeholder: topic1::0,topic2::1
 
   - name: 其他
     display_order: 2
