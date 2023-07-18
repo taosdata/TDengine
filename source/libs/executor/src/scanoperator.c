@@ -2840,7 +2840,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
-  pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
+  pInfo->sortBufSize = 1024 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_TABLE_MERGE_SCAN, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
