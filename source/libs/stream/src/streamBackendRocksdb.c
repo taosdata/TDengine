@@ -210,6 +210,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       qError("failed to start stream backend at %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       taosMkDir(state);
     }
+    taosMemoryFree(chkp);
   }
   *dst = state;
 
@@ -1323,8 +1324,8 @@ bool streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len
   }
   return true;
 }
-rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKeyName,
-                                          rocksdb_snapshot_t** snapshot, rocksdb_readoptions_t** readOpt) {
+rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKeyName, rocksdb_snapshot_t** snapshot,
+                                          rocksdb_readoptions_t** readOpt) {
   int idx = streamStateGetCfIdx(pState, cfKeyName);
 
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
