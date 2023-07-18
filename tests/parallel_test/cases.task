@@ -38,6 +38,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
