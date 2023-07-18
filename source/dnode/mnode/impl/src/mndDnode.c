@@ -947,7 +947,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s", 
+  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s",
           dropReq.dnodeId, dropReq.fqdn, dropReq.port, dropReq.force?"true":"false", dropReq.unsafe?"true":"false");
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
@@ -987,7 +987,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   bool isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
-  
+
   if (isonline && force) {
     terrno = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
@@ -1060,6 +1060,23 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "keeptimeoffset", 14) == 0) {
+    if (' ' != cfgReq.config[14] && 0 != cfgReq.config[14]) {
+      mError("dnode:%d, failed to config keeptimeoffset since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    const char *value = cfgReq.value;
+    int32_t     offset = atoi(value);
+    if (offset < 0 || offset > 23) {
+      mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, offset);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "keeptimeoffset");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", offset);
 #ifdef TD_ENTERPRISE
   } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
