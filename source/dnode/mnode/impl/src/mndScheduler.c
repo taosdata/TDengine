@@ -198,6 +198,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
       sdbRelease(pMnode->pSdb, pVgroup);
       continue;
     }
+    sdbCancelFetch(pMnode->pSdb, pIter);
     return pVgroup;
   }
   return pVgroup;

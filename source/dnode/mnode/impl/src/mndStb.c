@@ -2330,6 +2330,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     }
 
     if (pStream->targetStbUid == suid) {
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pStream);
       return -1;
     }
@@ -2338,6 +2339,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
       terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
       mError("stream:%s, create ast error", pStream->name);
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pStream);
       return -1;
     }
@@ -2349,6 +2351,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
       SColumnNode *pCol = (SColumnNode *)pNode;
 
       if (pCol->tableId == suid) {
+        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pStream);
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);

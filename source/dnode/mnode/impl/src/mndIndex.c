@@ -852,7 +852,7 @@ int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     if (pIdx->dbUid == pDb->uid) {
       if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
         sdbRelease(pSdb, pIdx);
-        sdbCancelFetch(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }

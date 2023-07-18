@@ -1303,11 +1303,10 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
     sdbRelease(pSdb, pVgroup);
 
     if (pDb && (vindex >= pDb->cfg.numOfVgroups)) {
+      sdbCancelFetch(pSdb, pIter);
       break;
     }
   }
-
-  sdbCancelFetch(pSdb, pIter);
 }
 
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq) {
