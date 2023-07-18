@@ -168,6 +168,7 @@ SSnodeObj* mndSchedFetchOneSnode(SMnode* pMnode) {
   void*      pIter = NULL;
   // TODO random fetch
   pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void**)&pObj);
+  sdbCancelFetch(pMnode->pSdb, pIter);
   return pObj;
 }
 
@@ -197,6 +198,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
       sdbRelease(pMnode->pSdb, pVgroup);
       continue;
     }
+    sdbCancelFetch(pMnode->pSdb, pIter);
     return pVgroup;
   }
   return pVgroup;
@@ -435,6 +437,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
 
@@ -444,6 +447,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       if (mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup) < 0) {
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
 
@@ -453,6 +457,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       if (code != TSDB_CODE_SUCCESS) {
         terrno = code;
         qDestroyQueryPlan(pPlan);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }
@@ -492,6 +497,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
       if (code != TSDB_CODE_SUCCESS) {
         qDestroyQueryPlan(pPlan);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }
