@@ -176,7 +176,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname);
  * @param nrname The rel name of new file.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname);
+int32_t tfsRename(STfs *pTfs, int32_t diskPrimary, const char *orname, const char *nrname);
 
 /**
  * @brief Search fname in level of tfs

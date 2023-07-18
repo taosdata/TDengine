@@ -176,7 +176,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
       snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
       vInfo("vgId:%d, rename file from %s to %s", dstVgId, tsdbFile->rname, newRname);
 
-      ret = tfsRename(pTfs, tsdbFile->rname, newRname);
+      ret = tfsRename(pTfs, diskPrimary, tsdbFile->rname, newRname);
       if (ret != 0) {
         vError("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
         tfsClosedir(tsdbDir);
@@ -188,7 +188,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   tfsClosedir(tsdbDir);
 
   vInfo("vgId:%d, rename dir from %s to %s", dstVgId, srcPath, dstPath);
-  ret = tfsRename(pTfs, srcPath, dstPath);
+  ret = tfsRename(pTfs, diskPrimary, srcPath, dstPath);
   if (ret != 0) {
     vError("vgId:%d, failed to rename dir from %s to %s since %s", dstVgId, srcPath, dstPath, terrstr());
   }
