@@ -455,7 +455,7 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     colDataSetVal(pColInfo, i, value, false);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(scope, pInfo->scope, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
+    STR_WITH_MAXSIZE_TO_VARSTR(scope, pInfo->scope, TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataSetVal(pColInfo, i, scope, false);
   }
