@@ -371,7 +371,7 @@ pub async fn influxdb_to_taos(
                     log::info!("InfluxDB exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
-                        anyhow::bail!("InfluxDB exist with {}", status);
+                        anyhow::bail!("InfluxDB exit with {}", status);
                     }
                 },
                 err = receiver.recv() => {
