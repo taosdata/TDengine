@@ -216,41 +216,116 @@ class TDTestCase:
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.error(sqlString)
         
-        # pThreadList = []
-        # for i in range(self.tmqMaxTopicNum):
-        #     topic_name = f"%s%d" %(topicNamePrefix, i)
-        #     print("======%s"%(topic_name))
-        #     group_id_prefix = f"grp_%d"%(i)
-        #     inputDict = {'group_id_prefix': group_id_prefix,
-        #                     'topic_name':      topic_name,
-        #                     'pollDelay':       1
-        #     }
-                 
-        #     pThread = self.asyncSubscribe(inputDict)
-        #     pThreadList.append(pThread)
-            
-        #     for j in range(self.tmqMaxGroups):
-        #         pThreadList[j].join()
-                        
-        # time.sleep(5)
-        # tdSql.query('show subscriptions;')
-        # subscribeNum = tdSql.queryRows
-        # expectNum = self.tmqMaxGroups * self.tmqMaxTopicNum
-        # tdLog.info("loop index: %d, ======subscriptions %d and expect num: %d"%(i, subscribeNum, expectNum))
-        # if subscribeNum != expectNum:
-        #     tdLog.exit("subscriptions %d not equal expect num: %d"%(subscribeNum, expectNum))
-            
-        # # drop all topics  
-        # for i in range(self.tmqMaxTopicNum):
-        #     sqlString = "drop topic %s%d" %(topicNamePrefix, i)
-        #     tdLog.info("drop topic sql: %s"%sqlString)
-        #     tdSql.execute(sqlString)
+        tdSql.query('show topics;')
+        topicNum = tdSql.queryRows
+        tdLog.info(" topic count: %d"%(topicNum))
+        for i in range(topicNum):
+            sqlString = "drop topic %s" %(tdSql.getData(i, 0))
+            tdLog.info("drop topic sql: %s"%sqlString)
+            tdSql.execute(sqlString)
     
-    tdLog.printNoPrefix("======== test case 1 end ...... ")
+        tdLog.printNoPrefix("======== test case 1 end ...... ")
 
+
+    def tmqCase2(self):
+        tdLog.printNoPrefix("======== test case 2: test topic name len")
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    1,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     10,
+                    'rowsPerTbl': 10,
+                    'batchNum':   10,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  3,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   1}
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        
+        queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        totalTopicNum = 0
+     
+        topicName = 'a'
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.query(sqlString)
+        totalTopicNum += 1
+        
+        topicName = '3'
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.error(sqlString)
+        totalTopicNum += 0
+
+        topicName = '_1'
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.query(sqlString)
+        totalTopicNum += 1
+        
+        topicName = 'a\\'
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.error(sqlString)
+        totalTopicNum += 0
+   
+        topicName = 'a\*\&\^'
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.error(sqlString)
+        totalTopicNum += 0
+
+       
+        str191char = 'a'
+        for i in range(190):            
+            str191char = ('%s%d'%(str191char, 1))        
+        
+        topicName = str191char + 'a'
+        
+        if (192 != len(topicName)):
+            tdLog.exit("topicName len error")
+        
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.query(sqlString)
+        totalTopicNum += 1
+
+        topicName = str191char + '12'
+        sqlString = "create topic %s as %s" %(topicName, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.error(sqlString)
+        totalTopicNum += 0
+
+        # topicName = str192char + '12'
+        # sqlString = "create topic %s as %s" %(topicName, queryString)
+        # tdLog.info("create topic sql: %s"%sqlString)
+        # tdSql.error(sqlString)
+        # totalTopicNum += 0
+
+        # check topic count
+        tdSql.query('show topics;')
+        topicNum = tdSql.queryRows
+        tdLog.info(" topic count: %d"%(topicNum))
+        if topicNum != totalTopicNum:
+            tdLog.exit("show topics %d not equal expect num: %d"%(topicNum, totalTopicNum))
+        
+    
+    tdLog.printNoPrefix("======== test case 2 end ...... ")
+    
     def run(self):
         self.prepareTestEnv()
         self.tmqCase1()
+        self.tmqCase2()
 
     def stop(self):
         tdSql.close()
