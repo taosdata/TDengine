@@ -284,7 +284,7 @@ void vnodeDestroy(const char *path, STfs *pTfs) {
   tfsRmdir(pTfs, path);
 }
 
-SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb, bool isFirst) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -407,7 +407,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open sync
-  if (vnodeSyncOpen(pVnode, dir)) {
+  if (vnodeSyncOpen(pVnode, dir, isFirst)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }

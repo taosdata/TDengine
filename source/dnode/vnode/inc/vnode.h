@@ -56,7 +56,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs);
 int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
-SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
+SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb, bool isFirst);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodePostClose(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);

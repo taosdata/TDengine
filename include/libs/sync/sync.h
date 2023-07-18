@@ -101,6 +101,7 @@ typedef struct SSyncCfg {
   int32_t   myIndex;
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SyncIndex lastIndex;
+  int32_t   changeVersion;
 } SSyncCfg;
 
 typedef struct SFsmCbMeta {
@@ -239,16 +240,18 @@ typedef struct SSyncState {
   ESyncState state;
   bool       restored;
   bool       canRead;
+  int32_t    progress;
 } SSyncState;
 
 int32_t syncInit();
 void    syncCleanUp();
-int64_t syncOpen(SSyncInfo* pSyncInfo);
+int64_t syncOpen(SSyncInfo* pSyncInfo, bool isFirst);
 int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);
 void    syncPostStop(int64_t rid);
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
+int32_t syncCheckMember(int64_t rid);
 int32_t syncIsCatchUp(int64_t rid);
 ESyncRole syncGetRole(int64_t rid);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);

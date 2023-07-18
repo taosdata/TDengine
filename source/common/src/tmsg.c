@@ -1078,7 +1078,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, pload->compStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->pointsWritten) < 0) return -1;
     if (tEncodeI32(&encoder, pload->numOfCachedTables) < 0) return -1;
-    if (tEncodeI32(&encoder, reserved) < 0) return -1;
+    if (tEncodeI32(&encoder, pload->learnerProgress) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
   }
@@ -1157,7 +1157,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &vload.compStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.numOfCachedTables) < 0) return -1;
-    if (tDecodeI32(&decoder, (int32_t *)&reserved) < 0) return -1;
+    if (tDecodeI32(&decoder, &vload.learnerProgress) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
@@ -4290,6 +4290,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
     SReplica *pReplica = &pReq->learnerReplicas[i];
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
   }
+  if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -4375,6 +4376,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
       SReplica *pReplica = &pReq->learnerReplicas[i];
       if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->changeVersion) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -4608,6 +4612,7 @@ int32_t tSerializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnodeRe
     SReplica *pReplica = &pReq->learnerReplicas[i];
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
   }
+  if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4638,6 +4643,9 @@ int32_t tDeserializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnode
       SReplica *pReplica = &pReq->learnerReplicas[i];
       if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
     }
+  }
+  if (!tDecodeIsEnd(&decoder)){
+    if (tDecodeI32(&decoder, &pReq->changeVersion) < 0) return -1;
   }
 
   tEndDecode(&decoder);

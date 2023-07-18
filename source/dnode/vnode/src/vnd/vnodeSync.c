@@ -637,7 +637,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   return pFsm;
 }
 
-int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
+int32_t vnodeSyncOpen(SVnode *pVnode, char *path, bool isFirst) {
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
       .batchSize = 1,
@@ -664,7 +664,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
           pNode->nodeId, pNode->clusterId);
   }
 
-  pVnode->sync = syncOpen(&syncInfo);
+  pVnode->sync = syncOpen(&syncInfo, isFirst);
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync since %s", pVnode->config.vgId, terrstr());
     return -1;

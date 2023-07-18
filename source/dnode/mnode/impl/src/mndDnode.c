@@ -501,6 +501,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             pGid->syncState = pVload->syncState;
             pGid->syncRestore = pVload->syncRestore;
             pGid->syncCanRead = pVload->syncCanRead;
+            pGid->learnerProgress = pVload->learnerProgress;
             roleChanged = true;
           }
           break;
