@@ -1,9 +1,10 @@
 use std::{path::PathBuf, fs};
 
+use actix_files::NamedFile;
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query, },
-    HttpResponse, Responder, 
+    HttpResponse, Responder, HttpRequest, 
 };
 
 use anyhow::Context;
@@ -17,7 +18,7 @@ use tokio_cron_scheduler::Job;
 use utoipa::*;
 
 use crate::serve::{
-    controller::TaskControllerRef, NewTask, TaskController, TaskDecorator, TaskFilter, UpdateTask,
+    controller::TaskControllerRef, NewTask, TaskDecorator, TaskFilter, UpdateTask,
 };
 
 /// Task endpoint error responses
@@ -449,12 +450,10 @@ pub(super) async fn get_task_activities_by_id(
     }
 }
 
-use actix_multipart::{
-    form::{
-        tempfile::{TempFile, },
+use actix_multipart::form::{
+        tempfile::TempFile,
         MultipartForm,
-    },
-};
+    };
 #[derive(Debug, MultipartForm, ToSchema)]
 pub struct UploadForm {
     #[multipart(rename = "file")]
@@ -514,4 +513,37 @@ pub fn get_file_save_home_dir() -> PathBuf {
     // let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
         // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
     std::path::Path::new(&ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT).to_path_buf()
+}
+
+#[derive(Debug, Deserialize, )]
+pub struct DownloadParams {
+    file_path: String,
+}
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "file download error", body = Failed)
+    ),
+)]
+#[get("/download")]
+pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
+    match download(params).await {
+        Ok(named_file) => named_file.into_response(&req),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+        }),
+    }
+}
+
+async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
+    let file_path = file_path.into_inner().file_path;
+    let file_home_dir = format!("{}", get_file_save_home_dir().to_str().unwrap().replace("files", ""));
+    let file_path = format!("{}{}", file_home_dir, file_path);
+    let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
+    if meta.is_dir() {
+        anyhow::bail!("not support path");
+    }
+    Ok(NamedFile::open(file_path)?)
 }

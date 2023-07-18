@@ -60,6 +60,7 @@ zstd = "0.12.1"
 actix-cors = "0.6.4"
 actix-web = "4"
 actix-multipart = "0.6.0"
+actix-files = "0.6.2"
 cfg-if = "1.0.0"
 uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics",]}
 serde_json = { version = "1.0", features = ["raw_value"] }

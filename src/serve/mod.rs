@@ -100,6 +100,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_agents)
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
+            .service(download_files)
             .service(upload_files);
     }
 }
@@ -169,6 +170,7 @@ impl Cli {
                 task::get_task_offsets_by_id,
                 task::get_task_activities_by_id,
                 task::upload_files,
+                task::download_files,
 
                 metrics::metrics_exporter,
 
