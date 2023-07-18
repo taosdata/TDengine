@@ -2594,8 +2594,6 @@ int32_t doStreamIntervalEncodeOpState(void** buf, int32_t len, SOperatorInfo* pO
   while ((pIte = tSimpleHashIterate(pInfo->aggSup.pResultRowHashTable, pIte, &iter)) != NULL) {
     void* key = taosHashGetKey(pIte, &keyLen);
     tlen += encodeSWinKey(buf, key);
-    SRowBuffPos* pPos = *(void**)pIte;
-    tlen += encodeSRowBuffPos(buf, pPos);
   }
 
   // 2.twAggSup
@@ -2655,10 +2653,10 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   buf = taosDecodeFixedI32(buf, &mapSize);
   for (int32_t i = 0; i < mapSize; i++) {
     SWinKey      key = {0};
-    SRowBuffPos* pPos = taosMemoryCalloc(1, sizeof(SRowBuffPos));
-    pPos->pKey = taosMemoryCalloc(1, sizeof(SWinKey));
     buf = decodeSWinKey(buf, &key);
-    buf = decodeSRowBuffPos(buf, pPos);
+    SRowBuffPos* pPos = NULL;
+    int32_t resSize = pInfo->aggSup.resultRowSize;
+    pInfo->stateStore.streamStateAddIfNotExist(pInfo->pState, &key, (void**)&pPos, &resSize);
     tSimpleHashPut(pInfo->aggSup.pResultRowHashTable, &key, sizeof(SWinKey), &pPos, POINTER_BYTES);
   }
 
