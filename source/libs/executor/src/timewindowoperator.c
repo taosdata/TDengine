@@ -3816,14 +3816,13 @@ void* decodeSSessionKey(void* buf, SSessionKey* key) {
 int32_t encodeSResultWindowInfo(void** buf, SResultWindowInfo* key, int32_t outLen) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedBool(buf, key->isOutput);
-  tlen += taosEncodeBinary(buf, key->pOutputBuf, outLen);
   tlen += encodeSSessionKey(buf, &key->sessionWin);
   return tlen;
 }
 
 void* decodeSResultWindowInfo(void* buf, SResultWindowInfo* key, int32_t outLen) {
   buf = taosDecodeFixedBool(buf, &key->isOutput);
-  buf = taosDecodeBinary(buf, &key->pOutputBuf, outLen);
+  key->pOutputBuf = NULL;
   buf = decodeSSessionKey(buf, &key->sessionWin);
   return buf;
 }
