@@ -267,7 +267,9 @@ function install_log() {
 }
 
 function install_connector() {
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    if [ -d ${script_dir}/connector ]; then
+        ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    fi
 }
 
 function install_examples() {
