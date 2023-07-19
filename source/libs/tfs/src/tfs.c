@@ -113,6 +113,15 @@ SDiskSize tfsGetSize(STfs *pTfs) {
   return size;
 }
 
+int32_t tfsGetDisksAtLevel(STfs *pTfs, int32_t level) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    return 0;
+  }
+
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+  return pTier->ndisk;
+}
+
 int32_t tfsGetLevel(STfs *pTfs) { return pTfs->nlevel; }
 
 int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
@@ -272,6 +281,20 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   return 0;
 }
 
+int32_t tfsMkdirRecur(STfs *pTfs, const char *rname) {
+  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+    STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+    for (int32_t id = 0; id < pTier->ndisk; id++) {
+      SDiskID did = {.id = id, .level = level};
+      if (tfsMkdirRecurAt(pTfs, rname, did) < 0) {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
 int32_t tfsMkdir(STfs *pTfs, const char *rname) {
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
@@ -314,25 +337,60 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   return 0;
 }
 
-int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname) {
+static int32_t tfsRenameAt(STfs *pTfs, SDiskID diskId, const char *orname, const char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
 
+  int32_t   level = diskId.level;
+  int32_t   id = diskId.id;
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+  STfsDisk *pDisk = pTier->disks[id];
+  snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
+  snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
+
+  if (taosRenameFile(oaname, naname) != 0 && errno != ENOENT) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    fError("failed to rename %s to %s since %s", oaname, naname, terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t tfsRename(STfs *pTfs, int32_t diskPrimary, const char *orname, const char *nrname) {
   for (int32_t level = pTfs->nlevel - 1; level >= 0; level--) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
     for (int32_t id = pTier->ndisk - 1; id >= 0; id--) {
-      STfsDisk *pDisk = pTier->disks[id];
-      snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
-      snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
-      if (taosRenameFile(oaname, naname) != 0 && errno != ENOENT) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        fError("failed to rename %s to %s since %s", oaname, naname, terrstr());
+      if (level == 0 && id == diskPrimary) {
+        continue;
+      }
+
+      SDiskID diskId = {.level = level, .id = id};
+      if (tfsRenameAt(pTfs, diskId, orname, nrname)) {
         return -1;
       }
     }
   }
 
-  return 0;
+  SDiskID diskId = {.level = 0, .id = diskPrimary};
+  return tfsRenameAt(pTfs, diskId, orname, nrname);
+}
+
+int32_t tfsSearch(STfs *pTfs, int32_t level, const char *fname) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    return -1;
+  }
+  char      path[TMPNAME_LEN] = {0};
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+
+  for (int32_t id = 0; id < pTier->ndisk; id++) {
+    STfsDisk *pDisk = pTier->disks[id];
+    snprintf(path, TMPNAME_LEN - 1, "%s%s%s", pDisk->path, TD_DIRSEP, fname);
+    if (taosCheckExistFile(path)) {
+      return id;
+    }
+  }
+  return -1;
 }
 
 STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {

@@ -263,16 +263,19 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return 0;
   }
 
+  wrapperCfg.diskPrimary = vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
+
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
-  if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
+  if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
     tFreeSCreateVnodeReq(&req);
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
-  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno;
@@ -403,21 +406,23 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .dropped = pVnode->dropped,
       .vgId = pVnode->vgId,
       .vgVersion = pVnode->vgVersion,
+      .diskPrimary = pVnode->diskPrimary,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   vmCloseVnode(pMgmt, pVnode, false);
 
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
   char path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
 
   dInfo("vgId:%d, start to alter vnode replica at %s", vgId, path);
-  if (vnodeAlterReplica(path, &req, pMgmt->pTfs) < 0) {
+  if (vnodeAlterReplica(path, &req, diskPrimary, pMgmt->pTfs) < 0) {
     dError("vgId:%d, failed to alter vnode at %s since %s", vgId, path, terrstr());
     return -1;
   }
 
   dInfo("vgId:%d, begin to open vnode", vgId);
-  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
@@ -490,6 +495,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .dropped = pVnode->dropped,
       .vgId = dstVgId,
       .vgVersion = pVnode->vgVersion,
+      .diskPrimary = pVnode->diskPrimary,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
 
@@ -503,19 +509,20 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, close vnode", srcVgId);
   vmCloseVnode(pMgmt, pVnode, true);
 
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
   char srcPath[TSDB_FILENAME_LEN] = {0};
   char dstPath[TSDB_FILENAME_LEN] = {0};
   snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
   snprintf(dstPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, dstVgId);
 
   dInfo("vgId:%d, alter vnode hashrange at %s", srcVgId, srcPath);
-  if (vnodeAlterHashRange(srcPath, dstPath, &req, pMgmt->pTfs) < 0) {
+  if (vnodeAlterHashRange(srcPath, dstPath, &req, diskPrimary, pMgmt->pTfs) < 0) {
     dError("vgId:%d, failed to alter vnode hashrange since %s", srcVgId, terrstr());
     return -1;
   }
 
   dInfo("vgId:%d, open vnode", dstVgId);
-  SVnode *pImpl = vnodeOpen(dstPath, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(dstPath, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
     return -1;
@@ -602,21 +609,23 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .dropped = pVnode->dropped,
       .vgId = pVnode->vgId,
       .vgVersion = pVnode->vgVersion,
+      .diskPrimary = pVnode->diskPrimary,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   vmCloseVnode(pMgmt, pVnode, false);
 
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
   char path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
 
   dInfo("vgId:%d, start to alter vnode replica at %s", vgId, path);
-  if (vnodeAlterReplica(path, &alterReq, pMgmt->pTfs) < 0) {
+  if (vnodeAlterReplica(path, &alterReq, diskPrimary, pMgmt->pTfs) < 0) {
     dError("vgId:%d, failed to alter vnode at %s since %s", vgId, path, terrstr());
     return -1;
   }
 
   dInfo("vgId:%d, begin to open vnode", vgId);
-  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
