@@ -1140,6 +1140,7 @@ export default {
     ms:'ms',
     μs:'μs',
     ns:'ns',
+    getschema:'Get Schema',
     refreshsuccess:'Refreshed Scucessfully',
     influxdbtip:'Choose or create a TDengine database with precision of ns',
     taskid:'Task ID',
@@ -1818,6 +1819,32 @@ export default {
     activeTip: 'Contact the TDengine customer success team to get the activation code'
   },
   taosagents: {
+    step1:'Install',
+    step2:'Configure',
+    step3:'Start',
+    step4:'Status',
+    step1linux:'Linux',
+    linuxdesc:`Download agent installer package from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
+    linuxcode:`cd $TMPDIR
+    mkdir agent-installer
+    cd agent-installer
+    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    tar xvf taosx-agent-latest-linux-x64.tar.gz
+    cd taosx-agent-*
+    ./install.sh
+    # remove files
+    #cd ../../; rm -rf agent-installer`,
+  step1window:'Windows',
+  windowdesc:`Download agent installer from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
+  step2sub1:'Configuration file path:',
+  step2sub2:`Linux: <code>/etc/taos/agent.toml</code> Windows: <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub3:'The configuration file is in TOML format, like bellow:',
+  step2sub4:'Copy the token to token field and save the file.',
+  step3sub1:'Start agent service with:',
+  step3sub2:`Linux: <code>systemctl start taosx-agent</code> and use <code> systemctl status taosx-agent</code> to check the service status. Windows: <code>sc.exe start taosx-agent</code> and use <code>sc.exe query taosx-agent</code> to check the service status.`,
+  step3sub3:`If the agent token is error, the service will exit directly, you can check the logs with: journalctl -u taosx-agent on Linux or check the log file in <code>C:\\Program Files\\taosX\\log\\agent\\ on Windows.</code>`,
+  step4sub1:'Refresh agent status in the explorer to check if the agent connected correctly. The status of an Agent will be Alive when it has been connected.',
+    addagenttip:'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.',
     edittitle: 'Edit Agent',
     deletetip: `Are you sure to delete agent {id} ?`,
     eidtagent: 'Edit Agent',

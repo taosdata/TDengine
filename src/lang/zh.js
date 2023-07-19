@@ -915,6 +915,7 @@ export default {
     ms:'毫秒',
     μs:'微秒',
     ns:'纳秒',
+    getschema:'获取Schema',
     refreshsuccess:'刷新成功',
     influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
     taskid:'任务ID',
@@ -1592,6 +1593,48 @@ export default {
     activeTip: '联系TDengine客户成功团队获取激活码'
   },
   taosagents:{
+    step1:'安装',
+    step2:'配置',
+    step3:'启动',
+    step4:'状态',
+    step1linux:'Linux',
+    linuxdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> 下载代理程序安装包，并进行安装。`,
+    linuxcode:`cd $TMPDIR
+    mkdir agent-installer
+    cd agent-installer
+    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    tar xvf taosx-agent-latest-linux-x64.tar.gz
+    cd taosx-agent-*
+    ./install.sh
+    # remove files
+    #cd ../../; rm -rf agent-installer`,
+  step1window:'Windows',
+  windowdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a> 下载代理安装程序，并运行安装程序以安装代理服务。`,
+  step2sub1:'配置文件路径：',
+  step2sub2:`Linux: <code>/etc/taos/agent.toml</code> Windows: <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub3:'TOML中的配置文件格式，如下：',
+  step2sub4:'将令牌复制到令牌字段并保存文件。',
+  step3sub1:'启动代理服务：',
+  step3sub2:`在Linux上，使用以下命令启动代理服务：
+
+  <code>systemctl start taosx-agent</code>
+  使用以下命令检查代理服务状态：
+  
+  <code>systemctl status taosx-agent</code>
+  在Windows上，使用以下命令启动代理服务：
+  
+  <code>sc.exe start taosx-agent</code>
+  使用以下命令检查代理服务状态：
+  
+  <code>sc.exe query taosx-agent</code>`,
+  step3sub3:`如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
+
+  <code>journalctl -u taosx-agent</code>
+  在Windows上，您可以在以下位置检查日志文件：
+  
+  <code>C:\Program Files\taosX\log\agent\</code>`,
+  step4sub1:'在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Alive"。',
+    addagenttip:'如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。',
     edittitle:'编辑代理',
     deletetip:`确定删除代理 {id} ?`,
     eidtagent:'编辑代理',
