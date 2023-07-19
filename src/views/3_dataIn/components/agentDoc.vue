@@ -65,15 +65,13 @@ export default {
   props: {
     token: {
       type: String,
-      default: "99999999999",
-    },
-    endpoint: {
-      type: String,
-      default: "88888888888888",
-    },
+      default: "",
+    }
   },
   data() {
-    return {};
+    return {
+        endpoint:localStorage.getItem('local_endpoint')
+    };
   },
   mounted() {
     Prism.highlightAll();

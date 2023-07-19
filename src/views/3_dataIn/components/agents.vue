@@ -435,7 +435,6 @@ export default {
             };
           }
         );
-        console.log(this.agentList, this.$parent, "kkkkk新增代理");
         if (result.token) {
           this.agenttoken = result.token;
           this.copyDialog = true;

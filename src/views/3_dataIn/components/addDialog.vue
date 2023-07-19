@@ -209,7 +209,6 @@ export default {
   },
   methods: {
     openAddAgentDialog(){
-      console.log(this.$parent);
       this.$parent.$refs.agents.add()
     },
     handleAdd() {
