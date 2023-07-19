@@ -11,6 +11,8 @@ SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
 
+
+
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
@@ -39,16 +41,11 @@ RunOnceId: "deltaos-explorer"; Filename: "{app}\\bin\\taos-explorer-srv.exe"; Pa
 
 [CODE]
 var
-  OutputProgressWizardPage: TOutputProgressWizardPage;
-  OutputMarqueeProgressWizardPage: TOutputMarqueeProgressWizardPage;
-  OutputProgressWizardPagesAfterID: Integer;
   OutputMsgCheckJava: TOutputMsgMemoWizardPage;
-  InputDirWizardPage: TInputDirWizardPage;
+  OutputMsgCheckPISDK: TOutputMsgMemoWizardPage;
   JavaVersionString: String;
+  PISDKVersionString: string;
   JavaReady: Boolean;
-  OutputMsgCheckDNet: TOutputMsgMemoWizardPage;
-  DNetVersionString: String;
-  DNetReady: Boolean;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -121,38 +118,6 @@ begin
   end;
 end;
 
-function GetDNetVersionDesc(): String;
-var
-  ResultCode: Integer;
-  JavaVersion: String;
-  OutputFile: string;
-  OutputText: AnsiString;
-  FileContent: TArrayOfString;
-  StartIndex: Integer;
-  EndIndex:   Integer;
-begin
-  Log('InitializeSetup called');
-  OutputFile := ExpandConstant('{tmp}\dnet_version.txt');
-  if not ExecAsOriginalUser('cmd.exe', '/c java -version >> "'+ OutputFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-  begin
-    DNetVersionString := 'JAVA 1.8+ required.' + #13#10 + 'No Java version found.';
-  end
-  else
-  begin
-    LoadStringsFromFile(OutputFile, FileContent);
-    OutputText := FileContent[0];
-
-    StartIndex := Pos('"', OutputText);
-    EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
-    JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
-    JavaReady := CheckJavaVersion(JavaVersion)
-    if JavaReady = True then begin
-      DNetVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
-    end else
-      DNetVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'Please update version.';
-    end;
-end;
-
 function GetJavaVersionDesc(): String;
 var
   ResultCode: Integer;
@@ -182,49 +147,73 @@ begin
       JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
     end else
       JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'Please update version.';
-    end;
+  end;
+  Result := JavaVersionString;
+end;
+
+function ContainsSubstringIgnoreCase(const str, substr: string): Boolean;
+begin
+Result := Pos(AnsiLowerCase(substr), AnsiLowerCase(str)) > 0;
+end;
+
+function GetPISDKVersionDesc() : string;
+var
+  ResultCode: Integer;
+  OutputFile: string;
+  OutputText: AnsiString;
+  FileContent: TArrayOfString; 
+begin
+  Log('InitializeSetup called');
+  OutputFile := ExpandConstant('{tmp}\pisdk_version.txt');
+
+  if not ExecAsOriginalUser('cmd.exe', '/c taosx-pi.exe -pv >> "'+ OutputFile + '" 2>&1', ExpandConstant('{app}\plugins\pi'), SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
+  end
+  else
+  begin
+    LoadStringsFromFile(OutputFile, FileContent);
+    OutputText := FileContent[0];
+    if ContainsSubstringIgnoreCase(OutputText, 'not found') then  begin
+      PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
+      end
+    else begin
+      PISDKVersionString := OutputText + #13#10 + 'PI SDK Found' + #13#10 + 'OK';
+    end
+  end;
+  Result := PISDKVersionString;
 end;
 
 procedure InitializeWizard;
 var
   AfterID: Integer;
 begin
-  AfterID := wpSelectTasks;
+  AfterID := wpInstalling;
   JavaVersionString := GetJavaVersionDesc();
   OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb Connector', 'The InfluxDB connector depends on the Java environment.'
   + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
   AfterID := OutputMsgCheckJava.ID;
-  
-  // DNetVersionString := GetDNetVersionDesc();
-  // OutputMsgCheckDNet := CreateOutputMsgMemoPage(AfterID, 'Check .Net for PI Connector', 'The TD PI connector depends on the .Net environment.'
-  // + ' If you use this connector, please make sure to install the required version.', '.Net 1.8+ required', DNetVersionString);
-  // AfterID := OutputMsgCheckDNet.ID;
-
-  // skip install path select
-  // InputDirWizardPage := CreateInputDirPage(AfterID, 'Please select the installation path for taosx', '', '', False, 'ANewFolderName');
-  // InputDirWizardPage.Add('&taosX will be installed in the directory:');
-  // InputDirWizardPage.Values[0] := 'C:\Program Files\';
-  // AfterID := InputDirWizardPage.ID;
-
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
 var
   InstallPath: string;
+    AfterID: Integer;
 begin
   if CurPageID = OutputMsgCheckJava.ID then
   begin
+   AfterID := OutputMsgCheckJava.ID;
     if JavaReady = False then  begin
       MsgBox(JavaVersionString, mbInformation, MB_OK);
       end;
+
+    GetPISDKVersionDesc();
+    OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
+    + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
+    AfterID := OutputMsgCheckPISDK.ID;
   end;
-  // if CurPageID = OutputMsgCheckDNet.ID then
-  // begin
-  //   if DNetReady = False then  begin
-  //     MsgBox(DNetVersionString, mbInformation, MB_OK);
-  //   end;
-  // end;
 end;
+
 
 [UninstallDelete]
 Type: files; Name: "{app}\xplugins\pi\*.*"
