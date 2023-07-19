@@ -11,8 +11,6 @@ SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
 
-
-
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
@@ -126,7 +124,7 @@ var
   OutputText: AnsiString;
   FileContent: TArrayOfString;
   StartIndex: Integer;
-  EndIndex:   Integer;    
+  EndIndex:   Integer;
 begin
   Log('InitializeSetup called');
   OutputFile := ExpandConstant('{tmp}\java_version.txt');
@@ -152,9 +150,9 @@ begin
 end;
 
 function ContainsSubstringIgnoreCase(const str, substr: string): Boolean;
-begin
-Result := Pos(AnsiLowerCase(substr), AnsiLowerCase(str)) > 0;
-end;
+  begin
+    Result := Pos(AnsiLowerCase(substr), AnsiLowerCase(str)) > 0;
+  end;
 
 function GetPISDKVersionDesc() : string;
 var
@@ -198,11 +196,11 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 var
   InstallPath: string;
-    AfterID: Integer;
+  AfterID: Integer;
 begin
   if CurPageID = OutputMsgCheckJava.ID then
   begin
-   AfterID := OutputMsgCheckJava.ID;
+    AfterID := OutputMsgCheckJava.ID;
     if JavaReady = False then  begin
       MsgBox(JavaVersionString, mbInformation, MB_OK);
       end;
