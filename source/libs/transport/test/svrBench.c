@@ -13,12 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define _DEFAULT_SOURCE
+// #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
 #include "tqueue.h"
 #include "transLog.h"
 #include "trpc.h"
+#include "tversion.h"
 
 int         msgSize = 128;
 int         commit = 0;
@@ -151,6 +152,8 @@ int main(int argc, char *argv[]) {
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processRequestMsg;
   rpcInit.idleTime = 2 * 1500;
+
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   rpcDebugFlag = 131;
 
   for (int i = 1; i < argc; ++i) {
@@ -187,7 +190,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_SERVER;
 
   initLogEnv();
-
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to start RPC server");

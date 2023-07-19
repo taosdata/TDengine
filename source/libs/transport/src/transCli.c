@@ -391,6 +391,7 @@ void cliHandleResp(SCliConn* conn) {
   transMsg.info.ahandle = NULL;
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.hasEpSet = pHead->hasEpSet;
+  transMsg.info.cliVer = htonl(pHead->compatibilityVer);
 
   SCliMsg*       pMsg = NULL;
   STransConnCtx* pCtx = NULL;
@@ -488,6 +489,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
     transMsg.code = code == -1 ? (pConn->broken ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL) : code;
     transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
     transMsg.info.ahandle = NULL;
+    transMsg.info.cliVer = pTransInst->compatibilityVer;
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
       transMsg.info.ahandle = transCtxDumpVal(&pConn->ctx, transMsg.msgType);
@@ -984,11 +986,10 @@ void cliSendBatch(SCliConn* pConn) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  SCliBatch*     pBatch = pConn->pBatch;
-  SCliBatchList* pList = pBatch->pList;
-  pList->connCnt += 1;
+  SCliBatch* pBatch = pConn->pBatch;
+  int32_t    wLen = pBatch->wLen;
 
-  int32_t wLen = pBatch->wLen;
+  pBatch->pList->connCnt += 1;
 
   uv_buf_t* wb = taosMemoryCalloc(wLen, sizeof(uv_buf_t));
   int       i = 0;
@@ -1018,6 +1019,8 @@ void cliSendBatch(SCliConn* pConn) {
       memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
       pHead->traceId = pMsg->info.traceId;
       pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+      pHead->version = TRANS_VER;
+      pHead->compatibilityVer = htonl(pTransInst->compatibilityVer);
     }
     pHead->timestamp = taosHton64(taosGetTimestampUs());
 
@@ -1074,6 +1077,8 @@ void cliSend(SCliConn* pConn) {
     memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
     pHead->traceId = pMsg->info.traceId;
     pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+    pHead->version = TRANS_VER;
+    pHead->compatibilityVer = htonl(pTransInst->compatibilityVer);
   }
   pHead->timestamp = taosHton64(taosGetTimestampUs());
 
@@ -1346,6 +1351,7 @@ static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd) {
   transMsg.info.ahandle = pMsg->ctx->ahandle;
   transMsg.info.traceId = pMsg->msg.info.traceId;
   transMsg.info.hasEpSet = false;
+  transMsg.info.cliVer = pTransInst->compatibilityVer;
   if (pCtx->pSem != NULL) {
     if (pCtx->pRsp == NULL) {
     } else {
@@ -1527,6 +1533,9 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     // persist conn already release by server
     STransMsg resp;
     cliBuildExceptResp(pMsg, &resp);
+    // refactorr later
+    resp.info.cliVer = pTransInst->compatibilityVer;
+
     if (pMsg->type != Release) {
       pTransInst->cfp(pTransInst->parent, &resp, NULL);
     }
@@ -1836,6 +1845,7 @@ void cliIteraConnMsgs(SCliConn* conn) {
     if (-1 == cliBuildExceptResp(cmsg, &resp)) {
       continue;
     }
+    resp.info.cliVer = pTransInst->compatibilityVer;
     pTransInst->cfp(pTransInst->parent, &resp, NULL);
 
     cmsg->ctx->ahandle = NULL;

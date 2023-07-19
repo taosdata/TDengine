@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vnd.h"
 
 // =================================================================================================
 static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
@@ -271,22 +272,20 @@ int32_t tDFileSetCmprFn(const void *p1, const void *p2) {
 
 static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   SVnode *pVnode = pTsdb->pVnode;
-  if (pVnode->pTfs) {
-    if (current) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
-               pTsdb->path, TD_DIRSEP);
-    }
-    if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT.t", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
-               pTsdb->path, TD_DIRSEP);
-    }
-  } else {
-    if (current) {
-      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
-    }
-    if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sCURRENT.t", pTsdb->path, TD_DIRSEP);
-    }
+  int32_t offset = 0;
+
+  // CURRENT
+  if (current) {
+    vnodeGetPrimaryDir(pTsdb->path, pVnode->pTfs, current, TSDB_FILENAME_LEN);
+    offset = strlen(current);
+    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT", TD_DIRSEP);
+  }
+
+  // CURRENT.t
+  if (current_t) {
+    vnodeGetPrimaryDir(pTsdb->path, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
+    offset = strlen(current_t);
+    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT.t", TD_DIRSEP);
   }
 }
 

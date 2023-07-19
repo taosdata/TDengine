@@ -437,3 +437,29 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填。
+ 
+#### 配置文件中数据类型书写对照表
+
+| #   |     **引擎**      | **taosBenchmark** 
+| --- | :----------------: | :---------------:
+| 1   |  TIMESTAMP         |    timestamp
+| 2   |  INT               |    int
+| 3   |  INT UNSIGNED      |    uint
+| 4   |  BIGINT            |    bigint
+| 5   |  BIGINT UNSIGNED   |    ubigint
+| 6   |  FLOAT             |    float
+| 7   |  DOUBLE            |    double
+| 8   |  BINARY            |    binary
+| 9   |  SMALLINT          |    smallint
+| 10  |  SMALLINT UNSIGNED |    usmallint
+| 11  |  TINYINT           |    tinyint
+| 12  |  TINYINT UNSIGNED  |    utinyint
+| 13  |  BOOL              |    bool
+| 14  |  NCHAR             |    nchar
+| 15  |  VARCHAR           |    varchar
+| 15  |  JSON              |    json
+
+注意：taosBenchmark 配置文件中数据类型必须小写方可识别
+
+
+

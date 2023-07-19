@@ -290,11 +290,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
@@ -360,7 +356,12 @@ static int32_t vnodeCommitTask(void *arg) {
 
   // commit
   code = vnodeCommitImpl(pInfo);
-  if (code) goto _exit;
+  if (code) {
+    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+    taosMsleep(100);
+    exit(EXIT_FAILURE);
+    goto _exit;
+  }
 
   vnodeReturnBufPool(pVnode);
 
@@ -427,11 +428,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
@@ -493,16 +490,22 @@ _exit:
 
 bool vnodeShouldRollback(SVnode *pVnode) {
   char tFName[TSDB_FILENAME_LEN] = {0};
-  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-           VND_INFO_FNAME_TMP);
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  offset = strlen(tFName);
+  snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   return taosCheckExistFile(tFName);
 }
 
 void vnodeRollback(SVnode *pVnode) {
   char tFName[TSDB_FILENAME_LEN] = {0};
-  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-           VND_INFO_FNAME_TMP);
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  offset = strlen(tFName);
+  snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   (void)taosRemoveFile(tFName);
 }

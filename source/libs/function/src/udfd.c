@@ -29,6 +29,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tmisce.h"
+#include "tversion.h"
 // clang-format on
 
 #define UDFD_MAX_SCRIPT_PLUGINS 64
@@ -61,7 +62,6 @@ const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const
 
   char  destroyFuncName[TSDB_FUNC_NAME_LEN + 9] = {0};
   char *destroySuffix = "_destroy";
-  strcpy(destroyFuncName, udfName);
   snprintf(destroyFuncName, sizeof(destroyFuncName), "%s%s", udfName, destroySuffix);
   uv_dlsym(&udfCtx->lib, destroyFuncName, (void **)(&udfCtx->destroyFunc));
   return udfName;
@@ -69,7 +69,7 @@ const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const
 
 void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
   char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-  strcpy(processFuncName, udfName);
+  strncpy(processFuncName, udfName, sizeof(processFuncName));
   uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
 
   char  startFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
@@ -94,6 +94,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
+    taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
   const char *udfName = udf->name;
@@ -102,7 +103,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
   if (udf->funcType == UDF_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-    strcpy(processFuncName, udfName);
+    strncpy(processFuncName, udfName, sizeof(processFuncName));
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc));
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);
@@ -1038,7 +1039,7 @@ int32_t udfdOpenClientRpc() {
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");

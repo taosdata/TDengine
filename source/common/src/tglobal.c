@@ -34,6 +34,7 @@ char     tsFirst[TSDB_EP_LEN] = {0};
 char     tsSecond[TSDB_EP_LEN] = {0};
 char     tsLocalFqdn[TSDB_FQDN_LEN] = {0};
 char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
+char     tsVersionName[16] = "community";
 uint16_t tsServerPort = 6030;
 int32_t  tsVersion = 30000000;
 int32_t  tsStatusInterval = 1;  // second
@@ -938,6 +939,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
+#ifndef TD_ENTERPRISE
+static int32_t taosSetReleaseCfg(SConfig *pCfg) { return 0; }
+#else
+int32_t taosSetReleaseCfg(SConfig *pCfg);
+#endif
+
 void taosLocalCfgForbiddenToChange(char *name, bool *forbidden) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
@@ -1444,6 +1451,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetClientCfg(tsCfg)) return -1;
     if (taosUpdateServerCfg(tsCfg)) return -1;
     if (taosSetServerCfg(tsCfg)) return -1;
+    if (taosSetReleaseCfg(tsCfg)) return -1;
     if (taosSetTfsCfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
@@ -1490,14 +1498,8 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   if (strcasecmp(option, "keepTimeOffset") == 0) {
     int32_t newKeepTimeOffset = atoi(value);
-    if (newKeepTimeOffset < 0 || newKeepTimeOffset > 23) {
-      uError("failed to set keepTimeOffset from %d to %d. Valid range: [0, 23]", tsKeepTimeOffset, newKeepTimeOffset);
-      return;
-    }
-
     uInfo("keepTimeOffset set from %d to %d", tsKeepTimeOffset, newKeepTimeOffset);
     tsKeepTimeOffset = newKeepTimeOffset;
-
     return;
   }
 

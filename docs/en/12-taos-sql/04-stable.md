@@ -52,6 +52,11 @@ DESCRIBE [db_name.]stb_name;
 ### View tag information for all child tables in the supertable
 
 ```
+SHOW TABLE TAGS FROM table_name [FROM db_name];
+SHOW TABLE TAGS FROM [db_name.]table_name;
+```
+
+```
 taos> SHOW TABLE TAGS FROM st1;
              tbname             |     id      |         loc          |
 ======================================================================

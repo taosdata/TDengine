@@ -1,4 +1,8 @@
 aux_source_directory(src COMMON_SRC)
+IF (TD_ENTERPRISE)
+LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/src/plugins/common/src/tglobal.c)
+ENDIF()
+
 add_library(common STATIC ${COMMON_SRC})
 
 if (DEFINED GRANT_CFG_INCLUDE_DIR)

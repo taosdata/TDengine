@@ -38,6 +38,8 @@ typedef struct STtlManger {
   SHashObj* pTtlCache;   // key: tuid, value: {ttl, ctime}
   SHashObj* pDirtyUids;  // dirty tuid
   TTB*      pTtlIdx;     // btree<{deleteTime, tuid}, ttl>
+
+  char* logPrefix;
 } STtlManger;
 
 typedef struct {
@@ -77,9 +79,10 @@ typedef struct {
 typedef struct {
   tb_uid_t uid;
   TXN*     pTxn;
+  int64_t  ttlDays;
 } STtlDelTtlCtx;
 
-int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback);
+int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix);
 void ttlMgrClose(STtlManger* pTtlMgr);
 int  ttlMgrPostOpen(STtlManger* pTtlMgr, void* pMeta);
 

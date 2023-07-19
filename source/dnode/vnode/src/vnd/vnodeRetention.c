@@ -35,11 +35,7 @@ static int32_t vnodePrepareRentention(SVnode *pVnode, SRetentionInfo *pInfo) {
   pInfo->commitID = ++pVnode->state.commitID;
 
   char dir[TSDB_FILENAME_LEN] = {0};
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   if (vnodeLoadInfo(dir, &pInfo->info) < 0) {
     code = terrno;
@@ -64,11 +60,7 @@ static int32_t vnodeRetentionTask(void *param) {
   SVnode         *pVnode = pInfo->pVnode;
   char            dir[TSDB_FILENAME_LEN] = {0};
 
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
+  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   // save info
   pInfo->info.state.commitID = pInfo->commitID;
@@ -80,6 +72,9 @@ static int32_t vnodeRetentionTask(void *param) {
 
   // do job
   code = tsdbDoRetention(pInfo->pVnode->pTsdb, pInfo->now);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = smaDoRetention(pInfo->pVnode->pSma, pInfo->now);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // commit info
@@ -121,7 +116,7 @@ int32_t vnodeAsyncRentention(SVnode *pVnode, int64_t now) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pInfo->pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
     if (pInfo) taosMemoryFree(pInfo);
   } else {
     vInfo("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);

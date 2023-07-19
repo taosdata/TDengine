@@ -131,6 +131,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connType = connectRsp.connType;
   pTscObj->passInfo.ver = connectRsp.passVer;
+  pTscObj->authVer = connectRsp.authVer;
 
   hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
 

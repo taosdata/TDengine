@@ -21,6 +21,7 @@
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tversion.h"
 
 bool     gRaftDetailLog = false;
 SSyncIO *gSyncIO = NULL;
@@ -188,7 +189,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.idleTime = 100;
     rpcInit.user = "sync-io";
     rpcInit.connType = TAOS_CONN_CLIENT;
-
+    taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
     io->clientRpc = rpcOpen(&rpcInit);
     if (io->clientRpc == NULL) {
       sError("failed to initialize RPC");
@@ -209,7 +210,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.idleTime = 2 * 1500;
     rpcInit.parent = io;
     rpcInit.connType = TAOS_CONN_SERVER;
-
+    taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
     void *pRpc = rpcOpen(&rpcInit);
     if (pRpc == NULL) {
       sError("failed to start RPC server");
@@ -470,11 +471,10 @@ static void syncIOTickPing(void *param, void *tmrId) {
   taosTmrReset(syncIOTickPing, io->pingTimerMS, io, io->timerMgr, &io->pingTimer);
 }
 
-void syncEntryDestory(SSyncRaftEntry* pEntry) {}
+void syncEntryDestory(SSyncRaftEntry *pEntry) {}
 
-
-void syncUtilMsgNtoH(void* msg) {
-  SMsgHead* pHead = msg;
+void syncUtilMsgNtoH(void *msg) {
+  SMsgHead *pHead = msg;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
 }
@@ -487,9 +487,9 @@ static inline bool syncUtilCanPrint(char c) {
   }
 }
 
-char* syncUtilPrintBin(char* ptr, uint32_t len) {
+char *syncUtilPrintBin(char *ptr, uint32_t len) {
   int64_t memLen = (int64_t)(len + 1);
-  char*   s = taosMemoryMalloc(memLen);
+  char   *s = taosMemoryMalloc(memLen);
   ASSERT(s != NULL);
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);
@@ -502,13 +502,13 @@ char* syncUtilPrintBin(char* ptr, uint32_t len) {
   return s;
 }
 
-char* syncUtilPrintBin2(char* ptr, uint32_t len) {
+char *syncUtilPrintBin2(char *ptr, uint32_t len) {
   uint32_t len2 = len * 4 + 1;
-  char*    s = taosMemoryMalloc(len2);
+  char    *s = taosMemoryMalloc(len2);
   ASSERT(s != NULL);
   memset(s, 0, len2);
 
-  char* p = s;
+  char *p = s;
   for (int32_t i = 0; i < len; ++i) {
     int32_t n = sprintf(p, "%d,", ptr[i]);
     p += n;
@@ -516,7 +516,7 @@ char* syncUtilPrintBin2(char* ptr, uint32_t len) {
   return s;
 }
 
-void syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port) {
+void syncUtilU642Addr(uint64_t u64, char *host, int64_t len, uint16_t *port) {
   uint32_t hostU32 = (uint32_t)((u64 >> 32) & 0x00000000FFFFFFFF);
 
   struct in_addr addr = {.s_addr = hostU32};
@@ -524,7 +524,7 @@ void syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port) {
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
-uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
+uint64_t syncUtilAddr2U64(const char *host, uint16_t port) {
   uint32_t hostU32 = taosGetIpv4FromFqdn(host);
   if (hostU32 == (uint32_t)-1) {
     sError("failed to resolve ipv4 addr, host:%s", host);

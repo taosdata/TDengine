@@ -15,6 +15,16 @@
 
 #include "vnd.h"
 
+int32_t vnodeGetPrimaryDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
+  if (pTfs) {
+    snprintf(buf, bufLen - 1, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
+  } else {
+    snprintf(buf, bufLen - 1, "%s", relPath);
+  }
+  buf[bufLen - 1] = '\0';
+  return 0;
+}
+
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -26,17 +36,9 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  if (pTfs) {
-    if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-      vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
-      return -1;
-    }
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    if (taosMkDir(path)) {
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  vnodeGetPrimaryDir(path, pTfs, dir, TSDB_FILENAME_LEN);
+  if (taosMkDir(dir)) {
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   if (pCfg) {
@@ -63,11 +65,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
-  }
+  vnodeGetPrimaryDir(path, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -185,21 +183,12 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   return ret;
 }
 
-int32_t vnodeGetAbsDir(const char *relPath, STfs *pTfs, char *buf, size_t bufLen) {
-  if (pTfs) {
-    snprintf(buf, bufLen, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, relPath);
-  } else {
-    snprintf(buf, bufLen, "%s", relPath);
-  }
-  return 0;
-}
-
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -258,7 +247,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
 
-  vnodeGetAbsDir(dstPath, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(dstPath, pTfs, dir, TSDB_FILENAME_LEN);
   if (vnodeLoadInfo(dir, &info) == 0) {
     if (info.config.vgId != dstVgId) {
       vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
@@ -267,7 +256,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
     return dstVgId;
   }
 
-  vnodeGetAbsDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, pTfs, dir, TSDB_FILENAME_LEN);
   if (vnodeLoadInfo(dir, &info) < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
     return -1;
@@ -302,11 +291,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
-  }
+  vnodeGetPrimaryDir(path, pTfs, dir, TSDB_FILENAME_LEN);
 
   info.config = vnodeCfgDefault;
 
@@ -382,12 +367,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
-  // open sma
-  if (smaOpen(pVnode, rollback)) {
-    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
-
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
@@ -404,6 +383,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->pTq = tqOpen(tdir, pVnode);
   if (pVnode->pTq == NULL) {
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // open sma
+  if (smaOpen(pVnode, rollback)) {
+    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 

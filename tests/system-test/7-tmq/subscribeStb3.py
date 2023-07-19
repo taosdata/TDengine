@@ -546,7 +546,7 @@ class TDTestCase:
         keyList        = 'group.id:cgrp1,\
                           enable.auto.commit:false,\
                           auto.commit.interval.ms:6000,\
-                          auto.offset.reset:none'
+                          auto.offset.reset:earliest'
         self.insertConsumerInfo(consumerId, expectrowcnt/2,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
@@ -569,7 +569,7 @@ class TDTestCase:
         keyList        = 'group.id:cgrp1,\
                           enable.auto.commit:false,\
                           auto.commit.interval.ms:6000,\
-                          auto.offset.reset:none'
+                          auto.offset.reset:earliest'
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")

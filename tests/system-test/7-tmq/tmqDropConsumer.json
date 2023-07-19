@@ -1,0 +1,28 @@
+{
+    "filetype": "subscribe",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "result_file": "tmq_res.txt",
+    "tmq_info": {
+        "concurrent": 2,
+        "poll_delay": 100000,
+        "group.id": "",
+        "group_mode": "independent",
+        "create_mode": "parallel",
+        "client.id": "cliid_0001",
+        "auto.offset.reset": "earliest",
+        "enable.manual.commit": "false",
+        "enable.auto.commit": "false",
+        "auto.commit.interval.ms": 1000,
+        "experimental.snapshot.enable": "false",
+        "msg.with.table.name": "false",
+        "rows_file": "",
+        "topic_list": [
+            {"name": "dbtstb_0001", "sql": "select * from dbt.stb;"},
+            {"name": "dbtstb_0002", "sql": "select * from dbt.stb;"}
+        ]
+    }
+}

@@ -1286,6 +1286,10 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosArrayPush(pArray, &pVgData);
 
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  if (NULL == pQuery) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;

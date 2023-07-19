@@ -315,7 +315,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
           float v = 0;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
+            GET_TYPED_DATA(v, float, pVar->nType, &pVar->f);
           } else {
             v = taosStr2Float(varDataVal(pVar->pz), NULL);
           }
@@ -323,7 +323,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
           double v = 0;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
+            GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
           } else {
             v = taosStr2Double(varDataVal(pVar->pz), NULL);
           }
@@ -333,7 +333,15 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
             GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
           } else {
-            v = taosStr2int64(varDataVal(pVar->pz));
+            v = taosStr2Int64(varDataVal(pVar->pz), NULL, 10);
+          }
+          colDataSetVal(pDst, rows, (char*)&v, false);
+        } else if (IS_UNSIGNED_NUMERIC_TYPE(pDst->info.type)) {
+          uint64_t v = 0;
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
+          } else {
+            v = taosStr2UInt64(varDataVal(pVar->pz), NULL, 10);
           }
           colDataSetVal(pDst, rows, (char*)&v, false);
         } else if (IS_BOOLEAN_TYPE(pDst->info.type)) {

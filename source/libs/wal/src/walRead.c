@@ -82,6 +82,11 @@ int32_t walNextValidMsg(SWalReader *pReader) {
          ", applied index:%" PRId64", end index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
 
+  if (fetchVer > endVer){
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
   while (fetchVer <= endVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
       return -1;

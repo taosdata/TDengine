@@ -275,7 +275,7 @@ static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pI
 
     taosHashPut(pOutput->pSub->consumerHash, &consumerId, sizeof(int64_t), &newConsumerEp, sizeof(SMqConsumerEp));
     taosArrayPush(pOutput->newConsumers, &consumerId);
-    mInfo("sub:%s mq rebalance add new consumer:%" PRIx64, pSubKey, consumerId);
+    mInfo("sub:%s mq rebalance add new consumer:0x%" PRIx64, pSubKey, consumerId);
   }
 }
 

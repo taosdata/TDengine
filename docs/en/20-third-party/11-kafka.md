@@ -363,7 +363,10 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 7. `out.format`: Result output format. `line` indicates that the output format is InfluxDB line protocol format, `json` indicates that the output format is json. The default is line.
 8. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix><topic.delimiter><connection.database>`.
 9. `topic.ignore.db`: Whether the topic naming rule contains the database name: true indicates that the rule is `<topic.prefix><topic.delimiter><stable.name>`, false indicates that the rule is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`, and the default is false. Does not take effect when `topic.per.stable` is set to false.
-10. `topic.delimiter`: topic name delimiter，default is `-`。
+10. `topic.delimiter`: topic name delimiter，default is `-`.
+11. `read.method`: read method for query TDengine data, query or subscription. default is subscription.
+12. `subscription.group.id`: subscription group id for subscription data from TDengine, this field is required when `read.method` is subscription.
+13. `subscription.from`: subscription from latest or earliest. default is latest。
 
 ## Other notes
 

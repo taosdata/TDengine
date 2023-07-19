@@ -34,6 +34,7 @@ extern char     tsFirst[];
 extern char     tsSecond[];
 extern char     tsLocalFqdn[];
 extern char     tsLocalEp[];
+extern char     tsVersionName[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;

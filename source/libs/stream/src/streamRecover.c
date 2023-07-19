@@ -201,6 +201,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       if (left == 0) {
         taosArrayDestroy(pTask->checkReqIds);
         pTask->checkReqIds = NULL;
+        pTask->status.downstreamReady = 1;
 
         if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
           qDebug("s-task:%s all %d downstream tasks are ready, now enter into scan-history-data stage, status:%s", id,

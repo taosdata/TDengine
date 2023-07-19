@@ -101,6 +101,7 @@ SHOW GRANTS;
 
 ```sql
 SHOW INDEXES FROM tbl_name [FROM db_name];
+SHOW INDEXES FROM [db_name.]tbl_name;
 ```
 
 显示已创建的索引。
@@ -269,6 +270,7 @@ Query OK, 24 row(s) in set (0.002444s)
 
 ```sql
 SHOW TAGS FROM child_table_name [FROM db_name];
+SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 显示子表的标签信息。

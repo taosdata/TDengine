@@ -46,10 +46,10 @@ typedef struct {
   int8_t   connType;
   char     label[TSDB_LABEL_LEN];
   char     user[TSDB_UNI_LEN];  // meter ID
-
-  int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
-  int8_t  encryption;    // encrypt or not
-
+  int32_t compatibilityVer;
+  int32_t  compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
+  int8_t   encryption;    // encrypt or not
+  
   int32_t retryMinInterval;  // retry init interval
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval

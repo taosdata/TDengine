@@ -37,6 +37,9 @@ from util.common import *
 #     INSERT_DATA     = 3
 
 class TMQCom:
+    def __init__(self):
+        self.g_end_insert_flag = 0
+    
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor())
@@ -330,8 +333,11 @@ class TMQCom:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0
+        rowsOfCtb = 0        
         while rowsOfCtb < rowsPerTbl:
+            if (0 != self.g_end_insert_flag):
+                tdLog.debug("get signal to stop insert data")
+                break
             for i in range(ctbNum):
                 sql += " %s.%s%d values "%(dbName,ctbPrefix,i+ctbStartIdx)
                 rowsBatched = 0
@@ -570,6 +576,20 @@ class TMQCom:
         tdLog.info("show subscriptions:")
         tdLog.info(tsql.queryResult)
         tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
+
+    def killProcesser(self, processerName):
+        killCmd = (
+            "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+            % processerName
+        )
+
+        psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
+        processID = subprocess.check_output(psCmd, shell=True)
+
+        while processID:
+            os.system(killCmd)
+            time.sleep(1)
+            processID = subprocess.check_output(psCmd, shell=True)
 
     def close(self):
         self.cursor.close()

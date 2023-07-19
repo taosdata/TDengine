@@ -392,6 +392,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SD
       // NEVER REACH HERE
       SCH_TASK_ELOG("invalid status to handle drop task rsp, refId:0x%" PRIx64, pJob->refId);
       SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      break;
     }
     case TDMT_SCH_LINK_BROKEN:
       SCH_TASK_ELOG("link broken received, error:%x - %s", rspCode, tstrerror(rspCode));

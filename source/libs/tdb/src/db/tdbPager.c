@@ -1092,6 +1092,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     jname[dirLen] = '/';
     sprintf(jname + dirLen + 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
     if (tdbPagerRestore(pPager, jname) < 0) {
+      taosArrayDestroy(pTxnList);
       tdbCloseDir(&pDir);
 
       tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), jname);
