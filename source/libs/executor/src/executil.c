@@ -937,7 +937,6 @@ static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, co
       info.uid = uid;
       void* p = taosArrayPush(pListInfo->pTableList, &info);
       if (p == NULL) {
-        taosArrayDestroy(pUidList);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
@@ -964,7 +963,8 @@ static void copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
 }
 
 static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid) {
+                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded) {
+  *listAdded = false;
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1058,6 +1058,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     terrno = code;
     goto end;
   }
+  *listAdded = true;
 
 end:
   taosHashCleanup(ctx.colHash);
@@ -1088,11 +1089,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
       taosArrayPush(pUidList, &pScanNode->uid);
     }
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false);
+    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
-    listAdded = true;
   } else {
     T_MD5_CTX context = {0};
 
@@ -1133,11 +1133,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
     }
 
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, tsTagFilterCache);
+    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, tsTagFilterCache, &listAdded);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
-    listAdded = true;
 
     // let's add the filter results into meta-cache
     numOfTables = taosArrayGetSize(pUidList);
