@@ -1325,7 +1325,7 @@ int32_t tqProcessStreamTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  int32_t code = streamProcessScanHistoryFinishReq(pTask, req.taskId, req.childId);
+  int32_t code = streamProcessScanHistoryFinishReq(pTask, req.childId);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return code;
 }
