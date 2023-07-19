@@ -1417,9 +1417,21 @@ export default {
           }
             getUaAndDaData(piParams)
             .then((res) => {
-              this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
-                return {id: item, children: JSON.parse(res[0].id)[item][0]}
-              }) 
+              console.log('res',res);
+              if (res && res.code && res.code != 0) {
+                Message({
+                  type: "error",
+                  message: res && res.message,
+                }); 
+              } else {
+                this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
+                  return {id: item, children: JSON.parse(res[0].id)[item][0]}
+                }) 
+                Message({
+                  type: "success",
+                  message: this.$t('operateSucc'),
+                }); 
+              }
               this.btnLoading = false
             })
             .catch((err) => {
