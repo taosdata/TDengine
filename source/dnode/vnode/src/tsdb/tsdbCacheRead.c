@@ -185,7 +185,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   for (int32_t i = 0; i < numOfTables; ++i) {
     uint64_t uid = p->pTableList[i].uid;
     p->uidList[i] = uid;
-    STableLoadInfo* pInfo = taosMemoryMalloc(sizeof(STableLoadInfo));
+    STableLoadInfo* pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
     tSimpleHashPut(p->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
   }
 
