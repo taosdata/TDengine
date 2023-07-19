@@ -159,6 +159,7 @@
           :typeList="typeList"
           @closeDialog="closeDialog"
           @addAgent="addAgent"
+          ref="agentdialog"
         ></AddDialog>
       </div>
       <el-pagination

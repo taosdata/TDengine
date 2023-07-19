@@ -4,13 +4,9 @@
       <span>{{ $t("topic.agent") }}</span>
     </p>
     <div class="flexEnd">
-      <el-button
-        plain
-        @click="add"
-        size="small"
-        icon="el-icon-plus"
-        >{{ $t("taosagents.createnewagent") }}</el-button
-      >
+      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+        $t("taosagents.createnewagent")
+      }}</el-button>
     </div>
     <el-table
       v-if="agentList?.length > 0"
@@ -30,11 +26,10 @@
         prop="name"
       ></el-table-column>
 
-      <el-table-column
-        :label="$t('taosagents.created_at')"
-        prop="created_at"
-      >
-        <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+      <el-table-column :label="$t('taosagents.created_at')" prop="created_at">
+        <span slot-scope="scope">{{
+          parsinginZone(scope.row.created_at)
+        }}</span>
       </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.dsn')"
@@ -170,12 +165,13 @@
       class="copy-agent"
       align="center"
       :title="$t('copyagent')"
-      width="600px"
+      width="1000px"
       :visible.sync="copyDialog"
       :destroy-on-close="true"
       :close-on-click-modal="false"
     >
-      <el-alert
+      <AgentDoc :token="agenttoken"></AgentDoc>
+      <!-- <el-alert
         :title="$t('copyagentWaring')"
         type="warning"
         :closable="false"
@@ -187,7 +183,7 @@
           <i class="el-icon-copy-document"></i>
           {{ $t("copy") }}
         </span>
-      </div>
+      </div> -->
     </el-dialog>
   </div>
 </template>
@@ -201,9 +197,11 @@ import {
 import { copy } from "@/utils/index";
 import { getUIData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import { parsinginZone } from '@/utils';
+import { parsinginZone } from "@/utils";
+import AgentDoc from "./agentDoc.vue";
 export default {
   name: "Agent",
+  components: { AgentDoc },
   data() {
     return {
       expireTimeOPtion: {
@@ -241,7 +239,7 @@ export default {
       agentList: [],
 
       connectorList: [],
-      parsinginZone
+      parsinginZone,
     };
   },
   computed: {
@@ -359,9 +357,9 @@ export default {
         }
         this.getAgents();
         Message({
-          type: 'success',
-          message: this.$t('operateSucc')
-        })
+          type: "success",
+          message: this.$t("operateSucc"),
+        });
       } catch (error) {
         Message({
           type: "error",
@@ -419,7 +417,25 @@ export default {
           Message.error(result.message);
           return;
         }
-        this.getAgents();
+        await this.getAgents();
+
+        this.$parent.$refs.agentdialog.agentList = this.agentList.map(
+          (agent) => {
+            return {
+              value: agent.id,
+              label:
+                agent.id +
+                "." +
+                agent.name +
+                (new Date(agent.expire_date) < Date.now()
+                  ? "（" + this.$t("datasource.expired") + "）"
+                  : ""),
+              disabled: new Date(agent.expire_date) < Date.now(),
+              ...agent,
+            };
+          }
+        );
+        console.log(this.agentList, this.$parent, "kkkkk新增代理");
         if (result.token) {
           this.agenttoken = result.token;
           this.copyDialog = true;
