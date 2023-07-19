@@ -1495,14 +1495,8 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   if (strcasecmp(option, "keepTimeOffset") == 0) {
     int32_t newKeepTimeOffset = atoi(value);
-    if (newKeepTimeOffset < 0 || newKeepTimeOffset > 23) {
-      uError("failed to set keepTimeOffset from %d to %d. Valid range: [0, 23]", tsKeepTimeOffset, newKeepTimeOffset);
-      return;
-    }
-
     uInfo("keepTimeOffset set from %d to %d", tsKeepTimeOffset, newKeepTimeOffset);
     tsKeepTimeOffset = newKeepTimeOffset;
-
     return;
   }
 
