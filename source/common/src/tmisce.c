@@ -109,7 +109,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   taosGetAppName(tmp, NULL);
   tjsonAddStringToObject(pJson, "appName", tmp);
 
-  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
+  if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
     tjsonAddStringToObject(pJson, "os", tmp);
   }
 

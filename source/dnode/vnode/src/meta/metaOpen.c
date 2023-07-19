@@ -41,7 +41,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   *ppMeta = NULL;
 
   // create handle
-  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
 
@@ -128,7 +128,9 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   }
 
   // open pTtlMgr ("ttlv1.idx")
-  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0);
+  char logPrefix[128] = {0};
+  sprintf(logPrefix, "vgId:%d", TD_VID(pVnode));
+  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
