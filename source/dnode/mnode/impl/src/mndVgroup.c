@@ -1299,6 +1299,7 @@ int32_t mndAddChangeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 
   SMsgHead *pHead = taosMemoryMalloc(totallen);
   if (pHead == NULL) {
+    taosMemoryFree(pReq);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -1307,13 +1308,14 @@ int32_t mndAddChangeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   pHead->vgId = htonl(pNewVgroup->vgId);
 
   memcpy((void*)(pHead + 1), pReq, contLen);
+  taosMemoryFree(pReq);
 
   action.pCont = pHead;
   action.contLen = totallen;
   action.msgType = TDMT_SYNC_CONFIG_CHANGE;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    taosMemoryFree(pReq);
+    taosMemoryFree(pHead);
     return -1;
   }
 
