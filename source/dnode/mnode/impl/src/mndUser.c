@@ -620,7 +620,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (createReq.user[0] == 0) {
+  if (createReq.user[0] == 0 || strlen(createReq.pass) >= TSDB_PASSWORD_LEN) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
     goto _OVER;
   }
