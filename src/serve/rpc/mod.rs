@@ -423,9 +423,7 @@ impl FlightService for FlightServiceImpl {
                             let task = controller.get(id).await?;
                             if let Some(mut task) = task {
                                 // TODO handle dsn(from) params contains file(@)
-                                dbg!(&task);
                                 modify_task_dsn_params(&mut task.task).await?;
-                                dbg!(&task);
                                 let context: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     serde_json::to_string(&task).unwrap(),
                                 ]));
