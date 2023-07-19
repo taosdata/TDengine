@@ -1344,7 +1344,9 @@ export default {
             (item) => item.name == this.dbsource[0].authentication.value
           );
           result[0].params.forEach((p) => {
-            querystr += `${p.name}=${p.value}&`;
+            if (p.value && p.value != undefined) {
+              querystr += `${p.name}=${p.value}&`;
+            }
           });
 
           let requireTip = "";
