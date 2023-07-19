@@ -71,6 +71,8 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
     if (code < 0) goto _OVER;
     tjsonGetInt32ValueFromDouble(vnode, "vgVersion", pCfg->vgVersion, code);
     if (code < 0) goto _OVER;
+    tjsonGetInt32ValueFromDouble(vnode, "diskPrimary", pCfg->diskPrimary, code);
+    if (code < 0) goto _OVER;
     tjsonGetInt32ValueFromDouble(vnode, "toVgId", pCfg->toVgId, code);
     if (code < 0) goto _OVER;
 
@@ -167,6 +169,7 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
     if (tjsonAddDoubleToObject(vnode, "vgId", pVnode->vgId) < 0) return -1;
     if (tjsonAddDoubleToObject(vnode, "dropped", pVnode->dropped) < 0) return -1;
     if (tjsonAddDoubleToObject(vnode, "vgVersion", pVnode->vgVersion) < 0) return -1;
+    if (tjsonAddDoubleToObject(vnode, "diskPrimary", pVnode->diskPrimary) < 0) return -1;
     if (pVnode->toVgId && tjsonAddDoubleToObject(vnode, "toVgId", pVnode->toVgId) < 0) return -1;
     if (tjsonAddItemToArray(vnodes, vnode) < 0) return -1;
   }

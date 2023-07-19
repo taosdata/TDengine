@@ -51,12 +51,14 @@ extern const SVnodeCfg vnodeCfgDefault;
 
 int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();
-int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
-int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
-int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs);
-int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs);
+int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
+int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t diskPrimary, STfs *pTfs);
+int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq,
+                            int32_t diskPrimary, STfs *pTfs);
+int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
+                             int32_t diskPrimary, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
-SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb, bool isFirst);
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool isFirst);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodePostClose(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);
