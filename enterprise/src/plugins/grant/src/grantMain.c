@@ -228,11 +228,11 @@ int32_t mndInitGrant(SMnode *pMnode) {
   terrno = 0;
   tsGrantHBInterval = 5;
 #ifdef GRANTS_CFG
-  grantFlag |= (int32_t)GRANT_EDITION_CLOUD; 
+  grantFlag |= (int32_t)GRANT_EDITION_CLOUD;
 #endif
   gStatus.lastCheck = (uint32_t)(taosGetTimestampMs() / 1000);
   grantHandle.lastCheck = &gStatus.lastCheck;
-  
+
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
@@ -541,16 +541,26 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   taosArrayDestroy(pDnodeInfo);
 
+  if (grantCheck(TSDB_GRANT_TIME) == TSDB_CODE_SUCCESS) {
+    atomic_store_8(&tsGrant, 1);
+  } else {
+    atomic_store_8(&tsGrant, 0);
+  }
+
   return 0;
 }
 
 void grantParseParameter() {
+#ifdef _TD_MIPS
+  fprintf(stderr, "the MIPS platform does not support machine code currently!\n");
+#else
   char *key = grantGetMachineSerials();
   if (key != NULL) {
     fprintf(stdout, "machine code: %s \n", key);
   } else {
     fprintf(stderr, "should generate machine code under root authority!\n");
   }
+#endif
   exit(EXIT_SUCCESS);
 }
 
@@ -1505,7 +1515,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);  // cpu_cores
-
+    
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";

@@ -342,11 +342,16 @@ static int32_t tsdbCompactNextRow(STsdbCompactor *pCompactor, SRowInfo **ppRowIn
         TABLEID tbid = {.suid = pCompactor->pIter->rowInfo.suid, .uid = pCompactor->pIter->rowInfo.uid};
         tRBTreeClear(&pCompactor->rbt);
         for (pCompactor->pIter = pCompactor->iterList; pCompactor->pIter; pCompactor->pIter = pCompactor->pIter->next) {
-          code = tsdbDataIterNext2(pCompactor->pIter,
-                                   &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_TABLEID, .tbid = tbid});
-          TSDB_CHECK_CODE(code, lino, _exit);
+          if (pCompactor->pIter->rowInfo.uid == 0) continue;
+          if (pCompactor->pIter->rowInfo.uid == tbid.uid) {
+            code = tsdbDataIterNext2(pCompactor->pIter,
+                                     &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_TABLEID, .tbid = tbid});
+            TSDB_CHECK_CODE(code, lino, _exit);
 
-          if (pCompactor->pIter->rowInfo.suid || pCompactor->pIter->rowInfo.uid) {
+            if (pCompactor->pIter->rowInfo.suid || pCompactor->pIter->rowInfo.uid) {
+              tRBTreePut(&pCompactor->rbt, &pCompactor->pIter->rbtn);
+            }
+          } else {
             tRBTreePut(&pCompactor->rbt, &pCompactor->pIter->rbtn);
           }
         }
