@@ -373,6 +373,7 @@ int mainWindows(int argc, char **argv) {
 
   dInfo("start to init service");
   dmSetSignalHandle();
+  tsDndStart = taosGetTimestampMs();
   int32_t code = dmRun();
   dInfo("shutting down the service");
 

@@ -79,6 +79,10 @@ int64_t tsMndLogRetention = 2000;
 int8_t  tsGrant = 1;
 bool    tsMndSkipGrant = false;
 
+// dnode
+int64_t tsDndStart = 0;
+int64_t tsDndUpTime = 0;
+
 // monitor
 bool     tsEnableMonitor = true;
 int32_t  tsMonitorInterval = 30;

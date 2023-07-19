@@ -773,12 +773,6 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
 
 int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, SCtgAuthRsp *pRes) {
   int32_t code = 0;
-  if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
-    *inCache = true;
-    pRes->pRawRes->pass = true;
-    ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
-    return TSDB_CODE_SUCCESS;
-  }
 
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, pReq->user, strlen(pReq->user));
   if (NULL == pUser) {

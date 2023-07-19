@@ -29,6 +29,7 @@ static void *dmStatusThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
+    int64_t cost = 0;
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
@@ -38,7 +39,10 @@ static void *dmStatusThreadFp(void *param) {
       if (trimCount == 0) {
         taosMemoryTrim(0);
       }
+      cost = taosGetTimestampMs() - curTime;
     }
+    tsDndUpTime += 200;
+    if (cost > 0) tsDndUpTime += cost;
   }
 
   return NULL;

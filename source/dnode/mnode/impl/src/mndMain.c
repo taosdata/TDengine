@@ -156,6 +156,7 @@ static void mndPullupTelem(SMnode *pMnode) {
 
 static void mndPullupGrant(SMnode *pMnode) {
   mTrace("pullup grant msg");
+  printf("%s:%d @@@@@@@@@@@ mndPullupGrant @@@@@@@@@@@ %d \n", __func__, __LINE__, taosGetTimestampSec());
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -248,8 +249,9 @@ static void *mndThreadFp(void *param) {
   setThreadName("mnode-timer");
 
   while (1) {
+    printf("%s:%d =========== mndThreadFp =========== %d\n", __func__, __LINE__, taosGetTimestampSec());
     lastTime++;
-    taosMsleep(100);
+    taosMsleep(300);
     if (mndGetStop(pMnode)) break;
     if (lastTime % 10 != 0) continue;
 
