@@ -87,10 +87,10 @@ END:
 
 int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
   if (pStream->smaId != 0) {
-    pTask->outputType = TASK_OUTPUT__SMA;
+    pTask->outputInfo.type = TASK_OUTPUT__SMA;
     pTask->smaSink.smaId = pStream->smaId;
   } else {
-    pTask->outputType = TASK_OUTPUT__TABLE;
+    pTask->outputInfo.type = TASK_OUTPUT__TABLE;
     pTask->tbSink.stbUid = pStream->targetStbUid;
     memcpy(pTask->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
@@ -110,7 +110,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
     if (pDb != NULL && pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
-      pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
+      pTask->outputInfo.type = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
       if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
         return -1;
@@ -291,7 +291,7 @@ void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask) {
   pDispatcher->nodeId = pTask->info.nodeId;
   pDispatcher->epSet = pTask->info.epSet;
 
-  pDstTask->outputType = TASK_OUTPUT__FIXED_DISPATCH;
+  pDstTask->outputInfo.type = TASK_OUTPUT__FIXED_DISPATCH;
   pDstTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
 }
 

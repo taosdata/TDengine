@@ -437,7 +437,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
   int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
   ASSERT(numOfBlocks != 0);
 
-  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq req = {0};
 
     int32_t downstreamTaskId = pTask->fixedEpDispatcher.taskId;
@@ -467,7 +467,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     taosArrayDestroyP(req.data, taosMemoryFree);
     taosArrayDestroy(req.dataLen);
     return code;
-  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t rspCnt = atomic_load_32(&pTask->shuffleDispatcher.waitingRspCnt);
     ASSERT(rspCnt == 0);
 
@@ -545,7 +545,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
 static void doRetryDispatchData(void* param, void* tmrId) {
   SStreamTask* pTask = param;
-  ASSERT(pTask->outputStatus == TASK_OUTPUT_STATUS__WAIT);
+  ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
 
   int32_t code = streamDispatchAllBlocks(pTask, pTask->msgInfo.pData);
   if (code != TSDB_CODE_SUCCESS) {
@@ -561,29 +561,29 @@ void streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration) {
 }
 
 int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
-  ASSERT((pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH));
+  STaskOutputInfo* pInfo = &pTask->outputInfo;
+  ASSERT((pInfo->type == TASK_OUTPUT__FIXED_DISPATCH || pInfo->type == TASK_OUTPUT__SHUFFLE_DISPATCH));
 
-  int32_t numOfElems = taosQueueItemSize(pTask->outputQueue->queue);
+  int32_t numOfElems = taosQueueItemSize(pInfo->queue->queue);
   if (numOfElems > 0) {
     qDebug("s-task:%s try to dispatch intermediate result block to downstream, elem in outputQ:%d", pTask->id.idStr,
            numOfElems);
   }
 
   // to make sure only one dispatch is running
-  int8_t old =
-      atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
+  int8_t old = atomic_val_compare_exchange_8(&pInfo->status, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
     qDebug("s-task:%s wait for dispatch rsp, not dispatch now, output status:%d", pTask->id.idStr, old);
     return 0;
   }
 
   ASSERT(pTask->msgInfo.pData == NULL);
-  qDebug("s-task:%s start to dispatch msg, set output status:%d", pTask->id.idStr, pTask->outputStatus);
+  qDebug("s-task:%s start to dispatch msg, set output status:%d", pTask->id.idStr, pInfo->status);
 
-  SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
+  SStreamDataBlock* pBlock = streamQueueNextItem(pInfo->queue);
   if (pBlock == NULL) {
-    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
-    qDebug("s-task:%s not dispatch since no elems in outputQ, output status:%d", pTask->id.idStr, pTask->outputStatus);
+    atomic_store_8(&pInfo->status, TASK_OUTPUT_STATUS__NORMAL);
+    qDebug("s-task:%s not dispatch since no elems in outputQ, output status:%d", pTask->id.idStr, pInfo->status);
     return 0;
   }
 
@@ -599,19 +599,19 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     }
 
     qDebug("s-task:%s failed to dispatch msg to downstream, code:%s, output status:%d, retry cnt:%d", pTask->id.idStr,
-           tstrerror(terrno), pTask->outputStatus, retryCount);
+           tstrerror(terrno), pInfo->status, retryCount);
 
     // todo deal with only partially success dispatch case
     atomic_store_32(&pTask->shuffleDispatcher.waitingRspCnt, 0);
-    if (terrno == TSDB_CODE_APP_IS_STOPPING) { // in case of this error, do not retry anymore
+    if (terrno == TSDB_CODE_APP_IS_STOPPING) {  // in case of this error, do not retry anymore
       destroyStreamDataBlock(pTask->msgInfo.pData);
       pTask->msgInfo.pData = NULL;
       return code;
     }
 
-    if (++retryCount > MAX_CONTINUE_RETRY_COUNT) { // add to timer to retry
-      qDebug("s-task:%s failed to dispatch msg to downstream for %d times, code:%s, add timer to retry in %dms", pTask->id.idStr,
-             retryCount, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS);
+    if (++retryCount > MAX_CONTINUE_RETRY_COUNT) {  // add to timer to retry
+      qDebug("s-task:%s failed to dispatch msg to downstream for %d times, code:%s, add timer to retry in %dms",
+             pTask->id.idStr, retryCount, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS);
       streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
       break;
     }

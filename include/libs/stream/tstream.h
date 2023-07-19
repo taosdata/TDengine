@@ -296,15 +296,15 @@ typedef struct SDispatchMsgInfo {
 } SDispatchMsgInfo;
 
 typedef struct {
-  int8_t        outputType;
-  int8_t        outputStatus;
-  SStreamQueue* outputQueue;
-} SSTaskOutputInfo;
+  int8_t        type;
+  int8_t        status;
+  SStreamQueue* queue;
+} STaskOutputInfo;
 
 struct SStreamTask {
   SStreamId        id;
   SSTaskBasicInfo  info;
-  int8_t           outputType;
+  STaskOutputInfo  outputInfo;
   SDispatchMsgInfo msgInfo;
   SStreamStatus    status;
   SCheckpointInfo  chkInfo;
@@ -326,9 +326,7 @@ struct SStreamTask {
   };
 
   int8_t        inputStatus;
-  int8_t        outputStatus;
   SStreamQueue* inputQueue;
-  SStreamQueue* outputQueue;
 
   // trigger
   int8_t        triggerStatus;

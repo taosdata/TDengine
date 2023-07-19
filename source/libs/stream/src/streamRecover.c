@@ -96,7 +96,7 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
   };
 
   // serialize
-  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->fixedEpDispatcher.nodeId;
     req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
@@ -108,7 +108,7 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
            pWindow->skey, pWindow->ekey, req.reqId);
 
     streamDispatchCheckMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
-  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
@@ -153,9 +153,9 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
   qDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) (recheck)", pTask->id.idStr, pTask->info.nodeId,
          req.downstreamTaskId, req.downstreamNodeId);
 
-  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     streamDispatchCheckMsg(pTask, &req, pRsp->downstreamNodeId, &pTask->fixedEpDispatcher.epSet);
-  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
@@ -179,7 +179,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
   const char* id = pTask->id.idStr;
 
   if (pRsp->status == 1) {
-    if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       bool found = false;
 
       int32_t numOfReqs = taosArrayGetSize(pTask->checkReqIds);
@@ -218,7 +218,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
                pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
       }
     } else {
-      ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH);
+      ASSERT(pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH);
       if (pRsp->reqId != pTask->checkReqId) {
         return -1;
       }
@@ -296,10 +296,10 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
   SStreamScanHistoryFinishReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
 
   // serialize
-  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     req.taskId = pTask->fixedEpDispatcher.taskId;
     streamDoDispatchScanHistoryFinishMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
-  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
 
@@ -362,10 +362,10 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
   SStreamTransferReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
 
   // serialize
-  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     req.taskId = pTask->fixedEpDispatcher.taskId;
     doDispatchTransferMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
-  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
