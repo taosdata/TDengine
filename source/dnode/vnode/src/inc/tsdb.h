@@ -710,9 +710,8 @@ typedef struct {
 
 typedef struct SSttBlockLoadInfo {
   SBlockData blockData[2];
-  void      *pBlockArray;
+  void      *pSttStatisBlkArray;
   SArray    *aSttBlk;
-  SArray    *pTombBlockArray;  // tomb block array list
   int32_t    blockIndex[2];    // to denote the loaded block in the corresponding position.
   int32_t    currentLoadBlockIndex;
   int32_t    loadBlocks;
@@ -720,10 +719,9 @@ typedef struct SSttBlockLoadInfo {
   STSchema  *pSchema;
   int16_t   *colIds;
   int32_t    numOfCols;
-  bool       checkRemainingRow;
+  bool       checkRemainingRow;  // todo: no assign value?
   bool       isLast;
   bool       sttBlockLoaded;
-  int32_t    numOfStt;
 
   // keep the last access position, this position may be used to reduce the binary times for
   // starting last block data for a new table
