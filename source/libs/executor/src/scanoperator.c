@@ -2842,9 +2842,13 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   pInfo->sortBufSize = 1024 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_TABLE_MERGE_SCAN, pInfo->bufPageSize, numOfBufPage,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
-
+  int64_t mergeLimit = -1;
+  if (pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1) {
+    mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
+  }                                             
+  tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlockImpl, NULL, NULL);
 
   // one table has one data block
