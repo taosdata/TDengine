@@ -658,10 +658,10 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
     pJoinInfo->leftPos = 0;
     if (pJoinInfo->pLeft == NULL) {
       qError("merge join left got empty block");
-      setMergeJoinDone(pOperator);
       if (pOperator->pOperatorParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorParam->value)->initParam) {
         leftEmpty = true;
       } else {
+        setMergeJoinDone(pOperator);
         return false;
       }
     } else {
@@ -680,6 +680,7 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
     } else {
       qError("merge join right got block");
       if (leftEmpty) {
+        setMergeJoinDone(pOperator);
         return false;
       }
     }
