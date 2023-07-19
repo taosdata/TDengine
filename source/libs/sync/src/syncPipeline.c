@@ -708,6 +708,10 @@ _out:
     syncEntryDestroy(pEntry);
     pEntry = NULL;
   }
+  if (!nextInBuf) {
+    syncEntryDestroy(pNextEntry);
+    pNextEntry = NULL;
+  }
   syncLogBufferValidate(pBuf);
   taosThreadMutexUnlock(&pBuf->mutex);
   return ret;
