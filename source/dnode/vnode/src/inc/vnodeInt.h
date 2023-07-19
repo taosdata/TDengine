@@ -94,6 +94,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_BUFPOOL_SEGMENTS 3
 
 #define VND_INFO_FNAME "vnode.json"
+#define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
@@ -404,6 +405,7 @@ struct SVnode {
   SVState   state;
   SVStatis  statis;
   STfs*     pTfs;
+  int32_t   diskPrimary;
   SMsgCb    msgCb;
 
   // Buffer Pool
