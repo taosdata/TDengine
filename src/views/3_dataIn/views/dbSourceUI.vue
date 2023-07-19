@@ -636,8 +636,7 @@ import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import DatePicker from '@/components/date-picker'
 import { Message } from "element-ui";
 import marked from "marked";
-import { debounce } from "@/utils/index";
-import { switchTimezone } from '@/utils/date-util'
+import { debounce, parsinginZone } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   components: {DatePicker},
@@ -781,7 +780,8 @@ export default {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
         group.params.map((p) => {
           if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
-            p.value = switchTimezone(p.value)
+            // 时间返回值适配时区后再根据 placeholder字段 格式化
+            p.value = parsinginZone(p.value, p.placeholder)
           }
           if (p.multiple && p.value && typeof p.value =='string') {
             // 多选下拉框的返回值改为数组
@@ -1417,9 +1417,21 @@ export default {
           }
             getUaAndDaData(piParams)
             .then((res) => {
-              this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
-                return {id: item, children: JSON.parse(res[0].id)[item][0]}
-              }) 
+              console.log('res',res);
+              if (res && res.code && res.code != 0) {
+                Message({
+                  type: "error",
+                  message: res && res.message,
+                }); 
+              } else {
+                this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
+                  return {id: item, children: JSON.parse(res[0].id)[item][0]}
+                }) 
+                Message({
+                  type: "success",
+                  message: this.$t('operateSucc'),
+                }); 
+              }
               this.btnLoading = false
             })
             .catch((err) => {
