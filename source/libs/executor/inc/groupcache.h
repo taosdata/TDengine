@@ -41,6 +41,11 @@ typedef struct SGcVgroupCtx {
   uint32_t fileId;
 } SGcVgroupCtx;
 
+typedef struct SGroupSeqBlkList {
+  int64_t        startBlkId;
+  int64_t        endBlkId;
+} SGroupSeqBlkList;
+
 typedef struct SGroupCacheData {
   TdThreadMutex  mutex;
   SArray*        waitQueue;
@@ -49,9 +54,11 @@ typedef struct SGroupCacheData {
   SGcVgroupCtx*  pVgCtx;
   int32_t        downstreamIdx;
   int32_t        vgId;
+  union {
+    SGroupSeqBlkList blkList;
+    SArray*          pBlkList;
+  };
   uint32_t       fileId;
-  int64_t        startBlkId;
-  int64_t        endBlkId;
   int64_t        startOffset;
 } SGroupCacheData;
 

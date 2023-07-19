@@ -363,13 +363,18 @@ static void handleVgroupTableFetchDone(SGcDownstreamCtx* pCtx, SGroupCacheData* 
 }
 
 
-static FORCE_INLINE void initNewGroupData(SGcDownstreamCtx* pCtx, SGroupCacheData* pGroup, int32_t downstreamIdx, int32_t vgId) {
+static FORCE_INLINE void initNewGroupData(SGcDownstreamCtx* pCtx, SGroupCacheData* pGroup, int32_t downstreamIdx, int32_t vgId, bool batchFetch) {
   taosThreadMutexInit(&pGroup->mutex, NULL);
   pGroup->downstreamIdx = downstreamIdx;
   pGroup->vgId = vgId;
   pGroup->fileId = -1;
-  pGroup->startBlkId = -1;
-  pGroup->endBlkId = -1;
+  if (batchFetch) {
+    pGroup->pBlkList = taosArrayInit(10, POINTER_BYTES);
+  } else {
+    pGroup->blkList.startBlkId = -1;
+    pGroup->blkList.endBlkId = -1;
+
+  }
   pGroup->startOffset = -1;
   pGroup->pVgCtx = tSimpleHashGet(pCtx->pVgTbHash, &pGroup->vgId, sizeof(pGroup->vgId));
 }
@@ -379,7 +384,7 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
   SGcDownstreamCtx* pCtx = &pGCache->pDownstreams[pParam->downstreamIdx];
   SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
   SGroupCacheData grpData = {0};
-  initNewGroupData(pCtx, &grpData, pParam->downstreamIdx, vgId);
+  initNewGroupData(pCtx, &grpData, pParam->downstreamIdx, vgId, pGCache->batchFetch);
   
   while (true) {
     if (0 != taosHashPut(pGrpHash, &uid, sizeof(uid), &grpData, sizeof(grpData))) {
@@ -415,6 +420,24 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t addBlkToGroupCache(bool batchFetch, SGroupCacheData* pGroup, SGcBlkBufInfo* pNewBlk) {
+  if (batchFetch) {
+    taosArrayPush(pGroup->pBlkList, &pNewBlk->blkId);
+    qError("block added to group cache, total block num:%" PRId64, (int64_t)taosArrayGetSize(pGroup->pBlkList));
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (pGroup->blkList.endBlkId > 0) {
+    pGroup->blkList.endBlkId = pNewBlk->blkId;
+  } else {
+    pGroup->blkList.startBlkId = pNewBlk->blkId;
+    pGroup->blkList.endBlkId = pNewBlk->blkId;
+  }
+
+  qError("block added to group cache, total block num:%" PRId64, pGroup->blkList.endBlkId - pGroup->blkList.startBlkId + 1);
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSDataBlock* pBlock, SGcSessionCtx* pSession, bool* continueFetch) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -446,12 +469,10 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
   if (code) {
     return code;
   }
-  
-  if (pGroup->endBlkId > 0) {
-    pGroup->endBlkId = newBlkBuf.blkId;
-  } else {
-    pGroup->startBlkId = newBlkBuf.blkId;
-    pGroup->endBlkId = newBlkBuf.blkId;
+
+  code = addBlkToGroupCache(pGCache->batchFetch, pGroup, &newBlkBuf);
+  if (code) {
+    return code;
   }
 
   notifyWaitingSessions(pGroup->waitQueue);
@@ -541,6 +562,50 @@ static int32_t getCacheBlkFromDownstreamOperator(struct SOperatorInfo* pOperator
   return code;
 }
 
+static int32_t getBlkFromSessionCacheImpl(struct SOperatorInfo* pOperator, int64_t sessionId, SGcSessionCtx* pSession, SSDataBlock** ppRes, bool* got) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SGroupCacheOperatorInfo* pGCache = pOperator->info;
+  *got = true;
+  
+  if (pGCache->batchFetch) {
+    if (pSession->lastBlkId < 0) {
+      if (taosArrayGetSize(pSession->pGroupData->pBlkList) > 0) {
+        int64_t* pIdx = taosArrayGet(pSession->pGroupData->pBlkList, 0);
+        code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, *pIdx, &pSession->nextOffset, ppRes);
+        pSession->lastBlkId = *pIdx;
+        return code;
+      }
+    } else if (pSession->lastBlkId < taosArrayGetSize(pSession->pGroupData->pBlkList)) {
+      int64_t* pIdx = taosArrayGet(pSession->pGroupData->pBlkList, pSession->lastBlkId + 1);
+      code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, *pIdx, &pSession->nextOffset, ppRes);
+      pSession->lastBlkId++;
+      return code;
+    }
+  }
+  
+  if (pSession->lastBlkId < 0) {
+    int64_t startBlkId = atomic_load_64(&pSession->pGroupData->blkList.startBlkId);
+    if (startBlkId > 0) {
+      code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, startBlkId, &pSession->nextOffset, ppRes);
+      pSession->lastBlkId = startBlkId;
+      return code;
+    }
+  } else if (pSession->lastBlkId < atomic_load_64(&pSession->pGroupData->blkList.endBlkId)) {
+    code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pSession->lastBlkId + 1, &pSession->nextOffset, ppRes);
+    pSession->lastBlkId++;
+    return code;
+  }
+
+  if (atomic_load_8((int8_t*)&pSession->pGroupData->fetchDone)) {
+    *ppRes = NULL;
+    return code;
+  }
+
+  *got = false;
+  return code;
+}
+
+
 static int32_t groupCacheSessionWait(struct SOperatorInfo* pOperator, SGcDownstreamCtx* pCtx, int64_t sessionId, SGcSessionCtx* pSession, SSDataBlock** ppRes) {
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
   SGroupCacheData* pGroup = pSession->pGroupData;
@@ -573,44 +638,21 @@ static int32_t groupCacheSessionWait(struct SOperatorInfo* pOperator, SGcDownstr
 
   taosHashRemove(pCtx->pWaitSessions, &sessionId, sizeof(sessionId));
 
-  if (pSession->lastBlkId < 0) {
-    int64_t startBlkId = atomic_load_64(&pSession->pGroupData->startBlkId);
-    if (startBlkId > 0) {
-      code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, startBlkId, &pSession->nextOffset, ppRes);
-      pSession->lastBlkId = startBlkId;
-    } else if (pGroup->fetchDone) {
-      *ppRes = NULL;
-    }
-  } else if (pSession->lastBlkId < atomic_load_64(&pSession->pGroupData->endBlkId)) {
-    code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pSession->lastBlkId + 1, &pSession->nextOffset, ppRes);
-    pSession->lastBlkId++;
-  } else if (pGroup->fetchDone) {
-    *ppRes = NULL;
-  }
-
-  return code;
+  bool got = false;
+  return getBlkFromSessionCacheImpl(pOperator, sessionId, pSession, ppRes, &got);
 }
 
-static int32_t getBlkFromSessionCacheImpl(struct SOperatorInfo* pOperator, int64_t sessionId, SGcSessionCtx* pSession, SSDataBlock** ppRes) {
+
+static int32_t getBlkFromSessionCache(struct SOperatorInfo* pOperator, int64_t sessionId, SGcSessionCtx* pSession, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
   bool locked = false;
   SGcDownstreamCtx* pCtx = &pGCache->pDownstreams[pSession->downstreamIdx];
   
   while (true) {
-    if (pSession->lastBlkId < 0) {
-      int64_t startBlkId = atomic_load_64(&pSession->pGroupData->startBlkId);
-      if (startBlkId > 0) {
-        code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, startBlkId, &pSession->nextOffset, ppRes);
-        pSession->lastBlkId = startBlkId;
-        goto _return;
-      }
-    } else if (pSession->lastBlkId < atomic_load_64(&pSession->pGroupData->endBlkId)) {
-      code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pSession->lastBlkId + 1, &pSession->nextOffset, ppRes);
-      pSession->lastBlkId++;
-      goto _return;
-    } else if (atomic_load_8((int8_t*)&pSession->pGroupData->fetchDone)) {
-      *ppRes = NULL;
+    bool got = false;
+    code = getBlkFromSessionCacheImpl(pOperator, sessionId, pSession, ppRes, &got);
+    if (TSDB_CODE_SUCCESS != code || got) {
       goto _return;
     }
     
@@ -723,7 +765,7 @@ static int32_t getBlkFromGroupCache(struct SOperatorInfo* pOperator, SSDataBlock
     }
   }
   
-  code = getBlkFromSessionCacheImpl(pOperator, pGcParam->sessionId, pSession, ppRes);
+  code = getBlkFromSessionCache(pOperator, pGcParam->sessionId, pSession, ppRes);
   if (NULL == ppRes) {
     taosHashRemove(pCtx->pSessions, &pGcParam->sessionId, sizeof(pGcParam->sessionId));
   }

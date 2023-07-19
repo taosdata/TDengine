@@ -447,6 +447,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
   while (endPos == dataBlock->info.rows) {
     SOperatorInfo* ds = pOperator->pDownstream[whichChild];
     dataBlock = getNextBlockFromDownstream(pOperator, whichChild);
+    qError("merge join %s got block for same ts, rows:%" PRId64, whichChild == 0 ? "left" : "right", dataBlock ? dataBlock->info.rows : 0);
     if (whichChild == 0) {
       pJoinInfo->leftPos = 0;
       pJoinInfo->pLeft = dataBlock;
@@ -656,16 +657,15 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
     pJoinInfo->pLeft = getNextBlockFromDownstream(pOperator, 0);
 
     pJoinInfo->leftPos = 0;
+    qError("merge join left got block, rows:%" PRId64, pJoinInfo->pLeft ? pJoinInfo->pLeft->info.rows : 0);
+
     if (pJoinInfo->pLeft == NULL) {
-      qError("merge join left got empty block");
       if (pOperator->pOperatorParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorParam->value)->initParam) {
         leftEmpty = true;
       } else {
         setMergeJoinDone(pOperator);
         return false;
       }
-    } else {
-      qError("merge join left got block");
     }
   }
 
@@ -673,12 +673,12 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
     pJoinInfo->pRight = getNextBlockFromDownstream(pOperator, 1);
 
     pJoinInfo->rightPos = 0;
+    qError("merge join right got block, rows:%" PRId64, pJoinInfo->pRight ? pJoinInfo->pRight->info.rows : 0);
+    
     if (pJoinInfo->pRight == NULL) {
-      qError("merge join right got empty block");
       setMergeJoinDone(pOperator);
       return false;
     } else {
-      qError("merge join right got block");
       if (leftEmpty) {
         setMergeJoinDone(pOperator);
         return false;
