@@ -36,7 +36,7 @@ void freeVgTableList(void* ptr) {
 
 static void destroyDynQueryCtrlOperator(void* param) {
   SDynQueryCtrlOperatorInfo* pDyn = (SDynQueryCtrlOperatorInfo*)param;
-  qDebug("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64, 
+  qError("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64, 
          pDyn->execInfo.prevBlkNum, pDyn->execInfo.prevBlkRows, pDyn->execInfo.postBlkNum, pDyn->execInfo.postBlkRows);
 
   if (pDyn->stbJoin.ctx.prev.leftVg) {
@@ -158,7 +158,7 @@ static FORCE_INLINE int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppR
 }
 
 
-static FORCE_INLINE int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, SOperatorParam* pChild0, SOperatorParam* pChild1) {
+static FORCE_INLINE int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initParam, SOperatorParam* pChild0, SOperatorParam* pChild1) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -178,6 +178,8 @@ static FORCE_INLINE int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, 
   if (NULL == pJoin) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pJoin->initParam = initParam;
   
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   (*ppRes)->value = pJoin;
@@ -214,7 +216,7 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
     code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pExcParam1);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildMergeJoinOperatorParam(ppParam, pGcParam0, pGcParam1);
+    code = buildMergeJoinOperatorParam(ppParam, false, pGcParam0, pGcParam1);
   }
   return code;
 }
@@ -254,7 +256,7 @@ static int32_t buildSeqBatchStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInf
     code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pExcParam1);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildMergeJoinOperatorParam(ppParam, pGcParam0, pGcParam1);
+    code = buildMergeJoinOperatorParam(ppParam, pExcParam0 ? true : false, pGcParam0, pGcParam1);
   }
   return code;
 }

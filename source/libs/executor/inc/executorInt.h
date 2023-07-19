@@ -147,6 +147,7 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SSortMergeJoinOperatorParam {
+  bool initParam;
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {

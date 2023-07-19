@@ -650,7 +650,8 @@ static void setMergeJoinDone(SOperatorInfo* pOperator) {
 
 static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs, int64_t* pRightTs) {
   SMJoinOperatorInfo* pJoinInfo = pOperator->info;
-
+  bool leftEmpty = false;
+  
   if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
     pJoinInfo->pLeft = getNextBlockFromDownstream(pOperator, 0);
 
@@ -658,7 +659,11 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
     if (pJoinInfo->pLeft == NULL) {
       qError("merge join left got empty block");
       setMergeJoinDone(pOperator);
-      return false;
+      if (pOperator->pOperatorParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorParam->value)->initParam) {
+        leftEmpty = true;
+      } else {
+        return false;
+      }
     } else {
       qError("merge join left got block");
     }
@@ -674,8 +679,12 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
       return false;
     } else {
       qError("merge join right got block");
+      if (leftEmpty) {
+        return false;
+      }
     }
   }
+  
   // only the timestamp match support for ordinary table
   SColumnInfoData* pLeftCol = taosArrayGet(pJoinInfo->pLeft->pDataBlock, pJoinInfo->leftCol.slotId);
   char*            pLeftVal = colDataGetData(pLeftCol, pJoinInfo->leftPos);
