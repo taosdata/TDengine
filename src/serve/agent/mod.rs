@@ -68,7 +68,7 @@ pub(super) async fn delete_agent(
         AgentFilter,
     )
 )]
-#[get("/agents/")]
+#[get("/agents")]
 pub(super) async fn get_agents(
     task_store: Data<TaskControllerRef>,
     filter: Query<AgentFilter>,
