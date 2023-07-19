@@ -3132,6 +3132,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
       if(code < 0){
         sError("vgId:%d, failed to check change config since %s.", ths->vgId, terrstr());
+        syncEntryDestroy(pEntry);
+        pEntry = NULL;
         return -1;
       }
       
@@ -3141,6 +3143,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
         } 
+        syncEntryDestroy(pEntry);
+        pEntry = NULL;
         return -1;
       }
     }
