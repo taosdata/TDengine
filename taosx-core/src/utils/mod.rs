@@ -166,8 +166,3 @@ async fn test_clear_database() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_get_string_content_from_param_value() {
-    
-}
