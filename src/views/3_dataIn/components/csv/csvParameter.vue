@@ -9,11 +9,11 @@
           <el-option v-for="item in dblist" :key="item.name" :value="item.name" :label="item.name"></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item :label="$t('datasource.percision')" prop="percision">
+      <!-- <el-form-item :label="$t('datasource.percision')" prop="percision">
         <el-select v-model="ruleForm.percision" placeholder="">
           <el-option v-for="item in timePercision" :key="item.key" :value="item.key" :label="item.label"></el-option>
         </el-select>
-      </el-form-item>
+      </el-form-item> -->
       <el-form-item :label="$t('datasource.csvtable')" prop="tableName">
         <el-input v-model="ruleForm.tableName"></el-input>
       </el-form-item>
@@ -39,11 +39,11 @@ export default {
             required:true,trigger:'change',message:this.$t('datasource.nametip')
           }
         ],
-        percision:[
-          {
-            required:true,trigger:'change',message:this.$t('datasource.percisiontip')
-          }
-        ],
+        // percision:[
+        //   {
+        //     required:true,trigger:'change',message:this.$t('datasource.percisiontip')
+        //   }
+        // ],
         tableName:[
           {
             required:true,trigger:'blur',message:this.$t('datasource.tabletip')
