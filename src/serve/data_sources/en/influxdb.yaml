@@ -120,7 +120,7 @@ groups:
         hint: time
       - name: readWindow
         display: Read Window
-        description: Select a type of read window, if empty, it defaults to minute
+        description: Select a type of read window(D-Day, H-Hour, M-Minute), if empty, it defaults to "M-Minute"
         placeholder: Please select the type of read window
         value: 'M'
         hint:

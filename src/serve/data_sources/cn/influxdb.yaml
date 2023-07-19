@@ -122,7 +122,7 @@ groups:
         hint: time
       - name: readWindow
         display: 读取窗口
-        description: 选择一个读取窗口类型，如果未指定，默认按分钟
+        description: 选择一个读取窗口类型（D-天、H-小时、M-分钟），如果未指定，默认按“M-分钟”
         placeholder: 请选择读取窗口类型
         value: 'M'
         hint:
