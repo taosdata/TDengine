@@ -392,12 +392,9 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
   tsdbSttFileReadStatisBlock(pReader, p, &block);
 
   int32_t index = tarray2SearchIdx(block.uid, &uid, sizeof(int64_t), uidComparFn, TD_EQ);
-  if (index == -1) {  // has record, continue.
-    tStatisBlockDestroy(&block);
-    return false;
-  }
+  tStatisBlockDestroy(&block);
 
-  return true;
+  return (index != -1);
 }
 
 int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader, int32_t iStt, int8_t backward,
