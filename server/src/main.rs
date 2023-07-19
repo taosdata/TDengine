@@ -83,11 +83,13 @@ async fn main() -> anyhow::Result<()> {
     const EXPLORER_PORT: u16 = 6060;
     const EXPLORER_CLUSTER: &str = "http://localhost:6041";
     const EXPLORER_X_PAI: &str = "http://localhost:6050";
+    const EXPLORER_GRPC: &str = "http://localhost:6055";
     args.port.get_or_insert(EXPLORER_PORT);
     args.profile
         .cluster
         .get_or_insert(EXPLORER_CLUSTER.to_string());
     args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
+    args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
 
     let port = args.port.unwrap();
     let args = web::Data::new(args);
@@ -345,6 +347,10 @@ struct Profile {
     /// API end point for data streaming task management.
     #[clap(short, long, env = "EXPLORER_X_API")]
     x_api: Option<String>,
+
+    /// GRPC endpoint of taosX for agents.
+    #[clap(short, long, env = "EXPLORER_GRPC")]
+    grpc: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
