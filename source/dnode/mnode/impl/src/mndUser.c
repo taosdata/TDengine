@@ -630,6 +630,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN){
+    terrno = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _OVER;
+  }
+
   pUser = mndAcquireUser(pMnode, createReq.user);
   if (pUser != NULL) {
     terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
