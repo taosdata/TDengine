@@ -37,12 +37,6 @@ authentication:
               - "1.8"
               - "1.7"
           required: true
-        - name: orgId
-          display: Organization Id
-          description: It is a workspace for a group of users. All dashboards, tasks, buckets, and users belong to one organization.
-          placeholder: Please input your organization id in the InfluxDB
-          hint: str
-          required: true
         - name: username
           display: Username
           description: This user can at least have permission to read anything in this organization.
