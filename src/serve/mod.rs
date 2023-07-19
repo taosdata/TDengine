@@ -28,11 +28,11 @@ use controller::*;
 use data_sources::*;
 
 use crate::serve::controller::agent::{
-    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
+    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken, AgentActivityFilter, Activity, LevelFilter, ActivityOrder,
 };
 
 use self::{
-    agent::{create_agent, delete_agent, get_agents, update_agent},
+    agent::{create_agent, delete_agent, get_agents, update_agent, get_agent_activities},
     routes::cluster::get_cluster_connector_transferred,
 };
 
@@ -98,6 +98,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(update_agent)
             .service(delete_agent)
             .service(get_agents)
+            .service(get_agent_activities)
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
             .service(download_files)
@@ -154,8 +155,10 @@ impl Cli {
                     Lang,
                     UploadForm,
                     FileMetaRequest,
-                    // DataSet,
-
+                    AgentActivityFilter,
+                    Activity,
+                    LevelFilter,
+                    ActivityOrder,
                 ),
                 responses(
                 )
@@ -185,6 +188,7 @@ impl Cli {
                 agent::update_agent,
                 agent::delete_agent,
                 agent::get_agents,
+                agent::get_agent_activities,
 
                 routes::cluster::get_cluster_connector_transferred,
 

@@ -17,7 +17,7 @@ tonic = { workspace = true }
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"
-bitflags = "1"
+bitflags = "2"
 chrono = "0.4"
 clap = { version = "4.0.11", features = ["default", "derive"] }
 clap-verbosity-flag = "2.0.0"
@@ -61,10 +61,12 @@ serde_json = { version = "1.0", features = ["raw_value"] }
 # lru = "0.7.5"
 cfg-if = "1.0.0"
 const_format = "0.2.30"
-metrics = "0.20.1"
-metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
+metrics = "0.21.0"
+metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
+	"push-gateway",
+] }
 # palaver = "0.2.8"
-sysinfo = "0.28.0"
+sysinfo = "0.29.0"
 
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
@@ -73,7 +75,7 @@ tracing = "0.1"
 flume = "0.10"
 futures-util = "0.3"
 r2d2 = "0.8.10"
-serde_with = "2.3.1"
+serde_with = "3.0.0"
 tokio-cron-scheduler = "0.9.4"
 
 bitvec = "1"

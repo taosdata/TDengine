@@ -18,6 +18,7 @@ use flume::Sender;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
@@ -101,11 +102,10 @@ mod option_datetime_format {
     }
 }
 
+use crate::serve::controller::agent::Activity;
 use crate::serve::task;
 
-use self::agent::{
-    Agent, AgentActivity, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
-};
+use self::agent::{Agent, AgentProps, AgentToken, AgentUpdates, AgentWithToken, LevelFilter};
 use self::transferred::Transferred;
 
 use super::data_sources::DataSourceDefinition;
@@ -289,9 +289,11 @@ impl TaskControllerRef {
                 .execute(&self.pool)
                 .await?;
                 sqlx::query!(
-                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                     id,
                     now,
+                    LevelFilter::Error,
+                    "start task {id}",
                     "failed",
                     err
                 )
@@ -387,6 +389,35 @@ pub(super) enum Schedule {
 
 static ONCE: OnceCell<PortPool> = OnceCell::const_new();
 
+async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    sqlx::query(
+            "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
+            .bind(
+            activity.id).bind(&
+            activity.at).bind(&
+            activity.level).bind(&
+            activity.activity).bind(&
+            activity.status).bind(&
+            activity.context)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    sqlx::query(
+            "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
+            .bind(
+            activity.id).bind(&
+            activity.at).bind(&
+            activity.level).bind(&
+            activity.activity).bind(&
+            activity.status).bind(&
+            activity.context)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
         if !sqlite.contains(":memory:") {
@@ -437,17 +468,15 @@ impl TaskController {
                 if !h.0.is_finished() {
                     log::info!("try start task {id} but it is running");
                     let context = format!("try start task {id} but it is running");
-
-                    sqlx::query!(
-                        "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    let activity = Activity {
                         id,
-                        now,
-                        "start",
-                        context
-                    )
-                    .execute(&self.pool)
-                    .await?;
-                    return Ok(());
+                        at: now,
+                        level: LevelFilter::Info,
+                        activity: "start".to_string(),
+                        status: "running".to_string(),
+                        context: Some(json!({ "message": context })),
+                    };
+                    return push_task_activity(&self.pool, &activity).await;
                 } else {
                     remove_finished_task = true;
                 }
@@ -494,15 +523,15 @@ impl TaskController {
             None
         };
 
-        sqlx::query!(
-            "INSERT INTO task_activities values(?, ?, ?, ?)",
+        let activity = Activity {
             id,
-            now,
-            "start",
-            None::<String>
-        )
-        .execute(&self.pool)
-        .await?;
+            at: now,
+            level: LevelFilter::Info,
+            activity: "start".to_string(),
+            status: "ok".to_string(),
+            context: Some(serde_json::to_value(task).unwrap()),
+        };
+        push_task_activity(&self.pool, &activity).await?;
         let pool = self.pool.clone();
 
         let transferred = match from.driver.as_str() {
@@ -601,15 +630,15 @@ impl TaskController {
                     let now = Utc::now();
                     let status = Status::Cancelled;
 
-                    sqlx::query!(
-                        "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    let activity = Activity {
                         id,
-                        now,
-                        "cancel",
-                        None::<String>
-                    )
-                    .execute(&pool)
-                    .await?;
+                        at: now,
+                        level: LevelFilter::Info,
+                        activity: "cancel".to_string(),
+                        status: "ok".to_string(),
+                        context: None,
+                    };
+                    push_task_activity(&pool, &activity).await?;
 
                     match opts.from.driver.as_str() {
                         "opc" | "opcua" | "opcda" | "pi" => {
@@ -658,14 +687,27 @@ impl TaskController {
                             if restarts > 0 {
                                 log::info!("resume task {id} as {restarts} restarts");
 
-                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                    id, now, "resume", none
-                                ).execute(&pool).await?;
+                                let activity = Activity {
+                                    id,
+                                    at: now,
+                                    level: LevelFilter::Info,
+                                    activity: "resume".to_string(),
+                                    status: "ok".to_string(),
+                                    context: None,
+                                };
+                                push_task_activity(&pool, &activity).await?;
                                 last_restart_time = Instant::now();
                             } else {
-                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                    id, now, "start", none
-                                ).execute(&pool).await?;
+                                let activity = Activity {
+                                    id,
+                                    at: now,
+                                    level: LevelFilter::Info,
+                                    activity: "start worker".to_string(),
+                                    status: "ok".to_string(),
+                                    context: None,
+                                };
+                                push_task_activity(&pool, &activity).await?;
+
                                 log::info!("start task {id}");
                             }
                             let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
@@ -681,12 +723,19 @@ impl TaskController {
                                     )
                                     .execute(&pool)
                                     .await?;
-                                    sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                        id, now, "completed", none
-                                    ).execute(&pool).await?;
+                                    let activity = Activity {
+                                        id,
+                                        at: now,
+                                        level: LevelFilter::Info,
+                                        activity: "completed".to_string(),
+                                        status: "completed".to_string(),
+                                        context: None,
+                                    };
+                                    push_task_activity(&pool, &activity).await?;
                                 }
                                 Err(err) => {
                                     let err_string = err.to_string();
+                                    // let code = err.code();
 
                                     match err_string.as_str() {
                                         e if e.contains("Unsupported HTTP method used - only GET is allowed") => {
@@ -706,9 +755,16 @@ impl TaskController {
                                             .execute(&pool)
                                             .await?;
 
-                                            sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                                id, now, "failed", err
-                                            ).execute(&pool).await?;
+                                            let activity = Activity {
+                                                id,
+                                                at: now,
+                                                level: LevelFilter::Error,
+                                                activity: "authentication failure".to_string(),
+                                                status: "failed".to_string(),
+                                                context: Some(json!({"message": err})),
+                                            };
+                                            push_task_activity(&pool, &activity).await?;
+
                                             break;
                                         }
                                         e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") => {
@@ -725,6 +781,21 @@ impl TaskController {
                                             )
                                             .execute(&pool)
                                             .await?;
+
+                                            let context = json!({
+                                                "code": 0xFFFFi32,
+                                                "message": err,
+                                            });
+
+                                            let activity = Activity {
+                                                id,
+                                                at: now,
+                                                level: LevelFilter::Warn,
+                                                activity: "resume".to_string(),
+                                                status: "interrupted".to_string(),
+                                                context: Some(serde_json::to_value(&context).unwrap()),
+                                            };
+                                            push_task_activity(&pool, &activity).await?;
                                         }
                                         _ => {
                                             log::error!("run task {id} failed with: {err}, please check the task information");
@@ -739,9 +810,20 @@ impl TaskController {
                                             )
                                             .execute(&pool)
                                             .await?;
-                                            sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                                id, now, "failed", err
-                                            ).execute(&pool).await?;
+
+                                            let context = json!({
+                                                "code": 0xFFFFi32,
+                                                "message": err,
+                                            });
+                                            let activity = Activity {
+                                                id,
+                                                at: now,
+                                                level: LevelFilter::Error,
+                                                activity: "failed".to_string(),
+                                                status: "failed".to_string(),
+                                                context: Some(serde_json::to_value(&context).unwrap()),
+                                            };
+                                            push_task_activity(&pool, &activity).await?;
                                             break;
                                         }
                                     }
@@ -792,9 +874,15 @@ impl TaskController {
                                 .execute(&pool)
                                 .await?;
 
-                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                    id, now, "completed", None::<String>
-                                ).execute(&pool).await?;
+                                let activity = Activity {
+                                    id,
+                                    at: now,
+                                    level: LevelFilter::Info,
+                                    activity: "complete".to_string(),
+                                    status: "ok".to_string(),
+                                    context: None,
+                                };
+                                push_task_activity(&pool, &activity).await?;
                             }
                             Err(err) => {
                                 log::error!("run task {id} failed: {err}");
@@ -810,9 +898,12 @@ impl TaskController {
                                 )
                                 .execute(&pool)
                                 .await?;
-                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
-                                    id, now, "failed", err
-                                ).execute(&pool).await?;
+                                let context = json!({
+                                    "code": 0xFFFFi32,
+                                    "message": err,
+                                });
+                                let activity = Activity::new::<String>(id, now, LevelFilter::Warn, "failed", "failed", serde_json::to_string(&context).unwrap());
+                                push_task_activity(&pool, &activity).await?;
                             }
                         }
                     }
@@ -1025,10 +1116,12 @@ impl TaskController {
 
         let context = serde_json::to_string_pretty(&task).unwrap();
         sqlx::query!(
-            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
             now,
+            LevelFilter::Info,
             "create",
+            "ok",
             context
         )
         .execute(&self.pool)
@@ -1053,12 +1146,16 @@ impl TaskController {
             )
             .execute(&self.pool)
             .await?;
+            let context =
+                json!({ "code": 0xFFFFi32, "error": err.to_string(), "task": id }).to_string();
             sqlx::query!(
-                "INSERT INTO task_activities values(?, ?, ?, ?)",
+                "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                 id,
                 now,
-                "failed",
-                err
+                LevelFilter::Error,
+                "start",
+                err,
+                context
             )
             .execute(&self.pool)
             .await?;
@@ -1108,10 +1205,12 @@ impl TaskController {
         let now = chrono::Utc::now();
         let context = serde_json::to_string_pretty(&task).unwrap();
         sqlx::query!(
-            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
             now,
+            LevelFilter::Info,
             "update",
+            "ok",
             context
         )
         .execute(&self.pool)
@@ -1243,10 +1342,12 @@ impl TaskController {
         }
 
         sqlx::query!(
-            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
             now,
+            LevelFilter::Info,
             "stop",
+            "ok",
             None::<String>
         )
         .execute(&self.pool)
@@ -1254,15 +1355,11 @@ impl TaskController {
         Ok(Some(()))
     }
 
-    pub async fn task_activities(&self, id: i64) -> anyhow::Result<Vec<TaskActivity>> {
-        sqlx::query_as_unchecked!(
-            TaskActivity,
-            "SELECT * FROM task_activities where id = ?",
-            id
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(Into::into)
+    pub async fn task_activities(&self, id: i64) -> anyhow::Result<Vec<Activity>> {
+        sqlx::query_as_unchecked!(Activity, "SELECT * FROM task_activities where id = ?", id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn push_task_status(&self, status: &TaskStatus) -> anyhow::Result<()> {
@@ -1285,11 +1382,13 @@ impl TaskController {
                 .execute(&self.pool)
                 .await?;
                 sqlx::query!(
-                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                     id,
                     at,
+                    LevelFilter::Error,
                     "failed",
-                    status.message
+                    status.message,
+                    status.context,
                 )
                 .execute(&self.pool)
                 .await?;
@@ -1308,11 +1407,13 @@ impl TaskController {
             }
             action => {
                 sqlx::query!(
-                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                     id,
                     status.at,
+                    LevelFilter::Info,
                     action,
-                    status.message
+                    status.message,
+                    status.context,
                 )
                 .execute(&self.pool)
                 .await?;
@@ -1342,11 +1443,15 @@ impl TaskController {
             .execute(&self.pool)
             .await?;
 
+            let activity = format!("cancel-task {id}");
+
             sqlx::query!(
-                "INSERT INTO task_activities values(?, ?, ?, ?)",
+                "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                 id,
                 now,
-                "stop",
+                LevelFilter::Info,
+                activity,
+                "ok",
                 None::<String>
             )
             .execute(&self.pool)
@@ -1433,6 +1538,15 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
+        let activity = Activity::new::<String>(
+            id,
+            Utc::now(),
+            LevelFilter::Info,
+            "created",
+            "created",
+            None,
+        );
+        self.push_agent_activity(&activity).await?;
         let secret = self.jwt_secret().await?;
         self.get_agent_by_id(id)
             .await
@@ -1441,8 +1555,8 @@ impl TaskController {
 
     pub async fn get_agents(&self, filter: AgentFilter) -> anyhow::Result<Vec<Agent>> {
         let sql = match filter.to_sql_condition() {
-            Some(cond) => format!("select * from agents where {cond}"),
-            None => format!("select * from agents"),
+            Some(cond) => format!("select * from agents_view where {cond}"),
+            None => format!("select * from agents_view"),
         };
         let agent = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
         Ok(agent)
@@ -1458,10 +1572,8 @@ impl TaskController {
     }
 
     pub async fn get_agent_by_id(&self, agent_id: i64) -> anyhow::Result<Option<Agent>> {
-        let agent = sqlx::query_as("select * from agents where id = ?")
-            .bind(agent_id)
-            .fetch_optional(&self.pool)
-            .await?;
+        let sql = format!("select * from agents_view where id = {agent_id}");
+        let agent = sqlx::query_as(&sql).fetch_optional(&self.pool).await?;
         Ok(agent)
     }
 
@@ -1474,29 +1586,42 @@ impl TaskController {
         }
     }
 
+    /// Check if agent is online.
     pub async fn agent_alive(&self, agent_id: i64) -> bool {
         self.agent_tasks.read().await.contains_key(&agent_id)
     }
 
-    #[allow(dead_code)]
-    pub async fn agent_connected_with_token(
+    /// Update agent activities.
+    pub async fn push_agent_activity(&self, activity: &Activity) -> anyhow::Result<()> {
+        push_agent_activity(&self.pool, activity).await
+    }
+
+    pub async fn push_task_activity(&self, activity: &Activity) -> anyhow::Result<()> {
+        push_task_activity(&self.pool, activity).await
+    }
+
+    /// Agent connection with token.
+    ///
+    ///
+    pub async fn agent_connect_with_token(
         &self,
         token: &AgentToken,
-        client: SocketAddr,
-    ) -> anyhow::Result<()> {
+        client: Option<&SocketAddr>, // Remote address of the request
+    ) -> anyhow::Result<Agent> {
         let agent = self.get_agent_with_token(token).await?;
         if let Some(agent) = agent {
-            sqlx::query("insert into agent_activities values(?, ?, ?, ?, ?)")
-                .bind(agent.id)
-                .bind(&Utc::now())
-                .bind(AgentActivity::Connect)
-                .bind(AgentStatus::Alive)
-                .bind(format!("Connect via client {}", client))
-                .execute(&self.pool)
-                .await?;
-            Ok(())
+            let activity = Activity::new(
+                agent.id,
+                Utc::now(),
+                LevelFilter::Info,
+                "connected",
+                "idle",
+                json!({"client": client.map(ToString::to_string).unwrap_or_default()}),
+            );
+            push_agent_activity(&self.pool, &activity).await?;
+            Ok(agent)
         } else {
-            bail!("The agent which is token(`{token}`) bind to might be deleted")
+            bail!("The agent which token(`{token}`) bind to might be deleted")
         }
     }
 
@@ -1752,11 +1877,6 @@ pub struct Task {
     /// Compression level when need (for backup only)
     compression_level: Option<u8>,
 
-    /// Force for some risking steps.
-    #[serde(skip_serializing)]
-    #[sqlx(default)]
-    force: bool,
-
     /// Created time.
     #[schema(read_only)]
     #[serde(with = "datetime_format")]
@@ -1831,9 +1951,16 @@ pub struct TaskActivity {
     #[schema(read_only)]
     #[serde(with = "datetime_format")]
     at: DateTime<Utc>,
+
+    /// Level
+    level: LevelFilter,
+
     /// Activity
     #[schema(read_only)]
     activity: String,
+
+    /// Activity result.
+    status: String,
     /// Context
     #[schema(read_only)]
     context: Option<String>,
@@ -2293,9 +2420,7 @@ impl NewTask {
     }
 }
 
-#[derive(
-    Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
-)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, FromRow)]
 struct NewTaskV1 {
     /// The stream data source.
     #[schema(example = "tmq:///test")]
@@ -2360,17 +2485,7 @@ impl From<NewTask> for NewTaskV1 {
         }
     }
 }
-#[derive(
-    Serialize,
-    Deserialize,
-    ToSchema,
-    Default,
-    Clone,
-    Debug,
-    sqlx::Decode,
-    sqlx::Encode,
-    sqlx::FromRow,
-)]
+#[derive(Serialize, Deserialize, ToSchema, Default, Clone, Debug, sqlx::FromRow)]
 #[serde(default)]
 #[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
 pub(super) struct UpdateTask {
@@ -2546,7 +2661,7 @@ mod tests {
         dbg!(&found);
 
         let res = controller
-            .agent_connected_with_token(&agent.token, "127.0.0.1:8080".parse().unwrap())
+            .agent_connect_with_token(&agent.token, "127.0.0.1:8080".parse().ok().as_ref())
             .await?;
         dbg!(res);
 
@@ -2560,15 +2675,19 @@ mod tests {
         ))
         .unwrap();
 
-        let task = controller.create(task).await?;
+        let task = controller.create(task).await;
+        assert!(task.is_err()); // agent is not alive.
 
-        dbg!(&task);
+        let activities = controller
+            .agent_activities(agent.id, &Default::default())
+            .await?;
+        dbg!(activities);
 
         controller.delete_agent(agent.id).await?;
 
-        let deleted_task = controller.get(task.id).await?;
+        // let deleted_task = controller.get(task.id).await?;
         // dbg!(&deleted_task);
-        assert!(deleted_task.is_none());
+        // assert!(deleted_task.is_none());
 
         Ok(())
     }

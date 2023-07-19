@@ -1,9 +1,14 @@
 use std::{
+    collections::BTreeMap,
+    io::BufRead,
     net::SocketAddr,
     path::PathBuf,
     pin::Pin,
-    sync::{atomic::AtomicUsize, Arc},
-    task::Poll, io::BufRead, collections::BTreeMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    task::Poll,
 };
 
 use arrow::{
@@ -12,12 +17,15 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_backtrace::framed;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
+use chrono::Utc;
 use futures::{Stream, StreamExt, TryStreamExt};
 use itertools::Itertools;
+use metrics::atomics::AtomicU64;
 use serde::Deserialize;
-use taos::{Dsn, IntoDsn};
-use taosx_core::ListResponse;
+use serde_json::json;
+use taos::IntoDsn;
+use taosx_core::{HeartbeatResponse, ListResponse};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
@@ -32,16 +40,17 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
+use tracing::info;
 
 use crate::serve::{
     controller::{
-        agent::{Agent, AgentToken},
+        agent::{Activity, Agent, AgentToken, LevelFilter},
         TaskStatus,
     },
     rpc::put::PutStream,
 };
 
-use super::controller::{AgentAction, TaskControllerRef, Task};
+use super::controller::{AgentAction, Task, TaskControllerRef};
 
 mod put;
 
@@ -74,6 +83,7 @@ impl FlightService for FlightServiceImpl {
         let req = req.message().await?;
 
         if let Some(req) = req {
+            // trigger agent "connect" action
             let mut res = HandshakeResponse {
                 protocol_version: req.protocol_version,
                 payload: req.payload,
@@ -82,7 +92,7 @@ impl FlightService for FlightServiceImpl {
                 .controller
                 .get_agent_with_token(&AgentToken::from(&res.payload))
                 .await
-                .map_err(|err| Status::permission_denied(format!("Invalid token: {err}")))?
+                .map_err(|err| Status::permission_denied(format!("Invalid token: {err:#}")))?
                 .ok_or_else(|| Status::permission_denied("Agent not found"))?;
             res.payload = serde_json::to_vec(&agent).unwrap().into();
             let handshake_stream = futures::stream::once(async { Ok(res) });
@@ -130,7 +140,7 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
         let (meta, _extension, req) = req.into_parts();
-        // dbg!(&meta);
+        dbg!(&meta);
 
         let task_id = meta
             .get("x-task-id")
@@ -171,8 +181,10 @@ impl FlightService for FlightServiceImpl {
         &self,
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
+        let remote = req.remote_addr();
         let (meta, extension, req) = req.into_parts();
         dbg!(&meta);
+        // let client
 
         dbg!(&extension);
         let token = meta
@@ -181,26 +193,24 @@ impl FlightService for FlightServiceImpl {
             .to_str()
             .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?;
 
-        // dbg!(token);
-
         let controller = self.controller.clone();
         let agent = controller
-            .get_agent_with_token(&AgentToken(token.to_string()))
+            .agent_connect_with_token(&AgentToken(token.to_string()), remote.as_ref())
             .await
-            .map_err(|err| Status::permission_denied(format!("Token error: {err}")))?
-            .ok_or_else(|| Status::permission_denied(format!("Agent has been deleted")))?;
+            .map_err(|err| Status::permission_denied(format!("Agent connection error: {err}")))?;
 
-        dbg!(&agent);
+        // dbg!(&agent);
         // let agent: Agent = serde_json::from_str(r#"
         // {
         //     "id": 2, "dsn": "taos:///", "name": "agent1", "cluster_id":"", "user_id":"", "connectors": [], "created_at":"2022-02-02T00:00:00Z"
         // }"#).unwrap();
 
-        let (tx, rx) = flume::bounded(100);
+        let (tx, rx) = flume::bounded::<Result<RecordBatch, FlightError>>(100);
 
         // let sender = tx.clone();
         let controller_runner = controller.clone();
         let agent_id = agent.id;
+        let resp_tx = tx.clone();
         tokio::spawn(async move {
             // let agent = controller_runner.get_agent_by_id(agent_id).await?;
             // let schema = Arc::new(Schema::new(Fields::from(vec![
@@ -215,8 +225,12 @@ impl FlightService for FlightServiceImpl {
             //     Field::new("action", arrow::datatypes::DataType::Utf8, false),
             //     Field::new("context", arrow::datatypes::DataType::Utf8, false),
             // ])));
+            let span = tracing::trace_span!("agent_rpc", agent = agent_id);
+            let _enter = span.enter();
+
             let encoder = FlightDataDecoder::new(req.map_err(FlightError::Tonic));
-            let _ = encoder
+            let last_heart_ms = AtomicU64::new(0);
+            let result = encoder
                 .try_for_each_concurrent(1, |data| async {
                     let payload = data.payload;
                     match payload {
@@ -242,6 +256,18 @@ impl FlightService for FlightServiceImpl {
                                 .as_any()
                                 .downcast_ref::<StringArray>()
                                 .unwrap();
+
+                            const ORDER: Ordering = Ordering::Relaxed;
+                            let last = last_heart_ms.load(ORDER);
+                            let now = Utc::now();
+                            if last > 0 {
+                                if std::time::Duration::from_millis(
+                                    now.timestamp_millis() as u64 - last,
+                                ) > std::time::Duration::from_secs(120)
+                                {
+                                    tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
+                                }
+                            }
                             for _ in 0..rows {
                                 let (ts, action, context) = (
                                     ts.value_as_datetime_with_tz(
@@ -253,7 +279,11 @@ impl FlightService for FlightServiceImpl {
                                     context.value(0),
                                 );
 
-                                log::info!("At [{ts}] action `{action}` triggered");
+                                info!(
+                                    action,
+                                    agent = agent_id,
+                                    "At [{ts}] action `{action}` triggered"
+                                );
                                 match action {
                                     "list" => {
                                         let req: ListResponse =
@@ -269,13 +299,81 @@ impl FlightService for FlightServiceImpl {
                                             .datasets
                                             .remove(&req.req)
                                         {
-                                            let _ = sender.send(req.res).unwrap();
+                                            let _ = sender.send_async(req.res).await;
+                                        }
+                                    }
+                                    "agent-activity" => {
+                                        let activity: Activity = serde_json::from_str(&context)
+                                            .map_err(|err| {
+                                                anyhow::format_err!(
+                                                    "Invalid activity `{context}`: {err:#}"
+                                                )
+                                            })
+                                            .unwrap();
+                                        let _ =
+                                            controller_runner.push_agent_activity(&activity).await;
+                                        info!(?activity, "agent activity");
+                                    }
+                                    "task-activity" => {
+                                        let activity: Activity = serde_json::from_str(&context)
+                                            .map_err(|err| {
+                                                anyhow::format_err!(
+                                                    "Invalid activity `{context}`: {err:#}"
+                                                )
+                                            })
+                                            .unwrap();
+                                        let _ =
+                                            controller_runner.push_task_activity(&activity).await;
+                                        info!(?activity, "task activity");
+                                    }
+                                    "heartbeat-ok" => {
+                                        let resp: HeartbeatResponse =
+                                            serde_json::from_str(&context).unwrap();
+                                        let delay = resp.duration();
+                                        if delay > chrono::Duration::seconds(5) {
+                                            info!(
+                                                agent = agent_id,
+                                                "Agent maybe not health, delay {:?}", delay
+                                            );
+                                        } else {
+                                            info!(
+                                                agent = agent_id,
+                                                "Agent is alive, delay: {:?}", delay
+                                            );
                                         }
                                     }
                                     "heartbeat" => {
-                                        //
+                                        let req = ts.naive_utc().and_utc();
+                                        last_heart_ms.store(req.timestamp_millis() as u64, ORDER);
+                                        let resp = HeartbeatResponse {
+                                            req,
+                                            res: Utc::now(),
+                                        };
+
+                                        let val =
+                                            Arc::new(TimestampMillisecondArray::from_iter_values([
+                                                Utc::now().timestamp_millis(),
+                                            ]))
+                                                as ArrayRef;
+                                        let context: ArrayRef =
+                                            Arc::new(StringArray::from_iter_values([
+                                                serde_json::to_string(&resp).unwrap(),
+                                            ]));
+                                        let action: ArrayRef =
+                                            Arc::new(StringArray::from_iter_values([
+                                                "heartbeat-ok".to_string(),
+                                            ]));
+                                        let item = RecordBatch::try_from_iter(vec![
+                                            ("ts", val),
+                                            ("action", action),
+                                            ("context", context),
+                                        ])
+                                        .map_err(FlightError::Arrow);
+                                        log::info!("Send heartbeat response");
+                                        let _ = resp_tx.send_async(item).await;
+                                        // return std::task::Poll::Ready(Some(item));
                                     }
-                                    _ => unreachable!(),
+                                    _ => todo!("Unknown action"),
                                 }
                             }
                             // batch.
@@ -285,6 +383,19 @@ impl FlightService for FlightServiceImpl {
                     Ok(())
                 })
                 .await;
+            tracing::info!(agent = agent_id, "Agent RPC stopped");
+            let context = result
+                .err()
+                .map(|err| json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string());
+            let activity = Activity::new::<String>(
+                agent_id,
+                Utc::now(),
+                LevelFilter::Warn,
+                "disconnected",
+                "pending",
+                context,
+            );
+            let _ = controller_runner.push_agent_activity(&activity).await?;
             Ok::<_, anyhow::Error>(())
         });
         let stream: Self::DoExchangeStream = Box::pin(IpcStream::new(rx));
@@ -542,7 +653,7 @@ impl FlightService for FlightServiceImpl {
 }
 
 use taosx_core::utils::get_string_content_from_param_value;
-async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()>{
+async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let mut dsn = task.from.clone().into_dsn()?;
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
@@ -550,16 +661,19 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()>{
         if k == "ua.nodes" || k == "da.tags" {
             // TODO use mime instead
             let (files, strs): (Vec<String>, Vec<String>) = v
-            .split(",")
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .partition(|v| v.starts_with("@"));
+                .split(",")
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .partition(|v| v.starts_with("@"));
             let file_len = files.len();
             for file in files {
                 // let mut reader = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
                 // let header = reader.headers().await?;
-                log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+                log::info!(
+                    "current log: {}",
+                    std::env::current_dir().unwrap().to_str().unwrap()
+                );
                 let f = std::fs::File::open(&file[1..])?;
                 let buf = std::io::BufReader::new(f);
                 let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
@@ -578,13 +692,13 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()>{
                 new_value.pop();
             }
         } else if v.contains("@") {
-            new_value.push_str(get_string_content_from_param_value(&k.as_str(), false, true)?.unwrap_or(String::new()).as_str());
+            new_value.push_str(
+                get_string_content_from_param_value(&k.as_str(), false, true)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
         }
-        let new_value = if new_value.is_empty() {
-            v
-        } else {
-            new_value
-        };
+        let new_value = if new_value.is_empty() { v } else { new_value };
         map.insert(k, new_value);
     }
     dsn.params = map;

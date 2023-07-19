@@ -13,6 +13,7 @@ use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
 bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
     pub struct DataType: u8 {
         const IS_DATA = 0b00000001;
         const IS_META = 0b00000010;

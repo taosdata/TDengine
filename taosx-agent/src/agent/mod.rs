@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::task::Poll;
@@ -20,10 +21,13 @@ use arrow_flight::{
     Action as FlightAction, FlightData,
 };
 use chrono::{DateTime, Utc};
-use flume::Receiver;
-use futures::{FutureExt, TryStreamExt};
+use flume::r#async::RecvStream;
+use flume::{Receiver, Sender};
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use taosx_core::{list_datasets_from, DataSetsReq, Fail, ListResponse, RespAction};
+use taosx_core::{
+    list_datasets_from, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction,
+};
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
@@ -40,7 +44,10 @@ pub struct Client {
 #[serde(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
+    Pending,
     Alive,
+    Idle,
+    Busy,
     Error,
 }
 #[derive(Debug, Clone, Deserialize)]
@@ -71,6 +78,7 @@ pub struct Task {
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     oneshot_topic: Option<String>,
 
     /// The target of the stream.
@@ -80,38 +88,47 @@ pub struct Task {
     pub jobs: u16,
 
     /// Agent Id
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<i64>,
 
     /// Compression level when need (for backup only)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub compression_level: Option<u8>,
 
     /// Force for some risking steps.
     #[serde(default)]
+    #[serde(skip_serializing_if = "is_false")]
     pub force: bool,
 
     /// Created time.
     created_at: DateTime<Utc>,
 
     /// Stopped time.
+    #[serde(skip_serializing_if = "Option::is_none")]
     finished_at: Option<DateTime<Utc>>,
 
     /// Last modified time.
+    #[serde(skip_serializing_if = "Option::is_none")]
     last_modified_at: Option<DateTime<Utc>>,
 
     /// The current status of the tasks.
     status: String,
 
     /// Status reason (only for status: failed).
+    #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
 
     /// Add after_delete hook action, the string would be action name, with or without some configuration.
     ///
     /// It will do nothing if the action is not supported by a specific task case.
+    #[serde(skip_serializing_if = "Option::is_none")]
     after_delete: Option<String>,
     /// A task name.
+    #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
 
     /// Task trigger events, default will be oneshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<String>,
     // / Labels for a task.
     // /
@@ -122,7 +139,9 @@ pub struct Task {
     // #[serde(default)]
     // labels: Vec<(String, Option<String>)>,
 }
-
+const fn is_false(b: &bool) -> bool {
+    *b
+}
 impl Client {
     pub async fn new(endpoint: impl Display, token: impl Display) -> Result<Self> {
         let endpoint = endpoint.to_string();
@@ -158,12 +177,17 @@ impl Client {
         Ok(())
     }
 
-    pub async fn wait_tasks(&mut self, sender: flume::Sender<Action>) -> Result<()> {
+    pub async fn wait_tasks(
+        &mut self,
+        sender: flume::Sender<Action>,
+        resp_tx: Sender<RespAction>,
+        resp_rx: Receiver<RespAction>,
+    ) -> Result<()> {
         struct FakeStream(
             SchemaRef,
             tokio::time::Interval,
             Instant,
-            Receiver<RespAction>,
+            RecvStream<'static, RespAction>,
         );
 
         impl futures::Stream for FakeStream {
@@ -172,68 +196,138 @@ impl Client {
                 mut self: std::pin::Pin<&mut Self>,
                 cx: &mut std::task::Context<'_>,
             ) -> std::task::Poll<Option<Self::Item>> {
-                // info!("polled");
-                match self.3.recv_async().poll_unpin(cx) {
-                    Poll::Ready(Ok(action)) => match action {
-                        RespAction::Heartbeat => {
-                            let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                Utc::now().timestamp_millis(),
-                            ])) as ArrayRef;
-                            let context: ArrayRef =
-                                Arc::new(StringArray::from_iter([Option::<String>::None]));
-                            let action: ArrayRef =
-                                Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
-                            let item = RecordBatch::try_from_iter(vec![
-                                ("ts", val),
-                                ("action", action),
-                                ("context", context),
-                            ])
-                            .map_err(Into::into);
-                            log::info!("{item:?}");
-                            return std::task::Poll::Ready(Some(item));
+                let s = Pin::new(&mut self.3);
+                match s.poll_next(cx) {
+                    Poll::Ready(Some(action)) => {
+                        match action {
+                            RespAction::Heartbeat => {
+                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                                    Utc::now().timestamp_millis(),
+                                ])) as ArrayRef;
+                                let context: ArrayRef =
+                                    Arc::new(StringArray::from_iter([Option::<String>::None]));
+                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    "heartbeat".to_string(),
+                                ]));
+                                let item = RecordBatch::try_from_iter(vec![
+                                    ("ts", val),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .map_err(Into::into);
+                                log::info!("{item:?}");
+                                return std::task::Poll::Ready(Some(item));
+                            }
+                            RespAction::HeartbeatOk(resp) => {
+                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                                    Utc::now().timestamp_millis(),
+                                ])) as ArrayRef;
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&resp).unwrap(),
+                                ]));
+                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    "heartbeat-ok".to_string(),
+                                ]));
+                                let item = RecordBatch::try_from_iter(vec![
+                                    ("ts", val),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .map_err(Into::into);
+                                log::info!("Send heartbeat response: {item:?}");
+                                cx.waker().wake_by_ref();
+                                return std::task::Poll::Ready(Some(item));
+                            }
+                            RespAction::TaskError(_) => (),
+                            RespAction::ListOk(sets) => {
+                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                                    Utc::now().timestamp_millis(),
+                                ])) as ArrayRef;
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&sets).unwrap(),
+                                ]));
+                                let action: ArrayRef =
+                                    Arc::new(StringArray::from_iter_values(["list".to_string()]));
+                                let item = RecordBatch::try_from_iter(vec![
+                                    ("ts", val),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .map_err(Into::into);
+                                log::info!("{item:?}");
+                                cx.waker().wake_by_ref();
+                                return std::task::Poll::Ready(Some(item));
+                            }
+                            RespAction::AgentActivity(activity) => {
+                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                                    Utc::now().timestamp_millis(),
+                                ])) as ArrayRef;
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&activity).unwrap(),
+                                ]));
+                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    "agent-activity".to_string(),
+                                ]));
+                                let item = RecordBatch::try_from_iter(vec![
+                                    ("ts", val),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .map_err(Into::into);
+                                // log::info!("{item:?}");
+                                cx.waker().wake_by_ref();
+                                return std::task::Poll::Ready(Some(item));
+                            }
+                            RespAction::TaskActivity(activity) => {
+                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                                    Utc::now().timestamp_millis(),
+                                ])) as ArrayRef;
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&activity).unwrap(),
+                                ]));
+                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    "task-activity".to_string(),
+                                ]));
+                                let item = RecordBatch::try_from_iter(vec![
+                                    ("ts", val),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .map_err(Into::into);
+                                // log::info!("{item:?}");
+                                cx.waker().wake_by_ref();
+                                return std::task::Poll::Ready(Some(item));
+                            }
                         }
-                        RespAction::TaskError(_) => (),
-                        RespAction::ListOk(sets) => {
-                            let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                Utc::now().timestamp_millis(),
-                            ])) as ArrayRef;
-                            let context: ArrayRef =
-                                Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                                    &sets,
-                                )
-                                .unwrap()]));
-                            let action: ArrayRef =
-                                Arc::new(StringArray::from_iter_values(["list".to_string()]));
-                            let item = RecordBatch::try_from_iter(vec![
-                                ("ts", val),
-                                ("action", action),
-                                ("context", context),
-                            ])
-                            .map_err(Into::into);
-                            log::info!("{item:?}");
-                            cx.waker().wake_by_ref();
-                            return std::task::Poll::Ready(Some(item));
-                        }
-                    },
+                    }
                     _ => (),
-                    // Poll::Ready(Err(err)) => {
-                    //     tracing::error!("Error: {err}");
-                    //     cx.waker().wake_by_ref();
-                    //     return Poll::Pending;
-                    // }
-                    // _ => {
-                    //     return Poll::Pending;
-                    // }
                 }
 
                 match self.1.poll_tick(cx) {
-                    Poll::Ready(_) => (),
+                    Poll::Ready(_) => {
+                        // heartbeat
+
+                        let val =
+                            Arc::new(TimestampMillisecondArray::from_iter_values([
+                                Utc::now().timestamp_millis()
+                            ])) as ArrayRef;
+                        let context: ArrayRef =
+                            Arc::new(StringArray::from_iter([Option::<String>::None]));
+                        let action: ArrayRef =
+                            Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
+                        let item = RecordBatch::try_from_iter(vec![
+                            ("ts", val),
+                            ("action", action),
+                            ("context", context),
+                        ])
+                        .map_err(Into::into);
+                        log::info!("send heartbeat message");
+                        return std::task::Poll::Ready(Some(item));
+                    }
                     Poll::Pending => {
                         return Poll::Pending;
                     }
                 }
-                cx.waker().wake_by_ref();
-                Poll::Pending
             }
         }
         struct Data {
@@ -282,7 +376,7 @@ impl Client {
                 "1".to_string(),
             )])),
         );
-        let (resp_tx, resp_rx) = flume::unbounded();
+        // let (resp_tx, resp_rx) = flume::unbounded();
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
             .with_options(
@@ -290,9 +384,9 @@ impl Client {
             )
             .build(FakeStream(
                 schema.clone(),
-                tokio::time::interval(Duration::from_secs(5)),
+                tokio::time::interval(Duration::from_secs(30)),
                 Instant::now(),
-                resp_rx,
+                resp_rx.into_stream(),
             ));
 
         let req = Data {
@@ -352,7 +446,16 @@ impl Client {
                         let _ = resp_tx.send(RespAction::ListOk(ListResponse { req, res: sets }));
                     }
                     "heartbeat" => {
-                        //
+                        let resp = HeartbeatResponse {
+                            req: ts.naive_utc().and_utc(),
+                            res: Utc::now(),
+                        };
+                        let _ = resp_tx.send(RespAction::HeartbeatOk(resp));
+                    }
+                    "heartbeat-ok" => {
+                        let resp: HeartbeatResponse = serde_json::from_str(&context).unwrap();
+                        let delay = resp.duration().to_std().unwrap();
+                        info!("Server is alive, delay: {:?}", delay);
                     }
                     _ => unreachable!(),
                 }

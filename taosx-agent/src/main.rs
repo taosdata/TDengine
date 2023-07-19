@@ -23,7 +23,7 @@ use twelf::{config, Layer};
 use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
-    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_TAOSX_LOGS_KEEP_DAYS,
+    get_log_dir, get_log_keep_days, valid_env_log_keep_days, RespAction, ENV_TAOSX_LOGS_KEEP_DAYS,
 };
 
 use crate::runner::TaskStatus;
@@ -175,7 +175,11 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
     let mut client2 = agent::Client::new(&args.endpoint, &args.token).await?;
     let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
-    let (runner, tasks, sender, status) = runner::spawn_runner(&args.endpoint, &args.token);
+
+    let (resp_tx, resp_rx) = flume::unbounded::<RespAction>();
+
+    let (runner, tasks, sender, status) =
+        runner::spawn_runner(&args.endpoint, &args.token, resp_tx.clone());
 
     tokio::select! {
         _ = ctrl_c => {
@@ -200,7 +204,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         _ = async {
             loop {
                 let sender = sender.clone();
-                if let Err(err) = client.wait_tasks(sender).await {
+                if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
                     tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
@@ -245,8 +249,8 @@ fn set_env_log_keep_days(config: Option<i64>) {
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
     println!(
-        "Serve agent with endpoint: {} via token {}",
-        args.endpoint, args.token
+        "Serve agent with endpoint: {} via token ******",
+        args.endpoint
     );
     set_env_log_keep_days(args.log_keep_days);
 

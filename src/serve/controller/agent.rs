@@ -1,32 +1,86 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sqlx::{Decode, Encode, FromRow};
+use sqlx::{Decode, Encode, FromRow, Type};
+use tracing::debug;
 use utoipa::{IntoParams, ToSchema};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema, Type)]
 #[serde(rename_all = "snake_case")]
-#[derive(sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
+    Pending,
     Alive,
+    Idle,
+    Busy,
     Error,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
 pub enum AgentActivity {
     Create,
     Connect,
     Offline,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct Activity {
+    pub id: i64,
+    pub at: chrono::DateTime<Utc>,
+    pub level: LevelFilter,
+    pub activity: String,
+    pub status: String,
+    pub context: Option<serde_json::Value>,
+}
+
+impl Activity {
+    pub fn new<T: ToString>(
+        id: i64,
+        at: DateTime<Utc>,
+        level: LevelFilter,
+        activity: impl Into<String>,
+        status: impl Into<String>,
+        context: impl Into<Option<T>>,
+    ) -> Self {
+        Activity {
+            id,
+            at,
+            level,
+            activity: activity.into(),
+            status: status.into(),
+            context: context.into().map(|v| {
+                let v = v.to_string();
+                serde_json::Value::from_str(v.as_str())
+                    .unwrap_or_else(|_| serde_json::Value::String(v))
+            }),
+        }
+    }
+}
+
+#[test]
+fn test_activity() {
+    let _ = Activity::new(1, Utc::now(), LevelFilter::Info, "a", "b", "c");
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct AgentActivityItem {
+    id: i64,
+    at: chrono::DateTime<Utc>,
+    level: LevelFilter,
+    activity: String,
+    status: String,
+    context: Option<serde_json::Value>,
+}
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AgentWithToken {
     pub id: i64,
@@ -55,6 +109,7 @@ pub struct Agent {
     pub user_id: String,
 
     created_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     last_modified_at: Option<DateTime<Utc>>,
     status: Option<AgentStatus>,
 }
@@ -173,5 +228,73 @@ impl AgentToken {
             source,
         })
         .map(|data| data.claims)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, ToSchema, sqlx::Type)]
+#[repr(u8)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelFilter {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ActivityOrder {
+    Asc,
+    Desc,
+}
+impl Display for ActivityOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActivityOrder::Asc => f.write_str("asc"),
+            ActivityOrder::Desc => f.write_str("desc"),
+        }
+    }
+}
+#[derive(Debug, Deserialize, Serialize, IntoParams, ToSchema, Default)]
+pub struct AgentActivityFilter {
+    since: Option<DateTime<Utc>>,
+    level: Option<LevelFilter>,
+    limit: Option<usize>,
+    order: Option<ActivityOrder>,
+}
+
+impl AgentActivityFilter {
+    fn condition(&self) -> String {
+        let since = self.since.as_ref().map(|s| format!("`at` >= '{}'", s));
+        let level = self.level.map(|l| format!("`level` <= {}", l as u8));
+        let cond = since.into_iter().chain(level).fold(None, |acc, i| {
+            if let Some(acc) = acc {
+                Some(format!("{acc} AND {i}"))
+            } else {
+                Some(i)
+            }
+        });
+        let limit = self.limit.unwrap_or(10);
+
+        let order = self.order.unwrap_or(ActivityOrder::Desc);
+        match cond {
+            Some(cond) => format!("AND {cond} ORDER BY `at` {order} LIMIT {limit}"),
+            None => format!("ORDER BY `at` {order} LIMIT {limit}"),
+        }
+    }
+}
+
+impl super::TaskController {
+    pub async fn agent_activities(
+        &self,
+        agent_id: i64,
+        filter: &AgentActivityFilter,
+    ) -> anyhow::Result<Vec<AgentActivityItem>> {
+        let cond = filter.condition();
+        let sql = format!("select * from agent_activities where `id` = {agent_id} {cond}");
+        debug!("sql: {sql}");
+        let items = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
+        Ok(items)
     }
 }

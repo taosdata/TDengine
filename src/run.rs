@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::{io::BufRead, time::Duration};
+use std::{time::Duration};
 use taos::*;
 use taosx_core::{
     csv_to_taos, influxdb_to_taos, kafka_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos,

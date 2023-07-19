@@ -34,10 +34,7 @@ use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
 use taosx_ipc::{
     prelude::*,
-    stream::{
-        flat::FlatMessage,
-        point::{self, PointMessage},
-    },
+    stream::{flat::FlatMessage, point::PointMessage},
 };
 
 // mod rpc_client;
