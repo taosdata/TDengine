@@ -43,5 +43,9 @@ namespace TDPIConnector.Service
             log.Info("Start Print PI Info");
             appService.PrintPIInfo(pointFilter);
         }
+        public static void PrintPISDKInfo()
+        {
+            AppService.GetPISDKInfo();
+        }
     }
 }

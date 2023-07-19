@@ -63,6 +63,10 @@ namespace TDPIConnector.Service
                     case "v":
                         PrintVersion(false);
                         return;
+                    case "piversion":
+                    case "pv":
+                        Service.PrintPISDKInfo();
+                        return;
                     case "install":
                     case "i":
                         if (!ServiceInstallerUtility.InstallService())
