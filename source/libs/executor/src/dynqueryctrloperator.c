@@ -582,7 +582,6 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
   switch (pInfo->qType) {
     case DYN_QTYPE_STB_HASH:
       memcpy(&pInfo->stbJoin.basic, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
-      pInfo->stbJoin.basic.batchJoin = true;
       if (pInfo->stbJoin.basic.batchJoin) {
         code = initBatchStbJoinVgHash(&pInfo->stbJoin.ctx.prev);
         if (TSDB_CODE_SUCCESS != code) {

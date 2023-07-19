@@ -852,8 +852,7 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   SSDataBlock* result = doGroupedTableScan(pOperator);
   if (result != NULL) {
     if (pOperator->dynamicTask) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentGroupId);
-      result->info.id.groupId = pKeyInfo->uid;
+      result->info.id.groupId = result->info.id.uid;
     }
     return result;
   }
@@ -891,8 +890,7 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   SSDataBlock* result = doGroupedTableScan(pOperator);
   if (result != NULL) {
     if (pOperator->dynamicTask) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentGroupId);
-      result->info.id.groupId = pKeyInfo->uid;
+      result->info.id.groupId = result->info.id.uid;
     }
     return result;
   }

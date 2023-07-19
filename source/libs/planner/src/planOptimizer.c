@@ -3232,6 +3232,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
   pGrpCache->node.dynamicOp = true;
   pGrpCache->grpColsMayBeNull = false;
   pGrpCache->grpByUid = true;
+  pGrpCache->batchFetch = true;
   pGrpCache->node.pChildren = pChildren;
   pGrpCache->node.pTargets = nodesMakeList();
   if (NULL == pGrpCache->node.pTargets) {
@@ -3337,6 +3338,7 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
   }
 
   pDynCtrl->qType = DYN_QTYPE_STB_HASH;
+  pDynCtrl->stbJoin.batchJoin = true;
   
   if (TSDB_CODE_SUCCESS == code) {  
     pDynCtrl->node.pChildren = nodesMakeList();
@@ -3346,24 +3348,24 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
   }
 
   if (TSDB_CODE_SUCCESS == code) {  
-    pDynCtrl->pVgList = nodesMakeList();
-    if (NULL == pDynCtrl->pVgList) {
+    pDynCtrl->stbJoin.pVgList = nodesMakeList();
+    if (NULL == pDynCtrl->stbJoin.pVgList) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
   if (TSDB_CODE_SUCCESS == code) {  
-    pDynCtrl->pUidList = nodesMakeList();
-    if (NULL == pDynCtrl->pUidList) {
+    pDynCtrl->stbJoin.pUidList = nodesMakeList();
+    if (NULL == pDynCtrl->stbJoin.pUidList) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
   SJoinLogicNode* pHJoin = (SJoinLogicNode*)pPrev;
-  nodesListStrictAppend(pDynCtrl->pUidList, nodesListGetNode(pHJoin->node.pTargets, 0));
-  nodesListStrictAppend(pDynCtrl->pUidList, nodesListGetNode(pHJoin->node.pTargets, 2));
-  nodesListStrictAppend(pDynCtrl->pVgList, nodesListGetNode(pHJoin->node.pTargets, 1));
-  nodesListStrictAppend(pDynCtrl->pVgList, nodesListGetNode(pHJoin->node.pTargets, 3));
+  nodesListStrictAppend(pDynCtrl->stbJoin.pUidList, nodesListGetNode(pHJoin->node.pTargets, 0));
+  nodesListStrictAppend(pDynCtrl->stbJoin.pUidList, nodesListGetNode(pHJoin->node.pTargets, 2));
+  nodesListStrictAppend(pDynCtrl->stbJoin.pVgList, nodesListGetNode(pHJoin->node.pTargets, 1));
+  nodesListStrictAppend(pDynCtrl->stbJoin.pVgList, nodesListGetNode(pHJoin->node.pTargets, 3));
   
   if (TSDB_CODE_SUCCESS == code) {
     nodesListStrictAppend(pDynCtrl->node.pChildren, (SNode*)pPrev);

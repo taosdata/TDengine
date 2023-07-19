@@ -540,6 +540,7 @@ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCache
   COPY_SCALAR_FIELD(grpColsMayBeNull);
   COPY_SCALAR_FIELD(grpByUid);
   COPY_SCALAR_FIELD(globalGrp);
+  COPY_SCALAR_FIELD(batchFetch);
   CLONE_NODE_LIST_FIELD(pGroupCols);
   return TSDB_CODE_SUCCESS;
 }
@@ -547,8 +548,9 @@ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCache
 static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQueryCtrlLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(qType);
-  CLONE_NODE_LIST_FIELD(pVgList);
-  CLONE_NODE_LIST_FIELD(pUidList);
+  COPY_SCALAR_FIELD(stbJoin.batchJoin);
+  CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
+  CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   return TSDB_CODE_SUCCESS;
 }
 

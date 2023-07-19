@@ -162,14 +162,20 @@ typedef struct SGroupCacheLogicNode {
   bool        grpColsMayBeNull;  
   bool        grpByUid;
   bool        globalGrp;
+  bool        batchFetch;
   SNodeList*  pGroupCols;
 } SGroupCacheLogicNode;
 
-typedef struct SDynQueryCtrlLogicNode {
-  SLogicNode    node;
-  EDynQueryType qType;
+typedef struct SDynQueryCtrlStbJoin {
+  bool          batchJoin;
   SNodeList*    pVgList;
   SNodeList*    pUidList;
+} SDynQueryCtrlStbJoin;
+
+typedef struct SDynQueryCtrlLogicNode {
+  SLogicNode           node;
+  EDynQueryType        qType;
+  SDynQueryCtrlStbJoin stbJoin;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -445,13 +451,14 @@ typedef struct SGroupCachePhysiNode {
   bool       grpColsMayBeNull;
   bool       grpByUid;
   bool       globalGrp;
+  bool       batchFetch;
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 
 typedef struct SStbJoinDynCtrlBasic {
+  bool     batchJoin;
   int32_t  vgSlot[2];
   int32_t  uidSlot[2];
-  bool     batchJoin;
 } SStbJoinDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {

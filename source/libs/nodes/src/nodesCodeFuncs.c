@@ -1228,6 +1228,9 @@ static int32_t jsonToLogicGroupCacheNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkDynQueryCtrlLogicPlanQueryType = "QueryType";
+static const char* jkDynQueryCtrlLogicPlanStbJoinBatchJoin = "BatchJoin";
+static const char* jkDynQueryCtrlLogicPlanStbJoinVgList = "VgroupList";
+static const char* jkDynQueryCtrlLogicPlanStbJoinUidList = "UidList";
 
 static int32_t logicDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   const SDynQueryCtrlLogicNode* pNode = (const SDynQueryCtrlLogicNode*)pObj;
@@ -1235,6 +1238,15 @@ static int32_t logicDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchJoin, pNode->stbJoin.batchJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkDynQueryCtrlLogicPlanStbJoinVgList, pNode->stbJoin.pVgList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkDynQueryCtrlLogicPlanStbJoinUidList, pNode->stbJoin.pUidList);
   }
 
   return code;
@@ -1246,6 +1258,15 @@ static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchJoin, &pNode->stbJoin.batchJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkDynQueryCtrlLogicPlanStbJoinVgList, &pNode->stbJoin.pVgList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkDynQueryCtrlLogicPlanStbJoinUidList, &pNode->stbJoin.pUidList);
   }
 
   return code;
@@ -2929,6 +2950,7 @@ static const char* jkGroupCachePhysiPlanGroupCols = "GroupColumns";
 static const char* jkGroupCachePhysiPlanGrpColsMayBeNull = "GroupColumnsMayBeNull";
 static const char* jkGroupCachePhysiPlanGroupByUid = "GroupByUid";
 static const char* jkGroupCachePhysiPlanGlobalGroup = "GlobalGroup";
+static const char* jkGroupCachePhysiPlanBatchFetch = "BatchFetch";
 
 
 static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
@@ -2943,6 +2965,9 @@ static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   }  
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGlobalGroup, pNode->globalGrp);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanBatchFetch, pNode->batchFetch);
   }  
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCachePhysiPlanGroupCols, pNode->pGroupCols);
@@ -2964,12 +2989,16 @@ static int32_t jsonToPhysiGroupCacheNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkGroupCachePhysiPlanGlobalGroup, &pNode->globalGrp);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkGroupCachePhysiPlanBatchFetch, &pNode->batchFetch);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkGroupCachePhysiPlanGroupCols, &pNode->pGroupCols);
   }
   return code;
 }
 
 static const char* jkDynQueryCtrlPhysiPlanQueryType = "QueryType";
+static const char* jkDynQueryCtrlPhysiPlanBatchJoin = "BatchJoin";
 static const char* jkDynQueryCtrlPhysiPlanVgSlot0 = "VgSlot[0]";
 static const char* jkDynQueryCtrlPhysiPlanVgSlot1 = "VgSlot[1]";
 static const char* jkDynQueryCtrlPhysiPlanUidSlot0 = "UidSlot[0]";
@@ -2985,7 +3014,10 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     switch (pNode->qType) {
       case DYN_QTYPE_STB_HASH: {
-        code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanVgSlot0, pNode->stbJoin.vgSlot[0]);
+        code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanBatchJoin, pNode->stbJoin.batchJoin);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanVgSlot0, pNode->stbJoin.vgSlot[0]);
+        }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanVgSlot1, pNode->stbJoin.vgSlot[1]);
         }
@@ -3015,6 +3047,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
     switch (pNode->qType) {
       case DYN_QTYPE_STB_HASH: {
         tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanQueryType, pNode->qType, code);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanBatchJoin, &pNode->stbJoin.batchJoin);
+        }
         if (TSDB_CODE_SUCCESS == code) {
           tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanVgSlot0, pNode->stbJoin.vgSlot[0], code);
         }

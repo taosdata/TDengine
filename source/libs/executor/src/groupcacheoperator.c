@@ -280,6 +280,8 @@ static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* p
   }
 
   if (pBlock) {
+    qError("%s group cache retrieved block with groupId: %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
+    
     pGCache->execInfo.pDownstreamBlkNum[downstreamIdx]++;
     if (NULL == pGCache->pDownstreams[downstreamIdx].pBaseBlock) {
       code = buildGroupCacheBaseBlock(&pGCache->pDownstreams[downstreamIdx].pBaseBlock, pBlock);
@@ -341,6 +343,60 @@ static void handleVgroupTableFetchDone(SGcDownstreamCtx* pCtx, SGroupCacheData* 
   pGroup->fileId = pGroup->pVgCtx->fileId;
   pGroup->startOffset = pGroup->pVgCtx->fileSize;
 }
+
+
+static FORCE_INLINE void initNewGroupData(SGcDownstreamCtx* pCtx, SGroupCacheData* pGroup, int32_t downstreamIdx, int32_t vgId) {
+  taosThreadMutexInit(&pGroup->mutex, NULL);
+  pGroup->downstreamIdx = downstreamIdx;
+  pGroup->vgId = vgId;
+  pGroup->fileId = -1;
+  pGroup->startBlkId = -1;
+  pGroup->endBlkId = -1;
+  pGroup->startOffset = -1;
+  pGroup->pVgCtx = tSimpleHashGet(pCtx->pVgTbHash, &pGroup->vgId, sizeof(pGroup->vgId));
+}
+
+static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SGroupCacheData** ppGrp, int32_t vgId, int64_t uid) {
+  SGroupCacheOperatorInfo* pGCache = pOperator->info;
+  SGcDownstreamCtx* pCtx = &pGCache->pDownstreams[pParam->downstreamIdx];
+  SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
+  SGroupCacheData grpData = {0};
+  initNewGroupData(pCtx, &grpData, pParam->downstreamIdx, vgId);
+  
+  while (true) {
+    if (0 != taosHashPut(pGrpHash, &uid, sizeof(uid), &grpData, sizeof(grpData))) {
+      if (terrno == TSDB_CODE_DUP_KEY) {
+        *ppGrp = taosHashAcquire(pGrpHash, &uid, sizeof(uid));
+        if (*ppGrp) {
+          break;
+        }
+      } else {
+        return terrno;
+      }
+    }
+
+    *ppGrp = taosHashAcquire(pGrpHash, &uid, sizeof(uid));
+    if (*ppGrp && pParam->pChildren) {
+      SGcNewGroupInfo newGroup;
+      newGroup.pGroup = *ppGrp;
+      newGroup.vgId = vgId;
+      newGroup.uid = uid;
+      newGroup.pParam = taosArrayGetP(pParam->pChildren, 0);
+      
+      taosWLockLatch(&pCtx->grpLock);
+      if (NULL == taosArrayPush(pCtx->pNewGrpList, &newGroup)) {
+        taosWUnLockLatch(&pCtx->grpLock);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      taosWUnLockLatch(&pCtx->grpLock);
+      
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSDataBlock* pBlock, SGcSessionCtx* pSession, bool* continueFetch) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -594,58 +650,6 @@ static int32_t initGroupCacheBlockCache(SGroupCacheOperatorInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE void initNewGroupData(SGcDownstreamCtx* pCtx, SGroupCacheData* pGroup, int32_t downstreamIdx, int32_t vgId) {
-  taosThreadMutexInit(&pGroup->mutex, NULL);
-  pGroup->downstreamIdx = downstreamIdx;
-  pGroup->vgId = vgId;
-  pGroup->fileId = -1;
-  pGroup->startBlkId = -1;
-  pGroup->endBlkId = -1;
-  pGroup->startOffset = -1;
-  pGroup->pVgCtx = tSimpleHashGet(pCtx->pVgTbHash, &pGroup->vgId, sizeof(pGroup->vgId));
-}
-
-static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SGroupCacheData** ppGrp, int32_t vgId, int64_t uid) {
-  SGroupCacheOperatorInfo* pGCache = pOperator->info;
-  SGcDownstreamCtx* pCtx = &pGCache->pDownstreams[pParam->downstreamIdx];
-  SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
-  SGroupCacheData grpData = {0};
-  initNewGroupData(pCtx, &grpData, pParam->downstreamIdx, vgId);
-  
-  while (true) {
-    if (0 != taosHashPut(pGrpHash, &uid, sizeof(uid), &grpData, sizeof(grpData))) {
-      if (terrno == TSDB_CODE_DUP_KEY) {
-        *ppGrp = taosHashAcquire(pGrpHash, &uid, sizeof(uid));
-        if (*ppGrp) {
-          break;
-        }
-      } else {
-        return terrno;
-      }
-    }
-
-    *ppGrp = taosHashAcquire(pGrpHash, &uid, sizeof(uid));
-    if (*ppGrp && pParam->pChildren) {
-      SGcNewGroupInfo newGroup;
-      newGroup.pGroup = *ppGrp;
-      newGroup.vgId = vgId;
-      newGroup.uid = uid;
-      newGroup.pParam = taosArrayGetP(pParam->pChildren, 0);
-      
-      taosWLockLatch(&pCtx->grpLock);
-      if (NULL == taosArrayPush(pCtx->pNewGrpList, &newGroup)) {
-        taosWUnLockLatch(&pCtx->grpLock);
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      taosWUnLockLatch(&pCtx->grpLock);
-      
-      break;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static FORCE_INLINE void initGroupCacheSessionCtx(SGcSessionCtx* pSession, SGcOperatorParam* pGcParam, SGroupCacheData* pGroup) {
   pSession->pParam = pGcParam;
   pSession->downstreamIdx = pGcParam->downstreamIdx;
@@ -664,7 +668,7 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SOperatorP
 
   SGroupCacheData* pGroup = taosHashAcquire(pGrpHash, &pGcParam->tbUid, sizeof(pGcParam->tbUid));
   if (NULL == pGroup) {
-    code = addNewGroupData(pOperator, pParam, &pGroup, pGcParam->vgId, pGcParam->tbUid);
+    code = addNewGroupData(pOperator, pParam, &pGroup, pGCache->batchFetch ? -1 : pGcParam->vgId, pGcParam->tbUid);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -733,6 +737,11 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     if (NULL == pInfo->pDownstreams[i].pVgTbHash) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    if (pInfo->batchFetch) {
+      SGcVgroupCtx vgCtx = {.pTbList = NULL, .lastUid = 0, .fileSize = 0, .fileId = i};
+      int32_t defaultVg = -1;
+      tSimpleHashPut(pInfo->pDownstreams[i].pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+    }
     
     pInfo->pDownstreams[i].pNewGrpList = taosArrayInit(10, sizeof(SGcNewGroupInfo));
     if (NULL == pInfo->pDownstreams[i].pNewGrpList) {
@@ -795,7 +804,7 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pInfo->maxCacheSize = -1;
   pInfo->grpByUid = pPhyciNode->grpByUid;
   pInfo->globalGrp = pPhyciNode->globalGrp;
-  pInfo->batchFetch = false;
+  pInfo->batchFetch = pPhyciNode->batchFetch;
   
   if (!pInfo->grpByUid) {
     qError("only group cache by uid is supported now");

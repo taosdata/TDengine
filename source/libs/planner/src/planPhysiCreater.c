@@ -988,6 +988,7 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   pGrpCache->grpColsMayBeNull = pLogicNode->grpColsMayBeNull;
   pGrpCache->grpByUid = pLogicNode->grpByUid;
   pGrpCache->globalGrp = pLogicNode->globalGrp;
+  pGrpCache->batchFetch = pLogicNode->batchFetch;
   SDataBlockDescNode* pChildDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
   int32_t             code = TSDB_CODE_SUCCESS;
   if (TSDB_CODE_SUCCESS == code) {
@@ -1002,21 +1003,15 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   return code;
 }
-                                    
-static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SDynQueryCtrlLogicNode* pLogicNode,
-                                            SPhysiNode** pPhyNode) {
-  SDynQueryCtrlPhysiNode* pDynCtrl =
-  (SDynQueryCtrlPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL);
-  if (NULL == pDynCtrl) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
+static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList* pChildren, SDynQueryCtrlLogicNode* pLogicNode,
+                                            SDynQueryCtrlPhysiNode* pDynCtrl) {
   SDataBlockDescNode* pPrevDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
   SNodeList* pVgList = NULL;
   SNodeList* pUidList = NULL;
-  int32_t code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->pVgList, &pVgList);
+  int32_t code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->stbJoin.pVgList, &pVgList);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->pUidList, &pUidList);
+    code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->stbJoin.pUidList, &pUidList);
   }
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pNode = NULL;
@@ -1030,10 +1025,32 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
       pDynCtrl->stbJoin.uidSlot[i] = ((SColumnNode*)pNode)->slotId;
       ++i;
     }
+    pDynCtrl->stbJoin.batchJoin = pLogicNode->stbJoin.batchJoin;
   }
+
+  return code;
+}
+                                    
+static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SDynQueryCtrlLogicNode* pLogicNode,
+                                            SPhysiNode** pPhyNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SDynQueryCtrlPhysiNode* pDynCtrl =
+  (SDynQueryCtrlPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL);
+  if (NULL == pDynCtrl) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  switch (pLogicNode->qType) {
+    case DYN_QTYPE_STB_HASH:
+      code = updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl);
+      break;
+    default:
+      planError("Invalid dyn query ctrl type:%d", pLogicNode->qType);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     pDynCtrl->qType = pLogicNode->qType;
-
     *pPhyNode = (SPhysiNode*)pDynCtrl;
   }
 
