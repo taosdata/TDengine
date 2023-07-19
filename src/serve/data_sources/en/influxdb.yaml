@@ -94,6 +94,25 @@ groups:
     display_order: 1
     description: Configure the data migration task
     params:
+      - name: bucket
+        display: Bucket
+        description: Select a specified bucket to migrate
+        placeholder: Please select the bucket
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
+        required: true
+      - name: measurements
+        display: Measurements
+        description: Select one or more specified measurements to migrate, if empty, migrate all
+        placeholder: Please select the measurements
+        multiple: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
       - name: beginTime
         display: Data Begin Time
         description: Set a data start time
@@ -116,22 +135,3 @@ groups:
             - D
             - H
             - M
-      - name: bucket
-        display: Bucket
-        description: Select a specified bucket to migrate
-        placeholder: Please select the bucket
-        hint:
-          type: str
-          choices:
-            - "--NONE--"
-        required: true
-      - name: measurements
-        display: Measurements
-        description: Select one or more specified measurements to migrate, if empty, migrate all
-        placeholder: Please select the measurements
-        multiple: true
-        editable: true
-        hint:
-          type: str
-          choices:
-            - "--NONE--"

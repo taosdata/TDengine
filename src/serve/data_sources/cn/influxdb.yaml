@@ -96,6 +96,25 @@ groups:
     display_order: 1
     description: 配置同步任务的起始时间和所同步的内容。
     params:
+      - name: bucket
+        display: 桶 Bucket
+        description: 指定需要同步的 Bucket 。
+        placeholder: 请选择 Bucket
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
+        required: true
+      - name: measurements
+        display: 测量值 Measurements
+        description: 指定需要同步的 Measurements ，未指定则同步全部。
+        placeholder: 请选择 Measurements
+        multiple: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
       - name: beginTime
         display: 起始时间
         description: 同步数据的起始时间戳。
@@ -118,22 +137,3 @@ groups:
             - D
             - H
             - M
-      - name: bucket
-        display: 桶 Bucket
-        description: 指定需要同步的 Bucket 。
-        placeholder: 请选择 Bucket
-        hint:
-          type: str
-          choices:
-            - "--NONE--"
-        required: true
-      - name: measurements
-        display: 测量值 Measurements
-        description: 指定需要同步的 Measurements ，未指定则同步全部。
-        placeholder: 请选择 Measurements
-        multiple: true
-        editable: true
-        hint:
-          type: str
-          choices:
-            - "--NONE--"
