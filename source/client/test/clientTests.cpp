@@ -1127,7 +1127,7 @@ TEST(clientCase, tmq_commit) {
     printf("position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
     tmq_offset_seek(tmq, topicName, pAssign[i].vgId, 1);
     position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("after seek 100, position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+    printf("after seek 1, position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
   }
 
   while (1) {
@@ -1143,6 +1143,12 @@ TEST(clientCase, tmq_commit) {
     for(int i = 0; i < numOfAssign; i++) {
       int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
       printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+      if(committed > 0){
+        int32_t code = tmq_commit_offset_sync(tmq, topicName, pAssign[i].vgId, 4);
+        printf("tmq_commit_offset_sync vgId:%d, offset:4, code:%d\n", pAssign[i].vgId, code);
+        int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
+        printf("after tmq_commit_offset_sync, committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+      }
     }
     if (pRes != NULL) {
       taos_free_result(pRes);
