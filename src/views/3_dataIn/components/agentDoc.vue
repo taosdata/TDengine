@@ -139,4 +139,7 @@ p {
   top: 40px;
   font-size:12px;
 }
+.agent-doc{
+    padding: 15px;
+}
 </style>

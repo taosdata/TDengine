@@ -485,6 +485,8 @@ export default {
   .el-dialog__wrapper.copy-agent {
     .el-dialog__header {
       display: flex;
+      padding-top: 50px;
+      justify-content: center;
     }
   }
 }
