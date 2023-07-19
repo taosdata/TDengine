@@ -56,9 +56,7 @@
             :index="index"
             :colData="localcsv"
             :dbOptions="dbOptions"
-            @changePrimary="changePrimary"
             :isEditable="isEditable"
-            @changeAddStatus="changeAddStatus"
             @handleVisble="handleVisble"
             @handledbChange="handledbChange"
             @handleFilter="handleFilter"
@@ -129,7 +127,7 @@ export default {
         result.map((item) => {
           let alias = this.localcsv.parser.parse[item].alias
           this.dbOptions.push({
-            disabled: false,
+            disabled: true,
             field: alias,
             length: 8,
             note: "",
@@ -194,8 +192,8 @@ export default {
       console.log(this.dbOptions, "this.dbOptions");
       return true;
     },
-    changePrimary() {},
-    changeAddStatus() {},
+    
+    
     handleClick() {},
     handleSuccess(response, file, fileList) {
       this.fileList = fileList;
@@ -262,7 +260,7 @@ export default {
         });
         this.dbOptions = this.dbOptions.concat(
           res.map((item) => {
-            return Object.assign(item, { disabled: false });
+            return Object.assign(item, { disabled: true });
           })
         );
 
