@@ -216,6 +216,32 @@ class TDTestCase:
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.error(sqlString)
         
+        tdLog.info("drop database when there are topic") 
+        sqlString = "drop database %s" %(paraDict['dbName'])
+        tdLog.info("drop database sql: %s"%sqlString)
+        tdSql.error(sqlString)        
+        
+        tdLog.info("drop all topic for re-create") 
+        tdSql.query('show topics;')
+        topicNum = tdSql.queryRows
+        tdLog.info(" topic count: %d"%(topicNum))
+        for i in range(topicNum):
+            sqlString = "drop topic %s" %(tdSql.getData(i, 0))
+            tdLog.info("drop topic sql: %s"%sqlString)
+            tdSql.execute(sqlString)
+        
+        time.sleep(1)
+        
+        tdLog.info("re-create topics")
+        topicNamePrefix = 'newTopic_'
+        queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        for i in range(topicNum):
+            sqlString = "create topic %s%d as %s" %(topicNamePrefix, i, queryString)
+            tdLog.info("create topic sql: %s"%sqlString)
+            tdSql.execute(sqlString)        
+        
+        #=================================================#
+        tdLog.info("drop all topic for testcase2") 
         tdSql.query('show topics;')
         topicNum = tdSql.queryRows
         tdLog.info(" topic count: %d"%(topicNum))
