@@ -496,8 +496,8 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         log::info!("saving to {}, {releative_path}", upload_file_save_path.as_os_str().to_str().unwrap());
         let path = std::path::Path::new(&format!("{}/{req_id}/{file_name}", upload_file_save_path.as_os_str().to_str().unwrap())).to_path_buf();
         f.file.persist(path)?;
+        file_save_paths.push(format!("./files/{req_id}/{file_name}"));
     }
-    file_save_paths.push(format!("./files/{req_id}"));
     Ok(file_save_paths)
 }
 

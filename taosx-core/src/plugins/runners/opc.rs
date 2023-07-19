@@ -16,12 +16,13 @@ use taos::{
     AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty, AsyncQueryable,
 };
 use taosx_ipc::{types::OptionSet, prelude::IpcDataType};
-use tokio::{io::{AsyncBufReadExt, }, fs::File};
+use tokio::io::AsyncBufReadExt;
+
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
-    get_log_keep_days, plugins::sink, utils::{port_pool::PortPool, get_string_content_from_file_path, get_string_content_from_param_value}, Action, DataSet, DataSetsReq,
+    get_log_keep_days, plugins::sink, utils::{port_pool::PortPool, get_string_content_from_param_value}, Action, DataSet, DataSetsReq,
     Transferred,
 };
 
@@ -251,6 +252,7 @@ impl OPCConfig {
         let connect;
         let collect;
         let mut param_mapping = HashMap::new();
+        let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
         match dsn.driver.as_str() {
             "opc" => {
                 if dsn.protocol.is_none() {
@@ -510,10 +512,7 @@ impl OPCConfig {
             if config.is_none() {
                 return Err(OpcError::ConfigError("opc_table_config", "should config opc_table_config or use csv config file".to_string()));
             }
-            table_config = Some(
-                serde_json::from_str(config.unwrap().as_str())
-                    .map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?,
-            );
+            table_config = Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?);
         } else {
             let opc_table_config = opc_table_config.unwrap();
             table_config = Some(opc_table_config.table_config.clone());
