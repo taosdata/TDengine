@@ -590,10 +590,6 @@ int32_t loadDataFileTombDataForAll(STsdbReader* pReader) {
 }
 
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo) {
-  if (pLoadInfo->pTombBlockArray == NULL) {
-    pLoadInfo->pTombBlockArray = taosArrayInit(4, POINTER_BYTES);
-  }
-
   const TTombBlkArray* pBlkArray = NULL;
   int32_t              code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
   if (code != TSDB_CODE_SUCCESS) {

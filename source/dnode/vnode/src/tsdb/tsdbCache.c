@@ -1799,10 +1799,6 @@ static int32_t loadSttTomb(STsdbReader *pTsdbReader, SSttFileReader *pSttFileRea
 
   SCacheRowsReader *pReader = (SCacheRowsReader *)pTsdbReader;
 
-  if (pLoadInfo->pTombBlockArray == NULL) {
-    pLoadInfo->pTombBlockArray = taosArrayInit(4, POINTER_BYTES);
-  }
-
   const TTombBlkArray *pBlkArray = NULL;
   code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
   if (code != TSDB_CODE_SUCCESS) {
