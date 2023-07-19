@@ -899,6 +899,7 @@ export default {
   },
 
   datasource: {
+    getschema:'获取Schema',
     refreshsuccess:'刷新成功',
     influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
     taskid:'任务ID',

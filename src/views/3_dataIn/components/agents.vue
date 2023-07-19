@@ -3,11 +3,11 @@
     <p class="title">
       <span>{{ $t("topic.agent") }}</span>
     </p>
-    <div class="flexEnd">
+    <!-- <div class="flexEnd">
       <el-button plain @click="add" size="small" icon="el-icon-plus">{{
         $t("taosagents.createnewagent")
       }}</el-button>
-    </div>
+    </div> -->
     <el-table
       v-if="agentList?.length > 0"
       style="margin-top: 20px"

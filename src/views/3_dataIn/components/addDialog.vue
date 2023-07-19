@@ -58,13 +58,24 @@
           >
           </el-option>
         </el-select>
-        <el-tooltip :content="$t('taosagents.addagenttip')" effect="light" placement="top">
-          <el-button type="primary" style="margin-left: 10px" @click="openAddAgentDialog">{{
-            $t("taosagents.createnewagent")
-          }}</el-button>
+        <el-tooltip
+          :content="$t('taosagents.addagenttip')"
+          effect="light"
+          placement="top"
+        >
+          <el-button
+            type="primary"
+            style="margin-left: 10px"
+            @click="openAddAgentDialog"
+            >{{ $t("taosagents.createnewagent") }}</el-button
+          >
         </el-tooltip>
       </el-form-item>
-      <el-form-item :label="$t('datasource.sourcetype')" prop="type">
+      <el-form-item
+        :label="$t('datasource.sourcetype')"
+        prop="type"
+        class="sourcetype"
+      >
         <el-select
           v-model="ruleForm.type"
           :placeholder="$t('datasource.typetip')"
@@ -208,8 +219,8 @@ export default {
     this.originalTypes = deepClone(this.typeList);
   },
   methods: {
-    openAddAgentDialog(){
-      this.$parent.$refs.agents.add()
+    openAddAgentDialog() {
+      this.$parent.$refs.agents.add();
     },
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
@@ -304,6 +315,11 @@ export default {
 ::v-deep {
   .el-form-item__content {
     display: flex;
+  }
+  .el-form-item.sourcetype {
+    .el-form-item__content {
+      display: inherit;
+    }
   }
 }
 </style>
