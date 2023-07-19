@@ -162,8 +162,8 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
     taosMemoryFree(*ppDst);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  blockDataDeepCleanup(*ppDst);
   memcpy(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
+  blockDataDeepCleanup(*ppDst);
   return TSDB_CODE_SUCCESS;
 }
 
