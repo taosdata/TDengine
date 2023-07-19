@@ -2710,10 +2710,10 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
       }
     }
 
-    if (pIter->input[0].stop && pIter->input[1].stop && pIter->input[2].stop && pIter->input[3].stop) {
+    if (pIter->input[0].stop && pIter->input[1].stop && pIter->input[2].stop) {
       *ppRow = NULL;
-      *pIgnoreEarlierTs = (pIter->input[0].ignoreEarlierTs || pIter->input[1].ignoreEarlierTs ||
-                           pIter->input[2].ignoreEarlierTs || pIter->input[3].ignoreEarlierTs);
+      *pIgnoreEarlierTs =
+          (pIter->input[0].ignoreEarlierTs || pIter->input[1].ignoreEarlierTs || pIter->input[2].ignoreEarlierTs);
       return code;
     }
 
