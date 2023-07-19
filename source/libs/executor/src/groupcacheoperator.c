@@ -135,6 +135,21 @@ static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pB
   return code;
 }
 
+void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    p->pData = NULL;
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      p->varmeta.offset = NULL;
+      p->varmeta.length = 0;
+      p->varmeta.allocLen = 0;
+    } else {
+      p->nullbitmap = NULL;
+    }
+  }
+  pDataBlock->info.capacity = 0;
+}
 
 static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
   *ppDst = taosMemoryMalloc(sizeof(*pSrc));
@@ -147,6 +162,7 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
     taosMemoryFree(*ppDst);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  blockDataDeepCleanup(*ppDst);
   memcpy(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
   return TSDB_CODE_SUCCESS;
 }
@@ -164,6 +180,7 @@ static int32_t acquireBaseBlockFromList(SGcDownstreamCtx* pCtx, SSDataBlock** pp
 }
 
 static void releaseBaseBlockToList(SGcDownstreamCtx* pCtx, SSDataBlock* pBlock) {
+  blockDataDeepCleanup(pBlock);
   taosWLockLatch(&pCtx->blkLock);
   taosArrayPush(pCtx->pFreeBlock, &pBlock);
   taosWUnLockLatch(&pCtx->blkLock);
