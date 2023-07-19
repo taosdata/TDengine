@@ -593,7 +593,7 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
 
 // agg level
 int32_t streamAggScanHistoryPrepare(SStreamTask* pTask);
-int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t taskId, int32_t childId);
+int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t childId);
 
 // stream task meta
 void         streamMetaInit();

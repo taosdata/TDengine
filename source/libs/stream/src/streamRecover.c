@@ -378,7 +378,7 @@ int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t taskId, int32_t childId) {
+int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t childId) {
   if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     int32_t left = atomic_sub_fetch_32(&pTask->numOfWaitingUpstream, 1);
     ASSERT(left >= 0);
@@ -390,8 +390,8 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t taskId, in
 
       streamAggUpstreamScanHistoryFinish(pTask);
     } else {
-      qDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d",
-             pTask->id.idStr, taskId, childId, left);
+      qDebug("s-task:%s receive scan-history data finish msg from upstream (index:%d), unfinished:%d",
+             pTask->id.idStr, childId, left);
     }
 
   }
