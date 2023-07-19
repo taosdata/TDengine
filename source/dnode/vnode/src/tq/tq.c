@@ -578,6 +578,49 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
+int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
+  void* data = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t len = pMsg->contLen - sizeof(SMsgHead);
+
+  SMqVgOffset vgOffset = {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)data, len);
+  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tDecoderClear(&decoder);
+
+  STqOffset* pOffset = &vgOffset.offset;
+  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+  if (pSavedOffset == NULL) {
+    return TSDB_CODE_TMQ_NO_COMMITTED;
+  }
+  vgOffset.offset = *pSavedOffset;
+
+  int32_t code = 0;
+  tEncodeSize(tEncodeMqVgOffset, &vgOffset, len, code);
+  if (code < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  void* buf = taosMemoryCalloc(1, len);
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, len);
+  tEncodeMqVgOffset(&encoder, &vgOffset);
+  tEncoderClear(&encoder);
+
+  SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = len, .code = 0};
+
+  tmsgSendRsp(&rsp);
+
+  return 0;
+}
+
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqPollReq req = {0};
   if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {

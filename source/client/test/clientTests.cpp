@@ -1075,6 +1075,89 @@ TEST(clientCase, sub_db_test) {
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
 
+TEST(clientCase, tmq_commit) {
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  tmq_conf_t* conf = tmq_conf_new();
+
+  tmq_conf_set(conf, "enable.auto.commit", "false");
+  tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
+  tmq_conf_set(conf, "group.id", "group_id_2");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  tmq_conf_destroy(conf);
+
+  char topicName[128] = "tp";
+  // 创建订阅 topics 列表
+  tmq_list_t* topicList = tmq_list_new();
+  tmq_list_append(topicList, topicName);
+
+  // 启动订阅
+  tmq_subscribe(tmq, topicList);
+  tmq_list_destroy(topicList);
+
+  int32_t     totalRows = 0;
+  int32_t     msgCnt = 0;
+  int32_t     timeout = 2000;
+
+  tmq_topic_assignment* pAssign = NULL;
+  int32_t numOfAssign = 0;
+
+  int32_t code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
+  if (code != 0) {
+    printf("error occurs:%s\n", tmq_err2str(code));
+    tmq_free_assignment(pAssign);
+    tmq_consumer_close(tmq);
+    taos_close(pConn);
+    fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+    return;
+  }
+
+  for(int i = 0; i < numOfAssign; i++){
+    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+
+    int64_t position = tmq_position(tmq, topicName, pAssign[i].vgId);
+    printf("position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+    tmq_offset_seek(tmq, topicName, pAssign[i].vgId, 1);
+    position = tmq_position(tmq, topicName, pAssign[i].vgId);
+    printf("after seek 100, position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+  }
+
+  while (1) {
+    printf("start to poll\n");
+    TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
+    if (pRes) {
+      printSubResults(pRes, &totalRows);
+    } else {
+      break;
+    }
+
+    tmq_commit_sync(tmq, pRes);
+    for(int i = 0; i < numOfAssign; i++) {
+      int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
+      printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+    }
+    if (pRes != NULL) {
+      taos_free_result(pRes);
+    }
+
+//    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
+  }
+
+  tmq_free_assignment(pAssign);
+
+  tmq_consumer_close(tmq);
+  taos_close(pConn);
+  fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+}
+
 TEST(clientCase, td_25129) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 

@@ -633,6 +633,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to s
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NEED_INITIALIZED,           "Assignment or poll interface need to be called first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SNAPSHOT_ERROR,             "Can not operate in snapshot mode")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_COMMITTED,               "No committed info")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_VERSION_OUT_OF_RANGE,       "Offset out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_VGID,               "VgId does not belong to this consumer")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_TOPIC,              "Topic does not belong to this consumer")

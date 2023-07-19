@@ -462,7 +462,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_VND_TMQ_COMMIT_OFFSET:
-      if (tqProcessOffsetCommitReq(pVnode->pTq, ver, pReq, pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      if (tqProcessOffsetCommitReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
       }
       break;
@@ -638,6 +638,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TMQ_VG_COMMITTEDINFO:
+      return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_SEEK:
       return tqProcessSeekReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
