@@ -8,33 +8,24 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{any::Any, collections::HashMap, sync::Arc, task::Poll, str::FromStr};
+use std::{str::FromStr, sync::Arc};
 
 use arrow::{
-    array::{
-        make_builder, Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
-    },
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
 use either::Either;
-use futures::{Sink, Stream};
 use itertools::Itertools;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
-        common::{Describe, RawData},
+        common::Describe,
         helpers::{ColumnMeta, Described},
     },
     JsonMeta, RawBlock, Ty, Value,
 };
-
-use serde_json::Value as JsonValue;
 
 mod select;
 
@@ -49,10 +40,6 @@ mod parse;
 pub use parse::Parser;
 
 use crate::plugins::transform::parse::ArrayForTaos;
-
-pub struct Create {}
-
-pub struct Raw {}
 
 #[derive(Debug)]
 pub struct MessageTable {
@@ -153,7 +140,10 @@ impl MessageArrowRecords {
             .iter()
             .map(|field| {
                 match field.data_type() {
-                    DataType::Binary | DataType::Utf8 | DataType::LargeBinary | DataType::LargeUtf8 => {
+                    DataType::Binary
+                    | DataType::Utf8
+                    | DataType::LargeBinary
+                    | DataType::LargeUtf8 => {
                         let cast_to = field.metadata().get("cast_to");
                         if cast_to.is_some() {
                             let cast_to = cast_to.unwrap();
@@ -162,21 +152,35 @@ impl MessageArrowRecords {
                                 // varchar or nchar
                                 let res = length.unwrap().parse::<usize>();
                                 match res {
-                                    Ok(length) => ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), Some(length))),
+                                    Ok(length) => ColumnMeta::Column(Described::new(
+                                        field.name(),
+                                        Ty::from_str(cast_to.as_str()).unwrap(),
+                                        Some(length),
+                                    )),
                                     Err(err) => {
-                                        log::error!("varchar/nchar parse error: {}", err.to_string());
-                                        ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                        log::error!(
+                                            "varchar/nchar parse error: {}",
+                                            err.to_string()
+                                        );
+                                        ColumnMeta::Column(Described::new(
+                                            field.name(),
+                                            Ty::from_str(cast_to.as_str()).unwrap(),
+                                            None,
+                                        ))
                                     }
                                 }
                             } else {
                                 // json
-                                ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                ColumnMeta::Column(Described::new(
+                                    field.name(),
+                                    Ty::from_str(cast_to.as_str()).unwrap(),
+                                    None,
+                                ))
                             }
-                            
                         } else {
                             ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                         }
-                    },
+                    }
                     _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                 }
             })
@@ -189,7 +193,10 @@ impl MessageArrowRecords {
                 .iter()
                 .map(|field| {
                     match field.data_type() {
-                        DataType::Binary | DataType::Utf8 | DataType::LargeBinary | DataType::LargeUtf8 => {
+                        DataType::Binary
+                        | DataType::Utf8
+                        | DataType::LargeBinary
+                        | DataType::LargeUtf8 => {
                             let cast_to = field.metadata().get("cast_to");
                             if cast_to.is_some() {
                                 let cast_to = cast_to.unwrap();
@@ -198,21 +205,35 @@ impl MessageArrowRecords {
                                     // varchar or nchar
                                     let res = length.unwrap().parse::<usize>();
                                     match res {
-                                        Ok(length) => ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), Some(length))),
+                                        Ok(length) => ColumnMeta::Column(Described::new(
+                                            field.name(),
+                                            Ty::from_str(cast_to.as_str()).unwrap(),
+                                            Some(length),
+                                        )),
                                         Err(err) => {
-                                            log::error!("varchar/nchar parse error: {}", err.to_string());
-                                            ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                            log::error!(
+                                                "varchar/nchar parse error: {}",
+                                                err.to_string()
+                                            );
+                                            ColumnMeta::Column(Described::new(
+                                                field.name(),
+                                                Ty::from_str(cast_to.as_str()).unwrap(),
+                                                None,
+                                            ))
                                         }
                                     }
                                 } else {
                                     // json
-                                    ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                    ColumnMeta::Column(Described::new(
+                                        field.name(),
+                                        Ty::from_str(cast_to.as_str()).unwrap(),
+                                        None,
+                                    ))
                                 }
-                                
                             } else {
                                 ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                             }
-                        },
+                        }
                         _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                     }
                 })
@@ -356,45 +377,8 @@ impl Message {
     }
 }
 
-fn append(builder: &mut dyn Any, datatype: &DataType, value: &JsonValue) {
-    match datatype {
-        DataType::Null => todo!(),
-        DataType::Boolean => todo!(),
-        DataType::Int8 => todo!(),
-        DataType::Int16 => todo!(),
-        DataType::Int32 => todo!(),
-        DataType::Int64 => todo!(),
-        DataType::UInt8 => todo!(),
-        DataType::UInt16 => todo!(),
-        DataType::UInt32 => todo!(),
-        DataType::UInt64 => todo!(),
-        DataType::Float16 => todo!(),
-        DataType::Float32 => todo!(),
-        DataType::Float64 => todo!(),
-        DataType::Timestamp(_, _) => todo!(),
-        DataType::Date32 => todo!(),
-        DataType::Date64 => todo!(),
-        DataType::Time32(_) => todo!(),
-        DataType::Time64(_) => todo!(),
-        DataType::Duration(_) => todo!(),
-        DataType::Interval(_) => todo!(),
-        DataType::Binary => todo!(),
-        DataType::FixedSizeBinary(_) => todo!(),
-        DataType::LargeBinary => todo!(),
-        DataType::Utf8 => todo!(),
-        DataType::LargeUtf8 => todo!(),
-        DataType::List(_) => todo!(),
-        DataType::FixedSizeList(_, _) => todo!(),
-        DataType::LargeList(_) => todo!(),
-        DataType::Struct(_) => todo!(),
-        DataType::Union(_, _) => todo!(),
-        DataType::Dictionary(_, _) => todo!(),
-        DataType::Decimal128(_, _) => todo!(),
-        DataType::Decimal256(_, _) => todo!(),
-        DataType::Map(_, _) => todo!(),
-        DataType::RunEndEncoded(_, _) => todo!(),
-    }
-}
+// TODO: Extractor
+#[allow(dead_code)]
 pub enum Extractor {
     Json {
         at: String,
@@ -463,65 +447,4 @@ pub enum Error {
     ArrowError(#[from] ArrowError),
     #[error("Unknown error: {0}")]
     Other(#[from] anyhow::Error),
-}
-// impl Sink<Message> for Parsers {
-//     type Error = Error;
-
-//     fn poll_ready(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> std::task::Poll<Result<(), Self::Error>> {
-//         cx.waker().wake_by_ref();
-//         std::task::Poll::Ready(Ok(()))
-//     }
-
-//     fn start_send(self: std::pin::Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
-//         todo!();
-//         Ok(())
-//     }
-
-//     fn poll_flush(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> std::task::Poll<Result<(), Self::Error>> {
-//         Poll::Ready(Ok(()))
-//     }
-
-//     fn poll_close(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> std::task::Poll<Result<(), Self::Error>> {
-//         Poll::Ready(Ok(()))
-//     }
-// }
-
-// impl Stream for Parsers {
-//     type Item = Result<Message, Error>;
-
-//     fn poll_next(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//     ) -> Poll<Option<Self::Item>> {
-//         todo!()
-//     }
-// }
-
-#[cfg(test)]
-mod tests {
-    use arrow::array::ArrayRef;
-    use futures::{SinkExt, StreamExt};
-
-    use super::*;
-
-    // #[tokio::test]
-    // async fn test_parser() -> anyhow::Result<()> {
-    //     let mut parser = Parsers::from_parser(vec![]);
-    //     let item = Message::tables(vec![]);
-    //     let _ = parser.send(item).await;
-    //     parser.flush().await?;
-
-    //     let message = parser.next().await.transpose()?;
-
-    //     Ok(())
-    // }
 }

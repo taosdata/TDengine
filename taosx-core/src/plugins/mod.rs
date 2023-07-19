@@ -23,8 +23,11 @@ pub use taosx_ipc::types::*;
 
 pub use transform::Parser;
 
-pub use runners::get_plugins_info;
-pub use runners::get_log_dir;
+pub use runners::{
+    get_plugins_info, 
+    get_log_dir,
+    get_log_keep_days,
+};
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from = data.from.clone().into_dsn()?;

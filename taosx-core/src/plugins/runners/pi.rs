@@ -1,6 +1,5 @@
 use std::{
-    fs, io::prelude::*, num::ParseIntError, path::PathBuf, process::Stdio, str::FromStr, sync::Arc,
-    time::Duration,
+    fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
 };
 
 use file_rotate::{
@@ -19,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 
 use crate::{
+    get_log_keep_days,
     plugins::{service::spawn_rest_service, sink},
     utils::{port_pool::PortPool, stop_thread},
     Action, DataSet, DataSetsReq, Transferred,
@@ -91,8 +91,8 @@ pub enum PiError {
     ValueConfigError(&'static str, &'static str, &'static str),
     #[error("parse key {0} value error cause {1}")]
     ParseKeyValueError(&'static str, String),
-    #[error("Parse param error from {1} while parsing parameter {0}")]
-    ParseError(&'static str, String),
+    #[error("Parse param error from {1} while parsing parameter {0}: {2}")]
+    ParseError(&'static str, String, String),
     #[error("plugin not found: {0}")]
     ExeNotFound(String),
 }
@@ -169,7 +169,7 @@ impl PiConfig {
             .remove("FromTDengineLastTime")
             .map(|v| {
                 v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v))
+                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v, err.to_string()))
             })
             .transpose()?
         {
@@ -181,7 +181,7 @@ impl PiConfig {
             .remove("ToTDengineFirstTime")
             .map(|v| {
                 v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v))
+                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v, err.to_string()))
             })
             .transpose()?
         {
@@ -194,12 +194,18 @@ impl PiConfig {
             let parsed_time =
                 NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
                     .map_err(|err| {
-                        PiError::ParseError("BackfillStartTime", backfill_start.clone())
+                        PiError::ParseError(
+                            "BackfillStartTime",
+                            backfill_start.clone(),
+                            err.to_string(),
+                        )
                     })?
                     .and_local_timezone(Local)
                     .unwrap();
-            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str())
-                .map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start))?;
+            let parsed_time =
+                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                    PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
+                })?;
             Some(parsed_time)
         } else {
             None
@@ -207,11 +213,19 @@ impl PiConfig {
         let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
             let parsed_time =
                 NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start.clone()))?
+                    .map_err(|err| {
+                        PiError::ParseError(
+                            "BackfillEndTime",
+                            backfill_start.clone(),
+                            err.to_string(),
+                        )
+                    })?
                     .and_local_timezone(Local)
                     .unwrap();
-            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str())
-                .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start))?;
+            let parsed_time =
+                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                    PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
+                })?;
             Some(parsed_time)
         } else {
             None
@@ -255,6 +269,7 @@ fn log_path() -> PathBuf {
 }
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
+#[allow(unused)]
 pub async fn pi_to_taos(
     from: Dsn,
     actions: Vec<Action>,
@@ -274,7 +289,10 @@ pub async fn pi_to_taos(
     let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
-        Err(PiError::ExeNotFound(format!("{}", pi_exe_path().to_str().unwrap())))?;
+        Err(PiError::ExeNotFound(format!(
+            "{}",
+            pi_exe_path().to_str().unwrap()
+        )))?;
     }
 
     let td_database = to.subject.clone();
@@ -360,11 +378,13 @@ pub async fn pi_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
@@ -433,7 +453,7 @@ pub async fn pi_to_taos(
                 if !status.success() {
                     let _ = ipc.send(());
                     stop_thread(server);
-                    anyhow::bail!("PI connector or PI backfill exist with {}", status);
+                    anyhow::bail!("PI connector or PI backfill exit with {}", status);
                 }
             },
             _ = tokio::signal::ctrl_c() => {
@@ -481,6 +501,7 @@ fn terminate_child_process(id: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(unused_variables, unreachable_code)]
 pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]

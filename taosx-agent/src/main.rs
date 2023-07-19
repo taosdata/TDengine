@@ -5,6 +5,11 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
@@ -17,7 +22,7 @@ use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
 
-use taosx_core::get_log_dir;
+use taosx_core::{get_log_dir, get_log_keep_days};
 
 use crate::runner::TaskStatus;
 
@@ -227,11 +232,28 @@ fn main() -> anyhow::Result<()> {
         args.endpoint, args.token
     );
 
-    let log_dir = get_log_dir("agent");
+    let mut log_path = get_log_dir("agent");
 
-    let file_appender = tracing_appender::rolling::daily(log_dir, LOG_FILE);
+    log_path.push(LOG_FILE);
 
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let log_keep_days = get_log_keep_days();
+
+    println!("log keep days: {}", &log_keep_days);
+
+    let log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Hourly),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
 
     // let timer = LocalTime::new(format_description!(
     //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
@@ -285,6 +307,8 @@ fn main() -> anyhow::Result<()> {
     log::info!("version: {version}");
     log::info!("commit id: {commit_id}");
     log::info!("build time: {build_time}");
+
+    log::info!("log keep days: {}", &log_keep_days);
 
     log::info!("Start");
 

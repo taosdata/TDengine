@@ -18,11 +18,12 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll, time::Duration,
+    task::Poll,
+    time::Duration,
 };
 use taos::{
-    AsyncQueryable, Bindable, Dsn, Itertools,
-    RawBlock, Stmt, Taos, TaosPool, Ty, AsyncFetchable, taos_query::common::Describe,
+    taos_query::common::Describe, AsyncFetchable, AsyncQueryable, Bindable, Dsn, Itertools,
+    RawBlock, Stmt, Taos, TaosPool, Ty,
 };
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -30,7 +31,7 @@ use tracing::{debug, info, instrument};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
-use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig, TableConfig};
+use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
@@ -53,7 +54,6 @@ async fn ipc_tcp_forward(
     token: String,
     task_id: i64,
 ) -> anyhow::Result<()> {
-
     use md5;
     log::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
 
@@ -291,9 +291,18 @@ async fn consume_lush_record(
                         while let Some(mut row) = rows.try_next().await? {
                             let next = row.next().unwrap();
                             for (tagname, tagvalue) in &tags {
-                                if tagname == next.0 && tagvalue.to_sql_value() != next.1.to_sql_value() {
-                                    log::info!("table {table_name} tag value not match, new: {}, old:{}", tagvalue.to_sql_value(), next.1.to_sql_value());
-                                    let alter_set_sql = format!("alter table `{table_name}` set TAG `{tagname}`={}", tagvalue.to_sql_value());
+                                if tagname == next.0
+                                    && tagvalue.to_sql_value() != next.1.to_sql_value()
+                                {
+                                    log::info!(
+                                        "table {table_name} tag value not match, new: {}, old:{}",
+                                        tagvalue.to_sql_value(),
+                                        next.1.to_sql_value()
+                                    );
+                                    let alter_set_sql = format!(
+                                        "alter table `{table_name}` set TAG `{tagname}`={}",
+                                        tagvalue.to_sql_value()
+                                    );
                                     log::info!("alter_set_sql: {alter_set_sql}");
                                     taos.exec(alter_set_sql).await?;
                                 }
@@ -302,7 +311,8 @@ async fn consume_lush_record(
                     }
                     Err(err) => {
                         log::info!("query_tags_sql err: {}", err.to_string());
-                        if err.to_string().contains("0x2603") || err.to_string().contains("0x2662") {
+                        if err.to_string().contains("0x2603") || err.to_string().contains("0x2662")
+                        {
                             // table not exists
                             let table_sql = table.to_sql(None).unwrap();
                             sql.push_str(table_sql.replace("CREATE TABLE", "").as_str());
@@ -367,7 +377,7 @@ async fn consume_lush_record(
 
 async fn consume_point_record(
     taos: &Taos,
-    stmt: &mut Stmt,
+    _: &mut Stmt,
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
@@ -756,7 +766,10 @@ async fn consume_flat_record(
                                                                     _taos.exec(&sql).await.unwrap();
                                                                     continue;
                                                                 }
-                                                            } else if err.to_string().contains("[0x260D]") {
+                                                            } else if err
+                                                                .to_string()
+                                                                .contains("[0x260D]")
+                                                            {
                                                                 // Tags number not matched
                                                                 // add Tag
                                                                 let table = records
@@ -764,15 +777,25 @@ async fn consume_flat_record(
                                                                     .using
                                                                     .as_deref()
                                                                     .unwrap();
-                                                                let tags = records.tag_meta().unwrap();
+                                                                let tags =
+                                                                    records.tag_meta().unwrap();
                                                                 for tag_meta in tags {
                                                                     let mut need_add = true;
-                                                                    let res = _taos.describe(table).await.unwrap();
-                                                                    res.into_iter().for_each(|tag_added| {
-                                                                        if tag_added.is_tag() && tag_added.field() == tag_meta.field() {
-                                                                            need_add = false;
-                                                                        }
-                                                                    });
+                                                                    let res = _taos
+                                                                        .describe(table)
+                                                                        .await
+                                                                        .unwrap();
+                                                                    res.into_iter().for_each(
+                                                                        |tag_added| {
+                                                                            if tag_added.is_tag()
+                                                                                && tag_added.field()
+                                                                                    == tag_meta
+                                                                                        .field()
+                                                                            {
+                                                                                need_add = false;
+                                                                            }
+                                                                        },
+                                                                    );
                                                                     if need_add {
                                                                         let add_tag_sql = format!(
                                                                             "alter table `{table}` add tag `{}` {}",
@@ -780,10 +803,12 @@ async fn consume_flat_record(
                                                                             parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
                                                                             );
                                                                         log::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                        _taos.exec(add_tag_sql).await.unwrap();
+                                                                        _taos
+                                                                            .exec(add_tag_sql)
+                                                                            .await
+                                                                            .unwrap();
                                                                     }
                                                                 }
-
                                                             } else {
                                                                 Err(err)?;
                                                             }
@@ -883,13 +908,18 @@ async fn consume_flat_record(
                                             }
                                         });
                                         if need_add {
-                                            let ipc_data_type = parser.get_ipcdatatype_from_parser(column_name);
+                                            let ipc_data_type =
+                                                parser.get_ipcdatatype_from_parser(column_name);
                                             if ipc_data_type.is_none() {
                                                 anyhow::bail!("column name {column_name} not config in parser");
                                             }
                                             let sql = format!(
                                                 "alter table `{}` add column `{}` {}",
-                                                records.table.using.as_ref().unwrap_or(&table_name.to_string()),
+                                                records
+                                                    .table
+                                                    .using
+                                                    .as_ref()
+                                                    .unwrap_or(&table_name.to_string()),
                                                 &column_name,
                                                 ipc_data_type.unwrap(),
                                             );
@@ -929,7 +959,6 @@ async fn consume_flat_record(
     }
     Ok(())
 }
-
 
 // #[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
@@ -1046,7 +1075,12 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     Ok(())
 }
 
-pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &Vec<(String, IpcDataType)>, is_tag: bool) -> Option<Vec<String>> {
+pub fn generate_alter_sql_diff_desc(
+    tablename: &str,
+    desc: &Describe,
+    fields: &Vec<(String, IpcDataType)>,
+    is_tag: bool,
+) -> Option<Vec<String>> {
     let mut alter_sql = Vec::new();
     // diff columns and tags
     for (name, ty) in fields {
@@ -1063,11 +1097,13 @@ pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &V
                 if original_ty.is_var_type() {
                     match ty {
                         IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
-                            if original_ty.to_string() != new_def_ty.to_string() || len.clone() as usize > c.length() {
+                            if original_ty.to_string() != new_def_ty.to_string()
+                                || len.clone() as usize > c.length()
+                            {
                                 should_alter = true;
                             }
                         }
-                        _ => ()
+                        _ => (),
                     }
                 } else if original_ty.to_string() != new_def_ty.to_string() {
                     should_alter = true;
@@ -1075,13 +1111,26 @@ pub fn generate_alter_sql_diff_desc(tablename: &str, desc: &Describe, fields: &V
             }
         });
         if should_alter && !is_tag {
-            alter_sql.push(format!("ALTER TABLE `{tablename}` MODIFY COLUMN `{name}` {} ", ty.sql_repr()));
+            alter_sql.push(format!(
+                "ALTER TABLE `{tablename}` MODIFY COLUMN `{name}` {} ",
+                ty.sql_repr()
+            ));
         } else if should_alter {
-            alter_sql.push(format!("ALTER TABLE `{tablename}` MODIFY TAG `{name}` {} ", ty.sql_repr()));
-        } if should_add && !is_tag {
-            alter_sql.push(format!("ALTER TABLE `{tablename}` ADD COLUMN `{name}` {} ", ty.sql_repr()));
+            alter_sql.push(format!(
+                "ALTER TABLE `{tablename}` MODIFY TAG `{name}` {} ",
+                ty.sql_repr()
+            ));
+        }
+        if should_add && !is_tag {
+            alter_sql.push(format!(
+                "ALTER TABLE `{tablename}` ADD COLUMN `{name}` {} ",
+                ty.sql_repr()
+            ));
         } else if should_add {
-            alter_sql.push(format!("ALTER TABLE `{tablename}` ADD TAG `{name}` {} ", ty.sql_repr()));
+            alter_sql.push(format!(
+                "ALTER TABLE `{tablename}` ADD TAG `{name}` {} ",
+                ty.sql_repr()
+            ));
         }
     }
     if alter_sql.is_empty() {
@@ -1153,14 +1202,24 @@ async fn ipc_process<R: Read, W: Write>(
             match desc {
                 Ok(desc) => {
                     log::info!("table {stable_name} exists");
-                    let sql = generate_alter_sql_diff_desc(stable_name, &desc, init.columns().as_ref(), false);
+                    let sql = generate_alter_sql_diff_desc(
+                        stable_name,
+                        &desc,
+                        init.columns().as_ref(),
+                        false,
+                    );
                     if sql.is_some() {
                         for sql in sql.unwrap() {
                             log::info!("alter table sql: {}", sql.clone());
                             taos.exec(sql).await?;
                         }
                     }
-                    let sql = generate_alter_sql_diff_desc(stable_name, &desc, init.tags().as_ref(), true);
+                    let sql = generate_alter_sql_diff_desc(
+                        stable_name,
+                        &desc,
+                        init.tags().as_ref(),
+                        true,
+                    );
                     if sql.is_some() {
                         for sql in sql.unwrap() {
                             log::info!("alter table sql: {}", sql.clone());
@@ -1168,7 +1227,7 @@ async fn ipc_process<R: Read, W: Write>(
                         }
                     }
                     break;
-                },
+                }
                 Err(err) => {
                     log::warn!("describe failed: {}", err.to_string());
                     // create table
@@ -1185,7 +1244,6 @@ async fn ipc_process<R: Read, W: Write>(
                     }
                 }
             }
-
         }
         drop(guard)
     }

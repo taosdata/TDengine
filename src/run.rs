@@ -1,12 +1,11 @@
 use std::{time::Duration, io::BufRead};
 use anyhow::{bail, Context, Result};
 use taos::*;
-
 use taosx_core::{
     kafka_to_taos, influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
     query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, utils::{port_pool::PortPool, self}, Action,
+    csv_to_taos,
 };
-
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -103,6 +102,7 @@ impl Cli {
                         Default::default(),
                         Default::default(),
                     ).await
+
                     {
                         Ok(_) => break,
                         Err(err) if err.to_string().contains("[0xE002]") => {
@@ -166,6 +166,7 @@ impl Cli {
                     None,
                     None,
                 ).await?;
+
                 log::debug!("main scheduler done");
             }
             ("influxdb", "taos") => {
@@ -231,7 +232,6 @@ impl Cli {
             ("kafka", "taos") => {
                 let parser = if args.parser.is_some() {
                     let p = args.parser.unwrap();
-                    println!("parser: {}", p);
                     let json = serde_json::from_str(&p).unwrap();
                     Some(json)
                 } else {
@@ -250,6 +250,9 @@ impl Cli {
                     None,
                 ).await?;
                 log::debug!("kafka main scheduler done");
+            }
+            ("csv", "taos") => {
+                csv_to_taos(args.from).await?;
             }
             (_, _) => bail!(
                 "unsupported source or dest: from `{}` to `{}`",

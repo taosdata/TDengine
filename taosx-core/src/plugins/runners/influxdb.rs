@@ -1,19 +1,19 @@
-use std::{fs, io::prelude::*, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
-use std::process::Output;
-use std::ptr::null;
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{Action, DataSet, plugins::sink, Transferred, utils::port_pool::PortPool};
+use crate::{
+    get_log_keep_days, plugins::sink, utils::port_pool::PortPool, Action, DataSet, Transferred,
+};
 
 use super::get_plugin_dir;
 
@@ -246,7 +246,10 @@ pub async fn influxdb_to_taos(
     let exe_exists = std::path::Path::new(&influxdb_jar_path()).exists();
     if !exe_exists {
         log::error!("plugin not found {}", influxdb_jar_path().to_str().unwrap());
-        Err(InfluxdbError::ExeNotFound(format!("{}", influxdb_jar_path().to_str().unwrap())))?;
+        Err(InfluxdbError::ExeNotFound(format!(
+            "{}",
+            influxdb_jar_path().to_str().unwrap()
+        )))?;
     }
 
     // tdengine
@@ -315,11 +318,13 @@ pub async fn influxdb_to_taos(
 
     log::info!("log file dir: {}", &log_path.display());
 
+    let log_keep_days = get_log_keep_days();
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
             "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
@@ -366,7 +371,7 @@ pub async fn influxdb_to_taos(
                     log::info!("InfluxDB exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
-                        anyhow::bail!("InfluxDB exist with {}", status);
+                        anyhow::bail!("InfluxDB exit with {}", status);
                     }
                 },
                 err = receiver.recv() => {
@@ -430,7 +435,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
-    let mut output;
+    let output;
     // 不同版本不同参数
     if INFLUXDB_V1.contains(&influx_version.as_str()) {
         // 查询命令

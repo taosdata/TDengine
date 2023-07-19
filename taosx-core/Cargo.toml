@@ -47,6 +47,7 @@ serde_regex = "1"
 chrono-tz = "0.8"
 tinytemplate = "1.2.1"
 serde_json_path = "0.6.0"
+csv_lib = { version = "1.2", package = "csv" }
 
 file-rotate = "0.7.5"
 

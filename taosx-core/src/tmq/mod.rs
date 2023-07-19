@@ -51,9 +51,9 @@ impl TopicType {
             Self::Query
         }
     }
-    fn is_query(&self) -> bool {
-        matches!(self, TopicType::Query)
-    }
+    // fn is_query(&self) -> bool {
+    //     matches!(self, TopicType::Query)
+    // }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -162,9 +162,9 @@ impl FromStr for StopAt {
     }
 }
 
-pub(crate) struct TmqExtraOpts {
-    stop_at: StopAt,
-}
+// pub(crate) struct TmqExtraOpts {
+//     stop_at: StopAt,
+// }
 // impl TmqMetrics {
 //     pub fn new() -> Self {
 //         Self {
@@ -224,7 +224,7 @@ impl Display for TmqMetrics {
 pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic>)> {
     // let origin = from.clone();
     let database = from.subject.take().ok_or(RawError::new(
-        Code::Failed,
+        Code::FAILED,
         format!("requires topic or database in source dsn: {from}"),
     ))?;
     // dbg!(&from, &database);

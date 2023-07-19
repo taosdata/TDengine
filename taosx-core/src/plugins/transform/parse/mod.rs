@@ -453,9 +453,8 @@ impl Parser {
                     match select {
                         Select::Include(incl) => {
                             for item in incl.iter() {
-                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
-                                    || item.name() == column_name
-                                {
+                                if (item.alias().is_some() && item.alias().unwrap() == column_name) ||
+                                    item.name() == column_name {
                                     return item.cast();
                                 }
                             }
@@ -477,6 +476,7 @@ impl Parser {
         schema: &'a Arc<Schema>,
         name: &str,
     ) -> Option<(usize, &'a Field)> {
+
         let (idx, field) = schema.fields().into_iter().enumerate().find(|(_, b)| {
             let meta_name = b.metadata().get("name");
             (meta_name.is_some() && name == meta_name.unwrap()) || b.name() == name
@@ -537,6 +537,7 @@ impl Parser {
                     if let Some((index, _)) =
                         Self::get_schema_column_with_name(&schema, name.as_str())
                     {
+
                         indices.push(index);
                     } else {
                         log::warn!("Selected column {} not found in stream message", name);

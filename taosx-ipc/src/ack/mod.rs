@@ -77,6 +77,15 @@ pub struct AckReader<R: Read> {
     ipc_reader: Option<StreamReader<R>>,
 }
 
+impl<R: Read> AckReader<R> {
+    pub fn schema(&self) -> Option<&Schema> {
+        self.schema.as_ref()
+    }
+    pub fn ack(&self) -> AckType {
+        self.ack
+    }
+}
+
 impl<R: Read> Iterator for AckReader<R> {
     type Item = LushAck;
     fn next(&mut self) -> Option<LushAck> {

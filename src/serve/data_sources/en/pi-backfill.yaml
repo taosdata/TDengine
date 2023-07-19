@@ -55,16 +55,15 @@ groups:
     description: |
       The start time for backfilling data.
 
-      If not provided, the start time will be the earliest time available.
+      If not provided, the start time will be the earliest time available(10 days ago from now).
     placeholder: "YYYY-MM-DD HH:mm:ss"
   - name: BackfillEndTime
     display: Backfill End Time
     hint:
       type: time
     description: |
-      The start time for backfilling data.
+      The end time for backfilling data. The default is now.
 
-      If not provided, the start time will be the earliest time available.
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
 - name: Data Queue
@@ -79,6 +78,7 @@ groups:
       type: integer
       min: 1
       max: 10000
+    value: 1000
   - name: UpdateInterval
     display: Update Interval (in ms)
     hint:
@@ -87,12 +87,14 @@ groups:
       max: 60000
     description: Pull Data from PI System Interval in `ms`.
     placeholder: 10000
+    value: 1000
   - name: MaxBackfillRangeDays
     display: Max Backfill Range(in days)
     hint:
       type: integer
     description: Max backfill time range in days.
     placeholder: 1
+    value: 1
 
 datasets:
   name: Data Sets
