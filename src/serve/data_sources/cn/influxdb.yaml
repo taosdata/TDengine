@@ -39,12 +39,6 @@ authentication:
               - "1.8"
               - "1.7"
           required: true
-        - name: orgId
-          display: 组织 ID
-          description: 所有的仪表板、任务、存储桶和用户都属于一个组织。
-          placeholder: 请输入 InfluxDB 组织 ID
-          hint: str
-          required: true
         - name: username
           display: 用户
           description: 该用户至少在该组织中拥有读取权限。
