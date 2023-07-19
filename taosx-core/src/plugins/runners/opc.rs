@@ -608,7 +608,6 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                     });
                 }
                 column += 1;
-                log::info!("&column_name to remove: {}", column_name);
                 column_set.remove(&column_name.to_string());
             }
             if column_set.len() != 0 {
@@ -620,11 +619,11 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                 match record {
                     Ok(record) => {
                         let mut record_map = HashMap::new(); // column_name, column_data
-                        let mut tag_values = Vec::new();
+                        let mut tag_values_map = HashMap::new();
                         for (index, column_name) in column_map.iter() {
                             let data = record.get(index.clone()).unwrap();
                             if column_name.starts_with("tag::") {
-                                tag_values.push(data.to_string());
+                                tag_values_map.insert(column_name.split("::").collect_vec().get(2).unwrap().to_string(), data.to_string());
                             } else {
                                 record_map.insert(column_name.to_string(), data.to_string());
                             }
@@ -649,13 +648,13 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                             column_config.push(ColumnConfig {
                                 column_name: "value".to_string(),
                                 column_type: None,
-                                column_alias: Some(record_map.get("value_col").ok_or("val".to_string()).unwrap().clone()),
+                                column_alias: Some(record_map.get("value_col").unwrap_or(&"val".to_string()).clone()),
                                 is_primary_key: false,
                             });
                             column_config.push(ColumnConfig {
                                 column_name: "quality".to_string(),
                                 column_type: Some(Ty::Int),
-                                column_alias: Some(record_map.get("quality_col").ok_or("quality".to_string()).unwrap().clone()),
+                                column_alias: Some(record_map.get("quality_col").unwrap_or(&"quality".to_string()).clone()),
                                 is_primary_key: false,
                             });
                             let received_time_col = record_map.get("received_time_col");
@@ -665,14 +664,14 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                                 column_config.push(ColumnConfig {
                                     column_name: "received_time".to_string(),
                                     column_type: Some(Ty::Timestamp),
-                                    column_alias: Some(record_map.get("received_time_col").ok_or("received_time".to_string()).unwrap().clone()),
+                                    column_alias: Some(record_map.get("received_time_col").unwrap_or(&"received_time".to_string()).clone()),
                                     is_primary_key: has_primary_key,
                                 });
                             }
                             column_config.push(ColumnConfig {
                                 column_name: "original_time".to_string(),
                                 column_type: Some(Ty::Timestamp),
-                                column_alias: Some(record_map.get("ts_col").ok_or("ts".to_string()).unwrap().clone()),
+                                column_alias: Some(record_map.get("ts_col").unwrap_or(&"ts".to_string()).clone()),
                                 is_primary_key: !has_primary_key,
                             });
                             column_config_init = true;
@@ -690,10 +689,10 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                         };
                         let point_id = record_map.get("point_id").unwrap();
                         
-                        let tag_values = if tag_values.len() == 0 {
+                        let tag_values = if tag_values_map.len() == 0 {
                             None
                         } else {
-                            Some(tag_values)
+                            Some(tag_values_map)
                         };
                         id_code_map.insert(point_id.clone(), 
                             PointConfig {
@@ -1041,7 +1040,7 @@ pub struct OpcTableConfig {
 pub(crate) struct PointConfig {
     pub code: String,
     pub stable: Option<String>,
-    pub tag_values: Option<Vec<String>>,
+    pub tag_values: Option<HashMap<String, String>>,
     pub value_type: Option<IpcDataType>,
     pub enabled: Option<bool>,
 }
