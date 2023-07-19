@@ -149,6 +149,7 @@ void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
     }
   }
   pDataBlock->info.capacity = 0;
+  pDataBlock->info.rows = 0;
 }
 
 static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
