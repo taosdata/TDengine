@@ -367,21 +367,21 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
   int32_t i = 0;
   for (i = 0; i < TARRAY2_SIZE(pStatisBlkArray); ++i) {
     SStatisBlk *p = &pStatisBlkArray->data[i];
-    if (p->minTbid.suid == suid) {
+    if (p->minTbid.suid <= suid && p->maxTbid.suid >= suid) {
       break;
     }
   }
 
-  for (; i < TARRAY2_SIZE(pStatisBlkArray); ++i) {
-    SStatisBlk *p = &pStatisBlkArray->data[i];
-    if (p->minTbid.uid <= uid && p->maxTbid.uid >= uid) {
-      break;
-    }
-
-    if (p->maxTbid.uid < uid) {
-      break;
-    }
-  }
+//  for (; i < TARRAY2_SIZE(pStatisBlkArray); ++i) {
+//    SStatisBlk *p = &pStatisBlkArray->data[i];
+//    if (p->minTbid.uid <= uid && p->maxTbid.uid >= uid) {
+//      break;
+//    }
+//
+//    if (p->maxTbid.uid < uid) {
+//      break;
+//    }
+//  }
 
   if (i >= TARRAY2_SIZE(pStatisBlkArray)) {
     return false;
@@ -445,12 +445,12 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
     tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
 
-  bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
-  if (!exists) {
-    pIter->iSttBlk = -1;
-    pIter->pSttBlk = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
+//  bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
+//  if (!exists) {
+//    pIter->iSttBlk = -1;
+//    pIter->pSttBlk = NULL;
+//    return TSDB_CODE_SUCCESS;
+//  }
 
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.
