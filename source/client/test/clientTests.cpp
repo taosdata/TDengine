@@ -1123,6 +1123,9 @@ TEST(clientCase, tmq_commit) {
   for(int i = 0; i < numOfAssign; i++){
     printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
 
+    int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
+    printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+
     int64_t position = tmq_position(tmq, topicName, pAssign[i].vgId);
     printf("position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
     tmq_offset_seek(tmq, topicName, pAssign[i].vgId, 1);
@@ -1317,6 +1320,7 @@ TEST(clientCase, td_25129) {
     printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
   }
 
+  tmq_free_assignment(pAssign);
   tmq_consumer_close(tmq);
   taos_close(pConn);
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);

@@ -3106,7 +3106,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
     return TSDB_CODE_TMQ_SNAPSHOT_ERROR;
   }
 
-  code = checkWalRange(pOffsetInfo, -1);
+  code = checkWalRange(pOffsetInfo, offset);
   if (code != 0) {
     taosWUnLockLatch(&tmq->lock);
     return code;
