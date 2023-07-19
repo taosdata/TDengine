@@ -523,7 +523,7 @@
                       size="medium" type="primary" plain 
                       :disable="btnLoading"
                       :loading="btnLoading"
-                      @click="getSchema">获取 Schema</el-button>
+                      @click="getSchema">{{$t('datasource.getschema')}}</el-button>
                   </div>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
