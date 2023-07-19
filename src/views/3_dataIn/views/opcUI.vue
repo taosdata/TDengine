@@ -854,7 +854,7 @@ export default {
           }
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
-        if (data.authentication.value == "plain") {
+        if (data.authentication && data.authentication.value == "plain") {
           if (
             data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
               .username.value
@@ -997,7 +997,7 @@ export default {
             }
           }
         }
-        if (data.authentication.value == "certificates") {
+        if (data.authentication && data.authentication.value == "certificates") {
           // data.authentication.alternatives[2].params.forEach((val) => {
           //   querystr += val.value ? `${val.name}=${val.value}&` : "";
           // })
@@ -1244,12 +1244,12 @@ export default {
 
         let dns = "";
         let querystr = "";
-        if (data.authentication.value == "certificates") {
+        if (data.authentication && data.authentication.value == "certificates") {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
           });
         }
-        if (data.authentication.value == "plain") {
+        if (data.authentication && data.authentication.value == "plain") {
           if (data.authentication.alternatives[1].username.value) {
             dns += `://${data.authentication.alternatives[1].username.value}`;
           }
