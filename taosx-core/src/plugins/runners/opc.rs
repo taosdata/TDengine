@@ -823,19 +823,11 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
         String::from_utf8_lossy(&output.stdout).trim().to_string(),
     ))
 }
-// pub(crate) async fn opc_config_from(
-//     taos: &Taos,
-//     dsn: &Dsn,
-//     port: u16,
-// ) -> anyhow::Result<OpcTableConfig> {
-//     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
-//     config.parse_tables_with(taos).await
-// }
+
 pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
-    let runtime = tokio::runtime::Runtime::new()?;
-    runtime.block_on(async {
+    futures::executor::block_on(async {
         let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
-        Ok(config)
+        Ok::<_, anyhow::Error>(config)
     })
 }
 
