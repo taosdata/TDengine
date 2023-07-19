@@ -632,7 +632,10 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
         pStart += colSize;
       }
     } else {
-      memcpy(pStart, pCol->pData, dataSize);
+      if (dataSize != 0) {
+        // ubsan reports error if pCol->pData==NULL && dataSize==0
+        memcpy(pStart, pCol->pData, dataSize);
+      }
       pStart += dataSize;
     }
   }
@@ -684,8 +687,10 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
         return TSDB_CODE_FAILED;
       }
     }
-
-    memcpy(pCol->pData, pStart, colLength);
+    if (colLength != 0) {
+      // ubsan reports error if colLength==0 && pCol->pData == 0
+      memcpy(pCol->pData, pStart, colLength);
+    }
     pStart += colLength;
   }
 
