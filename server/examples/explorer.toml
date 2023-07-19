@@ -19,3 +19,10 @@ cluster = "http://localhost:6041"
 #   Set it to API URL like "http://localhost:6050".
 #
 x_api ="http://localhost:6050"
+
+# GRPC endpoint for "Agent"s.
+#   Default is "http://localhost:6055" - the default endpoint for taosX grpc API.
+#   You should set it to public IP or FQDN name like:
+#   "http://192.168.111.111:6055" or "http://node1.company.domain:6055" and
+#   ensure to add the port to the exception list of the firewall if it enabled.
+grpc = "http://localhost:6055"
