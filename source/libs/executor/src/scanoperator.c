@@ -1820,11 +1820,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1 ||
       pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN2) {
-    if (pInfo->blockRecoverContiCnt > 100) {
-      pInfo->blockRecoverTotCnt += pInfo->blockRecoverContiCnt;
-      pInfo->blockRecoverContiCnt = 0;
-      return NULL;
-    }
 
     switch (pInfo->scanMode) {
       case STREAM_SCAN_FROM_RES: {
