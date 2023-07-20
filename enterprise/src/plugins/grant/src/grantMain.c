@@ -151,7 +151,6 @@ extern int64_t   tsExpireTime;
 
 // for compatibility: grantMain.c could work with machine.o before 3.0.5.0
 SGrantConnObj grantConnObj = {.machine = grantObj.machine, .clusterId = grantObj.clusterId};
-SStatisInfo   statisInfObj = {0};
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
@@ -160,11 +159,13 @@ static void     grantResetMaster(SMnode *pMnode);
 static void     grantConnResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
-static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo);
+static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pGrantMsg,
                                          GrantStatus *pGrantStatus);
-static int32_t  tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo);
-static int32_t  tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo);
+static int32_t  tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo,
+                                      int64_t clusterTime);
+static int32_t  tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo,
+                                        int64_t *clusterTime);
 static int32_t  tSerializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg);
 static int32_t  tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg);
 static uint64_t grantGetClusterCurTimeSeries(SMnode *pMnode);
@@ -234,7 +235,6 @@ int32_t mndInitGrant(SMnode *pMnode) {
   gStatus.lastCheck = (uint32_t)(taosGetTimestampMs() / 1000);
   grantHandle.lastCheck = &gStatus.lastCheck;
 
-  statisInfObj.info[0] = (uint32_t)(taosGetTimestampMs() / 60000);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
@@ -313,7 +313,8 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   // step 1: process grant status from mnode
   GrantStatus grantStatusReq = {0};
   SDnodeInfo  dnodeInfo = {0};
-  if (tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &dnodeInfo) != 0) {
+  int64_t     clusterTime = 0;
+  if (tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &dnodeInfo, &clusterTime) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     uWarn("failed to process grant req in dnode since %s", terrstr());
     goto _err;
@@ -334,7 +335,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   // step 3: respond with grant msg
   grantSetClusterIdEx(*(int64_t *)pInfo);
   GrantMsg grantMsg = {.connectors.majorVer = GRANT_CONN_MAJOR_VER, .connectors.minorVer = GRANT_CONN_MINOR_VER};
-  dmGenerateGrantMsg(&grantMsg, &grantStatusReq, &dnodeInfo);
+  dmGenerateGrantMsg(&grantMsg, &grantStatusReq, &dnodeInfo, clusterTime);
   int32_t contLen = tSerializeGrantMsg(NULL, 0, &grantMsg);
   void   *pCont = rpcMallocCont(contLen);
   if (!pCont) {
@@ -368,21 +369,10 @@ static void dmRefreshGrantCfg() {
 #else
   sprintf(cfgFile, "%s/taos.cfg", configDir);
 #endif
-
-#ifndef GRANTS_CFG
-  int64_t cur = GRANT_CUR_TIME(&statisInfObj);
-  int64_t tolerence = taosGetTimestampMs() / 1000 + GRANT_CODE_TOLERENCE;
-  if (cur > tolerence) {
-    uWarn("failed to refresh grant cfg since time ouf of sync:  %" PRIi64 " < %" PRIi64);
-    grantObj.granted = false;
-    return;
-  }
-  // if(mndGetClusterUpTime() < )
-#endif
   grantActiveSystem(cfgFile);
 }
 
-static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus, SDnodeInfo *pInfo) {
+static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime) {
   grantSetActiveCodes(pInfo);
   // refresh
   dmRefreshGrantCfg();
@@ -431,6 +421,27 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   pGrantMsg->limitTables = cloudGrantStatus.limitTables;
   SET_GRANT_TDENGINE(pGrantMsg);
 #else
+
+  if (grantObj.granted) {
+    int64_t tolerence = taosGetTimestampMs() / 1000 + GRANT_CHK_TOLERENCE;
+    if (clusterTime > tolerence) {
+      grantObj.granted = false;
+      uWarn("failed to grant since time ouf of sync: %" PRIi64 " > %" PRIi64, clusterTime, tolerence);
+    } else {
+      uWarn("cont to grant since time in sync: clusterTime %" PRIi64 " <  tolerence %" PRIi64, clusterTime, tolerence);
+      int64_t grantCurrent = GRANT_CUR_TIME;
+      if (grantCurrent > tolerence) {
+        grantObj.granted = false;
+        uWarn("failed to grant since time ouf of sync: %" PRIi64 " < %" PRIi64, tolerence, grantCurrent);
+      } else {
+        uWarn("cont to grant since time in sync: grantCurrent %" PRIi64 " < tolerence %" PRIi64, grantCurrent,
+              tolerence);
+      }
+    }
+  } else {
+    uWarn("%s:%d grantObj.granted is false", __func__, __LINE__);
+  }
+
   if (grantObj.granted) {
     SET_GRANT_TDENGINE(pGrantMsg);
     pGrantMsg->usbDongle = grantObj.usbDongle;
@@ -467,11 +478,12 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
  *        2) process response (grant msg) from dnode
  * @param pMnode
  * @param pDnodeInfo
+ * @param clusterTime
  * @return int32_t
  */
-static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo) {
+static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo, int64_t clusterTime) {
   // step 1: send grant status to dnode
-  int32_t contLen = tSerializeGrantStatus(NULL, 0, &gStatus, pDnodeInfo);
+  int32_t contLen = tSerializeGrantStatus(NULL, 0, &gStatus, pDnodeInfo, clusterTime);
   void   *pCont = rpcMallocCont(contLen);
   if (!pCont) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -479,7 +491,7 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo)
     return TSDB_CODE_FAILED;
   }
 
-  tSerializeGrantStatus(pCont, contLen, &gStatus, pDnodeInfo);
+  tSerializeGrantStatus(pCont, contLen, &gStatus, pDnodeInfo, clusterTime);
 
   SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT};
   SRpcMsg rpcRsp = {0};
@@ -526,7 +538,6 @@ _err:
  * @return int32_t
  */
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
-  atomic_add_fetch_32(&statisInfObj.info[1], tsGrantHBInterval);
   if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   SMnode *pMnode = pReq->info.node;
   int32_t dnodeSize = mndGetDnodeSize(pMnode);
@@ -548,9 +559,10 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   mndGetDnodeData(pMnode, pDnodeInfo);
 
+  int64_t clusterTime = mndGetClusterCreateTime(pMnode) / 1000 + mndGetClusterUpTime(pMnode);
   for (int32_t i = 0; i < taosArrayGetSize(pDnodeInfo); ++i) {
     SDnodeInfo *info = (SDnodeInfo *)taosArrayGet(pDnodeInfo, i);
-    mndSendGrantStatusToDnode(pMnode, info);
+    mndSendGrantStatusToDnode(pMnode, info, clusterTime);
   }
 
   taosArrayDestroy(pDnodeInfo);
@@ -1604,7 +1616,7 @@ static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo) {
+int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo, int64_t clusterTime) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -1659,6 +1671,9 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   if (tEncodeBinary(&encoder, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN) < 0) return -1;
   // end of version 2
 
+  // version 3: since 3.1.0.0
+  if (tEncodeI64v(&encoder, clusterTime) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1666,7 +1681,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   return tlen;
 }
 
-int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo) {
+int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo, int64_t *clusterTime) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -1726,7 +1741,11 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
     tstrncpy(pInfo->active, data, TSDB_ACTIVE_KEY_LEN);
     if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
     tstrncpy(pInfo->connActive, data, TSDB_CONN_ACTIVE_KEY_LEN);
+  }
 
+  // version 3: since 3.1.0.0
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI64v(&decoder, clusterTime) < 0) return -1;
   }
 
   tEndDecode(&decoder);
