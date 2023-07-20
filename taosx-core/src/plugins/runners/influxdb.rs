@@ -415,9 +415,10 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         .and_then(|addr| addr.port.clone())
         .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
     let influx_url = format!("http://{}:{}/", host, port);
-    let influx_version = dsn
-        .remove("version")
-        .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+    let influx_version = dsn.remove("version").unwrap_or("".to_string());
+    if influx_version == "" {
+        anyhow::bail!("The version is required");
+    }
     // On version 1.x, only username/password mode can be used
     // On version 2.x, only access token mode can be used.
     let influx_username = dsn.remove("username").unwrap_or("".to_string());
@@ -467,6 +468,13 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .with_context(|| "Start InfluxDB collector error")?;
     }
     let s = String::from_utf8(output.stdout.clone())?;
+    if s == "" {
+        match output.status.code().unwrap() {
+            101 => anyhow::bail!("Failed to connect"),
+            102 => anyhow::bail!("Unauthorized access"),
+            _ => anyhow::bail!(output.status.to_string())
+        }
+    }
     dbg!(&s);
     let mut vec = Vec::new();
     vec.push(DataSet {
