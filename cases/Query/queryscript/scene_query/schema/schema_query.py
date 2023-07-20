@@ -59,6 +59,7 @@ class TDTestQuery(TDCase):
         return case_description
     
     def random_column_tag(self,db_tb):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         describe_sql = "describe %s;" %db_tb
         self.tdSql.query(describe_sql)  
         rows = self.tdSql.query_row
@@ -70,6 +71,7 @@ class TDTestQuery(TDCase):
         return column_tag_list
     
     def random_column_tag_where(self,db_tb):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         fake = Faker('zh_CN')
         random_int = random.randint(-100,10000000)
         random_float = fake.pyfloat()
@@ -551,6 +553,7 @@ class TDTestQuery(TDCase):
         return time_window        
         
     def describe_table(self,db_tb):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         random_num1 = random.randint(0,1000)
         random_num2 = random.randint(0,100)
         describe_sql = "describe %s;" %db_tb
@@ -709,6 +712,7 @@ class TDTestQuery(TDCase):
         
 
     def interval_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         column_tag_list = self.random_column_tag(db_tb)
         column_tag_list_where = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
         column_tag_list_where_1 = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'").replace("|",",")
@@ -885,6 +889,7 @@ class TDTestQuery(TDCase):
             f.close()
                     
     def explain_sql(self,sql): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.tdSql.execute("reset query cache;")
         sql = "explain " + sql 
         self.tdSql.query(sql,queryTimes=1) 
@@ -1118,7 +1123,7 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
-        self.tdSql.query("alter local 'schedulePolicy' '2';") 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
          
         #self.describe_table(self.db_tb) 
         
