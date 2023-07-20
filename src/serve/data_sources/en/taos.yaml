@@ -1,0 +1,157 @@
+---
+id: taos
+name: Legacy TDengine
+description: |
+  Migrate from earlier versions of TDengine.
+
+  ## Protocols
+
+  - **ws**: websocket protocol with plain HTTP connection.
+  - **wss**: websocket protocol with TLS http connection.
+
+  Without protocol settings, we will use native connection.
+
+type: uri
+protocol:
+  display: Protocol
+  description: Choose a protocol scheme for websocket connection, leave it empty for native connection
+  choices:
+    - name: "--"
+      display: Native
+      description: Use libtaos client library for connection
+    - name: ws
+      display: WS
+      description: Use WebSocket with HTTP connection.
+    - name: wss
+      display: WSS
+      description: Use WebSocket with HTTPS connection.
+options:
+  host:
+    display: Host
+    description: TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).
+    placeholder: server
+  port:
+    display: Port
+    description: TDengine connection port, leave it empty if use default port.
+    placeholder: auto
+  subject:
+    required: true
+    display: Database
+    description: Database name
+    placeholder: "Example: db1"
+authentication:
+  display: Authentication
+  description: Use username/password plain authentication.
+  value: plain
+  alternatives:
+    - name: plain
+      display: Plain
+      description: Use username and password.
+      username:
+        display: Username
+        description: TDengine username. The default is root.
+        placeholder: root
+        value: root
+      password:
+        display: Password
+        description: TDengine password. The default is taosdata.
+        placeholder: taosdata
+        value: taosdata
+strict: false
+groups:
+  - name: Migrate Options
+    display_order: 1
+    description: How to migrate.
+    params:
+      - name: mode
+        display: Mode
+        description: |-
+          Migrate history data or realtime or both.
+        value: history
+        hint:
+          type: str
+          choices:
+            - history
+            - realtime
+            - all
+      - name: schema
+        display: Schema
+        value: all
+        hint:
+          type: str
+          choices:
+            - all
+            - none
+            - only
+        description: |
+          Which kind of data to be migrated.
+
+          - `only`: means only migrate schema into target.
+          - `none`: means not migrate schema, but only data into target.
+          - `all`: means migrate all stuff.
+        placeholder: 5s
+
+  - name: What to migrate
+    display_order: 2
+    description: Choose to migrate from stable or tables.
+    params:
+      - name: stables
+        display: STables
+        description: |-
+          Select some of stables from the database. Separated by `,`.
+        hint:
+          type: str
+      - name: tables
+        display: Tables
+        hint:
+          type: str
+        description: |
+          Select table names to be migrated.
+        placeholder: d0001
+
+  - name: Range
+    display_order: 3
+    description: Migration time range.
+    params:
+      - name: start
+        display: Start
+        description: |-
+          Time range start.
+        hint:
+          type: datetime
+      - name: end
+        display: End
+        hint:
+          type: datetime
+        description: Time range end.
+        placeholder:
+      - name: unit
+        display: Unit
+        hint:
+          type: duration
+        description: Time duration unit for query.
+        placeholder: 1d
+
+  - name: Realtime Settings
+    display_order: 4
+    description: Only available in `realtime` mode.
+    params:
+      - name: retro
+        display: Retrospection
+        description: |-
+          Retrospect data from some time ago into target before realtime data migrating.
+        hint:
+          type: duration
+      - name: interval
+        display: Interval
+        hint:
+          type: duration
+        description: Polling interval to query realtime data.
+        placeholder:
+      - name: excursion
+        display: Excursion
+        hint:
+          type: duration
+        description: Wait for some period to querying random-order data.
+        placeholder: 5m
+

@@ -1,0 +1,150 @@
+---
+id: taos
+name: Earlier
+description: |
+  从旧版本 TDengine (2.6) 迁移到当前集群。
+type: uri
+protocol:
+  display: 连接协议
+  description:
+    选择使用何种方式连接到 TDengine 数据源。默认为原生连接。
+  choices:
+    - name: "--"
+      display: 原生连接
+      description: 使用 TDengine 提供的 C 客户端进行连接。
+    - name: ws
+      display: WS
+      description: 使用 HTTP 协议的 WebSocket 连接。
+    - name: wss
+      display: WSS
+      description: 使用 HTTPS 协议的 WebSocket 连接。
+options:
+  host:
+    display: 服务器
+    description: |
+      TDengine FQDN，可以使用域名或 IP 地址。
+    placeholder: server
+  port:
+    display: 端口
+    description: TDengine 服务端口，留空以为各连接方式使用默认端口。
+    placeholder: auto
+  subject:
+    required: true
+    display: 数据库
+    description: 数据库名称，支持特殊字符。
+    placeholder: "示例: db1"
+authentication:
+  display: 认证
+  description: 使用用户名密码进行认证。
+  value: plain
+  alternatives:
+    - name: plain
+      display: 用户名密码
+      description: 使用用户名和密码进行访问。
+      username:
+        display: 用户名
+        description: TDengine 用户名，默认使用 `root`。
+        placeholder: root
+        value: root
+      password:
+        display: Password
+        description: TDengine 密码，默认为 `taosdata`。
+        placeholder: taosdata
+        value: taosdata
+strict: false
+groups:
+  - name: 迁移模式
+    display_order: 1
+    description: 支持迁移历史数据或近实时数据同步，也可设置是否总是重建表模型。
+    params:
+      - name: mode
+        display: Mode
+        description: |-
+          迁移历史数据（`history`）或实时数据（`realtime`）或两者（`both`）。
+        value: history
+        hint:
+          type: str
+          choices:
+            - history
+            - realtime
+            - all
+      - name: schema
+        display: 表结构
+        value: all
+        hint:
+          type: str
+          choices:
+            - all
+            - none
+            - only
+        description: |
+          是否迁移表结构。
+
+          - `only`: 仅迁移表结构，不迁移表数据。
+          - `none`: 不迁移表结构，仅迁移表数据。
+          - `all`: 迁移表结构和数据。
+
+  - name: 表
+    display_order: 2
+    description: 如果不是迁移全部数据，请配置需要迁移的表。
+    params:
+      - name: stables
+        display: 超级表
+        description: |-
+          逗号分隔的一个或多个超级表。选择超级表会迁移超级表下的所有子表数据。
+        hint:
+          type: str
+      - name: tables
+        display: 表
+        hint:
+          type: str
+        description: |
+          子表或普通表，支持 `tb1` 形式的表名或 `stable.table` 形式的子表名。
+        placeholder: d0001
+
+  - name: 时间范围
+    display_order: 3
+    description: 迁移时间范围和查询单元。
+    params:
+      - name: start
+        display: 开始时间
+        description: |-
+          迁移数据开始时间。
+        hint:
+          type: datetime
+      - name: end
+        display: 结束时间
+        hint:
+          type: datetime
+        description: 迁移数据结束时间。
+        placeholder:
+      - name: unit
+        display: 查询单元
+        hint:
+          type: duration
+        description: 查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。
+        placeholder: 1d
+
+  - name: 实时同步
+    display_order: 4
+    description: 以下参数仅在实时同步模式（`realtime`）下支持。
+    params:
+      - name: retro
+        display: 回溯
+        description: |-
+          在实时同步前回溯一段时间内的数据写入目标库。
+        hint:
+          type: duration
+      - name: interval
+        display: 间隔
+        hint:
+          type: duration
+        description: 轮询查询的时间间隔。
+        placeholder:
+      - name: excursion
+        display: 乱序
+        hint:
+          type: duration
+        description: 等待一段时间的乱序数据入库后再进行查询。
+        placeholder: 5m
+

@@ -1842,6 +1842,7 @@ lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/taos.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
@@ -1857,6 +1858,7 @@ lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/taos.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
@@ -1873,6 +1875,7 @@ lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/taos.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
@@ -1888,6 +1891,7 @@ lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/taos.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
