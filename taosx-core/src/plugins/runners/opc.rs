@@ -349,6 +349,7 @@ impl OPCConfig {
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
+                        log::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| OpcError::ConfigError("ua.nodes", err.to_string()))?;
                     }
                     res.1
@@ -433,6 +434,7 @@ impl OPCConfig {
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
+                        log::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| OpcError::ConfigError("ua.nodes", err.to_string()))?;
                     }
                     res.1

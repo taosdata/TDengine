@@ -483,8 +483,12 @@ async fn consume_point_record(
                 anyhow::bail!("id: {id} failded to get stable");
             };
 
-            let mut child_table_name = stable_name.clone();
-            child_table_name.push_str(format!("_{}", point_config.code).as_str());
+            let child_table_name = if point_config.stable.is_some() {
+                format!("{}", point_config.code)
+            } else {
+                format!("{stable_name}_{}", point_config.code)
+            };
+            // child_table_name.push_str(format!("_{}", point_config.code).as_str());
             let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
             let mut value_cloumn_name = "value";
