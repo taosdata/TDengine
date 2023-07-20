@@ -60,8 +60,15 @@ type CollectConfig struct {
 	Interval    int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
 	Limit       int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	ContainsBad bool            `json:"contains_bad,omitempty" yaml:"contains_bad" toml:"contains_bad"`
+	Dump        DumpConfig      `json:"dump,omitempty" yaml:"dump" toml:"dump"`
 	Ua          UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
 	Da          DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
+}
+
+type DumpConfig struct {
+	Enable bool   `json:"enable,omitempty" yaml:"enable" toml:"enable"`
+	Path   string `json:"path,omitempty" yaml:"path" toml:"path"`
+	Keep   int64  `json:"keep,omitempty" yaml:"keep" toml:"keep"`
 }
 
 type UaCollectConfig struct {

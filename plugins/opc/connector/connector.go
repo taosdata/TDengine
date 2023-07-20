@@ -3,6 +3,8 @@ package connector
 import (
 	"collector/common"
 	"context"
+	"encoding/csv"
+	"fmt"
 	"math"
 	"math/rand"
 	"os/signal"
@@ -10,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gopcua/opcua/ua"
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sunpe/gobox/logger"
 )
 
@@ -17,6 +21,48 @@ type Connector interface {
 	Stop(ctx context.Context)
 	Collect(ctx context.Context) (<-chan *common.NodeValue, error)
 	GetAllPoints(ctx context.Context) ([]common.Point, error)
+}
+
+type CsvDumper struct {
+	rotator *rotatelogs.RotateLogs
+	writer  *csv.Writer
+}
+
+func NewCsvDumper(path string, keep int64) (*CsvDumper, error) {
+	if len(path) == 0 {
+		return nil, fmt.Errorf("invalid path")
+	}
+	rotate, err := rotatelogs.New(path+".%Y%m%d%H%M",
+		rotatelogs.WithMaxAge(time.Duration(keep)*24*time.Hour),
+		rotatelogs.WithRotationTime(time.Hour))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dump file: %w", err)
+	}
+	writer := csv.NewWriter(rotate)
+	return &CsvDumper{rotator: rotate, writer: writer}, nil
+}
+
+func (c *CsvDumper) Dump(value *common.NodeValue) error {
+	if value == nil {
+		return nil
+	}
+
+	item := []string{
+		value.Identifier,                                 // id
+		value.Name,                                       // name
+		value.Now.Format(time.RFC3339Nano),               // now
+		value.Timestamp.Format(time.RFC3339Nano),         // timestamp
+		fmt.Sprintf("%v", value.Value),                   // value
+		value.ValueType.String(),                         // value type
+		ua.StatusCodes[ua.StatusCode(value.Status)].Name, // status
+	}
+
+	return c.writer.Write(item)
+}
+
+func (c *CsvDumper) Close() {
+	c.writer.Flush()
+	_ = c.rotator.Close()
 }
 
 type FakeConnector struct {
@@ -104,7 +150,7 @@ func (f *FakeConnector) getAllNodes() ([]fakePoint, error) {
 	return points, nil
 }
 
-func (r *FakeConnector) randomValueType() common.ValueType {
+func (f *FakeConnector) randomValueType() common.ValueType {
 	return common.ValueType(rand.Int()%15 + 1)
 }
 

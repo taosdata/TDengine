@@ -7,6 +7,7 @@ require (
 	github.com/apache/arrow/go/v12 v12.0.1
 	github.com/gopcua/opcua v0.4.0
 	github.com/konimarti/opc v0.3.1
+	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/sunpe/gobox v0.0.0-20230529082514-972c4d79c54f
 )
 
@@ -20,9 +21,11 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
+	github.com/jonboulle/clockwork v0.4.0 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
 	github.com/klauspost/compress v1.16.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
+	github.com/lestrrat-go/strftime v1.0.6 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8 // indirect
 	github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 // indirect
