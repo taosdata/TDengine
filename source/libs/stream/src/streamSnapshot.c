@@ -157,7 +157,9 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
   // current
   item.name = pFile->pCurrent;
   item.type = ROCKSDB_CURRENT_TYPE;
-  taosStatFile(pFile->pCurrent, &item.size, NULL);
+  if (taosStatFile(pFile->pCurrent, &item.size, NULL) != 0) {
+    qError("stream-state failed to get file size: %s", pFile->pCurrent);
+  }
   taosArrayPush(list, &item);
   // mainfest
   item.name = pFile->pMainfest;
