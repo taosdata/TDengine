@@ -2905,28 +2905,32 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
   blockDataCleanup(pResBlock);
-
+  STupleHandle* pTupleHandle = NULL;
   while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
-    if (pTupleHandle == NULL) {
-      break;
+    while (1) {
+      pTupleHandle = tsortNextTuple(pHandle);
+      if (pTupleHandle == NULL) {
+        break;
+      }
+
+      appendOneRowToDataBlock(pResBlock, pTupleHandle);
+      if (pResBlock->info.rows >= capacity) {
+        break;
+      }
     }
 
-    appendOneRowToDataBlock(pResBlock, pTupleHandle);
-    if (pResBlock->info.rows >= capacity) {
-      break;
+    if (tsortIsClosed(pHandle)) {
+      terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
+      T_LONG_JMP(pOperator->pTaskInfo->env, terrno);
     }
+
+    bool limitReached = applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
+    qDebug("%s get sorted row block, rows:%" PRId64 ", limit:%" PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
+          pInfo->limitInfo.numOfOutputRows);
+    if (pTupleHandle == NULL || limitReached || pResBlock->info.rows > 0) {
+      break;
+    }  
   }
-
-  if (tsortIsClosed(pHandle)) {
-    terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
-    T_LONG_JMP(pOperator->pTaskInfo->env, terrno);
-  }
-
-  bool limitReached = applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
-  qDebug("%s get sorted row block, rows:%" PRId64 ", limit:%" PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
-         pInfo->limitInfo.numOfOutputRows);
-
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
 
