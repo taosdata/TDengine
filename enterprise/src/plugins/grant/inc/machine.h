@@ -38,7 +38,7 @@
 #else
 #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
-#define GRANT_CODE_TOLERENCE 180
+#define GRANT_CHK_TOLERENCE  180
 #define GRANT_CHECK_INTERVAL 5
 #define GRANT_HEART_BEAT_MSG 1
 #endif
@@ -69,8 +69,8 @@
 #define GRANT_TABLE_LIMITS         4102416000
 
 // specific for connectors
-#define GRANT_CONN_MAJOR_VER           1 // increase if the definition of data structure or active code changes
-#define GRANT_CONN_MINOR_VER           1
+#define GRANT_CONN_ACTIVE_MAJOR_VER    2 // increase if the definition of data structure or active code changes, 1-2
+#define GRANT_CONN_ACTIVE_MINOR_VER    1
 #define GRANT_CONN_NUM_V1              32
 #define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
 #define GRANT_CONN_ACTIVE_KEY_LEN      108
@@ -115,6 +115,7 @@ typedef struct {
   char          *clusterId;
   char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];
   SGrantConnItem items[GRANT_CONN_NUM];
+  uint16_t       distribute;
 } SGrantConnObj;
 
 typedef struct {
@@ -125,6 +126,7 @@ typedef struct {
   uint8_t        officialVersion;
   int8_t         majorVer;
   int8_t         minorVer;
+  uint16_t       distribute;
   SGrantConnItem items[GRANT_CONN_NUM];
 } SGrantConnMsg;
 
@@ -152,7 +154,7 @@ typedef struct {
   union {
     uint32_t reserveKey1;
     struct {
-      uint16_t distribute;  // distribute date since 3.1.0.0
+      uint16_t distribute;      // distribute date since 3.1.0.0
       uint16_t reserveKey10;
     };
   };
@@ -206,7 +208,13 @@ typedef struct {
   uint32_t      limitAccts;
   uint32_t      limitDnodes;
   uint32_t      limitCpuCores;
-  uint32_t      reserveKey1;
+  union {
+    uint32_t reserveKey1;
+    struct {
+      uint16_t distribute;      // distribute date since 3.1.0.0
+      uint16_t reserveKey10;
+    };
+  };
   uint32_t      reserveKey2;
   SGrantConnMsg connectors;
 } SGrantMsg;
