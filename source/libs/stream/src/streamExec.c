@@ -365,6 +365,10 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
            pStreamTask->id.idStr);
   }
 
+  // todo fix race condition
+  streamTaskDisablePause(pTask);
+  streamTaskDisablePause(pStreamTask);
+
   ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.transferState == true);
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
@@ -419,6 +423,10 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
     // persist to disk
   }
   taosWUnLockLatch(&pMeta->lock);
+
+  // pause allowed
+  streamTaskEnablePause(pStreamTask);
+  streamTaskEnablePause(pTask);
 
   streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pMeta, pStreamTask);
@@ -568,22 +576,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 }
 
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  int32_t numOfItems = taosQueueItemSize(pTask->inputQueue->queue);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  numOfItems = taosQallItemSize(pTask->inputQueue->qall);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  // blocked by downstream task
-  if (pTask->outputInfo.status == TASK_OUTPUT_STATUS__BLOCKED) {
-    return false;
-  }
-
-  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE/* && pTask->status.taskStatus != TASK_STATUS__HALT*/);
 }
 
 int32_t streamTryExec(SStreamTask* pTask) {

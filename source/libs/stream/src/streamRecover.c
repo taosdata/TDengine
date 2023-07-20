@@ -72,7 +72,9 @@ static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-      return doLaunchScanHistoryTask(pTask);
+      int32_t code = doLaunchScanHistoryTask(pTask);
+      streamTaskEnablePause(pTask);
+      return code;
     } else {
       ASSERT(pTask->status.taskStatus == TASK_STATUS__NORMAL);
       qDebug("s-task:%s no need to scan-history-data, status:%s, sched-status:%d, ver:%" PRId64, pTask->id.idStr,
@@ -86,6 +88,7 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
     qDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
   }
 
+  streamTaskEnablePause(pTask);
   return 0;
 }
 
@@ -196,6 +199,11 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
     streamTaskLaunchScanHistory(pTask);
   } else {
     qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
+  }
+
+  // enable pause when init completed.
+  if (pTask->historyTaskId.taskId == 0 && pTask->info.fillHistory == 0) {
+    streamTaskEnablePause(pTask);
   }
 
   // when current stream task is ready, check the related fill history task.
@@ -415,8 +423,8 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
 // agg
 int32_t streamAggScanHistoryPrepare(SStreamTask* pTask) {
   pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
-  qDebug("s-task:%s agg task is ready and wait for %d upstream tasks complete scan-history procedure", pTask->id.idStr,
-         pTask->numOfWaitingUpstream);
+  qDebug("s-task:%s agg task wait for %d upstream tasks complete scan-history procedure, status:%s", pTask->id.idStr,
+         pTask->numOfWaitingUpstream, streamGetTaskStatusStr(pTask->status.taskStatus));
   return 0;
 }
 
@@ -745,7 +753,6 @@ void launchFillHistoryTask(SStreamTask* pTask) {
   streamLaunchFillHistoryTask(pTask);
 }
 
-// todo handle race condition, this task may be destroyed
 void streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
   if (pTask->info.fillHistory) {
     qDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
@@ -756,4 +763,38 @@ void streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
 
   // check downstream tasks for itself
   streamTaskDoCheckDownstreamTasks(pTask);
+}
+
+void streamTaskPause(SStreamTask* pTask) {
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  int64_t st = taosGetTimestampMs();
+  while(!pTask->status.pauseAllowed) {
+    qDebug("s-task:%s wait for the task can be paused, vgId:%d", pTask->id.idStr, pMeta->vgId);
+    taosMsleep(100);
+  }
+
+  atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
+  atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+
+  int64_t el = taosGetTimestampMs() - st;
+  qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,
+         streamGetTaskStatusStr(pTask->status.keepTaskStatus), el);
+}
+
+// todo fix race condition
+void streamTaskDisablePause(SStreamTask* pTask) {
+  // pre-condition check
+  while (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+    taosMsleep(10);
+    qDebug("s-task:%s already in pause, wait for pause being cancelled, and then set pause disabled", pTask->id.idStr);
+  }
+
+  qDebug("s-task:%s disable task pause", pTask->id.idStr);
+  pTask->status.pauseAllowed = 0;
+}
+
+void streamTaskEnablePause(SStreamTask* pTask) {
+  qDebug("s-task:%s enable task pause", pTask->id.idStr);
+  pTask->status.pauseAllowed = 1;
 }

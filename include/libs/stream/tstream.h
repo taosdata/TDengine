@@ -45,7 +45,7 @@ enum {
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
-  TASK_STATUS__HALT,          // stream task will handle all data in the input queue, and then paused
+  TASK_STATUS__HALT,          // stream task will handle all data in the input queue, and then paused, todo remove it?
   TASK_STATUS__PAUSE,         // pause
 };
 
@@ -272,6 +272,7 @@ typedef struct SStreamStatus {
   int8_t        keepTaskStatus;
   bool          transferState;
   int8_t        timerActive;     // timer is active
+  int8_t        pauseAllowed;    // allowed task status to be set to be paused
 } SStreamStatus;
 
 typedef struct SHistDataRange {
@@ -557,7 +558,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
-// int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
@@ -593,6 +593,9 @@ int32_t     streamSetParamForScanHistory(SStreamTask* pTask);
 int32_t     streamRestoreParam(SStreamTask* pTask);
 int32_t     streamSetStatusNormal(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
+void        streamTaskPause(SStreamTask* pTask);
+void        streamTaskDisablePause(SStreamTask* pTask);
+void        streamTaskEnablePause(SStreamTask* pTask);
 
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
