@@ -56,6 +56,7 @@ class TDCreateData():
         self.tdDnodes.start(1)
         
     def drop_db(self,database):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #delete:
         table_list = ['stable_1','stable_2','stable_null_data','stable_null_childtable','stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2',\
             'regular_table_3','regular_table_1','regular_table_2','regular_table_null','stable_2_1','stable_2_2','stable_2_2','stable_1_3','stable_1_4',]
@@ -67,6 +68,7 @@ class TDCreateData():
             self.tdSql.checkRow(0)
         
         #drop:
+        time.sleep(10)
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
     def data_check(self, elm, expect_elm , throw=True) -> bool:
@@ -86,6 +88,7 @@ class TDCreateData():
                 return False
                     
     def alter_local_slowlogthreshold(self):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #local variables 修改验证
         show_sql = 'show local variables;'
         
@@ -134,6 +137,7 @@ class TDCreateData():
             self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
 
     def dropandcreateDB_random(self,database,n):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
@@ -353,6 +357,7 @@ class TDCreateData():
         self.add_data_random(database,n,1640000000000)
     
     def alter_cachemodel(self,database):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         i = random.randint(0,5)
         cachesize = random.randint(1,666)
         if i ==0:
@@ -374,6 +379,7 @@ class TDCreateData():
             self.tdSql.query(sql,queryTimes=1)
         
     def add_data_random(self,database,n,ts):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #增加数据稀疏
         self.ts = ts
         self.num_random = 100
@@ -442,6 +448,7 @@ class TDCreateData():
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
             
     def dropandcreateDB_tsbs(self,database,n):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000
         self.num_random = 10
         self.stable_child_num = 10
@@ -679,6 +686,7 @@ class TDCreateData():
         self.add_data_random(database,n,1640000000000)
         
     def dropandcreateDB_random_diff(self,database,n):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
@@ -859,6 +867,7 @@ class TDCreateData():
         # self.add_data_random(database,n,1640000000000)
 
     def dropandcreateDB_random_concat(self,database,n):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #为concat函数定制的，多binary和多nchar
         self.ts = 1630000000000
         self.num_random = 100
@@ -1162,8 +1171,11 @@ class TDCreateData():
     def alter_tag(self,sql):
         pass
 
+    def explain_sql_pass(self,sql):
+        pass
 
     def explain_sql(self,sql):   
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #执行sql解析  
         ratio = random.uniform(0.001,1)
         sql_verbose_true = sql  
@@ -1387,6 +1399,7 @@ class TDCreateData():
         return(conn1,cur1)  
              
     def result_0(self,sql):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.logger.info(sql) 
         self.tdSql.query(sql)
         self.tdSql.checkRow(0)
@@ -1402,6 +1415,7 @@ class TDCreateData():
         self.tdSql.checkRow(0)
         
     def value_check(self,base_value,check_value,sql1,sql2):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #两个sql及执行数据检查
         #self.logger.debug(f"sql1={sql1},sql2={sql2}")
         if (base_value == check_value) :
@@ -1414,6 +1428,7 @@ class TDCreateData():
             return self.tdSql.checkEqual(base_value,check_value)
         
     def dataequal_notcheckrow(self, sql1,row1,col1, sql2,row2,col2):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql1 = sql1
         list1 =[]
         self.tdSql.query(sql1)
@@ -1467,6 +1482,7 @@ class TDCreateData():
             return self.tdSql.checkEqual(list1,list2)
         
     def dataequal(self, sql1,row1,col1, sql2,row2,col2):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.dataequal_notcheckrow(sql1,row1,col1, sql2,row2,col2)
         sql1_row = self.tdSql.query(sql1).row_count
         sql2_row = self.tdSql.query(sql2).row_count
@@ -1484,6 +1500,7 @@ class TDCreateData():
         
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #hyperloglog函数结果允许误差，因此放大误差数值
         self.sql1 = sql1
         list1 =[]
@@ -1512,6 +1529,7 @@ class TDCreateData():
             return self.tdSql.checkEqual(list1,list2)
          
     def data_matrix_equal(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #  ----row1_start----col1_start----
         #  - - - - 是一个矩阵内的数据相等- - - 
         #  - - - - - - - - - - - - - - - - 
@@ -1567,6 +1585,7 @@ class TDCreateData():
             return self.tdSql.checkEqual(list1,list2)
                           
     def data2in1(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #  ----row1_start----col1_start----
         #  - - - - - - - - - - - - - - - - 
         #  - - - - - - - - - - - - - - - - 
@@ -1606,7 +1625,9 @@ class TDCreateData():
             return self.tdSql.checkEqual(list1,list2)
 
     
-    def ignore_error_check(self,service_host,db,sql1,sql2):            
+    def ignore_error_check(self,service_host,db,sql1,sql2): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+                   
         rows = -1;
         case_common = self.case_sql_subprocess_execute(service_host,db)
         cur1 = case_common[1]
@@ -1645,6 +1666,7 @@ class TDCreateData():
     def check_one_row_one_col_value(self, sql, row, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
         # 检查某行（row）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.tdSql.query(sql)
         self.value = value
@@ -1738,6 +1760,7 @@ class TDCreateData():
     def check_mult_rows_one_col_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
         # 检查多行（row1--row2）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
@@ -1750,6 +1773,7 @@ class TDCreateData():
     def check_one_row_one_col_str_value(self, sql, row, col, oper, value, throw=True) -> bool:
         # oper : UPPER (全大写字母)、LOWER（全小写字母）、RTRIM（清除右边空格）、LTRIM（清除左边空格）、CONCAT（字符串连接）、CONCAT_WS（带分隔符字符串连接）。
         # 检查某行（row）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.tdSql.query(sql)
         self.value = value
@@ -1819,6 +1843,7 @@ class TDCreateData():
     def check_mult_rows_one_col_str_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         #  oper : UPPER (全大写字母)、LOWER（全小写字母）、RTRIM（清除右边空格）、LTRIM（清除左边空格）。
         # 检查多行（row1--row2）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
@@ -1833,6 +1858,7 @@ class TDCreateData():
         # oper : TIME、SYS_TIME (时间对比)、TODAY、SYS_TODAY（时间对比）、TIMEZONE、SYS_TIMEZONE（时间对比）
         # oper : TO_ISO8601、SYS_TO_ISO8601 (时间对比)、TO_UNIXTIMESTAMP、SYS_TO_UNIXTIMESTAMP（时间对比）、TIMEZONE、SYS_TIMEZONE（时间对比）
         # 检查某行（row）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.tdSql.query(sql)
         self.value = value
@@ -2025,7 +2051,40 @@ class TDCreateData():
         self.sql = sql
         self.oper = oper
         self.value = value
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         
         for i in range(row1, row2):
             self.logger.info("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
             self.check_one_row_one_col_time_value(sql, i , col, oper, value)
+
+        
+    def orderby_check(self,sql,orderby, throw=True) -> bool:
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        rows = self.tdSql.query(sql).row_count
+        i = random.randint(2,rows-2)
+        order_1 = self.tdSql.getData(i-1,0)
+        order_2 = self.tdSql.getData(i,0)
+        order_3 = self.tdSql.getData(i+1,0)
+       
+        if orderby == "asc":
+            if operator.ge(order_2,order_1) and operator.ge(order_3,order_2) :  
+                self.logger.debug(f"（大于等于）checkEqual success, {order_3} >= {order_2} >={order_1}")                 
+                return True 
+            else:
+                if throw:
+                    raise AssertionError(f"EQ（大于等于）checkEqual error, {order_3} <= {order_2}")
+                else:
+                    self._set_error_msg(f"EQ（大于等于）checkEqual error, {order_3} <= {order_2}")
+                    return False
+        
+        elif orderby == "desc":
+            if operator.le(order_2,order_1) and operator.le(order_3,order_2) :  
+                self.logger.debug(f"（小于等于）checkEqual success, {order_3} <= {order_2} <={order_1}")                 
+                return True 
+            else:
+                if throw:
+                    raise AssertionError(f"EQ（小于等于）checkEqual error, {order_3} >= {order_2}")
+                else:
+                    self._set_error_msg(f"EQ（小于等于）checkEqual error, {order_3} >= {order_2}")
+                    return False
+  
