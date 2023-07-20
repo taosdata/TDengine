@@ -199,7 +199,7 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
   streamTaskSetRangeStreamCalc(pTask);
 
   if (status == TASK_STATUS__SCAN_HISTORY) {
-    qDebug("s-task:%s enter into scan-history-data stage, status:%s", id, numOfReqs, str);
+    qDebug("s-task:%s enter into scan-history-data stage, status:%s", id, str);
     streamTaskLaunchScanHistory(pTask);
   } else {
     qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
