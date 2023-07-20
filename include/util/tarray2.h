@@ -132,9 +132,9 @@ static FORCE_INLINE int32_t tarray2SortInsert(void *arr, const void *elePtr, int
     (a)->capacity = 0;           \
   } while (0)
 
-#define TARRAY2_INSERT_PTR(a, idx, ep) tarray2InsertBatch(a, idx, ep, 1, sizeof(typeof((a)->data[0])))
-#define TARRAY2_APPEND_PTR(a, ep)      tarray2InsertBatch(a, (a)->size, ep, 1, sizeof(typeof((a)->data[0])))
-#define TARRAY2_APPEND_BATCH(a, ep, n) tarray2InsertBatch(a, (a)->size, ep, n, sizeof(typeof((a)->data[0])))
+#define TARRAY2_INSERT_PTR(a, idx, ep) tarray2InsertBatch(a, idx, ep, 1, sizeof((a)->data[0]))
+#define TARRAY2_APPEND_PTR(a, ep)      tarray2InsertBatch(a, (a)->size, ep, 1, sizeof((a)->data[0]))
+#define TARRAY2_APPEND_BATCH(a, ep, n) tarray2InsertBatch(a, (a)->size, ep, n, sizeof((a)->data[0]))
 #define TARRAY2_APPEND(a, e)           TARRAY2_APPEND_PTR(a, &(e))
 
 // return (TYPE *)
