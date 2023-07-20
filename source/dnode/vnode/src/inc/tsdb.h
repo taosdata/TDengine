@@ -712,7 +712,7 @@ typedef struct SSttBlockLoadInfo {
   SBlockData blockData[2];
   void      *pSttStatisBlkArray;
   SArray    *aSttBlk;
-  int32_t    blockIndex[2];    // to denote the loaded block in the corresponding position.
+  int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
   int32_t    currentLoadBlockIndex;
   int32_t    loadBlocks;
   double     elapsedTime;
@@ -855,28 +855,31 @@ typedef struct {
   SArray *pTombData;
 } STableLoadInfo;
 
+struct SDataFileReader;
+
 typedef struct SCacheRowsReader {
-  STsdb          *pTsdb;
-  STsdbReaderInfo info;
-  TdThreadMutex   readerMutex;
-  SVnode         *pVnode;
-  STSchema       *pSchema;
-  STSchema       *pCurrSchema;
-  uint64_t        uid;
-  char          **transferBuf;  // todo remove it soon
-  int32_t         numOfCols;
-  SArray         *pCidList;
-  int32_t        *pSlotIds;
-  int32_t         type;
-  int32_t         tableIndex;  // currently returned result tables
-  STableKeyInfo  *pTableList;  // table id list
-  int32_t         numOfTables;
-  uint64_t       *uidList;
-  SSHashObj      *pTableMap;
-  SArray         *pLDataIterArray;
-  STsdbReadSnap  *pReadSnap;
-  char           *idstr;
-  int64_t         lastTs;
+  STsdb                  *pTsdb;
+  STsdbReaderInfo         info;
+  TdThreadMutex           readerMutex;
+  SVnode                 *pVnode;
+  STSchema               *pSchema;
+  STSchema               *pCurrSchema;
+  uint64_t                uid;
+  char                  **transferBuf;  // todo remove it soon
+  int32_t                 numOfCols;
+  SArray                 *pCidList;
+  int32_t                *pSlotIds;
+  int32_t                 type;
+  int32_t                 tableIndex;  // currently returned result tables
+  STableKeyInfo          *pTableList;  // table id list
+  int32_t                 numOfTables;
+  uint64_t               *uidList;
+  SSHashObj              *pTableMap;
+  SArray                 *pLDataIterArray;
+  struct SDataFileReader *pFileReader;
+  STsdbReadSnap          *pReadSnap;
+  char                   *idstr;
+  int64_t                 lastTs;
 } SCacheRowsReader;
 
 typedef struct {

@@ -17,6 +17,7 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tsdb.h"
+#include "tsdbDataFileRW.h"
 
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 
@@ -252,6 +253,11 @@ void* tsdbCacherowsReaderClose(void* pReader) {
   int64_t loadBlocks = 0;
   double  elapse = 0;
   destroySttBlockReader(p->pLDataIterArray, &loadBlocks, &elapse);
+
+  if (p->pFileReader) {
+    tsdbDataFileReaderClose(&p->pFileReader);
+    p->pFileReader = NULL;
+  }
 
   taosMemoryFree((void*)p->idstr);
   taosThreadMutexDestroy(&p->readerMutex);
