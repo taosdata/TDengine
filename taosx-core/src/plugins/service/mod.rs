@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use taos::{AsyncFetchable, AsyncQueryable, Code, TaosPool};
+use taos::{AsyncFetchable, AsyncQueryable, Code, TaosPool, TaosBuilder, AsyncTBuilder};
 
 struct RestBuilder {
     taos: TaosPool,
