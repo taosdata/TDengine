@@ -1820,6 +1820,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1 ||
       pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN2) {
+    if (isTaskKilled(pTaskInfo)) {
+      return NULL;
+    }
 
     switch (pInfo->scanMode) {
       case STREAM_SCAN_FROM_RES: {
@@ -1862,7 +1865,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     pInfo->pRecoverRes = doTableScan(pInfo->pTableScanOp);
     if (pInfo->pRecoverRes != NULL) {
-      pInfo->blockRecoverContiCnt++;
       calBlockTbName(pInfo, pInfo->pRecoverRes);
       if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
         if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
