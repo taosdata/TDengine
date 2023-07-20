@@ -366,7 +366,6 @@ typedef struct SStreamScanInfo {
   SNode*     pTagIndexCond;
 
   // recover
-  int32_t      blockRecoverContiCnt;
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 

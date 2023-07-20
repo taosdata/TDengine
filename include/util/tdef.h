@@ -492,6 +492,7 @@ enum {
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64
+#define TSDB_CONFIG_SCOPE_LEN  8
 #define TSDB_CONFIG_NUMBER     8
 
 #define QUERY_ID_SIZE      20

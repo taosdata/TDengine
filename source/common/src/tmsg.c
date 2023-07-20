@@ -3484,12 +3484,14 @@ int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesR
 int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   if (tEncodeCStr(pEncoder, pInfo->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pInfo->value) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pInfo->scope) < 0) return -1;
   return 0;
 }
 
 int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->name) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pInfo->value) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pInfo->scope) < 0) return -1;
   return 0;
 }
 
