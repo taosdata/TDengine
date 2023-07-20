@@ -46,6 +46,11 @@ typedef struct SGroupSeqBlkList {
   int64_t        endBlkId;
 } SGroupSeqBlkList;
 
+typedef struct SGroupBatchBlkList {
+  SRWLatch         lock;
+  SArray*          pBlkList;
+} SGroupBatchBlkList;
+
 typedef struct SGroupCacheData {
   TdThreadMutex  mutex;
   SArray*        waitQueue;
@@ -55,8 +60,8 @@ typedef struct SGroupCacheData {
   int32_t        downstreamIdx;
   int32_t        vgId;
   union {
-    SGroupSeqBlkList blkList;
-    SArray*          pBlkList;
+    SGroupSeqBlkList   seqList;
+    SGroupBatchBlkList batchList;
   };
   uint32_t       fileId;
   int64_t        startOffset;
