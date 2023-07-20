@@ -1427,7 +1427,7 @@ export default {
                 }); 
               } else {
                 this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
-                  return {id: item, children: JSON.parse(res[0].id)[item][0]}
+                  return {id: item, children: JSON.parse(res[0].id)[item]}
                 }) 
                 Message({
                   type: "success",
