@@ -1617,7 +1617,7 @@ export default {
   <code>journalctl -u taosx-agent</code>`,
   step3sub3window:`在Windows上，您可以在以下位置检查日志文件：
   
-  <code>C:\Program Files\taosX\log\agent\</code>`,
+  <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
   step4sub1:'在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Alive"。',
     addagenttip:'如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。',
     edittitle:'编辑代理',

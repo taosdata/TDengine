@@ -1828,7 +1828,7 @@ export default {
   step3sub1:'Start agent service with:',
   step3sub2linux:`Start agent service with: <code>systemctl start taosx-agent</code> and use <code> systemctl status taosx-agent</code> to check the service status. `,
   step3sub2window:`Start agent service with: <code>sc.exe start taosx-agent</code> and use <code>sc.exe query taosx-agent</code> to check the service status.`,
-  step3sub3linux:`If the agent token is error, the service will exit directly, you can check the logs with: journalctl -u taosx-agent on Linux`,
+  step3sub3linux:`If the agent token is error, the service will exit directly, you can check the logs with: <code>journalctl -u taosx-agent</code> on Linux`,
   step3sub3window:`If the agent token is error, the service will exit directly, you can check the logs with or check the log file in <code>C:\\Program Files\\taosX\\log\\agent\\ </code>on Windows.`,
   step4sub1:'Refresh agent status in the explorer to check if the agent connected correctly. The status of an Agent will be Alive when it has been connected.',
     addagenttip:'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.',
