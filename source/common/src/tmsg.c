@@ -1103,6 +1103,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI32(&encoder, pReq->statusSeq) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->mload.syncTerm) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->mload.roleTimeMs) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->clusterCfg.ttlChangeOnWrite) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1192,6 +1193,12 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &pReq->mload.syncTerm) < 0) return -1;
     if (tDecodeI64(&decoder, &pReq->mload.roleTimeMs) < 0) return -1;
   }
+
+  pReq->clusterCfg.ttlChangeOnWrite = false;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->clusterCfg.ttlChangeOnWrite) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
