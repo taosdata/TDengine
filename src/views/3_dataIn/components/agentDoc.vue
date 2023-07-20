@@ -5,7 +5,10 @@
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
           <p v-html="$t('taosagents.linuxdesc')"></p>
-          <pre class="agent-code" style="padding-top:0px;"><code class="language-bash">
+          <pre
+            class="agent-code"
+            style="padding-top: 0px"
+          ><code class="language-bash">
 tmpdir=`mktemp -d`
 cd  $tmpdir
 mkdir agent-installer
@@ -29,12 +32,13 @@ cd taosx-agent-*
     </section>
     <h1>2.{{ $t("taosagents.step2") }}</h1>
     <section>
-      <p>{{ $t("taosagents.step2sub1") }}</p>
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
+          <!-- <p>{{ $t("taosagents.step2sub1") }}</p> -->
           <p v-html="$t('taosagents.step2sub2linux')"></p>
         </el-tab-pane>
         <el-tab-pane name="tab2" :label="$t('taosagents.step1window')">
+          <!-- <p>{{ $t("taosagents.step2sub1") }}</p> -->
           <p v-html="$t('taosagents.step2sub2window')"></p>
         </el-tab-pane>
       </el-tabs>
@@ -55,19 +59,18 @@ token = "{{token}}"
     </section>
     <h1>3.{{ $t("taosagents.step3") }}</h1>
     <section>
-      <p>{{ $t("taosagents.step3sub1") }}</p>
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
+          <!-- <p>{{ $t("taosagents.step3sub1") }}</p> -->
           <p v-html="$t('taosagents.step3sub2linux')"></p>
           <p v-html="$t('taosagents.step3sub3linux')"></p>
         </el-tab-pane>
         <el-tab-pane name="tab2" :label="$t('taosagents.step1window')">
+          <!-- <p>{{ $t("taosagents.step3sub1") }}</p> -->
           <p v-html="$t('taosagents.step3sub2window')"></p>
           <p v-html="$t('taosagents.step3sub3window')"></p>
         </el-tab-pane>
       </el-tabs>
-
-      
     </section>
     <h1>4.{{ $t("taosagents.step4") }}</h1>
     <section>

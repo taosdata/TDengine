@@ -1595,10 +1595,10 @@ export default {
   step1window:'Windows',
   windowdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a> 下载代理安装程序，并运行安装程序以安装代理服务。`,
   step2sub1:'配置文件路径：',
-  step2sub2linux:`Linux: <code>/etc/taos/agent.toml</code> 。`,
-  step2sub2window:`Windows: <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub2linux:`配置文件路径： <code>/etc/taos/agent.toml</code> 。`,
+  step2sub2window:`配置文件路径： <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
   step2sub3:'TOML中的配置文件格式，如下：',
-  step2sub4:'将令牌复制到令牌字段并保存文件。',
+  step2sub4:'复制内容到配置文件。',
   step3sub1:'启动代理服务：',
   step3sub2linux:`在Linux上，使用以下命令启动代理服务：
 
