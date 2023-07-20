@@ -1066,8 +1066,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   // do recovery step 1
   const char* id = pTask->id.idStr;
-  tqDebug("s-task:%s start history data scan stage(step 1), status:%s", id,
-          streamGetTaskStatusStr(pTask->status.taskStatus));
+  const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+  tqDebug("s-task:%s start history data scan stage(step 1), status:%s", id, pStatus);
 
   int64_t st = taosGetTimestampMs();
   int8_t  schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
@@ -1112,6 +1112,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
+      // todo remove this
       // wait for the stream task get ready for scan history data
       while (((pStreamTask->status.downstreamReady == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
              pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
@@ -1168,20 +1169,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     // 5. resume the related stream task.
     streamTryExec(pTask);
 
-    pTask->status.taskStatus = TASK_STATUS__DROPPING;
-    tqDebug("s-task:%s scan-history-task set status to be dropping", id);
-
-    streamMetaSaveTask(pMeta, pTask);
-    streamMetaSaveTask(pMeta, pStreamTask);
-
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaReleaseTask(pMeta, pStreamTask);
-
-    taosWLockLatch(&pMeta->lock);
-    if (streamMetaCommit(pTask->pMeta) < 0) {
-      // persist to disk
-    }
-    taosWUnLockLatch(&pMeta->lock);
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of
@@ -1241,22 +1230,9 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // transfer the ownership of executor state
-  tqDebug("s-task:%s all upstream tasks end transfer msg", pTask->id.idStr);
+  tqDebug("s-task:%s all upstream tasks send transfer msg, open transfer state flag", pTask->id.idStr);
+  ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
 
-  // related stream task load the state from the state storage backend
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
-  if (pStreamTask == NULL) {
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqError("failed to find related stream task:0x%x, it may have been dropped already", req.taskId);
-    return -1;
-  }
-
-  // when all upstream tasks have notified the this task to start transfer state, then we start the transfer procedure.
-  streamTaskReleaseState(pTask);
-  streamTaskReloadState(pStreamTask);
-  streamMetaReleaseTask(pTq->pStreamMeta, pStreamTask);
-
-  ASSERT(pTask->streamTaskId.taskId != 0);
   pTask->status.transferState = true;
 
   streamSchedExec(pTask);
@@ -1366,7 +1342,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask != NULL) {
     // even in halt status, the data in inputQ must be processed
     int8_t status = pTask->status.taskStatus;
-    if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT) {
+    if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT || status == TASK_STATUS__SCAN_HISTORY) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.version);
       streamProcessRunReq(pTask);

@@ -62,10 +62,6 @@ const char* streamGetTaskStatusStr(int32_t status) {
 
 static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
   SVersionRange* pRange = &pTask->dataRange.range;
-
-//  qDebug("s-task:%s vgId:%d status:%s, start scan-history-data task, verRange:%" PRId64 " - %" PRId64, pTask->id.idStr,
-//         pTask->info.nodeId, streamGetTaskStatusStr(pTask->status.taskStatus), pRange->minVer, pRange->maxVer);
-//
   streamSetParamForScanHistory(pTask);
   streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
 
@@ -84,12 +80,10 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
              walReaderGetCurrentVer(pTask->exec.pWalReader));
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    streamSetStatusNormal(pTask);
     streamSetParamForScanHistory(pTask);
     streamAggScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    streamSetStatusNormal(pTask);
-    qDebug("s-task:%s sink task convert to normal immediately", pTask->id.idStr);
+    qDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
   }
 
   return 0;
@@ -145,7 +139,6 @@ int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask) {
 
     streamTaskSetForReady(pTask, 0);
     streamTaskSetRangeStreamCalc(pTask);
-
     streamTaskLaunchScanHistory(pTask);
     launchFillHistoryTask(pTask);
   }
@@ -758,32 +751,6 @@ void streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
     qDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
     return;
   }
-
-  // calculate the correct start time window, and start the handle the history data for the main task.
-/*  if (pTask->historyTaskId.taskId != 0) {
-    // check downstream tasks for associated scan-history-data tasks
-    streamLaunchFillHistoryTask(pTask);
-
-    // launch current task
-    SHistDataRange* pRange = &pTask->dataRange;
-    int64_t         ekey = pRange->window.ekey + 1;
-    int64_t         ver = pRange->range.minVer;
-
-    pRange->window.skey = ekey;
-    pRange->window.ekey = INT64_MAX;
-    pRange->range.minVer = 0;
-    pRange->range.maxVer = ver;
-
-    qDebug("s-task:%s level:%d fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
-           ", ver range:%" PRId64 " - %" PRId64,
-           pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
-           pRange->range.maxVer);
-  } else {
-    SHistDataRange* pRange = &pTask->dataRange;
-    qDebug("s-task:%s no associated scan-history task, stream time window:%" PRId64 " - %" PRId64 ", ver range:%" PRId64
-           " - %" PRId64,
-           pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
-  }*/
 
   ASSERT(pTask->status.downstreamReady == 0);
 
