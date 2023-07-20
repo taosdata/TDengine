@@ -580,7 +580,7 @@ static int32_t getBlkFromSessionCacheImpl(struct SOperatorInfo* pOperator, int64
         int64_t* pIdx = taosArrayGet(pBatchList->pBlkList, 0);
         taosRUnLockLatch(&pBatchList->lock);
         code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, *pIdx, &pSession->nextOffset, ppRes);
-        pSession->lastBlkId = *pIdx;
+        pSession->lastBlkId = 0;
         return code;
       }
     } else if (pSession->lastBlkId < blkNum) {
