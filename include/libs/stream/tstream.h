@@ -46,7 +46,7 @@ enum {
   TASK_STATUS__STOP,
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
   TASK_STATUS__HALT,          // stream task will handle all data in the input queue, and then paused
-  TASK_STATUS__PAUSE,
+  TASK_STATUS__PAUSE,         // pause
 };
 
 enum {
@@ -315,7 +315,7 @@ struct SStreamTask {
   SArray*          pUpstreamEpInfoList;  // SArray<SStreamChildEpInfo*>, // children info
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
-
+  int64_t          initTs;
   // output
   union {
     STaskDispatcherFixedEp fixedEpDispatcher;
@@ -572,12 +572,14 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 
 // recover and fill history
-void    streamPrepareNdoCheckDownstream(SStreamTask* pTask);
-int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask);
+void    streamTaskCheckDownstreamTasks(SStreamTask* pTask);
+int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask);
+int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
+                           SRpcHandleInfo* pRpcInfo, int32_t taskId);
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
-int32_t streamCheckHistoryTaskDownstream(SStreamTask* pTask);
+int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
 void    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask);

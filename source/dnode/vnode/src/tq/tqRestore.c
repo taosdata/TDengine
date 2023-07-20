@@ -80,11 +80,17 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
       continue;
     }
 
-    streamTaskCheckDownstreamTasks(pTask);
+    if (pTask->info.fillHistory == 1) {
+      tqDebug("s-task:%s fill-history task, wait for related stream task:0x%x to launch it", pTask->id.idStr,
+              pTask->streamTaskId.taskId);
+      continue;
+    }
+
+    streamTaskDoCheckDownstreamTasks(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
-  taosArrayDestroy(pTaskList);
 
+  taosArrayDestroy(pTaskList);
   return 0;
 }
 

@@ -817,11 +817,13 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     return -1;
   }
 
+  pTask->initTs = taosGetTimestampMs();
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->pMeta = pTq->pStreamMeta;
 
+  // backup the initial status, and set it to be TASK_STATUS__INIT
   pTask->chkInfo.version = ver;
   pTask->chkInfo.currentVer = ver;
 
@@ -880,7 +882,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     if (pTask->exec.pExecutor == NULL) {
       return -1;
     }
-
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
 
@@ -963,28 +964,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
             taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   }
 
-  SEncoder encoder;
-  int32_t  code;
-  int32_t  len;
-
-  tEncodeSize(tEncodeStreamTaskCheckRsp, &rsp, len, code);
-  if (code < 0) {
-    tqError("vgId:%d failed to encode task check rsp, task:0x%x", pTq->pStreamMeta->vgId, taskId);
-    return -1;
-  }
-
-  void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
-  ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tEncoderInit(&encoder, (uint8_t*)abuf, len);
-  tEncodeStreamTaskCheckRsp(&encoder, &rsp);
-  tEncoderClear(&encoder);
-
-  SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = sizeof(SMsgHead) + len, .info = pMsg->info};
-
-  tmsgSendRsp(&rspMsg);
-  return 0;
+  return streamSendCheckRsp(pTq->pStreamMeta, &req, &rsp, &pMsg->info, pTask->id.taskId);
 }
 
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
@@ -1062,13 +1042,11 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   }
 
   taosWUnLockLatch(&pStreamMeta->lock);
-
-  // 3. It's an fill history task, do nothing. wait for the main task to start it
-  streamPrepareNdoCheckDownstream(pTask);
-
   tqDebug("vgId:%d s-task:%s is deployed and add into meta, status:%s, numOfTasks:%d", vgId, pTask->id.idStr,
           streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
 
+  // 3. It's an fill history task, do nothing. wait for the main task to start it
+  streamTaskCheckDownstreamTasks(pTask);
   return 0;
 }
 
@@ -1087,8 +1065,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // do recovery step 1
-  const char* pId = pTask->id.idStr;
-  tqDebug("s-task:%s start history data scan stage(step 1), status:%s", pId,
+  const char* id = pTask->id.idStr;
+  tqDebug("s-task:%s start history data scan stage(step 1), status:%s", id,
           streamGetTaskStatusStr(pTask->status.taskStatus));
 
   int64_t st = taosGetTimestampMs();
@@ -1104,14 +1082,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
-    tqDebug("s-task:%s is dropped or paused, abort recover in step1", pId);
+    tqDebug("s-task:%s is dropped or paused, abort recover in step1", id);
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
-  tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", pId, el);
+  tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", id, el);
 
   if (pTask->info.fillHistory) {
     SVersionRange* pRange = NULL;
@@ -1125,7 +1103,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
                pTask->streamTaskId.taskId, pTask->id.idStr);
 
         pTask->status.taskStatus = TASK_STATUS__DROPPING;
-        tqDebug("s-task:%s scan-history-task set status to be dropping", pId);
+        tqDebug("s-task:%s scan-history-task set status to be dropping", id);
 
         streamMetaSaveTask(pMeta, pTask);
         streamMetaReleaseTask(pMeta, pTask);
@@ -1139,14 +1117,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
              pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
         tqDebug(
             "s-task:%s level:%d related stream task:%s(status:%s) not ready for halt, wait for it and recheck in 100ms",
-            pId, pTask->info.taskLevel, pStreamTask->id.idStr, streamGetTaskStatusStr(pStreamTask->status.taskStatus));
+            id, pTask->info.taskLevel, pStreamTask->id.idStr, streamGetTaskStatusStr(pStreamTask->status.taskStatus));
         taosMsleep(100);
       }
 
       // now we can stop the stream task execution
       pStreamTask->status.taskStatus = TASK_STATUS__HALT;
       tqDebug("s-task:%s level:%d status is set to halt by history scan task:%s", pStreamTask->id.idStr,
-              pStreamTask->info.taskLevel, pId);
+              pStreamTask->info.taskLevel, id);
 
       // if it's an source task, extract the last version in wal.
       streamHistoryTaskSetVerRangeStep2(pTask);
@@ -1154,7 +1132,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     if (!streamTaskRecoverScanStep1Finished(pTask)) {
       tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " do secondary scan-history-data after halt the related stream task:%s",
-              pId, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pId);
+              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, id);
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
       st = taosGetTimestampMs();
@@ -1165,7 +1143,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       streamSourceScanHistoryData(pTask);
 
       if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
-        tqDebug("s-task:%s is dropped or paused, abort recover in step1", pId);
+        tqDebug("s-task:%s is dropped or paused, abort recover in step1", id);
         streamMetaReleaseTask(pMeta, pTask);
         return 0;
       }
@@ -1174,7 +1152,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     el = (taosGetTimestampMs() - st) / 1000.0;
-    tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", pId, el);
+    tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", id, el);
 
     // 3. notify downstream tasks to transfer executor state after handle all history blocks.
     if (!pTask->status.transferState) {
@@ -1191,7 +1169,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamTryExec(pTask);
 
     pTask->status.taskStatus = TASK_STATUS__DROPPING;
-    tqDebug("s-task:%s scan-history-task set status to be dropping", pId);
+    tqDebug("s-task:%s scan-history-task set status to be dropping", id);
 
     streamMetaSaveTask(pMeta, pTask);
     streamMetaSaveTask(pMeta, pStreamTask);
@@ -1212,13 +1190,15 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     if (pTask->historyTaskId.taskId == 0) {
       *pWindow = (STimeWindow){INT64_MIN, INT64_MAX};
-      tqDebug("s-task:%s no related scan-history-data task, reset the time window:%" PRId64 " - %" PRId64, pId,
-              pWindow->skey, pWindow->ekey);
+      tqDebug(
+          "s-task:%s scan history in current time window completed, no related fill history task, reset the time "
+          "window:%" PRId64 " - %" PRId64,
+          id, pWindow->skey, pWindow->ekey);
     } else {
       tqDebug(
-          "s-task:%s history data in current time window scan completed, now start to handle data from WAL, start "
+          "s-task:%s scan history in current time window completed, now start to handle data from WAL, start "
           "ver:%" PRId64 ", window:%" PRId64 " - %" PRId64,
-          pId, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
+          id, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
     }
 
     // notify the downstream agg tasks that upstream tasks are ready to processing the WAL data, update the
@@ -1452,31 +1432,56 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
   return 0;
 }
 
-int32_t tqProcessTaskPauseImpl(SStreamMeta* pStreamMeta, SStreamTask* pTask) {
-  if (pTask) {
-    if (!streamTaskShouldPause(&pTask->status)) {
-      tqDebug("vgId:%d s-task:%s set pause flag", pStreamMeta->vgId, pTask->id.idStr);
-      atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
-      atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
-    }
-    streamMetaReleaseTask(pStreamMeta, pTask);
-  } else {
-    return -1;
+// todo rule out the status when pause not suitable.
+static int32_t tqProcessTaskPauseImpl(SStreamMeta* pStreamMeta, SStreamTask* pTask) {
+  if (!streamTaskShouldPause(&pTask->status)) {
+    tqDebug("vgId:%d s-task:%s set pause flag", pStreamMeta->vgId, pTask->id.idStr);
+    atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
   }
+
   return 0;
 }
 
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)msg;
-  SStreamTask*          pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
-  int32_t code = tqProcessTaskPauseImpl(pTq->pStreamMeta, pTask);
+
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
+            pReq->taskId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
+
+  int32_t code = tqProcessTaskPauseImpl(pMeta, pTask);
   if (code != 0) {
+    streamMetaReleaseTask(pMeta, pTask);
     return code;
   }
-  SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->historyTaskId.taskId);
-  if (pHistoryTask) {
-    code = tqProcessTaskPauseImpl(pTq->pStreamMeta, pHistoryTask);
+
+  SStreamTask* pHistoryTask = NULL;
+  if (pTask->historyTaskId.taskId != 0) {
+    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
+    if (pHistoryTask == NULL) {
+      tqError("vgId:%d failed to acquire fill-history task:0x%x, it may have been dropped already", pMeta->vgId,
+              pTask->historyTaskId.taskId);
+
+      streamMetaReleaseTask(pMeta, pTask);
+      return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+    }
+
+    tqDebug("s-task:%s fill-history task handle pause along with related stream task", pHistoryTask->id.idStr);
+    code = tqProcessTaskPauseImpl(pMeta, pHistoryTask);
   }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  if (pHistoryTask != NULL) {
+    streamMetaReleaseTask(pMeta, pHistoryTask);
+  }
+
   return code;
 }
 
