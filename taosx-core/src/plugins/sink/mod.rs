@@ -5,6 +5,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_flight::{FlightClient, PutResult};
+use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use std::{
@@ -191,6 +192,7 @@ async fn ipc_tcp_forward(
 }
 
 // #[instrument(skip_all)]
+#[framed]
 async fn ipc_tcp_read(
     client: String,
     pool: TaosPool,
@@ -1253,6 +1255,7 @@ pub fn generate_alter_sql_diff_desc(
 }
 
 #[instrument(skip(pool, ipc_reader, ipc_ack_writer, config))]
+#[framed]
 async fn ipc_process<R: Read, W: Write>(
     client: String,
     pool: TaosPool,
