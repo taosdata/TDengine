@@ -125,6 +125,7 @@ impl InfluxdbConfig {
             .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
         // On version 1.x, only username/password mode can be used
         // On version 2.x, only access token mode can be used.
+        let influx_org_id = dsn.remove("orgId").unwrap_or("".to_string());
         let influx_username = dsn.remove("username").unwrap_or("".to_string());
         let influx_password = dsn.remove("password").unwrap_or("".to_string());
         let influx_token = dsn.remove("token").unwrap_or("".to_string());
@@ -132,12 +133,11 @@ impl InfluxdbConfig {
             return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()));
         } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
             return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()));
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_org_id == "" {
+            return Err(InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()));
         } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
             return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()));
         }
-        let influx_org_id = dsn
-            .remove("orgId")
-            .ok_or_else(|| InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()))?;
 
         // the addr for connector to agent
         let taosx_host = String::from("127.0.0.1");

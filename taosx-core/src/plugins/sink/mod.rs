@@ -34,7 +34,7 @@ use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
 use taosx_ipc::{
     prelude::*,
-    stream::{flat::FlatMessage, point::PointMessage},
+    stream::{flat::FlatMessage, point::{PointMessage, self}},
 };
 
 // mod rpc_client;
@@ -405,20 +405,27 @@ async fn consume_point_record(
         let table_config = &config.table_config;
         let value_type = IpcDataType::from(value_field.data_type()).sql_repr();
 
-        let mut stable_prefix = table_config.stable_prefix.clone();
-        let stable_name = if value_type.contains("varchar") {
-            stable_prefix.push_str("_varchar");
-            stable_prefix
-        } else if value_type.contains("nchar") {
-            stable_prefix.push_str("_nchar");
-            stable_prefix
+        let stable_prefix = table_config.stable_prefix.clone();
+        let stable_name = if stable_prefix.is_some() {
+            let mut stable_prefix = stable_prefix.unwrap();
+            if value_type.contains("varchar") {
+                stable_prefix.push_str("_varchar");
+                Some(stable_prefix)
+            } else if value_type.contains("nchar") {
+                stable_prefix.push_str("_nchar");
+                Some(stable_prefix)
+            } else {
+                stable_prefix.push_str(format!("_{value_type}").as_str());
+                Some(stable_prefix)
+            }
         } else {
-            stable_prefix.push_str(format!("_{value_type}").as_str());
-            stable_prefix
+            None
         };
         let mut columns = String::new();
         let mut columns_insert: Vec<(String, String)> = Vec::new(); // first is primary key info, its type should be timestamp
+        let mut value_column = None;
         for column_config in &table_config.column_configs {
+            
             if column_config.is_primary_key {
                 let primary_key_column_name = column_config.column_name.clone();
                 let prinmary_key_column_alias = column_config
@@ -431,7 +438,7 @@ async fn consume_point_record(
                 );
                 columns.insert_str(
                     0,
-                    format!("{prinmary_key_column_alias} TIMESTAMP,").as_str(),
+                    format!("`{prinmary_key_column_alias}` TIMESTAMP,").as_str(),
                 );
             } else {
                 let primary_key_column_name = column_config.column_name.clone();
@@ -445,17 +452,23 @@ async fn consume_point_record(
                 } else {
                     value_type.clone()
                 };
-                columns
-                    .push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
+                if column_config.column_name == "value" {
+                    value_column = Some(column_config.clone());
+                } else {
+                    columns.push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
+                }
             }
         }
         // remove last char
         columns.pop();
-        let tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)";
-        let stable_sql = format!(
-            "create table if not exists `{}` ({}) tags ({})",
-            stable_name, columns, tags
-        );
+        let mut tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string();
+        if table_config.tag_configs.is_some() {
+            let tag_configs = table_config.tag_configs.clone().unwrap();
+            for tag in tag_configs {
+                tags.push_str(format!(" ,`{}` {}", tag.column_name, tag.column_type.sql_repr()).as_str());
+            }
+        }
+        
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
@@ -463,13 +476,26 @@ async fn consume_point_record(
                 log::warn!("id: {} cannot get code", id);
                 continue;
             }
-            let mut child_table_name = stable_name.clone();
-            child_table_name.push_str(format!("_{}", code.unwrap()).as_str());
+            let point_config = code.unwrap();
+            let stable_name = if stable_name.is_some() {
+                stable_name.as_ref().unwrap()
+            } else if point_config.stable.is_some() {
+                point_config.stable.as_ref().unwrap()
+            } else {
+                anyhow::bail!("id: {id} failded to get stable");
+            };
+
+            let child_table_name = if point_config.stable.is_some() {
+                format!("{}", point_config.code)
+            } else {
+                format!("{stable_name}_{}", point_config.code)
+            };
+            // child_table_name.push_str(format!("_{}", point_config.code).as_str());
             let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
             let mut value_cloumn_name = "value";
             let mut value_cloumn_length = 128;
-            let mut columns = String::new();
+            let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &columns_insert {
                 if temp_name == "received_time" {
                     values.push_str(
@@ -510,7 +536,7 @@ async fn consume_point_record(
                     values.push_str(format!("{value_column},").as_str());
                     value_cloumn_name = temp_alias;
                     value_cloumn_length = value_column.len();
-                } else if temp_name == "status" {
+                } else if temp_name == "quality" {
                     values.push_str(
                         format!(
                             "{},",
@@ -525,26 +551,53 @@ async fn consume_point_record(
                         .as_str(),
                     );
                 }
-                columns.push_str(format!("`{temp_alias}`,").as_str());
+                columns_in_insert.push_str(format!("`{temp_alias}`,").as_str());
             }
             values.pop();
-            columns.pop();
+            columns_in_insert.pop();
             let point_name = name_cv
                 .slice(i..i + 1)
                 .unwrap()
                 .get(0)
                 .unwrap()
                 .to_sql_value();
-            insert_sql.push_str(
+            let mut tag_names = String::new();
+            let mut tag_values = String::new();
+            if table_config.tag_configs.is_some() {
+                // let mut index = 0;
+                for ele in table_config.tag_configs.as_ref().unwrap() {
+                    let tag_name = ele.column_name.clone();
+                    tag_names.push_str(format!("`{}`,", tag_name).as_str());
+                    let value = point_config.tag_values.as_ref().unwrap().get(&tag_name).unwrap();
+                    let value = match ele.column_type {
+                        IpcDataType::VarChar(_) | IpcDataType::NChar(_) | IpcDataType::Json => {
+                            format!("\"{value}\"")
+                        }
+                        _ => {
+                            value.to_string()
+                        }
+                    };
+                    tag_values.push_str(format!("{value},", ).as_str());
+                    // index += 1;
+                }
+                tag_names.pop();
+                tag_values.pop();
+            }
+            let tag_sql = if tag_names.is_empty() {
                 format!(
-                    " USING `{stable_name}` (`point_id`, `point_name`) TAGS (\"{id}\", {}) ({columns})",
+                    " USING `{stable_name}` (`point_id`, `point_name`) TAGS (\"{id}\", {}) ({columns_in_insert})",
                     &point_name
                 )
-                .as_str(),
-            );
+            } else {
+                format!(
+                    " USING `{stable_name}` (`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values}) ({columns_in_insert})",
+                    &point_name
+                )
+            };
+            insert_sql.push_str(tag_sql.as_str());
             insert_sql.push_str(format!(" VALUES ({})", values).as_str());
-            debug!("insert sql: {}", insert_sql);
-            loop {
+            debug!("point message insert sql: {}", insert_sql);
+            'outer: loop {
                 let sql_res = taos.exec(&insert_sql).await;
                 match sql_res {
                     Ok(n) => {
@@ -555,12 +608,40 @@ async fn consume_point_record(
                     Err(err) => {
                         let errstr = err.to_string();
                         log::warn!("error: {}", errstr);
-                        if errstr.contains("[0x2603]") {
+                        if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
                             // stable not exists
+                            let value_column_type = if point_config.value_type.is_some() {
+                                // maybe should replace value column type
+                                point_config.value_type.clone().unwrap().sql_repr()
+                            } else {
+                                value_type.clone()
+                                // value_column.unwrap().column_type
+                            };
+                            // should be some
+                            let value_column_config = value_column.as_ref().unwrap();
+                            let primary_key_column_name = value_column_config.column_name.clone();
+                            let prinmary_key_column_alias = value_column_config
+                                .column_alias
+                                .clone()
+                                .unwrap_or(primary_key_column_name.clone());
+                            columns.push_str(format!(",`{prinmary_key_column_alias}` {value_column_type}").as_str());
+                            let stable_sql = format!(
+                                "create table if not exists `{}` ({}) tags ({})",
+                                stable_name, columns, tags);
                             log::info!("create stable sql: {}", &stable_sql);
-                            taos.exec(&stable_sql).await?;
+                            match taos.exec(&stable_sql).await {
+                                Ok(_) => (),
+                                Err(err) => {
+                                    if err.to_string().contains("0x032C") {
+                                        // Object is creating, maybe should ignore
+                                        log::warn!("create stable sql encounter 0x032C");
+                                    } else {
+                                        anyhow::bail!("create stable sql err: {}", err.to_string());
+                                    }
+                                }
+                            }
                         } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
-                            // Illegal number of columns, alter to add columns
+                            // Illegal number of columns or tags, alter to add columns or tag
                             for column_config in &table_config.column_configs {
                                 let mut need_add = true;
                                 let column_name = get_real_column_name(column_config);
@@ -572,15 +653,48 @@ async fn consume_point_record(
                                     }
                                 });
                                 if need_add {
+                                    let column_real_name = get_real_column_name(column_config);
+                                    if column_config.column_type.is_none() {
+                                        // shouldn't happen if normal
+                                        // encounter when rename value column
+                                        log::error!("column {} column_type is error, maybe stable set error", column_real_name);
+                                        break 'outer;
+                                    } 
                                     let add_column_sql = format!(
                                         "alter table `{stable_name}` ADD COLUMN {} {}",
-                                        get_real_column_name(column_config),
+                                        column_real_name,
                                         column_config.column_type.unwrap()
                                     );
                                     log::info!("add_column_sql:{}", add_column_sql);
                                     taos.exec(&add_column_sql).await?;
                                 }
                             }
+
+                            if table_config.tag_configs.is_some() {
+                                // let tag_configs = &table_config.tag_configs.clone().unwrap();
+                                let desc = taos.describe(&stable_name).await?;
+                                let fields = table_config.tag_configs.as_ref().unwrap().iter().map(|config| (config.column_name.clone(), config.column_type.clone())).collect_vec();
+                                let sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &fields, true);
+                                if sqls.is_some() {
+                                    let sqls = sqls.unwrap();
+                                    for alter_sql in sqls {
+                                        log::info!("alter table sql: {alter_sql}");
+                                        match taos.exec(alter_sql).await {
+                                            Ok(_) => (),
+                                            Err(err) => {
+                                                if err.to_string().contains("0x0369") {
+                                                    // Tag already exists occur when concurrent exec same alter
+                                                    log::warn!("alter table err: {}, will be ignored", err.to_string());
+                                                } else {
+                                                    log::warn!("alter table err: {}", err.to_string());
+                                                    break 'outer;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
                         } else if errstr.contains("[0x2653]") {
                             // column or tag length not enough
                             let desc = taos.describe(&stable_name.as_str()).await?;

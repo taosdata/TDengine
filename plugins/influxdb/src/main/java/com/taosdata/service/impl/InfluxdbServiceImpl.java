@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Influxdb数据库操作服务实现类
@@ -68,15 +69,17 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 使用url与token建立连接
             influxDBClient = InfluxDBClientFactory.create(url, token.toCharArray());
             // 返回结果
-            JSONObject bucketJson = new JSONObject();
+            JSONObject bucketJson = new JSONObject(new LinkedHashMap<>());
             // 获取所有bucket列表
             List<Bucket> buckets = getBucketsV2(influxDBClient);
+            // 按bucket名称排序
+            buckets.sort(Comparator.comparing(Bucket::getName));
             // 遍历封装
             for (Bucket bucket : buckets) {
                 // 查询所有measurement
                 Set<String> measurements = getMeasurementsV2(influxDBClient, bucket.getName());
                 // 封装JsonArray
-                JSONArray jsonArray = new JSONArray(Arrays.asList(measurements));
+                JSONArray jsonArray = new JSONArray(measurements.stream().sorted().collect(Collectors.toList()));
                 // 放入结果集中
                 bucketJson.put(bucket.getName(), jsonArray);
             }

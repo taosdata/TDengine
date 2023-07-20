@@ -281,7 +281,12 @@ namespace TDPIConnector.PI
                 throw ex;
             }
         }
-
+        public static string GetPISDKInfo()
+        {
+            var clientSDK = new PISystems();
+            var version = clientSDK.Version;
+            return version;
+        }
         public void Dispose()
         {
             this.piSystem.Dispose();

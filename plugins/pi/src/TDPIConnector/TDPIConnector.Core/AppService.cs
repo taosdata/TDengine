@@ -323,5 +323,15 @@ namespace TDPIConnector.Core
             log.Info(info);
             log.Info("Print PI Info finished!");
         }
+        public static void GetPISDKInfo()
+        {
+            try
+            {
+                Console.WriteLine("Client SDK Version " + PISystemManager.GetPISDKInfo());
+            }
+            catch(Exception) {
+                Console.WriteLine("PI Client SDK Not Found!");
+            }
+        }
     }
 }

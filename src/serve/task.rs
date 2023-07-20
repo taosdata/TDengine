@@ -1,9 +1,10 @@
 use std::{path::PathBuf, fs};
 
+use actix_files::NamedFile;
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query, },
-    HttpResponse, Responder,
+    HttpResponse, Responder,HttpRequest, 
 };
 
 use anyhow::Context;
@@ -495,8 +496,8 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         log::info!("saving to {}, {releative_path}", upload_file_save_path.as_os_str().to_str().unwrap());
         let path = std::path::Path::new(&format!("{}/{req_id}/{file_name}", upload_file_save_path.as_os_str().to_str().unwrap())).to_path_buf();
         f.file.persist(path)?;
+        file_save_paths.push(format!("./files/{req_id}/{file_name}"));
     }
-    file_save_paths.push(format!("./files/{req_id}"));
     Ok(file_save_paths)
 }
 
@@ -596,4 +597,38 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
             anyhow::bail!("file type not support now");
         }
     }
+}
+
+
+#[derive(Debug, Deserialize, )]
+pub struct DownloadParams {
+    file_path: String,
+}
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "file download error", body = Failed)
+    ),
+)]
+#[get("/download")]
+pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
+    match download(params).await {
+        Ok(named_file) => named_file.into_response(&req),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+        }),
+    }
+}
+
+async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
+    let file_path = file_path.into_inner().file_path;
+    let file_home_dir = format!("{}", get_file_save_home_dir().to_str().unwrap().replace("files", ""));
+    let file_path = format!("{}{}", file_home_dir, file_path);
+    let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
+    if meta.is_dir() {
+        anyhow::bail!("not support path");
+    }
+    Ok(NamedFile::open(file_path)?)
 }
