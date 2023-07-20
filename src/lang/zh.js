@@ -28,7 +28,7 @@ export default {
   change: "修改",
   copySucc: "复制成功",
   nickname: "昵称",
-  copyagent:'拷贝token到Agent配置文件',
+  copyagent:'Agent使用介绍',
   copyagentWaring:'确保现在复制您的代理 token。不能进行再次查看',
   back: "返回",
   date: "日期",
@@ -1595,28 +1595,29 @@ export default {
   step1window:'Windows',
   windowdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a> 下载代理安装程序，并运行安装程序以安装代理服务。`,
   step2sub1:'配置文件路径：',
-  step2sub2:`Linux: <code>/etc/taos/agent.toml</code> Windows: <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub2linux:`配置文件路径： <code>/etc/taos/agent.toml</code> 。`,
+  step2sub2window:`配置文件路径： <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
   step2sub3:'TOML中的配置文件格式，如下：',
-  step2sub4:'将令牌复制到令牌字段并保存文件。',
+  step2sub4:'复制内容到配置文件。',
   step3sub1:'启动代理服务：',
-  step3sub2:`在Linux上，使用以下命令启动代理服务：
+  step3sub2linux:`在Linux上，使用以下命令启动代理服务：
 
-  <code>systemctl start taosx-agent</code>
+  <code>systemctl start taosx-agent</code>，
   使用以下命令检查代理服务状态：
   
-  <code>systemctl status taosx-agent</code>
-  在Windows上，使用以下命令启动代理服务：
+  <code>systemctl status taosx-agent</code>`,
+  step3sub2window:`在Windows上，使用以下命令启动代理服务：
   
-  <code>sc.exe start taosx-agent</code>
+  <code>sc.exe start taosx-agent</code>，
   使用以下命令检查代理服务状态：
   
-  <code>sc.exe query taosx-agent</code>`,
-  step3sub3:`如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
+  <code>sc.exe query taosx-agent</code>。`,
+  step3sub3linux:`如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
 
-  <code>journalctl -u taosx-agent</code>
-  在Windows上，您可以在以下位置检查日志文件：
+  <code>journalctl -u taosx-agent</code>`,
+  step3sub3window:`在Windows上，您可以在以下位置检查日志文件：
   
-  <code>C:\Program Files\taosX\log\agent\</code>`,
+  <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
   step4sub1:'在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Alive"。',
     addagenttip:'如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。',
     edittitle:'编辑代理',
