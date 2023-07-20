@@ -377,7 +377,6 @@ impl OPCConfig {
                             PointConfig {
                                 code,
                                 stable: None,
-                                enabled: None,
                                 tag_values: None,
                                 value_type: None,
                             }
@@ -463,7 +462,6 @@ impl OPCConfig {
                             PointConfig {
                                 code,
                                 stable: None,
-                                enabled: None,
                                 tag_values: None,
                                 value_type: None,
                             }
@@ -640,8 +638,9 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                         if enabled_column.is_some() {
                             let enabled = enabled_column.unwrap();
                             if enabled == "0" {
-                                // warn: should delete child table (stable_code)
-                                tables_to_drop.push(format!("{stable}_{code}"));
+                                // warn: should delete subtable (stable_code)
+                                tables_to_drop.push(format!("{code}"));
+                                continue;
                             }
                         }
                         let column_type = IpcDataType::from_str(record_map.get("type").unwrap()).map_err(|err| anyhow::Error::msg(err))?;
@@ -678,16 +677,6 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                             column_config_init = true;
                         }
                         
-                        let enabled = record_map.get("enabled");
-                        let enabled = if enabled.is_none() {
-                            None
-                        } else {
-                            if enabled.unwrap() == "1" {
-                                Some(true)
-                            } else {
-                                Some(false)
-                            }
-                        };
                         let point_id = record_map.get("point_id").unwrap();
                         
                         let tag_values = if tag_values_map.len() == 0 {
@@ -701,7 +690,6 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
                                 stable: Some(stable),
                                 tag_values,
                                 value_type: Some(column_type),
-                                enabled,
                             });
                             node_config_old.push(format!("{point_id}::{code}"))
                     },
@@ -1043,7 +1031,6 @@ pub(crate) struct PointConfig {
     pub stable: Option<String>,
     pub tag_values: Option<HashMap<String, String>>,
     pub value_type: Option<IpcDataType>,
-    pub enabled: Option<bool>,
 }
 
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
@@ -1167,7 +1154,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let mut map = HashMap::new();
     map.insert(
         String::from("123"),
-        PointConfig { code: "567".to_string(), stable: None, enabled: None, tag_values: None, value_type: None}
+        PointConfig { code: "567".to_string(), stable: None, tag_values: None, value_type: None}
     );
     let mut column_configs = Vec::new();
     let column_config = ColumnConfig {
