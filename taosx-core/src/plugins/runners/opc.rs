@@ -568,10 +568,9 @@ pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Re
             let mut rdr;
             if !file.starts_with("@") {
                 // TODO use mime instead
-                let decoded = general_purpose::STANDARD_NO_PAD.decode(&file)?;
+                let decoded = general_purpose::STANDARD.decode(&file)?;
                 let mut temp_file = tempfile::NamedTempFile::new()?;
                 let res = String::from_utf8(decoded)?;
-                dbg!(&res);
                 write!(temp_file, "{}", res)?;
                 file = format!("@{}", temp_file.path().to_str().unwrap());
                 rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
