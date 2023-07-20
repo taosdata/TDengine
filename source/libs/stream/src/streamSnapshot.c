@@ -64,6 +64,7 @@ struct SStreamSnapReader {
   int64_t           sver;
   int64_t           ever;
   SStreamSnapHandle handle;
+  int64_t           checkpointId;
 };
 struct SStreamSnapWriter {
   void*             pMeta;
@@ -217,6 +218,7 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   if (pReader == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pReader->handle.checkpointId = ever;
   // const char* path = NULL;
   if (streamSnapHandleInit(&pReader->handle, (char*)path) < 0) {
     taosMemoryFree(pReader);

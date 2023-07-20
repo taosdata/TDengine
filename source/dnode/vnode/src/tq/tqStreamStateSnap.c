@@ -41,13 +41,25 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+
+  SStreamMeta* meta = pTq->pStreamMeta;
   pReader->pTq = pTq;
   pReader->sver = sver;
   pReader->ever = ever;
 
+  int64_t checkpointId = meta ? meta->checkpointId : 0;
+
   SStreamSnapReader* pSnapReader = NULL;
-  sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "checkpoints");
-  if (streamSnapReaderOpen(pTq, sver, ever, tdir, &pSnapReader) == 0) {
+
+  // restore from checkpoint if checkpointid != 0
+  if (checkpointId != 0) {
+    sprintf(tdir, "%s%s%s%s%s%scheckpoint%" PRId64 "", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "checkpoints",
+            TD_DIRSEP, checkpointId);
+  } else {
+    sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "state");
+  }
+
+  if (streamSnapReaderOpen(pTq, sver, checkpointId, tdir, &pSnapReader) == 0) {
     pReader->complete = 1;
   } else {
     code = -1;

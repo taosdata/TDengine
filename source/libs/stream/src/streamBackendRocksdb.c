@@ -163,8 +163,8 @@ int32_t copyFiles(const char* src, const char* dst) {
     char* name = taosGetDirEntryName(de);
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
 
-    sprintf(absSrcPath, "%s/%s", src, name);
-    sprintf(absDstPath, "%s/%s", dst, name);
+    sprintf(absSrcPath, "%s%s%s", src, TD_DIRSEP, name);
+    sprintf(absDstPath, "%s%s%s", dst, TD_DIRSEP, name);
     if (!taosDirEntryIsDir(de)) {
       code = taosCopyFile(absSrcPath, absDstPath);
       if (code == -1) {

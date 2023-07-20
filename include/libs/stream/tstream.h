@@ -367,7 +367,9 @@ typedef struct SStreamMeta {
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
 
-  int32_t  chkptNotReadyTasks;
+  int32_t chkptNotReadyTasks;
+
+  int64_t checkpointId;
   SArray*  checkpointSaved;
   SArray*  checkpointInUse;
   int32_t  checkpointCap;
