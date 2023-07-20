@@ -1921,25 +1921,7 @@ typedef struct SFSNextRowIter {
   struct CacheNextRowIter *pRowIter;
 } SFSNextRowIter;
 
-static void clearLastFileSet(SFSNextRowIter *state) {
-  if (state->pLastIter) {
-    lastIterClose(&state->pLastIter);
-  }
-
-  if (state->pBlockData) {
-    tBlockDataDestroy(state->pBlockData);
-    state->pBlockData = NULL;
-  }
-
-  if (state->pFileReader) {
-    tsdbDataFileReaderClose(&state->pFileReader);
-  }
-
-  if (state->pTSRow) {
-    taosMemoryFree(state->pTSRow);
-    state->pTSRow = NULL;
-  }
-}
+static void clearLastFileSet(SFSNextRowIter *state);
 
 static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlierTs, bool isLast, int16_t *aCols,
                                 int nCols) {
@@ -2642,6 +2624,38 @@ typedef struct CacheNextRowIter {
   SCacheRowsReader *pr;
   STsdb            *pTsdb;
 } CacheNextRowIter;
+
+static void clearLastFileSet(SFSNextRowIter *state) {
+  if (state->pLastIter) {
+    lastIterClose(&state->pLastIter);
+  }
+
+  if (state->pBlockData) {
+    tBlockDataDestroy(state->pBlockData);
+    state->pBlockData = NULL;
+  }
+
+  if (state->pFileReader) {
+    tsdbDataFileReaderClose(&state->pFileReader);
+  }
+
+  if (state->pTSRow) {
+    taosMemoryFree(state->pTSRow);
+    state->pTSRow = NULL;
+  }
+
+  if (state->pRowIter->pSkyline) {
+    taosArrayDestroy(state->pRowIter->pSkyline);
+    state->pRowIter->pSkyline = NULL;
+
+    void   *pe = NULL;
+    int32_t iter = 0;
+    while ((pe = tSimpleHashIterate(state->pr->pTableMap, pe, &iter)) != NULL) {
+      STableLoadInfo *pInfo = *(STableLoadInfo **)pe;
+      pInfo->pTombData = taosArrayDestroy(pInfo->pTombData);
+    }
+  }
+}
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                                SArray *pLDataIterArray, STsdbReadSnap *pReadSnap, int64_t lastTs,
