@@ -85,6 +85,7 @@ extern int64_t tsVndCommitMaxIntervalMs;
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
+extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
 
 // dnode

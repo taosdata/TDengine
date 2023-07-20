@@ -655,6 +655,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   STrans    *pTrans = NULL;
   SDnodeObj *pDnode = NULL;
   bool       cfgAll = pCfgReq->dnodeId == -1;
+  int32_t    iter = 0;
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -662,7 +663,8 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     if (cfgAll) {
       pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
       if (pIter == NULL) break;
-    } else if(!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
+      ++iter;
+    } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
       goto _OVER;
     }
 
@@ -708,6 +710,13 @@ _OVER:
   } else {
     mndReleaseDnode(pMnode, pDnode);
   }
+
+  if (iter > 15) {
+    tsGrantHBInterval = 10;
+  } else {
+    tsGrantHBInterval = 5;
+  }
+
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return terrno;
