@@ -4,27 +4,23 @@
       'csv-column',
       isEditable &&
       (this.nonEditableCols.includes(colData['name']) ||
-        colData['name'] == colData.parser.model.tags[0])
+        colData['name'] == colData.parser.model.columns[0])
         ? 'edit'
         : '',
     ]"
   >
     <li style="max-width: 150px; margin-right: 10px">
       <el-select
-        :value="
-          colData.parser.parse[csvColName].alias
-        "
+        :value="colData.parser.parse[csvColName].alias"
         filterable
         size="mini"
         :filter-method="handleFilter"
         placeholder=""
         clearable
+        @clear='handleClearItem'
         @visible-change="
           (visible) =>
-            handleVisble(
-              visible,
-              colData.parser.parse[csvColName].alias
-            )
+            handleVisble(visible, colData.parser.parse[csvColName].alias)
         "
         @change="handledbChange($event, 0)"
       >
@@ -101,9 +97,14 @@
     </li>
     <li class="primary">
       <el-checkbox
-      :disabled="!colData.parser.parse[csvColName].as.toUpperCase().includes('TIMESTAMP')"
-        :value="colData.parser.parse[csvColName].alias==colData.parser.model.tags[0]
-            "
+        :disabled="
+          !colData.parser.parse[csvColName].as
+            .toUpperCase()
+            .includes('TIMESTAMP')
+        "
+        :value="
+          colData.parser.parse[csvColName].alias == colData.parser.model.columns[0]
+        "
         @change="changePrimary(colData.parser.parse[csvColName].alias)"
         >&nbsp;</el-checkbox
       >
@@ -113,7 +114,7 @@
         v-model="columnChecked"
         @change="setColumnChecked"
         :disabled="
-          colData.parser.parse[csvColName].alias == colData.parser.model.tags[0]
+          colData.parser.parse[csvColName].alias == colData.parser.model.columns[0]
         "
       >
         &nbsp;
@@ -124,7 +125,7 @@
         v-model="tagChecked"
         @change="setTagChecked"
         :disabled="
-          colData.parser.parse[csvColName].alias == colData.parser.model.tags[0]
+          colData.parser.parse[csvColName].alias == colData.parser.model.columns[0]
         "
       >
         &nbsp;
@@ -211,6 +212,9 @@ export default {
     },
   },
   methods: {
+    handleClearItem(val){
+      console.log(val,'清楚初始化');
+    },
     handleVisble(visible, value) {
       console.log(visible, value, "visible");
       this.$emit("handleVisble", visible, value);
@@ -228,24 +232,22 @@ export default {
       console.log(index, "调用父组件clear方法");
     },
     //获取上次store中parser的值,并重新生成新的parser
-    getPreveiousParser(val, type,key) {
+    getPreveiousParser(val, type, key) {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.parser.model.columns;
       let tags = oldparser.parser.model.tags;
-      if(key=='primary'){
-        if(!tags.includes(val)){
-          tags.unshift(val)
-        }else{
-          tags.splice(0,1)
-        }
-        if(columns.includes(val)){
-          this.columnChecked=false
+      if (key == "primary") {
+        if (tags.includes(val)) {
           columns.splice(columns.indexOf(val), 1);
-        }else{
-          columns.push(val)
         }
-        
-        console.log(tags,'主键999');
+        if (columns.includes(val)) {
+          this.columnChecked = false;
+          columns.splice(columns.indexOf(val), 1,undefined);
+        } else {
+          columns.push(val);
+        }
+
+        console.log(tags, type,key,"主键999");
       }
       if (type == "tag") {
         if (columns.includes(val)) {
@@ -259,14 +261,16 @@ export default {
           tags.splice(tags.indexOf(val), 1);
         }
       }
-      if (type == "column"&&key!='primary') {
+      if (type == "column" && key != "primary") {
         if (tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
-        console.log('column主键',this.currentKey.primary,columns,this.colData.parser.parse[this.csvColName].alias);
         if (this.columnChecked) {
           if (!columns.includes(val)) {
-            if (this.colData.parser.parse[this.csvColName].alias == this.colData.parser.model.tags[0]) {
+            if (
+              this.colData.parser.parse[this.csvColName].alias ==
+              this.colData.parser.model.columns[0]
+            ) {
               columns.unshift(val);
             } else {
               columns.push(val);
@@ -277,46 +281,47 @@ export default {
         }
       }
       this.$store.commit("app/SET_CSV_PARSER", oldparser);
-      console.log( this.$store.state.app.csvParser,' this.$store.state.app.csvParser');
+      console.log(
+        this.$store.state.app.csvParser,
+        " this.$store.state.app.csvParser"
+      );
     },
     setColumnChecked() {
       this.tagChecked = false;
-      this.getPreveiousParser(this.colData["name"], "column");
+      this.getPreveiousParser(this.colData.parser.parse[this.csvColName].alias, "column");
     },
     setTagChecked() {
       this.columnChecked = false;
-      this.getPreveiousParser(this.colData["name"], "tag");
+      this.getPreveiousParser(this.colData.parser.parse[this.csvColName].alias, "tag");
     },
     changeType(val) {
       this.colData.parser.parse[this.csvColName].as = val;
-      // if (
-      //   !this.colData.parser.parse[this.csvColName].as
-      //     .toLowerCase()
-      //     .includes("timestamp") &&
-      //   this.colData["name"] == this.colData.parser.model.tags[0]
-      // ) {
-      //   this.changePrimary("ts");
-      // }
     },
     handledbChange(val, index) {
+      let oldItem=this.colData.parser.parse[this.csvColName].alias
       this.colData.parser.parse[this.csvColName].alias = val;
       let result = this.dbOptions.find((item) => item.field == val);
-      if (Object.hasOwnProperty.call(result, "newByInpt")) {
-        this.colData.parser.parse[this.csvColName].as = "";
-      } else {
-        this.colData.parser.parse[this.csvColName].as = result.type;
+      
+      console.log(result, val,index, "======");
+      if (result) {
+        if (Object.hasOwnProperty.call(result, "newByInpt")) {
+          this.colData.parser.parse[this.csvColName].as = "";
+        } else {
+          this.colData.parser.parse[this.csvColName].as = result.type;
+        }
       }
-      this.$emit("handledbChange", val, index);
+
+      this.$emit("handledbChange", oldItem, index);
     },
     handleChange(val) {
-      this.colData.parser.parse[this.csvColName].as=val
+      this.colData.parser.parse[this.csvColName].as = val;
     },
     //选择主键
     changePrimary(val) {
-      console.log(val,'主键');
+      console.log(val, "主键");
       this.columnChecked = true;
       this.tagChecked = false;
-      this.getPreveiousParser(val, "column",'primary');
+      this.getPreveiousParser(val, "column", "primary");
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {

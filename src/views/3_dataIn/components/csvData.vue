@@ -140,7 +140,11 @@ export default {
       }
     },
     handleVisble(visible, value) {
+      console.log(visible, value,this.dbOptions,'===pppp');
       if (!visible) {
+        const disableItem=this.dbOptions.filter((item) => item.field==value)[0]
+        console.log(disableItem,'disableItem');
+        disableItem.disabled=true
         const item = this.dbOptions.find((item) => item.rewriting);
         if (!item) return;
         item.rewriting = false;
@@ -151,18 +155,18 @@ export default {
       console.log(visible,value,'handleVisble');
     },
     handledbChange(value, index) {
-      const oldItem = this.dbOptions.find(
-        (item) => item.field === this.oldDbValues[index]
-      );
-      this.oldDbValues[index] = value;
-      if (oldItem) {
-        oldItem.disabled = false;
-      }
+      // const oldItem = this.dbOptions.find(
+      //   (item) => item.field === value
+      // );
+      // // this.oldDbValues[index] = value;
+      // if (oldItem) {
+      //   oldItem.disabled = false;
+      // }
       const item = this.dbOptions.find((item) => item.field === value);
       if (!item) return;
-      item.disabled = true;
+      item.disabled = false;
 
-      console.log("change", value, this.dbOptions);
+      console.log("change",this.oldDbValues, value, this.dbOptions);
     },
     handleFilter(value) {
       const item = this.dbOptions.find((item) => item.rewriting);
@@ -209,6 +213,8 @@ export default {
     },
     async getCsvColumnsData() {
       try {
+        this.csvColumns=[]
+        this.dbOptions=[]
         this.$refs.param.submit();
         console.log(this.$refs.param.isValid, this.fileList, "参数9999");
         if (this.$refs.param.isValid && this.fileList.length > 0) {
@@ -232,7 +238,7 @@ export default {
           result.file_header.column_names.forEach((item) => {
             this.csvParserConf.parser.parse[item] = {
               as: "",
-              alias: item,
+              alias: item
             };
           });
           this.localcsv = deepClone(this.csvParserConf);
