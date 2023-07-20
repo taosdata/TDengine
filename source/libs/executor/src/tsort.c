@@ -480,13 +480,13 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
     if (pHandle->type == SORT_SINGLESOURCE_SORT) {
       pSource->pageIndex++;
       if (pSource->pageIndex >= taosArrayGetSize(pSource->pageIdList)) {
-        uInfo("adjust merge tree. %d source completed %d", *numOfCompleted, pSource->pageIndex);
+        qDebug("adjust merge tree. %d source completed %d", *numOfCompleted, pSource->pageIndex);
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
         pSource->pageIndex = -1;
         pSource->src.pBlock = blockDataDestroy(pSource->src.pBlock);
       } else {
-        if (pSource->pageIndex % 512 == 0) uInfo("begin source %p page %d", pSource, pSource->pageIndex);
+        if (pSource->pageIndex % 512 == 0) qDebug("begin source %p page %d", pSource, pSource->pageIndex);
 
         int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
@@ -510,7 +510,7 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
-        uInfo("adjust merge tree. %d source completed", *numOfCompleted);
+        qDebug("adjust merge tree. %d source completed", *numOfCompleted);
       }
     }
   }
@@ -692,7 +692,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
     // Only *numOfInputSources* can be loaded into buffer to perform the external sort.
     for (int32_t i = 0; i < sortGroup; ++i) {
-      uInfo("internal merge sort pass %d group %d. num input sources %d ", t, i, numOfInputSources);
+      qDebug("internal merge sort pass %d group %d. num input sources %d ", t, i, numOfInputSources);
       pHandle->sourceId += 1;
 
       int32_t end = (i + 1) * numOfInputSources - 1;
@@ -716,7 +716,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       }
 
       int nMergedRows = 0;
-      
+
       SArray* pPageIdList = taosArrayInit(4, sizeof(int32_t));
       while (1) {
         if (tsortIsClosed(pHandle)) {
@@ -1014,7 +1014,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       }
       taosArrayClear(aBlkSort);
       szSort = 0;
-      uInfo("source %zu created", taosArrayGetSize(aExtSrc));
+      qDebug("source %zu created", taosArrayGetSize(aExtSrc));
     }
     if (pBlk == NULL) {
       break;
@@ -1146,11 +1146,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
   } else if (pHandle->type == SORT_BLOCK_TS_MERGE) {
     code = createBlocksMergeSortInitialSources(pHandle);
   }
-  uInfo("%zu sources created", taosArrayGetSize(pHandle->pOrderedSource));
-  for (int i = 0; i < taosArrayGetSize(pHandle->pOrderedSource); ++i) {
-    SSortSource* pSrc = taosArrayGetP(pHandle->pOrderedSource, i);
-    uInfo("source %d, num of pages %zu", i,taosArrayGetSize(pSrc->pageIdList));
-  }
+  qDebug("%zu sources created", taosArrayGetSize(pHandle->pOrderedSource));
   return code;
 }
 
