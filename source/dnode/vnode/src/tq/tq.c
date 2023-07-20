@@ -1112,10 +1112,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
-      // todo remove this
       // wait for the stream task get ready for scan history data
-      while (((pStreamTask->status.downstreamReady == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
-             pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+      while (pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
         tqDebug(
             "s-task:%s level:%d related stream task:%s(status:%s) not ready for halt, wait for it and recheck in 100ms",
             id, pTask->info.taskLevel, pStreamTask->id.idStr, streamGetTaskStatusStr(pStreamTask->status.taskStatus));
