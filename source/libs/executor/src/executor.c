@@ -1112,8 +1112,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
       SWalReader* pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
       walReaderVerifyOffset(pWalReader, pOffset);
-      if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
-        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
+      if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version, id) < 0) {
+        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version, id);
         return -1;
       }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -1202,7 +1202,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SOperatorInfo*  p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
       STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
 
-      if (pAPI->snapshotFn.createSnapshot(sContext, pOffset->uid) != 0) {
+      if (pAPI->snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64 " , %s", pOffset->uid, id);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;
@@ -1239,7 +1239,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
-      if (pTaskInfo->storageAPI.snapshotFn.createSnapshot(sContext, pOffset->uid) != 0) {
+      if (pTaskInfo->storageAPI.snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;

@@ -196,7 +196,7 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
               ", no more log to return, reqId:0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId);
-      *fetchOffset = offset - 1;
+      *fetchOffset = offset;
       code = -1;
       goto END;
     }

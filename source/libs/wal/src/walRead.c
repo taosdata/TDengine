@@ -135,8 +135,8 @@ void walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset){
   int64_t firstVer = walGetFirstVer((pWalReader)->pWal);
   taosThreadMutexUnlock(&pWalReader->pWal->mutex);
 
-  if (pOffset->version + 1 < firstVer){
-    pOffset->version = firstVer - 1;
+  if (pOffset->version < firstVer){
+    pOffset->version = firstVer;
   }
 }
 
