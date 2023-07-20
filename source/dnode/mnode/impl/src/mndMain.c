@@ -249,9 +249,8 @@ static void *mndThreadFp(void *param) {
   setThreadName("mnode-timer");
 
   while (1) {
-    printf("%s:%d =========== mndThreadFp =========== %d\n", __func__, __LINE__, taosGetTimestampSec());
     lastTime++;
-    taosMsleep(300);
+    taosMsleep(100);
     if (mndGetStop(pMnode)) break;
     if (lastTime % 10 != 0) continue;
 
@@ -806,7 +805,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pObj->id == pMnode->selfDnodeId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
-      pClusterInfo->master_uptime = mndGetClusterUpTime(pMnode) / 86400.0f;
+      pClusterInfo->master_uptime = (float)mndGetClusterUpTime(pMnode) / 86400.0f;
       // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
     } else {

@@ -81,6 +81,7 @@ bool    tsMndSkipGrant = false;
 
 // dnode
 int64_t tsDndStart = 0;
+int64_t tsDndStartOsUptime = 0;
 int64_t tsDndUpTime = 0;
 
 // monitor

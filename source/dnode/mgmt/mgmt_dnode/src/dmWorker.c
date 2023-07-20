@@ -42,7 +42,7 @@ static void *dmStatusThreadFp(void *param) {
       cost = taosGetTimestampMs() - curTime;
     }
     tsDndUpTime += 200;
-    if (cost > 0) tsDndUpTime += cost;
+    if (cost > 0) tsDndUpTime += cost; // TODO: use /proc/uptime to replace the upTime calculation for linux
   }
 
   return NULL;
