@@ -1,6 +1,6 @@
 drop stream if exists at_once_session_ct1_stream;
 drop database if exists dbt;
-create database if not exists dbt vgroups 2 precision "ms"  cachemodel "both" ;
+create database if not exists dbt ;
 use dbt;
 create table dbt.partitionby_interval_stb (ts timestamp, c1 tinyint) tags (t1 tinyint) ;
 create table dbt.partitionby_interval_ct1 using dbt.partitionby_interval_stb tags (15) ;

@@ -1,12 +1,12 @@
 drop stream if exists watermarkwatermark_window_close_session_ct1_stream;
 drop database if exists dbt;
-create database if not exists dbt vgroups 2 precision "ms" ;
+create database if not exists dbt ;
 use dbt;
 create table dbt.watermarkwatermark_window_close_session_stb (ts timestamp, c1 tinyint) tags (t1 tinyint) ;
 create table dbt.watermarkwatermark_window_close_session_ct1 using dbt.watermarkwatermark_window_close_session_stb tags (6) ;
 insert into watermarkwatermark_window_close_session_ct1 values (1689231817214-5s, 110);
 insert into watermarkwatermark_window_close_session_ct1 values (1689231817214-10s, 47);
-create stream if not exists watermarkwatermark_window_close_session_ct1_stream trigger window_close watermark 21s ignore expired 0 ignore update 0 fill_history 1 into watermarkwatermark_window_close_session_ct1_output   as select _wstart AS wstart, _wend AS wend, min(c1) from watermarkwatermark_window_close_session_ct1 session(ts, 10s) ;
+create stream if not exists watermarkwatermark_window_close_session_ct1_stream trigger window_close watermark 21s ignore expired 0 ignore update 0 fill_history 0 into watermarkwatermark_window_close_session_ct1_output   as select _wstart AS wstart, _wend AS wend, min(c1) from watermarkwatermark_window_close_session_ct1 session(ts, 10s) ;
 insert into watermarkwatermark_window_close_session_ct1 values (1655903478508, -108);
 insert into watermarkwatermark_window_close_session_ct1 values (1655903499508, 76);
 insert into watermarkwatermark_window_close_session_ct1 values (1655903499509, 18);

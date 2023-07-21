@@ -1,0 +1,86 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "u1-63",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 1,
+    "create_table_thread_count": 1,
+    "result_file": "./insert_data_of_memory_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 0,
+    "num_of_records_per_req": 1000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "keep_trying":-1,
+    "trying_interval":0,
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "verify_memory_occupation",
+                "drop": "yes",
+                "replica": 1,
+                "precision": "ms",
+                "buffer": 3,
+                "stt_trigger": 8,
+                "vgroups": 10,
+                "minRows": 100,
+                "maxRows": 4096
+            },
+            "super_tables": [
+                {
+                    "name": "st",
+                    "child_table_exists": "no",
+                    "childtable_count": 100,
+                    "childtable_prefix": "ct_",
+                    "batch_create_tbl_num":1,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "insert_rows": 200000,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "start_timestamp": "2023-02-01 08:00:00.000",
+                    "use_sample_ts": "no",
+                    "timestamp_step": 1000,
+                    "keep_trying": -1,
+                    "trying_interval": 0,
+		            "columns": [
+                        {"name": "v_int", "type": "INT"},
+                        {"name": "v_unsigned_int", "type": "UINT"},
+                        {"name": "v_bigint", "type": "BIGINT"},
+                        {"name": "v_unsigned_bigint", "type": "UBIGINT"},
+                        {"name": "v_float", "type": "FLOAT"},
+                        {"name": "v_double", "type": "DOUBLE"},
+                        {"name": "v_binary", "type": "BINARY", "len": 50},
+                        {"name": "v_smallint", "type": "SMALLINT"},
+                        {"name": "v_unsigned_smallint", "type": "USMALLINT"},
+                        {"name": "v_tinyint", "type": "TINYINT"},
+                        {"name": "v_unsigned_tinyint", "type": "UTINYINT"},
+                        {"name": "v_bool", "type": "BOOL"},
+                        {"name": "v_nchar", "type": "NCHAR", "len": 100}
+                    ],
+                    "tags": [
+                        {"name": "t_timestamp", "type": "TIMESTAMP"},
+                        {"name": "t_int", "type": "INT"},
+                        {"name": "t_unsigned_int", "type": "UINT"},
+                        {"name": "t_bigint", "type": "BIGINT"},
+                        {"name": "t_unsigned_bigint", "type": "UBIGINT"},
+                        {"name": "t_float", "type": "FLOAT"},
+                        {"name": "t_double", "type": "DOUBLE"},
+                        {"name": "t_binary", "type": "BINARY", "len": 50},
+                        {"name": "t_smallint", "type": "SMALLINT"},
+                        {"name": "t_unsigned_smallint", "type": "USMALLINT"},
+                        {"name": "t_tinyint", "type": "TINYINT"},
+                        {"name": "t_unsigned_tinyint", "type": "UTINYINT"},
+                        {"name": "t_bool", "type": "BOOL"},
+                        {"name": "t_nchar", "type": "NCHAR", "len": 100}
+                    ]
+                }
+            ]
+        }
+    ]
+}
