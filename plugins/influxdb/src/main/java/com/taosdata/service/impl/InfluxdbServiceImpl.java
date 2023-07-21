@@ -334,7 +334,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      */
     private void handlerException(Exception e) {
         String errMsg = e.getMessage();
-        if (StringUtils.isNotEmpty(errMsg) && (errMsg.contains("Failed to connect") || errMsg.contains("Unable to validate object"))) {
+        if (StringUtils.isNotEmpty(errMsg) && (errMsg.contains("Failed to connect") || errMsg.contains("Unable to validate object") || errMsg.contains("connect timed out"))) {
             // url错误
             logger.error("The application will exit soon: {}", e.getMessage());
             System.exit(101);
