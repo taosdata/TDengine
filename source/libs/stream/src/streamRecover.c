@@ -779,7 +779,7 @@ void streamTaskPause(SStreamTask* pTask) {
 
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,
-         streamGetTaskStatusStr(pTask->status.keepTaskStatus), el);
+         streamGetTaskStatusStr(pTask->status.keepTaskStatus), (int32_t)el);
 }
 
 // todo fix race condition
