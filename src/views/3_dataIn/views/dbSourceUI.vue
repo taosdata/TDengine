@@ -476,10 +476,11 @@
                   v-if="
                     p.hint === 'str' ||
                     p.hint === 'timeout' ||
-                    p.hint.type == 'timeout'
+                    p.hint.type == 'timeout' ||
+                    p.hint?.type === 'duration'
                   "
                 >
-                  <el-input v-model="p.value" placeholder=""></el-input>
+                  <el-input v-model="p.value" :placeholder="p.placeholder"></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <div v-if="p.hint.choices" class="select-with-btn">
@@ -556,9 +557,12 @@
                     v-model="p.value"
                     value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
-                    v-if="p.name == 'beginTime' || p.name == 'endTime'"
+                    v-if="
+                      p.name == 'beginTime' || p.name == 'endTime'|| 
+                      p.name === 'start' || p.name == 'end'
+                    "
                     :picker-options="
-                      p.name == 'beginTime' ? startOption : endOption
+                      (p.name == 'beginTime' || p.name === 'start') ? startOption : endOption
                     "
                     :placeholder="p.placeholder"
                   >
@@ -671,9 +675,13 @@ export default {
 
   data() {
     const startTimeOption = (time) => {
-      let end = this.dbsource[0].groups[0].params.filter(
-        (item) => item.name == "endTime"
-      );
+      let endLsit = this.dbsource[0].groups.map(g => {
+        return g.params.filter(
+          (item) => (item.name == "endTime" || item.name == 'end')
+        );
+      })
+      let end = endLsit.filter(item => item.length > 0)[0]
+
       if (end[0].value) {
         return time.getTime() > new Date(end[0].value).getTime();
       } else {
@@ -681,9 +689,13 @@ export default {
       }
     };
     const endTimeOption = (time) => {
-      let start = this.dbsource[0].groups[0].params.filter(
-        (item) => item.name == "beginTime"
-      );
+      let startLsit = this.dbsource[0].groups.map(g => {
+        return g.params.filter(
+          (item) => (item.name == "beginTime" || item.name == 'start')
+        );
+      })
+      let start = startLsit.filter(item => item.length > 0)[0]
+
       if (start[0].value) {
         return time.getTime() < new Date(start[0].value).getTime();
       } else {
@@ -865,7 +877,7 @@ export default {
             return;
           }
         }
-        if (this.tagName === "datasource") {
+        if (this.tagName === "datasource" || this.tagName === 'taos') {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "plain"
@@ -1032,7 +1044,7 @@ export default {
         }
         let apiParams = {
           from:
-            "tmq" +
+            (this.tagName === "datasource" ? "tmq" : 'taos') + 
             (data.protocol
               ? Object.is(data.protocol.value, "--")
                 ? ""
@@ -1053,7 +1065,7 @@ export default {
         if (this.$parent.agentID) {
           apiParams["via"] = this.$parent.agentID;
         }
-        if (this.tagName === "datasource") {
+        if (this.tagName === "datasource" || this.tagName === "taos") {
           if (this.isEditable) {
             let result = await EditSource(apiParams, this.editId);
             if (result.message) {
