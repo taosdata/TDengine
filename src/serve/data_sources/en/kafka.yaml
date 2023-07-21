@@ -1,11 +1,12 @@
 ---
 id: kafka
 name: Kafka
+type: uri
 description: |
   Apache Kafka is an open-source distributed event streaming platform used by thousands of companies for high-performance
   data pipelines, streaming analytics, data integration, and mission-critical applications.
-  
-  TaosX can efficiently read the data from Kafka and write to TDengine through the Taosx Kafka Source to achieve 
+
+  TaosX can efficiently read the data from Kafka and write to TDengine through the Taosx Kafka Source to achieve
   historical data migration or real-time data synchronization.
 strict: false
 options:
@@ -26,21 +27,19 @@ groups:
           Specifies the group on whose behalf to maintain consumed message offsets. The group is allowed to be the empty
           string, in which case the resulting consumer will be group-less. e.g. group=my_group
         placeholder: ""
-        required: no
+        required: false
       - name: topics
         display: topics
         description: >
           Specifies a topic to consume. All of the available partitions of the identified topic will be consumed unless
           override when the topic_partitions is specified. e.g. topics=tp1,tp2
-        placeholder: ""
-        required: This parameter or topic_partitions must be specified at least one, to assign a topic to the consumer.
+        placeholder: This parameter or topic_partitions must be specified at least one, to assign a topic to the consumer.
       - name: topic_partitions
         display: topic_partitions
         description: >
-          Explicitly specifies topic partitions to consume. Only the specified partitions for the identified topic will 
+          Explicitly specifies topic partitions to consume. Only the specified partitions for the identified topic will
           be consumed. e.g. topic_partitions=tp1,tp2:2,tp3:0..9
-        placeholder: ""
-        required: This parameter or topics must be specified at least one, to assign a topic to the consumer.
+        placeholder: This parameter or topics must be specified at least one, to assign a topic to the consumer.
       - name: fallback_offset
         display: fallback_offset
         description: >
@@ -50,14 +49,15 @@ groups:
           * ByTime: Used to ask for all messages before a certain time (ms); unix timestamp in milliseconds.
           default is Earliest. e.g. fallback_offset=Earliest
         placeholder: Earliest
-        required: no
+        required: false
+        value: Earliest
       - name: offset_storage
         display: offset_storage
         description: >
-          Defines the availale storage types to utilize when fetching or comitting group offsets.
+          Defines the available storage types to utilize when fetching or committing group offsets.
           * Zookeeper：Zookeeper based storage (available as of kafka 0.8.1)
-          * Kafka：Kafka based storage (available as of Kafka 0.8.2). This is the prefered method for groups to store 
+          * Kafka：Kafka based storage (available as of Kafka 0.8.2). This is the prefered method for groups to store
           their offsets at.
           default is Kafka. e.g. offset_storage=Kafka
         placeholder: Kafka
-        required: no
+        required: false

@@ -7,6 +7,7 @@ use actix_web::{
     web::{self, Data, Json, Query},
     HttpResponse, Responder,
 };
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
@@ -128,9 +129,9 @@ pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
     HttpResponse::Ok()
         .content_type(ContentType::json())
         .json(if lang.is_cn() {
-            super::controller::DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice()
+            super::controller::DATA_SOURCE_DEFINITIONS_CN.values().collect_vec()
         } else {
-            super::controller::DATA_SOURCE_DEFINITIONS_VEC.as_slice()
+            super::controller::DATA_SOURCE_DEFINITIONS.values().collect_vec()
         })
 }
 

@@ -118,11 +118,11 @@ groups:
         description: |-
           Time range start.
         hint:
-          type: datetime
+          type: time
       - name: end
         display: End
         hint:
-          type: datetime
+          type: time
         description: Time range end.
         placeholder:
       - name: unit

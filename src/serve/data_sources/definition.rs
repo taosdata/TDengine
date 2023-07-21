@@ -689,6 +689,21 @@ fn test_csv() {
     dbg!(&ds);
 }
 #[test]
+fn test_kafka() {
+    use std::str::FromStr;
+    let json = include_str!("en/kafka.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "kafka://a.k/?topics=a,b";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+}
+#[test]
 fn test_values() {
     use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";

@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
@@ -1839,7 +1840,8 @@ pub struct TaskActivity {
 }
 
 lazy_static::lazy_static! {
-    pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
+    /// Data source definition map/list
+    pub static ref DATA_SOURCE_DEFINITIONS: LinkedHashMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/taos.yaml")).unwrap());
@@ -1849,46 +1851,14 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
-        for ds in &mut def {
-            ds.compute();
-        }
-        def
-    };
-    pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
-        let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/taos.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
-        for ds in &mut def {
-            ds.compute();
-        }
-        def
-    };
-    /// This is an example for using doc comment attributes
-    pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
-        let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/taos.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
         for ds in &mut def {
             ds.compute();
         }
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
-    pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
+    pub static ref DATA_SOURCE_DEFINITIONS_CN: LinkedHashMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/taos.yaml")).unwrap());
@@ -1898,6 +1868,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
         for ds in &mut def {
             ds.compute();
@@ -1906,11 +1877,6 @@ lazy_static::lazy_static! {
     };
 }
 
-#[test]
-fn test_ds() {
-    DATA_SOURCE_DEFINITIONS_VEC.as_slice();
-    DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice();
-}
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct ExpandedDsn {
     pub id: String,
