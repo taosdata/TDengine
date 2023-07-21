@@ -440,8 +440,10 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql,queryTimes=30):
+    def execute(self, sql, queryTimes=30, show=False):
         self.sql = sql
+        if show:
+            tdLog.info(sql)
         i=1
         while i <= queryTimes:
             try:

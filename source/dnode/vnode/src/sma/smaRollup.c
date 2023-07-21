@@ -264,7 +264,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       return TSDB_CODE_FAILED;
     }
 
-    SReadHandle handle = { .vnode = pVnode, .initTqReader = 1, .pStateBackend = pStreamState };
+    SReadHandle handle = {.vnode = pVnode, .initTqReader = 1, .pStateBackend = pStreamState};
     initStorageAPI(&handle.api);
 
     pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode));
@@ -572,8 +572,8 @@ int32_t smaDoRetention(SSma *pSma, int64_t now) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbDoRetention(pSma->pRSmaTsdb[i], now);
-      if (code) goto _end;
+      // code = tsdbDoRetention(pSma->pRSmaTsdb[i], now);
+      // if (code) goto _end;
     }
   }
 
@@ -612,7 +612,6 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
     blockDebugShowDataBlocks(pResList, flag);
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
-
       output = taosArrayGetP(pResList, i);
       smaDebug("vgId:%d, result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%" PRIi64, SMA_VID(pSma),
                output->info.id.uid, output->info.id.groupId, output->info.rows);
@@ -1114,8 +1113,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   }
 
   if (!(pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pRSmaRef->refId))) {
-    smaWarn("rsma fetch task not start since rsma stat already destroyed, rsetId:%d refId:%" PRIi64 ")",
-             smaMgmt.rsetId, pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
+    smaWarn("rsma fetch task not start since rsma stat already destroyed, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
+            pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
     return;
   }

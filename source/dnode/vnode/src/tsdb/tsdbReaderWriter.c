@@ -16,7 +16,7 @@
 #include "tsdb.h"
 
 // =============== PAGE-WISE FILE ===============
-static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
+int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
   int32_t  code = 0;
   STsdbFD *pFD = NULL;
 
@@ -68,7 +68,7 @@ _exit:
   return code;
 }
 
-static void tsdbCloseFile(STsdbFD **ppFD) {
+void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
@@ -141,7 +141,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
+int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
@@ -173,7 +173,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
@@ -202,7 +202,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbFsyncFile(STsdbFD *pFD) {
+int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
   code = tsdbWriteFilePage(pFD);
@@ -1489,7 +1489,7 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {
-    return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
+  return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
 }
 
 int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
@@ -1517,10 +1517,10 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
     if (delData.version > maxVer) {
       continue;
     }
-      if (taosArrayPush(aDelData, &delData) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
+    if (taosArrayPush(aDelData, &delData) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   ASSERT(n == size);

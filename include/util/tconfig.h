@@ -50,11 +50,17 @@ typedef enum {
   CFG_DTYPE_TIMEZONE
 } ECfgDataType;
 
+typedef enum {
+  CFG_SCOPE_SERVER,
+  CFG_SCOPE_CLIENT,
+  CFG_SCOPE_BOTH
+} ECfgScopeType;
+
 typedef struct SConfigItem {
   ECfgSrcType  stype;
   ECfgDataType dtype;
-  bool         tsc;
-  char        *name;
+  int8_t       scope;
+  char         *name;
   union {
     bool    bval;
     float   fval;
@@ -92,20 +98,21 @@ int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, bool tsc);
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, bool tsc);
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, bool tsc);
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, bool tsc);
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc);
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc);
-int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal);
-int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal);
-int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, int8_t scope);
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
 
 void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 

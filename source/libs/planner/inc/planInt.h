@@ -43,6 +43,9 @@ int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 
+bool    isPartTableAgg(SAggLogicNode* pAgg);
+bool    isPartTableWinodw(SWindowLogicNode* pWindow);
+
 #ifdef __cplusplus
 }
 #endif

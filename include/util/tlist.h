@@ -241,6 +241,54 @@ void       tdListNodeGetData(SList *list, SListNode *node, void *target);
 void       tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction);
 SListNode *tdListNext(SListIter *pIter);
 
+// macros ====================================================================================
+
+// q: for queue
+// n: for node
+// m: for member
+
+#define LISTD(TYPE)    \
+  struct {             \
+    TYPE *next, *prev; \
+  }
+
+#define LISTD_NEXT(n, m)      ((n)->m.next)
+#define LISTD_PREV(n, m)      ((n)->m.prev)
+#define LISTD_INIT(q, m)      (LISTD_NEXT(q, m) = LISTD_PREV(q, m) = (q))
+#define LISTD_HEAD(q, m)      (LISTD_NEXT(q, m))
+#define LISTD_TAIL(q, m)      (LISTD_PREV(q, m))
+#define LISTD_PREV_NEXT(n, m) (LISTD_NEXT(LISTD_PREV(n, m), m))
+#define LISTD_NEXT_PREV(n, m) (LISTD_PREV(LISTD_NEXT(n, m), m))
+
+#define LISTD_INSERT_HEAD(q, n, m)       \
+  do {                                   \
+    LISTD_NEXT(n, m) = LISTD_NEXT(q, m); \
+    LISTD_PREV(n, m) = (q);              \
+    LISTD_NEXT_PREV(n, m) = (n);         \
+    LISTD_NEXT(q, m) = (n);              \
+  } while (0)
+
+#define LISTD_INSERT_TAIL(q, n, m)       \
+  do {                                   \
+    LISTD_NEXT(n, m) = (q);              \
+    LISTD_PREV(n, m) = LISTD_PREV(q, m); \
+    LISTD_PREV_NEXT(n, m) = (n);         \
+    LISTD_PREV(q, m) = (n);              \
+  } while (0)
+
+#define LISTD_REMOVE(n, m)                    \
+  do {                                        \
+    LISTD_PREV_NEXT(n, m) = LISTD_NEXT(n, m); \
+    LISTD_NEXT_PREV(n, m) = LISTD_PREV(n, m); \
+  } while (0)
+
+#define LISTD_FOREACH(q, n, m)         for ((n) = LISTD_HEAD(q, m); (n) != (q); (n) = LISTD_NEXT(n, m))
+#define LISTD_FOREACH_REVERSE(q, n, m) for ((n) = LISTD_TAIL(q, m); (n) != (q); (n) = LISTD_PREV(n, m))
+#define LISTD_FOREACH_SAFE(q, n, t, m) \
+  for ((n) = LISTD_HEAD(q, m), (t) = LISTD_NEXT(n, m); (n) != (q); (n) = (t), (t) = LISTD_NEXT(n, m))
+#define LISTD_FOREACH_REVERSE_SAFE(q, n, t, m) \
+  for ((n) = LISTD_TAIL(q, m), (t) = LISTD_PREV(n, m); (n) != (q); (n) = (t), (t) = LISTD_PREV(n, m))
+
 #ifdef __cplusplus
 }
 #endif

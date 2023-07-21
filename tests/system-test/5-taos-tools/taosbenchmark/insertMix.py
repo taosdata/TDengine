@@ -79,6 +79,11 @@ class TDTestCase:
         tdSql.query("select count(*) from (select * from meters order by ts desc)")
         tdSql.checkData(0, 0, allCnt)
 
+        rowCnt = tdSql.query("select tbname, count(*) from meters partition by tbname slimit 11")
+        if rowCnt != 10:
+            tdLog.exit("partition by tbname should return 10 rows of table data which is " + str(rowCnt))
+            return
+
 
     def run(self):
         binPath = self.getPath()

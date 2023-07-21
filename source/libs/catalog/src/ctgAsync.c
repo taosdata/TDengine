@@ -2090,25 +2090,25 @@ int32_t ctgLaunchGetTbCfgTask(SCtgTask* pTask) {
   }
 
   CTG_CACHE_NHIT_INC(CTG_CI_TBL_CFG, 1);
-  
+
   if (pCtx->tbType <= 0) {
     CTG_ERR_JRET(ctgReadTbTypeFromCache(pCtg, dbFName, pCtx->pName->tname, &pCtx->tbType));
     if (pCtx->tbType <= 0) {
       SCtgTbMetaParam param;
       param.pName = pCtx->pName;
       param.flag = 0;
-      CTG_ERR_JRET(ctgLaunchSubTask(pTask, CTG_TASK_GET_TB_META, ctgGetTbCfgCb, &param));
+      CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetTbCfgCb, &param));
       return TSDB_CODE_SUCCESS;
     }
   }
 
-  if (TSDB_SUPER_TABLE == pCtx->tbType) {
+  if (TSDB_SUPER_TABLE == pCtx->tbType || TSDB_SYSTEM_TABLE == pCtx->tbType) {
     CTG_ERR_JRET(ctgGetTableCfgFromMnode(pCtg, pConn, pCtx->pName, NULL, pTask));
   } else {
     if (NULL == pCtx->pVgInfo) {
       CTG_ERR_JRET(ctgGetTbHashVgroupFromCache(pCtg, pCtx->pName, &pCtx->pVgInfo));
       if (NULL == pCtx->pVgInfo) {
-        CTG_ERR_JRET(ctgLaunchSubTask(pTask, CTG_TASK_GET_DB_VGROUP, ctgGetTbCfgCb, dbFName));
+        CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_DB_VGROUP, ctgGetTbCfgCb, dbFName));
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -2145,7 +2145,7 @@ int32_t ctgLaunchGetTbTagTask(SCtgTask* pTask) {
   if (NULL == pCtx->pVgInfo) {
     CTG_ERR_JRET(ctgGetTbHashVgroupFromCache(pCtg, pCtx->pName, &pCtx->pVgInfo));
     if (NULL == pCtx->pVgInfo) {
-      CTG_ERR_JRET(ctgLaunchSubTask(pTask, CTG_TASK_GET_DB_VGROUP, ctgGetTbTagCb, dbFName));
+      CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_DB_VGROUP, ctgGetTbTagCb, dbFName));
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -2331,7 +2331,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     SCtgTbMetaParam param;
     param.pName = &pCtx->user.tbName;
     param.flag = CTG_FLAG_SYNC_OP;
-    CTG_ERR_RET(ctgLaunchSubTask(pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
+    CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
   } else {
     CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
   }
@@ -2541,19 +2541,35 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgLaunchSubTask(SCtgTask* pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param) {
-  SCtgJob* pJob = pTask->pJob;
+SCtgTask* ctgGetTask(SCtgJob* pJob, int32_t taskId) {
+  int32_t taskNum = taosArrayGetSize(pJob->pTasks);
+
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SCtgTask* pTask = taosArrayGet(pJob->pTasks, i);
+    if (pTask->taskId == taskId) {
+      return pTask;
+    }
+  }
+
+  return NULL;
+}
+
+
+int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param) {
+  SCtgJob* pJob = (*ppTask)->pJob;
   int32_t  subTaskId = -1;
   bool     newTask = false;
+  int32_t  taskId = (*ppTask)->taskId;
 
-  ctgClearSubTaskRes(&pTask->subRes);
-  pTask->subRes.type = type;
-  pTask->subRes.fp = fp;
+  ctgClearSubTaskRes(&(*ppTask)->subRes);
+  (*ppTask)->subRes.type = type;
+  (*ppTask)->subRes.fp = fp;
 
   CTG_ERR_RET(ctgSearchExistingTask(pJob, type, param, &subTaskId));
   if (subTaskId < 0) {
     CTG_ERR_RET(ctgInitTask(pJob, type, param, &subTaskId));
     newTask = true;
+    *ppTask = ctgGetTask(pJob, taskId);
   }
 
   SCtgTask* pSub = taosArrayGet(pJob->pTasks, subTaskId);
@@ -2561,10 +2577,10 @@ int32_t ctgLaunchSubTask(SCtgTask* pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp,
     pSub->subTask = true;
   }
 
-  CTG_ERR_RET(ctgSetSubTaskCb(pSub, pTask));
+  CTG_ERR_RET(ctgSetSubTaskCb(pSub, *ppTask));
 
   if (newTask) {
-    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
+    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(*ppTask, -1);
     SCtgMsgCtx* pSubMsgCtx = CTG_GET_TASK_MSGCTX(pSub, -1);
     pSubMsgCtx->pBatchs = pMsgCtx->pBatchs;
 
@@ -2584,6 +2600,7 @@ int32_t ctgLaunchJob(SCtgJob* pJob) {
     qDebug("QID:0x%" PRIx64 " ctg launch [%dth] task", pJob->queryId, pTask->taskId);
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
 
+    pTask = taosArrayGet(pJob->pTasks, i);
     pTask->status = CTG_TASK_LAUNCHED;
   }
 

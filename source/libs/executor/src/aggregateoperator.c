@@ -45,6 +45,8 @@ typedef struct SAggOperatorInfo {
   SGroupResInfo    groupResInfo;
   SExprSupp        scalarExprSup;
   bool             groupKeyOptimized;
+  bool             hasValidBlock;
+  SSDataBlock*     pNewGroupBlock;
 } SAggOperatorInfo;
 
 static void destroyAggOperatorInfo(void* param);
@@ -53,7 +55,6 @@ static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, u
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
 static void destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock** ppBlock);
 
-static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator);
 static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx);
 static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator);
 
@@ -111,9 +112,9 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
 
-  setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, true, OP_NOT_OPENED, pInfo,
-                  pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, destroyAggOperatorInfo,
+  setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
+                  !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getAggregateResult, NULL, destroyAggOperatorInfo,
                                          optrDefaultBufFn, NULL);
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
@@ -153,28 +154,42 @@ void destroyAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-// this is a blocking operator
-int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
-  if (OPTR_IS_OPENED(pOperator)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+/**
+ * @brief get blocks from downstream and fill results into groupedRes after aggragation
+ * @retval false if no more groups
+ * @retval true if there could have new groups coming
+ * @note if pOperator.blocking is true, scan all blocks from downstream, all groups are handled
+ *       if false, fill results of ONE GROUP
+ * */
+static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
+
+  if (pOperator->blocking && pAggInfo->hasValidBlock) return false;
 
   SExprSupp*     pSup = &pOperator->exprSupp;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
-  int64_t st = taosGetTimestampUs();
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t order = pAggInfo->binfo.inputTsOrder;
-  bool hasValidBlock = false;
+  int64_t      st = taosGetTimestampUs();
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      order = pAggInfo->binfo.inputTsOrder;
+  SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
+  if (pBlock) {
+    pAggInfo->pNewGroupBlock = NULL;
+    tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
+    setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
+    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+    code = doAggregateImpl(pOperator, pSup->pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+  }
   while (1) {
     bool blockAllocated = false;
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      if (!hasValidBlock) {
+      if (!pAggInfo->hasValidBlock) {
         createDataBlockForEmptyInput(pOperator, &pBlock);
         if (pBlock == NULL) {
           break;
@@ -184,7 +199,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
         break;
       }
     }
-    hasValidBlock = true;
+    pAggInfo->hasValidBlock = true;
     pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
@@ -196,7 +211,11 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
     }
-
+    // if non-blocking mode and new group arrived, save the block and break
+    if (!pOperator->blocking && pAggInfo->groupId != UINT64_MAX && pBlock->info.id.groupId != pAggInfo->groupId) {
+      pAggInfo->pNewGroupBlock = pBlock;
+      break;
+    }
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
     setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
@@ -215,10 +234,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   }
 
   initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
-  OPTR_SET_OPENED(pOperator);
-
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  return pTaskInfo->code;
+  return pBlock != NULL;
 }
 
 SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
@@ -230,26 +246,25 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   }
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-    setOperatorCompleted(pOperator);
-    return NULL;
-  }
+  bool hasNewGroups = false;
+  do {
+    hasNewGroups = nextGroupedResult(pOperator);
+    blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
-  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  while (1) {
-    doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    while (1) {
+      doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
+      doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
-    if (!hasRemainResults(&pAggInfo->groupResInfo)) {
-      setOperatorCompleted(pOperator);
-      break;
+      if (!hasRemainResults(&pAggInfo->groupResInfo)) {
+        if (!hasNewGroups) setOperatorCompleted(pOperator);
+        break;
+      }
+
+      if (pInfo->pRes->info.rows > 0) {
+        break;
+      }
     }
-
-    if (pInfo->pRes->info.rows > 0) {
-      break;
-    }
-  }
+  } while (pInfo->pRes->info.rows == 0 && hasNewGroups);
 
   size_t rows = blockDataGetNumOfRows(pInfo->pRes);
   pOperator->resultInfo.totalRows += rows;

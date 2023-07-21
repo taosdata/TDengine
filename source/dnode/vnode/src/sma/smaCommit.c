@@ -103,15 +103,16 @@ _exit:
   return code;
 }
 
-int32_t smaFinishCommit(SSma *pSma) {
+extern int32_t tsdbCommitCommit(STsdb *tsdb);
+int32_t        smaFinishCommit(SSma *pSma) {
   int32_t code = 0;
   int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
 
-  if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
+  if (VND_RSMA1(pVnode) && (code = tsdbCommitCommit(VND_RSMA1(pVnode))) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  if (VND_RSMA2(pVnode) && (code = tsdbFinishCommit(VND_RSMA2(pVnode))) < 0) {
+  if (VND_RSMA2(pVnode) && (code = tsdbCommitCommit(VND_RSMA2(pVnode))) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 _exit:
@@ -130,6 +131,7 @@ _exit:
  * @param isCommit
  * @return int32_t
  */
+extern int32_t tsdbPreCommit(STsdb *tsdb);
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -186,11 +188,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   // all rsma results are written completely
   STsdb *pTsdb = NULL;
   if ((pTsdb = VND_RSMA1(pSma->pVnode))) {
-    code = tsdbPrepareCommit(pTsdb);
+    code = tsdbPreCommit(pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if ((pTsdb = VND_RSMA2(pSma->pVnode))) {
-    code = tsdbPrepareCommit(pTsdb);
+    code = tsdbPreCommit(pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -207,6 +209,7 @@ _exit:
  * @param pSma
  * @return int32_t
  */
+extern int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -217,10 +220,10 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
     goto _exit;
   }
 
-  code = tsdbCommit(VND_RSMA1(pVnode), pInfo);
+  code = tsdbCommitBegin(VND_RSMA1(pVnode), pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCommit(VND_RSMA2(pVnode), pInfo);
+  code = tsdbCommitBegin(VND_RSMA2(pVnode), pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

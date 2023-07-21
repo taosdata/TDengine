@@ -380,43 +380,43 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   return 0;
 }
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, bool tsc) {
-  SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .tsc = tsc};
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, bool tsc) {
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  SConfigItem item = {.dtype = CFG_DTYPE_INT32, .i32 = defaultVal, .imin = minval, .imax = maxval, .tsc = tsc};
+  SConfigItem item = {.dtype = CFG_DTYPE_INT32, .i32 = defaultVal, .imin = minval, .imax = maxval, .scope = scope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, bool tsc) {
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  SConfigItem item = {.dtype = CFG_DTYPE_INT64, .i64 = defaultVal, .imin = minval, .imax = maxval, .tsc = tsc};
+  SConfigItem item = {.dtype = CFG_DTYPE_INT64, .i64 = defaultVal, .imin = minval, .imax = maxval, .scope = scope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, bool tsc) {
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, int8_t scope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  SConfigItem item = {.dtype = CFG_DTYPE_FLOAT, .fval = defaultVal, .fmin = minval, .fmax = maxval, .tsc = tsc};
+  SConfigItem item = {.dtype = CFG_DTYPE_FLOAT, .fval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc) {
-  SConfigItem item = {.dtype = CFG_DTYPE_STRING, .tsc = tsc};
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope};
   item.str = taosStrdup(defaultVal);
   if (item.str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -425,8 +425,8 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bo
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc) {
-  SConfigItem item = {.dtype = CFG_DTYPE_DIR, .tsc = tsc};
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_DIR, .scope = scope};
   if (cfgCheckAndSetDir(&item, defaultVal) != 0) {
     return -1;
   }
@@ -434,8 +434,8 @@ int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, bool 
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal) {
-  SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .tsc = 1};
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .scope = scope};
   if (cfgCheckAndSetLocale(&item, defaultVal) != 0) {
     return -1;
   }
@@ -443,8 +443,8 @@ int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal) {
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal) {
-  SConfigItem item = {.dtype = CFG_DTYPE_CHARSET, .tsc = 1};
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_CHARSET, .scope = scope};
   if (cfgCheckAndSetCharset(&item, defaultVal) != 0) {
     return -1;
   }
@@ -452,8 +452,8 @@ int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal) {
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal) {
-  SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE, .tsc = 1};
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE, .scope = scope};
   if (cfgCheckAndSetTimezone(&item, defaultVal) != 0) {
     return -1;
   }
@@ -543,6 +543,27 @@ void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *p
   *pLen = len;
 }
 
+void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
+  int32_t len = 0;
+  switch (pItem->scope) {
+    case CFG_SCOPE_SERVER:
+      len = snprintf(buf, bufSize, "server");
+      break;
+    case CFG_SCOPE_CLIENT:
+      len = snprintf(buf, bufSize, "client");
+      break;
+    case CFG_SCOPE_BOTH:
+      len = snprintf(buf, bufSize, "both");
+      break;
+  }
+
+  if (len > bufSize) {
+    len = bufSize;
+  }
+
+  *pLen = len;
+}
+
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
     printf("                     global config");
@@ -560,7 +581,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   int32_t size = taosArrayGetSize(pCfg->array);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItem = taosArrayGet(pCfg->array, i);
-    if (tsc && !pItem->tsc) continue;
+    if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
     if (dump && strcmp(pItem->name, "simDebugFlag") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);

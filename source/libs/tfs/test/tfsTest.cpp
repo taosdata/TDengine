@@ -156,7 +156,7 @@ TEST_F(TfsTest, 03_Dir) {
   EXPECT_NE(taosDirExist(ap4), 1);
   EXPECT_EQ(tfsMkdirRecurAt(pTfs, p4, did), 0);
   EXPECT_EQ(taosDirExist(ap4), 1);
-  EXPECT_EQ(tfsRename(pTfs, p44, p45), 0);
+  EXPECT_EQ(tfsRename(pTfs, 0, p44, p45), 0);
   EXPECT_EQ(tfsRmdir(pTfs, p4), 0);
   EXPECT_NE(taosDirExist(ap4), 1);
 
@@ -609,7 +609,7 @@ TEST_F(TfsTest, 05_MultiDisk) {
     EXPECT_NE(taosDirExist(_ap22), 1);
     EXPECT_EQ(tfsMkdirRecurAt(pTfs, p4, did), 0);
     EXPECT_EQ(taosDirExist(_ap22), 1);
-    EXPECT_EQ(tfsRename(pTfs, p44, p45), 0);
+    EXPECT_EQ(tfsRename(pTfs, 0, p44, p45), 0);
     EXPECT_EQ(tfsRmdir(pTfs, p4), 0);
     EXPECT_NE(taosDirExist(_ap22), 1);
   }

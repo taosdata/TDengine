@@ -95,6 +95,23 @@ class TDTestCase:
           tdSql.checkEqual(f'{db}',tdSql.queryResult[0][0])
           tdSql.checkEqual(f'CREATE DATABASE `{db}`',tdSql.queryResult[0][1])
 
+    def show_create_systb_sql(self):
+        for param in self.ins_param_list:
+          tdSql.query(f'show create table information_schema.ins_{param}')
+          tdSql.checkEqual(f'ins_{param}',tdSql.queryResult[0][0])
+
+          tdSql.execute(f'use information_schema')
+          tdSql.query(f'show create table ins_{param}')
+          tdSql.checkEqual(f'ins_{param}',tdSql.queryResult[0][0])
+
+        for param in self.perf_param_list:
+          tdSql.query(f'show create table performance_schema.perf_{param}')
+          tdSql.checkEqual(f'perf_{param}',tdSql.queryResult[0][0])
+
+          tdSql.execute(f'use performance_schema')
+          tdSql.query(f'show create table perf_{param}')
+          tdSql.checkEqual(f'perf_{param}',tdSql.queryResult[0][0])
+
     def show_create_sql(self):
         create_db_sql = self.set_create_database_sql(self.db_param)
         print(create_db_sql)
@@ -200,6 +217,7 @@ class TDTestCase:
         self.perf_check()
         self.show_create_sql()
         self.show_create_sysdb_sql()
+        self.show_create_systb_sql()
 
     def stop(self):
         tdSql.close()

@@ -2245,15 +2245,18 @@ static int32_t tColDataUpdateValue72(SColData *pColData, uint8_t *pData, uint32_
   }
   return 0;
 }
+static FORCE_INLINE int32_t tColDataUpdateNothing(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
+  return 0;
+}
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) = {
-    {NULL, NULL, NULL},                                    // 0
-    {tColDataUpdateValue10, NULL, tColDataUpdateValue12},  // HAS_NONE
-    {tColDataUpdateValue20, NULL, NULL},                   // HAS_NULL
-    {tColDataUpdateValue30, NULL, tColDataUpdateValue32},  // HAS_NULL|HAS_NONE
-    {tColDataUpdateValue40, NULL, tColDataUpdateValue42},  // HAS_VALUE
-    {tColDataUpdateValue50, NULL, tColDataUpdateValue52},  // HAS_VALUE|HAS_NONE
-    {tColDataUpdateValue60, NULL, tColDataUpdateValue62},  // HAS_VALUE|HAS_NULL
-    {tColDataUpdateValue70, NULL, tColDataUpdateValue72},  // HAS_VALUE|HAS_NULL|HAS_NONE
+    {NULL, NULL, NULL},                                                     // 0
+    {tColDataUpdateValue10, tColDataUpdateNothing, tColDataUpdateValue12},  // HAS_NONE
+    {tColDataUpdateValue20, tColDataUpdateNothing, tColDataUpdateNothing},  // HAS_NULL
+    {tColDataUpdateValue30, tColDataUpdateNothing, tColDataUpdateValue32},  // HAS_NULL|HAS_NONE
+    {tColDataUpdateValue40, tColDataUpdateNothing, tColDataUpdateValue42},  // HAS_VALUE
+    {tColDataUpdateValue50, tColDataUpdateNothing, tColDataUpdateValue52},  // HAS_VALUE|HAS_NONE
+    {tColDataUpdateValue60, tColDataUpdateNothing, tColDataUpdateValue62},  // HAS_VALUE|HAS_NULL
+    {tColDataUpdateValue70, tColDataUpdateNothing, tColDataUpdateValue72},  // HAS_VALUE|HAS_NULL|HAS_NONE
 
     //    VALUE             NONE        NULL
 };

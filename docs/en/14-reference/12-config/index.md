@@ -166,7 +166,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report service usage information |
 | Value Range   | 0: Not allowed; 1: Allowed                                                   |
 | Default Value | 1                                                                            |
@@ -174,7 +174,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report crash related information |
 | Value Range   | 0,1   0: Not allowed; 1: allowed                                             |
 | Default Value | 1                                                                            |

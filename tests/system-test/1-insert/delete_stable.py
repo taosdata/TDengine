@@ -24,10 +24,11 @@ from util.common import *
 from util.sqlset import TDSetSql
 
 class TDTestCase:
+    updatecfgDict = {'tsdbdebugFlag': 143}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.dbname = 'db_test'
         self.ns_dbname = 'ns_test'
         self.us_dbname = 'us_test'

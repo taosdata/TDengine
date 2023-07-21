@@ -93,6 +93,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_BUFPOOL_SEGMENTS 3
 
 #define VND_INFO_FNAME "vnode.json"
+#define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
@@ -179,8 +180,8 @@ SArray*       metaGetSmaTbUids(SMeta* pMeta);
 void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 
-int64_t       metaGetTbNum(SMeta *pMeta);
-void          metaReaderDoInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+int64_t metaGetTbNum(SMeta* pMeta);
+void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -197,12 +198,12 @@ int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pR
 int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
-int32_t tsdbPrepareCommit(STsdb* pTsdb);
-int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+// int32_t tsdbPrepareCommit(STsdb* pTsdb);
+// int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-int32_t tsdbFinishCommit(STsdb* pTsdb);
-int32_t tsdbRollbackCommit(STsdb* pTsdb);
+// int32_t tsdbFinishCommit(STsdb* pTsdb);
+// int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -385,6 +386,7 @@ struct SVnode {
   SVState   state;
   SVStatis  statis;
   STfs*     pTfs;
+  int32_t   diskPrimary;
   SMsgCb    msgCb;
 
   // Buffer Pool

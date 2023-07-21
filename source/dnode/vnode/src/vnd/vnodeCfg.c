@@ -49,7 +49,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .hashBegin = 0,
                                    .hashEnd = 0,
                                    .hashMethod = 0,
-                                   .sttTrigger = TSDB_DEFAULT_STT_FILE,
+                                   .sttTrigger = TSDB_DEFAULT_SST_TRIGGER,
                                    .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
@@ -57,7 +57,7 @@ int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   return 0;
 }
 
-const char* vnodeRoleToStr(ESyncRole role) {
+const char *vnodeRoleToStr(ESyncRole role) {
   switch (role) {
     case TAOS_SYNC_ROLE_VOTER:
       return "true";
@@ -68,11 +68,11 @@ const char* vnodeRoleToStr(ESyncRole role) {
   }
 }
 
-const ESyncRole vnodeStrToRole(char* str) {
-  if(strcmp(str, "true") == 0){
+const ESyncRole vnodeStrToRole(char *str) {
+  if (strcmp(str, "true") == 0) {
     return TAOS_SYNC_ROLE_VOTER;
   }
-  if(strcmp(str, "false") == 0){
+  if (strcmp(str, "false") == 0) {
     return TAOS_SYNC_ROLE_LEARNER;
   }
 
@@ -295,10 +295,9 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     char role[10] = {0};
     code = tjsonGetStringValue(info, "isReplica", role);
     if (code < 0) return -1;
-    if(strlen(role) != 0){
+    if (strlen(role) != 0) {
       pNode->nodeRole = vnodeStrToRole(role);
-    }
-    else{
+    } else {
       pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
     }
     vDebug("vgId:%d, decode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,

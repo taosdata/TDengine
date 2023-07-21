@@ -127,7 +127,7 @@ class TDTestCase:
         self.c2Sum = None
 
         # create database  db
-        sql = f"create database db vgroups 5 replica 3"
+        sql = f"create database db vgroups 5 replica 3 stt_trigger 1"
         tdLog.info(sql)
         tdSql.execute(sql)
         sql = f"use db"

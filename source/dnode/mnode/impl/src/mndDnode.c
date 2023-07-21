@@ -794,18 +794,22 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   strcpy(info.name, "statusInterval");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  strcpy(info.scope, "server");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "timezone");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "locale");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "charset");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);

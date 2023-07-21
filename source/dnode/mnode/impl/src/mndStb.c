@@ -2498,12 +2498,14 @@ static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (0 == strcmp(cfgReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
+  char dbName[TSDB_DB_NAME_LEN] = {0};
+  mndExtractShortDbNameFromDbFullName(cfgReq.dbFName, dbName);
+  if (0 == strcmp(dbName, TSDB_INFORMATION_SCHEMA_DB)) {
     mInfo("information_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
     if (mndBuildInsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
       goto _OVER;
     }
-  } else if (0 == strcmp(cfgReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
+  } else if (0 == strcmp(dbName, TSDB_PERFORMANCE_SCHEMA_DB)) {
     mInfo("performance_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
     if (mndBuildPerfsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
       goto _OVER;
@@ -2668,6 +2670,13 @@ void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
 void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst) {
   SName name = {0};
   tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetDbName(&name, dst);
+}
+
+void mndExtractShortDbNameFromDbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB);
 
   tNameGetDbName(&name, dst);
 }

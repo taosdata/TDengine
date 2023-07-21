@@ -46,6 +46,7 @@ typedef struct {
   int32_t vgId;
   int32_t vgVersion;
   int8_t  dropped;
+  int32_t diskPrimary;
   int32_t toVgId;
   char    path[PATH_MAX + 20];
 } SWrapperCfg;
@@ -56,6 +57,7 @@ typedef struct {
   int32_t       refCount;
   int8_t        dropped;
   int8_t        disable;
+  int32_t       diskPrimary;
   int32_t       toVgId;
   char         *path;
   SVnode       *pImpl;
@@ -81,6 +83,7 @@ typedef struct {
 } SVnodeThread;
 
 // vmInt.c
+int32_t    vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);

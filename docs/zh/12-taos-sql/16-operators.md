@@ -39,7 +39,7 @@ TDengine 支持 `UNION ALL` 和 `UNION` 操作符。UNION ALL 将查询返回的
 | 3   |      \>, <       | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 大于，小于           |
 | 4   |     \>=, <=      | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 大于等于，小于等于   |
 | 5   |   IS [NOT] NULL   | 所有类型                                                             | 是否为空值           |
-| 6   | [NOT] BETWEEN AND | 除 BOOL、BLOB、MEDIUMBLOB 和 JSON 外的所有类型                       | 闭区间比较           |
+| 6   | [NOT] BETWEEN AND | 除 BOOL、BLOB、MEDIUMBLOB、JSON 和 GEOMETRY 外的所有类型                | 闭区间比较           |
 | 7   |        IN         | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型，且不可以为表的时间戳主键列 | 与列表内的任意值相等 |
 | 8   |       LIKE        | BINARY、NCHAR 和 VARCHAR                                             | 通配符匹配           |
 | 9   |   MATCH, NMATCH   | BINARY、NCHAR 和 VARCHAR                                             | 正则表达式匹配       |
