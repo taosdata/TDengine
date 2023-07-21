@@ -814,6 +814,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->outputInfo.queue = streamQueueOpen(512 << 10);
 
   if (pTask->inputQueue == NULL || pTask->outputInfo.queue == NULL) {
+    tqError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
     return -1;
   }
 

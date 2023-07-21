@@ -26,7 +26,7 @@ static void streamTaskSetForReady(SStreamTask* pTask, int32_t numOfReqs) {
   int64_t el = (taosGetTimestampMs() - pTask->initTs);
 
   qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%dms, task status:%s",
-         pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
+         pTask->id.idStr, numOfReqs, (int32_t) el, streamGetTaskStatusStr(pTask->status.taskStatus));
 }
 
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated) {
