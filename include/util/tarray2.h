@@ -138,13 +138,13 @@ static FORCE_INLINE int32_t tarray2SortInsert(void *arr, const void *elePtr, int
 #define TARRAY2_APPEND(a, e)           TARRAY2_APPEND_PTR(a, &(e))
 
 // return (TYPE *)
-#define TARRAY2_SEARCH(a, ep, cmp, flag) tarray2Search(a, ep, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag)
+#define TARRAY2_SEARCH(a, ep, cmp, flag) tarray2Search(a, ep, sizeof(((a)->data[0])), (__compar_fn_t)cmp, flag)
 
 #define TARRAY2_SEARCH_IDX(a, ep, cmp, flag) \
   tarray2SearchIdx(a, ep, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag)
 
-#define TARRAY2_SORT_INSERT(a, e, cmp)    tarray2SortInsert(a, &(e), sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp)
-#define TARRAY2_SORT_INSERT_P(a, ep, cmp) tarray2SortInsert(a, ep, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp)
+#define TARRAY2_SORT_INSERT(a, e, cmp)    tarray2SortInsert(a, &(e), sizeof(((a)->data[0])), (__compar_fn_t)cmp)
+#define TARRAY2_SORT_INSERT_P(a, ep, cmp) tarray2SortInsert(a, ep, sizeof(((a)->data[0])), (__compar_fn_t)cmp)
 
 #define TARRAY2_REMOVE(a, idx, cb)                                                                             \
   do {                                                                                                         \
