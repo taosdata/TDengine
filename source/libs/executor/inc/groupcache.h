@@ -27,11 +27,11 @@ typedef struct SGcBlkBufBasic {
   int64_t           blkId;
   int64_t           offset;
   int64_t           bufSize;
-  uint32_t          fileId;
 } SGcBlkBufBasic;
 
 typedef struct SGcBlkBufInfo {
   SGcBlkBufBasic    basic;
+  uint32_t          fileId;
   void*             next;
   void*             pBuf;
   SGcDownstreamCtx* pCtx;
@@ -39,10 +39,10 @@ typedef struct SGcBlkBufInfo {
 } SGcBlkBufInfo;
 #pragma pack(pop)
 
-typedef struct SGcVgroupFileFd {
+typedef struct SGroupCacheFileFd {
   TdThreadMutex mutex;
   TdFilePtr     fd;
-} SGcVgroupFileFd;
+} SGroupCacheFileFd;
 
 typedef struct SGcVgroupCtx {
   SArray*         pTbList;
@@ -117,7 +117,7 @@ typedef struct SGcDownstreamCtx {
   SHashObj*     pSessions;  
   SHashObj*     pWaitSessions; 
   int32_t       cacheFileFdNum;
-  TdFilePtr     cacheFileFd[GROUP_CACHE_MAX_FILE_FDS];
+  SGroupCacheFileFd cacheFileFd;
   char          baseFilename[PATH_MAX];
 } SGcDownstreamCtx;
 
@@ -126,7 +126,6 @@ typedef struct SGcSessionCtx {
   SGcOperatorParam* pParam;
   SGroupCacheData*  pGroupData;
   int64_t           lastBlkId;
-  int64_t           nextOffset;
   bool              semInit;
   tsem_t            waitSem;
   bool              newFetch;
