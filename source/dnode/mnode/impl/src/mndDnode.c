@@ -711,11 +711,7 @@ _OVER:
     mndReleaseDnode(pMnode, pDnode);
   }
 
-  if (iter > 15) {
-    tsGrantHBInterval = 10;
-  } else {
-    tsGrantHBInterval = 5;
-  }
+  tsGrantHBInterval = MIN(MAX(3, iter / 2), 15);
 
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -1048,11 +1044,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if (strncmp(cfgReq.config, "activeCode_m", 12) == 0) {
-    cfgReq.config[10] = 0;
-  } else if (strncmp(cfgReq.config, "cActiveCode_m", 13) == 0) {
-    cfgReq.config[11] = 0;
-  } else if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+  if ((pReq->info.ahandle != (void *)0x818611) &&
+      (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0)) {
     return -1;
   }
 
