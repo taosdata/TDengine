@@ -128,6 +128,7 @@ typedef struct {
   int8_t         minorVer;
   uint16_t       distribute;
   SGrantConnItem items[GRANT_CONN_NUM];
+  char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];  // since 3.1.0.0
 } SGrantConnMsg;
 
 // server
@@ -192,30 +193,31 @@ typedef struct {
 } SGrantStatus;
 
 typedef struct {
-  bool          updateForced;
-  bool          usbDongle;
-  bool          officialVersion;
-  int8_t        flag;
-  uint32_t      expireTimeSec;
-  uint32_t      limitStorage;
-  uint32_t      limitSpeed;
-  uint64_t      limitTimeSeries;
-  uint32_t      limitQueryTime;
-  uint32_t      limitDbs;
-  uint32_t      limitUsers;
-  uint32_t      limitConns;
-  uint32_t      limitStreams;
-  uint32_t      limitAccts;
-  uint32_t      limitDnodes;
-  uint32_t      limitCpuCores;
+  bool     updateForced;
+  bool     usbDongle;
+  bool     officialVersion;
+  int8_t   flag;
+  uint32_t expireTimeSec;
+  uint32_t limitStorage;
+  uint32_t limitSpeed;
+  uint64_t limitTimeSeries;
+  uint32_t limitQueryTime;
+  uint32_t limitDbs;
+  uint32_t limitUsers;
+  uint32_t limitConns;
+  uint32_t limitStreams;
+  uint32_t limitAccts;
+  uint32_t limitDnodes;
+  uint32_t limitCpuCores;
   union {
     uint32_t reserveKey1;
     struct {
-      uint16_t distribute;      // distribute date since 3.1.0.0
+      uint16_t distribute;  // distribute date since 3.1.0.0
       uint16_t reserveKey10;
     };
   };
   uint32_t      reserveKey2;
+  char          active[GRANT_ACTIVE_KEY_LEN + 1];
   SGrantConnMsg connectors;
 } SGrantMsg;
 

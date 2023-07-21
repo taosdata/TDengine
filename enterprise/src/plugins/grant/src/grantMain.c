@@ -74,8 +74,8 @@
   } while (0)
 
 #define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
-#define GRANT_CONN_MAJOR_VER 2 // history 1:2:x
-#define GRANT_CONN_MINOR_VER 1 // history 1:x:x
+#define GRANT_CONN_MAJOR_VER 2  // history 1:2:x
+#define GRANT_CONN_MINOR_VER 1  // history 1:x:x
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
 #define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
 #define GRANT_CONN_ITEMS(s) ((s)->connectors.items)
@@ -191,6 +191,7 @@ static void     grantConnResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
 static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime);
+static int32_t  mndSetActiveCodeFromCfg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pMsg);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pGrantMsg,
                                          GrantStatus *pGrantStatus);
 static int32_t  tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo,
@@ -204,7 +205,6 @@ static void     grantStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *p
 
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
-
 
 // connectors
 static void    tGrantConnItemsInit(SGrantConnItem *pItems, int32_t nItem);
@@ -224,7 +224,7 @@ static void  *grantSendTimer = NULL;
 static int8_t grantHbLock = 0;
 static int8_t grantHbRetry = 0;
 int32_t       grantFlag = 0;
-SGrantHandle grantHandle = {0};
+SGrantHandle  grantHandle = {0};
 
 // extern SSysTableMeta infosMeta[];
 #ifdef GRANTS_CFG
@@ -294,13 +294,17 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode) {
 }
 
 static void grantSetActiveCodes(SDnodeInfo *pInfo) {
-  if (0 != pInfo->active[0] && 0 != strncmp(grantObj.active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1)) {
+  if (0 != pInfo->active[0]) {
     tstrncpy(grantObj.active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1);
   }
-  if (0 != pInfo->connActive[0] &&
-      0 != strncmp(grantConnObj.active, pInfo->connActive, GRANT_CONN_ACTIVE_KEY_LEN + 1)) {
+  if (0 != pInfo->connActive[0]) {
     tstrncpy(grantConnObj.active, pInfo->connActive, GRANT_CONN_ACTIVE_KEY_LEN + 1);
   }
+}
+
+static void grantResetActiveCodes() {
+  grantObj.active[0] = 0;
+  grantConnObj.active[0] = 0;
 }
 
 /**
@@ -341,9 +345,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
 
   // step 3: respond with grant msg
   grantSetClusterIdEx(*(int64_t *)pInfo);
-  GrantMsg grantMsg = {.connectors.majorVer = GRANT_CONN_MAJOR_VER,
-                       .connectors.minorVer = GRANT_CONN_MINOR_VER,
-                       .connectors.distribute = grantConnObj.distribute};
+  GrantMsg grantMsg = {.connectors.majorVer = GRANT_CONN_MAJOR_VER, .connectors.minorVer = GRANT_CONN_MINOR_VER};
   dmGenerateGrantMsg(&grantMsg, &grantStatusReq, &dnodeInfo, clusterTime);
   int32_t contLen = tSerializeGrantMsg(NULL, 0, &grantMsg);
   void   *pCont = rpcMallocCont(contLen);
@@ -381,7 +383,8 @@ static void dmRefreshGrantCfg() {
   grantActiveSystem(cfgFile);
 }
 
-static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime) {
+static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus, SDnodeInfo *pInfo,
+                                  int64_t clusterTime) {
   grantSetActiveCodes(pInfo);
   // refresh
   dmRefreshGrantCfg();
@@ -444,7 +447,7 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
         uWarn("failed to grant since time ouf of sync: %" PRIi64 " < %" PRIi64, tolerence, grantCurrent);
       } else {
         uWarn("cont to grant since time in sync: grantCurrent %" PRIi64 " < tolerence %" PRIi64, grantCurrent,
-              tolerence);
+                 tolerence);
       }
     }
   } else {
@@ -477,7 +480,20 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
     SGrantConnMsg *pConn = &pGrantMsg->connectors;
     pConn->officialVersion = grantConnObj.officialVersion;
     memcpy(pConn->items, grantConnObj.items, sizeof(SGrantConnItem) * CONN_TYPE_MAX);
+    pGrantMsg->connectors.distribute = grantConnObj.distribute;
   }
+
+  // fetch the activeCodes in taos.cfg if not set in sdb/dnode
+  if (pInfo->active[0] == 0 && grantObj.active[0] != 0) {
+    strncpy(pGrantMsg->active, grantObj.active, GRANT_ACTIVE_KEY_LEN + 1);
+  }
+
+  if (pInfo->connActive[0] == 0 && grantConnObj.active[0] != 0) {
+    strncpy(pGrantMsg->connectors.active, grantConnObj.active, GRANT_CONN_ACTIVE_KEY_LEN + 1);
+  }
+
+  // clear the activeCodes
+  grantResetActiveCodes();
 
   return TSDB_CODE_SUCCESS;
 }
@@ -528,12 +544,14 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
           pDnodeInfo->ep.port, terrstr());
     goto _err;
   }
+  rpcFreeCont(rpcRsp.pCont);
 
   uDebug("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
          pDnodeInfo->ep.port);
   mndProcessDnodeSGrantMsg(pMnode, pDnodeInfo, &grantMsgRsp, &gStatus);
 
-  rpcFreeCont(rpcRsp.pCont);
+  mndSetActiveCodeFromCfg(pMnode, pDnodeInfo, &grantMsgRsp);
+
   return TSDB_CODE_SUCCESS;
 _err:
   rpcFreeCont(rpcRsp.pCont);
@@ -588,9 +606,15 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     mndSendGrantStatusToDnode(pMnode, info, clusterTime);
   }
 
+#ifdef GRANTS_CFG
+  if (GRANT_AT_ONCE) {
+    grantConnStatusCheck(pMnode, taosGetTimestampMs() / 1000);
+  }
+#else
   if (GRANT_AT_ONCE) {
     grantStatusCheck(pMnode, taosGetTimestampMs() / 1000, NULL);
   }
+#endif
 
   if (grantCheck(TSDB_GRANT_TIME) == TSDB_CODE_SUCCESS) {
     atomic_store_8(&tsGrant, 1);
@@ -1241,8 +1265,8 @@ static FORCE_INLINE bool grantIsOfficial(GrantStatus *pStatus) { return pStatus-
 static int32_t grantStatusCompare(GrantStatus *p1, GrantStatus *p2) {
   int32_t result = 0;
 
-  bool    offical1 = grantIsOfficial(p1);
-  bool    offical2 = grantIsOfficial(p2);
+  bool offical1 = grantIsOfficial(p1);
+  bool offical2 = grantIsOfficial(p2);
 
   if (offical1 < offical2) {
     result = -1;
@@ -1315,6 +1339,12 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       }
 
       taosHashPut(grantHandle.pOfficials, &pDnodeInfo->id, sizeof(TSDB_DATA_TYPE_UINT), &status, sizeof(GrantStatus));
+
+      bool shouldCheck = grantShouldCheck(curTime);
+      uTrace("grant message received from dnode:%" PRIu32 ", should check: %s, curTime:%" PRIu32
+             ", grantLastCheck:%" PRIu32,
+             pDnodeInfo->id, shouldCheck ? "true" : "false", curTime, *grantHandle.lastCheck);
+      if (shouldCheck) grantConnStatusCheck(pMnode, curTime);
     } else {
       if (pGrantMsg->distribute > grantHandle.latestDist) {
         grantHandle.latestDist = pGrantMsg->distribute;
@@ -1327,12 +1357,6 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       }
     }
   }
-
-  bool shouldCheck = grantShouldCheck(curTime);
-  uTrace("grant message received from dnode:%" PRIu32 ", should check: %s, curTime:%" PRIu32
-         ", grantLastCheck:%" PRIu32,
-         pDnodeInfo->id, shouldCheck ? "true" : "false", curTime, *grantHandle.lastCheck);
-  if (shouldCheck) grantConnStatusCheck(pMnode, curTime);
 
 #else
   // process grant status from mnode
@@ -1414,6 +1438,48 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
     if (shouldCheck) grantStatusCheck(pMnode, curTime, pDnodeInfo);
   }
 #endif
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndCfgDnodeReq(SMnode *pMnode, SDnodeInfo *pDnodeInfo, const char *cfg, const char *val) {
+  SMCfgDnodeReq req = {0};
+  req.dnodeId = pDnodeInfo->id;
+  strcpy(req.config, cfg);
+  strcpy(req.value, val);
+
+  int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &req);
+  void   *pCont = rpcMallocCont(contLen);
+  if (!pCont) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    uWarn("failed to generate dnodeCfg msg for grant since %s", terrstr());
+    return TSDB_CODE_FAILED;
+  }
+
+  tSerializeSMCfgDnodeReq(pCont, contLen, &req);
+
+  SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_CONFIG_DNODE};
+
+  uInfo("send cfg dnode req for grant to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
+        pDnodeInfo->ep.port);
+
+  SEpSet epSet = {.numOfEps = 1};
+  strncpy(epSet.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  epSet.eps[0].port = tsServerPort;
+
+  rpcSendRequest(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndSetActiveCodeFromCfg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pMsg) {
+  if (pDnodeInfo->active[0] == 0 && pMsg->active[0] != 0) {
+    mndCfgDnodeReq(pMnode, pDnodeInfo, "activeCode_m", pMsg->active);
+  }
+
+  if (pDnodeInfo->connActive[0] == 0 && pMsg->connectors.active[0] != 0) {
+    mndCfgDnodeReq(pMnode, pDnodeInfo, "cActiveCode_m", pMsg->connectors.active);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1600,7 +1666,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);  // cpu_cores
-    
+
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
@@ -1740,7 +1806,8 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   return tlen;
 }
 
-int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo, int64_t *clusterTime) {
+int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo,
+                                int64_t *clusterTime) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -1797,9 +1864,10 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
     if (tDeserializeGrantConnMsg(&decoder, &pStatus->connectors) < 0) return -1;
     char *data = NULL;
     if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
-    tstrncpy(pInfo->active, data, TSDB_ACTIVE_KEY_LEN);
+    if (data) tstrncpy(pInfo->active, data, TSDB_ACTIVE_KEY_LEN);
+    data = NULL;
     if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
-    tstrncpy(pInfo->connActive, data, TSDB_CONN_ACTIVE_KEY_LEN);
+    if (data) tstrncpy(pInfo->connActive, data, TSDB_CONN_ACTIVE_KEY_LEN);
   }
 
   // version 3: since 3.1.0.0
@@ -1849,6 +1917,14 @@ int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (tEncodeI8(&encoder, pMsg->flag) < 0) return -1;                      // version 2 since 3.0.5.0
   if (tSerializeGrantConnMsg(&encoder, &pMsg->connectors) < 0) return -1;  // version 2 since 3.0.5.0
 
+  // since 3.1.0.0
+  int16_t len = strlen(pMsg->active);
+  if (tEncodeI16v(&encoder, len) < 0) return -1;
+  if (len > 0 && tEncodeBinary(&encoder, pMsg->active, len) < 0) return -1;
+  len = strlen(pMsg->connectors.active);
+  if (tEncodeI16v(&encoder, len) < 0) return -1;
+  if (len > 0 && tEncodeBinary(&encoder, pMsg->connectors.active, len) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1893,6 +1969,23 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pMsg->flag) < 0) return -1;                       // version 2 since 3.0.5.0
     if (tDeserializeGrantConnMsg(&decoder, &pMsg->connectors) < 0) return -1;  // version 2 since 3.0.5.0
+  }
+
+  // since 3.1.0.0
+  if (!tDecodeIsEnd(&decoder)) {
+    int16_t len = 0;
+    if (tDecodeI16v(&decoder, &len) < 0) return -1;
+    if (len > 0) {
+      char *data = NULL;
+      if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
+      if (data) strncpy(pMsg->active, data, len);
+    }
+    if (tDecodeI16v(&decoder, &len) < 0) return -1;
+    if (len > 0) {
+      char *data = NULL;
+      if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
+      if (data) strncpy(pMsg->connectors.active, data, len);
+    }
   }
 
   tEndDecode(&decoder);
