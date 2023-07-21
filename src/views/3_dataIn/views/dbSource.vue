@@ -172,6 +172,10 @@ export default {
             this.currentName = "ui";
             this.tagName = "pibackfill";
             break;
+          case "taos":
+            this.currentName = "ui";
+            this.tagName = "taos";
+            break;
         }
       } else {
         switch (id) {
@@ -217,12 +221,16 @@ export default {
             this.currentName = "ui";
             this.tagName = "pibackfill";
             break;
+          case "taos":
+            this.currentName = "ui";
+            this.tagName = "taos";
+            break;
         }
         this.isEditable = true;
         this.editId = editid;
         this.dbName = dbname;
         this.getData();
-        if (id === "tmq") {
+        if (id === "tmq" || id === 'taos') {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {
