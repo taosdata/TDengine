@@ -4690,7 +4690,8 @@ int32_t tSerializeSAlterVnodeHashRangeReq(void *buf, int32_t bufLen, SAlterVnode
   if (tEncodeI32(&encoder, pReq->dstVgId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->hashBegin) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->hashEnd) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->reserved) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->reserved) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -4708,7 +4709,8 @@ int32_t tDeserializeSAlterVnodeHashRangeReq(void *buf, int32_t bufLen, SAlterVno
   if (tDecodeI32(&decoder, &pReq->dstVgId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->hashBegin) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->hashEnd) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->reserved) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->changeVersion) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->reserved) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

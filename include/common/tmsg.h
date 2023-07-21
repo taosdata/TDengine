@@ -1410,7 +1410,8 @@ typedef struct {
   int32_t  dstVgId;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int64_t  reserved;
+  int32_t  changeVersion;
+  int32_t  reserved;
 } SAlterVnodeHashRangeReq;
 
 int32_t tSerializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);

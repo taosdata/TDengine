@@ -117,9 +117,10 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
   if(pReq->learnerSelfIndex != -1){
     pCfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
   }
+  pCfg->changeVersion = pReq->changeVersion;
 
-  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d",
-            pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex);
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d",
+            pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex, pCfg->changeVersion);
 
   info.config.syncCfg = *pCfg;
   ret = vnodeSaveInfo(dir, &info);
@@ -216,6 +217,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   info.config.hashEnd = pReq->hashEnd;
   info.config.hashChange = true;
   info.config.walCfg.vgId = pReq->dstVgId;
+  info.config.syncCfg.changeVersion = pReq->changeVersion;
 
   SSyncCfg *pCfg = &info.config.syncCfg;
   pCfg->myIndex = 0;
@@ -311,7 +313,7 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   return 0;
 }
 
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool isFirst) {
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -439,7 +441,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open sync
-  if (vnodeSyncOpen(pVnode, dir, isFirst)) {
+  vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
+  if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }

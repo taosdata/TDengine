@@ -245,7 +245,7 @@ typedef struct SSyncState {
 
 int32_t syncInit();
 void    syncCleanUp();
-int64_t syncOpen(SSyncInfo* pSyncInfo, bool isFirst);
+int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
 int32_t syncStart(int64_t rid);
 void    syncStop(int64_t rid);
 void    syncPreStop(int64_t rid);

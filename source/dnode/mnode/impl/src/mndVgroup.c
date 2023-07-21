@@ -274,6 +274,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashPrefix = pDb->cfg.hashPrefix;
   createReq.hashSuffix = pDb->cfg.hashSuffix;
   createReq.tsdbPageSize = pDb->cfg.tsdbPageSize;
+  createReq.changeVersion= ++(pVgroup->syncConfChangeVer);
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = NULL;
@@ -322,9 +323,10 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
 
   createReq.changeVersion = pVgroup->syncConfChangeVer;
 
-  mInfo("vgId:%d, build create vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d",
+  mInfo("vgId:%d, build create vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d "
+        "changeVersion:%d",
                           createReq.vgId, createReq.replica, createReq.selfIndex, createReq.learnerReplica,
-                          createReq.learnerReplica, createReq.strict);
+                          createReq.learnerReplica, createReq.strict, createReq.changeVersion);
   for (int32_t i = 0; i < createReq.replica; ++i) {
     mInfo("vgId:%d, replica:%d ep:%s:%u", createReq.vgId, i, createReq.replicas[i].fqdn, createReq.replicas[i].port);
   }
@@ -402,7 +404,7 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
       .learnerReplica = 0,
       .selfIndex = -1,
       .learnerSelfIndex = -1,
-      .changeVersion = pVgroup->syncConfChangeVer,
+      .changeVersion = ++(pVgroup->syncConfChangeVer),
   };
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -438,9 +440,10 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
     }
   }
 
-  mInfo("vgId:%d, build alter vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d",
+  mInfo("vgId:%d, build alter vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d "
+        "changeVersion:%d",
                     alterReq.vgId, alterReq.replica, alterReq.selfIndex, alterReq.learnerReplica,
-                                                      alterReq.learnerSelfIndex, alterReq.strict);
+                    alterReq.learnerSelfIndex, alterReq.strict, alterReq.changeVersion);
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     mInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
   }
@@ -467,6 +470,83 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
   }
 
   tSerializeSAlterVnodeReplicaReq(pReq, contLen, &alterReq);
+  *pContLen = contLen;
+  return pReq;
+}
+
+static void *mndBuildCheckLearnCatchupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId,
+                                          int32_t *pContLen) {
+  SCheckLearnCatchupReq req = {
+      .vgId = pVgroup->vgId,
+      .strict = pDb->cfg.strict,
+      .replica = 0,
+      .learnerReplica = 0,
+      .selfIndex = -1,
+      .learnerSelfIndex = -1,
+  };
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SReplica  *pReplica = NULL;
+
+    if(pVgroup->vnodeGid[v].nodeRole == TAOS_SYNC_ROLE_VOTER){
+      pReplica = &req.replicas[req.replica];
+      req.replica++;
+    }
+    else{
+      pReplica = &req.learnerReplicas[req.learnerReplica];
+      req.learnerReplica++;
+    }
+
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pVgidDnode == NULL) return NULL;
+
+    pReplica->id = pVgidDnode->id;
+    pReplica->port = pVgidDnode->port;
+    memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
+    mndReleaseDnode(pMnode, pVgidDnode);
+
+    if(pVgroup->vnodeGid[v].nodeRole == TAOS_SYNC_ROLE_VOTER){
+      if (dnodeId == pVgid->dnodeId) {
+        req.selfIndex = v;
+      }
+    }
+    else{
+      if (dnodeId == pVgid->dnodeId) {
+        req.learnerSelfIndex = v;
+      }
+    }
+  }
+
+  mInfo("vgId:%d, build alter vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d",
+                    req.vgId, req.replica, req.selfIndex, req.learnerReplica,
+                                                      req.learnerSelfIndex, req.strict);
+  for (int32_t i = 0; i < req.replica; ++i) {
+    mInfo("vgId:%d, replica:%d ep:%s:%u", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port);
+  }
+  for (int32_t i = 0; i < req.learnerReplica; ++i) {
+    mInfo("vgId:%d, learnerReplica:%d ep:%s:%u", req.vgId, i,
+                req.learnerReplicas[i].fqdn, req.learnerReplicas[i].port);
+  }
+
+  if (req.selfIndex == -1 && req.learnerSelfIndex == -1) {
+    terrno = TSDB_CODE_APP_ERROR;
+    return NULL;
+  }
+
+  int32_t contLen = tSerializeSAlterVnodeReplicaReq(NULL, 0, &req);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSAlterVnodeReplicaReq(pReq, contLen, &req);
   *pContLen = contLen;
   return pReq;
 }
@@ -501,6 +581,7 @@ static void *mndBuildAlterVnodeHashRangeReq(SMnode *pMnode, int32_t srcVgId, SVg
       .dstVgId = pVgroup->vgId,
       .hashBegin = pVgroup->hashBegin,
       .hashEnd = pVgroup->hashEnd,
+      .changeVersion = ++(pVgroup->syncConfChangeVer),
   };
 
   mInfo("vgId:%d, build alter vnode hashrange req, dstVgId:%d, hashrange:[%u, %u]", srcVgId, pVgroup->vgId,
@@ -1411,7 +1492,7 @@ int32_t mndAddCheckLearnerCatchupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildAlterVnodeReplicaReq(pMnode, pDb, pVgroup, dnodeId, &contLen);
+  void   *pReq = mndBuildCheckLearnCatchupReq(pMnode, pDb, pVgroup, dnodeId, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;
@@ -2358,7 +2439,7 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
 
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, vgid:%d alter vgroup, syncConfChangeVer:%d, version:%d, replica:%d", 
+  mInfo("trans:%d, vgId:%d, alter vgroup, syncConfChangeVer:%d, version:%d, replica:%d", 
         pTrans->id, pVgroup->vgId, pVgroup->syncConfChangeVer, pVgroup->version, pVgroup->replica);
 
   if (newVgroup.replica == 1 && pNewDb->cfg.replications == 3) {
@@ -2374,11 +2455,15 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
     newVgroup.vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_LEARNER;
     newVgroup.vnodeGid[2].nodeRole = TAOS_SYNC_ROLE_LEARNER;
-    newVgroup.syncConfChangeVer++;
     if (mndAddChangeConfigAction(pMnode, pTrans, pNewDb, pVgroup, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0) return -1;
-    //if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0) return -1;
+    mInfo("trans:%d, vgId:%d, add change config, syncConfChangeVer:%d, version:%d, replica:%d", 
+        pTrans->id, pVgroup->vgId, newVgroup.syncConfChangeVer, pVgroup->version, pVgroup->replica);
     if (mndAddCreateVnodeAction(pMnode, pTrans, pNewDb, &newVgroup, &newVgroup.vnodeGid[1]) != 0) return -1;
+    mInfo("trans:%d, vgId:%d, create vnode, syncConfChangeVer:%d, version:%d, replica:%d", 
+        pTrans->id, pVgroup->vgId, newVgroup.syncConfChangeVer, pVgroup->version, pVgroup->replica);
     if (mndAddCreateVnodeAction(pMnode, pTrans, pNewDb, &newVgroup, &newVgroup.vnodeGid[2]) != 0) return -1;
+    mInfo("trans:%d, vgId:%d, create vnode, syncConfChangeVer:%d, version:%d, replica:%d", 
+        pTrans->id, pVgroup->vgId, newVgroup.syncConfChangeVer, pVgroup->version, pVgroup->replica);
    
 
     //check learner
@@ -2392,7 +2477,6 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
     newVgroup.vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[2].nodeRole = TAOS_SYNC_ROLE_LEARNER;
-    newVgroup.syncConfChangeVer++;
     if (mndAddChangeConfigAction(pMnode, pTrans, pNewDb, pVgroup, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0)
       return -1;
 
@@ -2401,7 +2485,6 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
     newVgroup.vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[2].nodeRole = TAOS_SYNC_ROLE_VOTER;
-    newVgroup.syncConfChangeVer++;
     if (mndAddChangeConfigAction(pMnode, pTrans, pNewDb, pVgroup, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0)
       return -1;
 
@@ -2421,7 +2504,6 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
     SVnodeGid del1 = {0};
     if (mndRemoveVnodeFromVgroupWithoutSave(pMnode, pTrans, &newVgroup, pArray, &del1) != 0) return -1;
 
-    newVgroup.syncConfChangeVer++;
     if (mndAddChangeConfigAction(pMnode, pTrans, pNewDb, pVgroup, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0) return -1;
 
     if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, &newVgroup) != 0) return -1;
@@ -2439,7 +2521,6 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
     SVnodeGid del2 = {0};
     if (mndRemoveVnodeFromVgroupWithoutSave(pMnode, pTrans, &newVgroup, pArray, &del2) != 0) return -1;
     
-    newVgroup.syncConfChangeVer++;
     if (mndAddChangeConfigAction(pMnode, pTrans, pNewDb, pVgroup, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0) return -1;
 
     if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, &newVgroup) != 0) return -1;

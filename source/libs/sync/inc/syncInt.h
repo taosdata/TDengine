@@ -228,7 +228,7 @@ typedef struct SSyncNode {
 } SSyncNode;
 
 // open/close --------------
-SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, bool isFirst);
+SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
 int32_t    syncNodeStart(SSyncNode* pSyncNode);
 int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);

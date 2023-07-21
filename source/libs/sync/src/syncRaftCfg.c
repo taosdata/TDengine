@@ -246,7 +246,8 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
   }
 
   code = 0;
-  sInfo("vgId:%d, succceed to read sync cfg file %s", pNode->vgId, file);
+  sInfo("vgId:%d, succceed to read sync cfg file %s, changeVersion:%d", 
+    pNode->vgId, file, pCfg->cfg.changeVersion);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
