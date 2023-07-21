@@ -1457,7 +1457,12 @@ static int32_t mndCfgDnodeReq(SMnode *pMnode, SDnodeInfo *pDnodeInfo, const char
 
   tSerializeSMCfgDnodeReq(pCont, contLen, &req);
 
-  SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_CONFIG_DNODE};
+  SRpcMsg rpcMsg = {
+      .pCont = pCont,
+      .contLen = contLen,
+      .msgType = TDMT_MND_CONFIG_DNODE,
+      .info.ahandle = (void *)0x818611,
+  };
 
   uInfo("send cfg dnode req for grant to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
         pDnodeInfo->ep.port);
@@ -1473,11 +1478,11 @@ static int32_t mndCfgDnodeReq(SMnode *pMnode, SDnodeInfo *pDnodeInfo, const char
 
 static int32_t mndSetActiveCodeFromCfg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pMsg) {
   if (pDnodeInfo->active[0] == 0 && pMsg->active[0] != 0) {
-    mndCfgDnodeReq(pMnode, pDnodeInfo, "activeCode_m", pMsg->active);
+    mndCfgDnodeReq(pMnode, pDnodeInfo, "activeCode", pMsg->active);
   }
 
   if (pDnodeInfo->connActive[0] == 0 && pMsg->connectors.active[0] != 0) {
-    mndCfgDnodeReq(pMnode, pDnodeInfo, "cActiveCode_m", pMsg->connectors.active);
+    mndCfgDnodeReq(pMnode, pDnodeInfo, "cActiveCode", pMsg->connectors.active);
   }
 
   return TSDB_CODE_SUCCESS;
