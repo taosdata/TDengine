@@ -613,12 +613,6 @@ function install_examples() {
   fi
 }
 
-function install_web() {
-  if [ -d "${script_dir}/share" ]; then
-    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share > /dev/null 2>&1 ||:
-  fi
-}
-
 
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep ${serverName2} &>/dev/null; then
@@ -894,7 +888,6 @@ function updateProduct() {
   fi
 
   install_examples
-  install_web
   if [ -z $1 ]; then
     install_bin
     install_service
@@ -974,8 +967,7 @@ function installProduct() {
   if [ "$verMode" == "cluster" ]; then
       install_connector
   fi
-  install_examples
-  install_web
+  install_examples  
 
   if [ -z $1 ]; then # install service and client
     # For installing new
