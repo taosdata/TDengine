@@ -111,11 +111,11 @@ groups:
         description: |-
           迁移数据开始时间。
         hint:
-          type: datetime
+          type: time
       - name: end
         display: 结束时间
         hint:
-          type: datetime
+          type: time
         description: 迁移数据结束时间。
         placeholder:
       - name: unit
