@@ -28,17 +28,22 @@ interval = 1 # collect data interval in second for opc ua observe mode and opc d
 limit = 200 # max node for read in one request.
 contains_bad = false # collect bad node when collect data
 
+[collect.dump]
+enable = false # dump data to file
+path = "/tmp/opc/opc_dump.log" # dump file path
+keep = 7 # keep dump file days
+
 [collect.ua]
 collect_mode = "subscribe" # observe or subscribe. default is observe
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=9;i=1003"
+id = "ns=2;i=2"
 
-[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=11;i=1007"
+[[collect.ua.nodes]]
+id = "ns=2;i=3"
 
-#[[collect.da.tags]] # opc da tags. needs tag name and value type. value type is same with data type in tdengine
-#tag = "g1.r1"
+[[collect.ua.nodes]]
+id = "ns=2;i=4"
 
 [report]
 remote = "127.0.0.1:8000" # taosx's address ip:port or socket path

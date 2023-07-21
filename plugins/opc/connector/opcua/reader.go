@@ -2,6 +2,7 @@ package opcua
 
 import (
 	"collector/common"
+	"collector/connector"
 	"container/list"
 	"context"
 	"crypto/rsa"
@@ -42,11 +43,19 @@ type reader struct {
 	done           chan struct{}
 	debug          bool
 	containsBad    bool
+	dumper         *connector.CsvDumper
 	mutex          sync.Mutex
 	once           sync.Once
 }
 
-func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig common.PointsConfig, collectMode string, nodes []common.NodeConfig, interval int64, containsBad bool) (*reader, error) {
+func newReader(debug bool,
+	connectConfig common.UaConnectConfig,
+	dumpConfig common.DumpConfig,
+	pointConfig common.PointsConfig,
+	collectMode string,
+	nodes []common.NodeConfig,
+	interval int64,
+	containsBad bool) (*reader, error) {
 	r := &reader{
 		connectConfig:  connectConfig,
 		collectMode:    collectMode,
@@ -73,6 +82,15 @@ func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig com
 
 	if err := r.initNodeMetricMapping(); err != nil {
 		return nil, err
+	}
+
+	if dumpConfig.Enable {
+		dumper, err := connector.NewCsvDumper(dumpConfig.Path, dumpConfig.Keep)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dump file: %w", err)
+		}
+
+		r.dumper = dumper
 	}
 
 	return r, nil
@@ -138,6 +156,9 @@ func (r *reader) stop(ctx context.Context) {
 		if err := r.client.CloseWithContext(ctx); err != nil {
 			logger.Error("## close opc ua connection error", "error", err)
 		}
+		if r.dumper != nil {
+			r.dumper.Close()
+		}
 		r.client = nil
 		r.state = opcua.Disconnected
 	})
@@ -183,17 +204,10 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		ticker := time.NewTicker(r.interval)
-		checkConnTicker := time.NewTicker(10 * time.Second)
-
 		defer ticker.Stop()
-		defer checkConnTicker.Stop()
 
 		for {
 			select {
-			case <-checkConnTicker.C:
-				if r.state == opcua.Connected && !r.OpcConnected() {
-					logger.Panic("## opc ua connection is not alive")
-				}
 			case <-r.done:
 				return
 			case <-notifyCtx.Done():
@@ -256,7 +270,7 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			ts = time.Now()
 		}
 
-		values = append(values, &common.NodeValue{
+		nodeValue := &common.NodeValue{
 			Identifier: identifier,
 			Name:       name,
 			Timestamp:  ts,
@@ -264,7 +278,13 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			Value:      item.Value.Value(),
 			ValueType:  valueType,
 			Status:     int64(item.Status),
-		})
+		}
+		if err = r.dump(nodeValue); err != nil {
+			logger.Error("## dump node value error", "error", err)
+			panic(fmt.Errorf("dump node value error: %w", err))
+		}
+
+		values = append(values, nodeValue)
 	}
 
 	return values, nil
@@ -298,15 +318,8 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 			logger.Warn("## cancel subscription")
 		}()
 
-		checkConnTicker := time.NewTicker(10 * time.Second)
-		defer checkConnTicker.Stop()
-
 		for {
 			select {
-			case <-checkConnTicker.C:
-				if !r.OpcConnected() {
-					logger.Panic("## opc ua connection is not alive")
-				}
 			case <-r.done:
 				return
 			case <-notifyCtx.Done():
@@ -358,7 +371,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 						continue
 					}
 
-					ch <- &common.NodeValue{
+					nodeValue := &common.NodeValue{
 						Identifier: id,
 						Name:       node.name,
 						Timestamp:  ts,
@@ -367,6 +380,13 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 						ValueType:  valueType,
 						Status:     int64(status),
 					}
+
+					if err = r.dump(nodeValue); err != nil {
+						logger.Error("## dump node value error", "error", err)
+						panic(fmt.Errorf("dump node value error: %w", err))
+					}
+
+					ch <- nodeValue
 				}
 			}
 		}
@@ -625,4 +645,12 @@ func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string
 func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point {
 	name, _ := r.getNodeName(ctx, node)
 	return common.Point{ID: node.String(), Name: name}
+}
+
+func (r *reader) dump(value *common.NodeValue) error {
+	if r.dumper == nil {
+		return nil
+	}
+
+	return r.dumper.Dump(value)
 }
