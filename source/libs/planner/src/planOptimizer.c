@@ -363,6 +363,18 @@ static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan)
   }
 }
 
+static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
+  if (pScan->tableType != TSDB_SUPER_TABLE) return;
+
+  if (pScan->node.pParent && nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) {
+    SAggLogicNode* pAgg = (SAggLogicNode*)pScan->node.pParent;
+    bool withSlimit = pAgg->node.pSlimit != NULL || (pAgg->node.pParent && pAgg->node.pParent->pSlimit);
+    if (withSlimit && isPartTableAgg(pAgg)) {
+      pScan->groupOrderScan = pAgg->node.forceCreateNonBlockingOptr = true;
+    }
+  }
+}
+
 static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
@@ -371,6 +383,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     if (!pCxt->pPlanCxt->streamQuery) {
       scanPathOptSetScanOrder(info.scanOrder, info.pScan);
     }
+    scanPathOptSetGroupOrderScan(info.pScan);
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
@@ -1675,6 +1688,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     if (TSDB_CODE_SUCCESS == code) {
       if (QUERY_NODE_LOGIC_PLAN_AGG == pNode->pParent->type) {
         SAggLogicNode* pParent = (SAggLogicNode*)(pNode->pParent);
+        scanPathOptSetGroupOrderScan(pScan);
         pParent->hasGroupKeyOptimized = true;
       }
 
