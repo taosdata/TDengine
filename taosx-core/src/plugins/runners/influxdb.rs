@@ -424,6 +424,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let influx_username = dsn.remove("username").unwrap_or("".to_string());
     let influx_password = dsn.remove("password").unwrap_or("".to_string());
     let influx_token = dsn.remove("token").unwrap_or("".to_string());
+    let influx_orgId = dsn.remove("orgId").unwrap_or("".to_string());
     if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
         anyhow::bail!("The username is required");
     } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
@@ -461,6 +462,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .arg(&influx_version)
             .arg(&influx_url)
             .arg(&influx_token)
+            .arg(&influx_orgId)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped())
             .output()
