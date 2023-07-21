@@ -20,10 +20,11 @@ public interface InfluxdbService {
      *
      * @param url
      * @param token
+     * @param orgId
      * @return
      * @throws ArtificialException
      */
-    JSONObject fetchSchemaInfo(String url, String token) throws ArtificialException;
+    JSONObject fetchSchemaInfo(String url, String token, String orgId) throws ArtificialException;
 
     /**
      * 单次连接，查询指定influxdb中schema信息，适用于v1.7/1.8
@@ -39,10 +40,11 @@ public interface InfluxdbService {
     /**
      * 获取influxdb中所有bucket
      *
+     * @param orgId
      * @return
      * @throws ArtificialException
      */
-    List<InfluxdbBucketEntity> selectAllBuckets() throws ArtificialException;
+    List<InfluxdbBucketEntity> selectAllBuckets(String orgId) throws ArtificialException;
 
     /**
      * 获取指定bucket中所有measurement

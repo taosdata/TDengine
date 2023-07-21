@@ -105,8 +105,9 @@ public class PreLoading implements CommandLineRunner {
                     // 获取连接参数
                     String url = args[2];
                     String token = args[3];
+                    String orgId = args.length >= 5 ? args[4] : "";
                     // 查询并输出查询结果
-                    System.out.println(influxdbService.fetchSchemaInfo(url, token));
+                    System.out.println(influxdbService.fetchSchemaInfo(url, token, orgId));
                     System.exit(0);
                 } else {
                     logger.info("Parameters error, query failed.");
@@ -257,7 +258,7 @@ public class PreLoading implements CommandLineRunner {
             // 记录Influxdb信息
             StatusCache.noteInfluxdb(influxdbConfig.getUrl());
             // 获取所有bucket
-            List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets();
+            List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets(influxdbConfig.getOrgId());
             // 跟据参数中的orgId与buckets进行过滤
             influxdbBucketEntityList.stream().filter(influxdbBucketEntity -> {
                 if (StringUtils.isEmpty(influxdbConfig.getOrgId()) || influxdbBucketEntity.getOrgId().equals(influxdbConfig.getOrgId())) {

@@ -2,6 +2,7 @@ package com.taosdata.service.impl;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.influxdb.client.BucketsQuery;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.domain.Bucket;
@@ -58,11 +59,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      *
      * @param url
      * @param token
+     * @param orgId
      * @return
      * @throws ArtificialException
      */
     @Override
-    public JSONObject fetchSchemaInfo(String url, String token) throws ArtificialException {
+    public JSONObject fetchSchemaInfo(String url, String token, String orgId) throws ArtificialException {
         // influxdb客户端
         InfluxDBClient influxDBClient = null;
         try {
@@ -71,7 +73,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 返回结果
             JSONObject bucketJson = new JSONObject(new LinkedHashMap<>());
             // 获取所有bucket列表
-            List<Bucket> buckets = getBucketsV2(influxDBClient);
+            List<Bucket> buckets = getBucketsV2(influxDBClient, orgId);
             // 按bucket名称排序
             buckets.sort(Comparator.comparing(Bucket::getName));
             // 遍历封装
@@ -114,12 +116,14 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             JSONObject bucketJson = new JSONObject();
             // 获取所有bucket列表
             Set<String> buckets = getBucketsV1(influxDB);
+            // 转化为list并排序
+            List<String> bucketList = buckets.stream().sorted().collect(Collectors.toList());
             // 遍历封装
-            for (String bucket : buckets) {
+            for (String bucket : bucketList) {
                 // 查询所有measurement
                 Set<String> measurements = getMeasurementsV1(influxDB, bucket);
                 // 封装JsonArray
-                JSONArray jsonArray = new JSONArray(Arrays.asList(measurements));
+                JSONArray jsonArray = new JSONArray(measurements.stream().sorted().collect(Collectors.toList()));
                 // 放入结果集中
                 bucketJson.put(bucket, jsonArray);
             }
@@ -137,11 +141,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
     /**
      * 获取influxdb中所有bucket
      *
+     * @param orgId
      * @return
      * @throws ArtificialException
      */
     @Override
-    public List<InfluxdbBucketEntity> selectAllBuckets() throws ArtificialException {
+    public List<InfluxdbBucketEntity> selectAllBuckets(String orgId) throws ArtificialException {
         switch (influxdbConfig.getVersion()) {
             case "1.7":
             case "1.8":
@@ -155,7 +160,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 返回列表
             List<InfluxdbBucketEntity> influxdbBucketEntityList = new ArrayList<>();
             // 获取所有bucket列表
-            List<Bucket> bucketList = getBucketsV2(influxDBClient);
+            List<Bucket> bucketList = getBucketsV2(influxDBClient, orgId);
             // 遍历组装
             for (Bucket bucket : bucketList) {
                 InfluxdbBucketEntity influxdbBucketEntity = new InfluxdbBucketEntity();
@@ -574,11 +579,26 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @param influxDBClient
      * @return
      */
-    private List<Bucket> getBucketsV2(InfluxDBClient influxDBClient) {
-        // 获取所有bucket列表
-        List<Bucket> buckets = influxDBClient.getBucketsApi().findBuckets();
-        // 返回非空结果
-        return buckets != null ? buckets : new ArrayList<>();
+    private List<Bucket> getBucketsV2(InfluxDBClient influxDBClient, String orgId) {
+        // 所有bucket列表
+        List<Bucket> bucketAll = new ArrayList<>();
+        // 循环分页查询
+        while (true) {
+            // 查询参数
+            BucketsQuery bucketsQuery = new BucketsQuery();
+            bucketsQuery.setOrgID(orgId);
+            bucketsQuery.setOffset(bucketAll.size());
+            bucketsQuery.setLimit(100);
+            // 获取bucket列表
+            List<Bucket> buckets = influxDBClient.getBucketsApi().findBuckets();
+            // 判断是否取到
+            if (buckets == null || buckets.size() == 0) {
+                break;
+            } else {
+                bucketAll.addAll(buckets);
+            }
+        }
+        return bucketAll;
     }
 
     /**
