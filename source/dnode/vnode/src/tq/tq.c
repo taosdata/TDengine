@@ -307,9 +307,6 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   } else if (pOffset->val.type == TMQ_OFFSET__LOG) {
     tqInfo("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, pOffset->subKey, vgId,
             pOffset->val.version);
-    if (pOffset->val.version + 1 == sversion) {
-      pOffset->val.version += 1;
-    }
   } else {
     tqError("invalid commit offset type:%d", pOffset->val.type);
     return -1;
