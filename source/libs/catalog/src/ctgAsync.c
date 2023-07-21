@@ -2090,7 +2090,7 @@ int32_t ctgLaunchGetTbCfgTask(SCtgTask* pTask) {
   }
 
   CTG_CACHE_NHIT_INC(CTG_CI_TBL_CFG, 1);
-  
+
   if (pCtx->tbType <= 0) {
     CTG_ERR_JRET(ctgReadTbTypeFromCache(pCtg, dbFName, pCtx->pName->tname, &pCtx->tbType));
     if (pCtx->tbType <= 0) {
@@ -2102,7 +2102,7 @@ int32_t ctgLaunchGetTbCfgTask(SCtgTask* pTask) {
     }
   }
 
-  if (TSDB_SUPER_TABLE == pCtx->tbType) {
+  if (TSDB_SUPER_TABLE == pCtx->tbType || TSDB_SYSTEM_TABLE == pCtx->tbType) {
     CTG_ERR_JRET(ctgGetTableCfgFromMnode(pCtg, pConn, pCtx->pName, NULL, pTask));
   } else {
     if (NULL == pCtx->pVgInfo) {
