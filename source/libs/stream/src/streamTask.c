@@ -251,5 +251,10 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
 
+  if (pTask->pRspMsgList != NULL) {
+    pTask->pRspMsgList = taosArrayDestroy(pTask->pRspMsgList);
+  }
+
+  taosThreadMutexDestroy(&pTask->lock);
   taosMemoryFree(pTask);
 }

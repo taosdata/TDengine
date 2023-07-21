@@ -91,6 +91,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, 0);
   ASSERT(pTask->exec.pExecutor);
 
+  taosThreadMutexInit(&pTask->lock, NULL);
   streamSetupScheduleTrigger(pTask);
 
   qDebug("snode:%d expand stream task on snode, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d", SNODE_HANDLE,

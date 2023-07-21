@@ -691,10 +691,11 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   initRpcMsg(&info.msg, 0, pBuf, sizeof(SMsgHead) + len);
   info.msg.info = *pRpcInfo;
 
-  // todo: fix race condition here
+  taosThreadMutexLock(&pTask->lock);
   if (pTask->pRspMsgList == NULL) {
     pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
   }
+  taosThreadMutexUnlock(&pTask->lock);
 
   taosArrayPush(pTask->pRspMsgList, &info);
 

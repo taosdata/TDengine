@@ -921,6 +921,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->status.taskStatus = TASK_STATUS__NORMAL;
   }
 
+  taosThreadMutexInit(&pTask->lock, NULL);
   streamSetupScheduleTrigger(pTask);
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64

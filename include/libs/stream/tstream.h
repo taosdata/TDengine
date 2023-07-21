@@ -337,6 +337,7 @@ struct SStreamTask {
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
   SArray*       pRspMsgList;
+  TdThreadMutex lock;
 
   // the followings attributes don't be serialized
   int32_t             notReadyTasks;
