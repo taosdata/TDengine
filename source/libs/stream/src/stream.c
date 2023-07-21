@@ -420,3 +420,15 @@ void* streamQueueNextItem(SStreamQueue* pQueue) {
 }
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED); }
+
+SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
+  int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  for(int32_t i = 0; i < num; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamEpInfoList, i);
+    if (pInfo->taskId == taskId) {
+      return pInfo;
+    }
+  }
+
+  return NULL;
+}

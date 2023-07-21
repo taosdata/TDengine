@@ -336,6 +336,7 @@ struct SStreamTask {
   void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
+  SArray*       pRspMsgList;
 
   // the followings attributes don't be serialized
   int32_t             notReadyTasks;
@@ -457,7 +458,9 @@ typedef struct {
 
 typedef struct {
   int64_t streamId;
-  int32_t taskId;
+  int32_t upstreamTaskId;
+  int32_t downstreamTaskId;
+  int32_t upstreamNodeId;
   int32_t childId;
 } SStreamScanHistoryFinishReq, SStreamTransferReq;
 
@@ -520,6 +523,17 @@ int32_t tDecodeSStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pR
 
 typedef struct {
   int64_t streamId;
+  int32_t upstreamTaskId;
+  int32_t upstreamNodeId;
+  int32_t downstreamId;
+  int32_t downstreamNode;
+} SStreamCompleteHistoryMsg;
+
+int32_t tEncodeCompleteHistoryDataMsg(SEncoder* pEncoder, const SStreamCompleteHistoryMsg* pReq);
+int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistoryMsg* pReq);
+
+typedef struct {
+  int64_t streamId;
   int32_t downstreamTaskId;
   int32_t taskId;
 } SStreamRecoverDownstreamReq;
@@ -567,6 +581,7 @@ bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 
+SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
@@ -607,8 +622,9 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
 
 // agg level
-int32_t streamAggScanHistoryPrepare(SStreamTask* pTask);
-int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t taskId, int32_t childId);
+int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask);
+int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq *pReq, SRpcHandleInfo* pRpcInfo);
+int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask);
 
 // stream task meta
 void         streamMetaInit();

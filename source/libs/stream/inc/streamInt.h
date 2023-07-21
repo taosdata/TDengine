@@ -54,6 +54,9 @@ int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamSc
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
 
+int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
+int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
+
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 

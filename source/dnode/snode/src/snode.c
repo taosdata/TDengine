@@ -274,7 +274,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   return 0;
 }
 
-int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
+int32_t sndProcessStreamTaskScanHistoryFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
@@ -287,12 +287,12 @@ int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecoderClear(&decoder);
 
   // find task
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.downstreamTaskId);
   if (pTask == NULL) {
     return -1;
   }
   // do process request
-  if (streamProcessScanHistoryFinishReq(pTask, req.taskId, req.childId) < 0) {
+  if (streamProcessScanHistoryFinishReq(pTask, &req, &pMsg->info) < 0) {
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return -1;
   }
@@ -415,7 +415,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_RETRIEVE_RSP:
       return sndProcessTaskRetrieveRsp(pSnode, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
-      return sndProcessTaskRecoverFinishReq(pSnode, pMsg);
+      return sndProcessStreamTaskScanHistoryFinishReq(pSnode, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
       return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
     case TDMT_STREAM_TASK_CHECK:

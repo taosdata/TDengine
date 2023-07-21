@@ -25,6 +25,12 @@ typedef struct SBlockName {
   char     parTbName[TSDB_TABLE_NAME_LEN];
 } SBlockName;
 
+static void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
+    pMsg->msgType = msgType;
+    pMsg->pCont = pCont;
+    pMsg->contLen = contLen;
+}
+
 static int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -311,13 +317,12 @@ int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamSc
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_SCAN_HISTORY_FINISH;
-  msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
 
   const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-  qDebug("s-task:%s status:%s dispatch scan-history-data finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pStatus,
-         pReq->taskId, vgId);
+  qDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pStatus,
+         pReq->downstreamTaskId, vgId);
   return 0;
 }
 
@@ -619,4 +624,100 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
   // this block can not be deleted until it has been sent to downstream task successfully.
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t tEncodeCompleteHistoryDataMsg(SEncoder* pEncoder, const SStreamCompleteHistoryMsg* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->downstreamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->downstreamNode) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistoryMsg* pRsp) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->downstreamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->downstreamNode) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->upstreamTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->upstreamNodeId) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+typedef struct {
+  SEpSet  epset;
+  int32_t taskId;
+  SRpcMsg msg;
+} SStreamContinueExecInfo;
+
+int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq) {
+  int32_t  len = 0;
+  int32_t  code = 0;
+  SEncoder encoder;
+
+  SStreamCompleteHistoryMsg msg = {
+      .streamId = pReq->streamId,
+      .upstreamTaskId = pReq->upstreamTaskId,
+      .upstreamNodeId = pReq->upstreamNodeId,
+      .downstreamId = pReq->downstreamTaskId,
+      .downstreamNode = pTask->pMeta->vgId,
+  };
+
+  tEncodeSize(tEncodeCompleteHistoryDataMsg, &msg, len, code);
+  if (code < 0) {
+    return code;
+  }
+
+  void* pBuf = rpcMallocCont(sizeof(SMsgHead) + len);
+  if (pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  ((SMsgHead*)pBuf)->vgId = htonl(pReq->upstreamNodeId);
+
+  void* abuf = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+
+  tEncoderInit(&encoder, (uint8_t*)abuf, len);
+  tEncodeCompleteHistoryDataMsg(&encoder, &msg);
+  tEncoderClear(&encoder);
+
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
+
+  SStreamContinueExecInfo info = {.taskId = pReq->upstreamTaskId, .epset = pInfo->epSet};
+  initRpcMsg(&info.msg, 0, pBuf, sizeof(SMsgHead) + len);
+  info.msg.info = *pRpcInfo;
+
+  // todo: fix race condition here
+  if (pTask->pRspMsgList == NULL) {
+    pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
+  }
+
+  taosArrayPush(pTask->pRspMsgList, &info);
+
+  int32_t num = taosArrayGetSize(pTask->pRspMsgList);
+  qDebug("s-task:%s add scan history finish rsp msg for task:0x%x, total:%d", pTask->id.idStr, pReq->upstreamTaskId,
+         num);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__SINK);
+
+  int32_t num = taosArrayGetSize(pTask->pRspMsgList);
+  for (int32_t i = 0; i < num; ++i) {
+    SStreamContinueExecInfo* pInfo = taosArrayGet(pTask->pRspMsgList, i);
+    tmsgSendRsp(&pInfo->msg);
+
+    qDebug("s-task:%s level:%d notify upstream:0x%x to continue process data from WAL", pTask->id.idStr, pTask->info.taskLevel,
+           pInfo->taskId);
+  }
+
+  taosArrayClear(pTask->pRspMsgList);
+  qDebug("s-task:%s level:%d checkpoint ready msg sent to all %d upstreams", pTask->id.idStr, pTask->info.taskLevel,
+         num);
+  return 0;
 }
