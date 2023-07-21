@@ -29,7 +29,7 @@ limit = 200 # max node for read in one request.
 contains_bad = false # collect bad node when collect data
 
 [collect.dump]
-dump = false # dump data to file
+enable = false # dump data to file
 path = "/tmp/opc/opc_dump.log" # dump file path
 keep = 7 # keep dump file days
 
