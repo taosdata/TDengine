@@ -1853,7 +1853,8 @@ enum {
   PHY_NODE_CODE_LIMIT,
   PHY_NODE_CODE_SLIMIT,
   PHY_NODE_CODE_INPUT_TS_ORDER,
-  PHY_NODE_CODE_OUTPUT_TS_ORDER
+  PHY_NODE_CODE_OUTPUT_TS_ORDER,
+  PHY_NODE_CODE_FORCE_NONBLOCKING_OPTR
 };
 
 static int32_t physiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1877,6 +1878,9 @@ static int32_t physiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, PHY_NODE_CODE_OUTPUT_TS_ORDER, pNode->outputTsOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_NODE_CODE_FORCE_NONBLOCKING_OPTR, pNode->forceCreateNonBlockingOptr);
   }
 
   return code;
@@ -1910,6 +1914,8 @@ static int32_t msgToPhysiNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_NODE_CODE_OUTPUT_TS_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->outputTsOrder, sizeof(pNode->outputTsOrder));
         break;
+      case PHY_NODE_CODE_FORCE_NONBLOCKING_OPTR:
+        code = tlvDecodeBool(pTlv, &pNode->forceCreateNonBlockingOptr);
       default:
         break;
     }
@@ -1925,7 +1931,8 @@ enum {
   PHY_SCAN_CODE_BASE_UID,
   PHY_SCAN_CODE_BASE_SUID,
   PHY_SCAN_CODE_BASE_TABLE_TYPE,
-  PHY_SCAN_CODE_BASE_TABLE_NAME
+  PHY_SCAN_CODE_BASE_TABLE_NAME,
+  PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN
 };
 
 static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1949,6 +1956,9 @@ static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_SCAN_CODE_BASE_TABLE_NAME, nameToMsg, &pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN, pNode->groupOrderScan);
   }
 
   return code;
@@ -1981,6 +1991,9 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SCAN_CODE_BASE_TABLE_NAME:
         code = tlvDecodeObjFromTlv(pTlv, msgToName, &pNode->tableName);
+        break;
+      case PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN:
+        code = tlvDecodeBool(pTlv, &pNode->groupOrderScan);
         break;
       default:
         break;
