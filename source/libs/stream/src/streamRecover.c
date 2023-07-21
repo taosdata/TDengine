@@ -785,12 +785,13 @@ void streamTaskPause(SStreamTask* pTask) {
 // todo fix race condition
 void streamTaskDisablePause(SStreamTask* pTask) {
   // pre-condition check
+  const char* id = pTask->id.idStr;
   while (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-    taosMsleep(10);
-    qDebug("s-task:%s already in pause, wait for pause being cancelled, and then set pause disabled", pTask->id.idStr);
+    taosMsleep(100);
+    qDebug("s-task:%s already in pause, wait for pause being cancelled, and set pause disabled, check in 100ms", id);
   }
 
-  qDebug("s-task:%s disable task pause", pTask->id.idStr);
+  qDebug("s-task:%s disable task pause", id);
   pTask->status.pauseAllowed = 0;
 }
 
