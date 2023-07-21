@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <libs/transport/trpc.h>
+#include <streamInt.h>
 #include "executor.h"
 #include "tstream.h"
 #include "wal.h"
@@ -203,6 +205,11 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   return 0;
 }
 
+static void freeItem(void* p) {
+  SStreamContinueExecInfo* pInfo = p;
+  rpcFreeCont(pInfo->msg.pCont);
+}
+
 void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:%s", pTask->id.idStr);
 
@@ -252,7 +259,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->pRspMsgList != NULL) {
-    pTask->pRspMsgList = taosArrayDestroy(pTask->pRspMsgList);
+    taosArrayDestroyEx(pTask->pRspMsgList, freeItem);
+    pTask->pRspMsgList = NULL;
   }
 
   taosThreadMutexDestroy(&pTask->lock);

@@ -648,12 +648,6 @@ int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistory
   return 0;
 }
 
-typedef struct {
-  SEpSet  epset;
-  int32_t taskId;
-  SRpcMsg msg;
-} SStreamContinueExecInfo;
-
 int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq) {
   int32_t  len = 0;
   int32_t  code = 0;

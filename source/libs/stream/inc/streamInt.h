@@ -31,6 +31,12 @@ typedef struct {
   void*  timer;
 } SStreamGlobalEnv;
 
+typedef struct {
+  SEpSet  epset;
+  int32_t taskId;
+  SRpcMsg msg;
+} SStreamContinueExecInfo;
+
 extern SStreamGlobalEnv streamEnv;
 
 void    streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
