@@ -204,17 +204,10 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		ticker := time.NewTicker(r.interval)
-		checkConnTicker := time.NewTicker(10 * time.Second)
-
 		defer ticker.Stop()
-		defer checkConnTicker.Stop()
 
 		for {
 			select {
-			case <-checkConnTicker.C:
-				if r.state == opcua.Connected && !r.OpcConnected() {
-					logger.Panic("## opc ua connection is not alive")
-				}
 			case <-r.done:
 				return
 			case <-notifyCtx.Done():
@@ -325,15 +318,8 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 			logger.Warn("## cancel subscription")
 		}()
 
-		checkConnTicker := time.NewTicker(10 * time.Second)
-		defer checkConnTicker.Stop()
-
 		for {
 			select {
-			case <-checkConnTicker.C:
-				if !r.OpcConnected() {
-					logger.Panic("## opc ua connection is not alive")
-				}
 			case <-r.done:
 				return
 			case <-notifyCtx.Done():
