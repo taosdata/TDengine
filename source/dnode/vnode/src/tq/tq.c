@@ -923,7 +923,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   streamSetupScheduleTrigger(pTask);
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64
-         " child id:%d, level:%d, scan-history:%d, trigger:%" PRId64 " ms",
+         " child id:%d, level:%d, scan-history:%d, trigger:%" PRId64 " ms, disable pause",
          vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->info.selfChildId, pTask->info.taskLevel,
          pTask->info.fillHistory, pTask->triggerParam);
 
