@@ -154,7 +154,7 @@ func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc append
 
 		if value.Value == nil {
 			field4.AppendNull() // value
-		} else if err := valueFunc(field4, value.Value); err != nil { // value
+		} else if err := valueFunc(field4, value.Identifier, value.Value); err != nil { // value
 			return nil, fmt.Errorf("append value field error %v", err)
 		}
 
@@ -243,7 +243,7 @@ func getDataType(valueType common.ValueType) (arrow.DataType, error) {
 	}
 }
 
-type appendFunc func(builder array.Builder, value any) error
+type appendFunc func(builder array.Builder, id string, value any) error
 
 func getAppendFunc(valueType common.ValueType) (appendFunc, error) {
 	switch valueType {
@@ -280,118 +280,118 @@ func getAppendFunc(valueType common.ValueType) (appendFunc, error) {
 	return nil, fmt.Errorf("reporter unsupported value type for %d", valueType)
 }
 
-func appendBool(builder array.Builder, value any) error {
+func appendBool(builder array.Builder, id string, value any) error {
 	v, err := common.Bool(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append bool for id %s error %v", id, err)
 	}
 	builder.(*array.BooleanBuilder).Append(v)
 	return nil
 }
 
-func appendInt8(builder array.Builder, value any) error {
+func appendInt8(builder array.Builder, id string, value any) error {
 	v, err := common.TinyInt(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append int8 for id %s error %v", id, err)
 	}
 	builder.(*array.Int8Builder).Append(v)
 	return nil
 }
 
-func appendUint8(builder array.Builder, value any) error {
+func appendUint8(builder array.Builder, id string, value any) error {
 	v, err := common.TinyIntUnsigned(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append uint8 for id %s error %v", id, err)
 	}
 	builder.(*array.Uint8Builder).Append(v)
 	return nil
 }
 
-func appendInt16(builder array.Builder, value any) error {
+func appendInt16(builder array.Builder, id string, value any) error {
 	v, err := common.SmallInt(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append int16 for id %s error %v", id, err)
 	}
 	builder.(*array.Int16Builder).Append(v)
 	return nil
 }
 
-func appendUInt16(builder array.Builder, value any) error {
+func appendUInt16(builder array.Builder, id string, value any) error {
 	v, err := common.SmallIntUnsigned(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append uint16 for id %s error %v", id, err)
 	}
 	builder.(*array.Uint16Builder).Append(v)
 	return nil
 }
 
-func appendInt32(builder array.Builder, value any) error {
+func appendInt32(builder array.Builder, id string, value any) error {
 	v, err := common.Int(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append int32 for id %s error %v", id, err)
 	}
 	builder.(*array.Int32Builder).Append(int32(v))
 	return nil
 }
 
-func appendUint32(builder array.Builder, value any) error {
+func appendUint32(builder array.Builder, id string, value any) error {
 	v, err := common.IntUnsigned(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append uint32 for id %s error %v", id, err)
 	}
 	builder.(*array.Uint32Builder).Append(uint32(v))
 	return nil
 }
 
-func appendInt64(builder array.Builder, value any) error {
+func appendInt64(builder array.Builder, id string, value any) error {
 	v, err := common.BigInt(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append int64 for id %s error %v", id, err)
 	}
 	builder.(*array.Int64Builder).Append(v)
 	return nil
 }
 
-func appendUint64(builder array.Builder, value any) error {
+func appendUint64(builder array.Builder, id string, value any) error {
 	v, err := common.BigIntUnsigned(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append uint64 for id %s error %v", id, err)
 	}
 	builder.(*array.Uint64Builder).Append(v)
 	return nil
 }
 
-func appendFloat32(builder array.Builder, value any) error {
+func appendFloat32(builder array.Builder, id string, value any) error {
 	v, err := common.Float(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append float32 for id %s error %v", id, err)
 	}
 	builder.(*array.Float32Builder).Append(v)
 	return nil
 }
 
-func appendFloat64(builder array.Builder, value any) error {
+func appendFloat64(builder array.Builder, id string, value any) error {
 	v, err := common.Double(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append float64 for id %s error %v", id, err)
 	}
 	builder.(*array.Float64Builder).Append(v)
 	return nil
 }
 
-func appendString(builder array.Builder, value any) error {
+func appendString(builder array.Builder, id string, value any) error {
 	v, err := common.String(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append string for id %s error %v", id, err)
 	}
 	builder.(*array.StringBuilder).Append(v)
 	return nil
 }
 
-func appendTime(builder array.Builder, value any) error {
+func appendTime(builder array.Builder, id string, value any) error {
 	v, err := common.TimeStamp(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("append timestamp for id %s error %v", id, err)
 	}
 	builder.(*array.TimestampBuilder).Append(arrow.Timestamp(v.UnixNano()))
 	return nil
