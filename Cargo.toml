@@ -16,7 +16,7 @@ taos = { version = "0.9.0", default-features = false, features = ["ws", "deadpoo
 taos-query = { version = "0.9.0", default-features = false, features = ["deadpool"] }
 
 [workspace.package]
-version = "1.0.2"
+version = "1.0.3"
 
 [package]
 name = "taosx"

@@ -5,9 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - 2023-07-05
+## [1.0.3] - 2023-07-21
 
-**Full Changelog**: [v1.0.0...1.0.1](https://github.com/taosdata/taosx/compare/v1.0.0...1.0.1)
+**Full Changelog**: [v1.0.2...1.0.3](https://github.com/taosdata/taosx/compare/v1.0.2...1.0.3)
+
+### Bug Fixes
+
+- *legacy*: Fix unexpected error in legacy sync ([4652132](465213251a9f6761668d93ad8f889c74a8980f46))
+- *legacy*: Fix memory increasing problem in syncing ([4eff0fb](4eff0fb4d105c530fe57b576dd12c8fb910b1fa3))
+
+- Influxdb log typo ([96d4b3f](96d4b3f92d58d8498a62afb7ffc102e18a73f2a9))
+- Pi log typo ([ee7b0bb](ee7b0bb3472d023ae66db7d5492c37e007996b0c))
+- Opc log typo ([e1aded1](e1aded1d2878be0272af3583387fe149ed8c27bd))
+
+
+### Enhancements
+
+
+- Set log keep days by env ([05e4c5a](05e4c5a15983845629cdf664414f394a60a8979a))
+
+
+## [1.0.2] - 2023-07-10
+
+**Full Changelog**: [v1.0.0...v1.0.2](https://github.com/taosdata/taosx/compare/v1.0.0...v1.0.2)
 
 ### Bug Fixes
 
@@ -29,14 +49,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Do not track transfer metrics if cluster id not valid ([6e175af](6e175af78dd950adf87c93150a48c5c3a797aa2b))
 - Specifiy tag name when use insert into using ([092cdb8](092cdb8fd2c91c5edeb7b3b1070d8f6d072b40c4))
 - [TD-25061](https://jira.taosdata.com:18080/browse/TD-25061)/[TD-25040](https://jira.taosdata.com:18080/browse/TD-25040) fix index error ([05bb6a7](05bb6a7cef13b4a5f8afc841d0545d693010c8a0))
+- Piconnector parse big toml file failed ([aaf0115](aaf01159275f63ba82c83c23ddfc8012543c9168))
+- Local time ([d68f744](d68f744572bcb84a9cab83265745fd6fc22b2916))
+- Use timer clone ([bc84f81](bc84f81a93a2b1a0bd1383e0cd7830f7737d43eb))
+- Timer utc offset ([c3c9f57](c3c9f579fa38d3430a774e35b3fd1a0a37017a30))
+- Time local offset ([9d56a51](9d56a51c3aab4ad60735359bd48faf98ecba89fe))
+- Use chrono timezone offset ([c97038e](c97038e79dc62501af3344f7a2001e5ff8439ebe))
+- Remove time feature ([34d690a](34d690abce072f714097893c619ca976edab2722))
+- Remove unused import ([1a39ee5](1a39ee5468c497feb324fc1b6724ed9ffe4c196c))
+- Fix configDir and libraryPath verify fail ([34d949c](34d949ce9c4a0ea5347b9a3763672b64154df6c0))
 
 
 ### Enhancements
 
 - *mqtt*: Reduce CPU usage ([c08fa4c](c08fa4c7323bb416fb1393c14c314e0f53166894))
+- *serve*: Improve data source parameters ([3c61a7c](3c61a7cad5743292ac5431ec65843a5a52aaaebd))
+- *serve*: Add short_description field in params/groups ([35168ff](35168ff08e3c58528d1f3b9b33950df2c45b3e67))
 
 - [TD-24921](https://jira.taosdata.com:18080/browse/TD-24921) "code" desc ([89500bf](89500bf29e7d96826db9cc42d9105e6a846b49a2))
 - Refactor lush message batch insert ([a781dd1](a781dd16303f8c1c0d0269320dd6c3f0a9b2eb65))
+
+
+### Features
+
+
+- Verify taos dsn in legacy mode strictly ([33d8a3d](33d8a3decfa15f4a1b2fc72c6cc6de250d21e9b8))
 
 
 ### Refactor
