@@ -1760,7 +1760,6 @@ class TDCreateData():
     def check_mult_rows_one_col_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
         # 检查多行（row1--row2）某列（col）的值和value比对
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
@@ -1843,7 +1842,6 @@ class TDCreateData():
     def check_mult_rows_one_col_str_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         #  oper : UPPER (全大写字母)、LOWER（全小写字母）、RTRIM（清除右边空格）、LTRIM（清除左边空格）。
         # 检查多行（row1--row2）某列（col）的值和value比对
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
@@ -2051,7 +2049,6 @@ class TDCreateData():
         self.sql = sql
         self.oper = oper
         self.value = value
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         
         for i in range(row1, row2):
             self.logger.info("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
