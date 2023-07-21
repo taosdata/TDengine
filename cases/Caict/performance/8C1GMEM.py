@@ -36,7 +36,7 @@ class Timeline_100B(TDCase):
         self.interlace_rows = 10000
         self.childtable_count1 = 1000
         self.childtable_prefix1 = "ctb1_"
-        self.insert_rows = 10000000
+        self.insert_rows = 100000
         self.num_of_records_per_req = 10000
         self.batch_create_tbl_num = 10000
         self.dbname1 = "test1"

@@ -199,6 +199,7 @@ class XTYTest:
         self.common.multi_thread_run(restart_container_tlist)
         self.start_ts = time.time()
         print('==========  restarting cluster ==========')
+        print(f'==========  start_ts is {self.start_ts} ==========')
         self.common.multi_thread_run(run_taosd_tlist)
         res = self._remote.cmd(self.container_setting["fqdn"][0], [f'docker exec -ti {host_info} sh -c \'taos -s \"select distinct(status) from information_schema.ins_dnodes;\"\''])
         ready_flag = 0
@@ -213,6 +214,8 @@ class XTYTest:
         self.common.checkEqual("Query OK, 1 row(s) in set" in res and "ready" in res, True)
         self.end_ts = time.time()
         self._remote.cmd(self.container_setting["fqdn"][0], [f'docker exec -ti {host_info} sh -c \'taos -s \"insert into  {self.dbname}.{self.ctbname} values (now, 1);\"\''])
+        print(f'==========  start_ts is {self.start_ts} ==========')
+        print(f'==========  end_ts is {self.end_ts} ==========')
         res = self._remote.cmd(self.container_setting["fqdn"][0], [f'docker exec -ti {host_info} sh -c \'taos -s \"select * from {self.dbname}.{self.stbname};\"\''])
         self.common.checkIn(f'2 row(s) in set', res)
         print('==========  checking restart time ==========')
@@ -222,10 +225,14 @@ class XTYTest:
     def _init_tmq_env(self):
         self.conn.execute(f"drop topic if exists {self.topic_name};")
         self.conn.execute(f"drop database if exists {self.dbname}")
+        print(f"==========  create database {self.dbname} ==========")
         self.conn.execute(f"create database if not exists {self.dbname} wal_retention_period 3600")
         self.conn.select_db(self.dbname)
+        print(f"==========  create stable {self.stbname} ==========")
         self.conn.execute(f"create stable if not exists {self.stbname} (ts timestamp, c1 int) tags(t1 int)")
+        print(f"==========  create table {self.ctbname} ==========")
         self.conn.execute(f"create table if not exists {self.ctbname} using {self.stbname} tags(1)")
+        print(f"==========  create topic {self.topic_name} ==========")
         self.conn.execute(f"create topic if not exists {self.topic_name} as select ts, c1 from {self.stbname}")
 
     def _insert_1by1(self):
@@ -254,7 +261,7 @@ class XTYTest:
         self.conn.execute(f"drop topic if exists {self.topic_name};")
         self.conn.execute(f"drop database if exists {self.dbname}")
 
-    def update_delay_10ms(self):
+    def subscribe_delay_10ms(self):
         self._init_tmq_env()
         consumer_dict = {
             "group.id": "csm1",
@@ -265,6 +272,7 @@ class XTYTest:
             "auto.offset.reset": "earliest",
             "msg.with.table.name": "true"
         }
+        print(f"==========  starting subscribe ==========")
         consumer = Consumer(consumer_dict)
         consumer.subscribe([self.topic_name])
         run_tlist = list()
