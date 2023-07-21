@@ -204,11 +204,6 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
     qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
   }
 
-  // enable pause when init completed.
-  if (pTask->historyTaskId.taskId == 0) {
-    streamTaskEnablePause(pTask);
-  }
-
   // when current stream task is ready, check the related fill history task.
   launchFillHistoryTask(pTask);
 }
@@ -477,6 +472,11 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
     }
 
     streamNotifyUpstreamContinue(pTask);
+
+    // sink node does not receive the pause msg from mnode
+    if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
+      streamTaskEnablePause(pTask);
+    }
   } else {
     qDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d",
            pTask->id.idStr, pReq->upstreamTaskId, pReq->childId, left);
@@ -496,6 +496,8 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);
   taosWUnLockLatch(&pMeta->lock);
+
+  streamTaskEnablePause(pTask);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     streamSchedExec(pTask);

@@ -1114,6 +1114,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", id, el);
 
   if (pTask->info.fillHistory) {
+    streamTaskEnablePause(pTask);
+
     SVersionRange* pRange = NULL;
     SStreamTask*   pStreamTask = NULL;
 
