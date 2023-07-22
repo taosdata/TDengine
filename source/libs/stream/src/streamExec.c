@@ -351,30 +351,40 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 }
 
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed",
-        pTask->id.idStr, pTask->streamTaskId.taskId);
+    pTask->status.transferState = false;  // reset this value, to avoid transfer state again
+
+    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
+           pTask->streamTaskId.taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
     qDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
            pStreamTask->id.idStr);
   }
 
-  ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
+  // todo fix race condition
+  streamTaskDisablePause(pTask);
+  streamTaskDisablePause(pStreamTask);
+
+  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.transferState == true);
+
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
   // for the step 2. For a agg task
+  int8_t status = pStreamTask->status.taskStatus;
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__HALT);
+    ASSERT(status == TASK_STATUS__HALT);
   } else {
-    ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
+    ASSERT(status == TASK_STATUS__SCAN_HISTORY);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-    qDebug("s-task:%s status: halt by related fill history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
+    qDebug("s-task:%s halt by related fill history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
-  // wait for the stream task to be idle
+  // wait for the stream task to handle all in the inputQ, and to be idle
   waitForTaskIdle(pTask, pStreamTask);
 
   // In case of sink tasks, no need to be halted for them.
@@ -399,10 +409,27 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
+  // reset the status of stream task
   streamSetStatusNormal(pStreamTask);
 
+  pTask->status.taskStatus = TASK_STATUS__DROPPING;
+  qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
+
+  // save to disk
+  taosWLockLatch(&pMeta->lock);
+  streamMetaSaveTask(pMeta, pTask);
+  streamMetaSaveTask(pMeta, pStreamTask);
+  if (streamMetaCommit(pMeta) < 0) {
+    // persist to disk
+  }
+  taosWUnLockLatch(&pMeta->lock);
+
+  // pause allowed
+  streamTaskEnablePause(pStreamTask);
+  streamTaskEnablePause(pTask);
+
   streamSchedExec(pStreamTask);
-  streamMetaReleaseTask(pTask->pMeta, pStreamTask);
+  streamMetaReleaseTask(pMeta, pStreamTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -480,7 +507,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       ASSERT(batchSize == 0);
       if (pTask->info.fillHistory && pTask->status.transferState) {
         int32_t code = streamTransferStateToStreamTask(pTask);
-        pTask->status.transferState = false;  // reset this value, to avoid transfer state again
         if (code != TSDB_CODE_SUCCESS) { // todo handle this
           return 0;
         }
@@ -550,22 +576,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 }
 
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  int32_t numOfItems = taosQueueItemSize(pTask->inputQueue->queue);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  numOfItems = taosQallItemSize(pTask->inputQueue->qall);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  // blocked by downstream task
-  if (pTask->outputStatus == TASK_OUTPUT_STATUS__BLOCKED) {
-    return false;
-  }
-
-  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE/* && pTask->status.taskStatus != TASK_STATUS__HALT*/);
 }
 
 int32_t streamTryExec(SStreamTask* pTask) {
