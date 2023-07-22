@@ -34,7 +34,7 @@
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHK_TOLERENCE  259200 //259200seconds
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
-#define GRANT_HEART_BEAT_MSG 60     //60seconds
+#define GRANT_HEART_BEAT_MSG 300    //300seconds
 #else
 #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
@@ -81,6 +81,7 @@
 #define GRANT_CONN_EXPIRE_LIMITS       65535
 
 #define GRANT_CUR_TIME                 ((tsDndStart + tsDndUpTime)/1000)
+#define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
 
 typedef enum {
   GRANT_OBJ_SERVER = 0,
@@ -115,7 +116,7 @@ typedef struct {
   char          *clusterId;
   char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];
   SGrantConnItem items[GRANT_CONN_NUM];
-  uint16_t       distribute;
+  uint32_t       distribute;
 } SGrantConnObj;
 
 typedef struct {
@@ -126,7 +127,7 @@ typedef struct {
   uint8_t        officialVersion;
   int8_t         majorVer;
   int8_t         minorVer;
-  uint16_t       distribute;
+  uint32_t       distribute;
   SGrantConnItem items[GRANT_CONN_NUM];
   char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];  // since 3.1.0.0
 } SGrantConnMsg;
@@ -154,10 +155,7 @@ typedef struct {
   uint32_t limitCpuCores;
   union {
     uint32_t reserveKey1;
-    struct {
-      uint16_t distribute;      // distribute date since 3.1.0.0
-      uint16_t reserveKey10;
-    };
+    uint32_t distribute;      // distribute date since 3.1.0.0
   };
   uint32_t reserveKey2;
 } SGrantObj;
@@ -211,10 +209,7 @@ typedef struct {
   uint32_t limitCpuCores;
   union {
     uint32_t reserveKey1;
-    struct {
-      uint16_t distribute;  // distribute date since 3.1.0.0
-      uint16_t reserveKey10;
-    };
+    uint32_t distribute;  // distribute date since 3.1.0.0
   };
   uint32_t      reserveKey2;
   char          active[GRANT_ACTIVE_KEY_LEN + 1];
