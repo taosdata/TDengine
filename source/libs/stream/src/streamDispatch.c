@@ -689,9 +689,8 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   if (pTask->pRspMsgList == NULL) {
     pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
   }
-  taosThreadMutexUnlock(&pTask->lock);
-
   taosArrayPush(pTask->pRspMsgList, &info);
+  taosThreadMutexUnlock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->pRspMsgList);
   qDebug("s-task:%s add scan history finish rsp msg for task:0x%x, total:%d", pTask->id.idStr, pReq->upstreamTaskId,
