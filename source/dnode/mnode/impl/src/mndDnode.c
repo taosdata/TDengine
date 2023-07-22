@@ -701,7 +701,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   }
 
   if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
+  tsGrantHBInterval = TMIN(TMAX(3, iter / 2), 30);
   terrno = 0;
 
 _OVER:
@@ -710,9 +710,6 @@ _OVER:
   } else {
     mndReleaseDnode(pMnode, pDnode);
   }
-
-  tsGrantHBInterval = MIN(MAX(3, iter / 2), 15);
-
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return terrno;
