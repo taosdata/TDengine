@@ -29,7 +29,7 @@ bool streamTaskShouldStop(const SStreamStatus* pStatus) {
 
 bool streamTaskShouldPause(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
-  return (status == TASK_STATUS__PAUSE);
+  return (status == TASK_STATUS__PAUSE || status == TASK_STATUS__HALT);
 }
 
 static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray* pRes, int32_t size, int64_t* totalSize,
@@ -365,10 +365,6 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
            pStreamTask->id.idStr);
   }
 
-  // todo fix race condition
-  streamTaskDisablePause(pTask);
-  streamTaskDisablePause(pStreamTask);
-
   ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.transferState == true);
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
@@ -426,7 +422,6 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   // pause allowed
   streamTaskEnablePause(pStreamTask);
-  streamTaskEnablePause(pTask);
 
   streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pMeta, pStreamTask);

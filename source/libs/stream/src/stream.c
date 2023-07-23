@@ -262,14 +262,15 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     // in case of the input queue is full, the code will be TSDB_CODE_SUCCESS, the and pRsp>inputStatus will be set
     // flag. here we need to retry dispatch this message to downstream task immediately. handle the case the failure
     // happened too fast. todo handle the shuffle dispatch failure
-    qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
-           pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
-    int32_t ret = streamDispatchAllBlocks(pTask, pTask->msgInfo.pData);
-    if (ret != TSDB_CODE_SUCCESS) {
-
+    if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+      qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, no-retry", pTask->id.idStr,
+             pRsp->downstreamTaskId, tstrerror(code));
+      return code;
+    } else {
+      qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
+             pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
+      return streamDispatchAllBlocks(pTask, pTask->msgInfo.pData);
     }
-
-    return TSDB_CODE_SUCCESS;
   }
 
   qDebug("s-task:%s receive dispatch rsp, output status:%d code:%d", pTask->id.idStr, pRsp->inputStatus, code);
@@ -359,6 +360,9 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return -1;
     }
 
+    int32_t msgLen = px->submit.msgLen;
+    int64_t ver = px->submit.ver;
+
     int32_t code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
       streamDataSubmitDestroy(px);
@@ -366,8 +370,9 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return code;
     }
 
+    // use the local variable to avoid the pItem be freed by other threads, since it has been put into queue already.
     qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           px->submit.msgLen, px->submit.ver, total, size + px->submit.msgLen/1048576.0);
+           msgLen, ver, total, size + msgLen/1048576.0);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {

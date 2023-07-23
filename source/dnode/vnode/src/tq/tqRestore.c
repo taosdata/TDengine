@@ -240,7 +240,9 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     int32_t status = pTask->status.taskStatus;
-    if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+
+    // non-source or fill-history tasks don't need to response the WAL scan action.
+    if (pTask->info.taskLevel != TASK_LEVEL__SOURCE || pTask->info.fillHistory == 1) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }

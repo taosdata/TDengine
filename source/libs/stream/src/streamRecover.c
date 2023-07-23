@@ -141,11 +141,6 @@ int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask) {
     streamTaskSetRangeStreamCalc(pTask);
     streamTaskLaunchScanHistory(pTask);
 
-    // enable pause when init completed.
-    if (pTask->historyTaskId.taskId == 0) {
-      streamTaskEnablePause(pTask);
-    }
-
     launchFillHistoryTask(pTask);
   }
 
@@ -473,7 +468,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
 
     streamNotifyUpstreamContinue(pTask);
 
-    // sink node does not receive the pause msg from mnode
+    // sink node does not receive the pause msg from mnode, so does not need enable it
     if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
       streamTaskEnablePause(pTask);
     }
@@ -497,6 +492,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   streamMetaSaveTask(pMeta, pTask);
   taosWUnLockLatch(&pMeta->lock);
 
+  // history data scan in the stream time window finished, now let's enable the pause
   streamTaskEnablePause(pTask);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -758,9 +754,15 @@ int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistory
 void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
   if (pTask->historyTaskId.taskId == 0) {
     SHistDataRange* pRange = &pTask->dataRange;
-    qDebug("s-task:%s no related fill-history task, stream time window:%" PRId64 " - %" PRId64 ", ver range:%" PRId64
-           " - %" PRId64,
-           pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+    if (pTask->info.fillHistory == 1) {
+      qDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64
+                 "-%" PRId64,
+             pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+    } else {
+      qDebug("s-task:%s no related fill-history task, stream time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64
+             "-%" PRId64,
+             pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+    }
   } else {
     SHistDataRange* pRange = &pTask->dataRange;
 
@@ -808,7 +810,25 @@ void streamTaskPause(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
   int64_t st = taosGetTimestampMs();
-  while(!pTask->status.pauseAllowed) {
+
+  int8_t status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__DROPPING) {
+    qDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
+    return;
+  }
+
+  const char* str = streamGetTaskStatusStr(status);
+  if (status == TASK_STATUS__STOP || status == TASK_STATUS__PAUSE) {
+    qDebug("vgId:%d s-task:%s task already stopped/paused, status:%s, do nothing", pMeta->vgId, pTask->id.idStr, str);
+    return;
+  }
+
+  while(!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
+    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
+      qDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
+      return;
+    }
+
     qDebug("s-task:%s wait for the task can be paused, vgId:%d", pTask->id.idStr, pMeta->vgId);
     taosMsleep(100);
   }
@@ -826,8 +846,8 @@ void streamTaskDisablePause(SStreamTask* pTask) {
   // pre-condition check
   const char* id = pTask->id.idStr;
   while (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+    qDebug("s-task:%s already in pause, wait for pause being cancelled, and set pause disabled, recheck in 100ms", id);
     taosMsleep(100);
-    qDebug("s-task:%s already in pause, wait for pause being cancelled, and set pause disabled, check in 100ms", id);
   }
 
   qDebug("s-task:%s disable task pause", id);
