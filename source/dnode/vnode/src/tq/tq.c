@@ -1109,6 +1109,9 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamSourceScanHistoryData(pTask);
   }
 
+  // disable the pause when handling the step2 scan of tsdb data.
+  // the whole next procedure cann't be stopped.
+  // todo fix it: the following procedure should be executed completed and then shutdown when trying to close vnode.
   if (pTask->info.fillHistory == 1) {
     streamTaskDisablePause(pTask);
   }
@@ -1153,7 +1156,9 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         taosMsleep(100);
       }
 
+      // todo fix the race condition, when pause msg is received from mnode, add lock here
       // now we can stop the stream task execution
+      ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
       pStreamTask->status.taskStatus = TASK_STATUS__HALT;
 
       // todo disable the pause

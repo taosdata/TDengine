@@ -571,7 +571,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 }
 
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE/* && pTask->status.taskStatus != TASK_STATUS__HALT*/);
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
 }
 
 int32_t streamTryExec(SStreamTask* pTask) {
