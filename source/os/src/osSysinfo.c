@@ -963,16 +963,14 @@ char *taosGetCmdlineByPID(int pid) {
 
 int64_t taosGetOsUptime() {
 #ifdef WINDOWS
-  return 0;
-// #else
-// #elif defined(_TD_DARWIN_64)
-//   return 0;
+#elif defined(_TD_DARWIN_64)
 #else
   struct sysinfo info;
   if (0 == sysinfo(&info)) {
     return info.uptime;
   };
 #endif
+  return 0;
 }
 
 void taosSetCoreDump(bool enable) {

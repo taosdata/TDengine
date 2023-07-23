@@ -18,8 +18,7 @@
 
 #include "os.h"
 
-// #include <linux/unistd.h>       /* for _syscallX macros/related stuff */
-// #include <linux/kernel.h>       /* for struct sysinfo */
+
 
 
 #ifdef __cplusplus

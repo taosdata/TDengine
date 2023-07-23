@@ -26,7 +26,6 @@ static void *dmStatusThreadFp(void *param) {
   int32_t              trimCount = 0;
   int32_t              upTimeCount = 0;
   int64_t              upTime = 0;
-  int64_t              thrdTime = 0;
 
   while (1) {
     taosMsleep(200);
@@ -44,17 +43,11 @@ static void *dmStatusThreadFp(void *param) {
         taosMemoryTrim(0);
       }
 
-      if ((upTimeCount = (++upTimeCount & 7)) == 0) {  
+      if ((upTimeCount = (++upTimeCount & 63)) == 0) {
         upTime = (taosGetOsUptime() - tsDndStartOsUptime) * 1000;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
       }
     }
-
-    thrdTime += 200;
-    cost = taosGetTimestampMs() - curTime;
-    if (cost > 0) thrdTime += cost;
-    tsDndUpTime = upTime > thrdTime ? upTime : thrdTime;
-    printf("upTime:%" PRIi64 " thrdTime:%" PRIi64 " tsDndUpTime:%" PRIi64 " delta:%" PRIi64 "\n", upTime, thrdTime,
-           tsDndUpTime, upTime - thrdTime);
   }
 
   return NULL;
