@@ -1322,12 +1322,13 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  tqDebug("s-task:%s scan-history finish rsp received from task:0x%x", pTask->id.idStr, req.downstreamId);
+  tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x", pTask->id.idStr, req.downstreamId);
 
   int32_t remain = atomic_sub_fetch_32(&pTask->notReadyTasks, 1);
   if (remain > 0) {
     tqDebug("s-task:%s remain:%d not send finish rsp", pTask->id.idStr, remain);
   } else {
+    tqDebug("s-task:%s all downstream tasks rsp scan-history completed msg", pTask->id.idStr);
     streamProcessScanHistoryFinishRsp(pTask);
   }
 

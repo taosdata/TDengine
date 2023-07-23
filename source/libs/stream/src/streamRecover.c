@@ -344,7 +344,7 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
     pTask->notReadyTasks = numOfVgs;
 
-    qDebug("s-task:%s send scan-history-data complete msg to downstream (shuffle-dispatch) %d tasks, status:%s", pTask->id.idStr,
+    qDebug("s-task:%s send scan-history data complete msg to downstream (shuffle-dispatch) %d tasks, status:%s", pTask->id.idStr,
            numOfVgs, streamGetTaskStatusStr(pTask->status.taskStatus));
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
@@ -352,7 +352,7 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
       streamDoDispatchScanHistoryFinishMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {
-    qDebug("s-task:%s no downstream tasks, invoke history finish rsp directly", pTask->id.idStr);
+    qDebug("s-task:%s no downstream tasks, invoke scan-history finish rsp directly", pTask->id.idStr);
     streamProcessScanHistoryFinishRsp(pTask);
   }
 
