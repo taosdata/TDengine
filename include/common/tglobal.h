@@ -90,6 +90,7 @@ extern bool    tsMndSkipGrant;
 
 // dnode
 extern int64_t tsDndStart;
+extern int64_t tsDndStartOsUptime;
 extern int64_t tsDndUpTime;
 
 // monitor

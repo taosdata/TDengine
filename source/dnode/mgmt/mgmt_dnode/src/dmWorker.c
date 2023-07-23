@@ -24,6 +24,10 @@ static void *dmStatusThreadFp(void *param) {
 
   const static int16_t TRIM_FREQ = 30;
   int32_t              trimCount = 0;
+  int32_t              upTimeCount = 0;
+  int64_t              upTime = 0;
+  int64_t              thrdTime = 0;
+
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -39,10 +43,18 @@ static void *dmStatusThreadFp(void *param) {
       if (trimCount == 0) {
         taosMemoryTrim(0);
       }
-      cost = taosGetTimestampMs() - curTime;
+
+      if ((upTimeCount = (++upTimeCount & 7)) == 0) {  
+        upTime = (taosGetOsUptime() - tsDndStartOsUptime) * 1000;
+      }
     }
-    tsDndUpTime += 200;
-    if (cost > 0) tsDndUpTime += cost; // TODO: use /proc/uptime to replace the upTime calculation for linux
+
+    thrdTime += 200;
+    cost = taosGetTimestampMs() - curTime;
+    if (cost > 0) thrdTime += cost;
+    tsDndUpTime = upTime > thrdTime ? upTime : thrdTime;
+    printf("upTime:%" PRIi64 " thrdTime:%" PRIi64 " tsDndUpTime:%" PRIi64 " delta:%" PRIi64 "\n", upTime, thrdTime,
+           tsDndUpTime, upTime - thrdTime);
   }
 
   return NULL;
