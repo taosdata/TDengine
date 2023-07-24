@@ -4,6 +4,7 @@ use std::{
 };
 
 use base64::{Engine, engine::general_purpose};
+use bitvec::macros::internal::funty::Floating;
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
@@ -175,12 +176,14 @@ struct CollectConfig {
     limit: Option<i64>,
     ua: Option<UaCollectConfig>,
     da: Option<DaCollectConfig>,
+    dump: Option<DumpConfig>,
 }
 
 #[derive(Debug, serde::Serialize)]
 struct UaCollectConfig {
     collect_mode: CollectMode,
     nodes: Vec<UANodeConfig>,
+    // dump: Option<DumpConfig>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -209,8 +212,16 @@ struct UANodeConfig {
 }
 
 #[derive(Debug, serde::Serialize)]
+struct DumpConfig {
+    enable: bool,
+    path: Option<String>,
+    keep: Option<usize>,
+}
+
+#[derive(Debug, serde::Serialize)]
 struct DaCollectConfig {
     tags: Vec<DaNodeConfig>,
+    // dump: Option<DumpConfig>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -252,7 +263,6 @@ impl OPCConfig {
         let connect;
         let collect;
         let mut param_mapping = HashMap::new();
-        let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
         match dsn.driver.as_str() {
             "opc" => {
                 if dsn.protocol.is_none() {
@@ -279,6 +289,33 @@ impl OPCConfig {
             false
         };
         let mut opc_table_config = None;
+        let dump_enable = parse_bool_param_from_dsn(&mut dsn, "enable").map_err(|err| OpcError::ConfigError("enable", err.to_string()))?;
+        let dump_config = if dump_enable.is_some() {
+            let dump_enable = dump_enable.unwrap();
+            if dump_enable {
+                let path = dsn.remove("path");
+                let keep = parse_int_at!("keep");
+                if path.is_none() {
+                    return Err(OpcError::ConfigError("path", "should config dump path".to_string()));
+                }
+                if keep.is_none() {
+                    return Err(OpcError::ConfigError("keep", "should config dump keep".to_string()));
+                }
+                Some(DumpConfig {
+                    enable: dump_enable,
+                    path,
+                    keep: Some(keep.unwrap() as usize),
+                })
+            } else {
+                Some(DumpConfig {
+                    enable: dump_enable,
+                    path: None,
+                    keep: None,
+                })
+            }
+        } else {
+            None
+        };
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -396,6 +433,7 @@ impl OPCConfig {
                     limit,
                     ua: Some(collect_ua_config),
                     da: None,
+                    dump: dump_config,
                 };
             }
             Some("da") => {
@@ -472,7 +510,8 @@ impl OPCConfig {
                     interval,
                     limit,
                     ua: None,
-                    da: Some(DaCollectConfig { tags: da_nodes_vec }),
+                    da: Some(DaCollectConfig { tags: da_nodes_vec, }),
+                    dump: dump_config,
                 }
             }
             _ => {
@@ -539,6 +578,18 @@ impl OPCConfig {
             table_config: self.opc_table_config.clone().unwrap(),
         };
         Ok(c)
+    }
+}
+
+fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Option<bool>> {
+    if let Some(key) = dsn.remove(key) {
+        match key.as_str() {
+            "false" => Ok(Some(false)),
+            "" | "true" => Ok(Some(true)),
+            _ => anyhow::bail!("should config true or false"),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -1228,6 +1279,11 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
                     // value_type: String::from("VARCHAR"),
                 }],
             }),
+            dump: Some(DumpConfig {
+                enable: true,
+                path: Some("/usr/loacl/taosx/".to_string()),
+                keep: Some(10 as usize),
+            })
         },
         report: ReportConfig {
             remote: String::from("remote.remote"),
@@ -1272,6 +1328,11 @@ id = "1"
 
 [[collect.da.tags]]
 tag = "123"
+
+[collect.dump]
+enable = true
+path = "/usr/loacl/taosx/"
+keep = 10
 
 [report]
 remote = "remote.remote"
