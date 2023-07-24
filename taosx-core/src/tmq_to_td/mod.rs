@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
-    Action,
+    Action, utils::get_main_version_from_server_version,
 };
 use dashmap::DashMap;
 use taos::taos_query::tmq::Assignment;
@@ -273,12 +273,7 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-                let mut version_vec = version.splitn(4, ".").collect_vec();
-                version_vec.truncate(3);
-                let (a, b, c) = version_vec.into_iter()
-                .map(|x| x.parse::<i32>().unwrap())
-                .collect_tuple()
-                .unwrap();
+                let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
                 log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
                 let assignments = if a >= 3 && b >= 0 && c >= 5 {
                     consumer.assignments().await.unwrap()
