@@ -70,6 +70,13 @@ void tfsUpdateSize(STfs *pTfs);
 SDiskSize tfsGetSize(STfs *pTfs);
 
 /**
+ * @brief Get the number of disks at level of multi-tier storage.
+ *
+ * @param pTfs
+ * @return int32_t
+ */
+int32_t tfsGetDisksAtLevel(STfs *pTfs, int32_t level);
+/**
  * @brief Get level of multi-tier storage.
  *
  * @param pTfs
@@ -124,6 +131,15 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname);
 int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId);
 
 /**
+ * @brief Recursive make directory at all levels in tfs.
+ *
+ * @param pTfs The fs object.
+ * @param rname The rel name of directory.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t tfsMkdirRecur(STfs *pTfs, const char *rname);
+
+/**
  * @brief Recursive create directories in tfs.
  *
  * @param pTfs The fs object.
@@ -160,7 +176,17 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname);
  * @param nrname The rel name of new file.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname);
+int32_t tfsRename(STfs *pTfs, int32_t diskPrimary, const char *orname, const char *nrname);
+
+/**
+ * @brief Search fname in level of tfs
+ *
+ * @param pTfs The fs object.
+ * @param level The level to search on
+ * @param fname The relative file name to be searched
+ * @param int32_t diskId for successs, -1 for failure
+ */
+int32_t tfsSearch(STfs *pTfs, int32_t level, const char *fname);
 
 /**
  * @brief Init file object in tfs.

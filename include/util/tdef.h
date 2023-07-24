@@ -191,16 +191,16 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_NODE_NAME_LEN   64
-#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
-#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
-#define TSDB_OFFSET_LEN      64                                // it is a null-terminated string
-#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
-#define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
-#define TSDB_DB_NAME_LEN     65
-#define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_PRIVILEDGE_CONDITION_LEN    200
+#define TSDB_NODE_NAME_LEN            64
+#define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
+#define TSDB_DB_NAME_LEN              65
+#define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIVILEDGE_CONDITION_LEN 200
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -249,15 +249,15 @@ typedef enum ELogicConditionType {
 #define TSDB_LABEL_LEN         8
 #define TSDB_JOB_STATUS_LEN    32
 
-#define TSDB_CLUSTER_ID_LEN     40
-#define TSDB_FQDN_LEN           128
-#define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
-#define TSDB_IPv4ADDR_LEN       16
-#define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       2048
+#define TSDB_CLUSTER_ID_LEN       40
+#define TSDB_FQDN_LEN             128
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
+#define TSDB_IPv4ADDR_LEN         16
+#define TSDB_FILENAME_LEN         128
+#define TSDB_SHOW_SQL_LEN         2048
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
-#define TSDB_SLOW_QUERY_SQL_LEN 512
-#define TSDB_SHOW_SUBQUERY_LEN  1000
+#define TSDB_SLOW_QUERY_SQL_LEN   512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -370,7 +370,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 #define TSDB_MIN_STT_TRIGGER            1
 #define TSDB_MAX_STT_TRIGGER            16
-#define TSDB_DEFAULT_SST_TRIGGER        1
+#define TSDB_DEFAULT_SST_TRIGGER        2
 #define TSDB_MIN_HASH_PREFIX            (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX        0
@@ -410,10 +410,10 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN             65519               // 16384:65519
-#define TSDB_MAX_BINARY_LEN            TSDB_MAX_FIELD_LEN  // 16384-8:65519
-#define TSDB_MAX_NCHAR_LEN             TSDB_MAX_FIELD_LEN  // 16384-8:65519
-#define TSDB_MAX_GEOMETRY_LEN          TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_FIELD_LEN    65519               // 16384:65519
+#define TSDB_MAX_BINARY_LEN   TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_NCHAR_LEN    TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_GEOMETRY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
@@ -492,6 +492,7 @@ enum {
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64
+#define TSDB_CONFIG_SCOPE_LEN  8
 #define TSDB_CONFIG_NUMBER     8
 
 #define QUERY_ID_SIZE      20

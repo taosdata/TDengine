@@ -181,10 +181,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    if (size != tsdbLogicToFileSize(pTsdb->fs.pDelFile->size, pTsdb->pVnode->config.tsdbPageSize)) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    // if (size != tsdbLogicToFileSize(pTsdb->fs.pDelFile->size, pTsdb->pVnode->config.tsdbPageSize)) {
+    //   code = TSDB_CODE_FILE_CORRUPTED;
+    //   TSDB_CHECK_CODE(code, lino, _exit);
+    // }
   }
 
   // SArray<SDFileSet>
@@ -199,10 +199,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    if (size != tsdbLogicToFileSize(pSet->pHeadF->size, pTsdb->pVnode->config.tsdbPageSize)) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    // if (size != tsdbLogicToFileSize(pSet->pHeadF->size, pTsdb->pVnode->config.tsdbPageSize)) {
+    //   code = TSDB_CODE_FILE_CORRUPTED;
+    //   TSDB_CHECK_CODE(code, lino, _exit);
+    // }
 
     // data =========
     tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
@@ -210,10 +210,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    if (size < tsdbLogicToFileSize(pSet->pDataF->size, pTsdb->pVnode->config.tsdbPageSize)) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    // if (size < tsdbLogicToFileSize(pSet->pDataF->size, pTsdb->pVnode->config.tsdbPageSize)) {
+    //   code = TSDB_CODE_FILE_CORRUPTED;
+    //   TSDB_CHECK_CODE(code, lino, _exit);
+    // }
     // else if (size > tsdbLogicToFileSize(pSet->pDataF->size, pTsdb->pVnode->config.tsdbPageSize)) {
     //   code = tsdbDFileRollback(pTsdb, pSet, TSDB_DATA_FILE);
     //   TSDB_CHECK_CODE(code, lino, _exit);
@@ -225,10 +225,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    if (size < tsdbLogicToFileSize(pSet->pSmaF->size, pTsdb->pVnode->config.tsdbPageSize)) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    // if (size < tsdbLogicToFileSize(pSet->pSmaF->size, pTsdb->pVnode->config.tsdbPageSize)) {
+    //   code = TSDB_CODE_FILE_CORRUPTED;
+    //   TSDB_CHECK_CODE(code, lino, _exit);
+    // }
     // else if (size > tsdbLogicToFileSize(pSet->pSmaF->size, pTsdb->pVnode->config.tsdbPageSize)) {
     //   code = tsdbDFileRollback(pTsdb, pSet, TSDB_SMA_FILE);
     //   TSDB_CHECK_CODE(code, lino, _exit);
@@ -241,10 +241,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
         code = TAOS_SYSTEM_ERROR(errno);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-      if (size != tsdbLogicToFileSize(pSet->aSttF[iStt]->size, pTsdb->pVnode->config.tsdbPageSize)) {
-        code = TSDB_CODE_FILE_CORRUPTED;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
+      // if (size != tsdbLogicToFileSize(pSet->aSttF[iStt]->size, pTsdb->pVnode->config.tsdbPageSize)) {
+      //   code = TSDB_CODE_FILE_CORRUPTED;
+      //   TSDB_CHECK_CODE(code, lino, _exit);
+      // }
     }
   }
 
@@ -270,26 +270,26 @@ int32_t tDFileSetCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
+void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   SVnode *pVnode = pTsdb->pVnode;
   int32_t offset = 0;
 
   // CURRENT
   if (current) {
-    vnodeGetPrimaryDir(pTsdb->path, pVnode->pTfs, current, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, current, TSDB_FILENAME_LEN);
     offset = strlen(current);
     snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT", TD_DIRSEP);
   }
 
   // CURRENT.t
   if (current_t) {
-    vnodeGetPrimaryDir(pTsdb->path, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
     offset = strlen(current_t);
     snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT.t", TD_DIRSEP);
   }
 }
 
-static int32_t tsdbLoadFSFromFile(const char *fname, STsdbFS *pFS) {
+static int32_t load_fs(const char *fname, STsdbFS *pFS) {
   int32_t  code = 0;
   int32_t  lino = 0;
   uint8_t *pData = NULL;
@@ -666,7 +666,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
         taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
       } else {
         code = tsdbNewFileSet(pTsdb, &fSet, pSetNew);
-        TSDB_CHECK_CODE(code, lino, _exit)
+        TSDB_CHECK_CODE(code, lino, _exit);
 
         if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
@@ -682,7 +682,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
     } else {
       code = tsdbNewFileSet(pTsdb, &fSet, pSetNew);
-      TSDB_CHECK_CODE(code, lino, _exit)
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -723,7 +723,7 @@ int32_t tsdbFSCommit(STsdb *pTsdb) {
   code = tsdbFSCreate(&fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbLoadFSFromFile(current, &fs);
+  code = load_fs(current, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // apply file change
@@ -768,7 +768,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   tsdbGetCurrentFName(pTsdb, current, current_t);
 
   if (taosCheckExistFile(current)) {
-    code = tsdbLoadFSFromFile(current, &pTsdb->fs);
+    code = load_fs(current, &pTsdb->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(current_t)) {

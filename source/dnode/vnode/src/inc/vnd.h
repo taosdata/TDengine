@@ -49,7 +49,8 @@ int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
 int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
 // vnodeModule.c
-int32_t vnodeScheduleTask(int32_t (*execute)(void*), void* arg);
+int vnodeScheduleTask(int (*execute)(void*), void* arg);
+int vnodeScheduleTaskEx(int tpid, int (*execute)(void*), void* arg);
 
 // vnodeBufPool.c
 typedef struct SVBufPoolNode SVBufPoolNode;
@@ -87,7 +88,7 @@ void    vnodeBufPoolAddToFreeList(SVBufPool* pPool);
 int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeOpen.c
-int32_t vnodeGetPrimaryDir(const char* relPath, STfs* pTfs, char* buf, size_t bufLen);
+int32_t vnodeGetPrimaryDir(const char* relPath, int32_t diskPrimary, STfs* pTfs, char* buf, size_t bufLen);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);

@@ -26,6 +26,7 @@ extern "C" {
 enum {
   SORT_MULTISOURCE_MERGE = 0x1,
   SORT_SINGLESOURCE_SORT = 0x2,
+  SORT_BLOCK_TS_MERGE = 0x3
 };
 
 typedef struct SMultiMergeSource {
@@ -53,6 +54,12 @@ typedef struct SMsortComparParam {
   int32_t numOfSources;
   SArray* orderInfo;  // SArray<SBlockOrderInfo>
   bool    cmpGroupId;
+
+  int32_t sortType;
+  // the following field to speed up when sortType == SORT_BLOCK_TS_MERGE
+  int32_t tsSlotId;
+  int32_t order;
+  __compar_fn_t cmpFn;
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
@@ -70,8 +77,8 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @return
  */
 SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
-                                   SSDataBlock* pBlock, const char* idstr, uint64_t maxRows, uint32_t maxTupleLength,
-                                   uint32_t sortBufSize);
+                                   SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
+                                   uint32_t pqSortBufSize);
 
 void tsortSetForceUsePQSort(SSortHandle* pHandle);
 
@@ -110,6 +117,10 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetc
  */
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
 
+/**
+ * 
+*/
+void tsortSetMergeLimit(SSortHandle* pHandle, int64_t mergeLimit);
 /**
  *
  */

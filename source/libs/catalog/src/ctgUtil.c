@@ -1589,6 +1589,12 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
+    pRes->pass = true;
+    ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
+    return TSDB_CODE_SUCCESS;
+  }
+
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(&pReq->tbName, dbFName);
 

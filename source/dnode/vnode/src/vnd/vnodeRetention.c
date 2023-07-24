@@ -15,111 +15,27 @@
 
 #include "vnd.h"
 
-typedef struct {
-  SVnode    *pVnode;
-  int64_t    now;
-  int64_t    commitID;
-  SVnodeInfo info;
-} SRetentionInfo;
+extern int32_t tsdbSyncRetention(STsdb *tsdb, int64_t now);
+extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now, int64_t *taskid);
 
-extern bool    tsdbShouldDoRetention(STsdb *pTsdb, int64_t now);
-extern int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now);
-extern int32_t tsdbCommitRetention(STsdb *pTsdb);
+int32_t vnodeDoRetention(SVnode *pVnode, int64_t now) {
+  int32_t code;
+  int32_t lino;
 
-static int32_t vnodePrepareRentention(SVnode *pVnode, SRetentionInfo *pInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  tsem_wait(&pVnode->canCommit);
-
-  pInfo->commitID = ++pVnode->state.commitID;
-
-  char dir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
-
-  if (vnodeLoadInfo(dir, &pInfo->info) < 0) {
-    code = terrno;
+  if (pVnode->config.sttTrigger == 1) {
+    tsem_wait(&pVnode->canCommit);
+    code = tsdbSyncRetention(pVnode->pTsdb, now);
     TSDB_CHECK_CODE(code, lino, _exit);
-  }
 
-_exit:
-  if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    // code = smaDoRetention(pVnode->pSma, now);
+    // TSDB_CHECK_CODE(code, lino, _exit);
     tsem_post(&pVnode->canCommit);
   } else {
-    vInfo("vgId:%d %s done", TD_VID(pVnode), __func__);
-  }
-  return code;
-}
-
-static int32_t vnodeRetentionTask(void *param) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  SRetentionInfo *pInfo = (SRetentionInfo *)param;
-  SVnode         *pVnode = pInfo->pVnode;
-  char            dir[TSDB_FILENAME_LEN] = {0};
-
-  vnodeGetPrimaryDir(pVnode->path, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
-
-  // save info
-  pInfo->info.state.commitID = pInfo->commitID;
-
-  if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
-    code = terrno;
+    int64_t taskid;
+    code = tsdbAsyncRetention(pVnode->pTsdb, now, &taskid);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // do job
-  code = tsdbDoRetention(pInfo->pVnode->pTsdb, pInfo->now);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = smaDoRetention(pInfo->pVnode->pSma, pInfo->now);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // commit info
-  vnodeCommitInfo(dir);
-
-  // commit sub-job
-  tsdbCommitRetention(pVnode->pTsdb);
-
 _exit:
-  if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pInfo->pVnode), __func__, lino, tstrerror(code));
-  } else {
-    vInfo("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);
-  }
-  tsem_post(&pInfo->pVnode->canCommit);
-  taosMemoryFree(pInfo);
   return code;
-}
-
-int32_t vnodeAsyncRentention(SVnode *pVnode, int64_t now) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  if (!tsdbShouldDoRetention(pVnode->pTsdb, now)) return code;
-
-  SRetentionInfo *pInfo = (SRetentionInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
-  if (pInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  pInfo->pVnode = pVnode;
-  pInfo->now = now;
-
-  code = vnodePrepareRentention(pVnode, pInfo);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  vnodeScheduleTask(vnodeRetentionTask, pInfo);
-
-_exit:
-  if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
-    if (pInfo) taosMemoryFree(pInfo);
-  } else {
-    vInfo("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);
-  }
-  return 0;
 }
