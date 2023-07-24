@@ -1884,7 +1884,8 @@ typedef enum SFSNEXTROWSTATES {
   SFSNEXTROW_BRINBLOCK,
   SFSNEXTROW_BRINRECORD,
   SFSNEXTROW_BLOCKDATA,
-  SFSNEXTROW_BLOCKROW
+  SFSNEXTROW_BLOCKROW,
+  SFSNEXTROW_NEXTSTTROW
 } SFSNEXTROWSTATES;
 
 struct CacheNextRowIter;
@@ -1913,6 +1914,7 @@ typedef struct SFSNextRowIter {
   int64_t                  lastTs;
   SFSLastIter              lastIter;
   SFSLastIter             *pLastIter;
+  int8_t                   lastEmpty;
   TSDBROW                 *pLastRow;
   SRow                    *pTSRow;
   SRowMerger               rowMerger;
@@ -1974,14 +1976,6 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         goto _err;
       }
 
-      code = lastIterOpen(&state->lastIter, state->pFileSet, state->pTsdb, state->pTSchema, state->suid, state->uid,
-                          state->pr, state->lastTs, aCols, nCols);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _err;
-      }
-
-      state->pLastIter = &state->lastIter;
-
       loadDataTomb(state->pr, state->pr->pFileReader);
 
       if (!state->pIndexList) {
@@ -2010,16 +2004,64 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
       int indexSize = TARRAY_SIZE(state->pIndexList);
       if (indexSize <= 0) {
-        // goto next fileset
         clearLastFileSet(state);
+        state->state = SFSNEXTROW_FILESET;
         goto _next_fileset;
       }
 
       state->state = SFSNEXTROW_INDEXLIST;
       state->iBrinIndex = indexSize;
-    } else {  // empty fileset, goto next fileset
-      // clearLastFileSet(state);
+    }
+
+    code = lastIterOpen(&state->lastIter, state->pFileSet, state->pTsdb, state->pTSchema, state->suid, state->uid,
+                        state->pr, state->lastTs, aCols, nCols);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _err;
+    }
+
+    code = lastIterNext(&state->lastIter, &state->pLastRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _err;
+    }
+
+    if (!state->pLastRow) {
+      state->lastEmpty = 1;
+
+      if (SFSNEXTROW_INDEXLIST != state->state) {
+        clearLastFileSet(state);
+        goto _next_fileset;
+      }
+    } else {
+      state->lastEmpty = 0;
+
+      if (SFSNEXTROW_INDEXLIST != state->state) {
+        state->state = SFSNEXTROW_NEXTSTTROW;
+
+        *ppRow = state->pLastRow;
+        state->pLastRow = NULL;
+        return code;
+      }
+    }
+
+    state->pLastIter = &state->lastIter;
+  }
+
+  if (SFSNEXTROW_NEXTSTTROW == state->state) {
+    code = lastIterNext(&state->lastIter, &state->pLastRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _err;
+    }
+
+    if (!state->pLastRow) {
+      lastIterClose(&state->pLastIter);
+
+      clearLastFileSet(state);
+      state->state = SFSNEXTROW_FILESET;
       goto _next_fileset;
+    } else {
+      *ppRow = state->pLastRow;
+      state->pLastRow = NULL;
+      return code;
     }
   }
 
