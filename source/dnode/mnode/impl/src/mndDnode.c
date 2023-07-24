@@ -1041,8 +1041,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if ((pReq->info.ahandle != (void *)0x818611) &&
-      (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0)) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
     return -1;
   }
 
