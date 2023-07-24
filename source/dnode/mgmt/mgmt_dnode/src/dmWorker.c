@@ -24,12 +24,16 @@ static void *dmStatusThreadFp(void *param) {
 
   const static int16_t TRIM_FREQ = 30;
   int32_t              trimCount = 0;
+  int32_t              upTimeCount = 0;
+  int64_t              upTime = 0;
+
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
@@ -37,6 +41,11 @@ static void *dmStatusThreadFp(void *param) {
       trimCount = (trimCount + 1) % TRIM_FREQ;
       if (trimCount == 0) {
         taosMemoryTrim(0);
+      }
+
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
+        upTime = taosGetOsUptime() - tsDndStartOsUptime;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
       }
     }
   }
@@ -54,7 +63,8 @@ static void *dmMonitorThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;

@@ -655,6 +655,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   STrans    *pTrans = NULL;
   SDnodeObj *pDnode = NULL;
   bool       cfgAll = pCfgReq->dnodeId == -1;
+  int32_t    iter = 0;
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -662,7 +663,8 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     if (cfgAll) {
       pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
       if (pIter == NULL) break;
-    } else if(!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
+      ++iter;
+    } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
       goto _OVER;
     }
 
@@ -699,7 +701,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   }
 
   if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
+  tsGrantHBInterval = TMIN(TMAX(5, iter / 2), 30);
   terrno = 0;
 
 _OVER:
@@ -863,7 +865,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
+  tsGrantHBInterval = 5;
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());

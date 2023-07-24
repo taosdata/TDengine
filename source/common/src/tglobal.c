@@ -77,7 +77,13 @@ int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
 int8_t  tsGrant = 1;
+int32_t tsMndGrantMode = 0;
 bool    tsMndSkipGrant = false;
+
+// dnode
+int64_t tsDndStart = 0;
+int64_t tsDndStartOsUptime = 0;
+int64_t tsDndUpTime = 0;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -506,6 +512,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "grantMode", tsMndGrantMode, 0, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "skipGrant", tsMndSkipGrant, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER) != 0) return -1;
@@ -915,6 +922,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
   tsMndSkipGrant = cfgGetItem(pCfg, "skipGrant")->bval;
+  tsMndGrantMode = cfgGetItem(pCfg, "grantMode")->i32;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
