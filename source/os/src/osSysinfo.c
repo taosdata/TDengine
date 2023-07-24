@@ -967,7 +967,7 @@ int64_t taosGetOsUptime() {
 #else
   struct sysinfo info;
   if (0 == sysinfo(&info)) {
-    return info.uptime;
+    return (int64_t)info.uptime * 1000;
   };
 #endif
   return 0;
