@@ -2053,7 +2053,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     }
 
     if (!state->pLastRow) {
-      lastIterClose(&state->pLastIter);
+      if (state->pLastIter) {
+        lastIterClose(&state->pLastIter);
+      }
 
       clearLastFileSet(state);
       state->state = SFSNEXTROW_FILESET;
@@ -2154,7 +2156,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     }
 
     if (!state->pLastRow) {
-      lastIterClose(&state->pLastIter);
+      if (state->pLastIter) {
+        lastIterClose(&state->pLastIter);
+      }
 
       *ppRow = &state->row;
       --state->iRow;
