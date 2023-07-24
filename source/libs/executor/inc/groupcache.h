@@ -24,19 +24,11 @@ extern "C" {
 
 #pragma pack(push, 1) 
 typedef struct SGcBlkBufBasic {
+  uint32_t          fileId;
   int64_t           blkId;
   int64_t           offset;
   int64_t           bufSize;
 } SGcBlkBufBasic;
-
-typedef struct SGcBlkBufInfo {
-  SGcBlkBufBasic    basic;
-  uint32_t          fileId;
-  void*             next;
-  void*             pBuf;
-  SGcDownstreamCtx* pCtx;
-  SGroupCacheData*  pGroup;
-} SGcBlkBufInfo;
 #pragma pack(pop)
 
 typedef struct SGroupCacheFileFd {
@@ -44,25 +36,40 @@ typedef struct SGroupCacheFileFd {
   TdFilePtr     fd;
 } SGroupCacheFileFd;
 
-typedef struct SGcVgroupCtx {
-  SArray*         pTbList;
-  uint64_t        lastUid;
+typedef struct SGcFileCacheCtx {
   int64_t         fileSize;
   uint32_t        fileId;
-  SSHashObj*      pCacheFile;
+  SHashObj*       pCacheFile;
   int32_t         baseNameLen;
   char            baseFilename[PATH_MAX];  
+} SGcFileCacheCtx;
+
+typedef struct SGcDownstreamCtx {
+  int32_t         id;
+  SRWLatch        grpLock;
+  int64_t         fetchSessionId;
+  SArray*         pNewGrpList; // SArray<SGcNewGroupInfo>
+  SSHashObj*      pVgTbHash;
+  SHashObj*       pGrpHash;
+  SRWLatch        blkLock;
+  SSDataBlock*    pBaseBlock;
+  SArray*         pFreeBlock;
+  int64_t         lastBlkUid;
+  SHashObj*       pSessions;  
+  SHashObj*       pWaitSessions; 
+  SGcFileCacheCtx fileCtx;
+} SGcDownstreamCtx;
+
+typedef struct SGcVgroupCtx {
+  SArray*         pTbList;
+  uint64_t        lastBlkUid;
+  SGcFileCacheCtx fileCtx;
 } SGcVgroupCtx;
 
-typedef struct SGroupSeqBlkList {
-  SRWLatch       lock;
-  SArray*        pList;
-} SGroupSeqBlkList;
-
-typedef struct SGroupBatchBlkList {
+typedef struct SGcBlkList {
   SRWLatch         lock;
   SArray*          pList;
-} SGroupBatchBlkList;
+} SGcBlkList;
 
 typedef struct SGroupCacheData {
   TdThreadMutex  mutex;
@@ -72,10 +79,7 @@ typedef struct SGroupCacheData {
   SGcVgroupCtx*  pVgCtx;
   int32_t        downstreamIdx;
   int32_t        vgId;
-  union {
-    SGroupSeqBlkList   seqList;
-    SGroupBatchBlkList batchList;
-  };
+  SGcBlkList     blkList;
   uint32_t       fileId;
   int64_t        startOffset;
 } SGroupCacheData;
@@ -103,24 +107,6 @@ typedef struct SGcNewGroupInfo {
   SOperatorParam*  pParam;
 } SGcNewGroupInfo;
 
-typedef struct SGcDownstreamCtx {
-  int32_t       id;
-  SRWLatch      grpLock;
-  int64_t       fetchSessionId;
-  SArray*       pNewGrpList; // SArray<SGcNewGroupInfo>
-  SSHashObj*    pVgTbHash;
-  SHashObj*     pGrpHash;
-  SRWLatch      blkLock;
-  SSDataBlock*  pBaseBlock;
-  SArray*       pFreeBlock;
-  int64_t       lastBlkUid;
-  SHashObj*     pSessions;  
-  SHashObj*     pWaitSessions; 
-  int32_t       cacheFileFdNum;
-  SGroupCacheFileFd cacheFileFd;
-  char          baseFilename[PATH_MAX];
-} SGcDownstreamCtx;
-
 typedef struct SGcSessionCtx {
   int32_t           downstreamIdx;
   SGcOperatorParam* pParam;
@@ -130,6 +116,14 @@ typedef struct SGcSessionCtx {
   tsem_t            waitSem;
   bool              newFetch;
 } SGcSessionCtx;
+
+typedef struct SGcBlkBufInfo {
+  SGcBlkBufBasic    basic;
+  void*             next;
+  void*             pBuf;
+  SGcDownstreamCtx* pCtx;
+  SGroupCacheData*  pGroup;
+} SGcBlkBufInfo;
 
 typedef struct SGcExecInfo {
   int32_t  downstreamNum;
