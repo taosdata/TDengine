@@ -114,7 +114,7 @@ datasets:
 
 groups:
   - name: 连接配置
-    display_order: 2
+    display_order: 1
     description: 连接相关配置。
     params:
       - name: connect_timeout
@@ -138,7 +138,7 @@ groups:
         value: 10
 
   - name: 采集配置
-    display_order: 3
+    display_order: 2
     description: 数据采集相关配置项。
     params:
       - name: interval
@@ -171,6 +171,34 @@ groups:
             - observe
             - subscribe
         value: observe
+  
+  - name: 原始数据保存
+    display_order: 3
+    description: OPC 连接器采集到的原始数据保存配置。
+    params:
+      - name: enable
+        display: 启用保存
+        description: |-
+          是否启用原始数据保存，默认为 false，即不保存原始数据。
+        placeholder: 10
+        value: false
+        hint:
+          type: bool
+
+      - name: path
+        display: 保存路径
+        hint:
+          type: string
+        description: 原始数据的保存路径，若启用保存原始数据需配置。
+        placeholder: /data/
+      
+      - name: keep
+        display: 保留天数
+        hint:
+          type: integer
+        description: 原始数据的保留天数，若启用保存原始数据需配置。
+        placeholder: 10
+
   - name: 库表配置
     display_order: 4
     description: |

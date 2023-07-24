@@ -167,6 +167,33 @@ groups:
             - subscribe
         value: observe
 
+  - name: Original Data Save
+    display_order: 3
+    description: Original Data Collected By OPC Connector Save Config
+    params:
+      - name: enable
+        display: Enable Save Original Collected Data
+        description: |-
+          Default is false (Not Save).
+        placeholder: 10
+        value: false
+        hint:
+          type: bool
+
+      - name: path
+        display: Path to Save
+        hint:
+          type: string
+        description: Data save path, should config if enable save data.
+        placeholder: /data/
+      
+      - name: keep
+        display: Data Keep Days
+        hint:
+          type: integer
+        description: Original Data Keep Days, should config if enable save data.
+        placeholder: 10
+
   - name: Table Config
     display_order: 4
     description: |
