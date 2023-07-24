@@ -69,7 +69,7 @@
 #define GRANT_TABLE_LIMITS         4102416000
 
 // specific for connectors
-#define GRANT_CONN_ACTIVE_MAJOR_VER    2 // increase if the definition of data structure or active code changes, 1-2
+#define GRANT_CONN_ACTIVE_MAJOR_VER    2 // increase if the definition of data structure or active code changes, history value 1:2
 #define GRANT_CONN_ACTIVE_MINOR_VER    1
 #define GRANT_CONN_NUM_V1              32
 #define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
