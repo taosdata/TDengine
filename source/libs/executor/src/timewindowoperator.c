@@ -3143,7 +3143,6 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pWinBlock);
-  blockDataDestroy(pInfo->pUpdateRes);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
 
@@ -4883,7 +4882,7 @@ static void compactStateWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCur
 }
 
 void streamStateReloadState(SOperatorInfo* pOperator) {
-  SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
+  SStreamStateAggOperatorInfo*   pInfo = pOperator->info;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
   resetWinRange(&pAggSup->winRange);
 
