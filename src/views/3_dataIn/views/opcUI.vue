@@ -482,7 +482,7 @@
                       :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input>
                   </template>
-                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                  <template v-if="p.hint?.type && p.hint?.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select
                         v-model="p.value"
@@ -504,7 +504,7 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      (p.hint === 'bool' || p.hint?.type === 'bool') &&
                       p.name == 'clean_session'
                     "
                   >
@@ -521,12 +521,12 @@
                       ></el-checkbox>
                     </template>
                   </template>
-                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
+                  <template v-else-if="p.hint?.type && p.hint?.type === 'bool'">
                     <p-three-checkbox :data="checkboxData" v-model="p.value" />
                   </template>
                   <template
                     v-if="
-                      (p.hint.type && p.hint.type === 'integer') ||
+                      (p.hint?.type && p.hint?.type === 'integer') ||
                       p.hint === 'integer'
                     "
                   >
@@ -593,6 +593,9 @@
         </el-select>
       </section>
       <section class="bottom">
+        <el-button @click="cancel" class="cancel-btn">{{
+          $t("cancel")
+        }}</el-button>
         <el-button type="primary" @click="submit" :disabled="disable">{{
           $t("submit")
         }}</el-button>
@@ -1166,6 +1169,11 @@ export default {
           Message.error(err.response.data.message);
       }
     },
+
+    cancel() {
+      this.$parent.currentName = 'dbsource'
+    },
+
     handleClick(tab, event) {
       this.isShowConfiguration = false;
       this.configurationdata = [];
@@ -1621,6 +1629,9 @@ export default {
         }
       }
     }
+  }
+  .cancel-btn {
+    z-index: 101;
   }
 }
 </style>
