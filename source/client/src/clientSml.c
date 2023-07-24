@@ -1410,8 +1410,8 @@ static int32_t smlInsertData(SSmlHandle *info) {
     memcpy(measure, tableData->sTableName, tableData->sTableNameLen);
     PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
     smlStrReplace(measure, measureLen);
-
-    tstrncpy(pName.tname, measure, measureLen + 1);
+    memset(pName.tname, 0, TSDB_TABLE_NAME_LEN);
+    memcpy(pName.tname, measure, measureLen);
 
     if (info->pRequest->tableList == NULL) {
       info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
