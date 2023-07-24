@@ -877,6 +877,7 @@ typedef struct SCacheRowsReader {
   SSHashObj              *pTableMap;
   SArray                 *pLDataIterArray;
   struct SDataFileReader *pFileReader;
+  STFileSet              *pCurFileSet;
   STsdbReadSnap          *pReadSnap;
   char                   *idstr;
   int64_t                 lastTs;

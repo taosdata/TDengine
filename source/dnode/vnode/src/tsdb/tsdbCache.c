@@ -1949,34 +1949,38 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
     STFileObj **pFileObj = state->pFileSet->farr;
     if (pFileObj[0] != NULL || pFileObj[3] != NULL) {
-      SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.szPage};
-      const char           *filesName[4] = {0};
-      if (pFileObj[0] != NULL) {
-        conf.files[0].file = *pFileObj[0]->f;
-        conf.files[0].exist = true;
-        filesName[0] = pFileObj[0]->fname;
+      if (state->pFileSet != state->pr->pCurFileSet) {
+        SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.szPage};
+        const char           *filesName[4] = {0};
+        if (pFileObj[0] != NULL) {
+          conf.files[0].file = *pFileObj[0]->f;
+          conf.files[0].exist = true;
+          filesName[0] = pFileObj[0]->fname;
 
-        conf.files[1].file = *pFileObj[1]->f;
-        conf.files[1].exist = true;
-        filesName[1] = pFileObj[1]->fname;
+          conf.files[1].file = *pFileObj[1]->f;
+          conf.files[1].exist = true;
+          filesName[1] = pFileObj[1]->fname;
 
-        conf.files[2].file = *pFileObj[2]->f;
-        conf.files[2].exist = true;
-        filesName[2] = pFileObj[2]->fname;
+          conf.files[2].file = *pFileObj[2]->f;
+          conf.files[2].exist = true;
+          filesName[2] = pFileObj[2]->fname;
+        }
+
+        if (pFileObj[3] != NULL) {
+          conf.files[3].exist = true;
+          conf.files[3].file = *pFileObj[3]->f;
+          filesName[3] = pFileObj[3]->fname;
+        }
+
+        code = tsdbDataFileReaderOpen(filesName, &conf, &state->pr->pFileReader);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _err;
+        }
+
+        loadDataTomb(state->pr, state->pr->pFileReader);
+
+        state->pr->pCurFileSet = state->pFileSet;
       }
-
-      if (pFileObj[3] != NULL) {
-        conf.files[3].exist = true;
-        conf.files[3].file = *pFileObj[3]->f;
-        filesName[3] = pFileObj[3]->fname;
-      }
-
-      code = tsdbDataFileReaderOpen(filesName, &conf, &state->pr->pFileReader);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _err;
-      }
-
-      loadDataTomb(state->pr, state->pr->pFileReader);
 
       if (!state->pIndexList) {
         state->pIndexList = taosArrayInit(1, sizeof(SBrinBlk));
@@ -2218,19 +2222,6 @@ _err:
   return code;
 }
 
-int32_t clearNextRowFromFS(void *iter) {
-  int32_t code = 0;
-
-  SFSNextRowIter *state = (SFSNextRowIter *)iter;
-  if (!state) {
-    return code;
-  }
-
-  clearLastFileSet(state);
-
-  return code;
-}
-
 typedef enum SMEMNEXTROWSTATES {
   SMEMNEXTROW_ENTER,
   SMEMNEXTROW_NEXT,
@@ -2350,6 +2341,36 @@ typedef struct CacheNextRowIter {
   STsdb            *pTsdb;
 } CacheNextRowIter;
 
+int32_t clearNextRowFromFS(void *iter) {
+  int32_t code = 0;
+
+  SFSNextRowIter *state = (SFSNextRowIter *)iter;
+  if (!state) {
+    return code;
+  }
+
+  if (state->pLastIter) {
+    lastIterClose(&state->pLastIter);
+  }
+
+  if (state->pBlockData) {
+    tBlockDataDestroy(state->pBlockData);
+    state->pBlockData = NULL;
+  }
+
+  if (state->pTSRow) {
+    taosMemoryFree(state->pTSRow);
+    state->pTSRow = NULL;
+  }
+
+  if (state->pRowIter->pSkyline) {
+    taosArrayDestroy(state->pRowIter->pSkyline);
+    state->pRowIter->pSkyline = NULL;
+  }
+
+  return code;
+}
+
 static void clearLastFileSet(SFSNextRowIter *state) {
   if (state->pLastIter) {
     lastIterClose(&state->pLastIter);
@@ -2363,6 +2384,8 @@ static void clearLastFileSet(SFSNextRowIter *state) {
   if (state->pr->pFileReader) {
     tsdbDataFileReaderClose(&state->pr->pFileReader);
     state->pr->pFileReader = NULL;
+
+    state->pr->pCurFileSet = NULL;
   }
 
   if (state->pTSRow) {
