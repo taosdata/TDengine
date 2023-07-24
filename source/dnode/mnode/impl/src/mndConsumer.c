@@ -515,7 +515,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
       // txn guarantees pSub is created
-
+      if(pSub == NULL) continue;
       taosRLockLatch(&pSub->lock);
 
       SMqSubTopicEp topicEp = {0};
@@ -523,6 +523,11 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
+      if(pTopic == NULL) {
+        taosRUnLockLatch(&pSub->lock);
+        mndReleaseSubscribe(pMnode, pSub);
+        continue;
+      }
       taosRLockLatch(&pTopic->lock);
       tstrncpy(topicEp.db, pTopic->db, TSDB_DB_FNAME_LEN);
       topicEp.schema.nCols = pTopic->schema.nCols;
