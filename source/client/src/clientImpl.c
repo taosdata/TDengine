@@ -1304,9 +1304,8 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
     }
     uint32_t addr = taosGetIpv4FromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn);
     if (addr == 0xffffffff) {
-      int32_t code = TAOS_SYSTEM_ERROR(errno);
       tscError("failed to resolve firstEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
-               tstrerror(errno));
+               tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
       memset(&(mgmtEpSet->eps[mgmtEpSet->numOfEps]), 0, sizeof(mgmtEpSet->eps[mgmtEpSet->numOfEps]));
     } else {
       mgmtEpSet->numOfEps++;
@@ -1322,9 +1321,8 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
     taosGetFqdnPortFromEp(secondEp, &mgmtEpSet->eps[mgmtEpSet->numOfEps]);
     uint32_t addr = taosGetIpv4FromFqdn(mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn);
     if (addr == 0xffffffff) {
-      int32_t code = TAOS_SYSTEM_ERROR(errno);
       tscError("failed to resolve secondEp fqdn: %s, code:%s", mgmtEpSet->eps[mgmtEpSet->numOfEps].fqdn,
-               tstrerror(errno));
+               tstrerror(TSDB_CODE_TSC_INVALID_FQDN));
       memset(&(mgmtEpSet->eps[mgmtEpSet->numOfEps]), 0, sizeof(mgmtEpSet->eps[mgmtEpSet->numOfEps]));
     } else {
       mgmtEpSet->numOfEps++;
@@ -1332,8 +1330,8 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
   }
 
   if (mgmtEpSet->numOfEps == 0) {
-    terrno = TSDB_CODE_TSC_INVALID_FQDN;
-    return -1;
+    terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    return TSDB_CODE_RPC_NETWORK_UNAVAIL;
   }
 
   return 0;
