@@ -1154,16 +1154,15 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         taosMsleep(100);
       }
 
-      streamTaskHalt(pTask);
-
       // now we can stop the stream task execution
-      // todo upgrade the statu to be HALT from PAUSE or NORMAL
-      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-      tqDebug("s-task:%s level:%d status is set to halt by fill-history task:%s", pStreamTask->id.idStr,
-              pStreamTask->info.taskLevel, id);
+      streamTaskHalt(pStreamTask);
+      tqDebug("s-task:%s level:%d is halt by fill-history task:%s", pStreamTask->id.idStr, pStreamTask->info.taskLevel,
+              id);
 
       // if it's an source task, extract the last version in wal.
-      streamHistoryTaskSetVerRangeStep2(pTask);
+      pRange = &pTask->dataRange.range;
+      int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+      streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
     }
 
     if (!streamTaskRecoverScanStep1Finished(pTask)) {
