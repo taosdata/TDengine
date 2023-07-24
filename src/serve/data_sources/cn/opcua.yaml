@@ -180,7 +180,6 @@ groups:
         display: 启用保存
         description: |-
           是否启用原始数据保存，默认为 false，即不保存原始数据。
-        placeholder: 10
         value: false
         hint:
           type: bool
@@ -188,7 +187,7 @@ groups:
       - name: path
         display: 保存路径
         hint:
-          type: string
+          type: str
         description: 原始数据的保存路径，若启用保存原始数据需配置。
         placeholder: /data/
       

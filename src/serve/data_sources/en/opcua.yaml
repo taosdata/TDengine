@@ -175,7 +175,6 @@ groups:
         display: Enable Save Original Collected Data
         description: |-
           Default is false (Not Save).
-        placeholder: 10
         value: false
         hint:
           type: bool
@@ -183,7 +182,7 @@ groups:
       - name: path
         display: Path to Save
         hint:
-          type: string
+          type: str
         description: Data save path, should config if enable save data.
         placeholder: /data/
       
