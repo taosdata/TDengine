@@ -558,13 +558,25 @@
                     value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
                     v-if="
-                      p.name == 'beginTime' || p.name == 'endTime'|| 
+                      p.name == 'beginTime' || p.name == 'endTime' 
+                    "
+                    :picker-options="
+                      p.name == 'beginTime' ? startOption : endOption
+                    "
+                    :placeholder="p.placeholder"
+                  >
+                  </DatePicker>
+                  <DatePicker
+                    v-model="p.value"
+                    type="datetime"
+                    v-if="
                       p.name === 'start' || p.name == 'end'
                     "
                     :picker-options="
-                      (p.name == 'beginTime' || p.name === 'start') ? startOption : endOption
+                      p.name === 'start' ? startOption : endOption
                     "
                     :placeholder="p.placeholder"
+                    @change="(value) => handleTime(value, p.name)"
                   >
                   </DatePicker>
                   <DatePicker
@@ -619,6 +631,9 @@
         </div>
       </section>
       <section class="bottom">
+        <el-button @click="cancel" class="cancel-btn">{{
+          $t("cancel")
+        }}</el-button>
         <el-button type="primary" @click="submit" :disabled="disable">{{
           $t("submit")
         }}</el-button>
@@ -793,7 +808,11 @@ export default {
         group.params.map((p) => {
           if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
             // 时间返回值适配时区后再根据 placeholder字段 格式化
-            p.value = parsinginZone(p.value, p.placeholder)
+            if (p.name == 'start' || p.name == 'end') {
+              p.value = parsinginZone(p.value)
+            } else {
+              p.value = parsinginZone(p.value, p.placeholder)
+            }
           }
           if (p.multiple && p.value && typeof p.value =='string') {
             // 多选下拉框的返回值改为数组
@@ -804,6 +823,18 @@ export default {
           });
           return group
         });
+    },
+    handleTime(time, name) {
+      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+        group.params.map((p) => {
+          if (p.name == name) {
+            // RFC3339 时间格式，带时区
+            p.value = parsinginZone(time)
+          }
+            return p
+          });
+            return group
+      });
     },
     changeHost(host) {
       if (this.tagName == "influxdb") {
@@ -1130,6 +1161,10 @@ export default {
       }
     },
 
+    cancel() {
+      this.$parent.currentName = 'dbsource'
+    },
+    
     handleClick(tab, event) {
       this.isShowConfiguration = false;
       this.configurationdata = [];
@@ -1763,6 +1798,9 @@ export default {
         justify-content: flex-end;
       }
     }
+  }
+  .cancel-btn {
+    z-index: 101;
   }
 }
 </style>
