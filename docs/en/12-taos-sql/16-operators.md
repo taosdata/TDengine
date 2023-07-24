@@ -39,7 +39,7 @@ TDengine supports the `UNION` and `UNION ALL` operations. UNION ALL collects all
 | 3   |      \>, <       | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than and less than           |
 | 4   |     \>=, <=      | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than or equal to and less than or equal to   |
 | 5   |   IS [NOT] NULL   | All types                                                             | Indicates whether the value is null           |
-| 6   | [NOT] BETWEEN AND | All types except BLOB, MEDIUMBLOB, and JSON                       | Closed interval comparison           |
+| 6   | [NOT] BETWEEN AND | All types except BLOB, MEDIUMBLOB, JSON and GEOMETRY                  | Closed interval comparison           |
 | 7   |        IN         | All types except BLOB, MEDIUMBLOB, and JSON; the primary key (timestamp) is also not supported | Equal to any value in the list |
 | 8   |       LIKE        | BINARY, NCHAR, and VARCHAR                                             | Wildcard match           |
 | 9   |   MATCH, NMATCH   | BINARY, NCHAR, and VARCHAR                                             | Regular expression match       |

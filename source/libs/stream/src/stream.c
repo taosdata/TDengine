@@ -219,15 +219,16 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 // todo add log
 int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   int32_t code = 0;
-  if (pTask->outputType == TASK_OUTPUT__TABLE) {
+  int32_t type = pTask->outputInfo.type;
+  if (type == TASK_OUTPUT__TABLE) {
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
-  } else if (pTask->outputType == TASK_OUTPUT__SMA) {
+  } else if (type == TASK_OUTPUT__SMA) {
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
   } else {
-    ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
+    ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
+    code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
     if (code != 0) {  // todo failed to add it into the output queue, free it.
       return code;
     }
@@ -274,6 +275,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
   tDeleteStreamDispatchReq(pReq);
   streamSchedExec(pTask);
+
   return 0;
 }
 
@@ -314,6 +316,9 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return -1;
     }
 
+    int32_t msgLen = px->submit.msgLen;
+    int64_t ver = px->submit.ver;
+
     int32_t code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
       streamDataSubmitDestroy(px);
@@ -321,8 +326,9 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return code;
     }
 
+    // use the local variable to avoid the pItem be freed by other threads, since it has been put into queue already.
     qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           px->submit.msgLen, px->submit.ver, total, size + px->submit.msgLen / 1048576.0);
+           msgLen, ver, total, size + msgLen/1048576.0);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {

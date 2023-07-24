@@ -122,7 +122,7 @@ void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo) {
     return;
   }
 
-  qDebug("%s set fill history start key:%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN);
+  qDebug("%s set fill history start key:%" PRId64, GET_TASKID(pTaskInfo), INT64_MIN);
   pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
 }
 

@@ -81,7 +81,13 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
       continue;
     }
 
-    streamTaskCheckDownstreamTasks(pTask);
+    if (pTask->info.fillHistory == 1) {
+      tqDebug("s-task:%s fill-history task, wait for related stream task:0x%x to launch it", pTask->id.idStr,
+              pTask->streamTaskId.taskId);
+      continue;
+    }
+
+    streamTaskDoCheckDownstreamTasks(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
 
@@ -234,12 +240,14 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    int32_t status = pTask->status.taskStatus;
+
+    // non-source or fill-history tasks don't need to response the WAL scan action.
+    if (pTask->info.taskLevel != TASK_LEVEL__SOURCE || pTask->info.fillHistory == 1) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
-    int32_t status = pTask->status.taskStatus;
     const char* pStatus = streamGetTaskStatusStr(status);
     if (status != TASK_STATUS__NORMAL) {
       tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);

@@ -16,7 +16,11 @@
 #include "streamInt.h"
 
 // maximum allowed processed block batches. One block may include several submit blocks
-#define MAX_STREAM_RESULT_DUMP_THRESHOLD 100
+#define MAX_STREAM_EXEC_BATCH_NUM 32
+#define MIN_STREAM_EXEC_BATCH_NUM 4
+#define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
+
+static int32_t updateCheckPointInfo(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
@@ -314,41 +318,45 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   if (el > 0) {
-    qDebug("s-task:%s wait for stream task:%s for %.2fs to handle all data in inputQ", pTask->id.idStr,
+    qDebug("s-task:%s wait for stream task:%s for %.2fs to be idle", pTask->id.idStr,
            pStreamTask->id.idStr, el);
   }
 }
 
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed",
-        pTask->id.idStr, pTask->streamTaskId.taskId);
+    pTask->status.transferState = false;  // reset this value, to avoid transfer state again
+
+    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
+           pTask->streamTaskId.taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
     qDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
            pStreamTask->id.idStr);
   }
 
-  pTask->status.transferState = false;  // reset this value, to avoid transfer state again
+  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.transferState == true);
 
-  ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
   // for the step 2. For a agg task
+  int8_t status = pStreamTask->status.taskStatus;
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__HALT);
+    ASSERT(status == TASK_STATUS__HALT);
   } else {
-    ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
+    ASSERT(status == TASK_STATUS__SCAN_HISTORY);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-    qDebug("s-task:%s status: halt by related fill history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
+    qDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
-  // wait for the stream task to be idle
+  // wait for the stream task to handle all in the inputQ, and to be idle
   waitForTaskIdle(pTask, pStreamTask);
 
-  // In case of sink tasks, no need to be halted for them.
+  // In case of sink tasks, no need to halt them.
   // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
   // start the task state transfer procedure.
   // When a task is idle with halt status, all data in inputQ are consumed.
@@ -370,10 +378,25 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  streamSetStatusNormal(pStreamTask);
+  streamTaskResumeFromHalt(pStreamTask);
+
+  pTask->status.taskStatus = TASK_STATUS__DROPPING;
+  qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
+
+  // save to disk
+  taosWLockLatch(&pMeta->lock);
+  streamMetaSaveTask(pMeta, pTask);
+  streamMetaSaveTask(pMeta, pStreamTask);
+  if (streamMetaCommit(pMeta) < 0) {
+    // persist to disk
+  }
+  taosWUnLockLatch(&pMeta->lock);
+
+  // pause allowed
+  streamTaskEnablePause(pStreamTask);
 
   streamSchedExec(pStreamTask);
-  streamMetaReleaseTask(pTask->pMeta, pStreamTask);
+  streamMetaReleaseTask(pMeta, pStreamTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -426,6 +449,106 @@ static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_
     ASSERT(0);
   }
 }
+
+static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+                                    const char* id) {
+  int32_t retryTimes = 0;
+  int32_t MAX_RETRY_TIMES = 5;
+
+  while (1) {
+    if (streamTaskShouldPause(&pTask->status)) {
+      qDebug("s-task:%s task should pause, input blocks:%d", pTask->id.idStr, *numOfBlocks);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
+    if (qItem == NULL) {
+      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
+        taosMsleep(10);
+        qDebug("===stream===try again batchSize:%d, retry:%d", *numOfBlocks, retryTimes);
+        continue;
+      }
+
+      qDebug("===stream===break batchSize:%d", *numOfBlocks);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    // do not merge blocks for sink node
+    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+      *numOfBlocks = 1;
+      *pInput = qItem;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (*pInput == NULL) {
+      ASSERT((*numOfBlocks) == 0);
+      *pInput = qItem;
+    } else {
+      // todo we need to sort the data block, instead of just appending into the array list.
+      void* newRet = streamMergeQueueItem(*pInput, qItem);
+      if (newRet == NULL) {
+        qError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+        streamQueueProcessFail(pTask->inputQueue);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      *pInput = newRet;
+    }
+
+    *numOfBlocks += 1;
+    streamQueueProcessSuccess(pTask->inputQueue);
+
+    if (*numOfBlocks >= MAX_STREAM_EXEC_BATCH_NUM) {
+      qDebug("s-task:%s batch size limit:%d reached, start to process blocks", id, MAX_STREAM_EXEC_BATCH_NUM);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+}
+
+///**
+// * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
+// * appropriate batch of blocks should be handled in 5 to 10 sec.
+// */
+//int32_t streamExecForAll(SStreamTask* pTask) {
+//  const char* id = pTask->id.idStr;
+//
+//  while (1) {
+//    int32_t batchSize = 0;
+//    SStreamQueueItem* pInput = NULL;
+//
+//    // merge multiple input data if possible in the input queue.
+//    qDebug("s-task:%s start to extract data block from inputQ", id);
+//
+//    /*int32_t code = */extractMsgFromInputQ(pTask, &pInput, &batchSize, id);
+//    if (pInput == NULL) {
+//      ASSERT(batchSize == 0);
+//      if (pTask->info.fillHistory && pTask->status.transferState) {
+//        int32_t code = streamTransferStateToStreamTask(pTask);
+//        if (code != TSDB_CODE_SUCCESS) { // todo handle this
+//          return 0;
+//        }
+//      }
+//
+//      break;
+//    }
+//
+//    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+//      ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK);
+//      qDebug("s-task:%s sink task start to sink %d blocks", id, batchSize);
+//      streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
+//      continue;
+//    }
+//
+//    int64_t st = taosGetTimestampMs();
+//    qDebug("s-task:%s start to process batch of blocks, num:%d", id, batchSize);
+//
+////    {
+//      // set input
+//    const SStreamQueueItem* pItem = pInput;
+//    qDebug("s-task:%s start to process batch of blocks, num:%d, type:%d", id, numOfBlocks, pItem->type);
+//
+//    int64_t ver = pTask->chkInfo.checkpointVer;
+//    doSetStreamInputBlock(pTask, pInput, &ver, id);
 
 /**
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
@@ -508,21 +631,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 }
 
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  int32_t numOfItems = taosQueueItemSize(pTask->inputQueue->queue);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  numOfItems = taosQallItemSize(pTask->inputQueue->qall);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  // blocked by downstream task
-  if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-    return false;
-  }
-
   return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
 }
 

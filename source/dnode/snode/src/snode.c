@@ -66,14 +66,15 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
 
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputQueue = streamQueueOpen(512 << 10);
-  pTask->outputQueue = streamQueueOpen(512 << 10);
+  pTask->outputInfo.queue = streamQueueOpen(512 << 10);
 
-  if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) {
+  if (pTask->inputQueue == NULL || pTask->outputInfo.queue == NULL) {
     return -1;
   }
 
+  pTask->initTs = taosGetTimestampMs();
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
-  pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
+  pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pSnode->msgCb;
   pTask->pMeta = pSnode->pMeta;
   taosThreadMutexInit(&pTask->lock, NULL);
@@ -90,6 +91,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, 0);
   ASSERT(pTask->exec.pExecutor);
 
+  taosThreadMutexInit(&pTask->lock, NULL);
   streamTaskOpenAllUpstreamInput(pTask);
   streamSetupScheduleTrigger(pTask);
 
@@ -167,11 +169,10 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   int32_t numOfTasks = streamMetaGetNumOfTasks(pSnode->pMeta);
   taosWUnLockLatch(&pSnode->pMeta->lock);
-
-  streamPrepareNdoCheckDownstream(pTask);
   qDebug("snode:%d s-task:%s is deployed on snode and add into meta, status:%s, numOfTasks:%d", SNODE_HANDLE, pTask->id.idStr,
-          streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
+         streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
 
+  streamTaskCheckDownstreamTasks(pTask);
   return 0;
 }
 
@@ -275,7 +276,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   return 0;
 }
 
-int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
+int32_t sndProcessStreamTaskScanHistoryFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
@@ -288,12 +289,12 @@ int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecoderClear(&decoder);
 
   // find task
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.downstreamTaskId);
   if (pTask == NULL) {
     return -1;
   }
   // do process request
-  if (streamProcessScanHistoryFinishReq(pTask, req.childId) < 0) {
+  if (streamProcessScanHistoryFinishReq(pTask, &req, &pMsg->info) < 0) {
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return -1;
   }
@@ -416,7 +417,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_RETRIEVE_RSP:
       return sndProcessTaskRetrieveRsp(pSnode, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
-      return sndProcessTaskRecoverFinishReq(pSnode, pMsg);
+      return sndProcessStreamTaskScanHistoryFinishReq(pSnode, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
       return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
     case TDMT_STREAM_TASK_CHECK:

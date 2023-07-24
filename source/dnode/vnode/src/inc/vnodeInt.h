@@ -181,8 +181,8 @@ SArray*       metaGetSmaTbUids(SMeta* pMeta);
 void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 
-int64_t       metaGetTbNum(SMeta *pMeta);
-void          metaReaderDoInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+int64_t metaGetTbNum(SMeta* pMeta);
+void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -199,12 +199,12 @@ int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pR
 int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
-int32_t tsdbPrepareCommit(STsdb* pTsdb);
-int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+// int32_t tsdbPrepareCommit(STsdb* pTsdb);
+// int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-int32_t tsdbFinishCommit(STsdb* pTsdb);
-int32_t tsdbRollbackCommit(STsdb* pTsdb);
+// int32_t tsdbFinishCommit(STsdb* pTsdb);
+// int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -253,8 +253,8 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRecoverFinishRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqCheckLogInWal(STQ* pTq, int64_t version);
 
 // sma
