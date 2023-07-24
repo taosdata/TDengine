@@ -41,9 +41,9 @@ extern "C" {
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/shm.h>
-#include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/sysinfo.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
