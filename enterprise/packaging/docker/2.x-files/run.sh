@@ -14,6 +14,8 @@ start_taosd_count=0
 START_TAOSADAPTER_MAX_NUMBER=${START_TAOSADAPTER_MAX_NUMBER:-3}
 start_taosadapter_count=0
 SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
+DNODE_CREATED=0
+MNODE_CREATED=0
 
 echo "ADMIN_URL: ${ADMIN_URL}"
 echo "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -39,36 +41,6 @@ function set_service_state() {
 set_service_state "init" "ok"
 app_name=`hostname |cut -d\- -f1`
 
-function check_taosd_deprecated() {
-    timeout $TAOS_TIMEOUT_SECOND taos -s "show databases;" >/dev/null
-    local ret=$?
-    if [ $ret -ne 0 ]; then
-        echo "`date` check taosd error $ret"
-        if [ "x$1" != "xignore" ]; then
-            set_service_state "error" "taos check failed $ret"
-        fi
-    else
-        set_service_state "ready" "ok"
-    fi
-}
-function check_taosd_deprecated_1() {
-    local output=`timeout $TAOS_TIMEOUT_SECOND taos -k`
-    if [ -z "${output}" ]; then
-        echo "`date` taos -k error"
-        if [ "x$1" != "xignore" ]; then
-            set_service_state "error" "taos check failed (no output)"
-        fi
-    else
-        echo "$output"|grep -q "^2"
-        if [ $? -ne 0 ]; then
-            if [ "x$1" != "xignore" ]; then
-                set_service_state "error" "taos check failed $output"
-            fi
-        else
-            set_service_state "ready" "ok"
-        fi
-    fi
-}
 function check_taosd() {
     # timeout $TAOS_TIMEOUT_SECOND taos -R -E http://127.0.0.1:6041 -s "show databases;" >/dev/null
     timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" localhost:6041/rest/sql >/tmp/taosd.json 2>&1
@@ -295,6 +267,50 @@ function print_service_state_change() {
         echo "`date`   service state: ${service_state}, ${service_msg}"
     fi
 }
+function initDnodeAndMnode {
+    while true
+    do 
+        if [ $DNODE_CREATED -eq 1] && [ $MNODE_CREATED -eq 1]; then
+            break 
+        fi
+        PROC_NUM=$(ps aux | grep taosd | grep -v -E "grep|entrypoint|run_taosd" |awk '{print $2}')
+        if [ $? -eq 0 ] && [ "$PROC_NUM" != "" ]; then
+            FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+            FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o |head -n1|sed 's/firstEp *//')
+            # parse first ep host and port
+            FIRST_EP_HOST=${FIRSET_EP%:*}
+            SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o |head -n1|sed 's/serverPort *//')
+            SERVER_PORT=${SERVER_PORT:-6030}
+            ENDPOINT=$FQDN:$SERVER_PORT
+            echo "FQDN is $FQDN and FIRSTEP is $FIRST_EP_HOST"
+            # first check dnode created
+            DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            if [[ "$DNODETmp" == "" ]]; then
+                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"  
+                DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                if [[ "$DNODETmp" != "" ]]; then
+                    DNODE_CREATED=1
+                    echo "Created the dnode with endpoint $ENDPOINT"
+                fi
+            fi    
+            if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
+                # second check mnode created
+                MNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                if [[ "$MNODETmp" == "" ]]; then
+                    DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+                    if [[ "$DNODEID" != "" ]]; then
+                        taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
+                        MNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                        if [[ "$MNODETmp" != "" ]]; then
+                            MNODE_CREATED=1
+                            echo "Created the mnode for dnode $DNODEID"
+                        fi
+                    fi
+                fi
+            fi
+        fi
+    done
+}
 taosd_start_time=`date +%s`
 taosadapter_start_time=$taosd_start_time
 while ((1))
@@ -314,8 +330,7 @@ do
         start_taosd_count=0
         start_taosadapter_count=0
     fi
-    if [ "$status"x = "0"x ]
-    then
+    if [ "$status"x = "0"x ];then
         echo "start taosd count: ${start_taosd_count}"
         if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
             echo "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
@@ -325,21 +340,24 @@ do
         # taosd_start_time=`date +%s`
         run_taosd &
         pid=$!
+        initDnodeAndMnode
     fi
     # echo "$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]
     then
-        TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
+        FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+        FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o |head -n1|sed 's/firstEp *//')
+        # parse first ep host and port
+        FIRST_EP_HOST=${FIRSET_EP%:*}
         echo "FQDN is $FQDN and FIRSTEP is $FIRST_EP_HOST"
         if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
             taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"|grep -q -w meters
             if [ $? -ne 0 ]; then
                 taosBenchmark -y -t 1000 -n 1000 -S 900000
-                taos -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"
                 taos -s "GRANT ALL on test.* to admin_user;"
+                TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
             fi
         fi
-        
     fi
     # check taosd status
     if [ "$service_state" = "ready" ]; then
