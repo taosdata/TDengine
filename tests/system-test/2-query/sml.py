@@ -101,6 +101,15 @@ class TDTestCase:
 
         tdSql.query(f"desc {dbname}.macylr")
         tdSql.checkRows(25)
+
+        tdSql.query(f"select * from ts3724._stb_2")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select * from ts3724.stb_2")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select * from ts3724.stb2_")
+        tdSql.checkRows(1)
         return
 
     def run(self):

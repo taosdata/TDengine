@@ -157,6 +157,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+          smlStrReplace(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
         if (currElement->measureEscaped) {
@@ -365,6 +366,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+          smlStrReplace(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
         if (currElement->measureEscaped) {

@@ -258,6 +258,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseJSON(SSmlHandle *info, char *payload);
 
+void    smlStrReplace(char* src, int32_t len);
 #ifdef __cplusplus
 }
 #endif
