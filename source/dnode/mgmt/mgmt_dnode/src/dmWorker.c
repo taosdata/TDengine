@@ -32,7 +32,6 @@ static void *dmStatusThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    int64_t cost = 0;
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);

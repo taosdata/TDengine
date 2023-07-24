@@ -18,9 +18,6 @@
 
 #include "os.h"
 
-
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif
