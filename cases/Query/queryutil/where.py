@@ -685,7 +685,7 @@ class TDWhere():
         time_window = ''
                 
         #单interval
-        interval_units = ['s','m','a']
+        interval_units = ['s','m']
         unit = random.sample(interval_units,1)
         interval_base = str(interval_n + unit).replace("[","").replace("]","").replace("'","").replace(", ","")
         single_interval = 'interval'+'(' +interval_base + ')'
@@ -695,7 +695,7 @@ class TDWhere():
         single_interval_offset = 'interval'+'(' +interval_base + ',' + offset_base + ')'
 
         #interval + sliding
-        interval_sliding_units = ['s','m','a'] #有限制，所以需要删除几个
+        interval_sliding_units = ['s','m'] #有限制，所以需要删除几个
         interval_sliding_unit = random.sample(interval_sliding_units,1)
         
         sliding_base = str(sliding_n + interval_sliding_unit).replace("[","").replace("]","").replace("'","").replace(", ","")
