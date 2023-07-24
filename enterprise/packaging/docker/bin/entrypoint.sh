@@ -64,6 +64,7 @@ else
             DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
             if [[ "$DNODEID" != "" ]]; then
                 taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
+                echo "Created the mnode for dnode $DNODEID"
                 break
             fi
         fi
