@@ -14,11 +14,8 @@ description: |
 type: uri
 protocol:
   display: Protocol
-  description: Choose a protocol scheme for websocket connection, leave it empty for native connection
+  description: Choose a protocol scheme for websocket connection.
   choices:
-    - name: "--"
-      display: Native
-      description: Use libtaos client library for connection
     - name: ws
       display: WS
       description: Use WebSocket with HTTP connection.
@@ -28,12 +25,12 @@ protocol:
 options:
   host:
     display: Host
-    description: TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).
-    placeholder: server
+    description: Remote server REST API (taosAdapter) address. If you prefer to use multiple nodes, please consider to use a load-balancer.
+    placeholder: taos-adapter-addr
   port:
     display: Port
-    description: TDengine connection port, leave it empty if use default port.
-    placeholder: auto
+    description: Remote server REST API (taosAdapter) port.
+    placeholder: "6041"
   subject:
     required: true
     display: Database
@@ -154,4 +151,3 @@ groups:
           type: duration
         description: Wait for some period to querying random-order data.
         placeholder: 5m
-

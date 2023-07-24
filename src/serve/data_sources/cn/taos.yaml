@@ -1,17 +1,14 @@
 ---
 id: taos
-name: Earlier
+name: 旧版本 TDengine
 description: |
   从旧版本 TDengine (2.6) 迁移到当前集群。
 type: uri
 protocol:
   display: 连接协议
-  description:
-    选择使用何种方式连接到 TDengine 数据源。默认为原生连接。
+  description: 选择使用何种方式连接到 TDengine 数据源。
+  required: true
   choices:
-    - name: "--"
-      display: 原生连接
-      description: 使用 TDengine 提供的 C 客户端进行连接。
     - name: ws
       display: WS
       description: 使用 HTTP 协议的 WebSocket 连接。
@@ -21,13 +18,12 @@ protocol:
 options:
   host:
     display: 服务器
-    description: |
-      TDengine FQDN，可以使用域名或 IP 地址。
-    placeholder: server
+    description: TDengine REST API 服务地址。如果应用多节点，建议配合负载均衡器使用。
+    placeholder: taos-adapter-addr
   port:
     display: 端口
-    description: TDengine 服务端口，留空以为各连接方式使用默认端口。
-    placeholder: auto
+    description: TDengine REST API 服务端口。
+    placeholder: "6041"
   subject:
     required: true
     display: 数据库
@@ -147,4 +143,3 @@ groups:
           type: duration
         description: 等待一段时间的乱序数据入库后再进行查询。
         placeholder: 5m
-
