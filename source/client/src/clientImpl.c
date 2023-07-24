@@ -106,7 +106,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
 
   SCorEpSet epSet = {0};
   if (ip) {
-    if (initEpSetFromCfg(ip, NULL, &epSet) < 0) {
+    if (initEpSetFromCfg(ip, tsSecond, &epSet) < 0) {
       return NULL;
     }
   } else {
