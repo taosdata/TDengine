@@ -136,6 +136,18 @@ pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<(i32, i32, i32)> {
+    let mut version_vec = version.splitn(4, ".").collect_vec();
+    version_vec.truncate(3);
+    let res = version_vec.into_iter()
+    .map(|x| x.parse::<i32>())
+    .collect_tuple();
+    match res {
+        Some((a, b, c)) => Ok((a?, b?, c?)),
+        None => anyhow::bail!("should have at least 3 elements")
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
@@ -164,5 +176,21 @@ async fn test_clear_database() -> anyhow::Result<()> {
 
     taos.exec(format!("drop database {db}")).await?;
 
+    Ok(())
+}
+
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_get_main_version_from_server_version() -> anyhow::Result<()> {
+    let version = "3.0.5.0";
+    assert_eq!((3 , 0, 5,), get_main_version_from_server_version(&version.to_string())?);
+    let version = "3.0.5.0.2023061722";
+    assert_eq!((3 , 0, 5,), get_main_version_from_server_version(&version.to_string())?);
+    let version = "3.0";
+    assert_eq!(Err("error"), get_main_version_from_server_version(&version.to_string()).map_err(|err| "error"));
+    let version = "a.b";
+    assert_eq!(Err("error"),get_main_version_from_server_version(&version.to_string()).map_err(|err| "error"));
+    let version = "ab";
+    assert_eq!(Err("error"),get_main_version_from_server_version(&version.to_string()).map_err(|err| "error"));
     Ok(())
 }

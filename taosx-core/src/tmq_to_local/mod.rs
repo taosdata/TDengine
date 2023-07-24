@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     taoz::ZFile,
-    tmq::{check_tmq_dsn, StopAt, TmqMetrics, Topic},
+    tmq::{check_tmq_dsn, StopAt, TmqMetrics, Topic}, utils::get_main_version_from_server_version,
 };
 
 use dashmap::DashMap;
@@ -169,11 +169,7 @@ async fn backup(
                 break;
             }
             next = stream.try_next() => {
-                let (a, b, c, _) = version
-                .split('.')
-                .map(|x| x.parse::<i32>().unwrap())
-                .collect_tuple()
-                .unwrap();
+                let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
                 log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
                 let assignments = if a >= 3 && b >= 0 && c >= 5 {
                     consumer.assignments().await.unwrap()
