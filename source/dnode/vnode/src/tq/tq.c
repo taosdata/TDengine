@@ -1156,12 +1156,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         taosMsleep(100);
       }
 
-      // todo fix the race condition, when pause msg is received from mnode, add lock here
-      // now we can stop the stream task execution
-      ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
-      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+      streamTaskHalt(pTask);
 
-      // todo disable the pause
+      // now we can stop the stream task execution
+      // todo upgrade the statu to be HALT from PAUSE or NORMAL
+      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
       tqDebug("s-task:%s level:%d status is set to halt by fill-history task:%s", pStreamTask->id.idStr,
               pStreamTask->info.taskLevel, id);
 
@@ -1522,11 +1521,14 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
     return -1;
   }
 
-  if (streamTaskShouldPause(&pTask->status)) {
-    atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
+  // todo: handle the case: resume from halt to pause/ from halt to normal/ from pause to normal
+  streamTaskResume(pTask);
 
+  int32_t level = pTask->info.taskLevel;
+  int8_t  status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY) {
     // no lock needs to secure the access of the version
-    if (igUntreated && pTask->info.taskLevel == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
+    if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
       // discard all the data  when the stream task is suspended.
       walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
       tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
@@ -1537,9 +1539,9 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
               vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
     }
 
-    if (pTask->info.fillHistory && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory) {
       streamStartRecoverTask(pTask, igUntreated);
-    } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
+    } else if (level == TASK_LEVEL__SOURCE && (taosQueueItemSize(pTask->inputQueue->queue) == 0)) {
       tqStartStreamTasks(pTq);
     } else {
       streamSchedExec(pTask);

@@ -345,7 +345,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   if (el > 0) {
-    qDebug("s-task:%s wait for stream task:%s for %.2fs to handle all data in inputQ", pTask->id.idStr,
+    qDebug("s-task:%s wait for stream task:%s for %.2fs to be idle", pTask->id.idStr,
            pStreamTask->id.idStr, el);
   }
 }
@@ -377,13 +377,13 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   } else {
     ASSERT(status == TASK_STATUS__SCAN_HISTORY);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-    qDebug("s-task:%s halt by related fill history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
+    qDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
   // wait for the stream task to handle all in the inputQ, and to be idle
   waitForTaskIdle(pTask, pStreamTask);
 
-  // In case of sink tasks, no need to be halted for them.
+  // In case of sink tasks, no need to halt them.
   // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
   // start the task state transfer procedure.
   // When a task is idle with halt status, all data in inputQ are consumed.
@@ -405,8 +405,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  // reset the status of stream task
-  streamSetStatusNormal(pStreamTask);
+  streamTaskResumeFromHalt(pStreamTask);
 
   pTask->status.taskStatus = TASK_STATUS__DROPPING;
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);

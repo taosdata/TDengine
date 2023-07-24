@@ -774,7 +774,7 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
     pRange->range.minVer = 0;
     pRange->range.maxVer = ver;
 
-    qDebug("s-task:%s level:%d related-fill-history task exists, update stream calc time window:%" PRId64 " - %" PRId64
+    qDebug("s-task:%s level:%d related fill-history task exists, update stream calc time window:%" PRId64 " - %" PRId64
            ", verRang:%" PRId64 " - %" PRId64,
            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
            pRange->range.maxVer);
@@ -806,6 +806,7 @@ void streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
   streamTaskDoCheckDownstreamTasks(pTask);
 }
 
+// normal -> pause, pause/stop/dropping -> pause, halt -> pause, scan-history -> pause
 void streamTaskPause(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
@@ -824,8 +825,14 @@ void streamTaskPause(SStreamTask* pTask) {
   }
 
   while(!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
-    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
+    status = pTask->status.taskStatus;
+    if (status == TASK_STATUS__DROPPING) {
       qDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
+      return;
+    }
+
+    if (status == TASK_STATUS__STOP || status == TASK_STATUS__PAUSE) {
+      qDebug("vgId:%d s-task:%s task already stopped/paused, status:%s, do nothing", pMeta->vgId, pTask->id.idStr, str);
       return;
     }
 
@@ -839,6 +846,17 @@ void streamTaskPause(SStreamTask* pTask) {
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,
          streamGetTaskStatusStr(pTask->status.keepTaskStatus), (int32_t)el);
+}
+
+void streamTaskResume(SStreamTask* pTask) {
+  int8_t status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__PAUSE) {
+    pTask->status.taskStatus = pTask->status.keepTaskStatus;
+    pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+    qDebug("s-task:%s resume from pause", pTask->id.idStr);
+  } else {
+    qError("s-task:%s not in pause, failed to resume, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
+  }
 }
 
 // todo fix race condition
@@ -857,4 +875,39 @@ void streamTaskDisablePause(SStreamTask* pTask) {
 void streamTaskEnablePause(SStreamTask* pTask) {
   qDebug("s-task:%s enable task pause", pTask->id.idStr);
   pTask->status.pauseAllowed = 1;
+}
+
+void streamTaskHalt(SStreamTask* pTask) {
+  int8_t status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
+    return;
+  }
+
+  if (status == TASK_STATUS__HALT) {
+    return;
+  }
+
+  // upgrade to halt status
+  if (status == TASK_STATUS__PAUSE) {
+    qDebug("s-task:%s upgrade status to %s from %s", pTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
+           streamGetTaskStatusStr(TASK_STATUS__PAUSE));
+  } else {
+    qDebug("s-task:%s halt task", pTask->id.idStr);
+  }
+
+  pTask->status.keepTaskStatus = status;
+  pTask->status.taskStatus = TASK_STATUS__HALT;
+}
+
+void streamTaskResumeFromHalt(SStreamTask* pTask) {
+  const char* id = pTask->id.idStr;
+  int8_t status = pTask->status.taskStatus;
+  if (status != TASK_STATUS__HALT) {
+    qError("s-task:%s not in halt status, status:%s", id, streamGetTaskStatusStr(status));
+    return;
+  }
+
+  pTask->status.taskStatus = pTask->status.keepTaskStatus;
+  pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+  qDebug("s-task:%s resume from halt, current status:%s", id, streamGetTaskStatusStr(pTask->status.taskStatus));
 }
