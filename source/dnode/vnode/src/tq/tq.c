@@ -925,7 +925,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   streamSetupScheduleTrigger(pTask);
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64
-         " child id:%d, level:%d, scan-history:%d, trigger:%" PRId64 " ms, disable pause",
+         " child id:%d, level:%d, fill-history:%d, trigger:%" PRId64 " ms, disable pause",
          vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->info.selfChildId, pTask->info.taskLevel,
          pTask->info.fillHistory, pTask->triggerParam);
 
@@ -1099,8 +1099,21 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     taosMsleep(100);
   }
 
+  ASSERT(pTask->status.pauseAllowed == false);
+
+  if (pTask->info.fillHistory == 1) {
+    streamTaskEnablePause(pTask);
+  }
+
   if (!streamTaskRecoverScanStep1Finished(pTask)) {
     streamSourceScanHistoryData(pTask);
+  }
+
+  // disable the pause when handling the step2 scan of tsdb data.
+  // the whole next procedure cann't be stopped.
+  // todo fix it: the following procedure should be executed completed and then shutdown when trying to close vnode.
+  if (pTask->info.fillHistory == 1) {
+    streamTaskDisablePause(pTask);
   }
 
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
@@ -1114,8 +1127,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", id, el);
 
   if (pTask->info.fillHistory) {
-    streamTaskEnablePause(pTask);
-
     SVersionRange* pRange = NULL;
     SStreamTask*   pStreamTask = NULL;
 
@@ -1123,7 +1134,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       // 1. stop the related stream task, get the current scan wal version of stream task, ver.
       pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
       if (pStreamTask == NULL) {
-        qError("failed to find s-task:0x%x, it may have been destroyed, drop fill history task:%s",
+        qError("failed to find s-task:0x%x, it may have been destroyed, drop fill-history task:%s",
                pTask->streamTaskId.taskId, pTask->id.idStr);
 
         pTask->status.taskStatus = TASK_STATUS__DROPPING;
@@ -1136,6 +1147,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
+      // stream task in TASK_STATUS__SCAN_HISTORY can not be paused.
       // wait for the stream task get ready for scan history data
       while (pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
         tqDebug(
@@ -1144,9 +1156,13 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         taosMsleep(100);
       }
 
+      // todo fix the race condition, when pause msg is received from mnode, add lock here
       // now we can stop the stream task execution
+      ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
       pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-      tqDebug("s-task:%s level:%d status is set to halt by history scan task:%s", pStreamTask->id.idStr,
+
+      // todo disable the pause
+      tqDebug("s-task:%s level:%d status is set to halt by fill-history task:%s", pStreamTask->id.idStr,
               pStreamTask->info.taskLevel, id);
 
       // if it's an source task, extract the last version in wal.
@@ -1306,12 +1322,13 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  tqDebug("s-task:%s scan-history finish rsp received from task:0x%x", pTask->id.idStr, req.downstreamId);
+  tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x", pTask->id.idStr, req.downstreamId);
 
   int32_t remain = atomic_sub_fetch_32(&pTask->notReadyTasks, 1);
   if (remain > 0) {
     tqDebug("s-task:%s remain:%d not send finish rsp", pTask->id.idStr, remain);
   } else {
+    tqDebug("s-task:%s all downstream tasks rsp scan-history completed msg", pTask->id.idStr);
     streamProcessScanHistoryFinishRsp(pTask);
   }
 
@@ -1392,7 +1409,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask != NULL) {
     // even in halt status, the data in inputQ must be processed
     int8_t status = pTask->status.taskStatus;
-    if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT || status == TASK_STATUS__SCAN_HISTORY) {
+    if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.version);
       streamProcessRunReq(pTask);
@@ -1599,9 +1616,8 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   int32_t taskId = req.taskId;
-
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-  if (pTask) {
+  if (pTask != NULL) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp, false);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -1609,18 +1625,22 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     taosFreeQitem(pMsg);
     return 0;
   } else {
+
     tDeleteStreamDispatchReq(&req);
   }
 
   code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
 
 FAIL:
-  if (pMsg->info.handle == NULL) return -1;
+  if (pMsg->info.handle == NULL) {
+    tqError("s-task:0x%x vgId:%d msg handle is null, abort enqueue dispatch msg", pTq->pStreamMeta->vgId, taskId);
+    return -1;
+  }
 
   SMsgHead* pRspHead = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
   if (pRspHead == NULL) {
     SRpcMsg rsp = {.code = TSDB_CODE_OUT_OF_MEMORY, .info = pMsg->info};
-    tqDebug("send dispatch error rsp, code: %x", code);
+    tqError("s-task:0x%x send dispatch error rsp, code:%s", taskId, tstrerror(code));
     tmsgSendRsp(&rsp);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
@@ -1636,9 +1656,10 @@ FAIL:
   pRsp->downstreamTaskId = htonl(req.taskId);
   pRsp->inputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
-  SRpcMsg rsp = {
-      .code = code, .info = pMsg->info, .contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp), .pCont = pRspHead};
-  tqDebug("send dispatch error rsp, code: %x", code);
+  int32_t len = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
+  SRpcMsg rsp = { .code = code, .info = pMsg->info, .contLen = len, .pCont = pRspHead};
+  tqError("s-task:0x%x send dispatch error rsp, code:%s", taskId, tstrerror(code));
+
   tmsgSendRsp(&rsp);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
