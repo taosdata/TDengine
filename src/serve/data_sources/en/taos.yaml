@@ -27,8 +27,10 @@ options:
     display: Host
     description: Remote server REST API (taosAdapter) address. If you prefer to use multiple nodes, please consider to use a load-balancer.
     placeholder: taos-adapter-addr
+    required: true
   port:
     display: Port
+    required: true
     description: Remote server REST API (taosAdapter) port.
     placeholder: "6041"
   subject:
@@ -73,11 +75,11 @@ groups:
             - all
       - name: schema
         display: Schema
-        value: all
+        value: always
         hint:
           type: str
           choices:
-            - all
+            - always
             - none
             - only
         description: |
@@ -85,8 +87,8 @@ groups:
 
           - `only`: means only migrate schema into target.
           - `none`: means not migrate schema, but only data into target.
-          - `all`: means migrate all stuff.
-        placeholder: 5s
+          - `always`: means migrate all stuff.
+        placeholder: always
 
   - name: What to migrate
     display_order: 2
