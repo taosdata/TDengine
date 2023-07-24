@@ -110,13 +110,13 @@ groups:
       - name: beginTime
         display: Data Begin Time
         description: Set a data start time
-        placeholder: YYYY-MM-DD HH:MM:SS
+        placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
         required: true
       - name: endTime
         display: Data End Time
         description: Set a data end time, if empty, the latest data will always be transmitted
-        placeholder: YYYY-MM-DD HH:MM:SS
+        placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
         display: Read Window

@@ -112,13 +112,13 @@ groups:
       - name: beginTime
         display: 起始时间
         description: 同步数据的起始时间戳。
-        placeholder: YYYY-MM-DD HH:MM:SS
+        placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
         required: true
       - name: endTime
         display: 结束时间
         description: 同步数据的结束时间戳，如果未指定，将持续进行数据同步。
-        placeholder: YYYY-MM-DD HH:MM:SS
+        placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
         display: 读取窗口
