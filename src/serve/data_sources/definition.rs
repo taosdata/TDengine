@@ -704,6 +704,22 @@ fn test_kafka() {
     let ds = def.values_from(dsn);
 }
 #[test]
+fn test_legacy() {
+    use std::str::FromStr;
+    let json = include_str!("en/taos.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "taos:///test?libraryPath=a.so";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    dbg!(ds);
+}
+#[test]
 fn test_values() {
     use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
