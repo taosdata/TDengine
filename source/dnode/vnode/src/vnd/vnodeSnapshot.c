@@ -239,30 +239,31 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       }
     }
   }
-  if (!pReader->streamStateDone) {
-    if (pReader->pStreamStateReader == NULL) {
-      code =
-          streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamStateReader);
-      if (code) {
-        pReader->streamStateDone = 1;
-        pReader->pStreamStateReader = NULL;
-        goto _err;
-      }
-    }
-    code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
-    if (code) {
-      goto _err;
-    } else {
-      if (*ppData) {
-        goto _exit;
-      } else {
-        pReader->streamStateDone = 1;
-        code = streamStateSnapReaderClose(pReader->pStreamStateReader);
-        if (code) goto _err;
-        pReader->pStreamStateReader = NULL;
-      }
-    }
-  }
+  // if (!pReader->streamStateDone) {
+  //   if (pReader->pStreamStateReader == NULL) {
+  //     code =
+  //         streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver,
+  //         &pReader->pStreamStateReader);
+  //     if (code) {
+  //       pReader->streamStateDone = 1;
+  //       pReader->pStreamStateReader = NULL;
+  //       goto _err;
+  //     }
+  //   }
+  //   code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
+  //   if (code) {
+  //     goto _err;
+  //   } else {
+  //     if (*ppData) {
+  //       goto _exit;
+  //     } else {
+  //       pReader->streamStateDone = 1;
+  //       code = streamStateSnapReaderClose(pReader->pStreamStateReader);
+  //       if (code) goto _err;
+  //       pReader->pStreamStateReader = NULL;
+  //     }
+  //   }
+  // }
 
   // RSMA ==============
   if (VND_IS_RSMA(pReader->pVnode) && !pReader->rsmaDone) {
@@ -430,7 +431,7 @@ _exit:
 }
 
 static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
-  int32_t code = 0;
+  int32_t       code = 0;
   SVnode       *pVnode = pWriter->pVnode;
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
 

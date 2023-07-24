@@ -3144,7 +3144,6 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pWinBlock);
-  blockDataDestroy(pInfo->pUpdateRes);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
 
@@ -3431,7 +3430,7 @@ static void compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pC
                                  SSHashObj* pStDeleted, bool addGap) {
   SExprSupp*                     pSup = &pOperator->exprSupp;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
+  SStorageAPI*                   pAPI = &pOperator->pTaskInfo->storageAPI;
 
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SResultRow*                    pCurResult = NULL;
@@ -3469,7 +3468,8 @@ static void compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pC
 }
 
 int32_t saveSessionOutputBuf(SStreamAggSupporter* pAggSup, SResultWindowInfo* pWinInfo) {
-  saveSessionDiscBuf(pAggSup->pState, &pWinInfo->sessionWin, pWinInfo->pOutputBuf, pAggSup->resultRowSize, &pAggSup->stateStore);
+  saveSessionDiscBuf(pAggSup->pState, &pWinInfo->sessionWin, pWinInfo->pOutputBuf, pAggSup->resultRowSize,
+                     &pAggSup->stateStore);
   pWinInfo->pOutputBuf = NULL;
   return TSDB_CODE_SUCCESS;
 }
@@ -4883,8 +4883,8 @@ static void compactStateWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCur
 }
 
 void streamStateReloadState(SOperatorInfo* pOperator) {
-  SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
+  SStreamStateAggOperatorInfo*   pInfo = pOperator->info;
+  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
   resetWinRange(&pAggSup->winRange);
 
   SSessionKey  seKey = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
