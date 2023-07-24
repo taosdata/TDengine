@@ -610,6 +610,9 @@ int32_t     streamRestoreParam(SStreamTask* pTask);
 int32_t     streamSetStatusNormal(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
 void        streamTaskPause(SStreamTask* pTask);
+void        streamTaskResume(SStreamTask* pTask);
+void        streamTaskHalt(SStreamTask* pTask);
+void        streamTaskResumeFromHalt(SStreamTask* pTask);
 void        streamTaskDisablePause(SStreamTask* pTask);
 void        streamTaskEnablePause(SStreamTask* pTask);
 
