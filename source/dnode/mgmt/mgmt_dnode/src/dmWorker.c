@@ -42,7 +42,7 @@ static void *dmStatusThreadFp(void *param) {
         taosMemoryTrim(0);
       }
 
-      if ((upTimeCount = (++upTimeCount & 63)) == 0) {
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
         upTime = taosGetOsUptime() - tsDndStartOsUptime;
         tsDndUpTime = TMAX(tsDndUpTime, upTime);
       }
