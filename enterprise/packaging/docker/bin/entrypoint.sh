@@ -55,10 +55,13 @@ else
     fi
     while true; do
         es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
-        echo "Connected to first ep with response: ${es}"
+        echo "Try to connect to first ep with return: ${es}"
         if [ "${es%%:*}" -eq 2 ]; then
-            echo "execute create dnode"
+            echo "execute to create dnode after connected to first ep"
             taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$FQDN:$SERVER_PORT\";"
+            if [ $? -eq 0 ]; then
+                break
+            fi
         fi
         sleep 1s
     done

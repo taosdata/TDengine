@@ -330,8 +330,7 @@ do
     if [ "$status"x = "2"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]
     then
         TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-        echo "FQDN is $FQDN"
-        echo "FIRSTEP is $FIRST_EP_HOST"
+        echo "FQDN is $FQDN and FIRSTEP is $FIRST_EP_HOST"
         if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
             taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"|grep -q -w meters
             if [ $? -ne 0 ]; then
