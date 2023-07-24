@@ -712,7 +712,7 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
 
 end:
   taosMemoryFree(pParamSet);
-  if(pParamSet->callbackFn != NULL) {
+  if(pCommitFp != NULL) {
     pCommitFp(tmq, code, userParam);
   }
   return;
