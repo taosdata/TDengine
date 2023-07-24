@@ -1087,16 +1087,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int64_t st = taosGetTimestampMs();
 
   // we have to continue retrying to successfully execute the scan history task.
-  while (1) {
-    int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
-                                                       TASK_SCHED_STATUS__WAITING);
-    if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-      break;
-    }
-
-    tqError("s-task:%s failed to start scan history in current time window, unexpected sched-status:%d, retry in 100ms",
-            id, schedStatus);
-    taosMsleep(100);
+  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
+                                                     TASK_SCHED_STATUS__WAITING);
+  if (schedStatus != TASK_SCHED_STATUS__INACTIVE) {
+    tqError(
+        "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
+        "sched-status:%d",
+        id, schedStatus);
+    return 0;
   }
 
   ASSERT(pTask->status.pauseAllowed == false);
