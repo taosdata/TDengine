@@ -74,8 +74,8 @@
   } while (0)
 
 #define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
-#define GRANT_CONN_MAJOR_VER 1  // history 1:x:x
-#define GRANT_CONN_MINOR_VER 1  // history 1:x:x
+#define GRANT_CONN_MAJOR_VER 1
+#define GRANT_CONN_MINOR_VER 1
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
 #define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
 #define GRANT_CONN_ITEMS(s) ((s)->connectors.items)
@@ -262,6 +262,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   }
   if (!(grantHandle.pDistInfo = taosArrayInit(0, sizeof(SGrantDistInfo)))) {
     taosHashCleanup(grantHandle.pOfficials);
+    grantHandle.pOfficials = NULL;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -1476,8 +1477,8 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
 static int32_t mndCfgDnodeReq(SMnode *pMnode, SDnodeInfo *pDnodeInfo, const char *cfg, const char *val) {
   SMCfgDnodeReq req = {0};
   req.dnodeId = pDnodeInfo->id;
-  strcpy(req.config, cfg);
-  strcpy(req.value, val);
+  strncpy(req.config, cfg, TSDB_DNODE_CONFIG_LEN);
+  strncpy(req.value, val, TSDB_DNODE_VALUE_LEN);
 
   int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &req);
   void   *pCont = rpcMallocCont(contLen);
