@@ -590,7 +590,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             bucketsQuery.setOffset(bucketAll.size());
             bucketsQuery.setLimit(100);
             // 获取bucket列表
-            List<Bucket> buckets = influxDBClient.getBucketsApi().findBuckets();
+            List<Bucket> buckets = influxDBClient.getBucketsApi().findBuckets(bucketsQuery);
             // 判断是否取到
             if (buckets == null || buckets.size() == 0) {
                 break;
