@@ -1107,16 +1107,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int64_t st = taosGetTimestampMs();
 
   // we have to continue retrying to successfully execute the scan history task.
-  while (1) {
-    int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
-                                                       TASK_SCHED_STATUS__WAITING);
-    if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-      break;
-    }
-
-    tqError("s-task:%s failed to start scan history in current time window, unexpected sched-status:%d, retry in 100ms",
-            id, schedStatus);
-    taosMsleep(100);
+  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
+                                                     TASK_SCHED_STATUS__WAITING);
+  if (schedStatus != TASK_SCHED_STATUS__INACTIVE) {
+    tqError(
+        "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
+        "sched-status:%d",
+        id, schedStatus);
+    return 0;
   }
 
   ASSERT(pTask->status.pauseAllowed == false);
@@ -1176,16 +1174,15 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         taosMsleep(100);
       }
 
-      streamTaskHalt(pTask);
-
       // now we can stop the stream task execution
-      // todo upgrade the statu to be HALT from PAUSE or NORMAL
-      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-      tqDebug("s-task:%s level:%d status is set to halt by fill-history task:%s", pStreamTask->id.idStr,
-              pStreamTask->info.taskLevel, id);
+      streamTaskHalt(pStreamTask);
+      tqDebug("s-task:%s level:%d is halt by fill-history task:%s", pStreamTask->id.idStr, pStreamTask->info.taskLevel,
+              id);
 
       // if it's an source task, extract the last version in wal.
-      streamHistoryTaskSetVerRangeStep2(pTask);
+      pRange = &pTask->dataRange.range;
+      int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+      streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
     }
 
     if (!streamTaskRecoverScanStep1Finished(pTask)) {

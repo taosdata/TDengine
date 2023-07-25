@@ -189,6 +189,10 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
       committer->ctx->maxKey = committer->ctx->maxKey + 1;
     }
 
+    if (record->ekey > committer->ctx->maxKey) {
+      committer->ctx->nextKey = committer->ctx->maxKey;
+    }
+
     record->skey = TMAX(record->skey, committer->ctx->minKey);
     record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 

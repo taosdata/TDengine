@@ -624,9 +624,8 @@ int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
   return qStreamRecoverSetAllStepFinished(exec);
 }
 
-void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask) {
+void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
   SVersionRange* pRange = &pTask->dataRange.range;
-  int64_t latestVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
   ASSERT(latestVer >= pRange->maxVer);
 
   int64_t nextStartVer = pRange->maxVer + 1;

@@ -123,7 +123,7 @@ static int32_t mndGetClusterUpTimeImp(SClusterObj *pCluster) {
 #endif
 }
 
-float mndGetClusterUpTime(SMnode *pMnode) {
+int64_t mndGetClusterUpTime(SMnode *pMnode) {
   int64_t      upTime = 0;
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
@@ -132,7 +132,7 @@ float mndGetClusterUpTime(SMnode *pMnode) {
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
-  return upTime / 86400.0f;
+  return upTime;
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {

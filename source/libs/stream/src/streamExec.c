@@ -687,6 +687,9 @@ int32_t streamTryExec(SStreamTask* pTask) {
         streamSchedExec(pTask);
       }
     }
+  } else {
+    qDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", pTask->id.idStr,
+           streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
   }
 
   return 0;
