@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 
 /**
  * Bucket数据读取任务创建线程
@@ -252,21 +251,17 @@ public class BucketThread implements Runnable {
         // 判断开始时间与结束时间
         if (StringUtils.isEmpty(beginTime)) {
             throw new Exception("parameter beginTime configuration error.");
-        } else if (beginTime.matches(DateUtils.PATTERN_YMD)) {
-            beginTime += " 00:00:00";
-        } else if (!beginTime.matches(DateUtils.PATTERN_YMDHMS)) {
+        } else if (!beginTime.matches(DateUtils.PATTERN_YMDHMS_TZ)) {
             throw new Exception("parameter beginTime configuration error.");
         }
         if (StringUtils.isEmpty(endTime)) {
-            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
-        } else if (endTime.matches(DateUtils.PATTERN_YMD)) {
-            endTime += " 23:59:59";
-        } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS)) {
+            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_21);
+        } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS_TZ)) {
             throw new Exception("parameter endTime configuration error.");
         }
         // 转换格式
-        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
-        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
+        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_21);
+        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_21);
         this.endTime = end;
         // 默认按天拆分
         if (StringUtils.isEmpty(readWindow)) {
