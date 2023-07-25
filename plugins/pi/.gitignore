@@ -1,0 +1,6 @@
+**/.vs/
+*.csproj.user
+pi.toml
+src/**/obj/
+src/**/bin/
+src/TDPIConnector/packages/
