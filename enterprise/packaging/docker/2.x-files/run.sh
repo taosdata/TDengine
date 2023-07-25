@@ -364,7 +364,7 @@ do
         if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
             taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"|grep -q -w meters
             if [ $? -ne 0 ]; then
-                taosBenchmark -y -t 1000 -n 1000 -S 900000
+                taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
                 taos -s "GRANT ALL on test.* to admin_user;"
                 TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
             fi
