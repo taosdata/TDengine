@@ -555,7 +555,6 @@
                 <template v-if="p.hint == 'time' || p.hint?.type == 'time'">
                   <DatePicker
                     v-model="p.value"
-                    value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
                     v-if="
                       p.name == 'beginTime' || p.name == 'endTime' 
@@ -564,6 +563,7 @@
                       p.name == 'beginTime' ? startOption : endOption
                     "
                     :placeholder="p.placeholder"
+                    @change="(value) => handleTime(value, p.name)"
                   >
                   </DatePicker>
                   <DatePicker
@@ -808,7 +808,9 @@ export default {
         group.params.map((p) => {
           if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
             // 时间返回值适配时区后再根据 placeholder字段 格式化
-            if (p.name == 'start' || p.name == 'end') {
+            if (p.name == 'start' || p.name == 'end' || 
+              p.name == 'beginTime' || p.name == 'endTime') 
+            {
               p.value = parsinginZone(p.value)
             } else {
               p.value = parsinginZone(p.value, p.placeholder)
@@ -825,16 +827,18 @@ export default {
         });
     },
     handleTime(time, name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        group.params.map((p) => {
-          if (p.name == name) {
-            // RFC3339 时间格式，带时区
-            p.value = parsinginZone(time)
-          }
-            return p
-          });
-            return group
-      });
+      if (time) {
+        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+          group.params.map((p) => {
+            if (p.name == name) {
+              // RFC3339 时间格式，带时区
+              p.value = parsinginZone(time)
+            }
+              return p
+            });
+              return group
+        });
+      }
     },
     changeHost(host) {
       if (this.tagName == "influxdb") {
@@ -1263,8 +1267,19 @@ export default {
         this.loading = true;
         getUaAndDaData(params)
           .then((res) => {
+            if (res && res.code && res.code != 0) {
+              Message({
+                type: "error",
+                message: res && res.message,
+              }); 
+            } else {
+              this.configurationdata = res;
+              Message({
+                type: "success",
+                message: this.$t('operateSucc'),
+              }); 
+            }
             this.loading = false;
-            this.configurationdata = res;
           })
           .catch((err) => {
             Message({

@@ -1298,8 +1298,19 @@ export default {
         this.loading = true;
         getUaAndDaData(params)
           .then((res) => {
+            if (res && res.code && res.code != 0) {
+              Message({
+                type: "error",
+                message: res && res.message,
+              }); 
+            } else {
+              this.configurationdata = res;
+              Message({
+                type: "success",
+                message: this.$t('operateSucc'),
+              }); 
+            }
             this.loading = false;
-            this.configurationdata = res;
           })
           .catch((err) => {
             Message({
