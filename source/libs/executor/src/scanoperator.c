@@ -2843,7 +2843,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
       mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
   }
   size_t szRow = blockDataGetRowSize(pInfo->pResBlock);   
-  if (szRow > 1024 && hasLimit) {
+  if (hasLimit) {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
                                               NULL, pTaskInfo->id.str, mergeLimit, szRow+8, tsPQSortMemThreshold * 1024* 1024);
   } else {
