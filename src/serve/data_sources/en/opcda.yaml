@@ -45,6 +45,22 @@ datasets:
       selectable: true
 
 groups:
+  - name: DataSet CSV config file
+    display_order: 0
+    description: | 
+      CSV dataset and table config file.
+    params:
+      - name: use_csv_config
+        display: Enable CSV Config
+        hint:
+          type: bool
+        description: Enable use CSV config file.
+      - name: ua.nodes
+        display: CSV config file
+        description: |
+          Dataset config and Table Config will be disabled after enable CSV config file.
+        hint:
+          type: file
   - name: Connection
     display_order: 1
     description: Some configurations used in connecting step.

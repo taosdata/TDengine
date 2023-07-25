@@ -40,19 +40,19 @@ groups:
     params:
       - name: ca
         display: CA
-        description: CA 证书文件内容。
+        description: CA 证书文件
         required: true
         hint:
           type: file
       - name: cert
         display: 客户端证书
-        description: .cert 文件内容
+        description: .cert 文件
         required: true
         hint:
           type: file
       - name: cert_key
         display: 客户端私钥
-        description: 私钥文件内容
+        description: 私钥文件
         required: true
         hint:
           type: file
