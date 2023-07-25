@@ -282,15 +282,16 @@ function print_service_state_change() {
 function initDnodeAndMnode {
     while true
     do 
-        if [ $DNODE_CREATED -eq 1] && [ $MNODE_CREATED -eq 1]; then
+        if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ]; then
             break 
         fi
         PROC_NUM=$(ps aux | grep taosd | grep -v -E "grep|entrypoint|run_taosd" |awk '{print $2}')
         if [ $? -eq 0 ] && [ "$PROC_NUM" != "" ]; then
-            FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o |head -n1|sed 's/firstEp *//')
+            FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
             # parse first ep host and port
             FIRST_EP_HOST=${FIRSET_EP%:*}
-            SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o |head -n1|sed 's/serverPort *//')
+            FIRST_EP_PORT=${FIRSET_EP#*:}
+            SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
             SERVER_PORT=${SERVER_PORT:-6030}
             ENDPOINT=$FQDN:$SERVER_PORT
             echo "FQDN is $FQDN and FIRSTEP is $FIRST_EP_HOST"
