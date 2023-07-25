@@ -27,6 +27,31 @@
 #include "ttypes.h"
 #include "hashjoin.h"
 
+
+static int64_t getSingleKeyRowsNum(SBufRowInfo* pRow) {
+  int64_t rows = 0;
+  while (pRow) {
+    rows++;
+    pRow = pRow->next;
+  }
+  return rows;
+}
+
+static int64_t getRowsNumOfKeyHash(SSHashObj* pHash) {
+  SGroupData* pGroup = NULL;
+  int32_t iter = 0;
+  int64_t rowsNum = 0;
+  
+  while (pGroup = tSimpleHashIterate(pHash, pGroup, &iter)) {
+    int32_t* pKey = tSimpleHashGetKey(pGroup, NULL);
+    int64_t rows = getSingleKeyRowsNum(pGroup->rows);
+    qTrace("build_key:%d, rows:%" PRId64, *pKey, rows);
+    rowsNum += rows;
+  }
+
+  return rowsNum;
+}
+
 static int32_t initHJoinKeyColsInfo(SHJoinTableInfo* pTable, SNodeList* pList) {
   pTable->keyNum = LIST_LENGTH(pList);
   
@@ -274,6 +299,9 @@ static void destroyHJoinKeyHash(SSHashObj** ppHash) {
 
 static void destroyHashJoinOperator(void* param) {
   SHJoinOperatorInfo* pJoinOperator = (SHJoinOperatorInfo*)param;
+  qError("hashJoin exec info, buildBlk:%" PRId64 ", buildRows:%" PRId64 ", probeBlk:%" PRId64 ", probeRows:%" PRId64 ", resRows:%" PRId64, 
+         pJoinOperator->execInfo.buildBlkNum, pJoinOperator->execInfo.buildBlkRows, pJoinOperator->execInfo.probeBlkNum, 
+         pJoinOperator->execInfo.probeBlkRows, pJoinOperator->execInfo.resRows);
 
   destroyHJoinKeyHash(&pJoinOperator->pKeyHash);
 
@@ -348,18 +376,20 @@ static FORCE_INLINE int32_t copyHJoinResRowsToBlock(SHJoinOperatorInfo* pJoin, i
 }
 
 
-static FORCE_INLINE void appendHJoinResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
+static FORCE_INLINE void appendHJoinResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SHJoinCtx* pCtx = &pJoin->ctx;
   SBufRowInfo* pStart = pCtx->pBuildRow;
   int32_t rowNum = 0;
   int32_t resNum = pRes->info.rows;
   
-  while (pCtx->pBuildRow && resNum < pRes->info.capacity) {
+  while (pCtx->pBuildRow && (resNum < pRes->info.capacity)) {
     rowNum++;
     resNum++;
     pCtx->pBuildRow = pCtx->pBuildRow->next;
   }
+
+  pJoin->execInfo.resRows += rowNum;
 
   int32_t code = copyHJoinResRowsToBlock(pJoin, rowNum, pStart, pRes);
   if (code) {
@@ -368,7 +398,7 @@ static FORCE_INLINE void appendHJoinResToBlock(struct SOperatorInfo* pOperator, 
   }
 
   pRes->info.rows = resNum;
-  pCtx->rowRemains = pCtx->pBuildRow ? true : false;
+  *allFetched = pCtx->pBuildRow ? false : true;
 }
 
 
@@ -412,23 +442,44 @@ static void doHashJoinImpl(struct SOperatorInfo* pOperator) {
   SHJoinCtx* pCtx = &pJoin->ctx;
   SSDataBlock* pRes = pJoin->pRes;
   size_t bufLen = 0;
+  bool allFetched = false;
 
   if (pJoin->ctx.pBuildRow) {
-    appendHJoinResToBlock(pOperator, pRes);
+    appendHJoinResToBlock(pOperator, pRes, &allFetched);
     if (pRes->info.rows >= pRes->info.capacity) {
+      if (allFetched) {
+        ++pCtx->probeIdx;
+      }
+      
       return;
+    } else {
+      ++pCtx->probeIdx;
     }
   }
 
   for (; pCtx->probeIdx < pCtx->pProbeData->info.rows; ++pCtx->probeIdx) {
     copyKeyColsDataToBuf(pProbe, pCtx->probeIdx, &bufLen);
     SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
+/*
+    size_t keySize = 0;
+    int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
+    ASSERT(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    int64_t rows = getSingleKeyRowsNum(pGroup->rows);
+    pJoin->execInfo.expectRows += rows;    
+    qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
+*/
     if (pGroup) {
       pCtx->pBuildRow = pGroup->rows;
-      appendHJoinResToBlock(pOperator, pRes);
+      appendHJoinResToBlock(pOperator, pRes, &allFetched);
       if (pRes->info.rows >= pRes->info.capacity) {
+        if (allFetched) {
+          ++pCtx->probeIdx;
+        }
+        
         return;
       }
+    } else {
+      qTrace("no key matched");
     }
   }
 
@@ -649,6 +700,9 @@ static int32_t buildHJoinKeyHash(struct SOperatorInfo* pOperator) {
       break;
     }
 
+    pJoin->execInfo.buildBlkNum++;
+    pJoin->execInfo.buildBlkRows += pBlock->info.rows;
+
     code = addBlockRowsToHash(pBlock, pJoin);
     if (code) {
       return code;
@@ -673,6 +727,7 @@ static int32_t launchBlockHashJoin(struct SOperatorInfo* pOperator, SSDataBlock*
   pJoin->ctx.probeIdx = 0;
   pJoin->ctx.pBuildRow = NULL;
   pJoin->ctx.pProbeData = pBlock;
+  pJoin->ctx.rowRemains = true;
 
   doHashJoinImpl(pOperator);
 
@@ -718,12 +773,14 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
       setHJoinDone(pOperator);
       goto _return;
     }
+
+    //qTrace("build table rows:%" PRId64, getRowsNumOfKeyHash(pJoin->pKeyHash));
   }
 
   if (pJoin->ctx.rowRemains) {
     doHashJoinImpl(pOperator);
     
-    if (pRes->info.rows >= pOperator->resultInfo.threshold && pOperator->exprSupp.pFilterInfo != NULL) {
+    if (pRes->info.rows >= pRes->info.capacity && pOperator->exprSupp.pFilterInfo != NULL) {
       doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
     }
     if (pRes->info.rows > 0) {
@@ -737,6 +794,9 @@ static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
       setHJoinDone(pOperator);
       break;
     }
+
+    pJoin->execInfo.probeBlkNum++;
+    pJoin->execInfo.probeBlkRows += pBlock->info.rows;
     
     code = launchBlockHashJoin(pOperator, pBlock);
     if (code) {

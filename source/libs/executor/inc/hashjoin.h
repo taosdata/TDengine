@@ -83,6 +83,16 @@ typedef struct SHJoinTableInfo {
   bool           valColExist;
 } SHJoinTableInfo;
 
+typedef struct SHJoinExecInfo {
+  int64_t buildBlkNum;
+  int64_t buildBlkRows;
+  int64_t probeBlkNum;
+  int64_t probeBlkRows;
+  int64_t resRows;
+  int64_t expectRows;
+} SHJoinExecInfo;
+
+
 typedef struct SHJoinOperatorInfo {
   int32_t          joinType;
   SHJoinTableInfo  tbs[2];
@@ -96,6 +106,7 @@ typedef struct SHJoinOperatorInfo {
   SSHashObj*       pKeyHash;
   bool             keyHashBuilt;
   SHJoinCtx        ctx;
+  SHJoinExecInfo   execInfo;
 } SHJoinOperatorInfo;
 
 #ifdef __cplusplus

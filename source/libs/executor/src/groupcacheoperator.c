@@ -86,7 +86,8 @@ static void destroyGroupCacheOperator(void* param) {
 }
 
 static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd, char* filename) {
-  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
+//  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
+  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE);
   if (NULL == newFd) {
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -158,7 +159,7 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
     releaseFdToFileCtx(pFd);
 
     qTrace("FileId %u, blk %" PRIu64 " size %" PRIu64 " written to offset %" PRIu64, 
-        pHead->basic.fileId, pHead->basic.blkId, pHead->basic.offset, pHead->basic.bufSize);
+        pHead->basic.fileId, pHead->basic.blkId, pHead->basic.bufSize, pHead->basic.offset);
     
     int64_t blkId = pHead->basic.blkId;
     pHead = pHead->next;
@@ -347,7 +348,7 @@ static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheDa
   }
 
   qTrace("FileId %u, blk %" PRIu64 " size %" PRIu64 " read from offset %" PRIu64, 
-      pBasic->fileId, pBasic->blkId, pBasic->offset, pBasic->bufSize);
+      pBasic->fileId, pBasic->blkId, pBasic->bufSize, pBasic->offset);
 
 _return:
 
@@ -387,7 +388,8 @@ static int32_t retrieveBlkFromBufCache(SGroupCacheOperatorInfo* pGCache, SGroupC
 static FORCE_INLINE void initGcVgroupCtx(SOperatorInfo* pOperator, SGcVgroupCtx* pVgCtx, int32_t downstreamId, int32_t vgId, SArray* pTbList) {
   pVgCtx->pTbList = pTbList;
   
-  snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%s_%d_%d", tsTempDir, getpid(), GET_TASKID(pOperator->pTaskInfo), downstreamId, vgId);
+  snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d_%d", 
+     tsTempDir, getpid(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, downstreamId, vgId);
   pVgCtx->fileCtx.baseFilename[sizeof(pVgCtx->fileCtx.baseFilename) - 1] = 0;
 
   pVgCtx->fileCtx.baseNameLen = strlen(pVgCtx->fileCtx.baseFilename);
@@ -857,6 +859,7 @@ static int32_t initGroupCacheBlockCache(SGroupCacheOperatorInfo* pInfo) {
   if (NULL == pCache->pReadBlk) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pCache->writeDownstreamId = -1;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -982,7 +985,8 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%s_%d", tsTempDir, getpid(), GET_TASKID(pOperator->pTaskInfo), pCtx->id);
+    snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d", 
+      tsTempDir, getpid(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pCtx->id);
     pCtx->fileCtx.baseFilename[sizeof(pCtx->fileCtx.baseFilename) - 1] = 0;
     pCtx->fileCtx.baseNameLen = strlen(pCtx->fileCtx.baseFilename);
   }
@@ -1018,7 +1022,7 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
   
   setOperatorInfo(pOperator, "GroupCacheOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  pInfo->maxCacheSize = 104857600;
+  pInfo->maxCacheSize = 1;
   pInfo->grpByUid = pPhyciNode->grpByUid;
   pInfo->globalGrp = pPhyciNode->globalGrp;
   pInfo->batchFetch = pPhyciNode->batchFetch;

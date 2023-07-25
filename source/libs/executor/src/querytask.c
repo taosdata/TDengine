@@ -54,6 +54,7 @@ SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOP
 
   pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
+  pTaskInfo->id.taskId = taskId;
   pTaskInfo->id.str = taosMemoryMalloc(64);
   buildTaskId(taskId, queryId, pTaskInfo->id.str);
   return pTaskInfo;
