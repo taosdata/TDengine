@@ -558,7 +558,7 @@ impl TaskController {
                 .map(|v| serde_json::from_value(v.clone()).unwrap()),
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
-            force: task.force,
+            force: true,
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
