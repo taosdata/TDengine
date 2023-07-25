@@ -765,7 +765,13 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
   } else {
     SHistDataRange* pRange = &pTask->dataRange;
 
-    int64_t ekey = pRange->window.ekey + 1;
+    int64_t ekey = 0;
+    if (pRange->window.ekey < INT64_MAX) {
+      ekey = pRange->window.ekey + 1;
+    } else {
+      ekey = pRange->window.ekey;
+    }
+
     int64_t ver = pRange->range.minVer;
 
     pRange->window.skey = ekey;

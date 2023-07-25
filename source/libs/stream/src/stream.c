@@ -101,7 +101,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
 }
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
-  if (pTask->triggerParam != 0) {
+  if (pTask->triggerParam != 0 && pTask->info.fillHistory == 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
     ASSERT(ref == 2 && pTask->schedTimer == NULL);
 

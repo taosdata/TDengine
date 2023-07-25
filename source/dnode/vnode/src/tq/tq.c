@@ -1041,7 +1041,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   // 2.save task, use the newest commit version as the initial start version of stream task.
   int32_t taskId = 0;
   taosWLockLatch(&pStreamMeta->lock);
-  code = streamMetaAddDeployedTask(pStreamMeta, sversion, pTask);
+  code = streamMetaRegisterTask(pStreamMeta, sversion, pTask);
 
   taskId = pTask->id.taskId;
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
@@ -1468,8 +1468,17 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   tqDebug("vgId:%d receive msg to drop stream task:0x%x", TD_VID(pTq->pVnode), pReq->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire s-task:0x%x when dropping it", pTq->pStreamMeta->vgId, pReq->taskId);
+    return 0;
+  }
 
+  streamMetaUnregisterTask(pTq->pStreamMeta, pReq->taskId);
   streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
+
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }
 

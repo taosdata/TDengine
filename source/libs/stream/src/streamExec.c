@@ -409,12 +409,15 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
 
+  int32_t taskId = pTask->id.taskId;
   pTask->status.taskStatus = TASK_STATUS__DROPPING;
-  streamMetaRemoveTask(pMeta, pTask->id.taskId);
+
+  // free it and remove it from disk meta-store
+  streamMetaUnregisterTask(pMeta, pTask->id.taskId);
+  streamMetaRemoveTask(pMeta, taskId);
 
   // save to disk
   taosWLockLatch(&pMeta->lock);
-  streamMetaSaveTask(pMeta, pTask);
   streamMetaSaveTask(pMeta, pStreamTask);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
@@ -499,6 +502,10 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {
     int32_t batchSize = 0;
     SStreamQueueItem* pInput = NULL;
+    if (streamTaskShouldStop(&pTask->status)) {
+      qDebug("s-task:%s stream task stopped, abort", id);
+      break;
+    }
 
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", id);
