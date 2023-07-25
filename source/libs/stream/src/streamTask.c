@@ -240,6 +240,11 @@ static void freeItem(void* p) {
   rpcFreeCont(pInfo->msg.pCont);
 }
 
+static void freeUpstreamItem(void* p) {
+  SStreamChildEpInfo** pInfo = p;
+  taosMemoryFree(*pInfo);
+}
+
 void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:%s", pTask->id.idStr);
 
@@ -293,6 +298,11 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->pRspMsgList != NULL) {
     taosArrayDestroyEx(pTask->pRspMsgList, freeItem);
     pTask->pRspMsgList = NULL;
+  }
+
+  if (pTask->pUpstreamInfoList != NULL) {
+    taosArrayDestroyEx(pTask->pUpstreamInfoList, freeUpstreamItem);
+    pTask->pUpstreamInfoList = NULL;
   }
 
   taosThreadMutexDestroy(&pTask->lock);
