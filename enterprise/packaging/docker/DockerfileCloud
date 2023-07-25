@@ -6,7 +6,7 @@ ARG dirName
 WORKDIR /root/
 RUN echo ${pkgFile} && echo ${dirName}
 COPY ${pkgFile} /root/
-RUN tar -zxf ${pkgFile} && cd /root/${dirName}/ && /bin/bash install.sh -e no && cd /root && rm /root/${pkgFile} && rm -rf /root/${dirName} && locale-gen en_US.UTF-8 && chmod +x /tini
+RUN tar -zxf ${pkgFile} && cd /root/${dirName}/ && /bin/bash install.sh -e no && cd /root && rm /root/${pkgFile} && rm -rf /root/${dirName} && locale-gen en_US.UTF-8
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LC_CTYPE=en_US.UTF-8 \
@@ -15,6 +15,6 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
 COPY ./run.sh /usr/bin/
 COPY ./bin/* /usr/bin/
 
-ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
-CMD ["exec", "bash", "-c", "/usr/bin/run.sh"]
 VOLUME [ "/var/lib/taos", "/var/log/taos" ]
+
+ENTRYPOINT exec /usr/bin/run.sh

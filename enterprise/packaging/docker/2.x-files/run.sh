@@ -17,6 +17,18 @@ SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 DNODE_CREATED=0
 MNODE_CREATED=0
 
+# set the timezone for the TDengine
+if [ "$TZ" != "" ]; then
+    ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
+    echo $TZ >/etc/timezone
+fi
+
+FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+            
+ulimit -c unlimited
+# set core files pattern, maybe failed
+sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
+
 echo "ADMIN_URL: ${ADMIN_URL}"
 echo "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
 
@@ -275,7 +287,6 @@ function initDnodeAndMnode {
         fi
         PROC_NUM=$(ps aux | grep taosd | grep -v -E "grep|entrypoint|run_taosd" |awk '{print $2}')
         if [ $? -eq 0 ] && [ "$PROC_NUM" != "" ]; then
-            FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
             FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o |head -n1|sed 's/firstEp *//')
             # parse first ep host and port
             FIRST_EP_HOST=${FIRSET_EP%:*}
