@@ -19,10 +19,12 @@ options:
   host:
     display: 服务器
     description: TDengine REST API 服务地址。如果应用多节点，建议配合负载均衡器使用。
+    required: true
     placeholder: taos-adapter-addr
   port:
     display: 端口
     description: TDengine REST API 服务端口。
+    required: true
     placeholder: "6041"
   subject:
     required: true
@@ -66,11 +68,11 @@ groups:
             - all
       - name: schema
         display: 表结构
-        value: all
+        value: always
         hint:
           type: str
           choices:
-            - all
+            - always
             - none
             - only
         description: |
@@ -78,7 +80,7 @@ groups:
 
           - `only`: 仅迁移表结构，不迁移表数据。
           - `none`: 不迁移表结构，仅迁移表数据。
-          - `all`: 迁移表结构和数据。
+          - `always`: 始终迁移表结构和数据。
 
   - name: 表
     display_order: 2
