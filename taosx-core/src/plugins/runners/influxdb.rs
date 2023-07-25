@@ -472,9 +472,9 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let s = String::from_utf8(output.stdout.clone())?;
     if s == "" {
         match output.status.code().unwrap() {
-            101 => anyhow::bail!("Failed to connect"),
+            101 => anyhow::bail!("Failed to connect, ip or port error"),
             102 => anyhow::bail!("Unauthorized access"),
-            _ => anyhow::bail!(output.status.to_string())
+            _ => anyhow::bail!("Failed to connect, ip or port error")
         }
     }
     dbg!(&s);
