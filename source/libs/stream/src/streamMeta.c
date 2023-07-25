@@ -505,7 +505,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     }
   }
 
-  qDebug("vgId:%d load %d task from disk", pMeta->vgId, taosArrayGetSize(pMeta->pTaskList));
+  qDebug("vgId:%d load %d task from disk", pMeta->vgId, (int32_t) taosArrayGetSize(pMeta->pTaskList));
   taosArrayDestroy(pRecycleList);
   return 0;
 }
