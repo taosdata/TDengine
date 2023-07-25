@@ -189,7 +189,7 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
     STFileObj** pFileObj = pReader->status.pCurrentFileset->farr;
     if (pFileObj[0] != NULL || pFileObj[3] != NULL) {
-      SDataFileReaderConfig conf = {.tsdb = pReader->pTsdb, .szPage = pReader->pTsdb->pVnode->config.szPage};
+      SDataFileReaderConfig conf = {.tsdb = pReader->pTsdb, .szPage = pReader->pTsdb->pVnode->config.tsdbPageSize};
 
       const char* filesName[4] = {0};
 

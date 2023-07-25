@@ -749,7 +749,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   int64_t   size;
   TdFilePtr pOutFD = NULL;
   TdFilePtr PInFD = NULL;
-  int32_t   szPage = pTsdb->pVnode->config.szPage;
+  int32_t   szPage = pTsdb->pVnode->config.tsdbPageSize;
   char      fNameFrom[TSDB_FILENAME_LEN];
   char      fNameTo[TSDB_FILENAME_LEN];
 
