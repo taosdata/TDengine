@@ -63,7 +63,7 @@ jobs:
       # check target database
       - name: Check target database
         run: |
-          sleep 2s
+          sleep 10s
           curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "SELECT * FROM information_schema.ins_dnodes;" 127.0.0.1:36041/rest/sql
 
       # test 2.6 to 3.0
