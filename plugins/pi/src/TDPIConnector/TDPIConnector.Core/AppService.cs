@@ -61,8 +61,8 @@ namespace TDPIConnector.Core
             }
             catch (Exception e)
             {
-                log.Fatal("Error starting the application.Connect PI System failed!", e);
-                throw e;
+                log.Error("Error starting the application.Connect PI System failed!", e);
+                throw new Exception($"PI System connect faied, please check config.");
             }
         }
 
@@ -315,12 +315,18 @@ namespace TDPIConnector.Core
         public void PrintPIInfo(string pointFilter) {
             //startWebService();
             //InitMonitoring();
-            InitializePIConnections();
-            var scanner = new PIInfoScanner(piServerManager, piSystemManager);
-            string info = scanner.GetInfo(pointFilter);
-            Console.OutputEncoding = Encoding.UTF8;
-            Console.WriteLine(info);
-            log.Info(info);
+            try {
+                InitializePIConnections();
+                var scanner = new PIInfoScanner(piServerManager, piSystemManager);
+                string info = scanner.GetInfo(pointFilter);
+                Console.OutputEncoding = Encoding.UTF8;
+                Console.WriteLine(info);
+                log.Info(info);
+            } catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                log.Error(e.Message);
+            }
             log.Info("Print PI Info finished!");
         }
         public static void GetPISDKInfo()
