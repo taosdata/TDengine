@@ -22,42 +22,60 @@ groups:
     required: false
     params:
       - name: group
-        display: group
+        display: Group
         description: >
-          Specifies the group on whose behalf to maintain consumed message offsets. The group is allowed to be the empty
-          string, in which case the resulting consumer will be group-less. e.g. group=my_group
+          Specifies the group on whose behalf to maintain consumed message offsets.
+
+          The group is allowed to be the empty string, in which case the resulting consumer will be group-less. e.g. `my_group`
         placeholder: ""
         required: false
+        hint:
+          type: str
       - name: topics
-        display: topics
+        display: Topics
         description: >
-          Specifies a topic to consume. All of the available partitions of the identified topic will be consumed unless
-          override when the topic_partitions is specified. e.g. topics=tp1,tp2
-        placeholder: This parameter or topic_partitions must be specified at least one, to assign a topic to the consumer.
+          Specifies one topic or several topics to consume.
+
+          All of the available partitions of the identified topic will be consumed unless override when the topic_partitions is specified. e.g. topics=tp1,tp2
+
+          At least one of "Topics" and "Topic Partitions" must be specified to assign topic to the consumer.
+        placeholder:
+        hint:
+          type: str
       - name: topic_partitions
-        display: topic_partitions
+        display: Topic with Partitions
         description: >
-          Explicitly specifies topic partitions to consume. Only the specified partitions for the identified topic will
-          be consumed. e.g. topic_partitions=tp1,tp2:2,tp3:0..9
-        placeholder: This parameter or topics must be specified at least one, to assign a topic to the consumer.
+          Explicitly specifies topic partitions to consume.
+
+          Only the specified partitions for the identified topic will be consumed. e.g. `tp1,tp2:2,tp3:0..9`
+        placeholder: "tp1,tp2:2,tp3:0..9"
+        hint:
+          type: str
       - name: fallback_offset
-        display: fallback_offset
+        display: Fallback Offset
         description: >
           Possible values when querying a topic’s offset.
+
           * Earliest: Receive the earliest available offset.
           * Latest: Receive the latest offset.
           * ByTime: Used to ask for all messages before a certain time (ms); unix timestamp in milliseconds.
-          default is Earliest. e.g. fallback_offset=Earliest
+
+          default is Earliest.
         placeholder: Earliest
         required: false
+        hint:
+          type: str
         value: Earliest
       - name: offset_storage
-        display: offset_storage
+        display: Offset Storage
         description: >
           Defines the available storage types to utilize when fetching or committing group offsets.
+
           * Zookeeper：Zookeeper based storage (available as of kafka 0.8.1)
-          * Kafka：Kafka based storage (available as of Kafka 0.8.2). This is the prefered method for groups to store
-          their offsets at.
-          default is Kafka. e.g. offset_storage=Kafka
+          * Kafka：Kafka based storage (available as of Kafka 0.8.2). This is the preferred method for groups to store their offsets at.
+
+          default is Kafka.
         placeholder: Kafka
         required: false
+        hint:
+          type: str
