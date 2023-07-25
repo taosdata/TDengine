@@ -46,6 +46,22 @@ datasets:
       selectable: true
 
 groups:
+  - name: 点位配置文件
+    display_order: 0
+    description: | 
+      CSV 点位及表信息配置文件设置。
+    params:
+      - name: use_csv_config
+        display: 启用 CSV 配置
+        hint:
+          type: bool
+        description: 启用 CSV 配置文件。如果上传了 CSV 配置文件需勾选此项。
+      - name: ua.nodes
+        display: CSV 配置文件
+        description: |
+          在启用了 CSV 配置文件之后点位集与库表配置将不再生效。
+        hint:
+          type: file
   - name: 连接
     display_order: 1
     description: 连接配置选项。
@@ -60,7 +76,6 @@ groups:
           type: integer
           min: 1
           max: 60
-
       - name: request_timeout
         display: 采集超时
         hint:
