@@ -217,7 +217,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
-    qError("s-task:0x%x save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
+    qError("s-task:%s save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
     return -1;
   }
 
@@ -297,7 +297,7 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
     qTrace("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
   } else if (ref == 0) {
     ASSERT(streamTaskShouldStop(&pTask->status));
-    qTrace("s-task:%s all refs are gone, free it");
+    qTrace("s-task:%s all refs are gone, free it", pTask->id.idStr);
     tFreeStreamTask(pTask);
   } else if (ref < 0) {
     qError("task ref is invalid, ref:%d, %s", ref, pTask->id.idStr);
