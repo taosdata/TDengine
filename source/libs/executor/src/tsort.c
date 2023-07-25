@@ -1405,6 +1405,9 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
 }
 
 static STupleHandle* tsortPQSortNextTuple(SSortHandle* pHandle) {
+  if (pHandle->pDataBlock == NULL) { // when no input stream datablock
+    return NULL;
+  }
   blockDataCleanup(pHandle->pDataBlock);
   blockDataEnsureCapacity(pHandle->pDataBlock, 1);
   // abandon the top tuple if queue size bigger than max size
