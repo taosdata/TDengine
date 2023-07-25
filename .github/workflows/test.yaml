@@ -59,7 +59,7 @@ jobs:
           sleep 1
           curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "INSERT INTO test.mem_home1 USING test.mem TAGS ("home1") VALUES (NOW, 1)(NOW, 2)(NOW, 3);" 127.0.0.1:26041/rest/sql
           curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "INSERT INTO test.mem_home2 USING test.mem TAGS ("home2") VALUES (NOW, 1)(NOW, 2)(NOW, 3);" 127.0.0.1:26041/rest/sql
-
+          curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "SELECT * FROM information_schema.ins_dnodes;" 127.0.0.1:36041/rest/sql
       # test 2.6 to 3.0
       - name: Run task 2.6 to 3.0
         run: |
