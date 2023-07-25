@@ -129,7 +129,7 @@ impl TaskOpts {
                         cancel.clone(),
                         offsets.clone(),
                     )
-                        .await?;
+                    .await?;
                 }
                 ("tmq", "local") => {
                     tmq_to_local(
@@ -140,7 +140,7 @@ impl TaskOpts {
                         cancel.clone(),
                         offsets.clone(),
                     )
-                        .await?;
+                    .await?;
                 }
                 ("local", "taos") => {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
@@ -165,7 +165,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                     )
-                        .await?;
+                    .await?;
                 }
                 ("opc" | "opcda" | "opcua", "taos") => {
                     plugins::opc_to_taos(
@@ -178,7 +178,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                     )
-                        .await?;
+                    .await?;
                 }
                 ("mqtt", "taos") => {
                     plugins::mqtt_to_taos(
@@ -191,7 +191,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                     )
-                        .await?;
+                    .await?;
                 }
                 ("influxdb", "taos") => {
                     plugins::influxdb_to_taos(
@@ -204,10 +204,19 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                     )
-                        .await?;
+                    .await?;
                 }
                 ("csv", "taos") => {
-                    csv_to_taos(from.clone()).await?;
+                    csv_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        to.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

@@ -1,10 +1,10 @@
-use std::{path::Path, thread::JoinHandle, io::BufRead};
+use std::{io::BufRead, path::Path, thread::JoinHandle};
 
 use futures::TryStreamExt;
 use taos::*;
 
-pub mod port_pool;
 pub mod files;
+pub mod port_pool;
 
 pub fn stop_thread<T>(handle: JoinHandle<T>) {
     #[cfg(windows)]
@@ -56,9 +56,15 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
 
 /// read_first: only read first file or first string config when set true
 /// append: append all values into a single string (contains line break) when set true
-pub fn get_string_content_from_param_value(param_value: &str, read_fisrt: bool, append: bool) -> anyhow::Result<Option<String>> {
-    let (files, str_contents): (Vec<String>, Vec<String>) = param_value.split(",")
-        .map(|s| s.trim()).filter(|s| !s.is_empty())
+pub fn get_string_content_from_param_value(
+    param_value: &str,
+    read_fisrt: bool,
+    append: bool,
+) -> anyhow::Result<Option<String>> {
+    let (files, str_contents): (Vec<String>, Vec<String>) = param_value
+        .split(",")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .partition(|v| v.starts_with("@"));
     let mut result = String::new();
@@ -81,7 +87,12 @@ pub fn get_string_content_from_param_value(param_value: &str, read_fisrt: bool, 
             anyhow::bail!("file: {} read error, cause: {}", file, err.to_string());
         } else {
             let buf = std::io::BufReader::new(f.unwrap());
-            let file_data = buf.lines().collect_vec().iter().filter_map(|r| r.as_ref().ok()).join("");
+            let file_data = buf
+                .lines()
+                .collect_vec()
+                .iter()
+                .filter_map(|r| r.as_ref().ok())
+                .join("");
             result.push_str(file_data.as_str());
         }
         index += 1;
@@ -95,7 +106,7 @@ pub fn get_string_content_from_param_value(param_value: &str, read_fisrt: bool, 
             index += 1;
         }
     }
-    
+
     if result.is_empty() {
         Ok(None)
     } else {
@@ -103,27 +114,33 @@ pub fn get_string_content_from_param_value(param_value: &str, read_fisrt: bool, 
     }
 }
 
-
 pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
-    let (files, _str_contents): (Vec<String>, Vec<String>) = file_path.split(",")
-        .map(|s| s.trim()).filter(|s| !s.is_empty())
+    let (files, _str_contents): (Vec<String>, Vec<String>) = file_path
+        .split(",")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .partition(|v| v.starts_with("@"));
-        let file = files.get(0);
-        if file.is_none() {
+    let file = files.get(0);
+    if file.is_none() {
+        None
+    } else {
+        let file = file.unwrap();
+        let f = std::fs::File::open(&file[1..]);
+        if let Err(err) = f {
+            log::error!("file: {} read error, cause: {}", file, err.to_string());
             None
         } else {
-            let file = file.unwrap();
-            let f = std::fs::File::open(&file[1..]);
-            if let Err(err) = f {
-                log::error!("file: {} read error, cause: {}", file, err.to_string());
-                None
-            } else {
-                let buf = std::io::BufReader::new(f.unwrap());
-                let file_data = buf.lines().collect_vec().iter().filter_map(|r| r.as_ref().ok()).join("");
-                Some(file_data)
-            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let file_data = buf
+                .lines()
+                .collect_vec()
+                .iter()
+                .filter_map(|r| r.as_ref().ok())
+                .join("");
+            Some(file_data)
         }
+    }
 }
 
 pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
@@ -139,12 +156,13 @@ pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
 pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<(i32, i32, i32)> {
     let mut version_vec = version.splitn(4, ".").collect_vec();
     version_vec.truncate(3);
-    let res = version_vec.into_iter()
-    .map(|x| x.parse::<i32>())
-    .collect_tuple();
+    let res = version_vec
+        .into_iter()
+        .map(|x| x.parse::<i32>())
+        .collect_tuple();
     match res {
         Some((a, b, c)) => Ok((a?, b?, c?)),
-        None => anyhow::bail!("should have at least 3 elements")
+        None => anyhow::bail!("should have at least 3 elements"),
     }
 }
 
@@ -179,18 +197,32 @@ async fn test_clear_database() -> anyhow::Result<()> {
     Ok(())
 }
 
-
 #[tokio::test(flavor = "multi_thread")]
 async fn test_get_main_version_from_server_version() -> anyhow::Result<()> {
     let version = "3.0.5.0";
-    assert_eq!((3 , 0, 5,), get_main_version_from_server_version(&version.to_string())?);
+    assert_eq!(
+        (3, 0, 5,),
+        get_main_version_from_server_version(&version.to_string())?
+    );
     let version = "3.0.5.0.2023061722";
-    assert_eq!((3 , 0, 5,), get_main_version_from_server_version(&version.to_string())?);
+    assert_eq!(
+        (3, 0, 5,),
+        get_main_version_from_server_version(&version.to_string())?
+    );
     let version = "3.0";
-    assert_eq!(Err("error"), get_main_version_from_server_version(&version.to_string()).map_err(|err| "error"));
+    assert_eq!(
+        Err("error"),
+        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+    );
     let version = "a.b";
-    assert_eq!(Err("error"),get_main_version_from_server_version(&version.to_string()).map_err(|err| "error"));
+    assert_eq!(
+        Err("error"),
+        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+    );
     let version = "ab";
-    assert_eq!(Err("error"),get_main_version_from_server_version(&version.to_string()).map_err(|err| "error"));
+    assert_eq!(
+        Err("error"),
+        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+    );
     Ok(())
 }

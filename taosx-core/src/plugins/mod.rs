@@ -1,6 +1,6 @@
 mod config;
 mod service;
-mod sink;
+pub(crate) mod sink;
 mod source;
 mod transform;
 
@@ -24,7 +24,7 @@ pub use taosx_ipc::types::*;
 pub use transform::Parser;
 
 pub use runners::{
-    get_plugins_info, 
+    get_plugins_info,
     get_log_dir,
     get_log_keep_days,
 };

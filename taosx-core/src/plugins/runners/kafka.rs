@@ -96,7 +96,7 @@ pub async fn kafka_to_taos(
 }
 
 fn build_ipc(socket: &str, parser: Option<Parser>, to: &Dsn, cancel: &CancellationToken, with_agent: Option<(i64, String, String)>, transferred: Option<Arc<Transferred>>) -> anyhow::Result<Sender<()>> {
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+    let (sender, receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
         sink::listen_tcp_socket(
