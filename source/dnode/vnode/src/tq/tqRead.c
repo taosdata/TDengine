@@ -336,6 +336,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
     int32_t len = pReader->pHead->head.bodyLen - sizeof(SMsgHead);
 
     extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+    tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
   } else {
     ASSERT(0);
   }

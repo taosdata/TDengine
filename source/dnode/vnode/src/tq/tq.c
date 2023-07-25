@@ -1136,7 +1136,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
                pTask->streamTaskId.taskId, pTask->id.idStr);
 
         pTask->status.taskStatus = TASK_STATUS__DROPPING;
-        tqDebug("s-task:%s scan-history-task set status to be dropping", id);
+        tqDebug("s-task:%s fill-history task set status to be dropping", id);
 
         streamMetaSaveTask(pMeta, pTask);
         streamMetaReleaseTask(pMeta, pTask);
@@ -1166,12 +1166,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     if (!streamTaskRecoverScanStep1Finished(pTask)) {
-      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " do secondary scan-history-data after halt the related stream task:%s",
-              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, id);
+      STimeWindow* pWindow = &pTask->dataRange.window;
+      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+              ", do secondary scan-history data after halt the related stream task:%s",
+              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey, id);
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
       st = taosGetTimestampMs();
-      streamSetParamForStreamScannerStep2(pTask, pRange, &pTask->dataRange.window);
+      streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
     }
 
     if (!streamTaskRecoverScanStep2Finished(pTask)) {

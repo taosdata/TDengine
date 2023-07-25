@@ -65,7 +65,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
   int8_t status = atomic_load_8(&pTask->triggerStatus);
-  qDebug("s-task:%s in scheduler timer, trigger status:%d", pTask->id.idStr, status);
+  qDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", pTask->id.idStr, status, (int32_t)pTask->triggerParam);
 
   if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
     streamMetaReleaseTask(NULL, pTask);
@@ -74,23 +74,22 @@ static void streamSchedByTimer(void* param, void* tmrId) {
   }
 
   if (status == TASK_TRIGGER_STATUS__ACTIVE) {
-    SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0);
-    if (trigger == NULL) {
+    SStreamTrigger* pTrigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0);
+    if (pTrigger == NULL) {
       return;
     }
 
-    trigger->type = STREAM_INPUT__GET_RES;
-    trigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-    if (trigger->pBlock == NULL) {
-      taosFreeQitem(trigger);
+    pTrigger->type = STREAM_INPUT__GET_RES;
+    pTrigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    if (pTrigger->pBlock == NULL) {
+      taosFreeQitem(pTrigger);
       return;
     }
 
-    trigger->pBlock->info.type = STREAM_GET_ALL;
     atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE);
-
-    if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)trigger) < 0) {
-      taosFreeQitem(trigger);
+    pTrigger->pBlock->info.type = STREAM_GET_ALL;
+    if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pTrigger) < 0) {
+      taosFreeQitem(pTrigger);
       taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->schedTimer);
       return;
     }
@@ -399,6 +398,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
+    qDebug("s-task:%s new data arrived, active the trigger, trigerStatus:%d", pTask->id.idStr, pTask->triggerStatus);
   }
 
   return 0;

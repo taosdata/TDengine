@@ -1800,8 +1800,10 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     } else {
       pTSInfo->base.cond.startVersion = pStreamInfo->fillHistoryVer.minVer;
       pTSInfo->base.cond.endVersion = pStreamInfo->fillHistoryVer.maxVer;
-      qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64", %s", pTSInfo->base.cond.startVersion,
-             pTSInfo->base.cond.endVersion, id);
+      pTSInfo->base.cond.twindows = pStreamInfo->fillHistoryWindow;
+      qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64 "-%" PRId64 ", %s",
+             pTSInfo->base.cond.startVersion, pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey,
+             pTSInfo->base.cond.twindows.ekey, id);
       pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN2;
     }
 
