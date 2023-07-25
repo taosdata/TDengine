@@ -1950,7 +1950,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     STFileObj **pFileObj = state->pFileSet->farr;
     if (pFileObj[0] != NULL || pFileObj[3] != NULL) {
       if (state->pFileSet != state->pr->pCurFileSet) {
-        SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.szPage};
+        SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.tsdbPageSize};
         const char           *filesName[4] = {0};
         if (pFileObj[0] != NULL) {
           conf.files[0].file = *pFileObj[0]->f;
