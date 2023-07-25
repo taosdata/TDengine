@@ -104,7 +104,7 @@ static int32_t smlCheckAuth(SSmlHandle *info,  SRequestConnInfo* conn, const cha
   SUserAuthRes authRes = {0};
 
   code = catalogChkAuth(info->pCatalog, conn, &pAuth, &authRes);
-
+  nodesDestroyNode(authRes.pCond);
 
   return (code == TSDB_CODE_SUCCESS) ? (authRes.pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 
