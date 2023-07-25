@@ -3,6 +3,7 @@ use std::fs::File;
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use std::vec;
 
 use anyhow::{anyhow, Result};
@@ -11,15 +12,17 @@ use arrow::datatypes::{Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use csv_lib::{Position, Reader, ReaderBuilder, StringRecord};
-use futures_util::{TryStreamExt};
 use futures_util::stream::FuturesUnordered;
+use futures_util::TryStreamExt;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::ArrowDataType;
+use tokio_util::sync::CancellationToken;
 
-use crate::utils;
+use crate::utils::port_pool::PortPool;
+use crate::{utils, Parser, Transferred};
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
@@ -48,7 +51,7 @@ pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
                 .map(|v| format!("{}", v))
                 .collect_vec(),
         )
-            .await?;
+        .await?;
     }
 
     csv.flush().await?;
@@ -65,7 +68,10 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
     for path in paths {
         let path_header = CsvSource::read_header(path, has_header).await?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
-            return Err(anyhow!(format!("header of files {} is different with others", &path)));
+            return Err(anyhow!(format!(
+                "header of files {} is different with others",
+                &path
+            )));
         }
         header = path_header;
     }
@@ -76,13 +82,108 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
     })
 }
 
-pub async fn csv_to_taos(mut from: Dsn) -> Result<()> {
-    let mut source = CsvSource::new(&mut from)?;
-    let handlers = source.read().await?;
+fn build_ipc(
+    socket: &str,
+    parser: Option<Parser>,
+    to: &Dsn,
+    cancel: &CancellationToken,
+    with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
+) -> anyhow::Result<(
+    std::sync::mpsc::Sender<()>,
+    tokio::sync::mpsc::Receiver<String>,
+)> {
+    use crate::plugins::sink;
+    let (sender, receiver) = tokio::sync::mpsc::channel(1);
+    let ipc = if with_agent.is_none() {
+        let builder = taos::TaosBuilder::from_dsn(to)?;
+        sink::listen_tcp_socket(
+            builder.pool()?,
+            socket,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent,
+            parser,
+            None,
+            transferred,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            socket,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
+    Ok((ipc, receiver))
+}
+pub async fn csv_to_taos(
+    mut from: Dsn,
+    parser: Option<Parser>,
+    to: Dsn,
+    port_pool: &PortPool,
+    cancel: CancellationToken,
+    with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
+) -> Result<()> {
+    let port = port_pool
+        .get()
+        .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
+    let socket = format!("127.0.0.1:{}", port);
+    let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
 
-    for handler in handlers {
-        handler.await?.unwrap();
-    }
+    let worker = tokio::spawn(async move {
+        let mut source = CsvSource::new(&mut from, port)?;
+        let handlers = source.read().await?;
+        for handler in handlers {
+            tokio::task::yield_now().await;
+            handler.await??;
+        }
+        Ok::<_, anyhow::Error>(())
+    });
+
+    let port_pool = port_pool.clone();
+
+    tokio::spawn(async move {
+        tokio::select! {
+            // application exit with error code
+            status = worker => {
+                match status {
+                    Ok(_) => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        log::info!("CSV worker done successfully");
+                        let _ = abort.send(());
+                    }
+                    Err(err) => {
+                        let _ = abort.send(());
+                        anyhow::bail!("CSV exit with error: {:#}", err);
+                    }
+                }
+            },
+            err = closed.recv() => {
+                log::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    let _ = abort.send(());
+                    anyhow::bail!("CSV writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("CSV task cancelled");
+            }
+        };
+        // send an empty tuple
+        let _ = abort.send(());
+        // stop the connector
+        log::info!("CSV task Done");
+        // put ipc port back to port pool.
+        port_pool.put(port);
+        // wait for completion
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        Ok(())
+    })
+    .await??;
 
     Ok(())
 }
@@ -93,15 +194,16 @@ pub struct CsvHeader {
 }
 
 // CsvSource read csv file and send data to Sender
+#[derive(Debug)]
 struct CsvSource {
     readers: Vec<Reader<File>>,
     concurrent: usize,
     batch_size: usize,
-    port: u32,
+    port: u16,
 }
 
 impl CsvSource {
-    fn new(dsn: &mut Dsn) -> Result<CsvSource> {
+    fn new(dsn: &mut Dsn, port: u16) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
         //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=&port=
         let dsn_paths = match &dsn.path {
@@ -117,13 +219,24 @@ impl CsvSource {
             }
         }
 
-        let has_header: bool = dsn.params.remove("has_header").unwrap_or_else(|| "true".to_string()).parse()?;
+        let has_header: bool = dsn
+            .params
+            .remove("has_header")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(true);
         let headers = dsn.params.remove("header").unwrap_or_default();
         let headers = if !headers.is_empty() {
-            headers.split(",").map(String::from).collect::<Vec<String>>()
-        } else { Vec::new() };
+            headers
+                .split(",")
+                .map(String::from)
+                .collect::<Vec<String>>()
+        } else {
+            Vec::new()
+        };
         let skip = dsn.params.remove("skip").and_then(|skip_char| {
-            if skip_char.is_empty() { None } else {
+            if skip_char.is_empty() {
+                None
+            } else {
                 Some(skip_char.parse().unwrap())
             }
         });
@@ -141,13 +254,26 @@ impl CsvSource {
             }
         });
 
-        let batch_size: usize = dsn.params.remove("batch_size").unwrap_or("10".to_string()).parse()?;
-        let concurrent: usize = dsn.params.remove("concurrent").unwrap_or("1".to_string()).parse()?;
-        let port: u32 = dsn.params.remove("port").unwrap().parse()?;
+        let batch_size: usize = dsn
+            .params
+            .remove("batch_size")
+            .unwrap_or("10".to_string())
+            .parse()?;
+        let concurrent: usize = dsn
+            .params
+            .remove("concurrent")
+            .unwrap_or("1".to_string())
+            .parse()?;
+        // let port: u32 = dsn.params.remove("port").unwrap().parse()?;
 
         let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep, skip)?;
 
-        Ok(CsvSource { readers, concurrent, batch_size, port })
+        Ok(CsvSource {
+            readers,
+            concurrent,
+            batch_size,
+            port,
+        })
     }
 
     async fn read_header(read_path: &str, has_header: bool) -> Result<Vec<String>> {
@@ -160,12 +286,16 @@ impl CsvSource {
 
         for path in paths {
             let mut reader = ReaderBuilder::new().from_path(&path)?;
-            let file_headers = reader.headers()?
+            let file_headers = reader
+                .headers()?
                 .iter()
                 .map(String::from)
                 .collect::<Vec<String>>();
             if !CsvSource::is_same_header(&headers, &file_headers, has_header) {
-                return Err(anyhow!(format!("header of files {} is different with others", &path)));
+                return Err(anyhow!(format!(
+                    "header of files {} is different with others",
+                    &path
+                )));
             }
 
             headers = file_headers;
@@ -174,7 +304,11 @@ impl CsvSource {
         Ok(headers)
     }
 
-    fn is_same_header(old_header: &Vec<String>, new_header: &Vec<String>, has_header: bool) -> bool {
+    fn is_same_header(
+        old_header: &Vec<String>,
+        new_header: &Vec<String>,
+        has_header: bool,
+    ) -> bool {
         old_header.is_empty()
             || (has_header && old_header == new_header)
             || (!has_header && old_header.len() == new_header.len())
@@ -183,6 +317,7 @@ impl CsvSource {
     async fn read(&mut self) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
         let port = self.port;
         let batch_size = self.batch_size;
+        tracing::info!("reading csv files with batch size: {batch_size}");
         let futures = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
 
@@ -202,13 +337,20 @@ impl CsvSource {
         Ok(futures)
     }
 
-    async fn deal_file(reader: &mut Reader<File>, port: u32, batch_size: usize) -> Result<()> {
+    async fn deal_file(reader: &mut Reader<File>, port: u16, batch_size: usize) -> Result<()> {
         let stream = TcpStream::connect(format!("localhost:{}", port))?;
-        let headers = reader.headers()?.iter().map(String::from).collect::<Vec<String>>();
+        let headers = reader
+            .headers()?
+            .iter()
+            .map(String::from)
+            .collect::<Vec<String>>();
         let schema = CsvSource::stream_schema(&headers);
         let mut writer: StreamWriter<&TcpStream> = StreamWriter::try_new(&stream, &schema)?;
 
         let mut records: Vec<HashMap<String, String>> = Vec::with_capacity(batch_size);
+
+        tracing::info!("CSV stream reading...");
+        tokio::task::yield_now().await;
 
         for result in reader.deserialize() {
             let record: HashMap<String, String> = result?;
@@ -217,20 +359,31 @@ impl CsvSource {
             if records.len() >= batch_size {
                 CsvSource::write_to_stream(&headers, &schema, &mut writer, &records)?;
                 records.clear();
+                tokio::task::yield_now().await;
             }
         }
+        tokio::task::yield_now().await;
+        tracing::info!("CSV stream reading finished");
 
         Ok(())
     }
 
-    fn write_to_stream(headers: &Vec<String>, schema: &Schema, writer: &mut StreamWriter<&TcpStream>, records: &Vec<HashMap<String, String>>) -> Result<()> {
-        let arrow_columns: Vec<ArrayRef> = headers.iter()
+    fn write_to_stream(
+        headers: &Vec<String>,
+        schema: &Schema,
+        writer: &mut StreamWriter<&TcpStream>,
+        records: &Vec<HashMap<String, String>>,
+    ) -> Result<()> {
+        let arrow_columns: Vec<ArrayRef> = headers
+            .iter()
             .map(|col| {
-                let cols = records.iter()
+                let cols = records
+                    .iter()
                     .map(|record| record[col].clone())
                     .collect::<Vec<String>>();
                 Arc::new(StringArray::from(cols)) as ArrayRef
-            }).collect();
+            })
+            .collect();
 
         let record_batch = RecordBatch::try_new(Arc::new(schema.clone()), arrow_columns)?;
         let res = writer.write(&record_batch)?;
@@ -246,9 +399,7 @@ impl CsvSource {
 
         let columns = headers
             .iter()
-            .map(
-                |header| Field::new(header, ArrowDataType::Utf8, false)
-            )
+            .map(|header| Field::new(header, ArrowDataType::Utf8, false))
             .collect::<Vec<Field>>();
 
         Schema::new(columns).with_metadata(metadata)
@@ -269,21 +420,24 @@ impl CsvSource {
         Ok(all_files)
     }
 
-    fn csv_readers(paths: &Vec<String>,
-                   has_header: bool,
-                   headers: &Vec<String>,
-                   sep: Option<u8>,
-                   skip: Option<u64>) -> Result<Vec<Reader<File>>> {
+    fn csv_readers(
+        paths: &Vec<String>,
+        has_header: bool,
+        headers: &Vec<String>,
+        sep: Option<u8>,
+        skip: Option<u64>,
+    ) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
         let mut first = true;
         for path in paths {
             let mut reader = ReaderBuilder::new()
                 .delimiter(match sep {
                     Some(sep) => sep,
-                    _ => b','
+                    _ => b',',
                 })
                 .has_headers(has_header)
-                .flexible(true).from_path(path)?;
+                .flexible(true)
+                .from_path(path)?;
             if !headers.is_empty() {
                 reader.set_headers(StringRecord::from(headers.clone()));
             }

@@ -34,7 +34,10 @@ use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
 use taosx_ipc::{
     prelude::*,
-    stream::{flat::FlatMessage, point::{PointMessage, self}},
+    stream::{
+        flat::FlatMessage,
+        point::{self, PointMessage},
+    },
 };
 
 // mod rpc_client;
@@ -425,7 +428,6 @@ async fn consume_point_record(
         let mut columns_insert: Vec<(String, String)> = Vec::new(); // first is primary key info, its type should be timestamp
         let mut value_column = None;
         for column_config in &table_config.column_configs {
-            
             if column_config.is_primary_key {
                 let primary_key_column_name = column_config.column_name.clone();
                 let prinmary_key_column_alias = column_config
@@ -455,7 +457,9 @@ async fn consume_point_record(
                 if column_config.column_name == "value" {
                     value_column = Some(column_config.clone());
                 } else {
-                    columns.push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
+                    columns.push_str(
+                        format!("`{prinmary_key_column_alias}` {},", column_type).as_str(),
+                    );
                 }
             }
         }
@@ -465,10 +469,12 @@ async fn consume_point_record(
         if table_config.tag_configs.is_some() {
             let tag_configs = table_config.tag_configs.clone().unwrap();
             for tag in tag_configs {
-                tags.push_str(format!(" ,`{}` {}", tag.column_name, tag.column_type.sql_repr()).as_str());
+                tags.push_str(
+                    format!(" ,`{}` {}", tag.column_name, tag.column_type.sql_repr()).as_str(),
+                );
             }
         }
-        
+
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
@@ -568,16 +574,19 @@ async fn consume_point_record(
                 for ele in table_config.tag_configs.as_ref().unwrap() {
                     let tag_name = ele.column_name.clone();
                     tag_names.push_str(format!("`{}`,", tag_name).as_str());
-                    let value = point_config.tag_values.as_ref().unwrap().get(&tag_name).unwrap();
+                    let value = point_config
+                        .tag_values
+                        .as_ref()
+                        .unwrap()
+                        .get(&tag_name)
+                        .unwrap();
                     let value = match ele.column_type {
                         IpcDataType::VarChar(_) | IpcDataType::NChar(_) | IpcDataType::Json => {
                             format!("\"{value}\"")
                         }
-                        _ => {
-                            value.to_string()
-                        }
+                        _ => value.to_string(),
                     };
-                    tag_values.push_str(format!("{value},", ).as_str());
+                    tag_values.push_str(format!("{value},",).as_str());
                     // index += 1;
                 }
                 tag_names.pop();
@@ -624,10 +633,14 @@ async fn consume_point_record(
                                 .column_alias
                                 .clone()
                                 .unwrap_or(primary_key_column_name.clone());
-                            columns.push_str(format!(",`{prinmary_key_column_alias}` {value_column_type}").as_str());
+                            columns.push_str(
+                                format!(",`{prinmary_key_column_alias}` {value_column_type}")
+                                    .as_str(),
+                            );
                             let stable_sql = format!(
                                 "create table if not exists `{}` ({}) tags ({})",
-                                stable_name, columns, tags);
+                                stable_name, columns, tags
+                            );
                             log::info!("create stable sql: {}", &stable_sql);
                             match taos.exec(&stable_sql).await {
                                 Ok(_) => (),
@@ -659,7 +672,7 @@ async fn consume_point_record(
                                         // encounter when rename value column
                                         log::error!("column {} column_type is error, maybe stable set error", column_real_name);
                                         break 'outer;
-                                    } 
+                                    }
                                     let add_column_sql = format!(
                                         "alter table `{stable_name}` ADD COLUMN {} {}",
                                         column_real_name,
@@ -673,8 +686,21 @@ async fn consume_point_record(
                             if table_config.tag_configs.is_some() {
                                 // let tag_configs = &table_config.tag_configs.clone().unwrap();
                                 let desc = taos.describe(&stable_name).await?;
-                                let fields = table_config.tag_configs.as_ref().unwrap().iter().map(|config| (config.column_name.clone(), config.column_type.clone())).collect_vec();
-                                let sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &fields, true);
+                                let fields = table_config
+                                    .tag_configs
+                                    .as_ref()
+                                    .unwrap()
+                                    .iter()
+                                    .map(|config| {
+                                        (config.column_name.clone(), config.column_type.clone())
+                                    })
+                                    .collect_vec();
+                                let sqls = generate_alter_sql_diff_desc(
+                                    &stable_name,
+                                    &desc,
+                                    &fields,
+                                    true,
+                                );
                                 if sqls.is_some() {
                                     let sqls = sqls.unwrap();
                                     for alter_sql in sqls {
@@ -684,9 +710,15 @@ async fn consume_point_record(
                                             Err(err) => {
                                                 if err.to_string().contains("0x0369") {
                                                     // Tag already exists occur when concurrent exec same alter
-                                                    log::warn!("alter table err: {}, will be ignored", err.to_string());
+                                                    log::warn!(
+                                                        "alter table err: {}, will be ignored",
+                                                        err.to_string()
+                                                    );
                                                 } else {
-                                                    log::warn!("alter table err: {}", err.to_string());
+                                                    log::warn!(
+                                                        "alter table err: {}",
+                                                        err.to_string()
+                                                    );
                                                     break 'outer;
                                                 }
                                             }
@@ -694,7 +726,6 @@ async fn consume_point_record(
                                     }
                                 }
                             }
-                            
                         } else if errstr.contains("[0x2653]") {
                             // column or tag length not enough
                             let desc = taos.describe(&stable_name.as_str()).await?;
@@ -752,7 +783,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
 async fn consume_flat_record(
     _taos: &Taos,
     record: &FlatMessage,
-    _count: &mut usize,
+    count: &mut usize,
     parser: Option<&Parser>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
@@ -796,7 +827,7 @@ async fn consume_flat_record(
 
                         let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
                         raw.with_field_names(&columns).with_table_name(table_name);
-                        info!("{}", &raw.pretty_format());
+                        debug!("{}", &raw.pretty_format());
 
                         loop {
                             let var_views = views
@@ -1048,6 +1079,7 @@ async fn consume_flat_record(
                                 }
                                 continue;
                             } else {
+                                *count += raw.nrows();
                                 if let Some(transferred) = transferred {
                                     transferred
                                         .records

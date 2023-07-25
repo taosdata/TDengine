@@ -1,12 +1,13 @@
-use std::{time::Duration, io::BufRead};
 use anyhow::{bail, Context, Result};
+use clap::Parser;
+use std::{io::BufRead, time::Duration};
 use taos::*;
 use taosx_core::{
-    kafka_to_taos, influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
-    query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, utils::{port_pool::PortPool, self}, Action,
-    csv_to_taos,
+    csv_to_taos, influxdb_to_taos, kafka_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos,
+    opc_to_taos, pi_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td,
+    utils::{self, port_pool::PortPool},
+    Action,
 };
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -89,6 +90,12 @@ impl Cli {
                 args.to.protocol = Some("ws".to_string());
             }
         }
+        let port_pool = PortPool::default();
+        let parser = args.parser.as_ref().map(|p| {
+            utils::get_string_content_from_file_path(p)
+                .map(|p| serde_json::from_str(&p).unwrap())
+                .unwrap()
+        });
 
         match (args.from.driver.as_str(), args.to.driver.as_str()) {
             ("tmq", "taos") => {
@@ -101,8 +108,8 @@ impl Cli {
                         args.jobs,
                         Default::default(),
                         Default::default(),
-                    ).await
-
+                    )
+                    .await
                     {
                         Ok(_) => break,
                         Err(err) if err.to_string().contains("[0xE002]") => {
@@ -127,7 +134,8 @@ impl Cli {
                         opts.yes_i_really_mean_it,
                         Default::default(),
                         Default::default(),
-                    ).await
+                    )
+                    .await
                     {
                         Ok(_) => break,
                         Err(err) if err.to_string().contains("[0xE002]") => {
@@ -165,7 +173,8 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                ).await?;
+                )
+                .await?;
 
                 log::debug!("main scheduler done");
             }
@@ -180,7 +189,8 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                ).await?;
+                )
+                .await?;
                 log::debug!("main scheduler done");
             }
             ("opc" | "opcua" | "opcda", "taos") => {
@@ -194,11 +204,11 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                ).await?;
+                )
+                .await?;
                 log::debug!("opc main scheduler done");
             }
             ("mqtt", "taos") => {
-                let port_pool = PortPool::default();
                 let parser = if args.parser.is_some() {
                     let file_content =
                         utils::get_string_content_from_file_path(args.parser.unwrap().as_str());
@@ -226,18 +236,11 @@ impl Cli {
                     Default::default(),
                     None,
                     None, // how to save the transferred number
-                ).await?;
+                )
+                .await?;
                 log::debug!("opc main scheduler done");
             }
             ("kafka", "taos") => {
-                let parser = if args.parser.is_some() {
-                    let p = args.parser.unwrap();
-                    let json = serde_json::from_str(&p).unwrap();
-                    Some(json)
-                } else {
-                    None
-                };
-
                 kafka_to_taos(
                     args.from,
                     parser,
@@ -248,11 +251,21 @@ impl Cli {
                     Default::default(),
                     None,
                     None,
-                ).await?;
+                )
+                .await?;
                 log::debug!("kafka main scheduler done");
             }
             ("csv", "taos") => {
-                csv_to_taos(args.from).await?;
+                csv_to_taos(
+                    args.from,
+                    parser,
+                    args.to,
+                    &port_pool,
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .await?;
             }
             (_, _) => bail!(
                 "unsupported source or dest: from `{}` to `{}`",
