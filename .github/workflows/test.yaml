@@ -1,0 +1,91 @@
+name: taos_to_taos test
+
+on:
+  push:
+    branches:
+      - 'feat/TD-24480/github-actions-test'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      # build taosx
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+      - name: Cargo Caches
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+      - name: Target Caches
+        uses: actions/cache@v3
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-target
+      - name: Build taosX
+        run: |
+          cargo build --release --no-default-features --features optin --features native-tls --features disable-enterprise-only-validation
+          target/release/taosx -V
+
+      # docker run tdengine
+      - name: Docker run TDengine 2.6
+        run: |
+          docker run -d -p 26030:26030 -p 26041:26041 -v $(pwd)/.github/workflows/cfg_td/v2/taos.cfg:/etc/taos/taos.cfg -e TAOS_ADAPTER_PORT=26041 --name tdengine2 tdengine/tdengine:2.6.0.34
+      - name: Docker run TDengine latest
+        run: |
+          docker run -d -p 36030:36030 -p 36041:36041 -v $(pwd)/.github/workflows/cfg_td/v3/taos.cfg:/etc/taos/taos.cfg -e TAOS_ADAPTER_PORT=36041 --name tdengine3 tdengine/tdengine:latest
+
+      # create source data
+      - name: Create source database
+        run: |
+          sleep 1
+          curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "CREATE DATABASE test REPLICA 1 QUORUM 1 DAYS 10 KEEP 365 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ns' UPDATE 0;" 127.0.0.1:26041/rest/sql
+      - name: Create source stables
+        run: |
+          sleep 1
+          curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "CREATE TABLE test.mem (ts TIMESTAMP,used_amount INT) TAGS (home NCHAR(100));" 127.0.0.1:26041/rest/sql
+      - name: Create source tables with data
+        run: |
+          sleep 1
+          curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "INSERT INTO test.mem_home1 USING test.mem TAGS ("home1") VALUES (NOW, 1)(NOW, 2)(NOW, 3);" 127.0.0.1:26041/rest/sql
+          curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "INSERT INTO test.mem_home2 USING test.mem TAGS ("home2") VALUES (NOW, 1)(NOW, 2)(NOW, 3);" 127.0.0.1:26041/rest/sql
+
+      # test 2.6 to 3.0
+      - name: Run task 2.6 to 3.0
+        run: |
+          target/release/taosx run -f "taos+http://127.0.0.1:26041/test" -t "taos+http://127.0.0.1:36041/test?assert" -vvv
+      - name: Get result 2.6 to 3.0
+        run: |
+          result_count_23=`curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "SELECT COUNT(*) FROM test.mem;" 127.0.0.1:36041/rest/sql | jq .data[0][0]`
+          echo $result_count_23
+          result_sum_23=`curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "SELECT SUM(used_amount) FROM test.mem;" 127.0.0.1:36041/rest/sql | jq .data[0][0]`
+          echo $result_sum_23
+      - name: Verify result 2.6 to 3.0
+        run: |
+          if [ $result_count_23 -ne 6 ]; then exit 1; fi
+          if [ $result_sum_23 -ne 12 ]; then exit 1; fi
+
+      # test 3.0 to 3.0
+      - name: Run task 3.0 to 3.0
+        run: |
+          target/release/taosx run -f "taos+http://127.0.0.1:36041/test" -t "taos+http://127.0.0.1:36041/test_copy?assert" -vvv
+      - name: Get result 3.0 to 3.0
+        run: |
+          result_count_33=`curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "SELECT COUNT(*) FROM test_copy.mem;" 127.0.0.1:36041/rest/sql | jq .data[0][0]`
+          echo $result_count_33
+          result_sum_33=`curl -s -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "SELECT SUM(used_amount) FROM test_copy.mem;" 127.0.0.1:36041/rest/sql | jq .data[0][0]`
+          echo $result_sum_33
+      - name: Verify result 3.0 to 3.0
+        run: |
+          if [ $result_count_33 -ne 6 ]; then exit 1; fi
+          if [ $result_sum_33 -ne 12 ]; then exit 1; fi
