@@ -25,7 +25,6 @@ TDengine 提供类似于消息队列产品的数据订阅和消费接口。这�
 
 ### 超级表
 
-In the opened Add New Topic dialog, you can click STable type and select a specified super table from the selections. Then click Confirm button to create a topic to a super table.
 在打开的**添加新主题**对话框中，您可以点击**超级表**类型并从选择中选择一个指定的超级表。然后点击**确认**按钮，为超级表创建一个主题。
 ![在一个超级表上面创建主题](./topic/add-topic-stable.webp)
 
