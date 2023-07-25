@@ -215,7 +215,7 @@ pipeline {
                 }
             }
         }
-        stage('stream branch replica 1 insert') {
+        stage('stream replica 1 test') {
             when {
                 expression { env.ENABLE_STREAM_REPLICA1 == 'y' }
             }
@@ -225,7 +225,7 @@ pipeline {
                 }
             }
         }
-        stage('stream branch replica 3 insert') {
+        stage('stream replica 3 test') {
             when {
                 expression { env.ENABLE_STREAM_REPLICA3 == 'y' }
             }
