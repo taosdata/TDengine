@@ -3352,7 +3352,7 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
   }
 
   pDynCtrl->qType = DYN_QTYPE_STB_HASH;
-  pDynCtrl->stbJoin.batchJoin = true;
+  pDynCtrl->stbJoin.batchFetch = true;
   
   if (TSDB_CODE_SUCCESS == code) {  
     pDynCtrl->node.pChildren = nodesMakeList();

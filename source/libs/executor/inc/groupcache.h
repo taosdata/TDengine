@@ -75,6 +75,7 @@ typedef struct SGroupCacheData {
   TdThreadMutex  mutex;
   SArray*        waitQueue;
   bool           fetchDone;
+  bool           needCache;
   SSDataBlock*   pBlock;
   SGcVgroupCtx*  pVgCtx;
   int32_t        downstreamIdx;

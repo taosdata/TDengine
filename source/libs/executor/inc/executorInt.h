@@ -110,6 +110,7 @@ typedef struct SGcOperatorParam {
   int32_t             downstreamIdx;
   int32_t             vgId;
   int64_t             tbUid;
+  bool                needCache;
 } SGcOperatorParam;
 
 typedef struct SExprSupp {

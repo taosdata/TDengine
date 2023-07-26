@@ -39,19 +39,28 @@ static void destroyDynQueryCtrlOperator(void* param) {
   qError("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64, 
          pDyn->execInfo.prevBlkNum, pDyn->execInfo.prevBlkRows, pDyn->execInfo.postBlkNum, pDyn->execInfo.postBlkRows);
 
-  if (pDyn->stbJoin.ctx.prev.leftVg) {
-    tSimpleHashSetFreeFp(pDyn->stbJoin.ctx.prev.leftVg, freeVgTableList);
-    tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.leftVg);
+  if (pDyn->stbJoin.basic.batchFetch) {
+    if (pDyn->stbJoin.ctx.prev.leftHash) {
+      tSimpleHashSetFreeFp(pDyn->stbJoin.ctx.prev.leftHash, freeVgTableList);
+      tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.leftHash);
+    }
+    if (pDyn->stbJoin.ctx.prev.rightHash) {
+      tSimpleHashSetFreeFp(pDyn->stbJoin.ctx.prev.rightHash, freeVgTableList);
+      tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.rightHash);
+    }
   }
-  if (pDyn->stbJoin.ctx.prev.rightVg) {
-    tSimpleHashSetFreeFp(pDyn->stbJoin.ctx.prev.rightVg, freeVgTableList);
-    tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.rightVg);
+  
+  if (pDyn->stbJoin.ctx.prev.tableTimes) {
+    tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.tableTimes);
+  }
+  if (pDyn->stbJoin.ctx.prev.onceTable) {
+    tSimpleHashCleanup(pDyn->stbJoin.ctx.prev.onceTable);
   }
 
   taosMemoryFreeClear(param);
 }
 
-static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid, SOperatorParam* pChild) {
+static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid, bool needCache, SOperatorParam* pChild) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -77,6 +86,7 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
   pGc->downstreamIdx = downstreamIdx;
   pGc->vgId = vgId;
   pGc->tbUid = tbUid;
+  pGc->needCache = needCache;
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
   (*ppRes)->downstreamIdx = downstreamIdx;
@@ -85,7 +95,7 @@ static FORCE_INLINE int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes,
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid, SOperatorParam* pChild) {
+static FORCE_INLINE int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid) {
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -189,41 +199,21 @@ static FORCE_INLINE int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, 
   return TSDB_CODE_SUCCESS;
 }
 
-
-static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJoinPrevJoinCtx* pPrev, SOperatorParam** ppParam) {
-  int32_t                     rowIdx = pPrev->lastRow + 1;
-  SColumnInfoData*            pVg0 = taosArrayGet(pPrev->pLastBlk->pDataBlock, pInfo->stbJoin.basic.vgSlot[0]);
-  SColumnInfoData*            pVg1 = taosArrayGet(pPrev->pLastBlk->pDataBlock, pInfo->stbJoin.basic.vgSlot[1]);
-  SColumnInfoData*            pUid0 = taosArrayGet(pPrev->pLastBlk->pDataBlock, pInfo->stbJoin.basic.uidSlot[0]);
-  SColumnInfoData*            pUid1 = taosArrayGet(pPrev->pLastBlk->pDataBlock, pInfo->stbJoin.basic.uidSlot[1]);
-  SOperatorParam*             pExcParam0 = NULL;
-  SOperatorParam*             pExcParam1 = NULL;
-  SOperatorParam*             pGcParam0 = NULL;
-  SOperatorParam*             pGcParam1 = NULL;  
-  int32_t*                    leftVg = (int32_t*)(pVg0->pData + pVg0->info.bytes * rowIdx);
-  int64_t*                    leftUid = (int64_t*)(pUid0->pData + pUid0->info.bytes * rowIdx);
-  int32_t*                    rightVg = (int32_t*)(pVg1->pData + pVg1->info.bytes * rowIdx);
-  int64_t*                    rightUid = (int64_t*)(pUid1->pData + pUid1->info.bytes * rowIdx);
-
-  qError("start stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, *leftVg, *leftUid, *rightVg, *rightUid);
+static FORCE_INLINE bool tableNeedCache(int64_t uid, SStbJoinPrevJoinCtx* pPrev, SStbJoinPostJoinCtx* pPost, bool rightTable, bool batchFetch) {
+  if (batchFetch) {
+    return true;
+  }
   
-  int32_t code = buildExchangeOperatorParam(&pExcParam0, 0, leftVg, leftUid, NULL);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildExchangeOperatorParam(&pExcParam1, 1, rightVg, rightUid, NULL);
+  if (rightTable) {
+    return pPost->rightCurrUid == pPost->rightNextUid;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pExcParam0);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pExcParam1);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildMergeJoinOperatorParam(ppParam, false, pGcParam0, pGcParam1);
-  }
-  return code;
+
+  uint32_t* num = tSimpleHashGet(pPrev->tableTimes, &uid, sizeof(uid));
+
+  return (NULL == num) ? false : true;
 }
 
-static int32_t buildSeqBatchStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJoinPrevJoinCtx* pPrev, SOperatorParam** ppParam) {
+static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJoinPrevJoinCtx* pPrev, SStbJoinPostJoinCtx* pPost, SOperatorParam** ppParam) {
   int64_t                     rowIdx = pPrev->pListHead->readIdx;
   SOperatorParam*             pExcParam0 = NULL;
   SOperatorParam*             pExcParam1 = NULL;
@@ -238,24 +228,31 @@ static int32_t buildSeqBatchStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInf
   qError("start %" PRId64 ":%" PRId64 "th stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, 
       rowIdx, pPrev->tableNum, *leftVg, *leftUid, *rightVg, *rightUid);
 
-  if (pPrev->leftVg) {
-    code = buildBatchExchangeOperatorParam(&pExcParam0, 0, pPrev->leftVg);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = buildBatchExchangeOperatorParam(&pExcParam1, 1, pPrev->rightVg);
+  if (pInfo->stbJoin.basic.batchFetch) {
+    if (pPrev->leftHash) {
+      code = buildBatchExchangeOperatorParam(&pExcParam0, 0, pPrev->leftHash);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = buildBatchExchangeOperatorParam(&pExcParam1, 1, pPrev->rightHash);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        tSimpleHashCleanup(pPrev->leftHash);
+        tSimpleHashCleanup(pPrev->rightHash);
+        pPrev->leftHash = NULL;
+        pPrev->rightHash = NULL;
+      }
     }
+  } else {
+    code = buildExchangeOperatorParam(&pExcParam0, 0, leftVg, leftUid);
     if (TSDB_CODE_SUCCESS == code) {
-      tSimpleHashCleanup(pPrev->leftVg);
-      tSimpleHashCleanup(pPrev->rightVg);
-      pPrev->leftVg = NULL;
-      pPrev->rightVg = NULL;
+      code = buildExchangeOperatorParam(&pExcParam1, 1, rightVg, rightUid);
     }
   }
   
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pExcParam0);
+    code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, tableNeedCache(*leftUid, pPrev, pPost, false, pInfo->stbJoin.basic.batchFetch), pExcParam0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pExcParam1);
+    code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, tableNeedCache(*rightUid, pPrev, pPost, true, pInfo->stbJoin.basic.batchFetch), pExcParam1);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildMergeJoinOperatorParam(ppParam, pExcParam0 ? true : false, pGcParam0, pGcParam1);
@@ -270,13 +267,7 @@ static void seqJoinLaunchPostJoin(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   SStbJoinPrevJoinCtx*       pPrev = &pStbJoin->ctx.prev;
   SStbJoinPostJoinCtx*       pPost = &pStbJoin->ctx.post;
   SOperatorParam*            pParam = NULL;
-  int32_t                    code = TSDB_CODE_SUCCESS;
-
-  if (pInfo->stbJoin.basic.batchJoin) {
-    code = buildSeqBatchStbJoinOperatorParam(pInfo, pPrev, &pParam);
-  } else {
-    code = buildSeqStbJoinOperatorParam(pInfo, pPrev, &pParam);
-  }
+  int32_t                    code  = buildSeqStbJoinOperatorParam(pInfo, pPrev, pPost, &pParam);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
@@ -294,86 +285,27 @@ static void seqJoinLaunchPostJoin(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   }
 }
 
-static void seqJoinLaunchRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
-  SStbJoinPrevJoinCtx*       pPrev = &pStbJoin->ctx.prev;
-
-  while (true) {
-    if ((pPrev->lastRow + 1) >= pPrev->pLastBlk->info.rows) {
-      *ppRes = NULL;
-      pPrev->pLastBlk = NULL;
-      return;
-    }
-
-    seqJoinLaunchPostJoin(pOperator, ppRes);
-    pPrev->lastRow++;
-    if (*ppRes) {
-      break;
-    }
-  }
-}
-
 static FORCE_INLINE void seqJoinContinueRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
-  SStbJoinPrevJoinCtx*       pPrev = &pStbJoin->ctx.prev;
-  SStbJoinPostJoinCtx*       pPost = &pStbJoin->ctx.post;
+  SStbJoinPostJoinCtx*       pPost = &pInfo->stbJoin.ctx.post;
 
-  if (pPost->isStarted) {
-    qDebug("%s dynQueryCtrl retrieve block from post op", GET_TASKID(pOperator->pTaskInfo));
-    *ppRes = getNextBlockFromDownstream(pOperator, 1);
-    if (NULL == *ppRes) {
-      pPost->isStarted = false;
-    } else {
-      pInfo->execInfo.postBlkNum++;
-      pInfo->execInfo.postBlkRows += (*ppRes)->info.rows;
-      return;
-    }
+  if (!pPost->isStarted) {
+    return;
   }
   
-  if (pStbJoin->ctx.prev.pLastBlk) {
-    seqJoinLaunchRetrieve(pOperator, ppRes);
+  qDebug("%s dynQueryCtrl continue to retrieve block from post op", GET_TASKID(pOperator->pTaskInfo));
+  
+  *ppRes = getNextBlockFromDownstream(pOperator, 1);
+  if (NULL == *ppRes) {
+    pPost->isStarted = false;
+  } else {
+    pInfo->execInfo.postBlkNum++;
+    pInfo->execInfo.postBlkRows += (*ppRes)->info.rows;
+    return;
   }
 }
 
-SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
-  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
-  SSDataBlock* pRes = NULL;
-
-  if (pOperator->status == OP_EXEC_DONE) {
-    return pRes;
-  }
-
-  seqJoinContinueRetrieve(pOperator, &pRes);
-  if (pRes) {
-    return pRes;
-  }
-  
-  while (true) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
-    if (NULL == pBlock) {
-      pOperator->status = OP_EXEC_DONE;
-      break;
-    }
-
-    pInfo->execInfo.prevBlkNum++;
-    pInfo->execInfo.prevBlkRows += pBlock->info.rows;
-    
-    pStbJoin->ctx.prev.pLastBlk = pBlock;
-    pStbJoin->ctx.prev.lastRow = -1;
-    
-    seqJoinLaunchRetrieve(pOperator, &pRes);
-    if (pRes) {
-      break;
-    }
-  }
-
-  return pRes;
-}
-
-static FORCE_INLINE int32_t addToJoinHash(SSHashObj* pHash, void* pKey, int32_t keySize, void* pVal, int32_t valSize) {
+static FORCE_INLINE int32_t addToJoinVgroupHash(SSHashObj* pHash, void* pKey, int32_t keySize, void* pVal, int32_t valSize) {
   SArray** ppArray = tSimpleHashGet(pHash, pKey, keySize);
   if (NULL == ppArray) {
     SArray* pArray = taosArrayInit(10, valSize);
@@ -395,6 +327,37 @@ static FORCE_INLINE int32_t addToJoinHash(SSHashObj* pHash, void* pKey, int32_t 
   
   return TSDB_CODE_SUCCESS;
 }
+
+static FORCE_INLINE int32_t addToJoinTableHash(SSHashObj* pHash, SSHashObj* pOnceHash, void* pKey, int32_t keySize) {
+  uint32_t* pNum = tSimpleHashGet(pHash, pKey, keySize);
+  if (NULL == pNum) {
+    uint32_t n = 1;
+    if (tSimpleHashPut(pHash, pKey, keySize, &n, sizeof(n))) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (tSimpleHashPut(pOnceHash, pKey, keySize, NULL, 0)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (*pNum) {
+    case 0:
+      break;
+    case UINT32_MAX:
+      *pNum = 0;
+      break;
+    default:
+      if (1 == (*pNum)) {
+        tSimpleHashRemove(pOnceHash, pKey, keySize);
+      }
+      (*pNum)++;
+      break;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 static void freeStbJoinTableList(SStbJoinTableList* pList) {
   if (NULL == pList) {
@@ -440,7 +403,7 @@ static int32_t appendStbJoinTableList(SStbJoinTableList** ppHead, int64_t rows, 
   return TSDB_CODE_SUCCESS;
 }
 
-static void doBuildStbJoinHash(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+static void doBuildStbJoinTableHash(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
@@ -449,17 +412,28 @@ static void doBuildStbJoinHash(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SColumnInfoData*           pUid0 = taosArrayGet(pBlock->pDataBlock, pStbJoin->basic.uidSlot[0]);
   SColumnInfoData*           pUid1 = taosArrayGet(pBlock->pDataBlock, pStbJoin->basic.uidSlot[1]);
 
-  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-    int32_t* leftVg = (int32_t*)(pVg0->pData + pVg0->info.bytes * i);
-    int64_t* leftUid = (int64_t*)(pUid0->pData + pUid0->info.bytes * i);
-    int32_t* rightVg = (int32_t*)(pVg1->pData + pVg1->info.bytes * i);
-    int64_t* rightUid = (int64_t*)(pUid1->pData + pUid1->info.bytes * i);
+  if (pStbJoin->basic.batchFetch) {
+    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+      int32_t* leftVg = (int32_t*)(pVg0->pData + pVg0->info.bytes * i);
+      int64_t* leftUid = (int64_t*)(pUid0->pData + pUid0->info.bytes * i);
+      int32_t* rightVg = (int32_t*)(pVg1->pData + pVg1->info.bytes * i);
+      int64_t* rightUid = (int64_t*)(pUid1->pData + pUid1->info.bytes * i);
 
-    code = addToJoinHash(pStbJoin->ctx.prev.leftVg, leftVg, sizeof(*leftVg), leftUid, sizeof(*leftUid));
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
+      code = addToJoinVgroupHash(pStbJoin->ctx.prev.leftHash, leftVg, sizeof(*leftVg), leftUid, sizeof(*leftUid));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      code = addToJoinVgroupHash(pStbJoin->ctx.prev.rightHash, rightVg, sizeof(*rightVg), rightUid, sizeof(*rightUid));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
     }
-    code = addToJoinHash(pStbJoin->ctx.prev.rightVg, rightVg, sizeof(*rightVg), rightUid, sizeof(*rightUid));
+  }
+  
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    int64_t* leftUid = (int64_t*)(pUid0->pData + pUid0->info.bytes * i);
+  
+    code = addToJoinTableHash(pStbJoin->ctx.prev.tableTimes, pStbJoin->ctx.prev.onceTable, leftUid, sizeof(*leftUid));
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
@@ -478,7 +452,64 @@ static void doBuildStbJoinHash(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   }
 }
 
-static void buildStbJoinVgList(SOperatorInfo* pOperator) {
+static void updatePostJoinRightTableUid(SStbJoinDynCtrlInfo*         pStbJoin) {
+  SStbJoinPrevJoinCtx*       pPrev = &pStbJoin->ctx.prev;
+  SStbJoinPostJoinCtx*       pPost = &pStbJoin->ctx.post;
+  SStbJoinTableList*         pNode = pPrev->pListHead;
+  int64_t*                   rightUid = pNode->pRightUid;
+  int64_t                    readIdx = pNode->readIdx + 1;
+
+  if (pPost->rightNextUid) {
+    pPost->rightCurrUid = pPost->rightNextUid;
+  } else {
+    pPost->rightCurrUid = *rightUid;
+  }
+
+  while (true) {
+    if (readIdx < pNode->uidNum) {
+      pPost->rightNextUid = *(rightUid + readIdx);
+      return;
+    }
+    
+    pNode = pNode->pNext;
+    if (NULL == pNode) {
+      pPost->rightNextUid = 0;
+      return;
+    }
+    
+    rightUid = pNode->pRightUid;
+    readIdx = 0;
+  }
+}
+
+static void postProcessStbJoinTableHash(SOperatorInfo* pOperator) {
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
+
+  updatePostJoinRightTableUid(pStbJoin);
+
+  if (tSimpleHashGetSize(pStbJoin->ctx.prev.tableTimes) == tSimpleHashGetSize(pStbJoin->ctx.prev.onceTable)) {
+    tSimpleHashClear(pStbJoin->ctx.prev.tableTimes);
+    return;
+  }
+
+  uint64_t* pUid = NULL;
+  int32_t iter = 0;
+  while (pUid = tSimpleHashIterate(pStbJoin->ctx.prev.onceTable, pUid, &iter)) {
+    tSimpleHashRemove(pStbJoin->ctx.prev.tableTimes, pUid, sizeof(*pUid));
+  }
+
+  qError("more than 1 ref build table num %" PRId64, (int64_t)tSimpleHashGetSize(pStbJoin->ctx.prev.tableTimes));
+
+  // debug only
+  iter = 0;
+  uint32_t* num = NULL;
+  while (num = tSimpleHashIterate(pStbJoin->ctx.prev.tableTimes, num, &iter)) {
+    ASSERT(*num > 1);
+  }
+}
+
+static void buildStbJoinTableList(SOperatorInfo* pOperator) {
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
 
@@ -491,13 +522,15 @@ static void buildStbJoinVgList(SOperatorInfo* pOperator) {
     pInfo->execInfo.prevBlkNum++;
     pInfo->execInfo.prevBlkRows += pBlock->info.rows;
     
-    doBuildStbJoinHash(pOperator, pBlock);
+    doBuildStbJoinTableHash(pOperator, pBlock);
   }
+
+  postProcessStbJoinTableHash(pOperator);
 
   pStbJoin->ctx.prev.joinBuild = true;
 }
 
-static void seqBatchJoinLaunchRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static void seqJoinLaunchRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
   SStbJoinPrevJoinCtx*       pPrev = &pStbJoin->ctx.prev;
@@ -523,8 +556,7 @@ static void seqBatchJoinLaunchRetrieve(SOperatorInfo* pOperator, SSDataBlock** p
   return;
 }
 
-
-SSDataBlock* seqBatchStableJoin(SOperatorInfo* pOperator) {
+SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
   SSDataBlock* pRes = NULL;
@@ -534,8 +566,8 @@ SSDataBlock* seqBatchStableJoin(SOperatorInfo* pOperator) {
   }
 
   if (!pStbJoin->ctx.prev.joinBuild) {
-    buildStbJoinVgList(pOperator);
-    if (tSimpleHashGetSize(pStbJoin->ctx.prev.leftVg) <= 0 || tSimpleHashGetSize(pStbJoin->ctx.prev.rightVg) <= 0) {
+    buildStbJoinTableList(pOperator);
+    if (pInfo->execInfo.prevBlkRows <= 0) {
       pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
@@ -546,18 +578,28 @@ SSDataBlock* seqBatchStableJoin(SOperatorInfo* pOperator) {
     return pRes;
   }
   
-  seqBatchJoinLaunchRetrieve(pOperator, &pRes);
+  seqJoinLaunchRetrieve(pOperator, &pRes);
   return pRes;
 }
 
-int32_t initBatchStbJoinVgHash(SStbJoinPrevJoinCtx* pPrev) {
-  pPrev->leftVg = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-  if (NULL == pPrev->leftVg) {
+int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
+  if (batchFetch) {
+    pPrev->leftHash = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (NULL == pPrev->leftHash) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pPrev->rightHash = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (NULL == pPrev->rightHash) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  
+  pPrev->tableTimes = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (NULL == pPrev->tableTimes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pPrev->rightVg = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-  if (NULL == pPrev->rightVg) {
+  pPrev->onceTable = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (NULL == pPrev->onceTable) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -586,15 +628,11 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
   switch (pInfo->qType) {
     case DYN_QTYPE_STB_HASH:
       memcpy(&pInfo->stbJoin.basic, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
-      if (pInfo->stbJoin.basic.batchJoin) {
-        code = initBatchStbJoinVgHash(&pInfo->stbJoin.ctx.prev);
-        if (TSDB_CODE_SUCCESS != code) {
-          goto _error;
-        }
-        nextFp = seqBatchStableJoin;
-      } else {
-        nextFp = seqStableJoin;
+      code = initSeqStbJoinTableHash(&pInfo->stbJoin.ctx.prev, pInfo->stbJoin.basic.batchFetch);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _error;
       }
+      nextFp = seqStableJoin;
       break;
     default:
       qError("unsupported dynamic query ctrl type: %d", pInfo->qType);

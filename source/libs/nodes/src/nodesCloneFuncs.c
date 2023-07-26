@@ -550,7 +550,7 @@ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCache
 static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQueryCtrlLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(qType);
-  COPY_SCALAR_FIELD(stbJoin.batchJoin);
+  COPY_SCALAR_FIELD(stbJoin.batchFetch);
   CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   return TSDB_CODE_SUCCESS;

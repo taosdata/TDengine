@@ -1026,7 +1026,7 @@ static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList*
       pDynCtrl->stbJoin.uidSlot[i] = ((SColumnNode*)pNode)->slotId;
       ++i;
     }
-    pDynCtrl->stbJoin.batchJoin = pLogicNode->stbJoin.batchJoin;
+    pDynCtrl->stbJoin.batchFetch = pLogicNode->stbJoin.batchFetch;
   }
 
   return code;

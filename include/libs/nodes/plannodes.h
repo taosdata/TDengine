@@ -169,7 +169,7 @@ typedef struct SGroupCacheLogicNode {
 } SGroupCacheLogicNode;
 
 typedef struct SDynQueryCtrlStbJoin {
-  bool          batchJoin;
+  bool          batchFetch;
   SNodeList*    pVgList;
   SNodeList*    pUidList;
 } SDynQueryCtrlStbJoin;
@@ -460,7 +460,7 @@ typedef struct SGroupCachePhysiNode {
 } SGroupCachePhysiNode;
 
 typedef struct SStbJoinDynCtrlBasic {
-  bool     batchJoin;
+  bool     batchFetch;
   int32_t  vgSlot[2];
   int32_t  uidSlot[2];
 } SStbJoinDynCtrlBasic;

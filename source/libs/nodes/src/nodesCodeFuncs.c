@@ -1228,7 +1228,7 @@ static int32_t jsonToLogicGroupCacheNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkDynQueryCtrlLogicPlanQueryType = "QueryType";
-static const char* jkDynQueryCtrlLogicPlanStbJoinBatchJoin = "BatchJoin";
+static const char* jkDynQueryCtrlLogicPlanStbJoinBatchFetch = "BatchFetch";
 static const char* jkDynQueryCtrlLogicPlanStbJoinVgList = "VgroupList";
 static const char* jkDynQueryCtrlLogicPlanStbJoinUidList = "UidList";
 
@@ -1240,7 +1240,7 @@ static int32_t logicDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchJoin, pNode->stbJoin.batchJoin);
+    code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchFetch, pNode->stbJoin.batchFetch);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkDynQueryCtrlLogicPlanStbJoinVgList, pNode->stbJoin.pVgList);
@@ -1260,7 +1260,7 @@ static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchJoin, &pNode->stbJoin.batchJoin);
+    tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchFetch, &pNode->stbJoin.batchFetch);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkDynQueryCtrlLogicPlanStbJoinVgList, &pNode->stbJoin.pVgList);
@@ -3005,7 +3005,7 @@ static int32_t jsonToPhysiGroupCacheNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkDynQueryCtrlPhysiPlanQueryType = "QueryType";
-static const char* jkDynQueryCtrlPhysiPlanBatchJoin = "BatchJoin";
+static const char* jkDynQueryCtrlPhysiPlanBatchFetch = "BatchFetch";
 static const char* jkDynQueryCtrlPhysiPlanVgSlot0 = "VgSlot[0]";
 static const char* jkDynQueryCtrlPhysiPlanVgSlot1 = "VgSlot[1]";
 static const char* jkDynQueryCtrlPhysiPlanUidSlot0 = "UidSlot[0]";
@@ -3021,7 +3021,7 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     switch (pNode->qType) {
       case DYN_QTYPE_STB_HASH: {
-        code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanBatchJoin, pNode->stbJoin.batchJoin);
+        code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanBatchFetch, pNode->stbJoin.batchFetch);
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanVgSlot0, pNode->stbJoin.vgSlot[0]);
         }
@@ -3055,7 +3055,7 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
       case DYN_QTYPE_STB_HASH: {
         tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanQueryType, pNode->qType, code);
         if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanBatchJoin, &pNode->stbJoin.batchJoin);
+          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanBatchFetch, &pNode->stbJoin.batchFetch);
         }
         if (TSDB_CODE_SUCCESS == code) {
           tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanVgSlot0, pNode->stbJoin.vgSlot[0], code);

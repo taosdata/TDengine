@@ -37,17 +37,19 @@ typedef struct SStbJoinTableList {
 } SStbJoinTableList;
 
 typedef struct SStbJoinPrevJoinCtx {
-  SSDataBlock*       pLastBlk;
-  int32_t            lastRow;
   bool               joinBuild;
-  SSHashObj*         leftVg;
-  SSHashObj*         rightVg;
+  SSHashObj*         leftHash;
+  SSHashObj*         rightHash;
+  SSHashObj*         tableTimes;
+  SSHashObj*         onceTable;
   int64_t            tableNum;
   SStbJoinTableList* pListHead;
 } SStbJoinPrevJoinCtx;
 
 typedef struct SStbJoinPostJoinCtx {
-  bool isStarted;
+  bool    isStarted;
+  int64_t rightCurrUid;
+  int64_t rightNextUid;
 } SStbJoinPostJoinCtx;
 
 typedef struct SStbJoinDynCtrlCtx {
