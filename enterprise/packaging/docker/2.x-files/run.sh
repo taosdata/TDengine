@@ -293,41 +293,46 @@ function initDnodeAndMnode {
         if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ]; then
             break 
         fi
-        PROC_NUM=$(ps aux | grep taosd | grep -v -E "grep|entrypoint|run_taosd" |awk '{print $2}')
-        if [ $? -eq 0 ] && [ "$PROC_NUM" != "" ]; then
-            # first check dnode created
-            DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-            if [[ "$DNODETmp" == "" ]]; then
-                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"  
-                DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-                if [[ "$DNODETmp" != "" ]]; then
-                    DNODE_CREATED=1
-                    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Created the dnode with endpoint $ENDPOINT"
-                fi
-            else
+        # first check dnode created
+        DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+        if [[ "$DNODETmp" == "" ]]; then
+            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"  
+            DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            if [[ "$DNODETmp" != "" ]]; then
                 DNODE_CREATED=1
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Dnode $ENDPOINT already created "
-            fi    
-            if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
-                # second check mnode created
-                MNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-                if [[ "$MNODETmp" == "" ]]; then
-                    DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
-                    if [[ "$DNODEID" != "" ]]; then
-                        taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
-                        MNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-                        if [[ "$MNODETmp" != "" ]]; then
-                            MNODE_CREATED=1
-                            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Created the mnode for dnode $DNODEID"
-                        fi
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Created the dnode with endpoint $ENDPOINT"
+            else
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: failed to create dnode $ENDPOINT through taos"
+            fi
+        else
+            DNODE_CREATED=1
+            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Dnode $ENDPOINT already created "
+        fi    
+        if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
+            # second check mnode created
+            MNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            if [[ "$MNODETmp" == "" ]]; then
+                DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+                if [[ "$DNODEID" != "" ]]; then
+                    taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
+                    MNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                    if [[ "$MNODETmp" != "" ]]; then
+                        MNODE_CREATED=1
+                        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Created the mnode for dnode $DNODEID"
+                    else 
+                        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: failed to create mnode for dnode $ENDPOINT through taos"
                     fi
                 fi
-            else
-                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"  
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: created admin_user"
-                MNODE_CREATED=1
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: This is master dnode and no need to create mnode"
             fi
+        else
+            # check admin_user created or not
+            ADMINUSER=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "show users;" | grep -E "admin_user" -o)
+            if [[ "$ADMINUSER" == "" ]]; then
+                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"  
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: created admin_user"
+            fi
+            MNODE_CREATED=1
+            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: This is master dnode and no need to create mnode"
         fi
     done
 }
@@ -360,18 +365,19 @@ do
         # taosd_start_time=`date +%s`
         run_taosd &
         pid=$!
-        initDnodeAndMnode
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
-    if [ "$status"x = "2"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]
-    then
-        if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
-            taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"|grep -q -w meters
-            if [ $? -ne 0 ]; then
-                taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
-                taos -s "GRANT ALL on test.* to admin_user;"
-                TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: executed taosBenchmark to generate test database"
+    if [ "$status"x = "2"x ]; then
+        initDnodeAndMnode
+        if [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]; then
+            if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
+                taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"|grep -q -w meters
+                if [ $? -ne 0 ]; then
+                    taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
+                    taos -s "GRANT ALL on test.* to admin_user;"
+                    TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
+                    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: executed taosBenchmark to generate test database"
+                fi
             fi
         fi
     fi
