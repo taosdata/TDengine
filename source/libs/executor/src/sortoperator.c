@@ -54,18 +54,18 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   int32_t numOfCols = 0;
   pOperator->exprSupp.pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
   pOperator->exprSupp.numOfExprs = numOfCols;
-  calcSortOperMaxTupleLength(pInfo, pSortNode->pSortKeys);
-  pInfo->maxRows = -1;
-  if (pSortNode->node.pLimit) {
-    SLimitNode* pLimit = (SLimitNode*)pSortNode->node.pLimit;
-    if (pLimit->limit > 0) pInfo->maxRows = pLimit->limit;
-  }
-
   int32_t numOfOutputCols = 0;
   int32_t code =
       extractColMatchInfo(pSortNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
+  }
+  
+  calcSortOperMaxTupleLength(pInfo, pSortNode->pSortKeys);
+  pInfo->maxRows = -1;
+  if (pSortNode->node.pLimit) {
+    SLimitNode* pLimit = (SLimitNode*)pSortNode->node.pLimit;
+    if (pLimit->limit > 0) pInfo->maxRows = pLimit->limit + pLimit->offset;
   }
 
   pOperator->exprSupp.pCtx =

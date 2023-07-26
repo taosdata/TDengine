@@ -35,6 +35,7 @@ typedef struct {
 
 bool    taosCheckSystemIsLittleEnd();
 void    taosGetSystemInfo();
+int64_t taosGetOsUptime();
 int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t maxLen);
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);

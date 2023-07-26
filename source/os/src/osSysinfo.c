@@ -961,6 +961,18 @@ char *taosGetCmdlineByPID(int pid) {
 #endif
 }
 
+int64_t taosGetOsUptime() {
+#ifdef WINDOWS
+#elif defined(_TD_DARWIN_64)
+#else
+  struct sysinfo info;
+  if (0 == sysinfo(&info)) {
+    return (int64_t)info.uptime * 1000;
+  }
+#endif
+  return 0;
+}
+
 void taosSetCoreDump(bool enable) {
   if (!enable) return;
 #ifdef WINDOWS

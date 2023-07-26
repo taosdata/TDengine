@@ -2935,14 +2935,14 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
 static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
   if (QUERY_NODE_REAL_TABLE != nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
-                                   "The _TAGS pseudo column can only be used for subtable and supertable queries");
+                                   "The _TAGS pseudo column can only be used for child table and super table queries");
   }
 
   SRealTableNode*   pTable = (SRealTableNode*)(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
   const STableMeta* pMeta = pTable->pMeta;
   if (TSDB_SUPER_TABLE != pMeta->tableType && TSDB_CHILD_TABLE != pMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
-                                "The _TAGS pseudo column can only be used for subtable and supertable queries");
+                                "The _TAGS pseudo column can only be used for child table and super table queries");
   }
 
   SSchema* pTagsSchema = getTableTagSchema(pMeta);
