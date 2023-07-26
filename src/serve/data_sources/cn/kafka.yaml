@@ -8,10 +8,10 @@ description: |
   TaosX 可以高效地读取 Kafka 中的数据，并通过 taosx-kafka 连接器将其写入 TDengine 来实现历史数据迁移或实时数据同步。
 strict: false
 options:
-  bootstrap-servers:
+  endpoint:
     display: bootstrap-servers
-    description: kafka bootstrap-servers
-    placeholder: "127.0.0.1:9092"
+    description: Kafka Server 地址
+    placeholder: 127.0.0.1:9092
     required: true
 groups:
   - name: SSL 证书

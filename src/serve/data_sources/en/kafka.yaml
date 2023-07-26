@@ -10,10 +10,10 @@ description: |
   historical data migration or real-time data synchronization.
 strict: false
 options:
-  bootstrap-servers:
+  endpoint:
     display: bootstrap-servers
     description: kafka bootstrap-servers
-    placeholder: "127.0.0.1:9092"
+    placeholder: 127.0.0.1:9092
     required: true
 groups:
   - name: Enable SSL
