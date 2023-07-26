@@ -1,5 +1,4 @@
 ## =========================== Install taosKeeper ======================================
-echo "Install keeper as a standalone service"
 exists=$(tar -tf $tarName | grep bin/taoskeeper)
 if [ "$exists" = "" ]; then
   exit
@@ -20,6 +19,5 @@ else
   fi
   command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true
 
-  echo "taoskeeper is installed, enable it by \`systemctl enable taoskeeper\`"
   echo ""
 fi
