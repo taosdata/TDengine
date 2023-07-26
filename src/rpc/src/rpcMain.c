@@ -561,6 +561,37 @@ void rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
   return;
 }
 
+void rpcSendRecvWithTimeout(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  SRpcReqContext *pContext;
+  pContext = (SRpcReqContext *)((char *)pMsg->pCont - sizeof(SRpcHead) - sizeof(SRpcReqContext));
+
+  memset(pRsp, 0, sizeof(SRpcMsg));
+
+  tsem_t sem;
+  tsem_init(&sem, 0, 0);
+  pContext->pSem = &sem;
+  pContext->pRsp = pRsp;
+  pContext->pSet = pEpSet;
+
+  int64_t rid = 0;
+  rpcSendRequest(shandle, pEpSet, pMsg, &rid);
+
+#if defined (LINUX)
+  if (tsem_timewait(&sem, 3 * 1000) == 0) {
+    // do nothing
+  } else {
+    rpcCancelRequest(rid);
+    pRsp->code = -1;
+  }
+
+#else 
+  tsem_wait(&sem);
+#endif
+  tsem_destroy(&sem);
+
+  return;
+}
+
 // this API is used by server app to keep an APP context in case connection is broken
 int rpcReportProgress(void *handle, char *pCont, int contLen) {
   SRpcConn *pConn = (SRpcConn *)handle;
@@ -1469,7 +1500,7 @@ static TBOOL rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
     if (pConn->connType != RPC_CONN_TCPC) {
       pContext->code = terrno;
       return BOOL_ASYNC;
-    }	  
+    }
     // try next ip again
     pContext->code = terrno;
     // in rpcProcessConnError if numOfTry over limit, could call rpcNotifyClient to stop query
@@ -1503,7 +1534,7 @@ static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   if (writtenLen != msgLen) {
     tError("%s, failed to send, msgLen:%d written:%d, reason:%s", pConn->info, msgLen, writtenLen, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno); 
+    terrno = TAOS_SYSTEM_ERROR(errno);
     ret = false;
   }
 
