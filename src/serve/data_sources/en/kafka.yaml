@@ -16,6 +16,23 @@ options:
     placeholder: "127.0.0.1:9092"
     required: true
 groups:
+  - name: Enable SSL
+    display_order: 0
+    description: Use self-signed certificate file and private key.
+    collapsible: true
+    params:
+      - name: cert
+        display: Client certificate file
+        description: Client certificate file.
+        required: true
+        hint:
+          type: file
+      - name: cert_key
+        display: Client key file
+        description: Client key file.
+        required: true
+        hint:
+          type: file
   - name: Consumer
     display_order: 1
     description: Configure the data migration task
