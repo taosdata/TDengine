@@ -846,11 +846,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
     }
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    if ((TSDB_DATA_TYPE_TIMESTAMP == pColSchema->type) && (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId)) {
-      strcpy(pCol->node.aliasName, ROWTS_PSEUDO_COLUMN_NAME);
-    } else {
-      strcpy(pCol->node.aliasName, pColSchema->name);
-    }
+    strcpy(pCol->node.userAlias, pColSchema->name);
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->tableType = pTable->pMeta->tableType;
