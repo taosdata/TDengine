@@ -98,6 +98,8 @@ char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
 
 // schemaless
+bool tsSmlDot2Underline = true;
+char tsSmlTsDefaultName[TSDB_COL_NAME_LEN] = "_ts";
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
@@ -351,6 +353,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "smlTsDefaultName", tsSmlTsDefaultName, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "smlDot2Underline", tsSmlDot2Underline, true) != 0) return -1;
   //  if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
   //  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxInsertBatchRows", tsMaxInsertBatchRows, 1, INT32_MAX, true) != 0) return -1;
@@ -785,6 +789,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
+  tstrncpy(tsSmlTsDefaultName, cfgGetItem(pCfg, "smlTsDefaultName")->str, TSDB_COL_NAME_LEN);
+  tsSmlDot2Underline = cfgGetItem(pCfg, "smlDot2Underline")->bval;
   //  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   //  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
@@ -1219,6 +1225,10 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         //        tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
         //      } else if (strcasecmp("smlBatchSize", name) == 0) {
         //        tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
+      } else if(strcasecmp("smlTsDefaultName", name) == 0) {
+        tstrncpy(tsSmlTsDefaultName, cfgGetItem(pCfg, "smlTsDefaultName")->str, TSDB_COL_NAME_LEN);
+      } else if(strcasecmp("smlDot2Underline", name) == 0) {
+        tsSmlDot2Underline = cfgGetItem(pCfg, "smlDot2Underline")->bval;
       } else if (strcasecmp("shellActivityTimer", name) == 0) {
         tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
       } else if (strcasecmp("supportVnodes", name) == 0) {

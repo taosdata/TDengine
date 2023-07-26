@@ -115,6 +115,7 @@ inline bool smlDoubleToInt64OverFlow(double num) {
 }
 
 void smlStrReplace(char* src, int32_t len){
+  if (!tsSmlDot2Underline) return;
   for(int i = 0; i < len; i++){
     if(src[i] == '.'){
       src[i] = '_';
@@ -201,6 +202,9 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
     if (childTableNameLen == tag->keyLen && strncmp(tag->key, tsSmlChildTableName, tag->keyLen) == 0) {
       memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
       strncpy(childTableName, tag->value, (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
+      if(tsSmlDot2Underline){
+        smlStrReplace(childTableName, strlen(childTableName));
+      }
       taosArrayRemove(tags, i);
       break;
     }

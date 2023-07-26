@@ -161,6 +161,8 @@ extern char tsUdfdLdLibPath[];
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
+extern bool tsSmlDot2Underline;
+extern char tsSmlTsDefaultName[];
 // extern bool    tsSmlDataFormat;
 // extern int32_t tsSmlBatchSize;
 

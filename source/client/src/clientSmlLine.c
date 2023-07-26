@@ -653,8 +653,8 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   // add ts to
-  SSmlKv kv = {.key = TS,
-               .keyLen = TS_LEN,
+  SSmlKv kv = {.key = tsSmlTsDefaultName,
+               .keyLen = strlen(tsSmlTsDefaultName),
                .type = TSDB_DATA_TYPE_TIMESTAMP,
                .i = ts,
                .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,

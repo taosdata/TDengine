@@ -64,8 +64,8 @@ extern "C" {
 #define IS_INVALID_COL_LEN(len)   ((len) <= 0 || (len) >= TSDB_COL_NAME_LEN)
 #define IS_INVALID_TABLE_LEN(len) ((len) <= 0 || (len) >= TSDB_TABLE_NAME_LEN)
 
-#define TS        "_ts"
-#define TS_LEN    3
+//#define TS        "_ts"
+//#define TS_LEN    3
 #define VALUE     "_value"
 #define VALUE_LEN 6
 
