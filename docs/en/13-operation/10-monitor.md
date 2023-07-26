@@ -214,19 +214,6 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### logs table
-
-`logs` table contains login information records.
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|level|VARCHAR||log level|
-|content|NCHAR||log content|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
 ### log\_summary table
 
 `log_summary` table contains log summary information records.

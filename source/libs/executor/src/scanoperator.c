@@ -2880,15 +2880,23 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
-  pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
-  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
-                                             pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
+  bool hasLimit = pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1;
   int64_t mergeLimit = -1;
-  if (pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1) {
-    mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
-  }                                             
-  tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
+  if (hasLimit) {
+      mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
+  }
+  size_t szRow = blockDataGetRowSize(pInfo->pResBlock);   
+  if (hasLimit) {
+    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
+                                              NULL, pTaskInfo->id.str, mergeLimit, szRow+8, tsPQSortMemThreshold * 1024* 1024);
+  } else {
+    pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
+    int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
+                                              pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
+                                          
+    tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
+  }
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlockImpl, NULL, NULL);
 
   // one table has one data block

@@ -66,20 +66,25 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
 }
 
 static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32_t rowIndex, int64_t currentKey) {
+  bool isNull = (TSDB_DATA_TYPE_NULL == pVar->nType) ? true : false;
   if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = 0;
-    GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-    colDataSetVal(pDst, rowIndex, (char*)&v, false);
+    GET_TYPED_DATA(v, float, pVar->nType, &pVar->f);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
     double v = 0;
-    GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-    colDataSetVal(pDst, rowIndex, (char*)&v, false);
+    GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
     int64_t v = 0;
     GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-    colDataSetVal(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pDst->info.type)) {
+    uint64_t v = 0;
+    GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, false);
+    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, isNull);
   } else {  // varchar/nchar data
     colDataSetNULL(pDst, rowIndex);
   }

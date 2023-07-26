@@ -42,24 +42,24 @@ void initStorageAPI(SStorageAPI* pAPI) {
 
 void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
-                                       bool, SHashObj**))tsdbReaderOpen;
-  pReader->tsdReaderClose = tsdbReaderClose;
+                                       bool, SHashObj**))tsdbReaderOpen2;
+  pReader->tsdReaderClose = tsdbReaderClose2;
 
-  pReader->tsdNextDataBlock = tsdbNextDataBlock;
+  pReader->tsdNextDataBlock = tsdbNextDataBlock2;
 
-  pReader->tsdReaderRetrieveDataBlock = tsdbRetrieveDataBlock;
-  pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock;
+  pReader->tsdReaderRetrieveDataBlock = tsdbRetrieveDataBlock2;
+  pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
-  pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA;
+  pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
 
   pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
-  pReader->tsdReaderResetStatus = tsdbReaderReset;
+  pReader->tsdReaderResetStatus = tsdbReaderReset2;
 
-  pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo;
-  pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable;  // todo this function should be moved away
+  pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;
+  pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable2;  // todo this function should be moved away
 
-  pReader->tsdSetQueryTableList = tsdbSetTableList;
-  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId;
+  pReader->tsdSetQueryTableList = tsdbSetTableList2;
+  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {

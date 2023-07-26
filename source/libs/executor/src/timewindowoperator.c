@@ -2753,6 +2753,7 @@ void streamIntervalReloadState(SOperatorInfo* pOperator) {
                                                         strlen(STREAM_INTERVAL_OP_STATE_NAME), &pBuf, &size);
     TSKEY ts = *(TSKEY*)pBuf;
     taosMemoryFree(pBuf);
+    pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
     pInfo->statestore.streamStateReloadInfo(pInfo->pState, ts);
   }
   SOperatorInfo* downstream = pOperator->pDownstream[0];
