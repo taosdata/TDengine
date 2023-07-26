@@ -20,7 +20,6 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
   int32_t  code = 0;
   STsdbFD *pFD = NULL;
 
-  szPage = 4096; //debug only!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   *ppFD = NULL;
 
   pFD = (STsdbFD *)taosMemoryCalloc(1, sizeof(*pFD) + strlen(path) + 1);
