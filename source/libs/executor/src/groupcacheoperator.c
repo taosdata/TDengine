@@ -186,7 +186,7 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
   
   taosWLockLatch(&pCache->dirtyLock);
   pCache->blkCacheSize += pBufInfo->basic.bufSize;
-  qError("group cache block cache num:%d size:%" PRId64 , taosHashGetSize(pCache->pDirtyBlk), pCache->blkCacheSize);
+  qError("group cache total dirty block num:%d size:%" PRId64 , taosHashGetSize(pCache->pDirtyBlk), pCache->blkCacheSize);
 
   if (NULL == pCache->pDirtyHead) {
     pCache->pDirtyHead = pBufInfo;
@@ -259,7 +259,7 @@ static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pB
   return code;
 }
 
-void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
+void blockDataDeepClear(SSDataBlock* pDataBlock) {
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
@@ -276,6 +276,25 @@ void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
 }
 
+
+void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    taosMemoryFreeClear(p->pData);
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      taosMemoryFreeClear(p->varmeta.offset);
+      p->varmeta.length = 0;
+      p->varmeta.allocLen = 0;
+    } else {
+      taosMemoryFreeClear(p->nullbitmap);
+    }
+  }
+  pDataBlock->info.capacity = 0;
+  pDataBlock->info.rows = 0;
+}
+
+
 static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
   *ppDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *ppDst) {
@@ -288,7 +307,7 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
-  blockDataDeepCleanup(*ppDst);
+  blockDataDeepClear(*ppDst);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -919,8 +938,12 @@ static int32_t getBlkFromGroupCache(struct SOperatorInfo* pOperator, SSDataBlock
   }
   
   code = getBlkFromSessionCache(pOperator, pGcParam->sessionId, pSession, ppRes);
-  if (NULL == ppRes) {
+  if (NULL == *ppRes) {
     taosHashRemove(pCtx->pSessions, &pGcParam->sessionId, sizeof(pGcParam->sessionId));
+    qError("session %" PRId64 " in downstream %d total got %" PRId64 " rows", pGcParam->sessionId, pCtx->id, pSession->resRows);
+  } else {
+    pSession->resRows += (*ppRes)->info.rows;
+    qError("session %" PRId64 " in downstream %d got %" PRId64 " rows in one block", pGcParam->sessionId, pCtx->id, (*ppRes)->info.rows);
   }
 
   return code;

@@ -43,6 +43,7 @@ typedef struct SMJoinOperatorInfo {
   SSDataBlock* pRes;
   int32_t      joinType;
   int32_t      inputOrder;
+  bool         downstreamFetchDone[2];
   int16_t      downstreamResBlkId[2];
 
   SSDataBlock* pLeft;
@@ -65,6 +66,8 @@ typedef struct SMJoinOperatorInfo {
 
   SSHashObj*   rightBuildTable;
   SMJoinRowCtx  rowCtx;
+
+  int64_t       resRows;
 } SMJoinOperatorInfo;
 
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
@@ -457,7 +460,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
     }
 
     if (dataBlock == NULL) {
-      setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
+      pJoinInfo->downstreamFetchDone[whichChild] = true;
       endPos = -1;
       break;
     }
@@ -654,11 +657,15 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   bool leftEmpty = false;
   
   if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
-    pJoinInfo->pLeft = getNextBlockFromDownstream(pOperator, 0);
+    if (!pJoinInfo->downstreamFetchDone[0]) {
+      pJoinInfo->pLeft = getNextBlockFromDownstream(pOperator, 0);
 
-    pJoinInfo->leftPos = 0;
-    qError("merge join left got block, rows:%" PRId64, pJoinInfo->pLeft ? pJoinInfo->pLeft->info.rows : 0);
-
+      pJoinInfo->leftPos = 0;
+      qError("merge join left got block, rows:%" PRId64, pJoinInfo->pLeft ? pJoinInfo->pLeft->info.rows : 0);
+    } else {
+      pJoinInfo->pLeft = NULL;
+    }
+    
     if (pJoinInfo->pLeft == NULL) {
       if (pOperator->pOperatorParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorParam->value)->initParam) {
         leftEmpty = true;
@@ -670,10 +677,14 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   }
 
   if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
-    pJoinInfo->pRight = getNextBlockFromDownstream(pOperator, 1);
+    if (!pJoinInfo->downstreamFetchDone[1]) {
+      pJoinInfo->pRight = getNextBlockFromDownstream(pOperator, 1);
 
-    pJoinInfo->rightPos = 0;
-    qError("merge join right got block, rows:%" PRId64, pJoinInfo->pRight ? pJoinInfo->pRight->info.rows : 0);
+      pJoinInfo->rightPos = 0;
+      qError("merge join right got block, rows:%" PRId64, pJoinInfo->pRight ? pJoinInfo->pRight->info.rows : 0);
+    } else {
+      pJoinInfo->pRight = NULL;
+    }
     
     if (pJoinInfo->pRight == NULL) {
       setMergeJoinDone(pOperator);
@@ -753,15 +764,21 @@ void resetMergeJoinOperator(struct SOperatorInfo* pOperator) {
   pJoinInfo->leftPos = 0;
   pJoinInfo->pRight = NULL;
   pJoinInfo->rightPos = 0;
+  pJoinInfo->downstreamFetchDone[0] = false;
+  pJoinInfo->downstreamFetchDone[1] = false;
+  pJoinInfo->resRows = 0;
+  pOperator->status = OP_OPENED;
 }
 
 SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   SMJoinOperatorInfo* pJoinInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
     if (NULL == pOperator->pDownstreamParams[0] || NULL == pOperator->pDownstreamParams[1]) {
+      qError("total merge join res rows:%" PRId64, pJoinInfo->resRows);
       return NULL;
     } else {
       resetMergeJoinOperator(pOperator);
+      qError("start new merge join");
     }
   }
 
@@ -785,7 +802,15 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
   }
-  return (pRes->info.rows > 0) ? pRes : NULL;
+  
+  if (pRes->info.rows > 0) {
+    pJoinInfo->resRows += pRes->info.rows;
+    qError("merge join returns res rows:%" PRId64, pRes->info.rows);
+    return pRes;
+  } else {
+    qError("total merge join res rows:%" PRId64, pJoinInfo->resRows);
+    return NULL;
+  }
 }
 
 

@@ -41,7 +41,7 @@ typedef struct SGcFileCacheCtx {
   uint32_t        fileId;
   SHashObj*       pCacheFile;
   int32_t         baseNameLen;
-  char            baseFilename[PATH_MAX];  
+  char            baseFilename[256];  
 } SGcFileCacheCtx;
 
 typedef struct SGcDownstreamCtx {
@@ -115,6 +115,7 @@ typedef struct SGcSessionCtx {
   bool              semInit;
   tsem_t            waitSem;
   bool              newFetch;
+  int64_t           resRows;
 } SGcSessionCtx;
 
 typedef struct SGcBlkBufInfo {

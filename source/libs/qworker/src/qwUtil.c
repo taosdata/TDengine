@@ -45,7 +45,7 @@ char *qwBufStatusStr(int32_t bufStatus) {
   return "UNKNOWN";
 }
 
-int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
+int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status, bool dynamicTask) {
   int32_t code = 0;
   int8_t  origStatus = 0;
   bool    ignore = false;
@@ -53,7 +53,7 @@ int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
   while (true) {
     origStatus = atomic_load_8(&task->status);
 
-    QW_ERR_RET(qwDbgValidateStatus(QW_FPARAMS(), origStatus, status, &ignore));
+    QW_ERR_RET(qwDbgValidateStatus(QW_FPARAMS(), origStatus, status, &ignore, dynamicTask));
     if (ignore) {
       break;
     }
@@ -381,7 +381,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
+int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask) {
   SQWSchStatus  *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
@@ -389,7 +389,7 @@ int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
   QW_ERR_RET(qwAcquireScheduler(mgmt, sId, QW_READ, &sch));
   QW_ERR_JRET(qwAcquireTaskStatus(QW_FPARAMS(), QW_READ, sch, &task));
 
-  QW_ERR_JRET(qwSetTaskStatus(QW_FPARAMS(), task, status));
+  QW_ERR_JRET(qwSetTaskStatus(QW_FPARAMS(), task, status, dynamicTask));
 
 _return:
 
@@ -417,7 +417,7 @@ int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
     return TSDB_CODE_SUCCESS;
   }
 
-  QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC));
+  QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
 
   QW_ERR_RET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
 

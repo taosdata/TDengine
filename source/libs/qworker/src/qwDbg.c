@@ -17,7 +17,7 @@ SQWDebug gQWDebug = {.lockEnable = false,
                      .sleepSimulate = false,
                      .forceStop = false};
 
-int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
+int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore, bool dynamicTask) {
   if (!gQWDebug.statusEnable) {
     return TSDB_CODE_SUCCESS;
   }
@@ -25,7 +25,7 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
   int32_t code = 0;
 
   if (oriStatus == newStatus) {
-    if (newStatus == JOB_TASK_STATUS_EXEC || newStatus == JOB_TASK_STATUS_FAIL) {
+    if (dynamicTask || newStatus == JOB_TASK_STATUS_EXEC || newStatus == JOB_TASK_STATUS_FAIL) {
       *ignore = true;
       return TSDB_CODE_SUCCESS;
     }

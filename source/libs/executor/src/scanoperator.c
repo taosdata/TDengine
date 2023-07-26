@@ -805,10 +805,11 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   }
 
   STableKeyInfo info = {.groupId = 0};  
+  int32_t tableIdx = 0;
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* pUid = taosArrayGet(pParam->pUidList, i);
 
-    if (taosHashPut(pListInfo->map, pUid, sizeof(uint64_t), &i, sizeof(int32_t))) {
+    if (taosHashPut(pListInfo->map, pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t))) {
       if (TSDB_CODE_DUP_KEY == terrno) {
         continue;
       }
@@ -821,6 +822,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
+    tableIdx++;
     qError("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
   }
   

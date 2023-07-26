@@ -97,6 +97,8 @@ int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pC
 
 void dsEndPut(DataSinkHandle handle, uint64_t useconds);
 
+void dsReset(DataSinkHandle handle);
+
 /**
  * Get the length of the data returned by the next call to dsGetDataBlock.
  * @param handle
