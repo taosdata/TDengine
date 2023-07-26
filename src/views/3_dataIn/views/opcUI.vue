@@ -1373,7 +1373,7 @@ export default {
     min-width: 800px;
 
     .description {
-      max-width: 500px;
+      max-width: 568px;
       overflow: auto;
     }
     .source-name {
@@ -1535,6 +1535,7 @@ export default {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 0px !important;
+    white-space: normal !important;
   }
   :deep {
     .el-input-number__increase,
