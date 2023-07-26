@@ -1,0 +1,3 @@
+repository='https://github.com/taosdata-contrib/lz4.git'
+module=''
+tag='origin'

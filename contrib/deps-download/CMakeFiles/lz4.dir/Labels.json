@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"lz4"
+		],
+		"name" : "lz4"
+	}
+}

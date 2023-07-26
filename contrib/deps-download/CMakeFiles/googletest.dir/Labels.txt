@@ -1,0 +1,14 @@
+# Target labels
+ googletest
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/googletest
+/home/work/TDengine/contrib/deps-download/CMakeFiles/googletest.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/googletest-complete.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-build.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-configure.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-download.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-install.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-mkdir.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-patch.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-test.rule
+/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-update.rule

@@ -1,0 +1,14 @@
+# Target labels
+ libuv
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv
+/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv-complete.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-build.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-configure.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-download.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-install.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-mkdir.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-patch.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-test.rule
+/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-update.rule

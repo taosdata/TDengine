@@ -1,0 +1,14 @@
+# Target labels
+ zlib
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib
+/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib-complete.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-build.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-configure.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-download.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-install.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-mkdir.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-patch.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-test.rule
+/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-update.rule

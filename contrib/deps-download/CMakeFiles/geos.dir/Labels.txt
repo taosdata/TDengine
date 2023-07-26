@@ -1,0 +1,14 @@
+# Target labels
+ geos
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/geos
+/home/work/TDengine/contrib/deps-download/CMakeFiles/geos.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/geos-complete.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-build.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-configure.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-download.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-install.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-mkdir.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-patch.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-test.rule
+/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-update.rule

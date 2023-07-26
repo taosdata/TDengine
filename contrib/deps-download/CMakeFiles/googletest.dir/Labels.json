@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/googletest"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/googletest.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/googletest-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/googletest-prefix/src/googletest-stamp/googletest-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"googletest"
+		],
+		"name" : "googletest"
+	}
+}

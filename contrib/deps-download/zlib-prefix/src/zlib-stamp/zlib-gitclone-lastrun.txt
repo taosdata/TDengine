@@ -1,0 +1,3 @@
+repository='https://github.com/taosdata-contrib/zlib.git'
+module=''
+tag='origin'

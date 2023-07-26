@@ -1,0 +1,14 @@
+# Target labels
+ stub
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/stub
+/home/work/TDengine/contrib/deps-download/CMakeFiles/stub.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/stub-complete.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-build.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-configure.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-download.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-install.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-mkdir.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-patch.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-test.rule
+/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-update.rule

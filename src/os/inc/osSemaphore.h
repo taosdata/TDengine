@@ -20,42 +20,45 @@
 extern "C" {
 #endif
 
-#if defined (_TD_DARWIN_64)
-  typedef struct tsem_s *tsem_t;
-  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-  int tsem_wait(tsem_t *sem);
-  int tsem_post(tsem_t *sem);
-  int tsem_destroy(tsem_t *sem);
+#if defined(_TD_DARWIN_64)
+typedef struct tsem_s *tsem_t;
+int                    tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int                    tsem_wait(tsem_t *sem);
+int                    tsem_post(tsem_t *sem);
+int                    tsem_timewait(tsem_t *sim, int64_t milis);
+int                    tsem_destroy(tsem_t *sem);
+
 #else
-  #define tsem_t sem_t
-  #define tsem_init sem_init
-  int tsem_wait(tsem_t* sem);
-  #define tsem_post sem_post
-  #define tsem_destroy sem_destroy
+#define tsem_t sem_t
+#define tsem_init sem_init
+int tsem_wait(tsem_t *sem);
+int tsem_timewait(tsem_t *sim, int64_t milis);
+#define tsem_post sem_post
+#define tsem_destroy sem_destroy
 #endif
 
-#if defined (_TD_DARWIN_64)
-  #define pthread_rwlock_t pthread_mutex_t
-  #define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
-  #define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
-  #define pthread_rwlock_wrlock(lock) pthread_mutex_lock(lock)
-  #define pthread_rwlock_rdlock(lock) pthread_mutex_lock(lock)
-  #define pthread_rwlock_unlock(lock) pthread_mutex_unlock(lock)
+#if defined(_TD_DARWIN_64)
+#define pthread_rwlock_t pthread_mutex_t
+#define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
+#define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
+#define pthread_rwlock_wrlock(lock) pthread_mutex_lock(lock)
+#define pthread_rwlock_rdlock(lock) pthread_mutex_lock(lock)
+#define pthread_rwlock_unlock(lock) pthread_mutex_unlock(lock)
 
-  #define pthread_spinlock_t pthread_mutex_t
-  #define pthread_spin_init(lock, NULL) pthread_mutex_init(lock, NULL)
-  #define pthread_spin_destroy(lock) pthread_mutex_destroy(lock)
-  #define pthread_spin_lock(lock) pthread_mutex_lock(lock)
-  #define pthread_spin_unlock(lock) pthread_mutex_unlock(lock)
+#define pthread_spinlock_t pthread_mutex_t
+#define pthread_spin_init(lock, NULL) pthread_mutex_init(lock, NULL)
+#define pthread_spin_destroy(lock) pthread_mutex_destroy(lock)
+#define pthread_spin_lock(lock) pthread_mutex_lock(lock)
+#define pthread_spin_unlock(lock) pthread_mutex_unlock(lock)
 #endif
 
 bool    taosCheckPthreadValid(pthread_t thread);
 int64_t taosGetSelfPthreadId();
 int64_t taosGetPthreadId(pthread_t thread);
-void    taosResetPthread(pthread_t* thread);
+void    taosResetPthread(pthread_t *thread);
 bool    taosComparePthread(pthread_t first, pthread_t second);
 int32_t taosGetPId();
-int32_t taosGetCurrentAPPName(char* name, int32_t* len);
+int32_t taosGetCurrentAPPName(char *name, int32_t *len);
 
 #ifdef __cplusplus
 }

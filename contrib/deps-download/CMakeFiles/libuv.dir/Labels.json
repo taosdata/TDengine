@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/libuv-prefix/src/libuv-stamp/libuv-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"libuv"
+		],
+		"name" : "libuv"
+	}
+}

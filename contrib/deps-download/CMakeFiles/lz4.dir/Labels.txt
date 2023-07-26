@@ -1,0 +1,14 @@
+# Target labels
+ lz4
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4
+/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4-complete.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-build.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-configure.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-download.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-install.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-mkdir.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-patch.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-test.rule
+/home/work/TDengine/contrib/deps-download/lz4-prefix/src/lz4-stamp/lz4-update.rule

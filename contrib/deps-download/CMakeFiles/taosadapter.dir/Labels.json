@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"taosadapter"
+		],
+		"name" : "taosadapter"
+	}
+}

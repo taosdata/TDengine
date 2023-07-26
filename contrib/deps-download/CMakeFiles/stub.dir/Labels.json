@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/stub"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/stub.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/stub-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/stub-prefix/src/stub-stamp/stub-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"stub"
+		],
+		"name" : "stub"
+	}
+}

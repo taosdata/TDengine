@@ -1,0 +1,8 @@
+/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/lz4.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/libuv.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/geos.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/edit_cache.dir
+/home/work/TDengine/contrib/deps-download/CMakeFiles/rebuild_cache.dir

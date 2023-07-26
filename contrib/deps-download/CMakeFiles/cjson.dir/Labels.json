@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"cjson"
+		],
+		"name" : "cjson"
+	}
+}

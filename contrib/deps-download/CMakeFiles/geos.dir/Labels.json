@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/geos"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/geos.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/geos-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/geos-prefix/src/geos-stamp/geos-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"geos"
+		],
+		"name" : "geos"
+	}
+}

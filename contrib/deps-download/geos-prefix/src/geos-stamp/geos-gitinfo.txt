@@ -1,0 +1,3 @@
+repository='https://github.com/libgeos/geos.git'
+module=''
+tag='origin'

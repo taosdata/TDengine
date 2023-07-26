@@ -1,0 +1,14 @@
+# Target labels
+ cjson
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson
+/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/cjson-complete.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-build.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-configure.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-download.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-install.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-mkdir.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-patch.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-test.rule
+/home/work/TDengine/contrib/deps-download/cjson-prefix/src/cjson-stamp/cjson-update.rule

@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/CMakeFiles/zlib-complete.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-build.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-configure.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-download.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-install.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-mkdir.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-patch.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-test.rule"
+		},
+		{
+			"file" : "/home/work/TDengine/contrib/deps-download/zlib-prefix/src/zlib-stamp/zlib-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"zlib"
+		],
+		"name" : "zlib"
+	}
+}

@@ -1,0 +1,14 @@
+# Target labels
+ taosadapter
+# Source files and their labels
+/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter
+/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter.rule
+/home/work/TDengine/contrib/deps-download/CMakeFiles/taosadapter-complete.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-build.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-configure.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-download.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-install.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-mkdir.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-patch.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-test.rule
+/home/work/TDengine/contrib/deps-download/taosadapter-prefix/src/taosadapter-stamp/taosadapter-update.rule
