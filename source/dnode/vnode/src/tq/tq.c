@@ -1047,6 +1047,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
   if (code < 0) {
     tqError("vgId:%d failed to add s-task:%s, total:%d", vgId, pTask->id.idStr, numOfTasks);
+    tFreeStreamTask(pTask);
     taosWUnLockLatch(&pStreamMeta->lock);
     return -1;
   }
@@ -1261,6 +1262,7 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t remain = streamAlignTransferState(pTask);
   if (remain > 0) {
     tqDebug("s-task:%s receive upstream transfer state msg, remain:%d", pTask->id.idStr, remain);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
 
@@ -1475,9 +1477,6 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
   }
 
   streamMetaUnregisterTask(pTq->pStreamMeta, pReq->taskId);
-  streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
-
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }

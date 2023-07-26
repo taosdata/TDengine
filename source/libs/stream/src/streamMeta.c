@@ -226,10 +226,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 }
 
 int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
-  taosWLockLatch(&pMeta->lock);
   int32_t code = tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(taskId), pMeta->txn);
-  taosWUnLockLatch(&pMeta->lock);
-
   if (code != 0) {
     qError("vgId:%d failed to remove task:0x%x from metastore, code:%s", pMeta->vgId, taskId, tstrerror(terrno));
   } else {
@@ -248,6 +245,8 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
       return -1;
     }
 
+    taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+
     if (streamMetaSaveTask(pMeta, pTask) < 0) {
       tFreeStreamTask(pTask);
       return -1;
@@ -257,8 +256,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
       tFreeStreamTask(pTask);
       return -1;
     }
-
-    taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
   } else {
     return 0;
   }
@@ -361,13 +358,15 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
     ASSERT(pTask->status.timerActive == 0);
 
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
-    qDebug("s-task:%s set the drop task flag, remain running s-task:%d", pTask->id.idStr, num - 1);
     doRemoveIdFromList(pMeta, num, pTask->id.taskId);
 
     // remove the ref by timer
     if (pTask->triggerParam != 0) {
       taosTmrStop(pTask->schedTimer);
     }
+
+    streamMetaRemoveTask(pMeta, taskId);
+    streamMetaReleaseTask(pMeta, pTask);
   } else {
     qDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", pMeta->vgId, taskId);
   }
