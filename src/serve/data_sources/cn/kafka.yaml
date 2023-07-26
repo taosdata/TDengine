@@ -14,6 +14,22 @@ options:
     placeholder: "127.0.0.1:9092"
     required: true
 groups:
+  - name: SSL 证书
+    description: 使用证书和私钥建立连接以启用 SSL。
+    collapsible: true
+    params:
+      - name: cert
+        display: 客户端证书
+        description: .cert 文件
+        required: true
+        hint:
+          type: file
+      - name: cert_key
+        display: 客户端私钥
+        description: 私钥文件
+        required: true
+        hint:
+          type: file
   - name: Consumer
     display_order: 1
     description: 配置数据采集任务
