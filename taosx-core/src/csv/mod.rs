@@ -119,6 +119,7 @@ fn build_ipc(
     };
     Ok((ipc, receiver))
 }
+
 pub async fn csv_to_taos(
     mut from: Dsn,
     parser: Option<Parser>,
@@ -205,7 +206,7 @@ struct CsvSource {
 impl CsvSource {
     fn new(dsn: &mut Dsn, port: u16) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
-        //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=&port=
+        //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=
         let dsn_paths = match &dsn.path {
             Some(path) => path.split(",").collect_vec(),
             None => return Err(anyhow!("csv path is null")),
@@ -257,16 +258,20 @@ impl CsvSource {
         let batch_size: usize = dsn
             .params
             .remove("batch_size")
-            .unwrap_or("10".to_string())
+            .unwrap_or("1".to_string())
             .parse()?;
         let concurrent: usize = dsn
             .params
             .remove("concurrent")
             .unwrap_or("1".to_string())
             .parse()?;
-        // let port: u32 = dsn.params.remove("port").unwrap().parse()?;
 
-        let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep, skip)?;
+        if !has_header && headers.len() == 0 {
+            return Err(anyhow!("csv header is null"));
+        }
+
+
+        let readers = CsvSource::csv_readers(&paths, &headers, sep, skip)?;
 
         Ok(CsvSource {
             readers,
@@ -362,6 +367,11 @@ impl CsvSource {
                 tokio::task::yield_now().await;
             }
         }
+
+        if records.len() >= batch_size {
+            CsvSource::write_to_stream(&headers, &schema, &mut writer, &records)?;
+        }
+
         tokio::task::yield_now().await;
         tracing::info!("CSV stream reading finished");
 
@@ -422,7 +432,6 @@ impl CsvSource {
 
     fn csv_readers(
         paths: &Vec<String>,
-        has_header: bool,
         headers: &Vec<String>,
         sep: Option<u8>,
         skip: Option<u64>,
@@ -435,7 +444,6 @@ impl CsvSource {
                     Some(sep) => sep,
                     _ => b',',
                 })
-                .has_headers(has_header)
                 .flexible(true)
                 .from_path(path)?;
             if !headers.is_empty() {
