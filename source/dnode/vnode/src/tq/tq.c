@@ -1329,8 +1329,7 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     tqDebug(
         "s-task:%s scan-history finish rsp received from downstream task:0x%x, all downstream tasks rsp scan-history "
-        "completed msg",
-        pTask->id.idStr);
+        "completed msg", pTask->id.idStr, req.downstreamId);
     streamProcessScanHistoryFinishRsp(pTask);
   }
 
