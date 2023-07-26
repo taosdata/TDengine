@@ -415,6 +415,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   // free it and remove it from disk meta-store
   streamMetaUnregisterTask(pMeta, pTask->id.taskId);
   streamMetaRemoveTask(pMeta, taskId);
+  streamMetaReleaseTask(pMeta, pTask);
 
   // save to disk
   taosWLockLatch(&pMeta->lock);
