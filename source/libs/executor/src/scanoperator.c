@@ -2155,14 +2155,13 @@ FETCH_NEXT_BLOCK:
           return pInfo->pCreateTbRes;
         }
 
-        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
-        doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
-
         // apply additional time window filter
         doBlockDataWindowFilter(pBlock, pInfo->primaryTsIndex, &pStreamInfo->fillHistoryWindow, id);
-
         pBlock->info.dataLoad = 1;
         blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
+
+        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
+        doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
 
         int64_t numOfUpdateRes = pInfo->pUpdateDataRes->info.rows;
         qDebug("%s %" PRId64 " rows in datablock, update res:%" PRId64, id, pBlockInfo->rows, numOfUpdateRes);
