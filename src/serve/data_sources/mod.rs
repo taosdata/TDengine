@@ -202,15 +202,9 @@ pub(super) async fn data_source_collection(
             .content_type(ContentType::json())
             .json(&data),
         Err(err) => {
-            dbg!(&err);
-            dbg!(&err.root_cause());
             HttpResponse::InternalServerError().json(Failed {
                 code: 0xFFFF.into(),
-                message: format!(
-                    "err: {}, cause: {}",
-                    err.to_string(),
-                    err.root_cause().to_string()
-                ),
+                message: format!("{:#}", err)
             })
         }
     }

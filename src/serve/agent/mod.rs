@@ -30,7 +30,7 @@ pub(super) async fn create_agent(
         Ok(agent) => HttpResponse::Ok().json(&agent),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -52,7 +52,7 @@ pub(super) async fn delete_agent(
         Ok(_) => HttpResponse::Ok().json(serde_json::Value::Null),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -79,7 +79,7 @@ pub(super) async fn get_agents(
             .json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -106,7 +106,7 @@ pub(super) async fn get_agent_tasks(
             .json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -133,7 +133,7 @@ pub(super) async fn update_agent(
         Ok(agents) => HttpResponse::Ok().json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
