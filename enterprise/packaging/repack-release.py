@@ -82,7 +82,7 @@ def replace_contents(dir, args):
                 file_path = os.path.join(root, file)
                 fin = open(file_path, "r")
                 content = fin.read()
-                content = content.replace("ExecStart=/usr/bin/"+args.prompt+"keeper", "ExecStart=/usr/bin/"+args.prompt+"keeper -c /etc/"+args.prompt+"/keeper.toml")
+                content = content.replace("ExecStart=/usr/bin/"+args.prompt+"keeper", "ExecStart=/usr/bin/"+args.prompt+"keeper -c /etc/"+args.prompt+"/"+args.prompt+"keeper.toml")
                 fin.close()
 
                 fout = open(file_path, "w")
