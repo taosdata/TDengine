@@ -89,34 +89,34 @@ int32_t taosGetCurrentAPPName(char* name, int32_t* len) {
 
 #endif
 
-#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
-int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
-  struct timespec ts;
-  taosClockGetTime(0, &ts);
+// #if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
+// int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
+//   struct timespec ts;
+//   taosClockGetTime(0, &ts);
 
-  ts.tv_nsec += ms * 1000000;
-  ts.tv_sec += ts.tv_nsec / 1000000000;
-  ts.tv_nsec %= 1000000000;
-  int rc;
-  while ((rc = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
-  return rc;
-  /* This should have timed out */
-  // ASSERT(errno == ETIMEDOUT);
-  // ASSERT(rc != 0);
-  // GetSystemTimeAsFileTime(&ft_after);
-  // // We specified a non-zero wait. Time must advance.
-  // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
-  //   {
-  //     printf("nanoseconds: %d, rc: %d, code:0x%x. before filetime: %d, %d; after filetime: %d, %d\n",
-  //         nanosecs, rc, errno,
-  //         (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
-  //         (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);
-  //     printf("time must advance during sem_timedwait.");
-  //     return 1;
-  //   }
-}
+//   ts.tv_nsec += ms * 1000000;
+//   ts.tv_sec += ts.tv_nsec / 1000000000;
+//   ts.tv_nsec %= 1000000000;
+//   int rc;
+//   while ((rc = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
+//   return rc;
+//   /* This should have timed out */
+//   // ASSERT(errno == ETIMEDOUT);
+//   // ASSERT(rc != 0);
+//   // GetSystemTimeAsFileTime(&ft_after);
+//   // // We specified a non-zero wait. Time must advance.
+//   // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
+//   //   {
+//   //     printf("nanoseconds: %d, rc: %d, code:0x%x. before filetime: %d, %d; after filetime: %d, %d\n",
+//   //         nanosecs, rc, errno,
+//   //         (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
+//   //         (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);
+//   //     printf("time must advance during sem_timedwait.");
+//   //     return 1;
+//   //   }
+// }
 
-#endif
+// #endif
 
 // #if defined(_TD_DARWIN_64)
 
