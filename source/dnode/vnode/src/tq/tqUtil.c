@@ -344,9 +344,11 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
     if (blockReturned) {
       return 0;
     }
-  } else {  // use the consumer specified offset
+  } else if(reqOffset.type != 0){  // use the consumer specified offset
     // the offset value can not be monotonious increase??
     offset = reqOffset;
+  } else {
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   // this is a normal subscribe requirement
