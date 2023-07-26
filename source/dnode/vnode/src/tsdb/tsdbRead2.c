@@ -1743,31 +1743,31 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
         return doMergeFileBlockAndLastBlock(pLastBlockReader, pReader, pBlockScanInfo, NULL, false);
       }
     }
-    if (key == tsLast) {
-      SRow*   pTSRow = NULL;
-      int32_t code = tsdbRowMergerAdd(pMerger, &fRow, pReader->info.pSchema);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader);
-
-      TSDBROW* pRow1 = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
-      tsdbRowMergerAdd(pMerger, pRow1, NULL);
-
-      doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLast, pMerger, &pReader->info.verRange, pReader->idStr);
-
-      code = tsdbRowMergerGetRow(pMerger, &pTSRow);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      code = doAppendRowFromTSRow(pReader->resBlockInfo.pResBlock, pReader, pTSRow, pBlockScanInfo);
-
-      taosMemoryFree(pTSRow);
-      tsdbRowMergerClear(pMerger);
+    // the following for key == tsLast
+    SRow*   pTSRow = NULL;
+    int32_t code = tsdbRowMergerAdd(pMerger, &fRow, pReader->info.pSchema);
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader);
+
+    TSDBROW* pRow1 = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
+    tsdbRowMergerAdd(pMerger, pRow1, NULL);
+
+    doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLast, pMerger, &pReader->info.verRange, pReader->idStr);
+
+    code = tsdbRowMergerGetRow(pMerger, &pTSRow);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doAppendRowFromTSRow(pReader->resBlockInfo.pResBlock, pReader, pTSRow, pBlockScanInfo);
+
+    taosMemoryFree(pTSRow);
+    tsdbRowMergerClear(pMerger);
+    return code;
+
   } else {  // only last block exists
     return doMergeFileBlockAndLastBlock(pLastBlockReader, pReader, pBlockScanInfo, NULL, false);
   }
