@@ -118,13 +118,13 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
 
 #endif
 
-#if defined(_TD_DARWIN_64)
+// #if defined(_TD_DARWIN_64)
 
-int tsem_timewait(tsem_t* psem, int64_t milis) {
-  if (psem == NULL || *psem == NULL) return -1;
-  dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
-  dispatch_semaphore_wait(*psem, time);
-  return 0;
-}
+// int tsem_timewait(tsem_t* psem, int64_t milis) {
+//   if (psem == NULL || *psem == NULL) return -1;
+//   dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
+//   dispatch_semaphore_wait(*psem, time);
+//   return 0;
+// }
 
-#endif
+// #endif

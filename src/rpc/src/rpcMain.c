@@ -576,11 +576,19 @@ void rpcSendRecvWithTimeout(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRp
   int64_t rid = 0;
   rpcSendRequest(shandle, pEpSet, pMsg, &rid);
 
-  tsem_timewait(&sem, 3 * 1000);
-  rpcCancelRequest(rid);
+#if defined (LINUX)
+  if (tsem_timewait(&sem, 3 * 1000) == 0) {
+    // do nothing
+  } else {
+    rpcCancelRequest(rid);
+    pRsp->code = -1;
+  }
+
+#else 
+  tsem_wait(&sem);
+#endif
   tsem_destroy(&sem);
 
-  pRsp->code = -1;
   return;
 }
 
