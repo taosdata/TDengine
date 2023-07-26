@@ -2569,9 +2569,8 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
-    if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pScanInfo->uid, sizeof(pScanInfo->uid))) {
-      // reset the index in last block when handing a new file
-      //      doCleanupTableScanInfo(pScanInfo);
+    if (pScanInfo == NULL) {
+      tsdbError("table Iter is null, invalid pScanInfo, try next table %s", pReader->idStr);
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
@@ -2580,8 +2579,15 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
       continue;
     }
 
-    // reset the index in last block when handing a new file
-    //    doCleanupTableScanInfo(pScanInfo);
+    if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pScanInfo->uid, sizeof(pScanInfo->uid))) {
+      // reset the index in last block when handing a new file
+      bool hasNexTable = moveToNextTable(pUidList, pStatus);
+      if (!hasNexTable) {
+        return TSDB_CODE_SUCCESS;
+      }
+
+      continue;
+    }
 
     bool hasDataInLastFile = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasDataInLastFile) {
