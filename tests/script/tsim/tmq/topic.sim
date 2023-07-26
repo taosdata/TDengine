@@ -40,7 +40,6 @@ endi
 sql use $dbName
 
 print == alter database
-sql alter database $dbName wal_retention_period 3600
 
 print == create super table
 sql create table $stbPrefix (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)

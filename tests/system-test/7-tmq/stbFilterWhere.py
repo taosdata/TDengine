@@ -45,7 +45,6 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tmqCom.create_database(tsql=tdSql, dbName=paraDict["dbName"],dropFlag=paraDict["dropFlag"], vgroups=paraDict['vgroups'],replica=paraDict['replica'])
-        tdSql.execute("alter database %s wal_retention_period 3600"%(paraDict["dbName"]))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
