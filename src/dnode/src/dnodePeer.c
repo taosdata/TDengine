@@ -13,58 +13,58 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* this file is mainly responsible for the communication between DNODEs. Each 
+/* this file is mainly responsible for the communication between DNODEs. Each
  * dnode works as both server and client. Dnode may send status, grant, config
- * messages to mnode, mnode may send create/alter/drop table/vnode messages 
+ * messages to mnode, mnode may send create/alter/drop table/vnode messages
  * to dnode. All theses messages are handled from here
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mnode.h"
+#include "dnodeMInfos.h"
+#include "dnodeMPeer.h"
+#include "dnodeStep.h"
 #include "dnodeVMgmt.h"
 #include "dnodeVWrite.h"
-#include "dnodeMPeer.h"
-#include "dnodeMInfos.h"
-#include "dnodeStep.h"
+#include "mnode.h"
+#include "os.h"
 
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
-static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
+static void  dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
 static void *tsServerRpc = NULL;
 static void *tsClientRpc = NULL;
 
 int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeDispatchToVWriteQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeDispatchToVWriteQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeDispatchToVWriteQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeDispatchToVWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = dnodeDispatchToVWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE] = dnodeDispatchToVWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE] = dnodeDispatchToVWriteQueue;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToVMgmtQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeDispatchToVMgmtQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]  = dnodeDispatchToVMgmtQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = dnodeDispatchToVMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToVMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToVMgmtQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToVMgmtQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = dnodeDispatchToVMgmtQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = dnodeDispatchToVMgmtQueue;
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMPeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMPeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMPeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH] = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT] = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS] = dnodeDispatchToMPeerQueue;
 
   SRpcInit rpcInitial;
   memset(&rpcInitial, 0, sizeof(rpcInitial));
-  rpcInitial.localPort    = tsDnodeDnodePort;
-  rpcInitial.label        = "DND-S";
+  rpcInitial.localPort = tsDnodeDnodePort;
+  rpcInitial.label = "DND-S";
   rpcInitial.numOfThreads = 1;
-  rpcInitial.cfp          = dnodeProcessReqMsgFromDnode;
-  rpcInitial.sessions     = TSDB_MAX_VNODES << 4;
-  rpcInitial.connType     = TAOS_CONN_SERVER;
-  rpcInitial.idleTime     = tsShellActivityTimer * 1000;
+  rpcInitial.cfp = dnodeProcessReqMsgFromDnode;
+  rpcInitial.sessions = TSDB_MAX_VNODES << 4;
+  rpcInitial.connType = TAOS_CONN_SERVER;
+  rpcInitial.idleTime = tsShellActivityTimer * 1000;
 
   tsServerRpc = rpcOpen(&rpcInitial);
   if (tsServerRpc == NULL) {
@@ -85,11 +85,7 @@ void dnodeCleanupServer() {
 }
 
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  SRpcMsg rspMsg = {
-    .handle  = pMsg->handle,
-    .pCont   = NULL,
-    .contLen = 0
-  };
+  SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
 
   if (pMsg->pCont == NULL) return;
   if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
@@ -122,18 +118,18 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 }
 
 int32_t dnodeInitClient() {
-  char secret[TSDB_KEY_LEN] = "secret";
+  char     secret[TSDB_KEY_LEN] = "secret";
   SRpcInit rpcInitial;
   memset(&rpcInitial, 0, sizeof(rpcInitial));
-  rpcInitial.label        = "DND-C";
+  rpcInitial.label = "DND-C";
   rpcInitial.numOfThreads = 1;
-  rpcInitial.cfp          = dnodeProcessRspFromDnode;
-  rpcInitial.sessions     = TSDB_MAX_VNODES << 4;
-  rpcInitial.connType     = TAOS_CONN_CLIENT;
-  rpcInitial.idleTime     = tsShellActivityTimer * 1000;
-  rpcInitial.user         = "t";
-  rpcInitial.ckey         = "key";
-  rpcInitial.secret       = secret;
+  rpcInitial.cfp = dnodeProcessRspFromDnode;
+  rpcInitial.sessions = TSDB_MAX_VNODES << 4;
+  rpcInitial.connType = TAOS_CONN_CLIENT;
+  rpcInitial.idleTime = tsShellActivityTimer * 1000;
+  rpcInitial.user = "t";
+  rpcInitial.ckey = "key";
+  rpcInitial.secret = secret;
 
   tsClientRpc = rpcOpen(&rpcInitial);
   if (tsClientRpc == NULL) {
@@ -165,7 +161,7 @@ static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
     dnodeUpdateEpSetForPeer(pEpSet);
   }
 
-  if (dnodeProcessRspMsgFp[pMsg->msgType]) {    
+  if (dnodeProcessRspMsgFp[pMsg->msgType]) {
     (*dnodeProcessRspMsgFp[pMsg->msgType])(pMsg);
   } else {
     mnodeProcessPeerRsp(pMsg);
@@ -174,13 +170,9 @@ static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   rpcFreeCont(pMsg->pCont);
 }
 
-void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
-  dnodeProcessRspMsgFp[msgType] = fp;
-}
+void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) { dnodeProcessRspMsgFp[msgType] = fp; }
 
-void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
-  rpcSendRequest(tsClientRpc, epSet, rpcMsg, NULL);
-}
+void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) { rpcSendRequest(tsClientRpc, epSet, rpcMsg, NULL); }
 
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcEpSet epSet = {0};
@@ -188,6 +180,13 @@ void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
 
   assert(tsClientRpc != 0);
   rpcSendRecv(tsClientRpc, &epSet, rpcMsg, rpcRsp);
+}
+void dnodeSendMsgToMnodeRecvWithTimeout(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
+  SRpcEpSet epSet = {0};
+  dnodeGetEpSetForPeer(&epSet);
+
+  assert(tsClientRpc != 0);
+  rpcSendRecvWithTimeout(tsClientRpc, &epSet, rpcMsg, rpcRsp);
 }
 
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet) {
