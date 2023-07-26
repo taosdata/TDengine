@@ -517,7 +517,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = streamTaskSnapWrite(pWriter->pStreamTaskWriter, pData, nData);
       if (code) goto _err;
     } break;
-    case SNAP_DATA_STREAM_STATE: {
+    case SNAP_DATA_STREAM_STATE_BACKEND: {
       if (pWriter->pStreamStateWriter == NULL) {
         code = streamStateSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pStreamStateWriter);
         if (code) goto _err;
