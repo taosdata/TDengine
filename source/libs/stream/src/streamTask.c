@@ -270,7 +270,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
     walCloseReader(pTask->exec.pWalReader);
   }
 
-  taosArrayDestroyP(pTask->pUpstreamEpInfoList, taosMemoryFree);
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);

@@ -395,7 +395,7 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
 
 // agg
 int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask) {
-  pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
   qDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
          pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream,
          streamGetTaskStatusStr(pTask->status.taskStatus));
@@ -426,7 +426,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   ASSERT(left >= 0);
 
   if (left == 0) {
-    int32_t numOfTasks = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+    int32_t numOfTasks = taosArrayGetSize(pTask->pUpstreamInfoList);
     qDebug(
         "s-task:%s all %d upstream tasks finish scan-history data, set param for agg task for stream data and send "
         "rsp to all upstream tasks",
