@@ -133,6 +133,30 @@ class MultiTableLowFreq(TDCase):
         env_setting = self.get_component_by_name("prometheus")
         Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         Insert_file.get_node_exporter_info(env_setting, 10, timestamp_start, timestamp_end)
+    
+    def disorder_insert(self, vgroups, column_info_list, childtable_count):
+        self.write_log(f'\n****************************** disorder ratio: {self.disorder_ratio} ******************************\n\n')
+        taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
+        taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+
+        self.json_filename_list.append(self.file_name1)
+        dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=vgroups, buffer=self.buffer, stt_trigger=self.stt_trigger)
+        stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=self.tag_info_list, childtable_count=childtable_count, childtable_prefix=self.childtable_prefix, insert_rows=self.insert_rows, batch_create_tbl_num=self.batch_create_tbl_num, insert_mode=self.insert_mode, interlace_rows=self.interlace_rows, timestamp_step=self.timestamp_step, disorder_range=self.disorder_range, disorder_ratio=self.disorder_ratio)]
+        database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
+
+        json_info1 = self.tdCom.setJsoninfo(host=self.taosd_host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.file_name1, json_info1)
+        self.json_data_list.append(json_info1)
+
+        self.tdCom.put_file(self._remote, taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
+        timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        result_file_list = self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, self.json_data_list, self.json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
+        timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        Insert_file = Perf_Base_func(self._remote._logger, self.run_log_dir)
+        Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
+        env_setting = self.get_component_by_name("prometheus")
+        Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
+        Insert_file.get_node_exporter_info(env_setting, 10, timestamp_start, timestamp_end)
 
     # def query_interval(self, insert):
     #     if insert:
@@ -170,7 +194,8 @@ class MultiTableLowFreq(TDCase):
             self.write_log(f'\n****************************** column_info_list: {column_info_list} ******************************\n\n')
             for vgroups, childtable_count in zip(self.vgroups_list, self.childtable_count_list):
                 self.write_log(f'\n\n****************************** vgroups: {vgroups} childtable_count: {childtable_count} ******************************\n\n')
-                self.order_insert(vgroups, column_info_list, childtable_count)
+                # self.order_insert(vgroups, column_info_list, childtable_count)
+                self.disorder_insert(vgroups, column_info_list, childtable_count)
                 print(vgroups, childtable_count)
         # self.order_insert(40, self.column_info_list1, 10000)
         print(self.result_file_name)
