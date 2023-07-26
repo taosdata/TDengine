@@ -279,15 +279,19 @@ impl OPCConfig {
         }
         let interval = parse_int_at!("interval");
         let limit = parse_int_at!("limit");
-        let use_csv_config = if let Some(assert) = dsn.remove("use_csv_config") {
-            match assert.as_str() {
-                "false" => false,
-                "" | "true" => true,
-                _ => return Err(OpcError::ConfigError("use_csv_config", "should config true or false".to_string())),
-            }
-        } else {
-            false
-        };
+        let mut use_csv_config = false;
+        if !matches!(config_mode, OPCConfigMode::Points) {
+            use_csv_config = if let Some(assert) = dsn.remove("use_csv_config") {
+                match assert.as_str() {
+                    "false" => false,
+                    "" | "true" => true,
+                    _ => return Err(OpcError::ConfigError("use_csv_config", "should config true or false".to_string())),
+                }
+            } else {
+                false
+            };
+        }
+         
         let mut opc_table_config = None;
         let dump_enable = parse_bool_param_from_dsn(&mut dsn, "enable").map_err(|err| OpcError::ConfigError("enable", err.to_string()))?;
         let dump_config = if dump_enable.is_some() {
@@ -546,16 +550,20 @@ impl OPCConfig {
             batch_timeout,
         };
         let table_config: Option<TableConfig>;
-        if opc_table_config.is_none() {
-            let config = dsn.remove("opc_table_config");
-            if config.is_none() {
-                return Err(OpcError::ConfigError("opc_table_config", "should config opc_table_config or use csv config file".to_string()));
-            }
-            table_config = Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?);
+        if matches!(config_mode, OPCConfigMode::Points) { 
+            table_config = None;
         } else {
-            let opc_table_config = opc_table_config.unwrap();
-            table_config = Some(opc_table_config.table_config.clone());
-            param_mapping = opc_table_config.id_code_map.clone();
+            if opc_table_config.is_none() {
+                let config = dsn.remove("opc_table_config");
+                if config.is_none() {
+                    return Err(OpcError::ConfigError("opc_table_config", "should config opc_table_config or use csv config file".to_string()));
+                }
+                table_config = Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?);
+            } else {
+                let opc_table_config = opc_table_config.unwrap();
+                table_config = Some(opc_table_config.table_config.clone());
+                param_mapping = opc_table_config.id_code_map.clone();
+            }
         }
         Ok(OPCConfig {
             opc_type,
