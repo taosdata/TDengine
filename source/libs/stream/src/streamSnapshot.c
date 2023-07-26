@@ -361,8 +361,6 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   pHandle->currFileIdx = 0;
   pHandle->offset = 0;
 
-  SBackendFileItem* pItem = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
-  pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_WRITE);
   *ppWriter = pWriter;
   return 0;
 }
@@ -373,14 +371,25 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
   SStreamSnapBlockHdr* pHdr = (SStreamSnapBlockHdr*)pData;
   SStreamSnapHandle*   pHandle = &pWriter->handle;
   SBanckendFile*       pFile = pHandle->pBackendFile;
-  SBackendFileItem*    pItem = taosArrayGetP(pHandle->pFileList, pHandle->currFileIdx);
-  if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
-    if (taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset) != pHdr->size) {
+  SBackendFileItem*    pItem = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
+
+  if (pHandle->fd == NULL) {
+    pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    if (pHandle->fd == NULL) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      qError("stream snap failed to write snap, file name:%s, reason:%s", pHdr->name, tstrerror(code));
+      qError("stream-state failed to open file name:%s%s%s, reason:%s", pFile->path, TD_DIRSEP, pHdr->name,
+             tstrerror(code));
+    }
+  }
+
+  if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
+    int64_t bytes = taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset);
+    if (bytes != pHdr->size) {
+      code = TAOS_SYSTEM_ERROR(terrno);
+      qError("stream-state failed to write snap, file name:%s, reason:%s", pHdr->name, tstrerror(code));
       return code;
     }
-    pHandle->offset += pHdr->size;
+    pHandle->offset += bytes;
   } else {
     taosCloseFile(&pHandle->fd);
     pHandle->offset = 0;
@@ -392,7 +401,12 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     taosArrayPush(pHandle->pFileList, &item);
 
     SBackendFileItem* pItem = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
-    pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_WRITE);
+    pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    if (pHandle->fd == NULL) {
+      code = TAOS_SYSTEM_ERROR(terrno);
+      qError("stream-state failed to open file name:%s%s%s, reason:%s", pFile->path, TD_DIRSEP, pHdr->name,
+             tstrerror(code));
+    }
 
     taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset);
     pHandle->offset += pHdr->size;

@@ -135,7 +135,9 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  sprintf(tdir, "%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM);
+  sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "received");
+  taosMkDir(tdir);
+
   SStreamSnapWriter* pSnapWriter = NULL;
   if (streamSnapWriterOpen(pTq, sver, ever, tdir, &pSnapWriter) < 0) {
     goto _err;
@@ -143,6 +145,8 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
 
   tqDebug("vgId:%d, vnode stream-state snapshot writer opened, path:%s", TD_VID(pTq->pVnode), tdir);
   pWriter->pWriterImpl = pSnapWriter;
+
+  *ppWriter = pWriter;
   return code;
 _err:
   tqError("vgId:%d, vnode stream-state snapshot writer failed to open since %s", TD_VID(pTq->pVnode), tstrerror(code));
