@@ -474,6 +474,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         match output.status.code().unwrap() {
             101 => anyhow::bail!("Failed to connect, ip or port error"),
             102 => anyhow::bail!("Unauthorized access"),
+            103 => anyhow::bail!("Organization not found"),
             _ => anyhow::bail!("Failed to connect, ip or port error")
         }
     }
