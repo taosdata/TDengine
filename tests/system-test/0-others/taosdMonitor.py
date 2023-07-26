@@ -185,6 +185,19 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if "total" not in infoDict["disk_infos"]["tempdir"] or infoDict["disk_infos"]["tempdir"]["total"] <= 0:
             tdLog.exit("total is null!")
 
+        # log_infos  ====================================
+
+        if "log_infos" not in infoDict or infoDict["log_infos"]== None:
+            tdLog.exit("log_infos is null!")
+
+        if "summary" not in infoDict["log_infos"] or len(infoDict["log_infos"]["summary"])!= 4:
+            tdLog.exit("summary is null!")
+
+        if "total" not in infoDict["log_infos"]["summary"][0] or infoDict["log_infos"]["summary"][0]["total"] < 0 :
+            tdLog.exit("total is null!")
+
+        if "level" not in infoDict["log_infos"]["summary"][0] or infoDict["log_infos"]["summary"][0]["level"] not in ["error" ,"info" , "debug" ,"trace"]:
+            tdLog.exit("level is null!")
 
     def do_GET(self):
         """
