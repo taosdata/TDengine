@@ -20,21 +20,6 @@
 static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                  const SMqMetaRsp* pRsp, int32_t vgId);
 
-int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem) {
-  int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
-  if (code < 0) {
-    tqError("s-task:%s failed to put into queue, too many", pTask->id.idStr);
-    return -1;
-  }
-
-  if (streamSchedExec(pTask) < 0) {
-    tqError("stream task:%d failed to be launched, code:%s", pTask->id.taskId, tstrerror(terrno));
-    return -1;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq) {
   pRsp->reqOffset = pReq->reqOffset;
 

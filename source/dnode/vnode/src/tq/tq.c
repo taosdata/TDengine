@@ -1041,12 +1041,13 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   // 2.save task, use the newest commit version as the initial start version of stream task.
   int32_t taskId = 0;
   taosWLockLatch(&pStreamMeta->lock);
-  code = streamMetaAddDeployedTask(pStreamMeta, sversion, pTask);
+  code = streamMetaRegisterTask(pStreamMeta, sversion, pTask);
 
   taskId = pTask->id.taskId;
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
   if (code < 0) {
     tqError("vgId:%d failed to add s-task:%s, total:%d", vgId, pTask->id.idStr, numOfTasks);
+    tFreeStreamTask(pTask);
     taosWUnLockLatch(&pStreamMeta->lock);
     return -1;
   }
@@ -1136,7 +1137,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
                pTask->streamTaskId.taskId, pTask->id.idStr);
 
         pTask->status.taskStatus = TASK_STATUS__DROPPING;
-        tqDebug("s-task:%s scan-history-task set status to be dropping", id);
+        tqDebug("s-task:%s fill-history task set status to be dropping", id);
 
         streamMetaSaveTask(pMeta, pTask);
         streamMetaReleaseTask(pMeta, pTask);
@@ -1166,12 +1167,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     if (!streamTaskRecoverScanStep1Finished(pTask)) {
-      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " do secondary scan-history-data after halt the related stream task:%s",
-              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, id);
+      STimeWindow* pWindow = &pTask->dataRange.window;
+      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+              ", do secondary scan-history data after halt the related stream task:%s",
+              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey, id);
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
       st = taosGetTimestampMs();
-      streamSetParamForStreamScannerStep2(pTask, pRange, &pTask->dataRange.window);
+      streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
     }
 
     if (!streamTaskRecoverScanStep2Finished(pTask)) {
@@ -1259,6 +1262,7 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t remain = streamAlignTransferState(pTask);
   if (remain > 0) {
     tqDebug("s-task:%s receive upstream transfer state msg, remain:%d", pTask->id.idStr, remain);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
 
@@ -1466,8 +1470,14 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   tqDebug("vgId:%d receive msg to drop stream task:0x%x", TD_VID(pTq->pVnode), pReq->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire s-task:0x%x when dropping it", pTq->pStreamMeta->vgId, pReq->taskId);
+    return 0;
+  }
 
-  streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
+  streamMetaUnregisterTask(pTq->pStreamMeta, pReq->taskId);
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }
 

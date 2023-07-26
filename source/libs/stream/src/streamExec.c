@@ -407,12 +407,14 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   streamTaskResumeFromHalt(pStreamTask);
 
-  pTask->status.taskStatus = TASK_STATUS__DROPPING;
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
+  int32_t taskId = pTask->id.taskId;
+
+  // free it and remove it from disk meta-store
+  streamMetaUnregisterTask(pMeta, taskId);
 
   // save to disk
   taosWLockLatch(&pMeta->lock);
-  streamMetaSaveTask(pMeta, pTask);
   streamMetaSaveTask(pMeta, pStreamTask);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
@@ -464,7 +466,12 @@ static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
       // todo we need to sort the data block, instead of just appending into the array list.
       void* newRet = streamMergeQueueItem(*pInput, qItem);
       if (newRet == NULL) {
-        qError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+        if (terrno == 0) {
+          qDebug("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+        } else {
+          qDebug("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
+              tstrerror(terrno));
+        }
         streamQueueProcessFail(pTask->inputQueue);
         return TSDB_CODE_SUCCESS;
       }
@@ -492,6 +499,10 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {
     int32_t batchSize = 0;
     SStreamQueueItem* pInput = NULL;
+    if (streamTaskShouldStop(&pTask->status)) {
+      qDebug("s-task:%s stream task stopped, abort", id);
+      break;
+    }
 
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", id);
