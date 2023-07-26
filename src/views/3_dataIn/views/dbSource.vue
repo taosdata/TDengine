@@ -176,6 +176,10 @@ export default {
             this.currentName = "ui";
             this.tagName = "taos";
             break;
+          case "kafka":
+            this.currentName = "opcui";
+            this.tagName = "kafka";
+            break;
         }
       } else {
         switch (id) {
@@ -225,6 +229,10 @@ export default {
             this.currentName = "ui";
             this.tagName = "taos";
             break;
+          case "kafka":
+            this.currentName = "opcui";
+            this.tagName = "kafka";
+          break;
         }
         this.isEditable = true;
         this.editId = editid;

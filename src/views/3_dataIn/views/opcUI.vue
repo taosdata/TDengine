@@ -909,7 +909,7 @@ export default {
               (data.groups[index].params[g]["value"] == undefined ||
                 data.groups[index].params[g]["value"] == "")
             ) {
-              if (this.tagName == "mqtt") {
+              if (this.tagName == "mqtt" || this.tagName == "kafka") {
                 if (data.groups[index].collapsed) {
                   Message({
                     type: "warning",
@@ -1119,7 +1119,8 @@ export default {
         }
         let piParams = {
           from:
-            (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
+            (this.tagName.includes("opc") ?  "opc" + this.protocol : this.tagName) + 
+            // (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
             // (data.protocol
             //   ? Object.is(data.protocol.value, "--")
             //     ? ""
