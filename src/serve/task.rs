@@ -65,7 +65,7 @@ pub(super) async fn get_tasks(
             ),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -95,7 +95,7 @@ pub(super) async fn get_tasks_count(
         Ok(tasks) => HttpResponse::Ok().body(format!("{tasks}")),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -181,7 +181,7 @@ pub(super) async fn create_task(
         }
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -252,7 +252,7 @@ pub(super) async fn update_task(
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -288,7 +288,7 @@ pub(super) async fn delete_task(
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -321,7 +321,7 @@ pub(super) async fn get_task_by_id(
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -355,7 +355,7 @@ pub(super) async fn start_task(
         }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -389,7 +389,7 @@ pub(super) async fn stop_task(
         }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -419,7 +419,7 @@ pub(super) async fn get_task_offsets_by_id(
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -445,7 +445,7 @@ pub(super) async fn get_task_activities_by_id(
         Ok(acts) => HttpResponse::Ok().json(acts),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: err.to_string(),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -475,7 +475,7 @@ pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>, ) -> i
         Ok(file_saved) => HttpResponse::Created().json(file_saved),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -559,7 +559,7 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
         Ok(filemeta) => HttpResponse::Ok().json(filemeta),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
-            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -616,8 +616,8 @@ pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> 
     match download(params).await {
         Ok(named_file) => named_file.into_response(&req),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: format!("err: {}, cause: {}", err.to_string(), err.root_cause().to_string()),
+            code: Code::FAILED,
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -632,3 +632,5 @@ async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile>
     }
     Ok(NamedFile::open(file_path)?)
 }
+
+
