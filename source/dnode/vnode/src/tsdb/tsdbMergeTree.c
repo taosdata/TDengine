@@ -820,7 +820,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
-
+      pIter->bInit = true;
       bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);
