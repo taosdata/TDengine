@@ -467,6 +467,7 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
   committer->compactVersion = INT64_MAX;
   committer->ctx->cid = tsdbFSAllocEid(tsdb->pFS);
   committer->ctx->now = taosGetTimestampSec();
+  committer->ctx->maxDelKey = TSKEY_MIN;
 
   committer->ctx->nextKey = tsdb->imem->minKey;
   if (tsdb->imem->nDel > 0) {
