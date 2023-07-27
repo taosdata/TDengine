@@ -237,7 +237,9 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
 }
 
 // add to the ready tasks hash map, not the restored tasks hash map
-int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
+int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded) {
+  *pAdded = false;
+
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
@@ -261,13 +263,13 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
+  *pAdded = true;
   return 0;
 }
 
-int32_t streamMetaGetNumOfTasks(const SStreamMeta* pMeta) {
+int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
   size_t size = taosHashGetSize(pMeta->pTasks);
   ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasks));
-
   return (int32_t)size;
 }
 

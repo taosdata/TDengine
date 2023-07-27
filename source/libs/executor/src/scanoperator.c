@@ -1775,19 +1775,32 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
 }
 
 static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id) {
-  if (pWindow->skey != INT64_MIN) {
-    qDebug("%s filter for additional history window, skey:%"PRId64, id, pWindow->skey);
-
+  if (pWindow->skey != INT64_MIN || pWindow->ekey != INT64_MAX) {
     bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
-    bool hasUnqualified = false;
+    bool  hasUnqualified = false;
 
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, tsIndex);
-    for(int32_t i = 0; i < pBlock->info.rows; ++i) {
-      int64_t* ts = (int64_t*) colDataGetData(pCol, i);
-      p[i] = (*ts >= pWindow->skey);
 
-      if (!p[i]) {
-        hasUnqualified = true;
+    if (pWindow->skey != INT64_MIN) {
+      qDebug("%s filter for additional history window, skey:%" PRId64, id, pWindow->skey);
+
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
+        p[i] = (*ts >= pWindow->skey);
+
+        if (!p[i]) {
+          hasUnqualified = true;
+        }
+      }
+    } else if (pWindow->ekey != INT64_MAX) {
+      qDebug("%s filter for additional history window, ekey:%" PRId64, id, pWindow->ekey);
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
+        p[i] = (*ts <= pWindow->ekey);
+
+        if (!p[i]) {
+          hasUnqualified = true;
+        }
       }
     }
 
@@ -1858,6 +1871,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       qDebug("stream recover step1, verRange:%" PRId64 "-%" PRId64 " window:%"PRId64"-%"PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey, pTSInfo->base.cond.twindows.ekey, id);
       pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN1;
+      pStreamInfo->recoverScanFinished = false;
     } else {
       pTSInfo->base.cond.startVersion = pStreamInfo->fillHistoryVer.minVer;
       pTSInfo->base.cond.endVersion = pStreamInfo->fillHistoryVer.maxVer;
@@ -1865,7 +1879,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64 "-%" PRId64 ", %s",
              pTSInfo->base.cond.startVersion, pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey,
              pTSInfo->base.cond.twindows.ekey, id);
-      pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN2;
+      pStreamInfo->recoverStep = STREAM_RECOVER_STEP__NONE;
     }
 
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
@@ -1875,11 +1889,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
-    pStreamInfo->recoverScanFinished = false;
   }
 
-  if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1 ||
-      pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN2) {
+  if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
     if (isTaskKilled(pTaskInfo)) {
       return NULL;
     }
@@ -1890,35 +1902,35 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         printDataBlock(pInfo->pRecoverRes, "scan recover");
         return pInfo->pRecoverRes;
       } break;
-      case STREAM_SCAN_FROM_UPDATERES: {
-        generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
-        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
-        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-        printDataBlock(pInfo->pUpdateRes, "recover update");
-        return pInfo->pUpdateRes;
-      } break;
-      case STREAM_SCAN_FROM_DELETE_DATA: {
-        generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
-        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
-        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-        copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
-        pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
-        printDataBlock(pInfo->pDeleteDataRes, "recover delete");
-        return pInfo->pDeleteDataRes;
-      } break;
-      case STREAM_SCAN_FROM_DATAREADER_RANGE: {
-        SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
-        if (pSDB) {
-          STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
-          checkUpdateData(pInfo, true, pSDB, false);
-          printDataBlock(pSDB, "scan recover update");
-          calBlockTbName(pInfo, pSDB);
-          return pSDB;
-        }
-        blockDataCleanup(pInfo->pUpdateDataRes);
-        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-      } break;
+      // case STREAM_SCAN_FROM_UPDATERES: {
+      //   generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
+      //   prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
+      //   pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      //   printDataBlock(pInfo->pUpdateRes, "recover update");
+      //   return pInfo->pUpdateRes;
+      // } break;
+      // case STREAM_SCAN_FROM_DELETE_DATA: {
+      //   generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
+      //   prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
+      //   pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      //   copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
+      //   pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+      //   printDataBlock(pInfo->pDeleteDataRes, "recover delete");
+      //   return pInfo->pDeleteDataRes;
+      // } break;
+      // case STREAM_SCAN_FROM_DATAREADER_RANGE: {
+      //   SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
+      //   if (pSDB) {
+      //     STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+      //     pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
+      //     checkUpdateData(pInfo, true, pSDB, false);
+      //     printDataBlock(pSDB, "scan recover update");
+      //     calBlockTbName(pInfo, pSDB);
+      //     return pSDB;
+      //   }
+      //   blockDataCleanup(pInfo->pUpdateDataRes);
+      //   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      // } break;
       default:
         break;
     }
@@ -1927,13 +1939,13 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     if (pInfo->pRecoverRes != NULL) {
       calBlockTbName(pInfo, pInfo->pRecoverRes);
       if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
-        if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
-          TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
-          pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
-        } else {
-          pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pStreamInfo->fillHistoryVer.maxVer);
-          doCheckUpdate(pInfo, pInfo->pRecoverRes->info.window.ekey, pInfo->pRecoverRes);
-        }
+        // if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
+        TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
+        pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
+        // } else {
+        //   pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pStreamInfo->fillHistoryVer.maxVer);
+        //   doCheckUpdate(pInfo, pInfo->pRecoverRes->info.window.ekey, pInfo->pRecoverRes);
+        // }
       }
       if (pInfo->pCreateTbRes->info.rows > 0) {
         pInfo->scanMode = STREAM_SCAN_FROM_RES;

@@ -302,13 +302,17 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
   return 0;
 }
 
-int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
+int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, const char* id) {
   int32_t code = walNextValidMsg(pReader);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   int64_t ver = pReader->pHead->head.version;
+  if (ver > maxVer) {
+    tqDebug("maxVer in WAL:%"PRId64" reached current:%"PRId64", do not scan wal anymore, %s", maxVer, ver, id);
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (pReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
     void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SSubmitReq2Msg));
