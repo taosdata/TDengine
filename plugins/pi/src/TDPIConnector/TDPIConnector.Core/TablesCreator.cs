@@ -161,12 +161,12 @@ namespace TDPIConnector.Core
 
             foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
             {
-                var elements = await CreateAFElementTemplateTables(tdDatabaseName, elementTemplate);
+                var elements = await CreateTaosxClientForElementTemplate(tdDatabaseName, elementTemplate);
                 elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
             }
             return elementsCollection;
         }
-        public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTemplateTables(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
+        public async Task<Dictionary<string, AFElementWrapper>> CreateTaosxClientForElementTemplate(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
         {
             //check for associated supertable, create if needed
             var superTable = TemplateSTableConverter.Convert(elementTemplate);
@@ -234,7 +234,7 @@ namespace TDPIConnector.Core
         private void RestartTaosxClient(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
         {
             tdEngineProxy.StopTaosxClient(elementTemplate.Name);
-            _ = CreateAFElementTemplateTables(tdDatabaseName, elementTemplate);
+            _ = CreateTaosxClientForElementTemplate(tdDatabaseName, elementTemplate);
             return;
         }
         public TableDiff GetTableChange(List<List<string>> tdResponseColumns, TDSTable superTable)
