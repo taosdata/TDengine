@@ -128,7 +128,11 @@ groups:
         display: Unit
         hint:
           type: duration
-        description: Time duration unit for query.
+        value: 0s
+        description: |-
+          Time duration unit for query.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
         placeholder: 1d
 
   - name: Realtime Settings
@@ -138,18 +142,29 @@ groups:
       - name: retro
         display: Retrospection
         description: |-
-          Retrospect data from some time ago into target before realtime data migrating.
+          Retrospect data from some time ago into target before realtime data migrating.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
+        value: 0s
         hint:
           type: duration
       - name: interval
         display: Interval
         hint:
           type: duration
-        description: Polling interval to query realtime data.
+        description: |-
+          Polling interval to query realtime data.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
+        value: 1s
         placeholder:
       - name: excursion
         display: Excursion
         hint:
           type: duration
-        description: Wait for some period to querying random-order data.
+        value: 500ms
+        description: |-
+          Wait for some period to querying random-order data.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
         placeholder: 5m
