@@ -198,7 +198,9 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
 
     if (record->ekey > committer->ctx->maxKey && committer->ctx->nextKey > maxKey) {
       committer->ctx->nextKey = maxKey;
-      committer->ctx->maxDelKey = TMAX(record->ekey, committer->ctx->maxDelKey);
+      if (record->ekey < TSKEY_MAX) {
+        committer->ctx->maxDelKey = record->ekey;
+      }
     }
 
     record->skey = TMAX(record->skey, committer->ctx->minKey);
@@ -469,7 +471,13 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
   committer->compactVersion = INT64_MAX;
   committer->ctx->cid = tsdbFSAllocEid(tsdb->pFS);
   committer->ctx->now = taosGetTimestampSec();
+
   committer->ctx->maxDelKey = TSKEY_MIN;
+  if (TARRAY2_SIZE(committer->fsetArr) > 0) {
+    STFileSet *fset = TARRAY2_LAST(committer->fsetArr);
+    TSKEY      minKey;
+    tsdbFidKeyRange(fset->fid, committer->minutes, committer->precision, &minKey, &committer->ctx->maxDelKey);
+  }
 
   committer->ctx->nextKey = tsdb->imem->minKey;
   if (tsdb->imem->nDel > 0) {
