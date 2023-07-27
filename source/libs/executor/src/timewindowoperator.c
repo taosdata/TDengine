@@ -3737,7 +3737,18 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
     int32_t winNum = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
     if (winNum > 0) {
       saveSessionOutputBuf(pAggSup, &winInfo);
-      saveResult(winInfo, pInfo->pStUpdated);
+      if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
+        saveResult(winInfo, pInfo->pStUpdated);
+      } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+        if (!isCloseWindow(&winInfo.sessionWin.win, &pInfo->twAggSup)) {
+          saveDeleteRes(pInfo->pStDeleted, winInfo.sessionWin);
+        }
+        SSessionKey key = {0};
+        getSessionHashKey(&winInfo.sessionWin, &key);
+        tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
+      }
+    } else {
+      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)winInfo.pOutputBuf, &pAggSup->stateStore);
     }
   }
   taosMemoryFree(pBuf);
@@ -4388,7 +4399,16 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
     if (compareStateKey(curInfo.pStateKey,nextInfo.pStateKey)) {
       compactStateWindow(pOperator, &curInfo.winInfo, &nextInfo.winInfo, pInfo->pSeUpdated, pInfo->pSeUpdated);
       saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
-      saveResult(curInfo.winInfo, pInfo->pSeUpdated);
+      if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
+        saveResult(curInfo.winInfo, pInfo->pSeUpdated);
+      } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+        if (!isCloseWindow(&curInfo.winInfo.sessionWin.win, &pInfo->twAggSup)) {
+          saveDeleteRes(pInfo->pSeDeleted, curInfo.winInfo.sessionWin);
+        }
+        SSessionKey key = {0};
+        getSessionHashKey(&curInfo.winInfo.sessionWin, &key);
+        tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curInfo.winInfo, sizeof(SResultWindowInfo));
+      }
     }
 
     if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
