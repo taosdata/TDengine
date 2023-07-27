@@ -524,13 +524,23 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
-    if (pObj->syncState != statusReq.mload.syncState || pObj->syncRestore != statusReq.mload.syncRestore) {
-      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d", pObj->id, syncStr(pObj->syncState),
-            syncStr(statusReq.mload.syncState), pObj->syncRestore, statusReq.mload.syncRestore);
+    bool roleChanged = pObj->syncState != statusReq.mload.syncState ||
+                       (statusReq.mload.syncTerm != -1 && pObj->syncTerm != statusReq.mload.syncTerm);
+    bool restoreChanged = pObj->syncRestore != statusReq.mload.syncRestore;
+    if (roleChanged || restoreChanged) {
+      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64
+            " to %" PRId64,
+            pObj->id, syncStr(pObj->syncState), syncStr(statusReq.mload.syncState), pObj->syncRestore,
+            statusReq.mload.syncRestore, pObj->syncTerm, statusReq.mload.syncTerm);
       pObj->syncState = statusReq.mload.syncState;
       pObj->syncRestore = statusReq.mload.syncRestore;
-      pObj->stateStartTime = taosGetTimestampMs();
+      pObj->syncTerm = statusReq.mload.syncTerm;
     }
+
+    if (roleChanged) {
+      pObj->roleTimeMs = (statusReq.mload.roleTimeMs != 0) ? statusReq.mload.roleTimeMs : taosGetTimestampMs();
+    }
+
     mndReleaseMnode(pMnode, pObj);
   }
 

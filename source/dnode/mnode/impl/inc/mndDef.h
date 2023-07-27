@@ -216,8 +216,9 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   ESyncState syncState;
+  SyncTerm   syncTerm;
   bool       syncRestore;
-  int64_t    stateStartTime;
+  int64_t    roleTimeMs;
   SDnodeObj* pDnode;
   int32_t    role;
   SyncIndex  lastIndex;
