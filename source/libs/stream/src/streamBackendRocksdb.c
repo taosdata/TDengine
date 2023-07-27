@@ -1263,6 +1263,8 @@ int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey,
     if (pKey->groupId == groupId) {
       return 0;
     }
+    taosMemoryFree((void*)*pVal);
+    *pVal = NULL;
   }
   return -1;
 }

@@ -502,9 +502,13 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
-  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal, &pFillSup->pAPI->stateStore);   //?????
-  pFillSup->cur.pRowVal = NULL;
   cleanupExprSupp(&pFillSup->notFillExprSup);
+  if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
+    taosMemoryFree(pFillSup->cur.pRowVal);
+  }
+  taosMemoryFree(pFillSup->prev.pRowVal);
+  taosMemoryFree(pFillSup->next.pRowVal);
+  taosMemoryFree(pFillSup->nextNext.pRowVal);
 
   taosMemoryFree(pFillSup);
   return NULL;
@@ -546,13 +550,17 @@ static void destroyStreamFillOperatorInfo(void* param) {
 
 static void resetFillWindow(SResultRowData* pRowData) {
   pRowData->key = INT64_MIN;
-  pRowData->pRowVal = NULL;
+  taosMemoryFreeClear(pRowData->pRowVal);
 }
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, void* pState, SStorageAPI* pAPI) {
+  if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
+    resetFillWindow(&pFillSup->cur);
+  } else {
+    pFillSup->cur.key = INT64_MIN;
+    pFillSup->cur.pRowVal = NULL;
+  }
   resetFillWindow(&pFillSup->prev);
-  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal, &pAPI->stateStore);   //???
-  resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
 }
