@@ -368,7 +368,7 @@ impl CsvSource {
             }
         }
 
-        if records.len() >= batch_size {
+        if records.len() > 0 {
             CsvSource::write_to_stream(&headers, &schema, &mut writer, &records)?;
         }
 
