@@ -164,6 +164,8 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
     if (committer->ctx->maxKey < committer->ctx->maxDelKey) {
       committer->ctx->nextKey = committer->ctx->maxKey + 1;
+    } else {
+      committer->ctx->nextKey = TSKEY_MAX;
     }
     return 0;
   }
