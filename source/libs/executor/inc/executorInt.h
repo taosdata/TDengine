@@ -232,19 +232,20 @@ typedef struct STableMergeScanInfo {
   int32_t         tableEndIndex;
   bool            hasGroupId;
   uint64_t        groupId;
-  SArray*         queryConds;  // array of queryTableDataCond
   STableScanBase  base;
   int32_t         bufPageSize;
   uint32_t        sortBufSize;  // max buffer size for in-memory sort
   SArray*         pSortInfo;
   SSortHandle*    pSortHandle;
   SSDataBlock*    pSortInputBlock;
+  SSDataBlock*    pReaderBlock;
   int64_t         startTs;  // sort start time
   SArray*         sortSourceParams;
   SLimitInfo      limitInfo;
   int64_t         numOfRows;
   SScanInfo       scanInfo;
   int32_t         scanTimes;
+  int32_t         readIdx;
   SSDataBlock*    pResBlock;
   SSampleExecInfo sample;  // sample execution info
   SSortExecInfo   sortExecInfo;
@@ -366,7 +367,6 @@ typedef struct SStreamScanInfo {
   SNode*     pTagIndexCond;
 
   // recover
-  int32_t      blockRecoverContiCnt;
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 

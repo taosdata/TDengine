@@ -29,7 +29,7 @@ bool streamTaskShouldStop(const SStreamStatus* pStatus) {
 
 bool streamTaskShouldPause(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
-  return (status == TASK_STATUS__PAUSE);
+  return (status == TASK_STATUS__PAUSE || status == TASK_STATUS__HALT);
 }
 
 static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray* pRes, int32_t size, int64_t* totalSize,
@@ -345,37 +345,45 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   if (el > 0) {
-    qDebug("s-task:%s wait for stream task:%s for %.2fs to handle all data in inputQ", pTask->id.idStr,
+    qDebug("s-task:%s wait for stream task:%s for %.2fs to be idle", pTask->id.idStr,
            pStreamTask->id.idStr, el);
   }
 }
 
 static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    qError("s-task:%s failed to find related stream task:0x%x, it may have been destoryed or closed",
-        pTask->id.idStr, pTask->streamTaskId.taskId);
+    pTask->status.transferState = false;  // reset this value, to avoid transfer state again
+
+    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
+           pTask->streamTaskId.taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
-    qDebug("s-task:%s scan history task end, update stream task:%s info, transfer exec state", pTask->id.idStr, pStreamTask->id.idStr);
+    qDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
+           pStreamTask->id.idStr);
   }
 
-  ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
+  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.transferState == true);
+
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
   // for the step 2. For a agg task
+  int8_t status = pStreamTask->status.taskStatus;
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__HALT);
+    ASSERT(status == TASK_STATUS__HALT);
   } else {
-    ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
+    ASSERT(status == TASK_STATUS__SCAN_HISTORY);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+    qDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
-  // wait for the stream task to be idle
+  // wait for the stream task to handle all in the inputQ, and to be idle
   waitForTaskIdle(pTask, pStreamTask);
 
-  // In case of sink tasks, no need to be halted for them.
+  // In case of sink tasks, no need to halt them.
   // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
   // start the task state transfer procedure.
   // When a task is idle with halt status, all data in inputQ are consumed.
@@ -397,10 +405,27 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  streamSetStatusNormal(pStreamTask);
+  streamTaskResumeFromHalt(pStreamTask);
+
+  qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
+  int32_t taskId = pTask->id.taskId;
+
+  // free it and remove it from disk meta-store
+  streamMetaUnregisterTask(pMeta, taskId);
+
+  // save to disk
+  taosWLockLatch(&pMeta->lock);
+  streamMetaSaveTask(pMeta, pStreamTask);
+  if (streamMetaCommit(pMeta) < 0) {
+    // persist to disk
+  }
+  taosWUnLockLatch(&pMeta->lock);
+
+  // pause allowed
+  streamTaskEnablePause(pStreamTask);
 
   streamSchedExec(pStreamTask);
-  streamMetaReleaseTask(pTask->pMeta, pStreamTask);
+  streamMetaReleaseTask(pMeta, pStreamTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -441,7 +466,12 @@ static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
       // todo we need to sort the data block, instead of just appending into the array list.
       void* newRet = streamMergeQueueItem(*pInput, qItem);
       if (newRet == NULL) {
-        qError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+        if (terrno == 0) {
+          qDebug("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+        } else {
+          qDebug("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
+              tstrerror(terrno));
+        }
         streamQueueProcessFail(pTask->inputQueue);
         return TSDB_CODE_SUCCESS;
       }
@@ -469,6 +499,10 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {
     int32_t batchSize = 0;
     SStreamQueueItem* pInput = NULL;
+    if (streamTaskShouldStop(&pTask->status)) {
+      qDebug("s-task:%s stream task stopped, abort", id);
+      break;
+    }
 
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", id);
@@ -547,21 +581,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 }
 
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  int32_t numOfItems = taosQueueItemSize(pTask->inputQueue->queue);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  numOfItems = taosQallItemSize(pTask->inputQueue->qall);
-  if (numOfItems > 0) {
-    return false;
-  }
-
-  // blocked by downstream task
-  if (pTask->outputStatus == TASK_OUTPUT_STATUS__BLOCKED) {
-    return false;
-  }
-
   return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
 }
 
@@ -586,6 +605,9 @@ int32_t streamTryExec(SStreamTask* pTask) {
         (!streamTaskShouldPause(&pTask->status))) {
       streamSchedExec(pTask);
     }
+  } else {
+    qDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", pTask->id.idStr,
+           streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
   }
 
   return 0;
@@ -611,4 +633,14 @@ int32_t streamTaskReloadState(SStreamTask* pTask) {
   } else {
     return TSDB_CODE_SUCCESS;
   }
+}
+
+int32_t streamAlignTransferState(SStreamTask* pTask) {
+  int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  int32_t old = atomic_val_compare_exchange_32(&pTask->transferStateAlignCnt, 0, numOfUpstream);
+  if (old == 0) {
+    qDebug("s-task:%s set the transfer state aligncnt %d", pTask->id.idStr, numOfUpstream);
+  }
+
+  return atomic_sub_fetch_32(&pTask->transferStateAlignCnt, 1);
 }

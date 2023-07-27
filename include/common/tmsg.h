@@ -1495,6 +1495,7 @@ int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesR
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
   char value[TSDB_CONFIG_VALUE_LEN + 1];
+  char scope[TSDB_CONFIG_SCOPE_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {

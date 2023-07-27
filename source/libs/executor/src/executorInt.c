@@ -548,8 +548,10 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
+  } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
+    trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
   } else {
-    trimDataBlock(pBlock, pBlock->info.rows, (bool*) pIndicator);
+    qError("unknown filter result type: %d", status);
   }
 }
 

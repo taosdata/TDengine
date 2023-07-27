@@ -1867,7 +1867,6 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
       memcpy(tmp, *pVal, valSize);
       taosMemoryFreeClear(*pVal);
-      streamStateSessionDel_rocksdb(pState, key);
       goto _end;
     }
     taosMemoryFreeClear(*pVal);
@@ -1883,7 +1882,6 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
   if (code == 0) {
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
       memcpy(tmp, *pVal, valSize);
-      streamStateSessionDel_rocksdb(pState, key);
       goto _end;
     }
   }
@@ -1941,14 +1939,12 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   if (code == 0) {
     if (key->win.skey <= tmpKey.win.skey && tmpKey.win.ekey <= key->win.ekey) {
       memcpy(tmp, *pVal, valSize);
-      streamStateSessionDel_rocksdb(pState, key);
       goto _end;
     }
 
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
       memcpy(tmp, *pVal, valSize);
-      streamStateSessionDel_rocksdb(pState, key);
       goto _end;
     }
 
@@ -1964,7 +1960,6 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
       memcpy(tmp, *pVal, valSize);
-      streamStateSessionDel_rocksdb(pState, key);
       goto _end;
     }
   }

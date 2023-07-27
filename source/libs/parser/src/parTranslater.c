@@ -509,6 +509,10 @@ static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int
 }
 
 static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo* pInfo) {
+  if (IS_SYS_DBNAME(pDbName)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SParseContext* pParCxt = pCxt->pParseCxt;
   SName          name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
@@ -2930,14 +2934,14 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
 static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
   if (QUERY_NODE_REAL_TABLE != nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
-                                   "The _TAGS pseudo column can only be used for subtable and supertable queries");
+                                   "The _TAGS pseudo column can only be used for child table and super table queries");
   }
 
   SRealTableNode*   pTable = (SRealTableNode*)(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
   const STableMeta* pMeta = pTable->pMeta;
   if (TSDB_SUPER_TABLE != pMeta->tableType && TSDB_CHILD_TABLE != pMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
-                                "The _TAGS pseudo column can only be used for subtable and supertable queries");
+                                "The _TAGS pseudo column can only be used for child table and super table queries");
   }
 
   SSchema* pTagsSchema = getTableTagSchema(pMeta);
@@ -7714,7 +7718,7 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
 }
 
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 2;
+  *numOfCols = 3;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -7727,6 +7731,10 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = TSDB_CONFIG_VALUE_LEN;
   strcpy((*pSchema)[1].name, "value");
+
+  (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[2].bytes = TSDB_CONFIG_SCOPE_LEN;
+  strcpy((*pSchema)[2].name, "scope");
 
   return TSDB_CODE_SUCCESS;
 }

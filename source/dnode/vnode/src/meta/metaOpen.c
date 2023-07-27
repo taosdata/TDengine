@@ -14,6 +14,7 @@
  */
 
 #include "meta.h"
+#include "vnd.h"
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -34,30 +35,27 @@ static void metaCleanup(SMeta **ppMeta);
 int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   SMeta *pMeta = NULL;
   int    ret;
-  int    slen;
+  int    offset;
+  char   path[TSDB_FILENAME_LEN] = {0};
 
   *ppMeta = NULL;
 
   // create handle
-  if (pVnode->pTfs) {
-    slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
-  } else {
-    slen = strlen(pVnode->path) + strlen(VNODE_META_DIR) + 2;
-  }
-  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + slen)) == NULL) {
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  offset = strlen(path);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
+
+  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   metaInitLock(pMeta);
+
   pMeta->path = (char *)&pMeta[1];
-  if (pVnode->pTfs) {
-    sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-            VNODE_META_DIR);
-  } else {
-    sprintf(pMeta->path, "%s%s%s", pVnode->path, TD_DIRSEP, VNODE_META_DIR);
-  }
-  taosRealPath(pMeta->path, NULL, slen);
+  strcpy(pMeta->path, path);
+  taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+
   pMeta->pVnode = pVnode;
 
   // create path if not created yet

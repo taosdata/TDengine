@@ -379,7 +379,7 @@ _out:
 int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
   ttlMgrWLock(pTtlMgr);
 
-  metaInfo("%s, ttl mgr flush start. dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
+  metaDebug("%s, ttl mgr flush start. dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
 
   int ret = -1;
 
@@ -433,7 +433,7 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 _out:
   ttlMgrULock(pTtlMgr);
 
-  metaInfo("%s, ttl mgr flush end.", pTtlMgr->logPrefix);
+  metaDebug("%s, ttl mgr flush end.", pTtlMgr->logPrefix);
 
   return ret;
 }

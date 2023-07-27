@@ -63,7 +63,7 @@ class TDTestCase:
                         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
                         sqlString = "create topic %s as %s" %(topic_name, queryString)
                         tdSql.query(f'select * from information_schema.ins_databases')
-                        db_wal_retention_period_list = list(map(lambda x:x[-8] if x[0] == paraDict['dbName'] else None, tdSql.queryResult))
+                        db_wal_retention_period_list = list(map(lambda x:x[-6] if x[0] == paraDict['dbName'] else None, tdSql.queryResult))
                         for i in range(len(db_wal_retention_period_list)):
                             if db_wal_retention_period_list[0] is None or db_wal_retention_period_list[-1] is None:
                                 db_wal_retention_period_list.remove(None)
