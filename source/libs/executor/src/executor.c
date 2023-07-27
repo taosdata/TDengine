@@ -122,8 +122,9 @@ void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo) {
     return;
   }
 
-  qDebug("%s set fill history start key:%" PRId64, GET_TASKID(pTaskInfo), INT64_MIN);
+  qDebug("%s set stream fill-history window:%" PRId64"-%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN, INT64_MAX);
   pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
+  pTaskInfo->streamInfo.fillHistoryWindow.ekey = INT64_MAX;
 }
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {

@@ -1039,27 +1039,36 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SStreamMeta* pStreamMeta = pTq->pStreamMeta;
 
   // 2.save task, use the newest commit version as the initial start version of stream task.
-  int32_t taskId = 0;
-  taosWLockLatch(&pStreamMeta->lock);
-  code = streamMetaRegisterTask(pStreamMeta, sversion, pTask);
+  int32_t taskId = pTask->id.taskId;
+  bool    added = false;
 
-  taskId = pTask->id.taskId;
+  taosWLockLatch(&pStreamMeta->lock);
+  code = streamMetaRegisterTask(pStreamMeta, sversion, pTask, &added);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
+
   if (code < 0) {
-    tqError("vgId:%d failed to add s-task:%s, total:%d", vgId, pTask->id.idStr, numOfTasks);
+    tqError("vgId:%d failed to add s-task:0x%x, total:%d", vgId, pTask->id.taskId, numOfTasks);
     tFreeStreamTask(pTask);
     taosWUnLockLatch(&pStreamMeta->lock);
     return -1;
   }
 
+  // not added into meta store
+  if (!added) {
+    tqWarn("vgId:%d failed to add s-task:0x%x, already exists in meta store", vgId, taskId);
+    tFreeStreamTask(pTask);
+    pTask = NULL;
+  }
+
   taosWUnLockLatch(&pStreamMeta->lock);
-  tqDebug("vgId:%d s-task:%s is deployed and add into meta, status:%s, numOfTasks:%d", vgId, pTask->id.idStr,
-          streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
+
+  tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
 
   // 3. It's an fill history task, do nothing. wait for the main task to start it
   SStreamTask* p = streamMetaAcquireTask(pStreamMeta, taskId);
-  if (p != NULL) {
-    streamTaskCheckDownstreamTasks(pTask);
+  if (p != NULL) { // reset the downstreamReady flag.
+    p->status.downstreamReady = 0;
+    streamTaskCheckDownstreamTasks(p);
   }
 
   streamMetaReleaseTask(pStreamMeta, p);
@@ -1174,7 +1183,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       if (!streamTaskRecoverScanStep1Finished(pTask)) {
         STimeWindow* pWindow = &pTask->dataRange.window;
         tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
-                ", do secondary scan-history data after halt the related stream task:%s",
+                ", do secondary scan-history from WAL after halt the related stream task:%s",
                 id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey, id);
         ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
@@ -1216,12 +1225,13 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (pTask->historyTaskId.taskId == 0) {
       *pWindow = (STimeWindow){INT64_MIN, INT64_MAX};
       tqDebug(
-          "s-task:%s scan history in stream time window completed, no related fill-history task, reset the time "
+          "s-task:%s scanhistory in stream time window completed, no related fill-history task, reset the time "
           "window:%" PRId64 " - %" PRId64,
           id, pWindow->skey, pWindow->ekey);
+      qResetStreamInfoTimeWindow(pTask->exec.pExecutor);
     } else {
       tqDebug(
-          "s-task:%s scan history in stream time window completed, now start to handle data from WAL, start "
+          "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, start "
           "ver:%" PRId64 ", window:%" PRId64 " - %" PRId64,
           id, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
     }
