@@ -361,7 +361,7 @@ typedef struct SRestoreComponentNodeStmt {
 
 typedef struct SCreateTopicStmt {
   ENodeType type;
-  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      topicName[TSDB_TOPIC_NAME_LEN];
   char      subDbName[TSDB_DB_NAME_LEN];
   char      subSTbName[TSDB_TABLE_NAME_LEN];
   bool      ignoreExists;
@@ -372,13 +372,13 @@ typedef struct SCreateTopicStmt {
 
 typedef struct SDropTopicStmt {
   ENodeType type;
-  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      topicName[TSDB_TOPIC_NAME_LEN];
   bool      ignoreNotExists;
 } SDropTopicStmt;
 
 typedef struct SDropCGroupStmt {
   ENodeType type;
-  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      topicName[TSDB_TOPIC_NAME_LEN];
   char      cgroup[TSDB_CGROUP_LEN];
   bool      ignoreNotExists;
 } SDropCGroupStmt;

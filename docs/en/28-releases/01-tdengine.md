@@ -6,9 +6,13 @@ description: This document provides download links for all released versions of 
 
 TDengine 3.x installation packages can be downloaded at the following links:
 
-For TDengine 2.x installation packages by version, please visit [here](https://www.taosdata.com/all-downloads).
+For TDengine 2.x installation packages by version, please visit [here](https://tdengine.com/downloads/historical/).
 
 import Release from "/components/ReleaseV3";
+
+## 3.0.7.1
+
+<Release type="tdengine" version="3.0.7.1" />
 
 ## 3.0.7.0
 

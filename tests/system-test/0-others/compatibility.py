@@ -204,7 +204,6 @@ class TDTestCase:
         tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
         tdsql.query("select * from db.ct4")
         tdsql.checkData(0,1,14)
-        print(1)
         tdsql=tdCom.newTdSql()
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   

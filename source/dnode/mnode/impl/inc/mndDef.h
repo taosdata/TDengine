@@ -137,12 +137,11 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE_REB_MODIFY_NOTOPIC = 1,   // topic do not need modified after rebalance
-  CONSUMER_UPDATE_REB_MODIFY_TOPIC,         // topic need modified after rebalance
-  CONSUMER_UPDATE_REB_MODIFY_REMOVE,        // topic need removed after rebalance
-//  CONSUMER_UPDATE_TIMER_LOST,
-  CONSUMER_UPDATE_RECOVER,
-  CONSUMER_UPDATE_SUB_MODIFY,      // modify after subscribe req
+  CONSUMER_UPDATE_REB = 1,  // update after rebalance
+  CONSUMER_ADD_REB,         // add    after rebalance
+  CONSUMER_REMOVE_REB,      // remove after rebalance
+  CONSUMER_UPDATE_REC,      // update after recover
+  CONSUMER_UPDATE_SUB,      // update after subscribe req
 } ECsmUpdateType;
 
 typedef struct {

@@ -4579,6 +4579,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
         resetResultRow(pMiaInfo->pResultRow, pIaInfo->aggSup.resultRowSize - sizeof(SResultRow));
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
+        doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
       }
 
       setOperatorCompleted(pOperator);
@@ -4599,6 +4600,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
 
         pMiaInfo->prefetchedBlock = pBlock;
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
+        doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
         break;
       } else {
         // continue
