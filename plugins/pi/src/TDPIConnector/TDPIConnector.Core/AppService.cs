@@ -225,7 +225,7 @@ namespace TDPIConnector.Core
         }
         public async void elementTemplateEventHandle(AFElementTemplateWrapper template)
         {
-            var hasNewAttribute = await tablesCreator.CreateOrUpdateSTablesByTem(AppSettings.tomlConfig.TDDataBase, template);
+            var hasNewAttribute = await tablesCreator.CreateOrUpdateSuperTables(AppSettings.tomlConfig.TDDataBase, template);
             if (hasNewAttribute)
             {
                 ReStartDataPipe();

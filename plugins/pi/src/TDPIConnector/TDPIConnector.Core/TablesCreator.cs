@@ -106,6 +106,10 @@ namespace TDPIConnector.Core
                 log.Info("No TemplateForAFElement found.");
                 return null;
             }
+            if (AppSettings.TaosXEnabled)
+            {
+                return await CreateAFElementTablesV2(tdDatabaseName, afDatabaseName);
+            }
 
             IEnumerable<AFElementTemplateWrapper> elementTemplates = piSystemManager.GetElementTemplates(afDatabaseName, AppSettings.tomlConfig.TemplateForAFElement).ToList();
 
@@ -140,15 +144,68 @@ namespace TDPIConnector.Core
             await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
             return elementsCollection;
         }
-        public async Task<bool> CreateOrUpdateSTablesByTem(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
+        public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTablesV2(string tdDatabaseName, string afDatabaseName)
         {
-            var superTable = TemplateSTableConverter.Convert(elementTemplate);
-            return await CreateOrUpdateSuperTables(tdDatabaseName, superTable);
+            if (AppSettings.tomlConfig.TemplateForAFElement == null)
+            {
+                log.Info("No TemplateForAFElement found.");
+                return null;
+            }
+
+            IEnumerable<AFElementTemplateWrapper> elementTemplates = piSystemManager.GetElementTemplates(afDatabaseName, AppSettings.tomlConfig.TemplateForAFElement).ToList();
+
+            //get all AF Templates based on settings
+            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
+
+            List<TDTable> tables = new List<TDTable>();
+
+            foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
+            {
+                var elements = await CreateAFElementTemplateTables(tdDatabaseName, elementTemplate);
+                elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
+            }
+            return elementsCollection;
         }
-        public async Task<bool> CreateOrUpdateSuperTables(string tdDatabaseName, TDSTable superTable)
+        public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTemplateTables(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
         {
-            var res = await tdEngineProxy.GetSTables(tdDatabaseName, superTable.Name);
-            var hasNewAttribute = false;
+            //check for associated supertable, create if needed
+            var superTable = TemplateSTableConverter.Convert(elementTemplate);
+            await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+
+            //get all elements based on template
+            IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate);
+            log.Info($"Found {elements.Count()} elements.");
+
+            var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
+
+            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
+            List<TDTable> tables = new List<TDTable>();
+            foreach (var element in elements)
+            {
+                TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, templateAttributeColumns);
+                log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
+                if (!elementsCollection.ContainsKey(table.Name))
+                {
+                    tables.Add(table);
+                    elementsCollection.Add(table.Name, element);
+                }
+            };
+            await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            return elementsCollection;
+        }
+        public async Task<bool> CreateOrUpdateSuperTables(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
+        {
+            TDEngineResponse res = new TDEngineResponse();
+            bool hasNewAttribute = false;
+            var superTable = TemplateSTableConverter.Convert(elementTemplate);
+            try {
+                res = await tdEngineProxy.GetSTables(tdDatabaseName, superTable.Name);
+                hasNewAttribute = false;
+
+            } catch (Exception e) {
+                log.Error($"GetSTables failed.{e}");
+                throw e;
+            }
             if (res.Data == null)
             {
                 // Adding super tables at runtime is not supported
@@ -160,9 +217,12 @@ namespace TDPIConnector.Core
                 log.Debug($"super table(old) {superTable.Name} columns:{string.Join(",", diff.OldColumns)} tag:{string.Join(",", diff.OldTags)}");
                 log.Debug($"super table(new) {superTable.Name} columns:{string.Join(",", diff.NewColumns)} tag:{string.Join(",", diff.NewTags)}");
                 var changes = diff.GetOperFromDiff();
+                if (changes.Count > 0) {
+                    log.Info($"Pi Template {superTable.Name} changed, restart taosxclient.");
+                    RestartTaosxClient(tdDatabaseName, elementTemplate);
+                }
                 foreach (var change in changes)
                 {
-                    // TODO restart this super table client
                     if (change.Contains("ADD"))
                     {
                         hasNewAttribute = true;
@@ -170,6 +230,12 @@ namespace TDPIConnector.Core
                 }
             }
             return hasNewAttribute;
+        }
+        private void RestartTaosxClient(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
+        {
+            tdEngineProxy.StopTaosxClient(elementTemplate.Name);
+            _ = CreateAFElementTemplateTables(tdDatabaseName, elementTemplate);
+            return;
         }
         public TableDiff GetTableChange(List<List<string>> tdResponseColumns, TDSTable superTable)
         {
