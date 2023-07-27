@@ -1775,19 +1775,32 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
 }
 
 static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id) {
-  if (pWindow->skey != INT64_MIN) {
-    qDebug("%s filter for additional history window, skey:%"PRId64, id, pWindow->skey);
-
+  if (pWindow->skey != INT64_MIN || pWindow->ekey != INT64_MAX) {
     bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
-    bool hasUnqualified = false;
+    bool  hasUnqualified = false;
 
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, tsIndex);
-    for(int32_t i = 0; i < pBlock->info.rows; ++i) {
-      int64_t* ts = (int64_t*) colDataGetData(pCol, i);
-      p[i] = (*ts >= pWindow->skey);
 
-      if (!p[i]) {
-        hasUnqualified = true;
+    if (pWindow->skey != INT64_MIN) {
+      qDebug("%s filter for additional history window, skey:%" PRId64, id, pWindow->skey);
+
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
+        p[i] = (*ts >= pWindow->skey);
+
+        if (!p[i]) {
+          hasUnqualified = true;
+        }
+      }
+    } else if (pWindow->ekey != INT64_MAX) {
+      qDebug("%s filter for additional history window, ekey:%" PRId64, id, pWindow->skey);
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
+        p[i] = (*ts <= pWindow->ekey);
+
+        if (!p[i]) {
+          hasUnqualified = true;
+        }
       }
     }
 

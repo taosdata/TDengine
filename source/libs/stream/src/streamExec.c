@@ -510,12 +510,12 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     /*int32_t code = */extractMsgFromInputQ(pTask, &pInput, &batchSize, id);
     if (pInput == NULL) {
       ASSERT(batchSize == 0);
-      if (pTask->info.fillHistory && pTask->status.transferState) {
-        int32_t code = streamTransferStateToStreamTask(pTask);
-        if (code != TSDB_CODE_SUCCESS) { // todo handle this
-          return 0;
-        }
-      }
+//      if (pTask->info.fillHistory && pTask->status.transferState) {
+//        int32_t code = streamTransferStateToStreamTask(pTask);
+//        if (code != TSDB_CODE_SUCCESS) { // todo handle this
+//          return 0;
+//        }
+//      }
 
       break;
     }
@@ -584,6 +584,28 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
   return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
 }
 
+int32_t streamTaskEndScanWAL(SStreamTask* pTask) {
+  const char* id = pTask->id.idStr;
+  double      el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
+  qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
+
+  // 3. notify downstream tasks to transfer executor state after handle all history blocks.
+  pTask->status.transferState = true;
+
+  int32_t code = streamDispatchTransferStateMsg(pTask);
+  if (code != TSDB_CODE_SUCCESS) {
+    // todo handle error
+  }
+
+  // the last execution of fill-history task, in order to transfer task operator states.
+  code = streamTransferStateToStreamTask(pTask);
+  if (code != TSDB_CODE_SUCCESS) {  // todo handle this
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t streamTryExec(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
   int8_t schedStatus =
@@ -600,27 +622,11 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
     // todo the task should be commit here
     if (taosQueueEmpty(pTask->inputQueue->queue)) {
-      if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY_WAL &&
-          pTask->chkInfo.currentVer > pTask->dataRange.range.maxVer) {
-        // fill-history WAL scan has completed
+      // fill-history WAL scan has completed
+      if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY_WAL && pTask->status.transferState == true) {
         streamTaskRecoverSetAllStepFinished(pTask);
-
-        double el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
-        qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
-
-        // 3. notify downstream tasks to transfer executor state after handle all history blocks.
-        if (!pTask->status.transferState) {
-          code = streamDispatchTransferStateMsg(pTask);
-          if (code != TSDB_CODE_SUCCESS) {
-            // todo handle error
-          }
-
-          pTask->status.transferState = true;
-        }
-
-        // the last execution of fill-history task, in order to transfer task operator states.
-        code = streamExecForAll(pTask);
-
+        streamTaskEndScanWAL(pTask);
+      } else {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
                pTask->status.schedStatus);

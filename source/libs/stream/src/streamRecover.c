@@ -284,7 +284,7 @@ int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* 
 
 // common
 int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
-  qDebug("s-task:%s set operator option for scan-history-data", pTask->id.idStr);
+  qDebug("s-task:%s set operator option for scan-history data", pTask->id.idStr);
   return qSetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
 }
 
@@ -507,7 +507,7 @@ static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   pHTask->dataRange.range.maxVer = pTask->chkInfo.currentVer;
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    qDebug("s-task:%s set the launch condition for fill history s-task:%s, window:%" PRId64 " - %" PRId64
+    qDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
            " ver range:%" PRId64 " - %" PRId64,
            pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
            pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
@@ -654,7 +654,7 @@ int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
   return qStreamRecoverSetAllStepFinished(exec);
 }
 
-void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
+bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
   SVersionRange* pRange = &pTask->dataRange.range;
   ASSERT(latestVer >= pRange->maxVer);
 
@@ -663,13 +663,16 @@ void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
     // no input data yet. no need to execute the secondardy scan while stream task halt
     streamTaskRecoverSetAllStepFinished(pTask);
     qDebug(
-        "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during secondary scan",
-        pTask->id.idStr);
+        "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during step1 scan, "
+        "related stream task currentVer:%" PRId64,
+        pTask->id.idStr, latestVer);
+    return true;
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
     // [pTask->dataRange.range.maxVer, ver1]
     pRange->minVer = nextStartVer;
     pRange->maxVer = latestVer - 1;
+    return false;
   }
 }
 

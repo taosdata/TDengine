@@ -1128,6 +1128,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask->info.fillHistory) {
     SVersionRange* pRange = NULL;
     SStreamTask*   pStreamTask = NULL;
+    bool           done = false;
 
     if (!pReq->igUntreated && !streamTaskRecoverScanStep1Finished(pTask)) {
       // 1. stop the related stream task, get the current scan wal version of stream task, ver.
@@ -1157,58 +1158,55 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       // now we can stop the stream task execution
       streamTaskHalt(pStreamTask);
-      tqDebug("s-task:%s level:%d is halt by fill-history task:%s", pStreamTask->id.idStr, pStreamTask->info.taskLevel,
-              id);
+      tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
+              pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
 
       // if it's an source task, extract the last version in wal.
       pRange = &pTask->dataRange.range;
       int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-      streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
+      done = streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
     }
 
-    if (!streamTaskRecoverScanStep1Finished(pTask)) {
-      STimeWindow* pWindow = &pTask->dataRange.window;
-      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
-              ", do secondary scan-history data after halt the related stream task:%s",
-              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey, id);
-      ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
-
+    if (done) {
       pTask->tsInfo.step2Start = taosGetTimestampMs();
-      streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
-    }
+      streamTaskEndScanWAL(pTask);
+    } else {
+      if (!streamTaskRecoverScanStep1Finished(pTask)) {
+        STimeWindow* pWindow = &pTask->dataRange.window;
+        tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+                ", do secondary scan-history data after halt the related stream task:%s",
+                id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey, id);
+        ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
-    if (!streamTaskRecoverScanStep2Finished(pTask)) {
-      pTask->status.taskStatus = TASK_STATUS__SCAN_HISTORY_WAL;
-      if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
-        tqDebug("s-task:%s is dropped or paused, abort recover in step1", id);
-        streamMetaReleaseTask(pMeta, pTask);
-        return 0;
+        pTask->tsInfo.step2Start = taosGetTimestampMs();
+        streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
       }
 
-      int64_t dstVer = pTask->dataRange.range.minVer - 1;
-      walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
-      tqDebug("s-task:%s seek wal reader to ver:%"PRId64, id, dstVer);
+      if (!streamTaskRecoverScanStep2Finished(pTask)) {
+        pTask->status.taskStatus = TASK_STATUS__SCAN_HISTORY_WAL;
+        if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
+          tqDebug("s-task:%s is dropped or paused, abort recover in step1", id);
+          streamMetaReleaseTask(pMeta, pTask);
+          return 0;
+        }
+
+        int64_t dstVer = pTask->dataRange.range.minVer - 1;
+
+        pTask->chkInfo.currentVer = dstVer;
+        walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
+        tqDebug("s-task:%s wal reader start scan from WAL ver:%" PRId64 ", set sched-status:%d", id, dstVer,
+                TASK_SCHED_STATUS__INACTIVE);
+      }
+
+      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+
+      // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
+      // 5. resume the related stream task.
+      streamMetaReleaseTask(pMeta, pTask);
+      streamMetaReleaseTask(pMeta, pStreamTask);
+
+      tqStartStreamTasks(pTq);
     }
-
-//    int64_t el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
-//    tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", id, el);
-//
-//    // 3. notify downstream tasks to transfer executor state after handle all history blocks.
-//    if (!pTask->status.transferState) {
-//      code = streamDispatchTransferStateMsg(pTask);
-//      if (code != TSDB_CODE_SUCCESS) {
-//        // todo handle error
-//      }
-//
-//      pTask->status.transferState = true;
-//    }
-
-    // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
-    // 5. resume the related stream task.
-    streamTryExec(pTask);
-
-    streamMetaReleaseTask(pMeta, pTask);
-    streamMetaReleaseTask(pMeta, pStreamTask);
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of
@@ -1218,7 +1216,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (pTask->historyTaskId.taskId == 0) {
       *pWindow = (STimeWindow){INT64_MIN, INT64_MAX};
       tqDebug(
-          "s-task:%s scan history in stream time window completed, no related fill history task, reset the time "
+          "s-task:%s scan history in stream time window completed, no related fill-history task, reset the time "
           "window:%" PRId64 " - %" PRId64,
           id, pWindow->skey, pWindow->ekey);
     } else {

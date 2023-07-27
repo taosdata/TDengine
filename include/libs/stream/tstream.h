@@ -588,6 +588,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
+int32_t streamTaskEndScanWAL(SStreamTask* pTask);
 
 SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
@@ -605,7 +606,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
-void    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
+bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 
 bool    streamTaskRecoverScanStep1Finished(SStreamTask* pTask);
 bool    streamTaskRecoverScanStep2Finished(SStreamTask* pTask);
