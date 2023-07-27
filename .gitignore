@@ -20,3 +20,8 @@ go.work*
 .idea
 logs/*
 __pycache__
+plugins/influxdb/target/
+plugins/mqtt/dist/
+plugins/mqtt/mqtt
+plugins/mqtt/target/
+plugins/opc/target/

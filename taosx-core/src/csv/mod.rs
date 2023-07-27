@@ -6,12 +6,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::datatypes::{Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use csv_lib::{Position, Reader, ReaderBuilder, StringRecord};
+use csv_lib::{Reader, ReaderBuilder, StringRecord};
 use futures_util::stream::FuturesUnordered;
 use futures_util::TryStreamExt;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::ArrowDataType;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::utils::port_pool::PortPool;
 use crate::{utils, Parser, Transferred};
@@ -151,7 +152,7 @@ pub async fn csv_to_taos(
         tokio::select! {
             // application exit with error code
             status = worker => {
-                match status {
+                match status? {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         log::info!("CSV worker done successfully");
@@ -167,7 +168,7 @@ pub async fn csv_to_taos(
                 log::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
                     let _ = abort.send(());
-                    anyhow::bail!("CSV writer error: {err}");
+                    anyhow::bail!("CSV writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
@@ -221,15 +222,17 @@ impl CsvSource {
         }
 
         let has_header: bool = dsn
-            .params
             .remove("has_header")
             .and_then(|v| v.parse().ok())
             .unwrap_or(true);
-        let headers = dsn.params.remove("header").unwrap_or_default();
+        let headers = dsn
+            .remove("header")
+            .or(dsn.remove("headers"))
+            .unwrap_or_default();
         let headers = if !headers.is_empty() {
             headers
                 .split(",")
-                .map(String::from)
+                .map(|i| i.trim().to_string())
                 .collect::<Vec<String>>()
         } else {
             Vec::new()
@@ -270,8 +273,7 @@ impl CsvSource {
             return Err(anyhow!("csv header is null"));
         }
 
-
-        let readers = CsvSource::csv_readers(&paths, &headers, sep, skip)?;
+        let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep, skip)?;
 
         Ok(CsvSource {
             readers,
@@ -352,24 +354,30 @@ impl CsvSource {
         let schema = CsvSource::stream_schema(&headers);
         let mut writer: StreamWriter<&TcpStream> = StreamWriter::try_new(&stream, &schema)?;
 
-        let mut records: Vec<HashMap<String, String>> = Vec::with_capacity(batch_size);
-
         tracing::info!("CSV stream reading...");
         tokio::task::yield_now().await;
-
-        for result in reader.deserialize() {
-            let record: HashMap<String, String> = result?;
-            records.push(record);
-
-            if records.len() >= batch_size {
-                CsvSource::write_to_stream(&headers, &schema, &mut writer, &records)?;
-                records.clear();
+        let mut record = StringRecord::new();
+        let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
+        while reader.read_record(&mut record)? {
+            if record.is_empty() {
+                continue;
+            }
+            for (i, s) in record.iter().enumerate() {
+                records[i].push(if !s.is_empty() {
+                    Some(s.to_string())
+                } else {
+                    None
+                });
+            }
+            if records[0].len() >= batch_size {
+                CsvSource::write_to_stream(&headers, &mut writer, &records)?;
+                records.iter_mut().for_each(Vec::clear);
                 tokio::task::yield_now().await;
             }
         }
 
-        if records.len() > 0 {
-            CsvSource::write_to_stream(&headers, &schema, &mut writer, &records)?;
+        if records[0].len() > 0 {
+            CsvSource::write_to_stream(&headers, &mut writer, &records)?;
         }
 
         tokio::task::yield_now().await;
@@ -380,25 +388,18 @@ impl CsvSource {
 
     fn write_to_stream(
         headers: &Vec<String>,
-        schema: &Schema,
         writer: &mut StreamWriter<&TcpStream>,
-        records: &Vec<HashMap<String, String>>,
+        records: &Vec<Vec<Option<String>>>,
     ) -> Result<()> {
-        let arrow_columns: Vec<ArrayRef> = headers
-            .iter()
-            .map(|col| {
-                let cols = records
+        let record_batch = RecordBatch::try_from_iter(
+            headers.iter().zip(
+                records
                     .iter()
-                    .map(|record| record[col].clone())
-                    .collect::<Vec<String>>();
-                Arc::new(StringArray::from(cols)) as ArrayRef
-            })
-            .collect();
-
-        let record_batch = RecordBatch::try_new(Arc::new(schema.clone()), arrow_columns)?;
-        let res = writer.write(&record_batch)?;
-
-        Ok(res)
+                    .map(|s| Arc::new(StringArray::from_iter(s)) as ArrayRef),
+            ),
+        )?;
+        writer.write(&record_batch)?;
+        Ok(())
     }
 
     fn stream_schema(headers: &Vec<String>) -> Schema {
@@ -421,41 +422,65 @@ impl CsvSource {
 
         // path is csv file
         if p.is_file() {
-            if !path.ends_with(ext) {
-                return Err(anyhow!(format!("not a {} file", ext)));
-            }
             return Ok(vec![path.to_string()]);
         }
-        let all_files = utils::files::get_files_in_dir(path, ext)?;
-        Ok(all_files)
+        if p.is_dir() {
+            let all_files = utils::files::get_files_in_dir(path, ext)?;
+            return Ok(all_files);
+        }
+        match glob::glob(path) {
+            Ok(paths) => {
+                let paths: Vec<_> = paths
+                    .into_iter()
+                    .map_ok(|path| path.display().to_string())
+                    .try_collect()?;
+                if paths.is_empty() {
+                    return Ok(vec![path.to_string()]);
+                }
+                return Ok(paths);
+            }
+            Err(err) => {
+                anyhow::bail!("Invalid csv path/glob {path:?}: {err:#}");
+            }
+        }
     }
 
     fn csv_readers(
         paths: &Vec<String>,
+        has_header: bool,
         headers: &Vec<String>,
         sep: Option<u8>,
         skip: Option<u64>,
     ) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
-        let mut first = true;
         for path in paths {
             let mut reader = ReaderBuilder::new()
                 .delimiter(match sep {
                     Some(sep) => sep,
                     _ => b',',
                 })
+                .has_headers(true)
                 .flexible(true)
-                .from_path(path)?;
+                .from_path(path)
+                .with_context(|| format!("Open file {path:?} error"))?;
+            // should first fetch headers record in case it has headers.
+            if has_header {
+                let _ = reader.headers();
+            }
             if !headers.is_empty() {
                 reader.set_headers(StringRecord::from(headers.clone()));
             }
-            if first {
-                if let Some(skip) = skip {
-                    let mut position = Position::new();
-                    position.set_line(skip);
-                    reader.seek(position)?;
+            info!(path, "Using headers: {}", reader.headers()?.iter().join(""));
+            if let Some(skip) = skip {
+                let mut record = StringRecord::new();
+                for _ in 0..skip {
+                    let _ = reader.read_record(&mut record);
                 }
-                first = false;
+                info!(
+                    skip,
+                    "Start reading csv from line {}",
+                    reader.position().line()
+                );
             }
             readers.push(reader);
         }
