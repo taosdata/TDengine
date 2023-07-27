@@ -324,9 +324,6 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
     return -1;
   }
 
-  /*if (pTask->dispatchType == TASK_OUTPUT__FIXED_DISPATCH || pTask->dispatchType == TASK_OUTPUT__SHUFFLE_DISPATCH) {*/
-  /*streamDispatchStreamBlock(pTask);*/
-  /*}*/
   return 0;
 }
 

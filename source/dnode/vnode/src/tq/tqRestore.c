@@ -247,7 +247,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (status != TASK_STATUS__NORMAL) {
+    if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__SCAN_HISTORY_WAL) {
       tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
@@ -260,6 +260,17 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     *pScanIdle = false;
+
+    if (pTask->info.fillHistory == 1) {
+      ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY_WAL);
+      // the maximum version of data in the WAL has reached already, the step2 is done
+      if (pTask->chkInfo.currentVer > pTask->dataRange.range.maxVer) {
+        qWarn("s-task:%s fill-history scan WAL, reach the maximum ver:%" PRId64 ", not scan wal anymore",
+              pTask->id.idStr, pTask->chkInfo.currentVer);
+        streamMetaReleaseTask(pStreamMeta, pTask);
+        continue;
+      }
+    }
 
     // seek the stored version and extract data from WAL
     int32_t code = doSetOffsetForWalReader(pTask, vgId);
@@ -283,9 +294,9 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       noDataInWal = false;
       code = tAppendDataToInputQueue(pTask, pItem);
       if (code == TSDB_CODE_SUCCESS) {
-        pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
-        tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
-                pTask->chkInfo.currentVer);
+        int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
+        pTask->chkInfo.currentVer = ver;
+        tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr, ver);
       } else {
         tqError("s-task:%s append input queue failed, too many in inputQ, ver:%" PRId64, pTask->id.idStr,
                 pTask->chkInfo.currentVer);

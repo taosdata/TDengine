@@ -23,7 +23,7 @@ static void streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static void streamTaskSetForReady(SStreamTask* pTask, int32_t numOfReqs) {
   ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
-  int64_t el = (taosGetTimestampMs() - pTask->initTs);
+  int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
 
   qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%dms, task status:%s",
          pTask->id.idStr, numOfReqs, (int32_t) el, streamGetTaskStatusStr(pTask->status.taskStatus));
@@ -663,7 +663,7 @@ void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
     // no input data yet. no need to execute the secondardy scan while stream task halt
     streamTaskRecoverSetAllStepFinished(pTask);
     qDebug(
-        "s-task:%s no need to perform secondary scan-history-data(step 2), since no data ingest during secondary scan",
+        "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during secondary scan",
         pTask->id.idStr);
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to

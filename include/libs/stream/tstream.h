@@ -45,6 +45,7 @@ enum {
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
+  TASK_STATUS__SCAN_HISTORY_WAL, // scan history data in wal
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
 };
@@ -302,6 +303,12 @@ typedef struct {
   SStreamQueue* queue;
 } STaskOutputInfo;
 
+typedef struct {
+  int64_t init;
+  int64_t step1Start;
+  int64_t step2Start;
+} STaskTimestamp;
+
 struct SStreamTask {
   SStreamId        id;
   SSTaskBasicInfo  info;
@@ -316,7 +323,7 @@ struct SStreamTask {
   SArray*          pUpstreamEpInfoList;  // SArray<SStreamChildEpInfo*>, // children info
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
-  int64_t          initTs;
+  STaskTimestamp   tsInfo;
   // output
   union {
     STaskDispatcherFixedEp fixedEpDispatcher;
