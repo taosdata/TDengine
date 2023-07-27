@@ -54,14 +54,24 @@ pub fn get_log_dir(plugin: &str) -> PathBuf {
     get_logs_home_dir().join(plugin)
 }
 
+pub const ENV_TAOSX_LOGS_KEEP_DAYS: &'static str = "TAOSX_LOGS_KEEP_DAYS";
+
 #[inline]
-pub fn get_log_keep_days() -> i64 {
-    const ENV_TAOSX_LOGS_KEEP_DAYS: &'static str = "TAOSX_LOGS_KEEP_DAYS";
-    const DEFAULT_LOGS_KEEP_DAYS: i64 = 30;
+pub fn valid_env_log_keep_days() -> Option<i64> {
     std::env::var(ENV_TAOSX_LOGS_KEEP_DAYS)
         .ok()
         .and_then(|v| v.parse::<i64>().ok())
-        .unwrap_or(DEFAULT_LOGS_KEEP_DAYS)
+        .filter(|v| v > &0)
+}
+
+#[inline]
+pub fn get_log_keep_days() -> i64 {
+    const DEFAULT_LOGS_KEEP_DAYS: i64 = 30;
+    if let Some(v) = valid_env_log_keep_days() {
+        v
+    } else {
+        DEFAULT_LOGS_KEEP_DAYS
+    }
 }
 
 pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
