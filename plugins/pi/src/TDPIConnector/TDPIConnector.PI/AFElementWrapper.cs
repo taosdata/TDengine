@@ -10,15 +10,10 @@ namespace TDPIConnector.PI
         {
             this.AFSDKObject = element;
         }
-
         public AFElementWrapper()
         {
 
         }
-
-
-
-
         public AFElementTemplateWrapper Template
         {
             get
@@ -26,7 +21,6 @@ namespace TDPIConnector.PI
                 return new AFElementTemplateWrapper(this.AFSDKObject.Template);
             }
         }
-
         public virtual string Name
         {
             get
@@ -34,7 +28,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.Name;
             }
         }
-
         public virtual Guid ID
         {
             get
@@ -42,7 +35,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.ID;
             }
         }
-
         public AFAttributesWrapper Attributes
         {
             get
@@ -58,10 +50,25 @@ namespace TDPIConnector.PI
                 return new AFDatabaseWrapper(this.AFSDKObject.Database);
             }
         }
-
         public virtual string GetPath()
         {
             return this.AFSDKObject.GetPath();
+        }
+        public bool HasInvalidAttr()
+        {
+            foreach (var att in this.AFSDKObject.Attributes)
+            {
+                try
+                {
+                    if (att.PIPoint == null)
+                        ;// do noting, just for exception
+                }
+                catch (Exception e)
+                {
+                      return true;
+                }
+            }
+            return false;
         }
     }
 }

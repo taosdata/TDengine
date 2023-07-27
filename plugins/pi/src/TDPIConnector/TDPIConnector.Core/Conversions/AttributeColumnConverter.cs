@@ -32,7 +32,7 @@ namespace TDPIConnector.Core.Conversions
         private static TDColumn ConvertAttribute(AFAttributeTemplateWrapper attributeTemplate)
         {
             string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.Type);
-            return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.ConfigurationItem);
+            return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.DataReference);
         }
         private static TDColumn ConvertElementAttribute(AFAttributeWrapper attributeTemplate)
         {

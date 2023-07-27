@@ -165,7 +165,14 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.IsConfigurationItem ? this.AFSDKObject.GetValue().Value.ToString() : string.Empty;
             }
         }
-
+        public string DataReference
+        {
+            get
+            {
+                if (this.AFSDKObject.DataReference == null) return "";
+                return this.AFSDKObject.DataReference.Name;
+            }
+        }
         public virtual string GetPath()
         {
             return this.AFSDKObject.GetPath();
@@ -207,6 +214,16 @@ namespace TDPIConnector.PI
                 return null;
             }
             return new AFValueWrapper(value);
+        }
+        public string ToStringWithUOM()
+        {
+            AFValue value = AFSDKObject.GetValue();
+            string res = Convert.ToString(value.Value);
+            if (Uom != "null" && Uom != "")
+            {
+                res += $" {Uom}";
+            }
+            return res;
         }
     }
 }

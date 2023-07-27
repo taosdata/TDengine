@@ -68,6 +68,17 @@ namespace TDPIConnector.Core
                 var timestamp = tdValue.TimestampString;
 
                 var attributeName = dpEvent.Value.Attribute.Name;
+                if (string.IsNullOrEmpty(dpEvent.Value.Attribute.DataReference))
+                {
+                    // static attribute:tag event
+                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update)
+                    {
+                        var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
+                        log.Info($"element tag chage {elementName}:{attributeName}:{valueString}");
+                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, valueString).Wait();
+                    }
+                    continue;
+                }
                 if (!columnNames.Contains(attributeName))
                 {
                     columnNames.Add(attributeName);
