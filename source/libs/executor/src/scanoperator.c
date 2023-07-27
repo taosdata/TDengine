@@ -1879,6 +1879,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64 "-%" PRId64 ", %s",
              pTSInfo->base.cond.startVersion, pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey,
              pTSInfo->base.cond.twindows.ekey, id);
+      pStreamInfo->recoverStep = STREAM_RECOVER_STEP__NONE;
     }
 
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
