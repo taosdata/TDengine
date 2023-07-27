@@ -844,7 +844,8 @@ void streamTaskPause(SStreamTask* pTask) {
       return;
     }
 
-    qDebug("s-task:%s wait for the task can be paused, vgId:%d", pTask->id.idStr, pMeta->vgId);
+    const char* pStatus = streamGetTaskStatusStr(status);
+    qDebug("s-task:%s wait for the task can be paused, status:%s, vgId:%d", pTask->id.idStr, pStatus, pMeta->vgId);
     taosMsleep(100);
   }
 

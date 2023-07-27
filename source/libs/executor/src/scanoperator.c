@@ -1793,7 +1793,7 @@ static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeW
         }
       }
     } else if (pWindow->ekey != INT64_MAX) {
-      qDebug("%s filter for additional history window, ekey:%" PRId64, id, pWindow->skey);
+      qDebug("%s filter for additional history window, ekey:%" PRId64, id, pWindow->ekey);
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         int64_t* ts = (int64_t*)colDataGetData(pCol, i);
         p[i] = (*ts <= pWindow->ekey);

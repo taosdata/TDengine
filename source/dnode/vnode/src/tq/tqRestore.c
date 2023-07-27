@@ -209,6 +209,17 @@ int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void checkForFillHistoryVerRange(SStreamTask* pTask, int64_t ver) {
+  if ((pTask->info.fillHistory == 1) && ver > pTask->dataRange.range.maxVer) {
+    qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 "reach the maximum ver:%" PRId64
+          ", not scan wal anymore, set the transfer state flag",
+          pTask->id.idStr, ver, pTask->dataRange.range.maxVer);
+    pTask->status.transferState = true;
+
+    /*int32_t code = */streamSchedExec(pTask);
+  }
+}
+
 int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   *pScanIdle = true;
   bool    noDataInWal = true;
@@ -251,6 +262,15 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
+    if ((pTask->info.fillHistory == 1) && pTask->status.transferState) {
+      ASSERT(status == TASK_STATUS__SCAN_HISTORY_WAL);
+      // the maximum version of data in the WAL has reached already, the step2 is done
+      tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
+            pTask->dataRange.range.maxVer);
+      streamMetaReleaseTask(pStreamMeta, pTask);
+      continue;
+    }
+
     if (tInputQueueIsFull(pTask)) {
       tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
@@ -258,17 +278,6 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     *pScanIdle = false;
-
-    if (pTask->info.fillHistory == 1) {
-      ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY_WAL);
-      // the maximum version of data in the WAL has reached already, the step2 is done
-      if (pTask->chkInfo.currentVer > pTask->dataRange.range.maxVer) {
-        qWarn("s-task:%s fill-history scan WAL, reach the maximum ver:%" PRId64 ", not scan wal anymore",
-              pTask->id.idStr, pTask->chkInfo.currentVer);
-        streamMetaReleaseTask(pStreamMeta, pTask);
-        continue;
-      }
-    }
 
     // seek the stored version and extract data from WAL
     int32_t code = doSetOffsetForWalReader(pTask, vgId);
@@ -284,6 +293,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     code = extractMsgFromWal(pTask->exec.pWalReader, (void**) &pItem, maxVer, pTask->id.idStr);
 
     if ((code != TSDB_CODE_SUCCESS || pItem == NULL) && (numOfItemsInQ == 0)) {  // failed, continue
+      checkForFillHistoryVerRange(pTask, walReaderGetCurrentVer(pTask->exec.pWalReader));
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
@@ -294,18 +304,8 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       if (code == TSDB_CODE_SUCCESS) {
         int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
         pTask->chkInfo.currentVer = ver;
+        checkForFillHistoryVerRange(pTask, ver);
         tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr, ver);
-
-        {
-          if (pTask->info.fillHistory == 1) {
-            // the maximum version of data in the WAL has reached already, the step2 is done
-            if (pTask->chkInfo.currentVer > pTask->dataRange.range.maxVer) {
-              qWarn("s-task:%s fill-history scan WAL, reach the maximum ver:%" PRId64 ", not scan wal anymore, set the transfer state flag",
-                    pTask->id.idStr, pTask->chkInfo.currentVer);
-              pTask->status.transferState = true;
-            }
-          }
-        }
       } else {
         tqError("s-task:%s append input queue failed, too many in inputQ, ver:%" PRId64, pTask->id.idStr,
                 pTask->chkInfo.currentVer);

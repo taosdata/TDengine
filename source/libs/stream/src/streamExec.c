@@ -355,8 +355,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    pTask->status.transferState = false;  // reset this value, to avoid transfer state again
-
+    // todo: destroy this task here
     qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
            pTask->streamTaskId.taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
@@ -510,13 +509,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     /*int32_t code = */extractMsgFromInputQ(pTask, &pInput, &batchSize, id);
     if (pInput == NULL) {
       ASSERT(batchSize == 0);
-//      if (pTask->info.fillHistory && pTask->status.transferState) {
-//        int32_t code = streamTransferStateToStreamTask(pTask);
-//        if (code != TSDB_CODE_SUCCESS) { // todo handle this
-//          return 0;
-//        }
-//      }
-
       break;
     }
 

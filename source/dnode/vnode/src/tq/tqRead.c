@@ -310,7 +310,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 
   int64_t ver = pReader->pHead->head.version;
   if (ver > maxVer) {
-    tqDebug("maxVer in WAL:%"PRId64" reached, do not scan wal anymore, %s", maxVer, id);
+    tqDebug("maxVer in WAL:%"PRId64" reached current:%"PRId64", do not scan wal anymore, %s", maxVer, ver, id);
     return TSDB_CODE_SUCCESS;
   }
 
