@@ -18,6 +18,7 @@
 #include "mndPrivilege.h"
 #include "mndTrans.h"
 #include "mndDnode.h"
+#include "mndStream.h"
 
 extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans);
 extern int32_t mndAddAlterVnodeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup);
@@ -104,6 +105,14 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   if (pDb == NULL) goto _OVER;
 
+  int32_t numOfStreams = 0;
+  code = mndGetNumOfStreams(pMnode, pVgroup->dbName, &numOfStreams);
+  if (numOfStreams > 0) {
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    mError("vgId:%d, db:%s, stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
+    goto _OVER;
+  }
+  
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
   if (code != 0) {
     mError("vgId:%d, failed to start to split vgroup since %s, db:%s", pVgroup->vgId, terrstr(), pDb->name);
