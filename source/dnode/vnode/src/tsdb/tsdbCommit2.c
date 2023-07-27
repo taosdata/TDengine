@@ -37,6 +37,7 @@ typedef struct {
     int64_t    cid;
     int64_t    now;
     TSKEY      nextKey;
+    TSKEY      maxDelKey;
     int32_t    fid;
     int32_t    expLevel;
     SDiskID    did;
@@ -161,6 +162,9 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   SMetaInfo info;
 
   if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
+    if (committer->ctx->maxKey < committer->ctx->maxDelKey) {
+      committer->ctx->nextKey = committer->ctx->maxKey + 1;
+    }
     return 0;
   }
 
@@ -185,16 +189,18 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
       goto _next;
     }
 
+    TSKEY maxKey = committer->ctx->maxKey;
     if (record->ekey > committer->ctx->maxKey) {
-      committer->ctx->maxKey = committer->ctx->maxKey + 1;
+      maxKey = committer->ctx->maxKey + 1;
     }
 
-    if (record->ekey > committer->ctx->maxKey) {
-      committer->ctx->nextKey = record->ekey;
+    if (record->ekey > committer->ctx->maxKey && committer->ctx->nextKey > maxKey) {
+      committer->ctx->nextKey = maxKey;
+      committer->ctx->maxDelKey = TMAX(record->ekey, committer->ctx->maxDelKey);
     }
 
     record->skey = TMAX(record->skey, committer->ctx->minKey);
-    record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+    record->ekey = TMIN(record->ekey, maxKey);
 
     numRecord++;
     code = tsdbFSetWriteTombRecord(committer->writer, record);
