@@ -41,6 +41,7 @@ static const char *offlineReason[] = {
     "timezone not match",
     "locale not match",
     "charset not match",
+    "ttl change on write not match"
     "unknown",
 };
 
@@ -412,6 +413,12 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   if (0 != strcasecmp(pCfg->charset, tsCharset)) {
     mError("dnode:%d, charset:%s inconsistent with cluster:%s", pDnode->id, pCfg->charset, tsCharset);
     return DND_REASON_CHARSET_NOT_MATCH;
+  }
+
+  if (pCfg->ttlChangeOnWrite != tsTtlChangeOnWrite) {
+    mError("dnode:%d, ttlChangeOnWrite:%d inconsistent with cluster:%d", pDnode->id, pCfg->ttlChangeOnWrite,
+           tsTtlChangeOnWrite);
+    return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
   }
 
   return 0;
