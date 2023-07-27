@@ -1179,6 +1179,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (done) {
       pTask->tsInfo.step2Start = taosGetTimestampMs();
       streamTaskEndScanWAL(pTask);
+      streamMetaReleaseTask(pMeta, pTask);
     } else {
       if (!streamTaskRecoverScanStep1Finished(pTask)) {
         STimeWindow* pWindow = &pTask->dataRange.window;
