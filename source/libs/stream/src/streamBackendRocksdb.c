@@ -1066,15 +1066,12 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
                                           rocksdb_readoptions_t** readOpt) {
   int idx = streamStateGetCfIdx(pState, cfName);
 
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  if (snapshot != NULL) {
-    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
-  }
   rocksdb_readoptions_t* rOpt = rocksdb_readoptions_create();
   *readOpt = rOpt;
 
+  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
   if (snapshot != NULL) {
-    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(pState->pTdbState->rocksdb);
+    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
     rocksdb_readoptions_set_snapshot(rOpt, *snapshot);
     rocksdb_readoptions_set_fill_cache(rOpt, 0);
   }
