@@ -792,6 +792,7 @@ typedef struct SLDataIter {
   SVersionRange          verRange;
   SSttBlockLoadInfo     *pBlockLoadInfo;
   bool                   ignoreEarlierTs;
+  bool                   bInit;
   struct SSttFileReader *pReader;
 } SLDataIter;
 
