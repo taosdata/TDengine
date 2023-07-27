@@ -240,7 +240,7 @@ function check_disk() {
             # hysteresis comparator
             local downgrade_usage=$(( current_disk_level - 4 ))
             if [ ${usage} -lt ${downgrade_usage} ]; then
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: disk usage reduced from ${current_disk_level} to ${current_level}"
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] disk usage reduced from ${current_disk_level} to ${current_level}"
             else
                 # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:disk usage level downgrade not ready: ${usage} still above ${downgrade_usage}"
                 current_level=${current_disk_level}
@@ -253,21 +253,21 @@ function run_taosd() {
     local count=0
     trap "echo SIGTERM; sigterm_handler; exit" SIGTERM
     if [ -d "/var/log" ]; then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: taosd start" >>/var/log/run.log
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] taosd start" >>/var/log/run.log
     fi
     taosd &
     pid=$!
     wait $pid
     local ret=$?
-    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: taosd exit $ret"
+    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] taosd exit $ret"
     if [ -d "/var/log" ]; then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: taosd exit $ret" >>/var/log/run.log
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] taosd exit $ret" >>/var/log/run.log
     fi
     if [ $ret -eq 0 ]; then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: exit caused by sigterm"
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] exit caused by sigterm"
         return
     fi
-    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: set taosd state"
+    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] set taosd state"
     set_service_state "error" "taosd exit"
     # post error msg
     # check crash or OOM
@@ -284,7 +284,7 @@ function run_taosadapter() {
 }
 function print_service_state_change() {
     if [ "x$1" != "x${service_state}" ]; then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: service state: ${service_state}, ${service_msg}"
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] service state: ${service_state}, ${service_msg}"
     fi
 }
 function initDnodeAndMnode {
@@ -300,13 +300,13 @@ function initDnodeAndMnode {
             DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$DNODETmp" != "" ]]; then
                 DNODE_CREATED=1
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Created the dnode with endpoint $ENDPOINT"
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] Created the dnode with endpoint $ENDPOINT"
             else
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: failed to create dnode $ENDPOINT through taos"
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] failed to create dnode $ENDPOINT through taos"
             fi
         else
             DNODE_CREATED=1
-            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Dnode $ENDPOINT already created "
+            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] Dnode $ENDPOINT already created "
         fi    
         if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
             # second check mnode created
@@ -318,9 +318,9 @@ function initDnodeAndMnode {
                     MNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
                     if [[ "$MNODETmp" != "" ]]; then
                         MNODE_CREATED=1
-                        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: Created the mnode for dnode $DNODEID"
+                        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] Created the mnode for dnode $DNODEID"
                     else 
-                        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: failed to create mnode for dnode $ENDPOINT through taos"
+                        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] failed to create mnode for dnode $ENDPOINT through taos"
                     fi
                 fi
             fi
@@ -329,10 +329,10 @@ function initDnodeAndMnode {
             ADMINUSER=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "show users;" | grep -E "admin_user" -o)
             if [[ "$ADMINUSER" == "" ]]; then
                 timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"  
-                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: created admin_user"
+                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] created admin_user"
             fi
             MNODE_CREATED=1
-            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: This is master dnode and no need to create mnode"
+            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] This is master dnode and no need to create mnode"
         fi
     done
 }
@@ -344,7 +344,7 @@ do
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:outer loop: $a"
     output=`timeout $TAOS_TIMEOUT_SECOND taos -k | tail -n 1`
     if [ -z "${output}" ]; then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: taos -k error"
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] taos -k error"
         status=""
     else
         status=${output:0:1}
@@ -356,9 +356,9 @@ do
         start_taosadapter_count=0
     fi
     if [ "$status"x = "0"x ];then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: start taosd count: ${start_taosd_count}"
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] start taosd count: ${start_taosd_count}"
         if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
-            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
+            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
             break
         fi
         start_taosd_count=$(( start_taosd_count + 1 ))
@@ -376,7 +376,7 @@ do
                     taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
                     taos -s "GRANT ALL on test.* to admin_user;"
                     TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: executed taosBenchmark to generate test database"
+                    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] taosBenchmark executed to generate test database"
                 fi
             fi
         fi
@@ -407,9 +407,9 @@ do
     # check taosadapter
     nc -z localhost 6041
     if [ $? -ne 0 ]; then
-        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: start taosadapter count: ${start_taosadapter_count}"
+        echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
-            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
+            echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [ERROR] exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
             break
         fi
         start_taosadapter_count=$(( start_taosadapter_count + 1 ))
