@@ -44,7 +44,6 @@ class TDTestCase:
     def wrong_topic(self):
         tdSql.prepare()
         tdSql.execute('use db')
-        tdSql.execute('alter database db wal_retention_period 3600')
         stbname = f'db.{tdCom.getLongName(5, "letters")}'
         tag_dict = {
             't0':'int'
