@@ -586,8 +586,12 @@ static int32_t asyncCommitOffset(tmq_t* tmq, char* pTopicName, int32_t vgId, STq
   if(code != 0){
     goto end;
   }
-  if (offsetVal->type <= 0 || tOffsetEqual(offsetVal, &pVg->offsetInfo.committedOffset)) {
+  if (offsetVal->type <= 0) {
     code = TSDB_CODE_TMQ_INVALID_MSG;
+    goto end;
+  }
+  if (tOffsetEqual(offsetVal, &pVg->offsetInfo.committedOffset)){
+    code = TSDB_CODE_TMQ_SAME_COMMITTED_VALUE;
     goto end;
   }
   char offsetBuf[TSDB_OFFSET_LEN] = {0};
@@ -653,6 +657,7 @@ static void asyncCommitFromResult(tmq_t* tmq, const TAOS_RES* pRes, tmq_commit_c
 
 end:
   if(code != TSDB_CODE_SUCCESS && pCommitFp != NULL){
+    if(code == TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) code = TSDB_CODE_SUCCESS;
     pCommitFp(tmq, code, userParam);
   }
 }
@@ -2412,6 +2417,7 @@ int32_t tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId,
     code = pInfo->code;
   }
 
+  if(code == TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) code = TSDB_CODE_SUCCESS;
   tsem_destroy(&pInfo->sem);
   taosMemoryFree(pInfo);
 
@@ -2456,6 +2462,7 @@ void tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, i
 
 end:
   if(code != 0 && cb != NULL){
+    if(code == TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) code = TSDB_CODE_SUCCESS;
     cb(tmq, code, param);
   }
 }
