@@ -5,6 +5,11 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
 
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
@@ -13,18 +18,12 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
     Layer as _,
 };
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
-    get_log_dir, 
-    get_log_keep_days,
+    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_TAOSX_LOGS_KEEP_DAYS,
 };
 
 use crate::runner::TaskStatus;
@@ -52,6 +51,8 @@ pub struct Args {
     token: String,
 
     log_level: Option<Level>,
+
+    log_keep_days: Option<i64>,
 }
 #[config]
 #[derive(Parser, Debug)]
@@ -76,6 +77,9 @@ pub struct ArgsParser {
     /// For environment variable wised log level.
     #[clap(hide = true)]
     log_level: Option<LevelFilter>,
+
+    #[clap(hide = true)]
+    log_keep_days: Option<i64>,
 }
 
 #[derive(Parser, Debug)]
@@ -144,6 +148,7 @@ impl Args {
             token,
             log_level,
             verbose,
+            log_keep_days,
             ..
         } = ArgsParser::with_layers(&layers)?;
         let log_level = log_level_to_tracing_level(
@@ -157,6 +162,7 @@ impl Args {
                 .ok_or_else(|| ArgsError::MissingRequiredArgument("endpoint".to_string()))?,
             token: token.ok_or_else(|| ArgsError::MissingRequiredArgument("token".to_string()))?,
             log_level,
+            log_keep_days,
         })
     }
 }
@@ -228,12 +234,21 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn set_env_log_keep_days(config: Option<i64>) {
+    if let Some(log_keep_days) = config {
+        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
+            std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
+        }
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
     println!(
         "Serve agent with endpoint: {} via token {}",
         args.endpoint, args.token
     );
+    set_env_log_keep_days(args.log_keep_days);
 
     let mut log_path = get_log_dir("agent");
 

@@ -23,9 +23,8 @@ pub use taosx_ipc::types::*;
 pub use transform::Parser;
 
 pub use runners::{
-    get_plugins_info, 
-    get_log_dir,
-    get_log_keep_days,
+    get_log_dir, get_log_keep_days, get_plugins_info, valid_env_log_keep_days,
+    ENV_TAOSX_LOGS_KEEP_DAYS,
 };
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
