@@ -48,7 +48,10 @@ namespace TDPIConnector.PI
                 throw piSystemConnectionException;
             }
         }
-        
+        internal AFDatabase GetAFDatabase(string afDatabaseName)
+        {
+            return piSystem.Databases[afDatabaseName];
+        }
         public List<PIPointWrapper> GetPIPointsFromElementTemplates(string afDatabaseName, List<string> elementTemplates)
         {
             
@@ -66,10 +69,17 @@ namespace TDPIConnector.PI
             {
                 foreach (var attribute in element.Attributes)
                 {
-                    if (attribute.PIPoint != null && attribute.IsPIPointDataReference)
+                    if (attribute.IsPIPointDataReference)
                     {
-                        if (!piPoints.ContainsKey(attribute.PIPoint.ID))
-                            piPoints.Add(attribute.PIPoint.ID, attribute.PIPoint);
+                        if (attribute.PIPoint != null)
+                        {
+                            if (!piPoints.ContainsKey(attribute.PIPoint.ID))
+                                piPoints.Add(attribute.PIPoint.ID, attribute.PIPoint);
+                        }
+                        else
+                        {
+                            log.Warn($"AF element {element.ID} not found point for attribute {attribute.Name}");
+                        }
                     }
                 }
             }
@@ -77,7 +87,6 @@ namespace TDPIConnector.PI
             return piPoints.Values.ToList();
 
         }
-
         public AFDataPipeManager AddSignups(List<AFElementWrapper> elements, IObserver<AFDataPipeEventWrapper> observerWrapper, int numberOfDataPipes)
         {
             AFDataPipeManager afDataPipeManager = new AFDataPipeManager(numberOfDataPipes);
@@ -110,7 +119,6 @@ namespace TDPIConnector.PI
                 .Where(et => et.InstanceType == typeof(AFElement))
                 .Select(e => new AFElementTemplateWrapper(e));
         }
-
         public IEnumerable<AFElementWrapper> GetElementTemplateInstances(AFElementTemplateWrapper elementTemplate)
         {
             using (var search = new AFElementSearch(elementTemplate.AFSDKObject.Database, "Find_" + elementTemplate.Name, $"Template: '{elementTemplate.Name}'"))
@@ -119,7 +127,6 @@ namespace TDPIConnector.PI
                 return elements.Select(e => new AFElementWrapper(e));
             }
         }
-
         public IEnumerable<AFElementWrapper> GetElementsByTemplate(string afDatabaseName, string elementTemplateName)
         {
             AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
@@ -138,7 +145,16 @@ namespace TDPIConnector.PI
                 return elements.Select(e => new AFElementWrapper(e));
             }
         }
+        public AFElementTemplateWrapper GetElementsByTemplateID(Guid elementTemplateID)
+        {
+            AFElementTemplate elementTemplate = AFElementTemplate.FindElementTemplate(piSystem, elementTemplateID);
 
+            if (elementTemplate == null)
+            {
+                throw new Exception($"Could not find AF Element TemplateID {elementTemplateID}.");
+            }
+            return new AFElementTemplateWrapper(elementTemplate);
+        }
         public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountForward(PIPointWrapper piPoint, DateTimeWrapper startTime, int count)
         {
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();

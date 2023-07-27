@@ -59,6 +59,7 @@
     <Compile Include="AFAttributeTemplatesWrapper.cs" />
     <Compile Include="AFAttributeTemplateWrapper.cs" />
     <Compile Include="AFAttributeWrapper.cs" />
+    <Compile Include="AFElementTemplateObserver.cs" />
     <Compile Include="AFDatabaseWrapper.cs" />
     <Compile Include="AFDataPipeEventWrapper.cs" />
     <Compile Include="AFDataPipeEventObserver.cs" />

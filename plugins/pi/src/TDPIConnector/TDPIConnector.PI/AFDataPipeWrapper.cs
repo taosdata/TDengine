@@ -53,7 +53,7 @@ namespace TDPIConnector.PI
             {
                 foreach (var errorKeyValuePair in errors.Errors)
                 {
-                    throw errorKeyValuePair.Value;
+                     throw errorKeyValuePair.Value;
                 }
             }
         }

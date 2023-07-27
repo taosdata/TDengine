@@ -140,7 +140,155 @@ namespace TDPIConnector.Core
             await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
             return elementsCollection;
         }
+        public async Task<bool> CreateOrUpdateSTablesByTem(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
+        {
+            var superTable = TemplateSTableConverter.Convert(elementTemplate);
+            return await CreateOrUpdateSuperTables(tdDatabaseName, superTable);
+        }
+        public async Task<bool> CreateOrUpdateSuperTables(string tdDatabaseName, TDSTable superTable)
+        {
+            var res = await tdEngineProxy.GetSTables(tdDatabaseName, superTable.Name);
+            var hasNewAttribute = false;
+            if (res.Data == null)
+            {
+                // Adding super tables at runtime is not supported
+                return false;
+            }
+            else
+            {
+                var diff = GetTableChange(res.Data, superTable);
+                log.Debug($"super table(old) {superTable.Name} columns:{string.Join(",", diff.OldColumns)} tag:{string.Join(",", diff.OldTags)}");
+                log.Debug($"super table(new) {superTable.Name} columns:{string.Join(",", diff.NewColumns)} tag:{string.Join(",", diff.NewTags)}");
+                var changes = diff.GetOperFromDiff();
+                foreach (var change in changes)
+                {
+                    // TODO restart this super table client
+                    if (change.Contains("ADD"))
+                    {
+                        hasNewAttribute = true;
+                    }
+                }
+            }
+            return hasNewAttribute;
+        }
+        public TableDiff GetTableChange(List<List<string>> tdResponseColumns, TDSTable superTable)
+        {
+            TableDiff diff = new TableDiff();
+            var oldColumns = new Dictionary<string, string>();
+            var oldTags = new Dictionary<string, string>();
+            foreach (var col in tdResponseColumns)
+            {
+                var type = col[1] == "NCHAR" ? "NCHAR(" + col[2] + ")" : col[1];
+                if (col[3] == "TAG")
+                {
+                    oldTags.Add(col[0], type);
+                }
+                else
+                {
+                    oldColumns.Add(col[0], type);
+                }
+            }
+            var newColumns = new Dictionary<string, string>();
+            var newTags = new Dictionary<string, string>();
+            newTags.Add("element_id", "NCHAR(100)");
+            newColumns.Add("ts", "TIMESTAMP");
+            foreach (var col in superTable.Columns)
+            {
+                if (col.IsTag())
+                {
+                    newTags.Add(col.Name, "NCHAR(100)");
+                }
+                else
+                {
+                    newColumns.Add($"{col.Name}_val", col.Type);
+                    newColumns.Add($"{col.Name}_status", "INT");
+                }
+            }
+            newTags.Add($"{AppSettings.tomlConfig.AFTreeTagName}", "NCHAR(100)");
+            diff.OldColumns = oldColumns;
+            diff.OldTags = oldTags;
+            diff.NewColumns = newColumns;
+            diff.NewTags = newTags;
+            return diff;
+        }
+    }
+    public class TableDiff
+    {
+        public Dictionary<string, string> OldColumns;
+        public Dictionary<string, string> OldTags;
+        public Dictionary<string, string> NewColumns;
+        public Dictionary<string, string> NewTags;
 
+        // | ADD COLUMN col_name column_type
+        // | DROP COLUMN col_name
+        // | MODIFY COLUMN col_name column_type
+        // | ADD TAG tag_name tag_type
+        // | DROP TAG tag_name
+        // | MODIFY TAG tag_name tag_type
+        // | RENAME TAG old_tag_name new_tag_name
+        public List<string> GetOperFromDiff()
+        {
+            var columnAdd = new Dictionary<string, string>();
+            var columnDel = new List<string>();
+            var tagAdd = new Dictionary<string, string>();
+            var tagDel = new List<string>();
+            var columnModify = new Dictionary<string, string>();
+            var tagModify = new Dictionary<string, string>();
+            // columns todo 
+            // calChanges(OldColumns, NewColumns, ref columnAdd, ref columnDel, ref columnModify);
+            calChanges(OldTags, NewTags, ref tagAdd, ref tagDel, ref tagModify);
 
+            var res = new List<string>();
+            foreach (var add in columnAdd)
+            {
+                res.Add($"ADD COLUMN {add.Key} {add.Value}");
+            }
+            foreach (var del in columnDel)
+            {
+                res.Add($"DROP COLUMN {del}");
+            }
+            foreach (var mod in columnModify)
+            {
+                res.Add($"MODIFY COLUMN {mod.Key} {mod.Value}");
+            }
+            foreach (var add in tagAdd)
+            {
+                res.Add($"ADD TAG {add.Key} {add.Value}");
+            }
+            foreach (var del in tagDel)
+            {
+                res.Add($"DROP TAG {del}");
+            }
+            foreach (var mod in tagModify)
+            {
+                res.Add($"MODIFY TAG {mod.Key} {mod.Value}");
+            }
+            return res;
+        }
+        private void calChanges(Dictionary<string, string> columns1, Dictionary<string, string> columns2,
+            ref Dictionary<string, string> columnAdd, ref List<string> columnDel, ref Dictionary<string, string> columnModify)
+        {
+            foreach (var oc in columns1)
+            {
+                if (columns2.ContainsKey(oc.Key))
+                {
+                    if (oc.Value != columns2[oc.Key])
+                    {
+                        columnModify.Add(oc.Key, columns2[oc.Key]);
+                    }
+                }
+                else
+                {
+                    columnDel.Add(oc.Key);
+                }
+            }
+            foreach (var nc in columns2)
+            {
+                if (!columns1.ContainsKey(nc.Key))
+                {
+                    columnAdd.Add(nc.Key, nc.Value);
+                }
+            }
+        }
     }
 }

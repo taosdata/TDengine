@@ -1,4 +1,5 @@
 ﻿#define CLOUD_LICENSE_ONLY_DISABLED
+#define USE_ADAPTER
 using log4net;
 using System;
 using System.Collections.Generic;
@@ -6,7 +7,6 @@ using System.Threading.Tasks;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine.Helper;
 using TDPIConnector.TDEngine.TaosxClient;
-
 
 namespace TDPIConnector.TDEngine
 {
@@ -62,7 +62,11 @@ namespace TDPIConnector.TDEngine
             //string restHostname = restAdd[0];
             //int restPort;
             //int.TryParse(restAdd[1], out restPort);
+#if USE_ADAPTER
+            taosxCommonClient = new TDEngineClient(true, restHost, 0, "root", "taosdata", "", tablesPrefix);
+#else
             taosxCommonClient = new TDEngineClient(true, restHost, 0, "", "", "", tablesPrefix);
+#endif
             this.taosxClients = new Dictionary<string, TDEngineTaosxClient>();
         }
 
@@ -75,7 +79,13 @@ namespace TDPIConnector.TDEngine
         {
             return null;
         }
-
+        public virtual Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
+        {
+            return taosxCommonClient.ChangeTagValueForAFElements(db, elementName, attriName, value);
+        }
+        public virtual async Task<TDEngineResponse> GetSTables(string database, string stable) {
+            return await taosxCommonClient.GetSTables(database, stable);
+        }
         public virtual void VerifyLicenseCompability()
         {
             if (!hostname.Contains("cloud.tdengine.com"))
@@ -128,18 +138,19 @@ namespace TDPIConnector.TDEngine
                 var tags = new List<KeyValuePair<string, string>>();
                 tags.Add(new KeyValuePair<string, string>($"element_id", "NCHAR(100)"));
                 foreach (var column in sTable.Columns) {
-                    if (string.IsNullOrEmpty(column.ConfigurationItem))
+                    if (column.IsTag())
                     {
-                        columnNameTypes.Add(new KeyValuePair<string, string>($"{column.Name}", $"{column.Type}"));
+                        // TODO verify tag name and type
+                        // tags += $", {column.Name} NCHAR(100)";
+                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", $"{column.Type}"));
                     }
                     else
                     {
-                        tags.Add(new KeyValuePair<string, string>($"{column.Name}_val", $"{column.Type}"));
+                        // TODO verify column name and type
+                        // tags += $", {column.Name} NCHAR(100)";
+                        columnNameTypes.Add(new KeyValuePair<string, string>($"{column.Name}", $"{column.Type}"));
+                        // sqlCommand += $", {column.Name}_val {column.Type}, {column.Name}_status INT";
                     }
-                    if (!string.IsNullOrEmpty(column.Uom))
-                    {
-                        tags.Add(new KeyValuePair<string, string>($"{column.Name}_uom", "NCHAR(100)"));
-                    }                  
                 }
                 var taosxClient = new TDEngineTaosxClient(hostname, port, database,
                     stableName, columnNameTypes, tags, maxWaitLength);
@@ -158,14 +169,11 @@ namespace TDPIConnector.TDEngine
                 tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
                 foreach (TDColumn column in element.Columns)
                 {
-                    if (!string.IsNullOrEmpty(column.ConfigurationItem))
+                    if (column.IsTag())
                     {
-                        tags.Add(new KeyValuePair<string, string>($"{column.Name}_val", column.ConfigurationItem));
-                    }
-
-                    if (!string.IsNullOrEmpty(column.Uom))
-                    {
-                        tags.Add(new KeyValuePair<string, string>($"{column.Name}_uom", column.Uom));
+                        // verify tagname and value
+                        // tags.Add($"{column.Name}", column.TagValue);
+                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
                     }
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
