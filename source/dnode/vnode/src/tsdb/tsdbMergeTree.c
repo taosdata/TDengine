@@ -784,6 +784,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
         SLDataIter *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
         taosArrayPush(pList, &pIter);
       }
+    } else if (numOfIter > TARRAY2_SIZE(pSttLevel->fobjArr)){
+        int32_t inc = numOfIter - TARRAY2_SIZE(pSttLevel->fobjArr);
+        for (int i = 0; i < inc; ++i) {
+            SLDataIter *pIter = taosArrayPop(pList);
+            destroyLDataIter(pIter);
+        }
     }
 
     for (int32_t i = 0; i < TARRAY2_SIZE(pSttLevel->fobjArr); ++i) {  // open all last file
