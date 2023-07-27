@@ -1207,7 +1207,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
 
-  mDebug("mnd show subscriptions begin");
+  mInfo("mnd show subscriptions begin");
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
@@ -1247,7 +1247,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     sdbRelease(pSdb, pSub);
   }
 
-  mDebug("mnd end show subscriptions");
+  mInfo("mnd end show subscriptions");
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

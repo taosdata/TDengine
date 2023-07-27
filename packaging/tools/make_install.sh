@@ -432,12 +432,6 @@ function install_examples() {
   ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || :
 }
 
-function install_web() {
-  if [ -d "${binary_dir}/build/share" ]; then
-    ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || :
-  fi
-}
-
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
@@ -592,7 +586,6 @@ function update_TDengine() {
   install_lib
   #  install_connector
   install_examples
-  install_web
   install_bin
   install_app
 
