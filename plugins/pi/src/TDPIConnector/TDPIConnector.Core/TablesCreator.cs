@@ -301,7 +301,7 @@ namespace TDPIConnector.Core
             var columnModify = new Dictionary<string, string>();
             var tagModify = new Dictionary<string, string>();
             // columns todo 
-            // calChanges(OldColumns, NewColumns, ref columnAdd, ref columnDel, ref columnModify);
+            calChanges(OldColumns, NewColumns, ref columnAdd, ref columnDel, ref columnModify);
             calChanges(OldTags, NewTags, ref tagAdd, ref tagDel, ref tagModify);
 
             var res = new List<string>();
