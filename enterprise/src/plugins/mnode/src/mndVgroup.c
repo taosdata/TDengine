@@ -18,6 +18,7 @@
 #include "mndPrivilege.h"
 #include "mndTrans.h"
 #include "mndDnode.h"
+#include "mndStream.h"
 
 extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans);
 extern int32_t mndAddAlterVnodeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup);
