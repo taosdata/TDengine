@@ -11,3 +11,6 @@ endpoint = "http://localhost:6055"
 #
 #log_level = "debug"
 
+# Log keep days
+#
+#log_keep_days = 7
