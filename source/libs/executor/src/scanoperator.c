@@ -1871,6 +1871,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       qDebug("stream recover step1, verRange:%" PRId64 "-%" PRId64 " window:%"PRId64"-%"PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey, pTSInfo->base.cond.twindows.ekey, id);
       pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN1;
+      pStreamInfo->recoverScanFinished = false;
     } else {
       pTSInfo->base.cond.startVersion = pStreamInfo->fillHistoryVer.minVer;
       pTSInfo->base.cond.endVersion = pStreamInfo->fillHistoryVer.maxVer;
@@ -1887,7 +1888,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
-    pStreamInfo->recoverScanFinished = false;
   }
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
