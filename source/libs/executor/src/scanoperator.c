@@ -1878,7 +1878,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64 "-%" PRId64 ", %s",
              pTSInfo->base.cond.startVersion, pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey,
              pTSInfo->base.cond.twindows.ekey, id);
-      pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN2;
     }
 
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
@@ -1891,8 +1890,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pStreamInfo->recoverScanFinished = false;
   }
 
-  if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1 ||
-      pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN2) {
+  if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
     if (isTaskKilled(pTaskInfo)) {
       return NULL;
     }
