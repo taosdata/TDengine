@@ -145,8 +145,10 @@ void *destroySttBlockReader(SArray *pLDataIterArray, int64_t *blocks, double *el
     SArray *pList = taosArrayGetP(pLDataIterArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
-      *el += pIter->pBlockLoadInfo->elapsedTime;
-      *blocks += pIter->pBlockLoadInfo->loadBlocks;
+      if (pIter->bInit) {
+          *el += pIter->pBlockLoadInfo->elapsedTime;
+          *blocks += pIter->pBlockLoadInfo->loadBlocks;
+      }
       destroyLDataIter(pIter);
     }
     taosArrayDestroy(pList);
