@@ -367,10 +367,10 @@ void dumpStream(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "status", i642str(pObj->status));
-    tjsonAddStringToObject(item, "igExpired", i642str(pObj->igExpired));
-    tjsonAddStringToObject(item, "trigger", i642str(pObj->trigger));
-    tjsonAddStringToObject(item, "triggerParam", i642str(pObj->triggerParam));
-    tjsonAddStringToObject(item, "watermark", i642str(pObj->watermark));
+    tjsonAddStringToObject(item, "igExpired", i642str(pObj->conf.igExpired));
+    tjsonAddStringToObject(item, "trigger", i642str(pObj->conf.trigger));
+    tjsonAddStringToObject(item, "triggerParam", i642str(pObj->conf.triggerParam));
+    tjsonAddStringToObject(item, "watermark", i642str(pObj->conf.watermark));
     tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid));
     tjsonAddStringToObject(item, "targetDbUid", i642str(pObj->targetDbUid));
     tjsonAddStringToObject(item, "sourceDb", mndGetDbStr(pObj->sourceDb));

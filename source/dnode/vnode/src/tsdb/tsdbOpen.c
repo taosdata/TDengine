@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "tsdbFS2.h"
 
 int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -66,7 +67,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
 
   // open tsdb
-  if (tsdbFSOpen(pTsdb, rollback) < 0) {
+  if (tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback) < 0) {
     goto _err;
   }
 
@@ -94,7 +95,7 @@ int tsdbClose(STsdb **pTsdb) {
 
     taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
 
-    tsdbFSClose(*pTsdb);
+    tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
     taosMemoryFreeClear(*pTsdb);
   }

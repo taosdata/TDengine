@@ -291,4 +291,13 @@ TEST_F(ParserInitialDTest, dropUser) {
   run("DROP USER wxy");
 }
 
+TEST_F(ParserInitialDTest, IntervalOnSysTable) {
+  login("root");
+  run("SELECT  count('reboot_time') FROM information_schema.ins_dnodes interval(14m) sliding(9m)",
+      TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT  count('create_time') FROM information_schema.ins_qnodes interval(14m) sliding(9m)",
+      TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, PARSER_STAGE_TRANSLATE);
+}
+
 }  // namespace ParserTest
