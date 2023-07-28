@@ -898,7 +898,7 @@ static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer) {
   mInfo("consumer:0x%" PRIx64 " sub insert, cgroup:%s status:%d(%s) epoch:%d",
          pConsumer->consumerId, pConsumer->cgroup, pConsumer->status, mndConsumerStatusName(pConsumer->status),
          pConsumer->epoch);
-  pConsumer->subscribeTime = taosGetTimestampMs();
+  pConsumer->subscribeTime = pConsumer->createTime;
   return 0;
 }
 
