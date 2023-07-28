@@ -18,11 +18,11 @@ groups:
     params:
       - name: quote
         display: Quote escape char.
-        value: \"
+        # value: \"
         hint: str
       - name: sep
         display: Separator character.
-        value: \,
+        # value: \,
         hint: str
   - name: Write Options
     display_order: 2
