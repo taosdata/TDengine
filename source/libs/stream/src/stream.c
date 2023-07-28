@@ -31,7 +31,7 @@ int32_t streamInit() {
   }
 
   if (old == 0) {
-    streamEnv.timer = taosTmrInit(10000, 100, 10000, "STREAM");
+    streamEnv.timer = taosTmrInit(1000, 100, 10000, "STREAM");
     if (streamEnv.timer == NULL) {
       atomic_store_8(&streamEnv.inited, 0);
       return -1;

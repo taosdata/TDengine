@@ -113,15 +113,8 @@ struct STQ {
 };
 
 typedef struct {
-  int8_t inited;
-  tmr_h  timer;
-} STqMgmt;
-
-typedef struct {
   int32_t size;
 } STqOffsetHead;
-
-static STqMgmt tqMgmt = {0};
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);

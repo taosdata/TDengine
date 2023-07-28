@@ -25,6 +25,8 @@ int32_t             streamBackendCfWrapperId = 0;
 
 int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
 
+static void metaHbToMnode(void* param, void* tmrId);
+
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
@@ -90,13 +92,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
-  // memset(streamPath, 0, len);
-  // sprintf(streamPath, "%s/%s", pMeta->path, "state");
-  // code = taosMulModeMkDir(streamPath, 0755);
-  // if (code != 0) {
-  //   terrno = TAOS_SYSTEM_ERROR(code);
-  //   goto _err;
-  // }
+  // send heartbeat every 20sec.
+//  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 20000, pMeta, streamEnv.timer);
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -394,32 +391,21 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
 // todo add error log
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
-    qError("failed to commit stream meta");
+    qError("vgId:%d failed to commit stream meta", pMeta->vgId);
     return -1;
   }
 
   if (tdbPostCommit(pMeta->db, pMeta->txn) < 0) {
-    qError("failed to commit stream meta");
+    qError("vgId:%d failed to do post-commit stream meta", pMeta->vgId);
     return -1;
   }
 
   if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    qError("vgId:%d failed to begin trans", pMeta->vgId);
     return -1;
   }
 
-  return 0;
-}
-
-int32_t streamMetaAbort(SStreamMeta* pMeta) {
-  if (tdbAbort(pMeta->db, pMeta->txn) < 0) {
-    return -1;
-  }
-
-  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
-               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    return -1;
-  }
   return 0;
 }
 
@@ -430,6 +416,7 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     return chkpId;
   }
+
   void*    pKey = NULL;
   int32_t  kLen = 0;
   void*    pVal = NULL;
@@ -448,14 +435,14 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
     chkpId = TMAX(chkpId, info.checkpointId);
   }
 
-_err:
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
 
   return chkpId;
 }
-int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
+
+int32_t streamLoadTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     return -1;
@@ -518,4 +505,58 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
   }
 
   return 0;
+}
+
+int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->vgId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->numOfTasks) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pRsp) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->vgId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->numOfTasks) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+void metaHbToMnode(void* param, void* tmrId) {
+  SStreamMeta* pMeta = param;
+  SStreamHbMsg hbMsg = {0};
+
+  int32_t code = 0;
+  int32_t tlen = 0;
+
+  tEncodeSize(tEncodeStreamHbMsg, &hbMsg, tlen, code);
+  if (code < 0) {
+    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+    return;
+  }
+
+  void* buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
+  if (buf == NULL) {
+    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
+
+//  ((SMsgHead*)buf)->vgId = htonl(nodeId);
+//  void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+//
+//  SEncoder encoder;
+//  tEncoderInit(&encoder, pBuf, tlen);
+//  if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
+//    rpcFreeCont(buf);
+//    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+//    return;
+//  }
+//  tEncoderClear(&encoder);
+//
+//  SRpcMsg msg = {0};
+//  initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen + sizeof(SMsgHead));
+//  qDebug("vgId:%d, send hb to mnode", nodeId);
+//
+//  tmsgSendReq(pEpSet, &msg);
 }

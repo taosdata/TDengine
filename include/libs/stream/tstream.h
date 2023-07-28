@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "ttimer.h"
 #include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
@@ -369,6 +370,7 @@ typedef struct SStreamMeta {
   int64_t       streamBackendRid;
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
+  tmr_h         hbTmr;
 
   int32_t  chkptNotReadyTasks;
   SArray*  checkpointSaved;
@@ -516,6 +518,14 @@ int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpo
 int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp);
 
 typedef struct {
+  int32_t vgId;
+  int32_t numOfTasks;
+} SStreamHbMsg;
+
+int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);
+int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pRsp);
+
+typedef struct {
   int64_t streamId;
   int32_t upstreamTaskId;
   int32_t upstreamNodeId;
@@ -572,7 +582,7 @@ bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 
-SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
+void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
@@ -637,7 +647,7 @@ void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
-int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
+int32_t streamLoadTasks(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

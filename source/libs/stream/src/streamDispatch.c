@@ -32,7 +32,7 @@ typedef struct {
   SEpSet  epset;
 } SStreamChkptReadyInfo;
 
-static void doRetryDispatchData(void* param, void* tmrId);
+static void    doRetryDispatchData(void* param, void* tmrId);
 static int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet);
 static int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq);
 static int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock,
@@ -40,10 +40,10 @@ static int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* p
 static int32_t doDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHistoryFinishReq* pReq, int32_t vgId,
                                               SEpSet* pEpSet);
 
-static void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
-    pMsg->msgType = msgType;
-    pMsg->pCont = pCont;
-    pMsg->contLen = contLen;
+void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
+  pMsg->msgType = msgType;
+  pMsg->pCont = pCont;
+  pMsg->contLen = contLen;
 }
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {

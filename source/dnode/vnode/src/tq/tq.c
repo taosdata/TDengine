@@ -15,6 +15,12 @@
 
 #include "tq.h"
 
+typedef struct {
+  int8_t inited;
+} STqMgmt;
+
+static STqMgmt tqMgmt = {0};
+
 // 0: not init
 // 1: already inited
 // 2: wait to be inited or cleaup
@@ -32,11 +38,6 @@ int32_t tqInit() {
   }
 
   if (old == 0) {
-    tqMgmt.timer = taosTmrInit(10000, 100, 10000, "TQ");
-    if (tqMgmt.timer == NULL) {
-      atomic_store_8(&tqMgmt.inited, 0);
-      return -1;
-    }
     if (streamInit() < 0) {
       return -1;
     }
@@ -54,7 +55,6 @@ void tqCleanUp() {
   }
 
   if (old == 1) {
-    taosTmrCleanUp(tqMgmt.timer);
     streamCleanUp();
     atomic_store_8(&tqMgmt.inited, 0);
   }
@@ -132,9 +132,7 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  // the version is kept in task's meta data
-  // todo check if this version is required or not
-  if (streamLoadTasks(pTq->pStreamMeta, walGetCommittedVer(pTq->pVnode->pWal)) < 0) {
+  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
     return -1;
   }
 
