@@ -106,7 +106,6 @@ enum {
   HEARTBEAT_KEY_DBINFO,
   HEARTBEAT_KEY_STBINFO,
   HEARTBEAT_KEY_TMQ,
-  HEARTBEAT_KEY_USER_PASSINFO,
 };
 
 typedef enum _mgmt_table {
@@ -636,6 +635,7 @@ typedef struct {
   SEpSet   epSet;
   int32_t  svrTimestamp;
   int32_t  passVer;
+  int32_t  authVer;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
 } SConnectRsp;
@@ -703,6 +703,7 @@ int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* 
 typedef struct {
   char      user[TSDB_USER_LEN];
   int32_t   version;
+  int32_t   passVer;
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
@@ -718,14 +719,6 @@ typedef struct {
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
-
-typedef struct SUserPassVersion {
-  char    user[TSDB_USER_LEN];
-  int32_t version;
-} SUserPassVersion;
-
-typedef SGetUserAuthReq SGetUserPassReq;
-typedef SUserPassVersion SGetUserPassRsp;
 
 /*
  * for client side struct, only column id, type, bytes are necessary
@@ -1071,14 +1064,6 @@ int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchR
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
 
 typedef struct {
-  SArray* pArray;  // Array of SGetUserPassRsp
-} SUserPassBatchRsp;
-
-int32_t tSerializeSUserPassBatchRsp(void* buf, int32_t bufLen, SUserPassBatchRsp* pRsp);
-int32_t tDeserializeSUserPassBatchRsp(void* buf, int32_t bufLen, SUserPassBatchRsp* pRsp);
-void    tFreeSUserPassBatchRsp(SUserPassBatchRsp* pRsp);
-
-typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
   STimeWindow timeRange;
 } SCompactDbReq;
@@ -1159,6 +1144,7 @@ typedef struct {
   char    timezone[TD_TIMEZONE_LEN];  // tsTimezone
   char    locale[TD_LOCALE_LEN];      // tsLocale
   char    charset[TD_LOCALE_LEN];     // tsCharset
+  int8_t  ttlChangeOnWrite;
 } SClusterCfg;
 
 typedef struct {
@@ -1195,6 +1181,8 @@ typedef struct {
 typedef struct {
   int8_t syncState;
   int8_t syncRestore;
+  int64_t syncTerm;
+  int64_t roleTimeMs;
 } SMnodeLoad;
 
 typedef struct {
@@ -1510,6 +1498,7 @@ int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesR
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
   char value[TSDB_CONFIG_VALUE_LEN + 1];
+  char scope[TSDB_CONFIG_SCOPE_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
@@ -3393,6 +3382,12 @@ typedef struct {
   int8_t reserved;
 } SMqHbRsp;
 
+typedef struct {
+  SMsgHead     head;
+  int64_t consumerId;
+  char subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} SMqSeekReq;
+
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -3522,6 +3517,8 @@ int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeatroySMqHbReq(SMqHbReq* pReq);
 
+int32_t tSerializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq);
+int32_t tDeserializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq);
 
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2

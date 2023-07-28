@@ -126,7 +126,6 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -320,17 +319,6 @@ if [[ $dbName == "taos" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  # Add web files
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
-    if [ -d "${web_dir}/admin" ] ; then
-      mkdir -p ${install_dir}/share/
-      cp -Rfap ${web_dir}/admin ${install_dir}/share/
-      cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
-      cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
-    else
-      echo "directory not found for enterprise release: ${web_dir}/admin"
-    fi
-  fi
 fi
 
 # Copy driver

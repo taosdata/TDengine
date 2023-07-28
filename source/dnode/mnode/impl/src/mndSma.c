@@ -504,6 +504,11 @@ static void mndDestroySmaObj(SSmaObj *pSmaObj) {
 
 static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb,
                             const char *streamName) {
+  if (pDb->cfg.replications > 1) {
+    terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    mError("sma:%s, failed to create since not support multiple replicas", pCreate->name);
+    return -1;
+  }
   SSmaObj smaObj = {0};
   memcpy(smaObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
   memcpy(smaObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
@@ -889,11 +894,11 @@ _OVER:
 }
 
 int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
-  SSdb    *pSdb = pMnode->pSdb;
-  SSmaObj *pSma = NULL;
-  void    *pIter = NULL;
-  SVgObj  *pVgroup = NULL;
-  int32_t  code = -1;
+  SSdb       *pSdb = pMnode->pSdb;
+  SSmaObj    *pSma = NULL;
+  void       *pIter = NULL;
+  SVgObj     *pVgroup = NULL;
+  int32_t     code = -1;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
@@ -911,12 +916,18 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
       if (pStream != NULL && pStream->smaId == pSma->uid) {
         if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
           mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+          mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
+
         if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+          mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
+
+        mndReleaseStream(pMnode, pStream);
       }
+
       if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
       if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
       if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;

@@ -70,17 +70,23 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t fetchVer = pReader->curVersion;
   int64_t lastVer = walGetLastVer(pReader->pWal);
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
-  int64_t appliedVer = walGetAppliedVer(pReader->pWal);
+//  int64_t appliedVer = walGetAppliedVer(pReader->pWal);
 
-  if(appliedVer < committedVer){   // wait apply ver equal to commit ver, otherwise may lost data when consume data [TD-24010]
-    wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64, pReader->pWal->cfg.vgId, appliedVer, committedVer);
-  }
+//  if(appliedVer < committedVer){   // wait apply ver equal to commit ver, otherwise may lost data when consume data [TD-24010]
+//    wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64, pReader->pWal->cfg.vgId, appliedVer, committedVer);
+//  }
 
-  int64_t endVer = TMIN(appliedVer, committedVer);
+//  int64_t endVer = TMIN(appliedVer, committedVer);
+  int64_t endVer = committedVer;
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
-         ", applied index:%" PRId64", end index:%" PRId64,
-         pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
+         ", end index:%" PRId64,
+         pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, endVer);
+
+  if (fetchVer > endVer){
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
 
   while (fetchVer <= endVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
@@ -130,8 +136,8 @@ void walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset){
   int64_t firstVer = walGetFirstVer((pWalReader)->pWal);
   taosThreadMutexUnlock(&pWalReader->pWal->mutex);
 
-  if (pOffset->version + 1 < firstVer){
-    pOffset->version = firstVer - 1;
+  if (pOffset->version < firstVer){
+    pOffset->version = firstVer;
   }
 }
 
@@ -365,9 +371,9 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
          pRead->pWal->vers.appliedVer);
 
   // TODO: valid ver
-  if (ver > pRead->pWal->vers.appliedVer) {
-    return -1;
-  }
+//  if (ver > pRead->pWal->vers.appliedVer) {
+//    return -1;
+//  }
 
   if (pRead->curVersion != ver) {
     code = walReaderSeekVer(pRead, ver);

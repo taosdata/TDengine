@@ -101,10 +101,6 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
   terrno = 0;
   pKeepCfg->precision = pCfg->precision;
   switch (type) {
-    case TSDB_TYPE_TSMA:
-      ASSERTS(0, "undefined smaType:%d", (int32_t)type);
-      terrno = TSDB_CODE_APP_ERROR;
-      break;
     case TSDB_TYPE_RSMA_L0:
       SMA_SET_KEEP_CFG(pVnode, 0);
       break;
@@ -115,7 +111,6 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
       SMA_SET_KEEP_CFG(pVnode, 2);
       break;
     default:
-      ASSERTS(0, "unknown smaType:%d", (int32_t)type);
       terrno = TSDB_CODE_APP_ERROR;
       break;
   }
@@ -189,8 +184,7 @@ int32_t smaClose(SSma *pSma) {
  */
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback) {
   if (!VND_IS_RSMA(pSma->pVnode)) {
-    terrno = TSDB_CODE_RSMA_INVALID_ENV;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_RSMA_INVALID_ENV;
   }
 
   return tdRSmaProcessRestoreImpl(pSma, type, committedVer, rollback);

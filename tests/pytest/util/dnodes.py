@@ -545,6 +545,8 @@ class TDDnode:
 
 
     def stoptaosd(self):
+        tdLog.debug("start to stop taosd on dnode: %d "% (self.index))
+        # print(self.asan,self.running,self.remoteIP,self.valgrind)
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)

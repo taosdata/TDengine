@@ -127,6 +127,10 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
+  if (pGroupResInfo->pBuf) {
+    taosMemoryFree(pGroupResInfo->pBuf);
+    pGroupResInfo->pBuf = NULL;
+  }
 
   // extract the result rows information from the hash map
   int32_t size = tSimpleHashGetSize(pHashmap);
@@ -1109,7 +1113,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
           qDebug("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
-          code = TSDB_CODE_SUCCESS;
         } else {
           qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
         }
@@ -2104,6 +2107,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
     if (groupSort && groupByTbname) {
       taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
+      pTableListInfo->numOfOuputGroups = numOfTables;
+    } else if (groupByTbname && pScanNode->groupOrderScan){
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;

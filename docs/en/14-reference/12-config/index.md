@@ -166,7 +166,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report service usage information |
 | Value Range   | 0: Not allowed; 1: Allowed                                                   |
 | Default Value | 1                                                                            |
@@ -174,7 +174,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report crash related information |
 | Value Range   | 0,1   0: Not allowed; 1: allowed                                             |
 | Default Value | 1                                                                            |
@@ -722,6 +722,25 @@ The charset that takes effect is UTF-8.
 | Value Range   | 0: not change; 1: change by modification                                      |
 | Default Value | 0                                                                             |
 
+### keepTimeOffset
+
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server Only               |
+| Meaning       | Latency of data migration |
+| Unit          | hour                      |
+| Value Range   | 0-23                      |
+| Default Value | 0                         |
+
+### tmqMaxTopicNum
+
+| Attribute     | Description               |
+| -------- | ------------------ |
+| Applicable | Server Only       |
+| Meaning     | The max num of topics  |
+| Value Range | 1-10000|
+| Default Value   | 20                  |
+
 ## 3.0 Parameters
 
 | #   |     **Parameter**      | **Applicable to 2.x ** | **Applicable to  3.0 **      | Current behavior in 3.0 |
@@ -779,3 +798,4 @@ The charset that takes effect is UTF-8.
 | 53  |          udf           | Yes                    | Yes                          |                         |
 | 54  |     enableCoreFile     | Yes                    | Yes                          |                         |
 | 55  |    ttlChangeOnWrite    | No                     | Yes                          |                         |
+| 56  |     keepTimeOffset     | Yes                    | Yes                          |                         |

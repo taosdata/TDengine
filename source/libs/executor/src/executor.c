@@ -122,8 +122,9 @@ void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo) {
     return;
   }
 
-  qDebug("%s set fill history start key:%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN);
+  qDebug("%s set stream fill-history window:%" PRId64"-%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN, INT64_MAX);
   pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
+  pTaskInfo->streamInfo.fillHistoryWindow.ekey = INT64_MAX;
 }
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
@@ -288,9 +289,8 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
     return pTaskInfo;
   }
 
-  struct SSubplan* pPlan = NULL;
-
-  int32_t code = qStringToSubplan(msg, &pPlan);
+  SSubplan* pPlan = NULL;
+  int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
@@ -335,6 +335,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
   qTaskInfo_t pTaskInfo = NULL;
   code = qCreateExecTask(readers, vgId, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
@@ -892,7 +893,7 @@ int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->recoverStep1Finished = false;
   pStreamInfo->recoverStep2Finished = false;
 
-  qDebug("%s step 1. set param for stream scanner for scan history data, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
+  qDebug("%s step 1. set param for stream scanner for scan-history data, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
          " - %" PRId64,
          GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
          pWindow->ekey);
@@ -911,7 +912,7 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->recoverStep1Finished = true;
   pStreamInfo->recoverStep2Finished = false;
 
-  qDebug("%s step 2. set param for stream scanner for scan history data, verRange:%" PRId64 " - %" PRId64
+  qDebug("%s step 2. set param for stream scanner for scan-history data, verRange:%" PRId64 " - %" PRId64
          ", window:%" PRId64 " - %" PRId64,
          GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
          pWindow->ekey);
@@ -1171,8 +1172,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
       SWalReader* pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
       walReaderVerifyOffset(pWalReader, pOffset);
-      if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
-        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
+      if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version, id) < 0) {
+        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version, id);
         return -1;
       }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -1261,7 +1262,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SOperatorInfo*  p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
       STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
 
-      if (pAPI->snapshotFn.createSnapshot(sContext, pOffset->uid) != 0) {
+      if (pAPI->snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64 " , %s", pOffset->uid, id);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;
@@ -1298,7 +1299,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
-      if (pTaskInfo->storageAPI.snapshotFn.createSnapshot(sContext, pOffset->uid) != 0) {
+      if (pTaskInfo->storageAPI.snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;

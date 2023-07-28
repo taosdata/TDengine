@@ -454,6 +454,7 @@ int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
     sdbRelease(pSdb, pObj);
 
     if (limit > 0 && numOfRows >= limit) {
+      sdbCancelFetch(pSdb, pIter);
       break;
     }
   }

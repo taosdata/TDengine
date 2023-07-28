@@ -630,6 +630,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN){
+    terrno = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _OVER;
+  }
+
   pUser = mndAcquireUser(pMnode, createReq.user);
   if (pUser != NULL) {
     terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
@@ -801,7 +806,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType && alterReq.pass[0] == 0) {
+  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType && 
+      (alterReq.pass[0] == 0 || strlen(alterReq.pass) >= TSDB_PASSWORD_LEN)) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
     goto _OVER;
   }
@@ -824,7 +830,6 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if (mndUserDupObj(pUser, &newUser) != 0) goto _OVER;
 
-  newUser.passVersion = pUser->passVersion;
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char pass[TSDB_PASSWORD_LEN + 1] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
@@ -922,19 +927,19 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE) {
     if (mndTablePriviledge(pMnode, newUser.readTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE) {
     if (mndTablePriviledge(pMnode, newUser.writeTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
     if (mndRemoveTablePriviledge(pMnode, newUser.readTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
     if (mndRemoveTablePriviledge(pMnode, newUser.writeTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
@@ -1431,69 +1436,6 @@ _OVER:
   return code;
 }
 
-int32_t mndValidateUserPassInfo(SMnode *pMnode, SUserPassVersion *pUsers, int32_t numOfUses, void **ppRsp,
-                                int32_t *pRspLen) {
-  int32_t           code = 0;
-  SUserPassBatchRsp batchRsp = {0};
-
-  for (int32_t i = 0; i < numOfUses; ++i) {
-    SUserObj *pUser = mndAcquireUser(pMnode, pUsers[i].user);
-    if (pUser == NULL) {
-      mError("user:%s, failed to validate user pass since %s", pUsers[i].user, terrstr());
-      continue;
-    }
-
-    pUsers[i].version = ntohl(pUsers[i].version);
-    if (pUser->passVersion <= pUsers[i].version) {
-      mTrace("user:%s, not update since mnd passVer %d <= client passVer %d", pUsers[i].user, pUser->passVersion,
-             pUsers[i].version);
-      mndReleaseUser(pMnode, pUser);
-      continue;
-    }
-
-    SGetUserPassRsp rsp = {0};
-    memcpy(rsp.user, pUser->user, TSDB_USER_LEN);
-    rsp.version = pUser->passVersion;
-
-    if (!batchRsp.pArray && !(batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserPassRsp)))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      mndReleaseUser(pMnode, pUser);
-      goto _OVER;
-    }
-
-    taosArrayPush(batchRsp.pArray, &rsp);
-    mndReleaseUser(pMnode, pUser);
-  }
-
-  if (taosArrayGetSize(batchRsp.pArray) <= 0) {
-    goto _OVER;
-  }
-
-  int32_t rspLen = tSerializeSUserPassBatchRsp(NULL, 0, &batchRsp);
-  if (rspLen < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-  void   *pRsp = taosMemoryMalloc(rspLen);
-  if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-  tSerializeSUserPassBatchRsp(pRsp, rspLen, &batchRsp);
-
-  *ppRsp = pRsp;
-  *pRspLen = rspLen;
-
-_OVER:
-  if (code) {
-    *ppRsp = NULL;
-    *pRspLen = 0;
-  }
-
-  tFreeSUserPassBatchRsp(&batchRsp);
-  return code;
-}
-
 int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
   int32_t   code = 0;
   SSdb     *pSdb = pMnode->pSdb;
@@ -1507,7 +1449,9 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
     if (pIter == NULL) break;
 
     code = -1;
-    if (mndUserDupObj(pUser, &newUser) != 0) break;
+    if (mndUserDupObj(pUser, &newUser) != 0) {
+      break;
+    }
 
     bool inRead = (taosHashGet(newUser.readDbs, db, len) != NULL);
     bool inWrite = (taosHashGet(newUser.writeDbs, db, len) != NULL);
@@ -1516,7 +1460,9 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
       (void)taosHashRemove(newUser.writeDbs, db, len);
 
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+        break;
+      }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
     }
 
@@ -1554,7 +1500,9 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
     if (inTopic) {
       (void)taosHashRemove(newUser.topics, topic, len);
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+        break;
+      }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
     }
 

@@ -920,6 +920,7 @@ void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos)
 
 void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) { *pDestPos = *pSourcePos; }
 
+#define COMPARE_MINMAX_DATA(type) (( (*(type*)&pDBuf->v) < (*(type*)&pSBuf->v) ) ^ isMinFunc)
 int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t isMinFunc) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SMinmaxResInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -927,18 +928,57 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SMinmaxResInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
-  if (IS_FLOAT_TYPE(type)) {
-    if (pSBuf->assign && ((((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign)) {
-      *(double*)&pDBuf->v = *(double*)&pSBuf->v;
-      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
-      pDBuf->assign = true;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int64_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int32_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int16_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int8_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_FLOAT: {
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(double) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
     }
-  } else {
-    if (pSBuf->assign && (((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign)) {
-      pDBuf->v = pSBuf->v;
-      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
-      pDBuf->assign = true;
-    }
+    default:
+      if (pSBuf->assign && (strcmp((char*)&pDBuf->v, (char*)&pSBuf->v) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
@@ -2702,13 +2742,12 @@ static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
 }
 
 static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos,
-                            int32_t order, int64_t ts) {
-  int32_t factor = (order == TSDB_ORDER_ASC) ? 1 : -1;
+                            int64_t ts) {
   pDiffInfo->prevTs = ts;
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       int32_t v = *(int32_t*)pv;
-      int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f_s(pOutput, pos);
       } else {
@@ -2721,7 +2760,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t  v = *(int8_t*)pv;
-      int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f_s(pOutput, pos);
       } else {
@@ -2732,7 +2771,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t v = *(int16_t*)pv;
-      int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f_s(pOutput, pos);
       } else {
@@ -2744,7 +2783,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
-      int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f_s(pOutput, pos);
       } else {
@@ -2755,7 +2794,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float  v = *(float*)pv;
-      double delta = factor * (v - pDiffInfo->prev.d64);                               // direct previous may be null
+      double delta = v - pDiffInfo->prev.d64;  // direct previous may be null
       if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) {  // check for overflow
         colDataSetNull_f_s(pOutput, pos);
       } else {
@@ -2766,7 +2805,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double v = *(double*)pv;
-      double delta = factor * (v - pDiffInfo->prev.d64);                               // direct previous may be null
+      double delta = v - pDiffInfo->prev.d64;  // direct previous may be null
       if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) {  // check for overflow
         colDataSetNull_f_s(pOutput, pos);
       } else {
@@ -2797,82 +2836,42 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
-  if (pCtx->order == TSDB_ORDER_ASC) {
-    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-      int32_t pos = startOffset + numOfElems;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    int32_t pos = startOffset + numOfElems;
 
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-        if (pDiffInfo->includeNull) {
-          colDataSetNull_f_s(pOutput, pos);
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      if (pDiffInfo->includeNull) {
+        colDataSetNull_f_s(pOutput, pos);
 
-          numOfElems += 1;
-        }
-        continue;
+        numOfElems += 1;
       }
-
-      char* pv = colDataGetData(pInputCol, i);
-
-      if (pDiffInfo->hasPrev) {
-        if (tsList[i] == pDiffInfo->prevTs) {
-          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
-        }
-        int32_t code = doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order, tsList[i]);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-        // handle selectivity
-        if (pCtx->subsidiaries.num > 0) {
-          appendSelectivityValue(pCtx, i, pos);
-        }
-
-        numOfElems++;
-      } else {
-        int32_t code = doSetPrevVal(pDiffInfo, pInputCol->info.type, pv, tsList[i]);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-      }
-
-      pDiffInfo->hasPrev = true;
+      continue;
     }
-  } else {
-    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-      int32_t pos = startOffset + numOfElems;
 
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-        if (pDiffInfo->includeNull) {
-          colDataSetNull_f_s(pOutput, pos);
-          numOfElems += 1;
-        }
-        continue;
+    char* pv = colDataGetData(pInputCol, i);
+
+    if (pDiffInfo->hasPrev) {
+      if (tsList[i] == pDiffInfo->prevTs) {
+        return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      }
+      int32_t code = doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, tsList[i]);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, pos);
       }
 
-      char* pv = colDataGetData(pInputCol, i);
-
-      // there is a row of previous data block to be handled in the first place.
-      if (pDiffInfo->hasPrev) {
-        if (tsList[i] == pDiffInfo->prevTs) {
-          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
-        }
-        int32_t code = doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order, tsList[i]);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-        // handle selectivity
-        if (pCtx->subsidiaries.num > 0) {
-          appendSelectivityValue(pCtx, i, pos);
-        }
-
-        numOfElems++;
-      } else {
-        int32_t code = doSetPrevVal(pDiffInfo, pInputCol->info.type, pv, tsList[i]);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
+      numOfElems++;
+    } else {
+      int32_t code = doSetPrevVal(pDiffInfo, pInputCol->info.type, pv, tsList[i]);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-
-      pDiffInfo->hasPrev = true;
     }
+
+    pDiffInfo->hasPrev = true;
   }
 
   pResInfo->numOfRes = numOfElems;

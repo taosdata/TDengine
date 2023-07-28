@@ -134,7 +134,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
-int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
+//int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
+int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
@@ -171,7 +172,6 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq);
 
 // tq util
 int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock);
-int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
