@@ -832,7 +832,7 @@ void streamTaskPause(SStreamTask* pTask) {
     return;
   }
 
-  while(!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
+  while (!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
     status = pTask->status.taskStatus;
     if (status == TASK_STATUS__DROPPING) {
       qDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
@@ -849,8 +849,19 @@ void streamTaskPause(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
+  // todo: use the lock of the task.
+  taosWLockLatch(&pMeta->lock);
+
+  status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
+    taosWUnLockLatch(&pMeta->lock);
+    qDebug("vgId:%d s-task:%s task already dropped/stopped/paused, do nothing", pMeta->vgId, pTask->id.idStr);
+    return;
+  }
+
   atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
   atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+  taosWUnLockLatch(&pMeta->lock);
 
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,

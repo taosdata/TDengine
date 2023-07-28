@@ -404,6 +404,8 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
+  // clear the link between fill-history task and stream task info
+  pStreamTask->historyTaskId.taskId = 0;
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
@@ -414,6 +416,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   // save to disk
   taosWLockLatch(&pMeta->lock);
+
   streamMetaSaveTask(pMeta, pStreamTask);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk

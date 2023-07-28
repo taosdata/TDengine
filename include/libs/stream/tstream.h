@@ -45,7 +45,6 @@ enum {
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
-//  TASK_STATUS__SCAN_HISTORY_WAL, // scan history data in wal
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
 };
