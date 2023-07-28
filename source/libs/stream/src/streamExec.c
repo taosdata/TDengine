@@ -172,6 +172,12 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
   bool finished = false;
 
   while (1) {
+    if (streamTaskShouldPause(&pTask->status)) {
+      double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
+      qDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
+      return 0;
+    }
+
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
     if (pRes == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
