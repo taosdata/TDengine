@@ -1521,11 +1521,11 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
         float v = 0;
         GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
-      } else if (pCell->type == TSDB_DATA_TYPE_DOUBLE) {
+      } else if (IS_FLOAT_TYPE(pCell->type)) {
         double v = 0;
         GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
-      } else if (IS_SIGNED_NUMERIC_TYPE(pCell->type)) {
+      } else if (IS_INTEGER_TYPE(pCell->type)) {
         int64_t v = 0;
         GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
