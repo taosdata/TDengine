@@ -2587,7 +2587,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
-  pInfo->pState = NULL;
+  pInfo->pState = pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
 
