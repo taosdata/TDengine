@@ -785,6 +785,7 @@ export default {
     if (this.isEditable) {
       this.dbname = this.dbName;
       this.handleEditData()
+      this.getSchema()
     }
   },
   mounted() {
@@ -1491,6 +1492,10 @@ export default {
                 this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
                   return {id: item, children: JSON.parse(res[0].id)[item]}
                 }) 
+                if (this.isEditable) {
+                  let bucketVal = this.dbsource[0].groups[0].params[0].value
+                  this.changeBucket(bucketVal,'bucket')
+                }
                 Message({
                   type: "success",
                   message: this.$t('operateSucc'),
