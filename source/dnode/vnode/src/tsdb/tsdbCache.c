@@ -2074,7 +2074,14 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
   if (SFSNEXTROW_INDEXLIST == state->state) {
     SBrinBlk *pBrinBlk = NULL;
   _next_brinindex:
-    if (--state->iBrinIndex < 0) {  // no index left, goto next fileset
+    if (--state->iBrinIndex < 0) {
+      if (state->pLastRow) {
+        state->state = SFSNEXTROW_NEXTSTTROW;
+        *ppRow = state->pLastRow;
+        state->pLastRow = NULL;
+        return code;
+      }
+
       clearLastFileSet(state);
       goto _next_fileset;
     } else {
