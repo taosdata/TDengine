@@ -32,11 +32,13 @@
 
 #if 1
 #define GRANT_TOLERENCE      86400  //86400
+#define GRANT_CHK_TOLERENCE  259200 //259200seconds
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
-#define GRANT_HEART_BEAT_MSG 60     //60seconds
+#define GRANT_HEART_BEAT_MSG 300    //300seconds
 #else
 #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
+#define GRANT_CHK_TOLERENCE  180
 #define GRANT_CHECK_INTERVAL 5
 #define GRANT_HEART_BEAT_MSG 1
 #endif
@@ -67,8 +69,8 @@
 #define GRANT_TABLE_LIMITS         4102416000
 
 // specific for connectors
-#define GRANT_CONN_MAJOR_VER           1 // increase if the definition of data structure or active code changes
-#define GRANT_CONN_MINOR_VER           1
+#define GRANT_CONN_ACTIVE_MAJOR_VER    2 // increase if the definition of data structure or active code changes, history value 1:2
+#define GRANT_CONN_ACTIVE_MINOR_VER    1
 #define GRANT_CONN_NUM_V1              32
 #define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
 #define GRANT_CONN_ACTIVE_KEY_LEN      108
@@ -77,6 +79,9 @@
 #define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
 #define GRANT_CONN_LIMITS              -1
 #define GRANT_CONN_EXPIRE_LIMITS       65535
+
+#define GRANT_CUR_TIME                 ((tsDndStart + tsDndUpTime)/1000)
+#define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
 
 typedef enum {
   GRANT_OBJ_SERVER = 0,
@@ -111,6 +116,7 @@ typedef struct {
   char          *clusterId;
   char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];
   SGrantConnItem items[GRANT_CONN_NUM];
+  uint32_t       distribute;
 } SGrantConnObj;
 
 typedef struct {
@@ -121,7 +127,9 @@ typedef struct {
   uint8_t        officialVersion;
   int8_t         majorVer;
   int8_t         minorVer;
+  uint32_t       distribute;                             // since 3.1.0.0
   SGrantConnItem items[GRANT_CONN_NUM];
+  char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];  // since 3.1.0.0
 } SGrantConnMsg;
 
 // server
@@ -145,7 +153,10 @@ typedef struct {
   uint32_t limitAccts;
   uint32_t limitDnodes;
   uint32_t limitCpuCores;
-  uint32_t reserveKey1;
+  union {
+    uint32_t reserveKey1;
+    uint32_t distribute;      // distribute date since 3.1.0.0
+  };
   uint32_t reserveKey2;
 } SGrantObj;
 
@@ -180,24 +191,28 @@ typedef struct {
 } SGrantStatus;
 
 typedef struct {
-  bool          updateForced;
-  bool          usbDongle;
-  bool          officialVersion;
-  int8_t        flag;
-  uint32_t      expireTimeSec;
-  uint32_t      limitStorage;
-  uint32_t      limitSpeed;
-  uint64_t      limitTimeSeries;
-  uint32_t      limitQueryTime;
-  uint32_t      limitDbs;
-  uint32_t      limitUsers;
-  uint32_t      limitConns;
-  uint32_t      limitStreams;
-  uint32_t      limitAccts;
-  uint32_t      limitDnodes;
-  uint32_t      limitCpuCores;
-  uint32_t      reserveKey1;
+  bool     updateForced;
+  bool     usbDongle;
+  bool     officialVersion;
+  int8_t   flag;
+  uint32_t expireTimeSec;
+  uint32_t limitStorage;
+  uint32_t limitSpeed;
+  uint64_t limitTimeSeries;
+  uint32_t limitQueryTime;
+  uint32_t limitDbs;
+  uint32_t limitUsers;
+  uint32_t limitConns;
+  uint32_t limitStreams;
+  uint32_t limitAccts;
+  uint32_t limitDnodes;
+  uint32_t limitCpuCores;
+  union {
+    uint32_t reserveKey1;
+    uint32_t distribute;  // distribute date since 3.1.0.0
+  };
   uint32_t      reserveKey2;
+  char          active[GRANT_ACTIVE_KEY_LEN + 1];
   SGrantConnMsg connectors;
 } SGrantMsg;
 
