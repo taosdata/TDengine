@@ -364,6 +364,7 @@ The configuration parameters for specifying super table tag columns and data col
 - **min**: The minimum value of the column/label of the data type. The generated value will equal or large than the minimum value.
 
 - **max**: The maximum value of the column/label of the data type. The generated value will less than the maximum value.
+- **fun**: This column of data is filled with functions. Currently, only the sin and cos functions are supported. The input parameter is the timestamp and converted to an angle value. The conversion formula is: angle x=input time column ts value % 360. At the same time, it supports coefficient adjustment and random fluctuation factor adjustment, presented in a fixed format expression, such as fun="10\*sin(x)+100\*random(5)", where x represents the angle, ranging from 0 to 360 degrees, and the growth step size is consistent with the time column step size. 10 represents the coefficient of multiplication, 100 represents the coefficient of addition or subtraction, and 5 represents the fluctuation range within a random range of 5%. The currently supported data types are int, bigint, float, and double. Note: The expression is fixed and cannot be reversed.
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.
 

@@ -501,7 +501,7 @@ int32_t shellReadCommand(char *command) {
   while (1) {
     c = taosGetConsoleChar();
 
-    if (c == EOF) {
+    if (c == (char)EOF) {
       return c;
     }
 

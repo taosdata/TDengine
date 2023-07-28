@@ -253,8 +253,8 @@ void streamBackendCleanup(void* arg) {
 
   taosThreadMutexDestroy(&pHandle->cfMutex);
 
-  taosMemoryFree(pHandle);
   qDebug("destroy stream backend backend:%p", pHandle);
+  taosMemoryFree(pHandle);
   return;
 }
 void streamBackendHandleCleanup(void* arg) {
@@ -796,8 +796,8 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   char             suffix[64] = {0};
 
   rocksdb_options_t**              cfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
-  RocksdbCfParam*                  params = taosMemoryCalloc(nCf, sizeof(RocksdbCfParam*));
-  rocksdb_comparator_t**           pCompare = taosMemoryCalloc(nCf, sizeof(rocksdb_comparator_t**));
+  RocksdbCfParam*                  params = taosMemoryCalloc(nCf, sizeof(RocksdbCfParam));
+  rocksdb_comparator_t**           pCompare = taosMemoryCalloc(nCf, sizeof(rocksdb_comparator_t*));
   rocksdb_column_family_handle_t** cfHandle = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
 
   for (int i = 0; i < nCf; i++) {
@@ -960,7 +960,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     param[i].tableOpt = tableOpt;
   };
 
-  rocksdb_comparator_t** pCompare = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t**));
+  rocksdb_comparator_t** pCompare = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t*));
   for (int i = 0; i < cfLen; i++) {
     SCfInit* cf = &ginitDict[i];
 
@@ -1066,15 +1066,15 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
                                           rocksdb_readoptions_t** readOpt) {
   int idx = streamStateGetCfIdx(pState, cfName);
 
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  if (snapshot != NULL) {
-    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
-  }
   rocksdb_readoptions_t* rOpt = rocksdb_readoptions_create();
   *readOpt = rOpt;
 
-  rocksdb_readoptions_set_snapshot(rOpt, *snapshot);
-  rocksdb_readoptions_set_fill_cache(rOpt, 0);
+  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
+  if (snapshot != NULL) {
+    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
+    rocksdb_readoptions_set_snapshot(rOpt, *snapshot);
+    rocksdb_readoptions_set_fill_cache(rOpt, 0);
+  }
 
   return rocksdb_create_iterator_cf(wrapper->rocksdb, rOpt, ((rocksdb_column_family_handle_t**)wrapper->pHandle)[idx]);
 }
@@ -1101,8 +1101,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                  \
     rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);               \
     if (err != NULL) {                                                                                                 \
-      taosMemoryFree(err);                                                                                             \
       qError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                           \
+      taosMemoryFree(err);                                                                                             \
       code = -1;                                                                                                       \
     } else {                                                                                                           \
       qTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d", toString, funcname, vLen, ttlVLen); \
@@ -1442,8 +1442,6 @@ int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* k
   int              code = 0;
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, value, vLen);
-  if (code == -1) {
-  }
   return code;
 }
 int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
@@ -1461,8 +1459,10 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
       code = -1;
     } else {
       *key = resKey;
-      *pVal = taosMemoryCalloc(1, *pVLen);
-      memcpy(*pVal, tmp, *pVLen);
+      if (pVal != NULL && pVLen != NULL) {
+        *pVal = taosMemoryCalloc(1, *pVLen);
+        memcpy(*pVal, tmp, *pVLen);
+      }
     }
   }
   taosMemoryFree(tmp);

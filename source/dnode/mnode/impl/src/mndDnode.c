@@ -727,6 +727,7 @@ _OVER:
   } else {
     mndReleaseDnode(pMnode, pDnode);
   }
+  sdbCancelFetch(pSdb, pIter);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return terrno;

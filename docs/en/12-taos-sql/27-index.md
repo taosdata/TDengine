@@ -4,12 +4,12 @@ sidebar_label: Indexing
 description: This document describes the SQL statements related to indexing in TDengine.
 ---
 
-TDengine supports SMA and FULLTEXT indexing.
+TDengine supports SMA and tag indexing.
 
 ## Create an Index
 
 ```sql
-CREATE FULLTEXT INDEX index_name ON tb_name (col_name [, col_name] ...)
+CREATE INDEX index_name ON tb_name (col_name [, col_name] ...)
 
 CREATE SMA INDEX index_name ON tb_name index_option
 
@@ -45,10 +45,6 @@ SELECT _wstart,_wend,_wduration,max(c2),min(c1) FROM st1 INTERVAL(5m,10s) SLIDIN
 -- query from raw data
 ALTER LOCAL 'querySmaOptimize' '0';
 ```
-
-### FULLTEXT Indexing
-
-Creates a text index for the specified column. FULLTEXT indexing improves performance for queries with text filtering. The index_option syntax is not supported for FULLTEXT indexing. FULLTEXT indexing is supported for JSON tag columns only. Multiple columns cannot be indexed together. However, separate indices can be created for each column.
 
 ## Delete an Index
 

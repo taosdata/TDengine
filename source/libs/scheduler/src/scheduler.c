@@ -35,7 +35,7 @@ int32_t schedulerInit() {
   schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
   schMgmt.cfg.enableReSchedule = true;
 
-  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d", 
+  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
     schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
 
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
@@ -57,11 +57,11 @@ int32_t schedulerInit() {
   }
 
   if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
-    qError("generate schdulerId failed, errno:%d", errno);
+    qError("generate schedulerId failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
   }
 
-  qInfo("scheduler 0x%" PRIx64 " initizlized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
+  qInfo("scheduler 0x%" PRIx64 " initialized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
 
   return TSDB_CODE_SUCCESS;
 }
