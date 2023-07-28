@@ -402,6 +402,7 @@ export default {
         });
       } catch (err) {
         this.loading = false;
+        
         if (err && err.code == 11) {
           Message.error(this.$t("login.servTaosdTip"));
           return;

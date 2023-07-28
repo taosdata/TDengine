@@ -73,6 +73,7 @@ export default {
       this.num++;
       this.num > 2 ? (this.num = 0) : '';
       this.chooseState(this.num);
+      this.$emit('changeThreeCheckbox',this.num)
     },
   },
 };

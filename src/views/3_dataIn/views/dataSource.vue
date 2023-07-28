@@ -45,19 +45,23 @@
           :label="$t('datasource.target')"
           prop="target"
         ></el-table-column>
-        <el-table-column
-          :label="$t('datasource.createat')"
-          prop="created_at"
-        >
-          <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+        <el-table-column :label="$t('datasource.createat')" prop="created_at">
+          <span slot-scope="scope">{{
+            parsinginZone(scope.row.created_at)
+          }}</span>
         </el-table-column>
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
+          width="150"
         ></el-table-column>
         <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
-        <el-table-column :label="$t('datasource.status')" prop="status">
+        <el-table-column
+          :label="$t('datasource.status')"
+          prop="status"
+          width="250"
+        >
           <template slot-scope="scope">
             <div class="status-operation">
               <el-tooltip
@@ -71,13 +75,16 @@
                 popper-class="datain"
               >
                 <div v-html="scope.row.last_modified_at" slot="content"></div>
-                <div slot="content" v-html="scope.row.reason" 
-                style="max-height:200px;overflow:auto;"></div>
-                <span style="width: 60px; display: inline-block">{{
+                <div
+                  slot="content"
+                  v-html="scope.row.reason"
+                  style="max-height: 200px; overflow: auto"
+                ></div>
+                <span style="width: 80px; display: inline-block">{{
                   scope.row.status
                 }}</span>
               </el-tooltip>
-              <span style="width: 60px; display: inline-block" v-else>{{
+              <span style="width: 80px; display: inline-block" v-else>{{
                 scope.row.status
               }}</span>
               <template v-if="scope.row.status.toLowerCase() !== 'running'">
@@ -108,7 +115,7 @@
                   ></el-button
                 ></el-tooltip>
               </template>
-              <template >
+              <template>
                 <el-tooltip
                   placement="bottom"
                   effect="light"
@@ -179,7 +186,7 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getDatain,refreshTask } from "@/api/explorer/datain";
+import { getDatain, refreshTask } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -212,7 +219,7 @@ export default {
       dialog: false,
       topicList: [],
       requestIng: false,
-      parsinginZone
+      parsinginZone,
     };
   },
   methods: {
@@ -262,8 +269,66 @@ export default {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {
+          let dnsarr = data.from.split("?")[1].split("&");
+          let caindex=dnsarr.findIndex((item) =>
+            item.includes("ca=")
+          );
+          let certindex=dnsarr.findIndex((item) =>
+            item.includes("cert=")
+          );
+          let certkeyindex=dnsarr.findIndex((item) =>
+            item.includes("cert_key=")
+          );
+          if(caindex>-1){
+           let file = dnsarr[caindex].split("=")[1]
+            this.$store.commit("app/SET_MQTT_CAFILE", [].concat(file));
+          }
+          if(certindex>-1){
+            let file = dnsarr[certindex].split("=")[1]
+            this.$store.commit("app/SET_MQTT_CERTFILE", [].concat(file));
+          }
+          if(certkeyindex>-1){
+            let file = dnsarr[certkeyindex].split("=")[1]
+            this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
+          }
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
+          console.log('mqtt的编辑',this.$store.state.app);
           this.$parent.parserobj = deepClone(data.parser);
+        }
+        if (data.from_expand && data.from_expand.id == "opcua") {
+          let dnsarr = data.from.split("?")[1].split("&");
+          let fileindex = dnsarr.findIndex((item) =>
+            item.includes("csv_config_file=")
+          );
+          if (fileindex > -1) {
+            let file = dnsarr
+              .filter((item) => item.includes("csv_config_file="))[0]
+              .split("=")[1];
+            this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
+          }
+
+          let certfile = dnsarr
+            .filter((item) => item.includes("certificate="))[0]
+            ?.split("=")[1];
+          let privatefile = dnsarr
+            .filter((item) => item.includes("private_key="))[0]
+            ?.split("=")[1];
+          // console.log(certfile, privatefile, file, "opc的文件---======");
+          
+          this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));
+          this.$store.commit(
+            "app/SET_OPC_PRIVATEFILES",
+            [].concat(privatefile)
+          );
+        }
+
+        if (data.from_expand && data.from_expand.id == "csv") {
+          this.$store.commit("app/SET_CSV_PARSER", data.parser);
+          this.$parent.echoData = deepClone([].concat(data.parser));
+          let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
+          let hasheader = data.from.match(/(?<=has_header=).*/)[0];
+          this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
+          this.$store.commit("app/SET_CSV_FILES", filelist);
         }
         let dbname =
           data.to_expand && data.to_expand.subject
@@ -290,8 +355,7 @@ export default {
         await getDatain(id).then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
-              (item["taskid"] = item.id),
-                (item["localname"] = item.name);
+              (item["taskid"] = item.id), (item["localname"] = item.name);
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
               item["created_at"] = item.created_at
@@ -353,26 +417,31 @@ export default {
     refresh() {
       this.getList();
     },
-    async refreshCurrentTask(data){
+    async refreshCurrentTask(data) {
       try {
-        let result = await refreshTask(data.taskid)
-        if(result&&(result.message||result.desc)){
-          Message.error(result.message||result.desc)
-          return
+        let result = await refreshTask(data.taskid);
+        if (result && (result.message || result.desc)) {
+          Message.error(result.message || result.desc);
+          return;
         }
-        let index=this.topicList.findIndex(item=>item.taskid==data.taskid)
-        this.topicList.splice(index,1,[].concat(result).map((item) => {
-              (item["taskid"] = item.id),
-                (item["localname"] = item.name);
-              item["localtype"] = item.from_detail ? item.from_detail.name : "";
-              item["target"] = item.to_expand ? item.to_expand.subject : "";
-              item["created_at"] = item.created_at
-                ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
-                  "Z"
-                : "";
-              return item;
-            })[0])
-        Message.success(this.$t('datasource.refreshsuccess'))
+        let index = this.topicList.findIndex(
+          (item) => item.taskid == data.taskid
+        );
+        this.topicList.splice(
+          index,
+          1,
+          [].concat(result).map((item) => {
+            (item["taskid"] = item.id), (item["localname"] = item.name);
+            item["localtype"] = item.from_detail ? item.from_detail.name : "";
+            item["target"] = item.to_expand ? item.to_expand.subject : "";
+            item["created_at"] = item.created_at
+              ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
+                "Z"
+              : "";
+            return item;
+          })[0]
+        );
+        Message.success(this.$t("datasource.refreshsuccess"));
       } catch (error) {
         console.log(error);
       }

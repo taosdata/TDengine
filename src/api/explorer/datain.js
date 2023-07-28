@@ -69,3 +69,26 @@ export function refreshTask(id){
         
     })
 }
+
+export function uploadFile(file){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/upload`,
+        method:'post',
+        headers:{
+            "Content-Type":"multipart/form-data"
+        }
+        
+    })
+}
+
+export function getCSVColumns(path,type,hasheader){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/filemeta?file_path=${path}&file_type=${type}&has_header=${hasheader}`,
+        method:'get',
+        headers:{
+            "Content-Type":"multipart/form-data"
+        }
+    })
+}
