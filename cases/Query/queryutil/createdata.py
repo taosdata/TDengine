@@ -1666,7 +1666,6 @@ class TDCreateData():
     def check_one_row_one_col_value(self, sql, row, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
         # 检查某行（row）某列（col）的值和value比对
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.tdSql.query(sql)
         self.value = value
@@ -1760,6 +1759,7 @@ class TDCreateData():
     def check_mult_rows_one_col_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
         # 检查多行（row1--row2）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
@@ -1772,7 +1772,6 @@ class TDCreateData():
     def check_one_row_one_col_str_value(self, sql, row, col, oper, value, throw=True) -> bool:
         # oper : UPPER (全大写字母)、LOWER（全小写字母）、RTRIM（清除右边空格）、LTRIM（清除左边空格）、CONCAT（字符串连接）、CONCAT_WS（带分隔符字符串连接）。
         # 检查某行（row）某列（col）的值和value比对
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.tdSql.query(sql)
         self.value = value
@@ -1842,6 +1841,7 @@ class TDCreateData():
     def check_mult_rows_one_col_str_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         #  oper : UPPER (全大写字母)、LOWER（全小写字母）、RTRIM（清除右边空格）、LTRIM（清除左边空格）。
         # 检查多行（row1--row2）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
@@ -1856,7 +1856,6 @@ class TDCreateData():
         # oper : TIME、SYS_TIME (时间对比)、TODAY、SYS_TODAY（时间对比）、TIMEZONE、SYS_TIMEZONE（时间对比）
         # oper : TO_ISO8601、SYS_TO_ISO8601 (时间对比)、TO_UNIXTIMESTAMP、SYS_TO_UNIXTIMESTAMP（时间对比）、TIMEZONE、SYS_TIMEZONE（时间对比）
         # 检查某行（row）某列（col）的值和value比对
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.tdSql.query(sql)
         self.value = value
@@ -2046,6 +2045,7 @@ class TDCreateData():
     def check_mult_rows_one_col_time_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         #  oper : UPPER (全大写字母)、LOWER（全小写字母）。
         # 检查多行（row1--row2）某列（col）的值和value比对
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.sql = sql
         self.oper = oper
         self.value = value
