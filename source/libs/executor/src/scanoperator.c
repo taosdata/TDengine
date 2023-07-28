@@ -2766,7 +2766,7 @@ _error:
   return NULL;
 }
 
-static SSDataBlock* getTableDataBlockImpl(void* param) {
+static SSDataBlock* getBlockForTableMergeScan(void* param) {
   STableMergeScanSortSourceParam* source = param;
   SOperatorInfo*                  pOperator = source->pOperator;
   STableMergeScanInfo*            pInfo = pOperator->info;
@@ -2784,6 +2784,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
     if (code != 0) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+      qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -2792,8 +2793,9 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     }
 
     if (isTaskKilled(pTaskInfo)) {
+      qInfo("table merge scan fetch next data block found task killed. %s", GET_TASKID(pTaskInfo));
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      break;
     }
 
     // process this data block based on the probabilities
@@ -2806,6 +2808,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
     //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
+      qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -2896,7 +2899,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
                                           
     tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
   }
-  tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlockImpl, NULL, NULL);
+
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
 
   // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
