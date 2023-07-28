@@ -1763,6 +1763,7 @@ class TDCreateData():
         self.sql = sql
         self.oper = oper
         self.value = value
+        self.tdSql.query(sql)
         
         for i in range(row1, row2):
             self.logger.info("===row: %d col: %d=====data_d=%s"%(i,col,self.tdSql.getData(i, col)))
@@ -1845,6 +1846,7 @@ class TDCreateData():
         self.sql = sql
         self.oper = oper
         self.value = value
+        self.tdSql.query(sql)
         
         for i in range(row1, row2):
             self.logger.info("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
@@ -2049,6 +2051,7 @@ class TDCreateData():
         self.sql = sql
         self.oper = oper
         self.value = value
+        self.tdSql.query(sql)
         
         for i in range(row1, row2):
             self.logger.info("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
