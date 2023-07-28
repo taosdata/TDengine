@@ -16,6 +16,7 @@
 #include "streamInt.h"
 #include "trpc.h"
 #include "ttimer.h"
+#include "tmisce.h"
 
 #define MAX_BLOCK_NAME_NUM         1024
 #define DISPATCH_RETRY_INTERVAL_MS 300

@@ -1668,6 +1668,11 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   // set the initial value for generating check point
   int32_t total = 0;
   taosWLockLatch(&pMeta->lock);
+
+  // set the mgmt epset info according to the checkout source msg from mnode, todo opt perf
+  pMeta->mgmtInfo.epset = req.mgmtEps;
+  pMeta->mgmtInfo.mnodeId = req.mnodeId;
+
   if (pMeta->chkptNotReadyTasks == 0) {
     pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
   }

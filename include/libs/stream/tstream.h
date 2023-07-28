@@ -352,6 +352,11 @@ struct SStreamTask {
   SSHashObj*          pNameMap;
 };
 
+typedef struct SMgmtInfo {
+  SEpSet  epset;
+  int32_t mnodeId;
+} SMgmtInfo;
+
 // meta
 typedef struct SStreamMeta {
   char*         path;
@@ -371,6 +376,7 @@ typedef struct SStreamMeta {
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
   tmr_h         hbTmr;
+  SMgmtInfo     mgmtInfo;
 
   int32_t  chkptNotReadyTasks;
   SArray*  checkpointSaved;
@@ -484,6 +490,7 @@ typedef struct {
   int64_t checkpointId;
   int32_t taskId;
   int32_t nodeId;
+  SEpSet  mgmtEps;
   int32_t mnodeId;
   int64_t expireTime;
 } SStreamCheckpointSourceReq;

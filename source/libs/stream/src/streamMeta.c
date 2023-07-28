@@ -542,21 +542,21 @@ void metaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
-//  ((SMsgHead*)buf)->vgId = htonl(nodeId);
-//  void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-//
-//  SEncoder encoder;
-//  tEncoderInit(&encoder, pBuf, tlen);
-//  if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
-//    rpcFreeCont(buf);
-//    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-//    return;
-//  }
-//  tEncoderClear(&encoder);
-//
-//  SRpcMsg msg = {0};
-//  initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen + sizeof(SMsgHead));
-//  qDebug("vgId:%d, send hb to mnode", nodeId);
-//
-//  tmsgSendReq(pEpSet, &msg);
+  ((SMsgHead*)buf)->vgId = htonl(pMeta->mgmtInfo.mnodeId);
+  void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, pBuf, tlen);
+  if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
+    rpcFreeCont(buf);
+    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+    return;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg msg = {0};
+  initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen + sizeof(SMsgHead));
+  qDebug("vgId:%d, send hb to mnode", pMeta->mgmtInfo.mnodeId);
+
+  tmsgSendReq(&pMeta->mgmtInfo.epset, &msg);
 }
