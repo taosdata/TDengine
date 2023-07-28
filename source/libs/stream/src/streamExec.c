@@ -615,7 +615,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
     // todo the task should be commit here
     if (taosQueueEmpty(pTask->inputQueue->queue)) {
       // fill-history WAL scan has completed
-      if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY_WAL && pTask->status.transferState == true) {
+      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && pTask->status.transferState == true) {
         streamTaskRecoverSetAllStepFinished(pTask);
         streamTaskEndScanWAL(pTask);
       } else {
