@@ -269,22 +269,57 @@ export default {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {
+          let dnsarr = data.from.split("?")[1].split("&");
+          let caindex=dnsarr.findIndex((item) =>
+            item.includes("ca=")
+          );
+          let certindex=dnsarr.findIndex((item) =>
+            item.includes("cert=")
+          );
+          let certkeyindex=dnsarr.findIndex((item) =>
+            item.includes("cert_key=")
+          );
+          if(caindex>-1){
+           let file = dnsarr[caindex].split("=")[1]
+            this.$store.commit("app/SET_MQTT_CAFILE", [].concat(file));
+          }
+          if(certindex>-1){
+            let file = dnsarr[certindex].split("=")[1]
+            this.$store.commit("app/SET_MQTT_CERTFILE", [].concat(file));
+          }
+          if(certkeyindex>-1){
+            let file = dnsarr[certkeyindex].split("=")[1]
+            this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
+          }
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
+          console.log('mqtt的编辑',this.$store.state.app);
           this.$parent.parserobj = deepClone(data.parser);
         }
         if (data.from_expand && data.from_expand.id == "opcua") {
-          let dnsarr=data.from.split('?')[1].split('&')
-          console.log(dnsarr,'dnsarr----编辑');
-          // let file = data.from.match(/(?<=ua.nodes=).*/)[0];
-          // let certfile=data.from.match(/(?<=certificate=).*/)[0]
-          // let privatefile=data.from.match(/(?<=private_key=).*/)[0]
-          let file=dnsarr.filter(item=>item.includes('ua.nodes='))[0].split('=')[1]
-          let certfile=dnsarr.filter(item=>item.includes('certificate='))[0]?.split('=')[1]
-          let privatefile=dnsarr.filter(item=>item.includes('private_key='))[0]?.split('=')[1]
-          console.log(certfile,privatefile,file,'opc的文件---======');
-          this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
+          let dnsarr = data.from.split("?")[1].split("&");
+          let fileindex = dnsarr.findIndex((item) =>
+            item.includes("csv_config_file=")
+          );
+          if (fileindex > -1) {
+            let file = dnsarr
+              .filter((item) => item.includes("csv_config_file="))[0]
+              .split("=")[1];
+            this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
+          }
+
+          let certfile = dnsarr
+            .filter((item) => item.includes("certificate="))[0]
+            ?.split("=")[1];
+          let privatefile = dnsarr
+            .filter((item) => item.includes("private_key="))[0]
+            ?.split("=")[1];
+          // console.log(certfile, privatefile, file, "opc的文件---======");
+          
           this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));
-          this.$store.commit("app/SET_OPC_PRIVATEFILES", [].concat(privatefile));
+          this.$store.commit(
+            "app/SET_OPC_PRIVATEFILES",
+            [].concat(privatefile)
+          );
         }
 
         if (data.from_expand && data.from_expand.id == "csv") {

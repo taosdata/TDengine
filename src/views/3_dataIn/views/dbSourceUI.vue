@@ -476,10 +476,11 @@
                   v-if="
                     p.hint === 'str' ||
                     p.hint === 'timeout' ||
-                    p.hint.type == 'timeout'
+                    p.hint.type == 'timeout' ||
+                    p.hint?.type === 'duration'
                   "
                 >
-                  <el-input v-model="p.value" placeholder=""></el-input>
+                  <el-input v-model="p.value" :placeholder="p.placeholder"></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <div v-if="p.hint.choices" class="select-with-btn">
@@ -554,13 +555,28 @@
                 <template v-if="p.hint == 'time' || p.hint?.type == 'time'">
                   <DatePicker
                     v-model="p.value"
-                    value-format="yyyy-MM-dd HH:mm:ss"
                     type="datetime"
-                    v-if="p.name == 'beginTime' || p.name == 'endTime'"
+                    v-if="
+                      p.name == 'beginTime' || p.name == 'endTime' 
+                    "
                     :picker-options="
                       p.name == 'beginTime' ? startOption : endOption
                     "
                     :placeholder="p.placeholder"
+                    @change="(value) => handleTime(value, p.name)"
+                  >
+                  </DatePicker>
+                  <DatePicker
+                    v-model="p.value"
+                    type="datetime"
+                    v-if="
+                      p.name === 'start' || p.name == 'end'
+                    "
+                    :picker-options="
+                      p.name === 'start' ? startOption : endOption
+                    "
+                    :placeholder="p.placeholder"
+                    @change="(value) => handleTime(value, p.name)"
                   >
                   </DatePicker>
                   <DatePicker
@@ -615,6 +631,9 @@
         </div>
       </section>
       <section class="bottom">
+        <el-button @click="cancel" class="cancel-btn">{{
+          $t("cancel")
+        }}</el-button>
         <el-button type="primary" @click="submit" :disabled="disable">{{
           $t("submit")
         }}</el-button>
@@ -671,9 +690,13 @@ export default {
 
   data() {
     const startTimeOption = (time) => {
-      let end = this.dbsource[0].groups[0].params.filter(
-        (item) => item.name == "endTime"
-      );
+      let endLsit = this.dbsource[0].groups.map(g => {
+        return g.params.filter(
+          (item) => (item.name == "endTime" || item.name == 'end')
+        );
+      })
+      let end = endLsit.filter(item => item.length > 0)[0]
+
       if (end[0].value) {
         return time.getTime() > new Date(end[0].value).getTime();
       } else {
@@ -681,9 +704,13 @@ export default {
       }
     };
     const endTimeOption = (time) => {
-      let start = this.dbsource[0].groups[0].params.filter(
-        (item) => item.name == "beginTime"
-      );
+      let startLsit = this.dbsource[0].groups.map(g => {
+        return g.params.filter(
+          (item) => (item.name == "beginTime" || item.name == 'start')
+        );
+      })
+      let start = startLsit.filter(item => item.length > 0)[0]
+
       if (start[0].value) {
         return time.getTime() < new Date(start[0].value).getTime();
       } else {
@@ -781,7 +808,13 @@ export default {
         group.params.map((p) => {
           if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
             // 时间返回值适配时区后再根据 placeholder字段 格式化
-            p.value = parsinginZone(p.value, p.placeholder)
+            if (p.name == 'start' || p.name == 'end' || 
+              p.name == 'beginTime' || p.name == 'endTime') 
+            {
+              p.value = parsinginZone(p.value)
+            } else {
+              p.value = parsinginZone(p.value, p.placeholder)
+            }
           }
           if (p.multiple && p.value && typeof p.value =='string') {
             // 多选下拉框的返回值改为数组
@@ -792,6 +825,20 @@ export default {
           });
           return group
         });
+    },
+    handleTime(time, name) {
+      if (time) {
+        this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+          group.params.map((p) => {
+            if (p.name == name) {
+              // RFC3339 时间格式，带时区
+              p.value = parsinginZone(time)
+            }
+              return p
+            });
+              return group
+        });
+      }
     },
     changeHost(host) {
       if (this.tagName == "influxdb") {
@@ -865,7 +912,7 @@ export default {
             return;
           }
         }
-        if (this.tagName === "datasource") {
+        if (this.tagName === "datasource" || this.tagName === 'taos') {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "plain"
@@ -1032,7 +1079,7 @@ export default {
         }
         let apiParams = {
           from:
-            "tmq" +
+            (this.tagName === "datasource" ? "tmq" : 'taos') + 
             (data.protocol
               ? Object.is(data.protocol.value, "--")
                 ? ""
@@ -1053,7 +1100,7 @@ export default {
         if (this.$parent.agentID) {
           apiParams["via"] = this.$parent.agentID;
         }
-        if (this.tagName === "datasource") {
+        if (this.tagName === "datasource" || this.tagName === "taos") {
           if (this.isEditable) {
             let result = await EditSource(apiParams, this.editId);
             if (result.message) {
@@ -1118,6 +1165,10 @@ export default {
       }
     },
 
+    cancel() {
+      this.$parent.currentName = 'dbsource'
+    },
+    
     handleClick(tab, event) {
       this.isShowConfiguration = false;
       this.configurationdata = [];
@@ -1216,8 +1267,19 @@ export default {
         this.loading = true;
         getUaAndDaData(params)
           .then((res) => {
+            if (res && res.code && res.code != 0) {
+              Message({
+                type: "error",
+                message: res && res.message,
+              }); 
+            } else {
+              this.configurationdata = res;
+              Message({
+                type: "success",
+                message: this.$t('operateSucc'),
+              }); 
+            }
             this.loading = false;
-            this.configurationdata = res;
           })
           .catch((err) => {
             Message({
@@ -1427,7 +1489,7 @@ export default {
                 }); 
               } else {
                 this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
-                  return {id: item, children: JSON.parse(res[0].id)[item][0]}
+                  return {id: item, children: JSON.parse(res[0].id)[item]}
                 }) 
                 Message({
                   type: "success",
@@ -1490,7 +1552,7 @@ export default {
   .left-ui {
     min-width: 800px;
     .description {
-      max-width: 500px;
+      max-width: 568px;
       overflow: auto;
     }
     .target-db-name {
@@ -1666,6 +1728,7 @@ export default {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 0px !important;
+    white-space: normal !important;
   }
   :deep {
     .el-input-number__increase,
@@ -1751,6 +1814,9 @@ export default {
         justify-content: flex-end;
       }
     }
+  }
+  .cancel-btn {
+    z-index: 101;
   }
 }
 </style>

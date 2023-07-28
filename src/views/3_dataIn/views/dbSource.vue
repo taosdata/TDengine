@@ -67,6 +67,9 @@ export default {
       let opcconfigData = this.uidata[0].groups.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
       )[0].params[0];
+      if(!opcconfigData.value){
+        opcconfigData.value=JSON.stringify(constOpc)
+      }
       this.echoData = deepClone(
         JSON.parse(opcconfigData.value).column_configs.map(
           (item) => item.column_name
@@ -170,6 +173,15 @@ export default {
           case "csv":
             this.currentName = "opcui";
             this.tagName = "csv";
+            break
+          case "taos":
+            this.currentName = "ui";
+            this.tagName = "taos";
+            break;
+          case "kafka":
+            this.currentName = "opcui";
+            this.tagName = "kafka";
+            break;
         }
       } else {
         switch (id) {
@@ -222,12 +234,20 @@ export default {
             console.log("csv跳转编辑", this.echoData);
             (this.currentName = "opcui"), (this.tagName = "csv");
             break;
+          case "taos":
+            this.currentName = "ui";
+            this.tagName = "taos";
+            break;
+          case "kafka":
+            this.currentName = "opcui";
+            this.tagName = "kafka";
+          break;
         }
         this.isEditable = true;
         this.editId = editid;
         this.dbName = dbname;
         this.getData();
-        if (id === "tmq") {
+        if (id === "tmq" || id === 'taos') {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {

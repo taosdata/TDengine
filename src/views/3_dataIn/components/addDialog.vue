@@ -223,6 +223,7 @@ export default {
       this.$parent.$refs.agents.add();
     },
     handleAdd() {
+      this.$store.commit('app/SET_FILE_EMPTY',[])
       localStorage.setItem("datainName", this.ruleForm.name);
       this.$parent.$parent.agentID = this.ruleForm.agent;
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");

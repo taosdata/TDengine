@@ -10,8 +10,6 @@
               ref="upload"
               :data="uploadData"
               :action="uploadUrl"
-              :on-preview="handlePreview"
-              :on-remove="handleRemove"
               :on-success="handleSuccess"
               :file-list="fileList"
               :auto-upload="true"
@@ -79,7 +77,7 @@ import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
-import { MessageBox } from 'element-ui';
+import { Message, MessageBox } from "element-ui";
 export default {
   name: "CsvData",
   components: { CsvParameter, CsvColumn },
@@ -150,15 +148,7 @@ export default {
         })
         .join("");
       this.echoEditData();
-      console.log(
-        this.echoData,
-        this.fileList,
-        this.$store.state.app.csvfiles,
-        this.csvColumns,
-        "csv编辑回显---"
-      );
     }
-    this.getDBColumns();
   },
   methods: {
     //编辑状态的回显
@@ -171,7 +161,6 @@ export default {
     },
     handleClear(index) {
       this.dbOptions.splice(index, 1);
-      console.log(index, "ppppp");
     },
     //初始化options，csv列没有对应db列，则db列默认和csv列名称一样
     initDbOptions() {
@@ -187,18 +176,15 @@ export default {
             type: "",
           });
         });
-        console.log(this.dbOptions, "初始化方法");
       } catch (error) {
         console.log(error);
       }
     },
     handleVisble(visible, value) {
-      console.log(visible, value, this.dbOptions, "===pppp");
       if (!visible) {
         const disableItem = this.dbOptions.filter(
           (item) => item.field == value
         )[0];
-        console.log(disableItem, "disableItem");
         disableItem.disabled = true;
         const item = this.dbOptions.find((item) => item.rewriting);
         if (!item) return;
@@ -207,14 +193,11 @@ export default {
           this.dbOptions.splice(this.dbOptions.indexOf(item), 1);
         }
       }
-      console.log(visible, value, "handleVisble");
     },
     handledbChange(value, index) {
       const item = this.dbOptions.find((item) => item.field === value);
       if (!item) return;
       item.disabled = false;
-
-      console.log("change", this.oldDbValues, value, this.dbOptions);
     },
     handleFilter(value) {
       const item = this.dbOptions.find((item) => item.rewriting);
@@ -241,45 +224,38 @@ export default {
     handleClick() {},
     handleSuccess(response, file, fileList) {
       this.fileList = fileList;
-      console.log(this.fileList, "this.fileList");
-    },
-    handleRemove(file, fileList) {
-      console.log(file, fileList);
-    },
-    handlePreview(file) {
-      console.log(file, "文件");
     },
     submitUpload() {
       this.$refs.upload.submit();
     },
-    
+
     async getCsvColumnsData() {
       try {
+        await this.getDBColumns();
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
         if (this.activeName == "first") {
           this.$refs.param.submit();
-          console.log(this.$refs.param.isValid, this.fileList, "参数9999");
           if (this.$refs.param.isValid && this.fileList.length > 0) {
             result = await getCSVColumns(
-              this.fileList.map(item=>{
-                return item.response[0]
+              this.fileList.map((item) => {
+                return item.response[0];
               }),
               "csv",
               this.$refs.param.ruleForm.hasHeader
             );
           }
-        }else{
+        } else {
           result = await getCSVColumns(
-              this.fileurl,
-              "csv",
-              this.$refs.param.ruleForm.hasHeader
-            );
+            this.fileurl,
+            "csv",
+            this.$refs.param.ruleForm.hasHeader
+          );
         }
-        if(result.message){
-          MessageBox.error(result.message)
-          return
+        if (result.message) {
+          MessageBox.error(result.message);
+          return;
         }
         this.csvParserConf = {
           parser: {
@@ -310,10 +286,16 @@ export default {
     },
     async getDBColumns() {
       try {
-        let result = await sendSQLReq(
-          ` describe \`opc\`.\`meters_double_ffs-123\` ;`
+        console.log(
+          this.$refs,
+          this.$refs.param,
+          this.$refs.param.tableName,
+          "ppp"
         );
-
+        let result = await sendSQLReq(
+          ` describe \`${this.$refs.param.ruleForm.dbName}\`.\`${this.$refs.param.ruleForm.tableName}\` ;`
+        );
+        console.log(result, "结果");
         let res = result.data.map((db) => {
           return Object.fromEntries(
             result.column_meta.map((item, index) => {
@@ -326,10 +308,8 @@ export default {
             return Object.assign(item, { disabled: true });
           })
         );
-
-        console.log(result, this.dbOptions, "获取db的列");
       } catch (error) {
-        console.log(error);
+        error&&error.desc&&Message.error(error.desc)
       }
     },
   },

@@ -89,7 +89,6 @@ export default {
       this.ruleForm.tableName=this.echoData[0].model.using
       this.ruleForm.hasHeader=this.$store.state.app.hasheader=='true'?true:false
 
-      console.log(this.$store.state.app.hasheader,this.$parent,this.targetName,this.echoData,'编辑状态的db');
     }
     this.getDatabases()
   },

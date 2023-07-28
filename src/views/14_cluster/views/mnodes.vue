@@ -12,6 +12,8 @@
         width="400"
       ></el-table-column>
       <el-table-column :label="$t('taoscluster.role')" prop="role"></el-table-column>
+      <!-- 占位 -->
+      <el-table-column />
       <el-table-column
         :label="$t('taoscluster.status')"
         prop="status"

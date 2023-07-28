@@ -32,7 +32,7 @@
           :value="item.field"
           :disabled="item.disabled"
         >
-          <span style="float: left">{{ item.field }}</span>
+          <span >{{ item.field }}</span>
           <span
             v-if="item.newByInpt"
             class="el-icon-close"
@@ -199,11 +199,7 @@ export default {
       ),
       constcols: ["ts", "topic", "qos"],
 
-      params: {
-        name: "",
-        alias: "",
-        cast: "",
-      },
+      
     };
   },
   computed: {
@@ -225,21 +221,13 @@ export default {
       console.log(val, "清楚初始化");
     },
     handleVisble(visible, value) {
-      console.log(visible, value, "visible");
       this.$emit("handleVisble", visible, value);
     },
     handleFilter(value) {
-      console.log(
-        value,
-        "filter",
-        this.colData.parser.parse[this.csvColName],
-        this.csvColName
-      );
       this.$emit("handleFilter", value);
     },
     handleClear(index) {
       this.$emit("handleClear", index);
-      console.log(index, "调用父组件clear方法");
     },
     //获取上次store中parser的值,并重新生成新的parser
     getPreveiousParser(val, type, key) {
@@ -259,10 +247,7 @@ export default {
           columns=columns.filter(item=>item!=undefined)
           columns.unshift(val);
           oldparser.model.columns=columns
-          console.log(columns,'kkkkk');
         }
-
-        console.log(tags, type, key,columns,oldparser, "主键999");
       }
 
       if (type == "tag") {
@@ -278,23 +263,17 @@ export default {
         }
       }
       if (type == "column" && key != "primary") {
-        console.log(tags, type, key, "初始化测试");
         if (tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
         if (this.columnChecked) {
           if (val && !columns.includes(val)) {
-            console.log(this.colData, "this.colDatathis.colDatathis.colData");
             if (
               this.colData.parser.parse[this.csvColName].alias ==
               this.colData.parser.model.columns[0]
             ) {
               columns.unshift(val);
             } else {
-              console.log(
-                this.colData.parser.parse[this.csvColName].as.toUpperCase(),
-                "类型88888"
-              );
               // if(this.colData.parser.parse[this.csvColName].as.toUpperCase().includes('TIMESTAMP')){
               //   columns.unshift('undefined')
               // }
@@ -309,10 +288,6 @@ export default {
         }
       }
       this.$store.commit("app/SET_CSV_PARSER", oldparser);
-      console.log(
-        this.$store.state.app.csvParser,
-        " this.$store.state.app.csvParser"
-      );
     },
     setColumnChecked() {
       this.tagChecked = false;
@@ -350,7 +325,6 @@ export default {
     },
     //选择主键
     changePrimary(val) {
-      console.log(val, "主键");
       this.columnChecked = true;
       this.tagChecked = false;
       this.getPreveiousParser(val, "column", "primary");
@@ -369,7 +343,6 @@ export default {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
       let tags = oldparser.model.tags;
-      console.log(columns, tags, this.colData, "回显999");
       if (columns.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.columnChecked = true;
       }
@@ -380,10 +353,8 @@ export default {
   },
   mounted() {
     if (this.isEditable) {
-      console.log("编辑状态", this.$store.state.app.csvParser);
       this.echoColOrTag();
     }
-    console.log(this.colData, "csv----column");
   },
   watch: {
     addStatus: {
