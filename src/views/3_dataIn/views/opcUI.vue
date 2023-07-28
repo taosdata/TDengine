@@ -979,7 +979,7 @@ export default {
                     if (
                       data.groups[index].params[g].name != "opc_table_config"
                     ) {
-                      if (data.groups[index].params[g].name == "debug") {
+                      if (data.groups[index].params[g].name == "debug" || data.groups[index].params[g].name == "enable") {
                         querystr +=
                           `${data.groups[index].params[g].name}=${
                             data.groups[index].params[g].value == 1
