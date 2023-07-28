@@ -787,7 +787,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;  
   int32_t code = 0;
   STableListInfo* pListInfo = pInfo->base.pTableListInfo;
-  STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorParam->value;
+  STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorGetParam->value;
   int32_t num = taosArrayGetSize(pParam->pUidList);
   if (num <= 0) {
     qError("empty table scan uid list");
@@ -916,10 +916,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
 
-  if (pOperator->pOperatorParam) {
+  if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     int32_t code = createTableListInfoFromParam(pOperator);
-    pOperator->pOperatorParam = NULL;
+    pOperator->pOperatorGetParam = NULL;
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);

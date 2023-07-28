@@ -24,6 +24,8 @@ typedef struct SDynQueryCtrlExecInfo {
   int64_t prevBlkRows;
   int64_t postBlkNum;
   int64_t postBlkRows;
+  int64_t leftCacheNum;
+  int64_t rightCacheNum;
 } SDynQueryCtrlExecInfo;
 
 typedef struct SStbJoinTableList {
@@ -40,7 +42,8 @@ typedef struct SStbJoinPrevJoinCtx {
   bool               joinBuild;
   SSHashObj*         leftHash;
   SSHashObj*         rightHash;
-  SSHashObj*         tableTimes;
+  SSHashObj*         leftCache;
+  SSHashObj*         rightCache;
   SSHashObj*         onceTable;
   int64_t            tableNum;
   SStbJoinTableList* pListHead;
@@ -48,6 +51,11 @@ typedef struct SStbJoinPrevJoinCtx {
 
 typedef struct SStbJoinPostJoinCtx {
   bool    isStarted;
+  bool    leftNeedCache;
+  bool    rightNeedCache;
+  int32_t leftVgId;
+  int32_t rightVgId;
+  int64_t leftCurrUid;
   int64_t rightCurrUid;
   int64_t rightNextUid;
 } SStbJoinPostJoinCtx;
@@ -58,13 +66,13 @@ typedef struct SStbJoinDynCtrlCtx {
 } SStbJoinDynCtrlCtx;
 
 typedef struct SStbJoinDynCtrlInfo {
-  SStbJoinDynCtrlBasic basic;
-  SStbJoinDynCtrlCtx   ctx;
+  SDynQueryCtrlExecInfo execInfo;
+  SStbJoinDynCtrlBasic  basic;
+  SStbJoinDynCtrlCtx    ctx;
 } SStbJoinDynCtrlInfo;
 
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;
-  SDynQueryCtrlExecInfo execInfo;
   union {
     SStbJoinDynCtrlInfo stbJoin;
   };

@@ -24,7 +24,7 @@ extern "C" {
 
 #pragma pack(push, 1) 
 typedef struct SGcBlkBufBasic {
-  uint32_t          fileId;
+  int32_t           fileId;
   int64_t           blkId;
   int64_t           offset;
   int64_t           bufSize;
@@ -36,9 +36,15 @@ typedef struct SGroupCacheFileFd {
   TdFilePtr     fd;
 } SGroupCacheFileFd;
 
+typedef struct SGroupCacheFileInfo {
+  uint32_t          groupNum;
+  bool              deleted;
+  SGroupCacheFileFd fd;
+} SGroupCacheFileInfo;
+
 typedef struct SGcFileCacheCtx {
   int64_t         fileSize;
-  uint32_t        fileId;
+  int32_t         fileId;
   SHashObj*       pCacheFile;
   int32_t         baseNameLen;
   char            baseFilename[256];  
@@ -61,6 +67,7 @@ typedef struct SGcDownstreamCtx {
 } SGcDownstreamCtx;
 
 typedef struct SGcVgroupCtx {
+  int32_t         id;
   SArray*         pTbList;
   uint64_t        lastBlkUid;
   SGcFileCacheCtx fileCtx;
@@ -81,7 +88,7 @@ typedef struct SGroupCacheData {
   int32_t        downstreamIdx;
   int32_t        vgId;
   SGcBlkList     blkList;
-  uint32_t       fileId;
+  int32_t        fileId;
   int64_t        startOffset;
 } SGroupCacheData;
 
@@ -124,7 +131,7 @@ typedef struct SGcBlkBufInfo {
   void*             next;
   void*             pBuf;
   SGcDownstreamCtx* pCtx;
-  SGroupCacheData*  pGroup;
+  int64_t           groupId;
 } SGcBlkBufInfo;
 
 typedef struct SGcExecInfo {

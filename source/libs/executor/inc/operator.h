@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+typedef enum SOperatorParamType{
+  OP_GET_PARAM = 1,
+  OP_NOTIFY_PARAM
+} SOperatorParamType;
+
 typedef struct SOperatorCostInfo {
   double openCost;
   double totalCost;
@@ -36,7 +41,7 @@ typedef void (*__optr_close_fn_t)(void* param);
 typedef int32_t (*__optr_explain_fn_t)(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
 typedef int32_t (*__optr_reqBuf_fn_t)(struct SOperatorInfo* pOptr);
 typedef SSDataBlock* (*__optr_get_ext_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param);
-typedef SSDataBlock* (*__optr_notify_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param);
+typedef int32_t (*__optr_notify_fn_t)(struct SOperatorInfo* pOptr, SOperatorParam* param);
 typedef void (*__optr_state_fn_t)(struct SOperatorInfo* pOptr);
 
 typedef struct SOperatorFpSet {
@@ -74,8 +79,10 @@ typedef struct SOperatorInfo {
   SExecTaskInfo*         pTaskInfo;
   SOperatorCostInfo      cost;
   SResultInfo            resultInfo;
-  SOperatorParam*        pOperatorParam;
-  SOperatorParam**       pDownstreamParams;
+  SOperatorParam*        pOperatorGetParam;
+  SOperatorParam*        pOperatorNotifyParam;
+  SOperatorParam**       pDownstreamGetParams;
+  SOperatorParam**       pDownstreamNotifyParams;
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   int32_t                numOfRealDownstream;
@@ -171,6 +178,7 @@ void           setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32
                                void* pInfo, SExecTaskInfo* pTaskInfo);
 int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
 SSDataBlock*   optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamOnce(struct SOperatorInfo* pOperator, int32_t idx);
 int16_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);

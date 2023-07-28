@@ -113,6 +113,12 @@ typedef struct SGcOperatorParam {
   bool                needCache;
 } SGcOperatorParam;
 
+typedef struct SGcNotifyOperatorParam {
+  int32_t             downstreamIdx;
+  int32_t             vgId;
+  int64_t             tbUid;
+} SGcNotifyOperatorParam;
+
 typedef struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator
@@ -167,6 +173,11 @@ typedef struct SExchangeOperatorParam {
   bool                        multiParams;
   SExchangeOperatorBasicParam basic;
 } SExchangeOperatorParam;
+
+typedef struct SExchangeSrcIndex {
+  int32_t srcIdx;
+  int32_t inUseIdx;
+} SExchangeSrcIndex;
 
 typedef struct SExchangeInfo {
   SArray*    pSources;

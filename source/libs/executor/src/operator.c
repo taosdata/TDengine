@@ -654,59 +654,74 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
 }
 
 
-int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
-  if (NULL == pParam) {
-    pOperator->pOperatorParam = NULL;
-    taosMemoryFreeClear(pOperator->pDownstreamParams);
+int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInput, SOperatorParamType type) {
+  SOperatorParam** ppParam = NULL;
+  SOperatorParam*** pppDownstramParam = NULL;
+  switch (type) {
+    case OP_GET_PARAM:
+      ppParam = &pOperator->pOperatorGetParam;
+      pppDownstramParam = &pOperator->pDownstreamGetParams;
+      break;
+    case OP_NOTIFY_PARAM:
+      ppParam = &pOperator->pOperatorNotifyParam;
+      pppDownstramParam = &pOperator->pDownstreamNotifyParams;
+      break;
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+  
+  if (NULL == pInput) {
+    *ppParam = NULL;
+    taosMemoryFreeClear(*pppDownstramParam);
     return TSDB_CODE_SUCCESS;
   }
 
-  pOperator->pOperatorParam = (pParam->opType == pOperator->operatorType) ? pParam : NULL;
+  *ppParam = (pInput->opType == pOperator->operatorType) ? pInput : NULL;
   
-  if (NULL == pOperator->pDownstreamParams) {
-    pOperator->pDownstreamParams = taosMemoryCalloc(pOperator->numOfDownstream, POINTER_BYTES);
-    if (NULL == pOperator->pDownstreamParams) {
+  if (NULL == *pppDownstramParam) {
+    *pppDownstramParam = taosMemoryCalloc(pOperator->numOfDownstream, POINTER_BYTES);
+    if (NULL == *pppDownstramParam) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
-  if (NULL == pOperator->pOperatorParam) {
+  if (NULL == *ppParam) {
     for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-      pOperator->pDownstreamParams[i] = pParam;
+      (*pppDownstramParam)[i] = pInput;
     }
     return TSDB_CODE_SUCCESS;
   }
 
-  memset(pOperator->pDownstreamParams, 0, pOperator->numOfDownstream * POINTER_BYTES);
+  memset(*pppDownstramParam, 0, pOperator->numOfDownstream * POINTER_BYTES);
 
-  int32_t childrenNum = taosArrayGetSize(pOperator->pOperatorParam->pChildren);
+  int32_t childrenNum = taosArrayGetSize((*ppParam)->pChildren);
   if (childrenNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
   
   for (int32_t i = 0; i < childrenNum; ++i) {
-    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pOperator->pOperatorParam->pChildren, i);
-    if (pOperator->pDownstreamParams[pChild->downstreamIdx]) {
-      int32_t code = mergeOperatorParams(pOperator->pDownstreamParams[pChild->downstreamIdx], pChild);
+    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
+    if ((*pppDownstramParam)[pChild->downstreamIdx]) {
+      int32_t code = mergeOperatorParams((*pppDownstramParam)[pChild->downstreamIdx], pChild);
       if (code) {
         return code;
       }
     } else {
-      pOperator->pDownstreamParams[pChild->downstreamIdx] = pChild;
+      (*pppDownstramParam)[pChild->downstreamIdx] = pChild;
     }
   }
 
-  taosArrayClear(pOperator->pOperatorParam->pChildren);
+  taosArrayClear((*ppParam)->pChildren);
 
   return TSDB_CODE_SUCCESS;
 }
 
 SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam) {
-  if (pOperator->pDownstreamParams && pOperator->pDownstreamParams[idx]) {
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
     qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
-    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamParams[idx]);
+    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamGetParams[idx]);
     if (clearParam) {
-      pOperator->pDownstreamParams[idx] = NULL;
+      pOperator->pDownstreamGetParams[idx] = NULL;
     }
     return pBlock;
   }
@@ -725,12 +740,35 @@ SSDataBlock* getNextBlockFromDownstreamOnce(struct SOperatorInfo* pOperator, int
 
 
 SSDataBlock* optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
-  int32_t code = setOperatorParams(pOperator, pParam);
+  int32_t code = setOperatorParams(pOperator, pParam, OP_GET_PARAM);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
   }
   return pOperator->fpSet.getNextFn(pOperator);
+}
+
+int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
+  int32_t code = setOperatorParams(pOperator, pParam, OP_NOTIFY_PARAM);
+  if (TSDB_CODE_SUCCESS == code && pOperator->fpSet.notifyFn && pOperator->pOperatorNotifyParam) {
+    code = pOperator->fpSet.notifyFn(pOperator, pOperator->pOperatorNotifyParam);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+      if (pOperator->pDownstreamNotifyParams[i]) {
+        code = optrDefaultNotifyFn(pOperator->pDownstream[i], pOperator->pDownstreamNotifyParams[i]);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  }
+  
+  return code;
 }
 
 int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {

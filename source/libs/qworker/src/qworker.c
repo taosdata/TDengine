@@ -488,6 +488,7 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
 }
 
 int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg) {
+#if 0
   if (!atomic_val_compare_exchange_8((int8_t*)&ctx->queryExecDone, true, false)) {
     QW_TASK_ELOG("dynamic task prev exec not finished, execDone:%d", ctx->queryExecDone);
     return TSDB_CODE_ACTION_IN_PROGRESS;
@@ -496,6 +497,10 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
     QW_TASK_ELOG("dynamic task prev exec not finished, queryEnd:%d", ctx->queryEnd);
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }  
+#else
+  ctx->queryExecDone = false;
+  ctx->queryEnd = false;
+#endif
 
   dsReset(ctx->sinkHandle);
   
@@ -503,11 +508,14 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 
   QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
 
-  atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
-
-  QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
-  
-  QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
+  if (QW_QUERY_RUNNING(ctx)) {
+    atomic_store_8((int8_t *)&ctx->queryContinue, 1);
+    QW_TASK_DLOG("the %dth dynamic task exec started, continue running", ctx->dynExecId++);
+  } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
+    atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
+    QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
+    QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -959,7 +967,7 @@ _return:
     }
     if (!rsped) {
       qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
-      QW_TASK_DLOG("%s send, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1),
+      QW_TASK_DLOG("fetch rsp send, msgType:%s, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1),
                    qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
     } else {
       qwFreeFetchRsp(rsp);
