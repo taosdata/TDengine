@@ -547,7 +547,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()>{
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
         let mut new_value = String::new();
-        if k == "ua.nodes" || k == "da.tags" {
+        if k == "csv_config_file" {
             // TODO use mime instead
             let (files, strs): (Vec<String>, Vec<String>) = v
             .split(",")
