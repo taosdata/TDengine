@@ -279,18 +279,8 @@ impl OPCConfig {
         }
         let interval = parse_int_at!("interval");
         let limit = parse_int_at!("limit");
-        let mut use_csv_config = false;
-        if !matches!(config_mode, OPCConfigMode::Points) {
-            use_csv_config = if let Some(assert) = dsn.remove("use_csv_config") {
-                match assert.as_str() {
-                    "false" => false,
-                    "" | "true" => true,
-                    _ => return Err(OpcError::ConfigError("use_csv_config", "should config true or false".to_string())),
-                }
-            } else {
-                false
-            };
-        }
+        let csv_config_file = dsn.remove("csv_config_file");
+
          
         let mut opc_table_config = None;
         let dump_enable = parse_bool_param_from_dsn(&mut dsn, "enable").map_err(|err| OpcError::ConfigError("enable", err.to_string()))?;
@@ -385,13 +375,13 @@ impl OPCConfig {
 
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
-                } else if use_csv_config {
-                    let res =  generate_opcconfig_from_csv(&mut dsn, "ua.nodes").await.map_err(|err| OpcError::ConfigError("ua.nodes", err.to_string()))?;
+                } else if csv_config_file.is_some() {
+                    let res =  generate_opcconfig_from_csv(csv_config_file.clone().unwrap().as_str()).await.map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                         log::info!("drop sql: {drop_sql}");
-                        taos.unwrap().exec(drop_sql).await.map_err(|err| OpcError::ConfigError("ua.nodes", err.to_string()))?;
+                        taos.unwrap().exec(drop_sql).await.map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     }
                     res.1
                 } else {
@@ -412,7 +402,7 @@ impl OPCConfig {
                     let ua_node_config = UANodeConfig {
                         id: id.clone(),
                     };
-                    if !use_csv_config {
+                    if csv_config_file.is_none() {
                         param_mapping.insert(
                             id,
                             PointConfig {
@@ -470,13 +460,13 @@ impl OPCConfig {
                 };
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
-                } else if use_csv_config {
-                    let res =  generate_opcconfig_from_csv(&mut dsn, "da.tags").await.map_err(|err| OpcError::ConfigError("da.tags", err.to_string()))?;
+                } else if csv_config_file.is_some() {
+                    let res =  generate_opcconfig_from_csv(csv_config_file.clone().unwrap().as_str()).await.map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                         log::info!("drop sql: {drop_sql}");
-                        taos.unwrap().exec(drop_sql).await.map_err(|err| OpcError::ConfigError("ua.nodes", err.to_string()))?;
+                        taos.unwrap().exec(drop_sql).await.map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     }
                     res.1
                 } else {
@@ -498,7 +488,7 @@ impl OPCConfig {
                     da_nodes_vec.push(DaNodeConfig {
                         tag: tag.clone(),
                     });
-                    if !use_csv_config {
+                    if csv_config_file.is_none() {
                         param_mapping.insert(
                             tag,
                             PointConfig {
@@ -606,172 +596,169 @@ const CSV_CONFIG_COLUMNS: [&str; 4] = ["point_id", "tbname", "type", "stable"];
 
 pub use tokio_stream::StreamExt;
 /// return opctableconfig, node_config, tables_to_drop
-pub async fn generate_opcconfig_from_csv(dsn: &mut Dsn, key: &str) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
-    if let Some(nodes) = dsn.remove(key) {
-        let files_or_strings = nodes
-            .split(",")
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-            // .partition(|v| v.starts_with("@"));
-        let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
-        let mut tag_config = Vec::new();
-        let mut column_config = Vec::new();
-        let mut node_config_old = Vec::new();
-        let mut tables_to_drop = Vec::new();
-        for mut file in files_or_strings {
-            log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
-            // if !file.ends_with(".csv") {
-                // anyhow::bail!("file {file} is not a csv config");
-            // }
-            let mut rdr;
-            if !file.starts_with("@") {
-                // TODO use mime instead
-                let decoded = general_purpose::STANDARD.decode(&file)?;
-                let mut temp_file = tempfile::NamedTempFile::new()?;
-                let res = String::from_utf8(decoded)?;
-                write!(temp_file, "{}", res)?;
-                file = format!("@{}", temp_file.path().to_str().unwrap());
-                rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
-                temp_file.into_temp_path();
-            } else {
-                rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
-            }
-            // let mut 
-            let mut records = rdr.records();
-            let header = records.next().await; 
-            // skip first line(desc)
-            if header.is_none() {
-                log::warn!("file {file} should have 2 lines at least");
-                continue;
-            }
-            let header = header.unwrap()?;
-            // header parse
-            let mut column_map = HashMap::new();
-            let mut column = 0;
-            let temp_column = CSV_CONFIG_COLUMNS.iter().map(|s| s.to_string()).collect_vec().clone();
-            let mut column_set: HashSet<&String> = HashSet::from_iter(temp_column.iter());
-            for column_name in header.iter() {
-                column_map.insert(column, column_name.clone());
-                if column_name.starts_with("tag") {
-                    // is tag config tag::type::name e.g. tag::varchar(123)::unit
-                    let split_tag = column_name.split("::").collect_vec();
-                    if split_tag.len() != 3 {
-                        anyhow::bail!("file {file} column {column_name} config error, pattern is tag::type::name");
-                    }
-                    let column_type = IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| anyhow::Error::msg(err))?;
-                    tag_config.push(TagConfig {
-                        column_name: split_tag.get(2).unwrap().to_string(),
-                        column_type,
-                    });
-                }
-                column += 1;
-                column_set.remove(&column_name.to_string());
-            }
-            if column_set.len() != 0 {
-                anyhow::bail!("csv config miss column: {}", column_set.iter().next().unwrap());
-            }
-            let mut line = 3;
-            let mut column_config_init = false;
-            while let Some(record) = records.next().await {
-                match record {
-                    Ok(record) => {
-                        let mut record_map = HashMap::new(); // column_name, column_data
-                        let mut tag_values_map = HashMap::new();
-                        for (index, column_name) in column_map.iter() {
-                            let data = record.get(index.clone()).unwrap();
-                            if column_name.starts_with("tag::") {
-                                tag_values_map.insert(column_name.split("::").collect_vec().get(2).unwrap().to_string(), data.to_string());
-                            } else {
-                                record_map.insert(column_name.to_string(), data.to_string());
-                            }
-                        }
-                        
-                        let stable = record_map.get("stable").unwrap().clone();
-                        if record_map.get("tbname").unwrap().contains("{") { // maybe should use pattern match?
-                            // should be a expression d00{point_id}_{tag1}_{tag2}
-                            // TODO PATTERN HANDLE and reset tbname
-                        }
-                        let code = record_map.get("tbname").unwrap();
-                        let enabled_column = record_map.get("enabled");
-                        if enabled_column.is_some() {
-                            let enabled = enabled_column.unwrap();
-                            if enabled == "0" {
-                                // warn: should delete subtable (stable_code)
-                                tables_to_drop.push(format!("{code}"));
-                                continue;
-                            }
-                        }
-                        let column_type = IpcDataType::from_str(record_map.get("type").unwrap()).map_err(|err| anyhow::Error::msg(err))?;
-                        if !column_config_init {
-                            column_config.push(ColumnConfig {
-                                column_name: "value".to_string(),
-                                column_type: None,
-                                column_alias: Some(record_map.get("value_col").unwrap_or(&"val".to_string()).clone()),
-                                is_primary_key: false,
-                            });
-                            column_config.push(ColumnConfig {
-                                column_name: "quality".to_string(),
-                                column_type: Some(Ty::Int),
-                                column_alias: Some(record_map.get("quality_col").unwrap_or(&"quality".to_string()).clone()),
-                                is_primary_key: false,
-                            });
-                            let received_time_col = record_map.get("received_time_col");
-                            let mut has_primary_key = false;
-                            if received_time_col.is_some() {
-                                has_primary_key = true;
-                                column_config.push(ColumnConfig {
-                                    column_name: "received_time".to_string(),
-                                    column_type: Some(Ty::Timestamp),
-                                    column_alias: Some(record_map.get("received_time_col").unwrap_or(&"received_time".to_string()).clone()),
-                                    is_primary_key: has_primary_key,
-                                });
-                            }
-                            column_config.push(ColumnConfig {
-                                column_name: "original_time".to_string(),
-                                column_type: Some(Ty::Timestamp),
-                                column_alias: Some(record_map.get("ts_col").unwrap_or(&"ts".to_string()).clone()),
-                                is_primary_key: !has_primary_key,
-                            });
-                            column_config_init = true;
-                        }
-                        
-                        let point_id = record_map.get("point_id").unwrap();
-                        
-                        let tag_values = if tag_values_map.len() == 0 {
-                            None
-                        } else {
-                            Some(tag_values_map)
-                        };
-                        id_code_map.insert(point_id.clone(), 
-                            PointConfig {
-                                code: code.clone(),
-                                stable: Some(stable),
-                                tag_values,
-                                value_type: Some(column_type),
-                            });
-                            node_config_old.push(format!("{point_id}::{code}"))
-                    },
-                    Err(e) => log::warn!("line {line} have different with other previous lines ", )
-                }
-                line += 1;
-            }
-        }
-        let tag_configs = if tag_config.len() == 0 {
-            None
+pub async fn generate_opcconfig_from_csv(csv_config_file: &str) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
+    let files_or_strings = csv_config_file
+        .split(",")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+        // .partition(|v| v.starts_with("@"));
+    let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
+    let mut tag_config = Vec::new();
+    let mut column_config = Vec::new();
+    let mut node_config_old = Vec::new();
+    let mut tables_to_drop = Vec::new();
+    for mut file in files_or_strings {
+        log::info!("current log: {}", std::env::current_dir().unwrap().to_str().unwrap());
+        // if !file.ends_with(".csv") {
+            // anyhow::bail!("file {file} is not a csv config");
+        // }
+        let mut rdr;
+        if !file.starts_with("@") {
+            // TODO use mime instead
+            let decoded = general_purpose::STANDARD.decode(&file)?;
+            let mut temp_file = tempfile::NamedTempFile::new()?;
+            let res = String::from_utf8(decoded)?;
+            write!(temp_file, "{}", res)?;
+            file = format!("@{}", temp_file.path().to_str().unwrap());
+            rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
+            temp_file.into_temp_path();
         } else {
-            Some(tag_config)
-        };
-        return Ok((OpcTableConfig { 
-            id_code_map, 
-            table_config: 
-                TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } 
-            }, 
-            node_config_old, 
-            tables_to_drop,
-        ));
+            rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
+        }
+        // let mut 
+        let mut records = rdr.records();
+        let header = records.next().await; 
+        // skip first line(desc)
+        if header.is_none() {
+            log::warn!("file {file} should have 2 lines at least");
+            continue;
+        }
+        let header = header.unwrap()?;
+        // header parse
+        let mut column_map = HashMap::new();
+        let mut column = 0;
+        let temp_column = CSV_CONFIG_COLUMNS.iter().map(|s| s.to_string()).collect_vec().clone();
+        let mut column_set: HashSet<&String> = HashSet::from_iter(temp_column.iter());
+        for column_name in header.iter() {
+            column_map.insert(column, column_name.clone());
+            if column_name.starts_with("tag") {
+                // is tag config tag::type::name e.g. tag::varchar(123)::unit
+                let split_tag = column_name.split("::").collect_vec();
+                if split_tag.len() != 3 {
+                    anyhow::bail!("file {file} column {column_name} config error, pattern is tag::type::name");
+                }
+                let column_type = IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| anyhow::Error::msg(err))?;
+                tag_config.push(TagConfig {
+                    column_name: split_tag.get(2).unwrap().to_string(),
+                    column_type,
+                });
+            }
+            column += 1;
+            column_set.remove(&column_name.to_string());
+        }
+        if column_set.len() != 0 {
+            anyhow::bail!("csv config miss column: {}", column_set.iter().next().unwrap());
+        }
+        let mut line = 3;
+        let mut column_config_init = false;
+        while let Some(record) = records.next().await {
+            match record {
+                Ok(record) => {
+                    let mut record_map = HashMap::new(); // column_name, column_data
+                    let mut tag_values_map = HashMap::new();
+                    for (index, column_name) in column_map.iter() {
+                        let data = record.get(index.clone()).unwrap();
+                        if column_name.starts_with("tag::") {
+                            tag_values_map.insert(column_name.split("::").collect_vec().get(2).unwrap().to_string(), data.to_string());
+                        } else {
+                            record_map.insert(column_name.to_string(), data.to_string());
+                        }
+                    }
+                    
+                    let stable = record_map.get("stable").unwrap().clone();
+                    if record_map.get("tbname").unwrap().contains("{") { // maybe should use pattern match?
+                        // should be a expression d00{point_id}_{tag1}_{tag2}
+                        // TODO PATTERN HANDLE and reset tbname
+                    }
+                    let code = record_map.get("tbname").unwrap();
+                    let enabled_column = record_map.get("enabled");
+                    if enabled_column.is_some() {
+                        let enabled = enabled_column.unwrap();
+                        if enabled == "0" {
+                            // warn: should delete subtable (stable_code)
+                            tables_to_drop.push(format!("{code}"));
+                            continue;
+                        }
+                    }
+                    let column_type = IpcDataType::from_str(record_map.get("type").unwrap()).map_err(|err| anyhow::Error::msg(err))?;
+                    if !column_config_init {
+                        column_config.push(ColumnConfig {
+                            column_name: "value".to_string(),
+                            column_type: None,
+                            column_alias: Some(record_map.get("value_col").unwrap_or(&"val".to_string()).clone()),
+                            is_primary_key: false,
+                        });
+                        column_config.push(ColumnConfig {
+                            column_name: "quality".to_string(),
+                            column_type: Some(Ty::Int),
+                            column_alias: Some(record_map.get("quality_col").unwrap_or(&"quality".to_string()).clone()),
+                            is_primary_key: false,
+                        });
+                        let received_time_col = record_map.get("received_time_col");
+                        let mut has_primary_key = false;
+                        if received_time_col.is_some() {
+                            has_primary_key = true;
+                            column_config.push(ColumnConfig {
+                                column_name: "received_time".to_string(),
+                                column_type: Some(Ty::Timestamp),
+                                column_alias: Some(record_map.get("received_time_col").unwrap_or(&"received_time".to_string()).clone()),
+                                is_primary_key: has_primary_key,
+                            });
+                        }
+                        column_config.push(ColumnConfig {
+                            column_name: "original_time".to_string(),
+                            column_type: Some(Ty::Timestamp),
+                            column_alias: Some(record_map.get("ts_col").unwrap_or(&"ts".to_string()).clone()),
+                            is_primary_key: !has_primary_key,
+                        });
+                        column_config_init = true;
+                    }
+                    
+                    let point_id = record_map.get("point_id").unwrap();
+                    
+                    let tag_values = if tag_values_map.len() == 0 {
+                        None
+                    } else {
+                        Some(tag_values_map)
+                    };
+                    id_code_map.insert(point_id.clone(), 
+                        PointConfig {
+                            code: code.clone(),
+                            stable: Some(stable),
+                            tag_values,
+                            value_type: Some(column_type),
+                        });
+                        node_config_old.push(format!("{point_id}::{code}"))
+                },
+                Err(e) => log::warn!("line {line} have different with other previous lines ", )
+            }
+            line += 1;
+        }
     }
-    anyhow::bail!("should config {key}");
+    let tag_configs = if tag_config.len() == 0 {
+        None
+    } else {
+        Some(tag_config)
+    };
+    return Ok((OpcTableConfig { 
+        id_code_map, 
+        table_config: 
+            TableConfig { stable_prefix: None, column_configs: column_config, tag_configs } 
+        }, 
+        node_config_old, 
+        tables_to_drop,
+    ));
 }
 
 pub(super) fn get_string_vec_from_param_or_file(
