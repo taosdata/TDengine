@@ -804,7 +804,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pObj->id == pMnode->selfDnodeId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
-      pClusterInfo->master_uptime = mndGetClusterUpTime(pMnode);
+      pClusterInfo->master_uptime = (float)mndGetClusterUpTime(pMnode) / 86400.0f;
       // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
     } else {
@@ -890,7 +890,10 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
   pLoad->syncState = state.state;
   pLoad->syncRestore = state.restored;
-  mTrace("mnode current syncState is %s, syncRestore:%d", syncStr(pLoad->syncState), pLoad->syncRestore);
+  pLoad->syncTerm = state.term;
+  pLoad->roleTimeMs = state.roleTimeMs;
+  mTrace("mnode current syncState is %s, syncRestore:%d, syncTerm:%" PRId64 " ,roleTimeMs:%" PRId64,
+         syncStr(pLoad->syncState), pLoad->syncRestore, pLoad->syncTerm, pLoad->roleTimeMs);
   return 0;
 }
 

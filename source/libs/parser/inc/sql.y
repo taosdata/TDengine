@@ -447,6 +447,7 @@ cmd ::= SHOW MNODES.                                                            
 cmd ::= SHOW QNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QNODES_STMT); }
 cmd ::= SHOW FUNCTIONS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_FUNCTIONS_STMT); }
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, B, A, OP_TYPE_EQUAL); }
+cmd ::= SHOW INDEXES FROM db_name(B) NK_DOT table_name(A).                        { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, createIdentifierValueNode(pCxt, &B), createIdentifierValueNode(pCxt, &A), OP_TYPE_EQUAL); }
 cmd ::= SHOW STREAMS.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_STREAMS_STMT); }
 cmd ::= SHOW ACCOUNTS.                                                            { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 cmd ::= SHOW APPS.                                                                { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_APPS_STMT); }
@@ -471,7 +472,9 @@ cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                              
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
 cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
+cmd ::= SHOW TAGS FROM db_name(B) NK_DOT table_name(A).                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, createIdentifierValueNode(pCxt, &B), createIdentifierValueNode(pCxt, &A), OP_TYPE_EQUAL); }
 cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM table_name_cond(A) from_db_opt(B).   { pCxt->pRootNode = createShowTableTagsStmt(pCxt, A, B, C); }
+cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM db_name(B) NK_DOT table_name(A).     { pCxt->pRootNode = createShowTableTagsStmt(pCxt, createIdentifierValueNode(pCxt, &A), createIdentifierValueNode(pCxt, &B), C); }
 cmd ::= SHOW VNODES NK_INTEGER(A).                                                { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
 cmd ::= SHOW VNODES NK_STRING(A).                                                 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &A)); }
 // show alive
@@ -538,14 +541,18 @@ sma_stream_opt(A) ::= sma_stream_opt(B) MAX_DELAY duration_literal(C).          
 sma_stream_opt(A) ::= sma_stream_opt(B) DELETE_MARK duration_literal(C).          { ((SStreamOptions*)B)->pDeleteMark = releaseRawExprNode(pCxt, C); A = B; }
 
 /************************************************ create/drop topic ***************************************************/
+%type with_meta                                                                   { int32_t }
+%destructor with_meta                                                             { }
+with_meta(A) ::= AS.                                                              { A = 0; }
+with_meta(A) ::= WITH META AS.                                                    { A = 1; }
+with_meta(A) ::= ONLY META AS.                                                    { A = 2; }
+
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS DATABASE db_name(C).      { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, false); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  WITH META AS DATABASE db_name(C).                                               { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, true); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  AS STABLE full_table_name(C) where_clause_opt(D).                               { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, false, D); }
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  WITH META AS STABLE full_table_name(C) where_clause_opt(D).                     { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, true, D); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(D)
+  DATABASE db_name(C).                                                            { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, D); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(E)
+  STABLE full_table_name(C) where_clause_opt(D).                                  { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, E, D); }
+
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) cgroup_name(B) ON topic_name(C).        { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 

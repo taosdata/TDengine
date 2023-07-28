@@ -359,7 +359,11 @@ int mainWindows(int argc, char **argv) {
   taosCleanupArgs();
 
   if (dmInit() != 0) {
-    dError("failed to init dnode since %s", terrstr());
+    if (terrno == TSDB_CODE_NOT_FOUND) {
+      dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
+    } else {
+      dError("failed to init dnode since %s", terrstr());
+    }
 
     taosCleanupCfg();
     taosCloseLog();
@@ -369,6 +373,8 @@ int mainWindows(int argc, char **argv) {
 
   dInfo("start to init service");
   dmSetSignalHandle();
+  tsDndStart = taosGetTimestampMs();
+  tsDndStartOsUptime = taosGetOsUptime();
   int32_t code = dmRun();
   dInfo("shutting down the service");
 

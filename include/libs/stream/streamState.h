@@ -138,6 +138,8 @@ int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal);
 
+void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
+
 /***compare func **/
 
 typedef struct SStateChekpoint {

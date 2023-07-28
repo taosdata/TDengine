@@ -53,6 +53,7 @@ extern "C" {
 #else
 #include <argp.h>
 #include <sys/prctl.h>
+#include <sys/sysinfo.h>
 #if defined(_TD_X86_)
 #include <cpuid.h>
 #endif

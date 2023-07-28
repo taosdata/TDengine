@@ -7,11 +7,11 @@ sql connect
 #sql create database d1 vgroups 2
 sql create database d1 vgroups 2 table_prefix 3 table_suffix 2
 sql select * from information_schema.ins_databases
-print $data(d1)[27] $data(d1)[28]
-if $data(d1)[27] != 3 then
+print $data(d1)[25] $data(d1)[26]
+if $data(d1)[25] != 3 then
   return -1
 endi
-if $data(d1)[28] != 2 then
+if $data(d1)[26] != 2 then
   return -1
 endi
 

@@ -190,6 +190,15 @@ static void insertOfp(void) {
   // commit current transaction
   tdbCommit(pEnv, txn);
   tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
 }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
@@ -233,6 +242,13 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
 
     tdbFree(pVal);
   }
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
 }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
@@ -334,6 +350,15 @@ tdbBegin(pEnv, &txn);
   // commit current transaction
   tdbCommit(pEnv, txn);
   tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
 }
 
 // TEST(tdb_test, DISABLED_simple_insert1) {
@@ -406,6 +431,8 @@ TEST(tdb_test, simple_insert1) {
     // commit the transaction
     tdbCommit(pEnv, txn);
     tdbPostCommit(pEnv, txn);
+
+    closePool(pPool);
 
     {  // Query the data
       void *pVal = NULL;
