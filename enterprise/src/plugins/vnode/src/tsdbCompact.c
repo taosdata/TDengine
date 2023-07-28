@@ -1167,7 +1167,8 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
   } else {
-    tsdbInfo("vgId:%d fid:%d compact %" PRId64 " rows", TD_VID(compactor->tsdb->pVnode), numOfRow);
+    tsdbInfo("vgId:%d fid:%d compact %" PRId64 " rows", TD_VID(compactor->tsdb->pVnode), compactor->ctx->fset->fid,
+             numOfRow);
   }
   return code;
 }
