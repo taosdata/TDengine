@@ -528,7 +528,7 @@ void monSendReport() {
   monGenGrantJson(pMonitor);
   monGenDnodeJson(pMonitor);
   monGenDiskJson(pMonitor);
-  //monGenLogJson(pMonitor); // TS-3691
+  monGenLogJson(pMonitor);
 
   char *pCont = tjsonToString(pMonitor->pJson);
   // uDebugL("report cont:%s\n", pCont);
