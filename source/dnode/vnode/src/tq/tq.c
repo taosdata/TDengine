@@ -522,10 +522,18 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     // 1. find handle
     pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
     if (pHandle == NULL) {
-      tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
-      terrno = TSDB_CODE_INVALID_MSG;
-      taosWUnLockLatch(&pTq->lock);
-      return -1;
+      do{
+        if (tqMetaGetHandle(pTq, req.subKey) == 0){
+          pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
+          if(pHandle != NULL){
+            break;
+          }
+        }
+        tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
+        terrno = TSDB_CODE_INVALID_MSG;
+        taosWUnLockLatch(&pTq->lock);
+        return -1;
+      }while(0);
     }
 
     // 2. check re-balance status

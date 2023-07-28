@@ -94,7 +94,7 @@ void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId){
 
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
-  mInfo("tq timer, rebalance counter old val:%d", old);
+  mDebug("tq timer, rebalance counter old val:%d", old);
   return old == 0;
 }
 
@@ -116,7 +116,7 @@ void mndRebCntDec() {
     int32_t newVal = val - 1;
     int32_t oldVal = atomic_val_compare_exchange_32(&mqRebInExecCnt, val, newVal);
     if (oldVal == val) {
-      mInfo("rebalance trans end, rebalance counter:%d", newVal);
+      mDebug("rebalance trans end, rebalance counter:%d", newVal);
       break;
     }
   }
