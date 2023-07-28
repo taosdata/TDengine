@@ -28,7 +28,7 @@
         </router-link>
       </el-tooltip>
       <Help></Help> -->
-      
+
       <Avatar></Avatar>
     </div>
   </div>
@@ -77,7 +77,11 @@ export default {
   },
   methods: {
     getVersion(val) {
-      return val.substr(0, val.lastIndexOf("."));
+      if (val.match(/\./g).length > 3) {
+        return val.substr(0, val.lastIndexOf("."));
+      }else{
+        return val
+      }
     },
     async getLicense() {
       try {
