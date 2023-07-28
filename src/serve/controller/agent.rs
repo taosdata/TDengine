@@ -265,7 +265,7 @@ pub struct AgentActivityFilter {
 }
 
 impl AgentActivityFilter {
-    fn condition(&self) -> String {
+    pub fn condition(&self) -> String {
         let since = self.since.as_ref().map(|s| format!("`at` >= '{}'", s));
         let level = self.level.map(|l| format!("`level` <= {}", l as u8));
         let cond = since.into_iter().chain(level).fold(None, |acc, i| {

@@ -105,7 +105,9 @@ mod option_datetime_format {
 use crate::serve::controller::agent::Activity;
 use crate::serve::task;
 
-use self::agent::{Agent, AgentProps, AgentToken, AgentUpdates, AgentWithToken, LevelFilter};
+use self::agent::{
+    Agent, AgentActivityFilter, AgentProps, AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
+};
 use self::transferred::Transferred;
 
 use super::data_sources::DataSourceDefinition;
@@ -472,7 +474,7 @@ impl TaskController {
                         id,
                         at: now,
                         level: LevelFilter::Info,
-                        activity: "start".to_string(),
+                        activity: "Trying to start task but already running".to_string(),
                         status: "running".to_string(),
                         context: Some(json!({ "message": context })),
                     };
@@ -621,10 +623,18 @@ impl TaskController {
             let cloned_token2 = cloned_token.clone();
             tokio::select! {
                 _ = cloned_token.cancelled() => {
+                    let status: Status = sqlx::query_scalar("select status from tasks where id = ?")
+                        .bind(id).fetch_one(&pool).await?;
+                    if matches!(status, Status::Completed | Status::Stopped | Status::Failed) {
+                        return Ok(());
+                    }
+                    let activity;
                     if let Some((id, sender, _)) = agent_task_worker.as_ref() {
                         let _ = sender.send(AgentAction::Cancel(*id));
+                        activity = "send cancel signal to agent".to_string();
                     } else {
                         opts.cancel();
+                        activity = "cancel task".to_string();
                     }
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
@@ -634,8 +644,8 @@ impl TaskController {
                         id,
                         at: now,
                         level: LevelFilter::Info,
-                        activity: "cancel".to_string(),
-                        status: "ok".to_string(),
+                        activity,
+                        status: "cancelled".to_string(),
                         context: None,
                     };
                     push_task_activity(&pool, &activity).await?;
@@ -819,7 +829,7 @@ impl TaskController {
                                                 id,
                                                 at: now,
                                                 level: LevelFilter::Error,
-                                                activity: "failed".to_string(),
+                                                activity: format!("failed with: {err:#}"),
                                                 status: "failed".to_string(),
                                                 context: Some(serde_json::to_value(&context).unwrap()),
                                             };
@@ -879,7 +889,7 @@ impl TaskController {
                                     at: now,
                                     level: LevelFilter::Info,
                                     activity: "complete".to_string(),
-                                    status: "ok".to_string(),
+                                    status: "completed".to_string(),
                                     context: None,
                                 };
                                 push_task_activity(&pool, &activity).await?;
@@ -1114,14 +1124,15 @@ impl TaskController {
                 .await?;
         }
 
-        let context = serde_json::to_string_pretty(&task).unwrap();
+        let context = serde_json::to_string(&task).unwrap();
+        let activity = format!("create task from {}:** to {}:**", from.driver, to.driver);
         sqlx::query!(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
             now,
             LevelFilter::Info,
-            "create",
-            "ok",
+            activity,
+            "created",
             context
         )
         .execute(&self.pool)
@@ -1148,13 +1159,14 @@ impl TaskController {
             .await?;
             let context =
                 json!({ "code": 0xFFFFi32, "error": err.to_string(), "task": id }).to_string();
+            let activity = format!("Trying to start task but failed");
             sqlx::query!(
                 "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
                 id,
                 now,
                 LevelFilter::Error,
-                "start",
-                err,
+                activity,
+                "failed",
                 context
             )
             .execute(&self.pool)
@@ -1203,14 +1215,14 @@ impl TaskController {
         let res = query.execute(&self.pool).await?;
 
         let now = chrono::Utc::now();
-        let context = serde_json::to_string_pretty(&task).unwrap();
+        let context = serde_json::to_string(&task).unwrap();
         sqlx::query!(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
             now,
             LevelFilter::Info,
-            "update",
-            "ok",
+            "Update task",
+            "updated",
             context
         )
         .execute(&self.pool)
@@ -1355,11 +1367,15 @@ impl TaskController {
         Ok(Some(()))
     }
 
-    pub async fn task_activities(&self, id: i64) -> anyhow::Result<Vec<Activity>> {
-        sqlx::query_as_unchecked!(Activity, "SELECT * FROM task_activities where id = ?", id)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
+    pub async fn task_activities(
+        &self,
+        id: i64,
+        filter: &AgentActivityFilter,
+    ) -> anyhow::Result<Vec<Activity>> {
+        let cond = filter.condition();
+        let sql = format!("select * from task_activities where `id` = {id} {cond}");
+        let items = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
+        Ok(items)
     }
 
     pub async fn push_task_status(&self, status: &TaskStatus) -> anyhow::Result<()> {

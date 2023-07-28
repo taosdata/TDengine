@@ -4,6 +4,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::Instant,
 };
 
 use anyhow::Result;
@@ -80,7 +81,9 @@ pub fn spawn_runner(
     let (status_tx, status_rx) = flume::unbounded();
     let endpoint = endpoint.to_string();
     let token = token.to_string();
-    let tasks_origin: Arc<DashMap<i64, Worker>> = Arc::new(DashMap::new());
+    let mut tasks_map = DashMap::new();
+    let _ = tasks_map.try_reserve(20);
+    let tasks_origin: Arc<DashMap<i64, Worker>> = Arc::new(tasks_map);
     let tasks = tasks_origin.clone();
     (
         tokio::task::spawn_blocking(move || {
@@ -140,11 +143,16 @@ pub fn spawn_runner(
                             let status_tx = status_tx.clone();
                             let sender = sender.clone();
                             let working_tasks = working_tasks.clone();
+                            let tasks2 = tasks.clone();
+                            let id = task.id;
                             let handle = tokio::spawn(async move {
                                 let order = Ordering::Relaxed;
                                 working_tasks.fetch_add(1, order);
+                                let instant = Instant::now();
                                 let res = opts.run(&pool).await;
+                                let timing = format!("{:?}", instant.elapsed());
                                 working_tasks.fetch_sub(1, order);
+                                let _ = tasks2.remove(&id);
                                 if let Err(err) = res {
                                     use itertools::Itertools;
                                     let status = TaskStatus {
@@ -164,11 +172,28 @@ pub fn spawn_runner(
                                         "error",
                                         json!({
                                             "task": task.id,
+                                            "timing": timing,
                                         }),
                                     );
                                     let _ = sender
                                         .send_async(RespAction::AgentActivity(activity))
                                         .await;
+
+                                    // update task activity
+
+                                    let activity = Activity::new(
+                                        task.id,
+                                        Utc::now(),
+                                        LevelFilter::Info,
+                                        "complete",
+                                        "failed",
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                        }),
+                                    );
+                                    let _ =
+                                        sender.send_async(RespAction::TaskActivity(activity)).await;
                                     Err(err)
                                 } else {
                                     let status = if working_tasks.load(order) > 0 {
@@ -180,15 +205,32 @@ pub fn spawn_runner(
                                         agent,
                                         Utc::now(),
                                         LevelFilter::Info,
-                                        "waiting for task to be finished",
+                                        "complete",
                                         status,
                                         json!({
                                             "task": task.id,
+                                            "timing": timing,
                                         }),
                                     );
                                     let _ = sender
                                         .send_async(RespAction::AgentActivity(activity))
                                         .await;
+
+                                    // update task activity
+
+                                    let activity = Activity::new(
+                                        task.id,
+                                        Utc::now(),
+                                        LevelFilter::Info,
+                                        "complete",
+                                        "completed",
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                        }),
+                                    );
+                                    let _ =
+                                        sender.send_async(RespAction::TaskActivity(activity)).await;
                                     Ok(())
                                 }
                             });

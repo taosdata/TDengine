@@ -294,6 +294,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
+                                // dbg!(&item);
                                 // log::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));

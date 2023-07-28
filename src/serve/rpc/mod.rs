@@ -310,6 +310,7 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
+                                        dbg!(&activity);
                                         let _ =
                                             controller_runner.push_agent_activity(&activity).await;
                                         info!(?activity, "agent activity");
@@ -322,6 +323,7 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
+                                        dbg!(&activity);
                                         let _ =
                                             controller_runner.push_task_activity(&activity).await;
                                         info!(?activity, "task activity");
