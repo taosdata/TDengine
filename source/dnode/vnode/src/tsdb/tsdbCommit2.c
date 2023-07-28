@@ -37,6 +37,7 @@ typedef struct {
     int64_t    cid;
     int64_t    now;
     TSKEY      nextKey;
+    TSKEY      maxDelKey;
     int32_t    fid;
     int32_t    expLevel;
     SDiskID    did;
@@ -161,6 +162,11 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   SMetaInfo info;
 
   if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
+    if (committer->ctx->maxKey < committer->ctx->maxDelKey) {
+      committer->ctx->nextKey = committer->ctx->maxKey + 1;
+    } else {
+      committer->ctx->nextKey = TSKEY_MAX;
+    }
     return 0;
   }
 
@@ -185,16 +191,17 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
       goto _next;
     }
 
+    TSKEY maxKey = committer->ctx->maxKey;
     if (record->ekey > committer->ctx->maxKey) {
-      committer->ctx->maxKey = committer->ctx->maxKey + 1;
+      maxKey = committer->ctx->maxKey + 1;
     }
 
-    if (record->ekey > committer->ctx->maxKey) {
-      committer->ctx->nextKey = record->ekey;
+    if (record->ekey > committer->ctx->maxKey && committer->ctx->nextKey > maxKey) {
+      committer->ctx->nextKey = maxKey;
     }
 
     record->skey = TMAX(record->skey, committer->ctx->minKey);
-    record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+    record->ekey = TMIN(record->ekey, maxKey);
 
     numRecord++;
     code = tsdbFSetWriteTombRecord(committer->writer, record);
@@ -475,6 +482,21 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
         }
       }
     }
+  }
+
+  committer->ctx->maxDelKey = TSKEY_MIN;
+  TSKEY minKey = TSKEY_MAX;
+  TSKEY maxKey = TSKEY_MIN;
+  if (TARRAY2_SIZE(committer->fsetArr) > 0) {
+    STFileSet *fset = TARRAY2_LAST(committer->fsetArr);
+    tsdbFidKeyRange(fset->fid, committer->minutes, committer->precision, &minKey, &committer->ctx->maxDelKey);
+
+    fset = TARRAY2_FIRST(committer->fsetArr);
+    tsdbFidKeyRange(fset->fid, committer->minutes, committer->precision, &minKey, &maxKey);
+  }
+
+  if (committer->ctx->nextKey < TMIN(tsdb->imem->minKey, minKey)) {
+    committer->ctx->nextKey = TMIN(tsdb->imem->minKey, minKey);
   }
 
 _exit:

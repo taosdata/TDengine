@@ -1049,12 +1049,24 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     }
     if (pBlk == NULL) {
       break;
-    };
+    }
+
+    if (tsortIsClosed(pHandle)) {
+      tSimpleHashClear(mUidBlk);
+      for (int i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
+        blockDataDestroy(taosArrayGetP(aBlkSort, i));
+      }
+      taosArrayClear(aBlkSort);
+      break;
+    }
   }
+
   tSimpleHashCleanup(mUidBlk);
   taosArrayDestroy(aBlkSort);
   tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
-  taosArrayAddAll(pHandle->pOrderedSource, aExtSrc);
+  if (!tsortIsClosed(pHandle)) {
+    taosArrayAddAll(pHandle->pOrderedSource, aExtSrc);
+  }
   taosArrayDestroy(aExtSrc);
 
   pHandle->type = SORT_SINGLESOURCE_SORT;

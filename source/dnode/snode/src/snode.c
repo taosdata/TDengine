@@ -72,7 +72,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     return -1;
   }
 
-  pTask->initTs = taosGetTimestampMs();
+  pTask->tsInfo.init = taosGetTimestampMs();
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pSnode->msgCb;
@@ -160,7 +160,9 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   // 2.save task
   taosWLockLatch(&pSnode->pMeta->lock);
-  code = streamMetaAddDeployedTask(pSnode->pMeta, -1, pTask);
+
+  bool added = false;
+  code = streamMetaRegisterTask(pSnode->pMeta, -1, pTask, &added);
   if (code < 0) {
     taosWUnLockLatch(&pSnode->pMeta->lock);
     return -1;
@@ -179,7 +181,14 @@ int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   SVDropStreamTaskReq *pReq = (SVDropStreamTaskReq *)msg;
   qDebug("snode:%d receive msg to drop stream task:0x%x", pSnode->pMeta->vgId, pReq->taskId);
 
-  streamMetaRemoveTask(pSnode->pMeta, pReq->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->taskId);
+  if (pTask == NULL) {
+    qError("vgId:%d failed to acquire s-task:0x%x when dropping it", pSnode->pMeta->vgId, pReq->taskId);
+    return 0;
+  }
+
+  streamMetaUnregisterTask(pSnode->pMeta, pReq->taskId);
+  streamMetaReleaseTask(pSnode->pMeta, pTask);
   return 0;
 }
 

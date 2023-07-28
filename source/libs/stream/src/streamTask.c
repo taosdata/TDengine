@@ -211,7 +211,7 @@ static void freeItem(void* p) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  qDebug("free s-task:%s", pTask->id.idStr);
+  qDebug("free s-task:%s, %p", pTask->id.idStr, pTask);
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {

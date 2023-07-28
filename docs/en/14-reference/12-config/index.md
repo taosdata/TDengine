@@ -732,6 +732,15 @@ The charset that takes effect is UTF-8.
 | Value Range   | 0-23                      |
 | Default Value | 0                         |
 
+### tmqMaxTopicNum
+
+| Attribute     | Description               |
+| -------- | ------------------ |
+| Applicable | Server Only       |
+| Meaning     | The max num of topics  |
+| Value Range | 1-10000|
+| Default Value   | 20                  |
+
 ## 3.0 Parameters
 
 | #   |     **Parameter**      | **Applicable to 2.x ** | **Applicable to  3.0 **      | Current behavior in 3.0 |
