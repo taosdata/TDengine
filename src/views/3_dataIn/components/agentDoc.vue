@@ -2,11 +2,15 @@
   <div class="agent-doc">
     <h1>1.{{ $t("taosagents.step1") }}</h1>
     <section>
-      <el-tabs value="tab1">
+      <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
           <p v-html="$t('taosagents.linuxdesc')"></p>
-          <pre class="agent-code">
-<code class="language-bash">cd $TMPDIR
+          <pre
+            class="agent-code"
+            style="padding-top: 0px"
+          ><code class="language-bash">
+tmpdir=`mktemp -d`
+cd  $tmpdir
 mkdir agent-installer
 cd agent-installer
 wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
@@ -14,7 +18,7 @@ tar xvf taosx-agent-latest-linux-x64.tar.gz
 cd taosx-agent-*
 ./install.sh
 # remove files
-#cd ../../; rm -rf agent-installer</code>
+#cd ../../; rm -rf $tmpdir</code>
 <span class="copy-icon" @click="copyCode('agent-code')">
           <i class="el-icon-copy-document"></i>
           {{ $t("copy") }}
@@ -28,15 +32,25 @@ cd taosx-agent-*
     </section>
     <h1>2.{{ $t("taosagents.step2") }}</h1>
     <section>
-      <p>{{ $t("taosagents.step2sub1") }}</p>
-      <p v-html="$t('taosagents.step2sub2')"></p>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
+          <!-- <p>{{ $t("taosagents.step2sub1") }}</p> -->
+          <p v-html="$t('taosagents.step2sub2linux')"></p>
+        </el-tab-pane>
+        <el-tab-pane name="tab2" :label="$t('taosagents.step1window')">
+          <!-- <p>{{ $t("taosagents.step2sub1") }}</p> -->
+          <p v-html="$t('taosagents.step2sub2window')"></p>
+        </el-tab-pane>
+      </el-tabs>
+
       <p>{{ $t("taosagents.step2sub3") }}</p>
       <el-alert
-      style="margin-bottom:10px;"
+        style="margin-bottom: 10px"
         :title="$t('copyagentWaring')"
         type="warning"
         :closable="false"
-        show-icon>
+        show-icon
+      >
       </el-alert>
       <pre v-highlight><code>endpoint = "{{endpoint}}"
 token = "{{token}}"
@@ -45,9 +59,18 @@ token = "{{token}}"
     </section>
     <h1>3.{{ $t("taosagents.step3") }}</h1>
     <section>
-      <p>{{ $t("taosagents.step3sub1") }}</p>
-      <p v-html="$t('taosagents.step3sub2')"></p>
-      <p v-html="$t('taosagents.step3sub3')"></p>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
+          <!-- <p>{{ $t("taosagents.step3sub1") }}</p> -->
+          <p v-html="$t('taosagents.step3sub2linux')"></p>
+          <p v-html="$t('taosagents.step3sub3linux')"></p>
+        </el-tab-pane>
+        <el-tab-pane name="tab2" :label="$t('taosagents.step1window')">
+          <!-- <p>{{ $t("taosagents.step3sub1") }}</p> -->
+          <p v-html="$t('taosagents.step3sub2window')"></p>
+          <p v-html="$t('taosagents.step3sub3window')"></p>
+        </el-tab-pane>
+      </el-tabs>
     </section>
     <h1>4.{{ $t("taosagents.step4") }}</h1>
     <section>
@@ -66,11 +89,12 @@ export default {
     token: {
       type: String,
       default: "",
-    }
+    },
   },
   data() {
     return {
-        endpoint:localStorage.getItem('local_endpoint')
+      activeTab: "tab1",
+      endpoint: localStorage.getItem("local_endpoint"),
     };
   },
   mounted() {
@@ -104,8 +128,8 @@ p {
   margin-bottom: 10px;
   text-align: left;
   white-space: break-spaces;
-  code{
-    background: transparent!important;;
+  code {
+    background: transparent !important;
   }
 }
 ::v-deep {
@@ -118,8 +142,9 @@ p {
 .agent-code {
   background-color: #f6f8fa;
   line-height: 3px;
-  code{
-    background: transparent!important;;
+  code {
+    background: transparent !important;
+    line-height: 8px;
   }
   &:hover {
     .copy-icon {
@@ -137,6 +162,9 @@ p {
   position: absolute;
   right: 20px;
   top: 40px;
-  font-size:12px;
+  font-size: 12px;
+}
+.agent-doc {
+  padding: 15px;
 }
 </style>

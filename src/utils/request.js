@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Message } from "element-ui";
+import { Message, MessageBox } from "element-ui";
 import store from "../store";
 import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
@@ -76,17 +76,19 @@ request.interceptors.response.use(
   },
   (error) => {
     Message.closeAll();
-      Message({
-        message: error.message || "Unknown Error",
-        type: "error",
-        duration: 3000,
-        showClose: true,
-      });
+    let msg=error.response.data.message||error.message|| "Unknown Error"
+    Message.error(msg)
+      // Message({
+      //   message: error.message ||error.response.data.message|| "Unknown Error",
+      //   type: "error",
+      //   duration: 3000,
+      //   showClose: true,
+      // });
     let taosx404en = 'The Taosx API is not configured. Please check the explorer configuration'
     let taosx500en = 'The Taosx API cannot be accessed. Please check the Taosx service status'
     let taosx404 = '未配置 TaosX API，请检查 Explorer 配置'
     let taosx500 = 'TaosX API 无法访问，请检查 taosx 服务状态'
-    Message.closeAll()
+    // Message.closeAll()
     if (error.config.baseURL.includes('/api/x')) {
       if (error.response && error.response.status === 404) {
         Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)

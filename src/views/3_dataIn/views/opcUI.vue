@@ -204,8 +204,37 @@
                           ></el-option>
                         </el-select>
                       </template>
+                      <template v-if="p.hint && p.hint.type == 'file'">
+                        <el-upload
+                          class="upload-demo"
+                          ref="upload"
+                          :limit="limit"
+                          :data="uploadData"
+                          :action="uploadUrl"
+                          :on-success="
+                            p.name == 'certificate'
+                              ? handleCertSuccess
+                              : handlePrivateSuccess
+                          "
+                          :file-list="
+                            p.name == 'certificate'
+                              ? certfileList
+                              : privatefileList
+                          "
+                          :auto-upload="true"
+                        >
+                          <el-button
+                            slot="trigger"
+                            size="small"
+                            type="primary"
+                            >{{ $t("datasource.selectfile") }}</el-button
+                          >
+                        </el-upload>
+                      </template>
                       <el-input
-                        v-else
+                        v-if="
+                          p.hint && !p.hint.choices && p.hint.type !== 'file'
+                        "
                         v-model="p.value"
                         :type="
                           p.name == 'password' || p.name == 'token'
@@ -232,7 +261,10 @@
         </div>
       </section>
       <section
-        :class="['groups-dataset', dbsource[0].datasets?.name]"
+        :class="[
+          'groups-dataset',
+          opcPointavalible ? 'avalible' : 'notallowed',
+        ]"
         v-if="dbsource[0]?.datasets"
       >
         <div style="flex-direction: column; align-items: baseline">
@@ -355,7 +387,16 @@
         </template>
       </section>
       <template v-for="(item, gind) in dbsource[0].groups">
-        <section :class="['groups', item.name]" :key="gind">
+        <section
+          :class="[
+            'groups',
+            ['库表配置', 'Table Config'].includes(item.name)
+              ? 'tableconfig'
+              : item.name,
+            opcPointavalible ? 'avalible' : 'notallowed',
+          ]"
+          :key="gind"
+        >
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
               <span>{{ item.name }}</span>
@@ -399,13 +440,29 @@
                       (p.hint && p.hint.type == 'file')
                     "
                   >
-                    <el-input
-                      v-model="p.value"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
-                      :type="
-                        p.hint && p.hint.type == 'file' ? 'textarea' : 'text'
-                      "
-                    ></el-input>
+                    <template v-if="p.hint && p.hint.type == 'file'">
+                      <el-upload
+                        class="upload-demo"
+                        ref="upload"
+                        :limit="limit"
+                        :data="uploadData"
+                        :action="uploadUrl"
+                        :on-success="handleSuccess"
+                        :file-list="fileList"
+                        :auto-upload="true"
+                      >
+                        <el-button slot="trigger" size="small" type="primary">{{
+                          $t("datasource.selectfile")
+                        }}</el-button>
+                      </el-upload>
+                    </template>
+                    <template v-else>
+                      <el-input
+                        v-model="p.value"
+                        :placeholder="p.placeholder ? p.placeholder : ''"
+                        :type="text"
+                      ></el-input>
+                    </template>
                   </template>
                   <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
@@ -475,6 +532,22 @@
                   {{ p.display ? p.display : p.name }}
                 </span>
                 <div class="label-value">
+                  <template v-if="p.hint && p.hint.type == 'file'">
+                    <el-upload
+                      class="upload-demo"
+                      ref="upload"
+                      :limit="limit"
+                      :data="uploadData"
+                      :action="uploadUrl"
+                      :on-success="handleSuccess"
+                      :file-list="fileList"
+                      :auto-upload="true"
+                    >
+                      <el-button slot="trigger" size="small" type="primary">{{
+                        $t("datasource.selectfile")
+                      }}</el-button>
+                    </el-upload>
+                  </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
                     <el-input
                       v-model="p.value"
@@ -522,7 +595,11 @@
                     </template>
                   </template>
                   <template v-else-if="p.hint && p.hint.type === 'bool'">
-                    <p-three-checkbox :data="checkboxData" v-model="p.value" />
+                    <p-three-checkbox
+                      :data="checkboxData"
+                      v-model="p.value"
+                      @changeThreeCheckbox="getThreeBoxNum($event, p)"
+                    />
                   </template>
                   <template
                     v-if="
@@ -544,7 +621,13 @@
                 </div>
               </div>
               <template v-if="p.name == 'opc_table_config'">
-                <div :key="pind">
+                <div
+                  :key="pind"
+                  :class="[
+                    'opcconf',
+                    opcPointavalible ? 'avalible' : 'notallowed',
+                  ]"
+                >
                   <opcConnector
                     :opcConfig="opcConfig"
                     :isEditable="isEditable"
@@ -560,7 +643,7 @@
       </template>
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <section class="ungrounded" v-if="dbsource[0].params"></section>
+      <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
       <section v-if="tagName == 'mqtt'" class="mqtt-config">
         <div class="header">
           <div class="block-title">
@@ -582,7 +665,12 @@
         </div>
       </section>
       <section v-if="tagName == 'csv'">
-        <CsvData :isEditable="isEditable" :echoData="echoData"></CsvData>
+        <CsvData
+          :isEditable="isEditable"
+          :echoData="echoData"
+          ref="csvdata"
+          :dbName="dbName"
+        ></CsvData>
       </section>
       <section class="choose-db" v-else>
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
@@ -687,10 +775,19 @@ export default {
   },
   data() {
     return {
+      limit: 1,
+      opcPointavalible: true,
+      fileList: [],
+      certfileList: [],
+      privatefileList: [],
+      uploadData: {
+        req_id: new Date().getTime(),
+      },
+      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       sourceName: localStorage.getItem("datainName"),
       openSSL: false,
       constmqttCols: [],
-      textareas: ["ca", "cert", "cert_key", "certificate"],
+      textareas: ["ca", "cert", "cert_key"],
       styleobj: {
         width: "100%",
         display: "flex",
@@ -735,27 +832,77 @@ export default {
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
-      this.dbsource[0].authentication.alternatives =
-        this.dbsource[0].authentication.alternatives.map((item) => {
-          if (item.name === "certificates") {
-            item.params.map((par, index) => {
-              if (par.name === "security_mode") {
-                this.policyDisabled = par.value && par.value === "None";
-                if (par.value && par.value !== "None") {
-                  item.params[2].required = true;
-                  item.params[3].required = true;
+      if (this.dbsource[0].authentication) {
+        this.dbsource[0].authentication.alternatives =
+          this.dbsource[0].authentication.alternatives.map((item) => {
+            if (item.name === "certificates") {
+              item.params.map((par, index) => {
+                if (par.name === "security_mode") {
+                  this.policyDisabled = par.value && par.value === "None";
+                  if (par.value && par.value !== "None") {
+                    item.params[2].required = true;
+                    item.params[3].required = true;
+                  }
                 }
-              }
-              return par;
-            });
-          }
-          return item;
-        });
+                return par;
+              });
+            }
+            return item;
+          });
+      }
     }
   },
   mounted() {
     if (this.tagName == "mqtt") {
       this.constmqttCols = this.dbsource[0].parser.fields;
+    }
+    if (this.tagName.includes("opc")) {
+      let flag =
+        this.dbsource[0].groups[0].params[0].value == "true" ? true : false;
+      let certitem = this.$store.state.app.opccertfiles[0];
+      let privateitem = this.$store.state.app.opcprivatefiles[0];
+      if (certitem && privateitem) {
+        this.certfileList = [].concat({
+          name: certitem?.substr(certitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(certitem),
+          size: 87,
+          status: "success",
+          uid: 2,
+        });
+        this.privatefileList = [].concat({
+          name: privateitem?.substr(privateitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(privateitem),
+          size: 87,
+          status: "success",
+          uid: 2,
+        });
+      }
+
+      if (flag) {
+        this.opcPointavalible = false;
+        let item = this.$store.state.app.opcnodesfiles[0];
+
+        this.fileList = [].concat({
+          name: item?.substr(item.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(item),
+          size: 87,
+          status: "success",
+          uid: 1,
+        });
+      } else {
+        this.opcPointavalible = true;
+      }
+      console.log(
+        this.fileList,
+        this.$store.state.app.opcnodesfiles,
+        "回显opc的---file"
+      );
     }
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
@@ -772,6 +919,26 @@ export default {
     },
   },
   methods: {
+    getThreeBoxNum(val, item) {
+      console.log(val, item, "选择复选框状态0000");
+      if (item.name == "use_csv_config") {
+        if (val == 1) {
+          this.opcPointavalible = false;
+        } else {
+          this.opcPointavalible = true;
+        }
+      }
+    },
+    handleCertSuccess(response, file, fileList) {
+      this.certfileList = fileList;
+    },
+    handlePrivateSuccess(response, file, fileList) {
+      this.privatefileList = fileList;
+    },
+    handleSuccess(response, file, fileList) {
+      this.fileList = fileList;
+    },
+
     //opc需要存入库的字段
     changeEchoData(arr) {
       this.$parent.echoData = deepClone(arr);
@@ -940,16 +1107,22 @@ export default {
                 }
               } else {
                 if (this.tagName.includes("opc")) {
-                  this.$refs.opcsingleton[0].submit();
-                  if (this.$refs.opcsingleton[0].isReject) {
-                    Message({
-                      type: "warning",
-                      message:
-                        this.$t("datasource.msg") +
-                        ":" +
-                        `${data.groups[index].params[g].display} `,
-                    });
-                    return;
+                  console.log(
+                    data.groups[index].params[g].display,
+                    "opcua提示"
+                  );
+                  if (this.opcPointavalible) {
+                    this.$refs.opcsingleton[0].submit();
+                    if (this.$refs.opcsingleton[0].isReject) {
+                      Message({
+                        type: "warning",
+                        message:
+                          this.$t("datasource.msg") +
+                          ":" +
+                          `${data.groups[index].params[g].display} `,
+                      });
+                      return;
+                    }
                   }
                 } else {
                   Message({
@@ -987,7 +1160,11 @@ export default {
                     if (
                       data.groups[index].params[g].name != "opc_table_config"
                     ) {
-                      if (data.groups[index].params[g].name == "debug") {
+                      if (
+                        data.groups[index].params[g].name == "debug" ||
+                        data.groups[index].params[g].name == "use_csv_config" ||
+                        data.groups[index].params[g].name == "enable"
+                      ) {
                         querystr +=
                           `${data.groups[index].params[g].name}=${
                             data.groups[index].params[g].value == 1
@@ -995,9 +1172,16 @@ export default {
                               : false
                           }` + "&";
                       } else {
+                        // if (
+                        //   this.tagName.includes("opc") &&
+                        //   !this.opcPointavalible
+                        // ) {
+                        //   console.log("不加载opc_table_config");
+                        // } else {
                         querystr +=
                           `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                           "&";
+                        // }
                       }
                     }
 
@@ -1012,17 +1196,39 @@ export default {
           data.authentication &&
           data.authentication.value == "certificates"
         ) {
+          console.log("证书上传");
+          // data.authentication.alternatives[2].params.forEach((val) => {
+          //   querystr += val.value ? `${val.name}=${val.value}&` : "";
+          // })
           for (
             let i = 0;
             i < data.authentication.alternatives[2].params.length;
             i++
           ) {
-            let authValue = data.authentication.alternatives[2].params[i].value;
+            let type = data.authentication.alternatives[2].params[i].hint.type;
             let authName = data.authentication.alternatives[2].params[i].name;
+
+            let authValue =
+              type == "file"
+                ? authName == "certificate"
+                  ? this.certfileList.length > 0
+                    ? this.certfileList[0].response[0]
+                    : ""
+                  : this.privatefileList.length > 0
+                  ? this.privatefileList[0].response[0]
+                  : ""
+                : data.authentication.alternatives[2].params[i].value;
             let authDisplay =
               data.authentication.alternatives[2].params[i].display;
             let authRequired =
               data.authentication.alternatives[2].params[i].required;
+            console.log(
+              type,
+              authName,
+              authValue,
+              this.certfileList,
+              "type---leixi类型-----名字------值"
+            );
             if (authRequired && !authValue) {
               Message({
                 type: "warning",
@@ -1049,12 +1255,23 @@ export default {
                 target.value == undefined ||
                 target.value?.length == 0)
             ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${target.name} `,
-              });
-              return;
+              if (this.tagName.includes("opc") && !this.opcPointavalible) {
+                console.log("无提示");
+              } else {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${target.name} `,
+                });
+                return;
+              }
             } else {
+              //opc测点手动上传
+              let dnsarr = querystr.split("&");
+              let idx = dnsarr.findIndex((item) => item.includes("ua.nodes="));
+              if (idx > -1) {
+                dnsarr.splice(idx, 1);
+                querystr = dnsarr.join("&");
+              }
               if (Array.isArray(target.value)) {
                 if (target.value?.length > 0) {
                   let str = "";
@@ -1072,7 +1289,10 @@ export default {
         if (querystr) {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
-
+        if (this.tagName == "csv") {
+          this.dbname = this.$refs.csvdata.$refs.param.ruleForm.dbName;
+          console.log("csv下的dbname", this.dbname);
+        }
         if (!this.dbname) {
           Message({
             type: "warning",
@@ -1111,24 +1331,80 @@ export default {
         }
 
         if (this.tagName.includes("opc")) {
-          let oldData = this.$store.state.app.opcConfig;
-          let columnCons = oldData.column_configs.filter((item) =>
-            this.$parent.echoData.includes(item.column_name)
-          );
-          this.$store.commit("app/SET_OPC_CONFIG", {
-            column_configs: columnCons,
-            stable_prefix: oldData.stable_prefix,
-          });
-          let saveConf = {
-            column_configs: columnCons,
-            stable_prefix: oldData.stable_prefix,
-          };
-          dns += "&opc_table_config=" + JSON.stringify(saveConf);
+          if (this.opcPointavalible) {
+            //手动上传测点
+            // if (this.isEditable) {
+            //   //编辑状态下该用手动输入测点需要删除之前文件上传的测点
+            //   let prefix = dns.split("?")[0];
+            //   let dnsarr = dns.split("?")[1].split("&");
+            //   let index=dnsarr.findIndex(item=>item.includes('use_csv_config='))
+            //   let flag=index==-1?'false':dnsarr[index].split('=')[1]
+            //   if(flag=='false'){
+            //     let certindex=dnsarr.findIndex(item=>item.includes('certificate='))
+            //     let privateindex=dnsarr.findIndex(item=>item.includes('private_key='))
+            //     // if(certindex>-1){
+            //     //   dnsarr.splice(certindex,1)
+            //     // }
+            //     // if(privateindex>1){
+            //     //   dnsarr.splice(privateindex,1)
+            //     // }
+            //   }
+            //   // dnsarr.splice(dnsarr.)
+            //   // let ind = dnsarr.findIndex((item) => item.includes("ua.nodes"));
+            //   // if (ind > -1) {
+            //   //   dnsarr.splice(
+            //   //     ind,
+            //   //     1
+            //   //   );
+
+            //   // }
+            //   dns = prefix + "?" + dnsarr.join("&");
+            //   console.log(flag,dns,'编辑状态的地址88888');
+            // }
+            let oldData = this.$store.state.app.opcConfig;
+            let columnCons = oldData.column_configs.filter((item) =>
+              this.$parent.echoData.includes(item.column_name)
+            );
+            this.$store.commit("app/SET_OPC_CONFIG", {
+              column_configs: columnCons,
+              stable_prefix: oldData.stable_prefix,
+            });
+            let saveConf = {
+              column_configs: columnCons,
+              stable_prefix: oldData.stable_prefix,
+            };
+            dns += "&opc_table_config=" + JSON.stringify(saveConf);
+          } else {
+            console.log(dns, "opc选择文件上传");
+            if (this.fileList.length == 0) {
+              Message({
+                type: "warning",
+                message: this.$t("datasource.uploadtip"),
+              });
+              return;
+            }
+            let prefix = dns.split("?")[0];
+            let dnsarr = dns.split("?")[1].split("&");
+            let ind = dnsarr.findIndex((item) => item.includes("ua.nodes"));
+            if (ind > -1) {
+              dnsarr.splice(
+                ind,
+                1,
+                `&ua.nodes=` + this.fileList[0].response[0]
+              );
+              dns = prefix + "?" + dnsarr.join("&");
+            } else {
+              dns += `&ua.nodes=` + this.fileList[0].response[0];
+            }
+          }
         }
         let piParams = {
           from:
-            (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
-            dns,
+            (this.tagName == "mqtt"
+              ? "mqtt"
+              : this.tagName == "csv"
+              ? "csv"
+              : "opc" + this.protocol) + dns,
           name: this.sourceName,
           to:
             "taos+" +
@@ -1145,6 +1421,27 @@ export default {
         }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
+        }
+        if (this.tagName == "csv") {
+          let model = this.$store.state.app.csvParser.model;
+          model.using = this.$refs.csvdata.$refs.param.ruleForm.tableName;
+          piParams["parser"] = this.$store.state.app.csvParser;
+          // piParams.from +=
+          //   `&has_header=` + this.$refs.csvdata.$refs.param.ruleForm.hasHeader;
+          // piParams.from +=
+          //   `&path=` +
+          //   this.$refs.csvdata.fileList.map((item, index) => {
+          //     return item.response[0];
+          //   });
+          piParams["from"] =
+            `csv:` +
+            this.$refs.csvdata.fileList.map((item, index) => {
+              return item.response[0];
+            }) +
+            dns.substring(3) +
+            `&has_header=` +
+            this.$refs.csvdata.$refs.param.ruleForm.hasHeader;
+          console.log(this.$refs.csvdata.fileList, piParams, dns, "csv的保存");
         }
 
         if (this.isEditable) {
@@ -1250,12 +1547,15 @@ export default {
 
         let dns = "";
         let querystr = "";
-        if (data.authentication.value == "certificates") {
+        if (
+          data.authentication &&
+          data.authentication.value == "certificates"
+        ) {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
           });
         }
-        if (data.authentication.value == "plain") {
+        if (data.authentication && data.authentication.value == "plain") {
           if (data.authentication.alternatives[1].username.value) {
             dns += `://${data.authentication.alternatives[1].username.value}`;
           }
@@ -1628,6 +1928,28 @@ export default {
         }
       }
     }
+  }
+  .opcconf {
+    &.notallowed {
+      position: relative;
+      display: none;
+      // &::after {
+      //   content:'';
+      //   position: absolute;
+      //   top: 0;
+      //   bottom: 0;
+      //   left: 0;
+      //   right: 0;
+      //   background: #f2f6fc40;
+      //   z-index:9999;
+      // }
+    }
+  }
+  .groups-dataset.notallowed {
+    display: none;
+  }
+  .groups.tableconfig.notallowed {
+    display: none;
   }
 }
 </style>

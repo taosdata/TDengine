@@ -25,10 +25,15 @@
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
           <div class="upload-file">
             <span class="label required">{{ $t("datasource.fileurl") }}</span>
-            <el-input></el-input>
+            <el-input v-model="fileurl"></el-input>
           </div>
         </el-tab-pane>
-        <CsvParameter ref="param"></CsvParameter>
+        <CsvParameter
+          ref="param"
+          :targetName="dbName"
+          :echoData="echoData"
+          :isEditable="isEditable"
+        ></CsvParameter>
       </el-tabs>
       <el-button
         type="primary"
@@ -60,6 +65,7 @@
             @handleVisble="handleVisble"
             @handledbChange="handledbChange"
             @handleFilter="handleFilter"
+            @handleClear="handleClear"
             ref="mqtt"
           ></CsvColumn>
         </li>
@@ -73,29 +79,35 @@ import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
+import { MessageBox } from 'element-ui';
 export default {
   name: "CsvData",
   components: { CsvParameter, CsvColumn },
-  props:{
-    isEditable:{
-      type:Boolean,
-      default:false
+  props: {
+    isEditable: {
+      type: Boolean,
+      default: false,
     },
-    echoData:{
-      type:Object,
-      default:()=>{
-        return null
-      }
-    }
+    echoData: {
+      type: Array,
+      default: () => {
+        return [];
+      },
+    },
+    dbName: {
+      type: String,
+      default: "",
+    },
   },
   provide() {
     return {
       currentKey: this.currentKey,
     };
   },
+  filter: {},
   data() {
     return {
-      showConfig:false,
+      showConfig: false,
       csvParserConf: {},
       uploadData: {
         req_id: new Date().getTime(),
@@ -107,6 +119,7 @@ export default {
       },
       activeName: "first",
       fileList: [],
+      fileurl: "",
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       csvColumns: [],
       localcsv: {},
@@ -114,18 +127,58 @@ export default {
     };
   },
   mounted() {
-    if(this.isEditable){
+    if (this.isEditable) {
       //编辑状态直接从返回值去csv 的parser
+      this.activeName = "second";
+      this.showConfig = true;
+      this.fileList = this.$store.state.app.csvfiles
+        .split(",")
+        .map((item, index) => {
+          return {
+            name: item.substr(item.lastIndexOf("/") + 1),
+            percentage: 100,
+            raw: File,
+            response: [].concat(item),
+            size: 87,
+            status: "success",
+            uid: index,
+          };
+        });
+      this.fileurl = this.fileList
+        .map((item) => {
+          return item.response[0];
+        })
+        .join("");
+      this.echoEditData();
+      console.log(
+        this.echoData,
+        this.fileList,
+        this.$store.state.app.csvfiles,
+        this.csvColumns,
+        "csv编辑回显---"
+      );
     }
     this.getDBColumns();
   },
   methods: {
+    //编辑状态的回显
+    echoEditData() {
+      this.csvColumns = Object.keys(this.echoData[0].parse);
+      this.localcsv = deepClone({
+        parser: this.echoData[0],
+      });
+      this.initDbOptions();
+    },
+    handleClear(index) {
+      this.dbOptions.splice(index, 1);
+      console.log(index, "ppppp");
+    },
     //初始化options，csv列没有对应db列，则db列默认和csv列名称一样
     initDbOptions() {
       try {
         let result = Object.keys(this.localcsv.parser.parse);
         result.map((item) => {
-          let alias = this.localcsv.parser.parse[item].alias
+          let alias = this.localcsv.parser.parse[item].alias;
           this.dbOptions.push({
             disabled: true,
             field: alias,
@@ -140,11 +193,13 @@ export default {
       }
     },
     handleVisble(visible, value) {
-      console.log(visible, value,this.dbOptions,'===pppp');
+      console.log(visible, value, this.dbOptions, "===pppp");
       if (!visible) {
-        const disableItem=this.dbOptions.filter((item) => item.field==value)[0]
-        console.log(disableItem,'disableItem');
-        disableItem.disabled=true
+        const disableItem = this.dbOptions.filter(
+          (item) => item.field == value
+        )[0];
+        console.log(disableItem, "disableItem");
+        disableItem.disabled = true;
         const item = this.dbOptions.find((item) => item.rewriting);
         if (!item) return;
         item.rewriting = false;
@@ -152,26 +207,17 @@ export default {
           this.dbOptions.splice(this.dbOptions.indexOf(item), 1);
         }
       }
-      console.log(visible,value,'handleVisble');
+      console.log(visible, value, "handleVisble");
     },
     handledbChange(value, index) {
-      // const oldItem = this.dbOptions.find(
-      //   (item) => item.field === value
-      // );
-      // // this.oldDbValues[index] = value;
-      // if (oldItem) {
-      //   oldItem.disabled = false;
-      // }
       const item = this.dbOptions.find((item) => item.field === value);
       if (!item) return;
       item.disabled = false;
 
-      console.log("change",this.oldDbValues, value, this.dbOptions);
+      console.log("change", this.oldDbValues, value, this.dbOptions);
     },
     handleFilter(value) {
       const item = this.dbOptions.find((item) => item.rewriting);
-
-      console.log(value, "filter---999", item);
       if (!value && !item) return true;
       if (!value && item) {
         this.dbOptions.splice(this.dbOptions.indexOf(item), 1);
@@ -179,31 +225,23 @@ export default {
       }
       if (this.dbOptions.some((item) => item.field === value)) return true;
       if (item) {
-        console.log(item, " item幼稚");
-        // item.value = value;
         item.field = value;
         return true;
       } else {
-        console.log("xinz新增push");
         this.dbOptions.push({
-          // value,
           field: value,
           rewriting: true,
           newByInpt: true,
           disabled: false,
         });
       }
-      console.log(this.dbOptions, "this.dbOptions");
       return true;
     },
-    
-    
+
     handleClick() {},
     handleSuccess(response, file, fileList) {
       this.fileList = fileList;
-    },
-    submitUpload() {
-      this.$refs.upload.submit();
+      console.log(this.fileList, "this.fileList");
     },
     handleRemove(file, fileList) {
       console.log(file, fileList);
@@ -211,41 +249,60 @@ export default {
     handlePreview(file) {
       console.log(file, "文件");
     },
+    submitUpload() {
+      this.$refs.upload.submit();
+    },
+    
     async getCsvColumnsData() {
       try {
-        this.csvColumns=[]
-        this.dbOptions=[]
-        this.$refs.param.submit();
-        console.log(this.$refs.param.isValid, this.fileList, "参数9999");
-        if (this.$refs.param.isValid && this.fileList.length > 0) {
-          let result = await getCSVColumns(
-            this.fileList[0].response,
-            "csv",
-            this.$refs.param.ruleForm.hasHeader
-          );
-          this.csvParserConf = {
-            parser: {
-              parse: {},
-              model: {
-                name: "",
-                using: "",
-                tags: [],
-                columns: [],
-              },
-            },
-          };
-          this.csvColumns = result.file_header.column_names;
-          result.file_header.column_names.forEach((item) => {
-            this.csvParserConf.parser.parse[item] = {
-              as: "",
-              alias: item
-            };
-          });
-          this.localcsv = deepClone(this.csvParserConf);
-          this.$store.commit('app/SET_CSV_PARSER',this.localcsv)
-          this.initDbOptions();
-          this.showConfig=true
+        this.csvColumns = [];
+        this.dbOptions = [];
+        let result = null;
+        if (this.activeName == "first") {
+          this.$refs.param.submit();
+          console.log(this.$refs.param.isValid, this.fileList, "参数9999");
+          if (this.$refs.param.isValid && this.fileList.length > 0) {
+            result = await getCSVColumns(
+              this.fileList.map(item=>{
+                return item.response[0]
+              }),
+              "csv",
+              this.$refs.param.ruleForm.hasHeader
+            );
+          }
+        }else{
+          result = await getCSVColumns(
+              this.fileurl,
+              "csv",
+              this.$refs.param.ruleForm.hasHeader
+            );
         }
+        if(result.message){
+          MessageBox.error(result.message)
+          return
+        }
+        this.csvParserConf = {
+          parser: {
+            parse: {},
+            model: {
+              name: "",
+              using: "",
+              tags: [],
+              columns: [],
+            },
+          },
+        };
+        this.csvColumns = result.file_header.column_names;
+        result.file_header.column_names.forEach((item) => {
+          this.csvParserConf.parser.parse[item] = {
+            as: "",
+            alias: item,
+          };
+        });
+        this.localcsv = deepClone(this.csvParserConf);
+        this.$store.commit("app/SET_CSV_PARSER", this.localcsv.parser);
+        this.initDbOptions();
+        this.showConfig = true;
       } catch (error) {
         console.log(error);
       }

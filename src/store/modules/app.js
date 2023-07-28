@@ -37,7 +37,12 @@ const state = {
   currentPricePlanList: [], //当前region的计费方案列表
   mqttParser:null,//专供mqtt parser使用
   opcConfig:null,//opc的单例配置
-  csvParser:null
+  csvParser:null,
+  csvfiles:[],
+  opcnodesfiles:[],
+  opccertfiles:[],
+  opcprivatefiles:[],
+  hasheader:false
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -64,6 +69,21 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_OPC_PRIVATEFILES:(state,data)=>{
+    state.opcprivatefiles=data
+  },
+  SET_OPC_CERTFILES:(state,data)=>{
+    state.opccertfiles=data
+  },
+  SET_OPC_UANODES:(state,data)=>{
+    state.opcnodesfiles=data
+  },
+  SET_CSV_HASHEADER:(state,data)=>{
+    state.hasheader=data
+  },
+  SET_CSV_FILES:(state,data)=>{
+    state.csvfiles=data
+  },
   SET_CSV_PARSER:(state,data)=>{
     state.csvParser=data
   },

@@ -24,11 +24,27 @@
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 export default {
   name: "CsvParameter",
+  props:{
+    targetName:{
+      type:String,
+      default:''
+    },
+    isEditable: {
+      type: Boolean,
+      default: false,
+    },
+    echoData: {
+      type: Array,
+      default: () => {
+        return [];
+      },
+    }
+  },
   data() {
     return {
       ruleForm: {
         hasHeader: false,
-        dbName: "",
+        dbName: '',
         percision: "",
         tableName: "",
         isValid:false
@@ -68,6 +84,13 @@ export default {
     };
   },
   mounted(){
+    if(this.isEditable){
+      this.ruleForm.dbName=this.targetName
+      this.ruleForm.tableName=this.echoData[0].model.using
+      this.ruleForm.hasHeader=this.$store.state.app.hasheader=='true'?true:false
+
+      console.log(this.$store.state.app.hasheader,this.$parent,this.targetName,this.echoData,'编辑状态的db');
+    }
     this.getDatabases()
   },
   methods:{
@@ -83,6 +106,7 @@ export default {
        this.$refs.ruleForm.validate((valid) => {
           if (valid) {
             this.isValid=true
+
           } else {
             this.isValid=false
             return false;

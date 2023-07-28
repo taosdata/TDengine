@@ -48,7 +48,7 @@
           :placeholder="
             checked ? $t('datasource.agenttip') : this.$t('disbleagent')
           "
-          :disabled="disabledAgent"
+          :disabled="!checked"
         >
           <el-option
             v-for="item in this.agentList"

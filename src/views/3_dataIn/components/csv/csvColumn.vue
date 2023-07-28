@@ -1,14 +1,10 @@
 <template>
-  <ul
-    :class="[
-      'csv-column',
-      isEditable &&
+  <!-- isEditable &&
       (this.nonEditableCols.includes(colData['name']) ||
         colData['name'] == colData.parser.model.columns[0])
         ? 'edit'
-        : '',
-    ]"
-  >
+        : '', -->
+  <ul :class="['csv-column']">
     <li style="max-width: 150px; margin-right: 10px">
       <el-select
         :value="colData.parser.parse[csvColName].alias"
@@ -17,7 +13,12 @@
         :filter-method="handleFilter"
         placeholder=""
         clearable
-        @clear='handleClearItem'
+        :disabled="
+          isEditable &&
+          colData.parser.parse[csvColName].alias ==
+            colData.parser.model.columns[0]
+        "
+        @clear="handleClearItem"
         @visible-change="
           (visible) =>
             handleVisble(visible, colData.parser.parse[csvColName].alias)
@@ -60,6 +61,11 @@
           :value="colData.parser.parse[csvColName].as.toUpperCase()"
           size="mini"
           @change="changeType"
+          :disabled="
+            isEditable &&
+            colData.parser.parse[csvColName].alias ==
+              colData.parser.model.columns[0]
+          "
           placeholder=""
         >
           <el-option
@@ -100,10 +106,11 @@
         :disabled="
           !colData.parser.parse[csvColName].as
             .toUpperCase()
-            .includes('TIMESTAMP')
+            .includes('TIMESTAMP') || isEditable
         "
         :value="
-          colData.parser.parse[csvColName].alias == colData.parser.model.columns[0]
+          colData.parser.parse[csvColName].alias ==
+          colData.parser.model.columns[0]
         "
         @change="changePrimary(colData.parser.parse[csvColName].alias)"
         >&nbsp;</el-checkbox
@@ -114,7 +121,8 @@
         v-model="columnChecked"
         @change="setColumnChecked"
         :disabled="
-          colData.parser.parse[csvColName].alias == colData.parser.model.columns[0]
+          colData.parser.parse[csvColName].alias ==
+          colData.parser.model.columns[0]
         "
       >
         &nbsp;
@@ -125,7 +133,8 @@
         v-model="tagChecked"
         @change="setTagChecked"
         :disabled="
-          colData.parser.parse[csvColName].alias == colData.parser.model.columns[0]
+          colData.parser.parse[csvColName].alias ==
+          colData.parser.model.columns[0]
         "
       >
         &nbsp;
@@ -212,8 +221,8 @@ export default {
     },
   },
   methods: {
-    handleClearItem(val){
-      console.log(val,'清楚初始化');
+    handleClearItem(val) {
+      console.log(val, "清楚初始化");
     },
     handleVisble(visible, value) {
       console.log(visible, value, "visible");
@@ -229,26 +238,33 @@ export default {
       this.$emit("handleFilter", value);
     },
     handleClear(index) {
+      this.$emit("handleClear", index);
       console.log(index, "调用父组件clear方法");
     },
     //获取上次store中parser的值,并重新生成新的parser
     getPreveiousParser(val, type, key) {
       let oldparser = this.$store.state.app.csvParser;
-      let columns = oldparser.parser.model.columns;
-      let tags = oldparser.parser.model.tags;
+      let columns = oldparser.model.columns;
+      let tags = oldparser.model.tags;
       if (key == "primary") {
         if (tags.includes(val)) {
-          columns.splice(columns.indexOf(val), 1);
+          tags.splice(columns.indexOf(val), 1);
         }
         if (columns.includes(val)) {
           this.columnChecked = false;
-          columns.splice(columns.indexOf(val), 1,undefined);
+          if (columns[0] !== undefined) {
+            columns.splice(columns.indexOf(val), 1, undefined);
+          }
         } else {
-          columns.push(val);
+          columns=columns.filter(item=>item!=undefined)
+          columns.unshift(val);
+          oldparser.model.columns=columns
+          console.log(columns,'kkkkk');
         }
 
-        console.log(tags, type,key,"主键999");
+        console.log(tags, type, key,columns,oldparser, "主键999");
       }
+
       if (type == "tag") {
         if (columns.includes(val)) {
           columns.splice(columns.indexOf(val), 1);
@@ -262,17 +278,29 @@ export default {
         }
       }
       if (type == "column" && key != "primary") {
+        console.log(tags, type, key, "初始化测试");
         if (tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
         if (this.columnChecked) {
-          if (!columns.includes(val)) {
+          if (val && !columns.includes(val)) {
+            console.log(this.colData, "this.colDatathis.colDatathis.colData");
             if (
               this.colData.parser.parse[this.csvColName].alias ==
               this.colData.parser.model.columns[0]
             ) {
               columns.unshift(val);
             } else {
+              console.log(
+                this.colData.parser.parse[this.csvColName].as.toUpperCase(),
+                "类型88888"
+              );
+              // if(this.colData.parser.parse[this.csvColName].as.toUpperCase().includes('TIMESTAMP')){
+              //   columns.unshift('undefined')
+              // }
+              if (columns.length == 0) {
+                columns.unshift(undefined);
+              }
               columns.push(val);
             }
           }
@@ -288,21 +316,25 @@ export default {
     },
     setColumnChecked() {
       this.tagChecked = false;
-      this.getPreveiousParser(this.colData.parser.parse[this.csvColName].alias, "column");
+      this.getPreveiousParser(
+        this.colData.parser.parse[this.csvColName].alias,
+        "column"
+      );
     },
     setTagChecked() {
       this.columnChecked = false;
-      this.getPreveiousParser(this.colData.parser.parse[this.csvColName].alias, "tag");
+      this.getPreveiousParser(
+        this.colData.parser.parse[this.csvColName].alias,
+        "tag"
+      );
     },
     changeType(val) {
       this.colData.parser.parse[this.csvColName].as = val;
     },
     handledbChange(val, index) {
-      let oldItem=this.colData.parser.parse[this.csvColName].alias
+      let oldItem = this.colData.parser.parse[this.csvColName].alias;
       this.colData.parser.parse[this.csvColName].alias = val;
       let result = this.dbOptions.find((item) => item.field == val);
-      
-      console.log(result, val,index, "======");
       if (result) {
         if (Object.hasOwnProperty.call(result, "newByInpt")) {
           this.colData.parser.parse[this.csvColName].as = "";
@@ -334,18 +366,23 @@ export default {
 
     //回显tag或者column选中
     echoColOrTag() {
-      // let oldparser = this.$store.state.app.mqttParser;
-      // let columns = oldparser.model.columns;
-      // let tags = oldparser.model.tags;
-      // if (columns.includes(this.colData.name)) {
-      //   this.columnChecked = true;
-      // }
-      // if (tags.includes(this.colData.name)) {
-      //   this.tagChecked = true;
-      // }
+      let oldparser = this.$store.state.app.csvParser;
+      let columns = oldparser.model.columns;
+      let tags = oldparser.model.tags;
+      console.log(columns, tags, this.colData, "回显999");
+      if (columns.includes(this.colData.parser.parse[this.csvColName].alias)) {
+        this.columnChecked = true;
+      }
+      if (tags.includes(this.colData.parser.parse[this.csvColName].alias)) {
+        this.tagChecked = true;
+      }
     },
   },
   mounted() {
+    if (this.isEditable) {
+      console.log("编辑状态", this.$store.state.app.csvParser);
+      this.echoColOrTag();
+    }
     console.log(this.colData, "csv----column");
   },
   watch: {
@@ -385,6 +422,11 @@ export default {
     height: 14px !important;
   }
   .el-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .el-select-dropdown__item {
     display: flex;
     align-items: center;
     justify-content: center;
