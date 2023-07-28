@@ -51,6 +51,11 @@ groups:
     description: | 
       CSV 点位及表信息配置文件设置。
     params:
+      - name: use_csv_config
+        display: 启用 CSV 配置
+        hint:
+          type: bool
+        description: 启用 CSV 配置文件。如果上传了 CSV 配置文件需勾选此项。
       - name: csv_config_file
         display: CSV 配置文件
         description: |
