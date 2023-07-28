@@ -34,10 +34,7 @@ use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
 use taosx_ipc::{
     prelude::*,
-    stream::{
-        flat::FlatMessage,
-        point::{self, PointMessage},
-    },
+    stream::{flat::FlatMessage, point::PointMessage},
 };
 
 // mod rpc_client;
@@ -127,7 +124,7 @@ async fn ipc_tcp_forward(
                 break;
             }
         }
-        log::error!("[task:{task_id}] stopped");
+        log::info!("[task:{task_id}] stopped");
     });
 
     struct IpcStream {
@@ -152,7 +149,7 @@ async fn ipc_tcp_forward(
             let c = self
                 .marker
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            log::info!("polled: {c} {cx:?}");
+            // log::info!("polled: {c} {cx:?}");
 
             if c % 2 == 0 {
                 // todo: why this is require?
@@ -160,7 +157,7 @@ async fn ipc_tcp_forward(
                 return Poll::Pending;
             }
             let recv = self.receiver.recv();
-            dbg!(&recv);
+            // dbg!(&recv);
             // cx.waker().wake_by_ref();
             Poll::Ready(dbg!(recv.ok()))
         }

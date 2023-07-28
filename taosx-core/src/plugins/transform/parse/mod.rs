@@ -8,7 +8,7 @@ use arrow::{
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
-    datatypes::{DataType, Field, Fields, Schema},
+    datatypes::{DataType, Field, Schema},
     error::ArrowError,
     ipc::FixedSizeBinary,
     record_batch::RecordBatch,
@@ -469,6 +469,7 @@ impl Parser {
     }
 
     pub fn parse_schema(&self, schema: &Arc<Schema>) -> Arc<Schema> {
+        let _ = schema;
         todo!()
     }
 

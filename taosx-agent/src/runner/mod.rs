@@ -1,10 +1,18 @@
-use std::{fmt::Display, sync::Arc};
+use std::{
+    fmt::Display,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Instant,
+};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use taosx_core::TaskOpts;
+use serde_json::json;
+use taosx_core::{Activity, LevelFilter, RespAction, TaskOpts};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -62,6 +70,7 @@ impl Worker {
 pub fn spawn_runner(
     endpoint: impl Display,
     token: impl Display,
+    sender: flume::Sender<RespAction>,
 ) -> (
     JoinHandle<Result<()>>,
     Arc<DashMap<i64, Worker>>,
@@ -72,12 +81,15 @@ pub fn spawn_runner(
     let (status_tx, status_rx) = flume::unbounded();
     let endpoint = endpoint.to_string();
     let token = token.to_string();
-    let tasks_origin: Arc<DashMap<i64, Worker>> = Arc::new(DashMap::new());
+    let mut tasks_map = DashMap::new();
+    let _ = tasks_map.try_reserve(20);
+    let tasks_origin: Arc<DashMap<i64, Worker>> = Arc::new(tasks_map);
     let tasks = tasks_origin.clone();
     (
         tokio::task::spawn_blocking(move || {
             let port_pool = taosx_core::utils::port_pool::PortPool::default();
 
+            let working_tasks = Arc::new(AtomicUsize::new(0));
             // let stop_notify = tokio::sync::Notify::new();
             // let scheduler = Arc::new()
             loop {
@@ -93,6 +105,19 @@ pub fn spawn_runner(
                                     continue;
                                 }
                             }
+                            let agent = task.via.unwrap();
+                            let activity = Activity::new(
+                                agent,
+                                Utc::now(),
+                                LevelFilter::Info,
+                                "start task",
+                                "busy",
+                                json!({
+                                    "agent": agent,
+                                    "task": task.id,
+                                }),
+                            );
+                            let _ = sender.send(RespAction::AgentActivity(activity));
                             let cancellation = CancellationToken::new();
                             let cancel = cancellation.clone();
 
@@ -116,8 +141,19 @@ pub fn spawn_runner(
                             };
                             let pool = port_pool.clone();
                             let status_tx = status_tx.clone();
+                            let sender = sender.clone();
+                            let working_tasks = working_tasks.clone();
+                            let tasks2 = tasks.clone();
+                            let id = task.id;
                             let handle = tokio::spawn(async move {
-                                if let Err(err) = opts.run(&pool).await {
+                                let order = Ordering::Relaxed;
+                                working_tasks.fetch_add(1, order);
+                                let instant = Instant::now();
+                                let res = opts.run(&pool).await;
+                                let timing = format!("{:?}", instant.elapsed());
+                                working_tasks.fetch_sub(1, order);
+                                let _ = tasks2.remove(&id);
+                                if let Err(err) = res {
                                     use itertools::Itertools;
                                     let status = TaskStatus {
                                         id: task.id,
@@ -127,8 +163,74 @@ pub fn spawn_runner(
                                         context: Some(err.chain().join("\n")),
                                     };
                                     let _ = status_tx.send_async(status).await;
+
+                                    let activity = Activity::new(
+                                        agent,
+                                        Utc::now(),
+                                        LevelFilter::Error,
+                                        "waiting for task to be finished",
+                                        "error",
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                        }),
+                                    );
+                                    let _ = sender
+                                        .send_async(RespAction::AgentActivity(activity))
+                                        .await;
+
+                                    // update task activity
+
+                                    let activity = Activity::new(
+                                        task.id,
+                                        Utc::now(),
+                                        LevelFilter::Info,
+                                        "complete",
+                                        "failed",
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                        }),
+                                    );
+                                    let _ =
+                                        sender.send_async(RespAction::TaskActivity(activity)).await;
                                     Err(err)
                                 } else {
+                                    let status = if working_tasks.load(order) > 0 {
+                                        "busy"
+                                    } else {
+                                        "idle"
+                                    };
+                                    let activity = Activity::new(
+                                        agent,
+                                        Utc::now(),
+                                        LevelFilter::Info,
+                                        "complete",
+                                        status,
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                        }),
+                                    );
+                                    let _ = sender
+                                        .send_async(RespAction::AgentActivity(activity))
+                                        .await;
+
+                                    // update task activity
+
+                                    let activity = Activity::new(
+                                        task.id,
+                                        Utc::now(),
+                                        LevelFilter::Info,
+                                        "complete",
+                                        "completed",
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                        }),
+                                    );
+                                    let _ =
+                                        sender.send_async(RespAction::TaskActivity(activity)).await;
                                     Ok(())
                                 }
                             });

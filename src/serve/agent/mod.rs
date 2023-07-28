@@ -7,7 +7,7 @@ use taos::Code;
 
 use crate::serve::{
     controller::{
-        agent::{AgentProps, AgentUpdates},
+        agent::{AgentActivityFilter, AgentProps, AgentUpdates},
         AgentFilter, TaskControllerRef,
     },
     task::Failed,
@@ -84,12 +84,34 @@ pub(super) async fn get_agents(
     }
 }
 
+/// Get agent by id.
+///
+#[utoipa::path(
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = Agent)
+    )
+)]
+#[get("/agents/{agent_id}")]
+pub(super) async fn get_agent_by_id(
+    task_store: Data<TaskControllerRef>,
+    agent_id: Path<i64>,
+) -> impl Responder {
+    match task_store.get_agent_by_id(agent_id.into_inner()).await {
+        Ok(agents) => HttpResponse::Ok().json(&agents),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: err.to_string(),
+        }),
+    }
+}
+
 /// List agents with specified `cluster_id` and `user_id`
 ///
 #[utoipa::path(
     tag = "agents",
     responses(
-        (status = 200, description = "List current agents items", body = [Agent])
+        (status = 200, description = "List current agents items", body = [TaskDetail])
     ),
     params(
         AgentFilter,
@@ -107,6 +129,35 @@ pub(super) async fn get_agent_tasks(
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err)
+        }),
+    }
+}
+
+/// Get agent activities by id
+///
+#[utoipa::path(
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [Activity])
+    ),
+    params(AgentActivityFilter)
+)]
+#[get("/agents/{agent_id}/activities")]
+pub(super) async fn get_agent_activities(
+    task_store: Data<TaskControllerRef>,
+    agent_id: Path<i64>,
+    filter: Query<AgentActivityFilter>,
+) -> impl Responder {
+    match task_store
+        .agent_activities(agent_id.into_inner(), &filter)
+        .await
+    {
+        Ok(agents) => HttpResponse::Ok()
+            .append_header(("Count", agents.len()))
+            .json(&agents),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: err.to_string(),
         }),
     }
 }

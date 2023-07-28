@@ -1,36 +1,41 @@
-use std::array;
-use std::char::MAX;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::mpsc::Sender;
-use arrow::array::{BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampMillisecondBuilder, TimestampNanosecondBuilder};
+use crate::plugins::sink;
+use crate::utils::port_pool::PortPool;
+use crate::{Action, Parser, Transferred};
+use arrow::array::{
+    BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
+};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use bitvec::macros::internal::funty::Fundamental;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, MessageSet};
-use serde_with::TimestampNanoSeconds;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tokio_util::sync::CancellationToken;
+use std::collections::HashMap;
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
+use taos::{AsyncTBuilder, Dsn};
 use taosx_ipc::prelude::ArrowDataType;
-use crate::{Action, Parser, Transferred};
-use crate::plugins::sink;
-use crate::utils::port_pool::PortPool;
+use tokio_util::sync::CancellationToken;
 
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
-    transformers: Vec<Action>,
+    _: Vec<Action>,
     to: Dsn,
-    jobs: usize,
+    _: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
-    println!("{} kafka_to_taos started, from: {}, to: {}", chrono::Utc::now().to_string(), from.to_string(), to.to_string());
+    println!(
+        "{} kafka_to_taos started, from: {}, to: {}",
+        chrono::Utc::now().to_string(),
+        from.to_string(),
+        to.to_string()
+    );
 
-    let port = port_pool.get().ok_or_else(|| anyhow::format_err!("No available port"))?;
+    let port = port_pool
+        .get()
+        .ok_or_else(|| anyhow::format_err!("No available port"))?;
     let socket = format!("127.0.0.1:{}", port);
     let ipc = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
 
@@ -95,7 +100,14 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
-fn build_ipc(socket: &str, parser: Option<Parser>, to: &Dsn, cancel: &CancellationToken, with_agent: Option<(i64, String, String)>, transferred: Option<Arc<Transferred>>) -> anyhow::Result<Sender<()>> {
+fn build_ipc(
+    socket: &str,
+    parser: Option<Parser>,
+    to: &Dsn,
+    cancel: &CancellationToken,
+    with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
+) -> anyhow::Result<Sender<()>> {
     let (sender, receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
@@ -128,7 +140,11 @@ fn build_schema() -> Schema {
     metadata.insert(String::from("stream"), String::from("flat"));
     metadata.insert(String::from("ack"), String::from("none"));
     let flat_columns = vec![
-        Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Nanosecond, None), false),
+        Field::new(
+            "ts",
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Nanosecond, None),
+            false,
+        ),
         Field::new("topic", ArrowDataType::Utf8, false),
         Field::new("partition", ArrowDataType::Int32, false),
         Field::new("offset", ArrowDataType::Int64, false),
@@ -142,7 +158,11 @@ fn build_schema() -> Schema {
 fn build_consumer(dsn: &Dsn) -> Consumer {
     let mut bootstrap_servers = Vec::new();
     for address in dsn.addresses.iter() {
-        bootstrap_servers.push(format!("{}:{}", address.host.clone().unwrap(), address.port.clone().unwrap()));
+        bootstrap_servers.push(format!(
+            "{}:{}",
+            address.host.clone().unwrap(),
+            address.port.clone().unwrap()
+        ));
     }
     let mut consumer = Consumer::from_hosts(bootstrap_servers);
 
@@ -193,7 +213,15 @@ fn build_consumer(dsn: &Dsn) -> Consumer {
 }
 
 fn print_message(ms: &MessageSet, m: &Message, ts: &i64) {
-    println!("topic: {}, partition: {}, offset: {},ts: {}, key: {}, values: {}", ms.topic(), ms.partition(), m.offset, ts, String::from_utf8_lossy(m.key), String::from_utf8_lossy(m.value));
+    println!(
+        "topic: {}, partition: {}, offset: {},ts: {}, key: {}, values: {}",
+        ms.topic(),
+        ms.partition(),
+        m.offset,
+        ts,
+        String::from_utf8_lossy(m.key),
+        String::from_utf8_lossy(m.value)
+    );
 }
 
 fn parse_timeout(dsn: &Dsn) -> i64 {
@@ -245,16 +273,16 @@ fn parse_offset_storage(offset_storage: Option<&String>) -> GroupOffsetStorage {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fmt;
-    use std::fmt::{Debug, format};
-    use std::str::FromStr;
+    use super::*;
     use arrow::array::{Int32Builder, Int64Builder, PrimitiveArray, PrimitiveBuilder};
     use arrow::datatypes::{DataType, Field, Int32Type, Schema, Time64NanosecondType};
     use chrono::Timelike;
     use itertools::assert_equal;
+    use std::collections::HashMap;
+    use std::fmt;
+    use std::fmt::{format, Debug};
+    use std::str::FromStr;
     use taosx_ipc::prelude::ArrowDataType;
-    use super::*;
 
     #[test]
     fn test_arrow() {
@@ -314,7 +342,9 @@ mod tests {
         assert_eq!(1, subscriptions.get("tp1").unwrap().len());
         println!("{:?}", subscriptions);
 
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:0..2,tp2&group=test").unwrap();
+        let dsn =
+            Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:0..2,tp2&group=test")
+                .unwrap();
         let consumer = build_consumer(&dsn);
         assert_eq!("test", consumer.group());
         let subscriptions = consumer.subscriptions();
@@ -326,7 +356,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_topic_partitions_invalid() {
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:2..1,tp2").unwrap();
+        let dsn =
+            Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:2..1,tp2").unwrap();
         let consumer = build_consumer(&dsn);
     }
 
