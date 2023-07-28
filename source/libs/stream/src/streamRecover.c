@@ -80,6 +80,7 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
              walReaderGetCurrentVer(pTask->exec.pWalReader));
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
+    streamTaskEnablePause(pTask);
     streamSetParamForScanHistory(pTask);
     streamTaskScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
