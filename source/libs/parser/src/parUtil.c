@@ -164,6 +164,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
       return "_WSTART, _WEND and _WDURATION can only be used in window query";
+    case TSDB_CODE_PAR_INVALID_TAGS_PC:
+      return "Tags can only applied to super table and child table";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
       return "%s function is not supported in time window query";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
@@ -172,6 +174,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function is not supported in group query";
     case TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC:
       return "%s function is not supported in system table query";
+    case TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED:
+      return "%s is not supported in system table query";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:

@@ -103,18 +103,16 @@ _exit:
   return code;
 }
 
-int32_t smaFinishCommit(SSma *pSma) {
+extern int32_t tsdbCommitCommit(STsdb *tsdb);
+int32_t        smaFinishCommit(SSma *pSma) {
   int32_t code = 0;
   int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
 
-  code = tdRSmaFSFinishCommit(pSma);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
+  if (VND_RSMA1(pVnode) && (code = tsdbCommitCommit(VND_RSMA1(pVnode))) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  if (VND_RSMA2(pVnode) && (code = tsdbFinishCommit(VND_RSMA2(pVnode))) < 0) {
+  if (VND_RSMA2(pVnode) && (code = tsdbCommitCommit(VND_RSMA2(pVnode))) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 _exit:
@@ -133,6 +131,7 @@ _exit:
  * @param isCommit
  * @return int32_t
  */
+extern int32_t tsdbPreCommit(STsdb *tsdb);
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -150,18 +149,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
   if (isCommit) {
     while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
-      ++nLoops;
-      if (nLoops > 1000) {
-        sched_yield();
-        nLoops = 0;
-      }
-    }
-
-    pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-    if (ASSERTS(pRSmaStat->commitAppliedVer >= -1, "commit applied version %" PRIi64 " < -1",
-                pRSmaStat->commitAppliedVer)) {
-      code = TSDB_CODE_APP_ERROR;
-      TSDB_CHECK_CODE(code, lino, _exit);
+      TD_SMA_LOOPS_CHECK(nLoops, 1000)
     }
   }
   // step 2: wait for all triggered fetch tasks to finish
@@ -173,11 +161,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
     } else {
       smaDebug("vgId:%d, rsma commit%d, fetch tasks are not all finished yet", SMA_VID(pSma), isCommit);
     }
-    ++nLoops;
-    if (nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
-    }
+    TD_SMA_LOOPS_CHECK(nLoops, 1000);
   }
 
   /**
@@ -189,49 +173,26 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
           (void *)taosGetSelfPthreadId());
   nLoops = 0;
   while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
-    ++nLoops;
-    if (nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
-    }
+    TD_SMA_LOOPS_CHECK(nLoops, 1000);
   }
 
   if (!isCommit) goto _exit;
 
-  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
+  // code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
   TSDB_CHECK_CODE(code, lino, _exit);
 
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
-#if 0  // consuming task of qTaskInfo clone 
-  // step 4:  swap queue/qall and iQueue/iQall
-  // lock
-  taosWLockLatch(SMA_ENV_LOCK(pEnv));
-
-  void *pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
-
-  while (pIter) {
-    SRSmaInfo *pInfo = *(SRSmaInfo **)pIter;
-    TSWAP(pInfo->iQall, pInfo->qall);
-    TSWAP(pInfo->iQueue, pInfo->queue);
-    TSWAP(pInfo->iTaskInfo[0], pInfo->taskInfo[0]);
-    TSWAP(pInfo->iTaskInfo[1], pInfo->taskInfo[1]);
-    pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter);
-  }
-
-  // unlock
-  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
-#endif
+  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
   // all rsma results are written completely
   STsdb *pTsdb = NULL;
   if ((pTsdb = VND_RSMA1(pSma->pVnode))) {
-    code = tsdbPrepareCommit(pTsdb);
+    code = tsdbPreCommit(pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if ((pTsdb = VND_RSMA2(pSma->pVnode))) {
-    code = tsdbPrepareCommit(pTsdb);
+    code = tsdbPreCommit(pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -248,6 +209,7 @@ _exit:
  * @param pSma
  * @return int32_t
  */
+extern int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -258,13 +220,10 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
     goto _exit;
   }
 
-  code = tdRSmaFSCommit(pSma);
+  code = tsdbCommitBegin(VND_RSMA1(pVnode), pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCommit(VND_RSMA1(pVnode), pInfo);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCommit(VND_RSMA2(pVnode), pInfo);
+  code = tsdbCommitBegin(VND_RSMA2(pVnode), pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -310,20 +269,6 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
         continue;
       }
-#if 0
-    if (pRSmaInfo->taskInfo[0]) {
-      if (pRSmaInfo->iTaskInfo[0]) {
-        SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pRSmaInfo->iTaskInfo[0];
-        tdFreeRSmaInfo(pSma, pRSmaInfo, false);
-        pRSmaInfo->iTaskInfo[0] = NULL;
-      }
-    } else {
-      TSWAP(pRSmaInfo->taskInfo[0], pRSmaInfo->iTaskInfo[0]);
-    }
-
-    taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
-    smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma), *pSuid);
-#endif
     }
 
     // unlock

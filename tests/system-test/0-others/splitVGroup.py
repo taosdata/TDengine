@@ -283,12 +283,12 @@ class TDTestCase:
 
         # normal table
 
-        # all rows
-        sql = "select * from @db_name.ta"
-        self.queryDouble(sql)
-
         # count
         sql = "select count(*) from @db_name.ta"
+        self.queryDouble(sql)
+
+        # all rows
+        sql = "select * from @db_name.ta"
         self.queryDouble(sql)
 
         # sum
@@ -316,7 +316,8 @@ class TDTestCase:
         tdSql.execute(sql)
 
         # wait end
-        for i in range(100):
+        seconds = 300
+        for i in range(seconds):
             sql ="show transactions;"
             rows = tdSql.query(sql)
             if rows == 0:
@@ -325,7 +326,7 @@ class TDTestCase:
             #tdLog.info(f"i={i} wait split vgroup ...")
             time.sleep(1)
 
-        tdLog.exit("split vgroup transaction is not finished after executing 50s")
+        tdLog.exit(f"split vgroup transaction is not finished after executing {seconds}s")
         return False
 
     # split error 
@@ -382,6 +383,14 @@ class TDTestCase:
         self.expectSplitError("topicdb")
         tdSql.execute("drop topic toa;")
         self.expectSplitOk("topicdb")
+   
+    # compact and check db2
+    def compactAndCheck(self):
+        tdLog.info("compact db2 and check result ...")
+        # compact
+        tdSql.execute(f"compact database {self.db2};")
+        # check result
+        self.checkResult()
 
     # run
     def run(self):
@@ -390,18 +399,24 @@ class TDTestCase:
 
         for i in range(5):
             # split vgroup on db2
+            start = time.time()
             self.splitVGroup(self.db2)
+            end = time.time()
             self.vgroups2 += 1
-
+            
             # check two db query result same
             self.checkResult()
-            tdLog.info(f"split vgroup i={i} passed.")
+            spend = "%.3f"%(end-start)
+            tdLog.info(f"split vgroup i={i} passed. spend = {spend}s")
 
         # split empty db
         self.splitEmptyDB()
 
         # check topic and stream forib
         self.checkForbid()
+
+        # compact database
+        self.compactAndCheck()
 
     # stop
     def stop(self):

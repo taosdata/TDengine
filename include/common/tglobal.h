@@ -34,6 +34,7 @@ extern char     tsFirst[];
 extern char     tsSecond[];
 extern char     tsLocalFqdn[];
 extern char     tsLocalEp[];
+extern char     tsVersionName[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
@@ -48,6 +49,7 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
+extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
@@ -83,7 +85,13 @@ extern int64_t tsVndCommitMaxIntervalMs;
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
+extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
+
+// dnode
+extern int64_t tsDndStart;
+extern int64_t tsDndStartOsUptime;
+extern int64_t tsDndUpTime;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -185,6 +193,7 @@ extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
+extern int32_t tsKeepTimeOffset;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 
