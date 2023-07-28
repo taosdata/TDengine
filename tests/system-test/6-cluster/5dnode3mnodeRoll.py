@@ -260,27 +260,26 @@ class TDTestCase:
 
         for tr in threads:
             tr.join()
+
+        tdLog.printNoPrefix(f"==========step3:check dnode status ")
         #  wait 10s for  taosd cluster  ready
         sleep(10)
         tdsql=tdCom.newTdSql()
-        print(tdsql)
         tdsql.query("select * from information_schema.ins_dnodes;")
         tdLog.info(tdsql.queryResult)
         tdsql.checkData(2,1,'%s:6230'%self.host)
-        tdSql=tdCom.newTdSql()
-        print(tdSql)
         clusterComCheck.checkDnodes(dnodeNumbers)
 
         tdsql1=tdCom.newTdSql()
-        print(tdsql1)
         tdsql1.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdsql1.queryResult[0][0]
+        tdLog.printNoPrefix(f"==========step4:prepare and check data in new version-{nowServerVersion}")
+
         tdLog.info(f"New server version is {nowServerVersion}")
         tdsql1.query(f"SELECT CLIENT_VERSION();")
         nowClientVersion=tdsql1.queryResult[0][0]
         tdLog.info(f"New client version is {nowClientVersion}")
 
-        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         tdsql1.query(f"select count(*) from {stb}")
         tdsql1.checkData(0,0,tableNumbers1*recordNumbers1)
         tdsql1.query(f"select count(*) from db4096.stb0")

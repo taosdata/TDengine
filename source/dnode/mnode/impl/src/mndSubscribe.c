@@ -1104,6 +1104,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     if (taosHashGetSize(pSub->consumerHash) != 0) {
       sdbRelease(pSdb, pSub);
       terrno = TSDB_CODE_MND_IN_REBALANCE;
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
@@ -1122,12 +1123,14 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         sdbRelease(pSdb, pSub);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }
 
     if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
+      sdbCancelFetch(pSdb, pIter);
       goto END;
     }
 
@@ -1204,7 +1207,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
 
-  mDebug("mnd show subscriptions begin");
+  mInfo("mnd show subscriptions begin");
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
@@ -1244,7 +1247,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     sdbRelease(pSdb, pSub);
   }
 
-  mDebug("mnd end show subscriptions");
+  mInfo("mnd end show subscriptions");
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

@@ -77,7 +77,6 @@ static SClusterObj *mndAcquireCluster(SMnode *pMnode, void **ppIter) {
     if (pIter == NULL) break;
 
     *ppIter = pIter;
-
     return pCluster;
   }
 

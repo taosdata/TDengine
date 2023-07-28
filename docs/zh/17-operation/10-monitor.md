@@ -210,19 +210,6 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### logs 表
-
-`logs` 表记录登录信息。
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|level|VARCHAR||log level|
-|content|NCHAR||log content，长度不超过1024字节|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
 ### log\_summary 表
 
 `log_summary` 记录日志统计信息。

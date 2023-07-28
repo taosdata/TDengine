@@ -232,6 +232,7 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);

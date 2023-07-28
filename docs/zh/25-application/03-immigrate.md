@@ -371,7 +371,7 @@ Select min(val) from table_name
 等效函数：sum
 
 ```sql
-Select max(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s)
+Select sum(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s)
 ```
 
 备注：该函数无插值需求，因此可用直接计算。
