@@ -260,7 +260,7 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
   taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
 }
 
-int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
+int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                          SSnapContext** ctxRet) {
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
   if (ctx == NULL) return -1;
@@ -476,7 +476,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     if (ctx->index >= taosArrayGetSize(ctx->idList)) {
       metaDebug("tmqsnap get meta end");
       ctx->index = 0;
-      ctx->queryMeta = false;  // change to get data
+      ctx->queryMeta = 0;  // change to get data
       return 0;
     }
 

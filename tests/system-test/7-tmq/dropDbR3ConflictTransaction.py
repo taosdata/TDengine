@@ -106,7 +106,6 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
-        tdSql.execute("alter database dbt wal_retention_period 3600")
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s  where t4 == 'beijing' or t4 == 'changsha' "%(paraDict['dbName'], paraDict['stbName'])

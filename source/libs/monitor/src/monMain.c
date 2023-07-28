@@ -468,9 +468,6 @@ static void monGenLogJson(SMonInfo *pMonitor) {
     return;
   }
 
-  SJson *pLogsJson = tjsonAddArrayToObject(pJson, "logs");
-  if (pLogsJson == NULL) return;
-
   SMonLogs *logs[6];
   logs[0] = &pMonitor->log;
   logs[1] = &pMonitor->mmInfo.log;
@@ -490,22 +487,6 @@ static void monGenLogJson(SMonInfo *pMonitor) {
     numOfInfoLogs += pLog->numOfInfoLogs;
     numOfDebugLogs += pLog->numOfDebugLogs;
     numOfTraceLogs += pLog->numOfTraceLogs;
-
-    for (int32_t i = 0; i < taosArrayGetSize(pLog->logs); ++i) {
-      SJson *pLogJson = tjsonCreateObject();
-      if (pLogJson == NULL) continue;
-
-      SMonLogItem *pLogItem = taosArrayGet(pLog->logs, i);
-
-      char buf[40] = {0};
-      taosFormatUtcTime(buf, sizeof(buf), pLogItem->ts, TSDB_TIME_PRECISION_MILLI);
-
-      tjsonAddStringToObject(pLogJson, "ts", buf);
-      tjsonAddStringToObject(pLogJson, "level", monLogLevelStr(pLogItem->level));
-      tjsonAddStringToObject(pLogJson, "content", pLogItem->content);
-
-      if (tjsonAddItemToArray(pLogsJson, pLogJson) != 0) tjsonDelete(pLogJson);
-    }
   }
 
   SJson *pSummaryJson = tjsonAddArrayToObject(pJson, "summary");

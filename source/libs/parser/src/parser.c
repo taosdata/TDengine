@@ -227,6 +227,8 @@ int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pRes
     case QUERY_NODE_CREATE_STREAM_STMT:
       code = translatePostCreateStream(pCxt, pQuery, pResRow);
       break;
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      code = translatePostCreateSmaIndex(pCxt, pQuery, pResRow);
     default:
       break;
   }
