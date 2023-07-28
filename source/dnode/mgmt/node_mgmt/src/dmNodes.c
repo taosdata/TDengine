@@ -41,7 +41,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     pWrapper->pMgmt = output.pMgmt;
   }
 
-  dmReportStartup(pWrapper->name, "openned");
+  dmReportStartup(pWrapper->name, "opened");
   return 0;
 }
 
@@ -159,7 +159,7 @@ int32_t dmRunDnode(SDnode *pDnode) {
     } else {
       count++;
     }
-    
+
     taosMsleep(100);
   }
 }

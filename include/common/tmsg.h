@@ -1144,6 +1144,7 @@ typedef struct {
   char    timezone[TD_TIMEZONE_LEN];  // tsTimezone
   char    locale[TD_LOCALE_LEN];      // tsLocale
   char    charset[TD_LOCALE_LEN];     // tsCharset
+  int8_t  ttlChangeOnWrite;
 } SClusterCfg;
 
 typedef struct {
@@ -1180,6 +1181,8 @@ typedef struct {
 typedef struct {
   int8_t syncState;
   int8_t syncRestore;
+  int64_t syncTerm;
+  int64_t roleTimeMs;
 } SMnodeLoad;
 
 typedef struct {
@@ -3379,6 +3382,12 @@ typedef struct {
   int8_t reserved;
 } SMqHbRsp;
 
+typedef struct {
+  SMsgHead     head;
+  int64_t consumerId;
+  char subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} SMqSeekReq;
+
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -3508,6 +3517,8 @@ int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeatroySMqHbReq(SMqHbReq* pReq);
 
+int32_t tSerializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq);
+int32_t tDeserializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq);
 
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2

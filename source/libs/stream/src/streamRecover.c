@@ -62,7 +62,9 @@ const char* streamGetTaskStatusStr(int32_t status) {
 
 static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
   SVersionRange* pRange = &pTask->dataRange.range;
-  streamSetParamForScanHistory(pTask);
+  if (pTask->info.fillHistory) {
+    streamSetParamForScanHistory(pTask);
+  }
   streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
 
   int32_t code = streamStartRecoverTask(pTask, 0);
@@ -80,8 +82,10 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
              walReaderGetCurrentVer(pTask->exec.pWalReader));
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
+    if (pTask->info.fillHistory) {
+      streamSetParamForScanHistory(pTask);
+    }
     streamTaskEnablePause(pTask);
-    streamSetParamForScanHistory(pTask);
     streamTaskScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     qDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
@@ -435,7 +439,7 @@ int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask) {
 
 int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
-  if (qRestoreStreamOperatorOption(exec) < 0) {
+  if (pTask->info.fillHistory && qRestoreStreamOperatorOption(exec) < 0) {
     return -1;
   }
 
@@ -626,9 +630,12 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   }
 
   // restore param
-  int32_t code = streamRestoreParam(pTask);
-  if (code < 0) {
-    return -1;
+  int32_t code = 0;
+  if (pTask->info.fillHistory) {
+    code = streamRestoreParam(pTask);
+    if (code < 0) {
+      return -1;
+    }
   }
 
   // dispatch recover finish req to all related downstream task

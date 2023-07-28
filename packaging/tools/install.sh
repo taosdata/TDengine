@@ -613,12 +613,6 @@ function install_examples() {
   fi
 }
 
-function install_web() {
-  if [ -d "${script_dir}/share" ]; then
-    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share > /dev/null 2>&1 ||:
-  fi
-}
-
 
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep ${serverName2} &>/dev/null; then
@@ -894,7 +888,6 @@ function updateProduct() {
   fi
 
   install_examples
-  install_web
   if [ -z $1 ]; then
     install_bin
     install_service
@@ -907,20 +900,22 @@ function updateProduct() {
     echo
     echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile2}"
     [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
+      echo -e "${GREEN_DARK}To configure ${clientName2}Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName2}${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName2} start${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
     else
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName2}${NC}"
       [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${clientName2}adapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter &${NC}"
     fi
+    
+    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper &${NC}"
 
     if [ ${openresty_work} = 'true' ]; then
       echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
@@ -934,6 +929,7 @@ function updateProduct() {
     fi
     echo
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
+    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
   else
     install_bin
     install_config
@@ -971,8 +967,7 @@ function installProduct() {
   if [ "$verMode" == "cluster" ]; then
       install_connector
   fi
-  install_examples
-  install_web
+  install_examples  
 
   if [ -z $1 ]; then # install service and client
     # For installing new
@@ -989,20 +984,22 @@ function installProduct() {
     echo
     echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile2}"
     [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
+      echo -e "${GREEN_DARK}To configure ${clientName2}Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName2}${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName2} start${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
     else
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${serverName2}${NC}"
       [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${clientName2}adapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter &${NC}"
     fi
+
+    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper &${NC}"
 
     if [ ! -z "$firstEp" ]; then
       tmpFqdn=${firstEp%%:*}
@@ -1025,6 +1022,7 @@ function installProduct() {
     fi
 
     echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
+    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
     echo
   else # Only install client
     install_bin

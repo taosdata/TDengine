@@ -597,7 +597,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   for (int32_t i = 0; i < consumerNum; i++) {
     int64_t         consumerId = *(int64_t *)taosArrayGet(pOutput->modifyConsumers, i);
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    pConsumerNew->updateType = CONSUMER_UPDATE_REB_MODIFY_NOTOPIC;
+    pConsumerNew->updateType = CONSUMER_UPDATE_REB;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       tDeleteSMqConsumerObj(pConsumerNew, true);
 
@@ -613,7 +613,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   for (int32_t i = 0; i < consumerNum; i++) {
     int64_t consumerId = *(int64_t *)taosArrayGet(pOutput->newConsumers, i);
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    pConsumerNew->updateType = CONSUMER_UPDATE_REB_MODIFY_TOPIC;
+    pConsumerNew->updateType = CONSUMER_ADD_REB;
 
     char* topicTmp = taosStrdup(topic);
     taosArrayPush(pConsumerNew->rebNewTopics, &topicTmp);
@@ -633,7 +633,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     int64_t consumerId = *(int64_t *)taosArrayGet(pOutput->removedConsumers, i);
 
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    pConsumerNew->updateType = CONSUMER_UPDATE_REB_MODIFY_REMOVE;
+    pConsumerNew->updateType = CONSUMER_REMOVE_REB;
 
     char* topicTmp = taosStrdup(topic);
     taosArrayPush(pConsumerNew->rebRemovedTopics, &topicTmp);
@@ -1104,6 +1104,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     if (taosHashGetSize(pSub->consumerHash) != 0) {
       sdbRelease(pSdb, pSub);
       terrno = TSDB_CODE_MND_IN_REBALANCE;
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
@@ -1122,12 +1123,14 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         sdbRelease(pSdb, pSub);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }
 
     if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
+      sdbCancelFetch(pSdb, pIter);
       goto END;
     }
 
@@ -1204,7 +1207,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
 
-  mDebug("mnd show subscriptions begin");
+  mInfo("mnd show subscriptions begin");
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
@@ -1244,7 +1247,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     sdbRelease(pSdb, pSub);
   }
 
-  mDebug("mnd end show subscriptions");
+  mInfo("mnd end show subscriptions");
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

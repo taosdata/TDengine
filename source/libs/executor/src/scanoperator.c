@@ -1642,12 +1642,13 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
 
     pTSInfo->base.dataReader = NULL;
-    qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
-    if (pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
+    int64_t validVer = pTaskInfo->streamInfo.snapshotVer + 1;
+    qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", validVer);
+    if (pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str) < 0) {
       return NULL;
     }
 
-    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pTaskInfo->streamInfo.snapshotVer);
+    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, validVer);
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
@@ -1658,8 +1659,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       SSDataBlock* pRes = pAPI->tqReaderFn.tqGetResultBlock(pInfo->tqReader);
       struct SWalReader* pWalReader = pAPI->tqReaderFn.tqReaderGetWalReader(pInfo->tqReader);
 
-      // curVersion move to next, so currentOffset = curVersion - 1
-      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion - 1);
+      // curVersion move to next
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
 
       if (hasResult) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
@@ -2262,7 +2263,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     STqOffsetVal   offset = {0};
     if (mtInfo.uid == 0 || pInfo->sContext->withMeta == ONLY_META) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
-      tqOffsetResetToLog(&offset, pInfo->sContext->snapVersion);
+      tqOffsetResetToLog(&offset, pInfo->sContext->snapVersion + 1);
     } else {
       tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
@@ -2778,7 +2779,7 @@ _error:
   return NULL;
 }
 
-static SSDataBlock* getTableDataBlockImpl(void* param) {
+static SSDataBlock* getBlockForTableMergeScan(void* param) {
   STableMergeScanSortSourceParam* source = param;
   SOperatorInfo*                  pOperator = source->pOperator;
   STableMergeScanInfo*            pInfo = pOperator->info;
@@ -2796,6 +2797,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
     if (code != 0) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+      qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -2804,8 +2806,9 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     }
 
     if (isTaskKilled(pTaskInfo)) {
+      qInfo("table merge scan fetch next data block found task killed. %s", GET_TASKID(pTaskInfo));
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      break;
     }
 
     // process this data block based on the probabilities
@@ -2818,6 +2821,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
     //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
+      qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -2908,7 +2912,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
                                           
     tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
   }
-  tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlockImpl, NULL, NULL);
+
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
 
   // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;

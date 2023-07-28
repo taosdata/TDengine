@@ -99,13 +99,20 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
+  int updateEpSet = 1;
   if (connectRsp.dnodeNum == 1) {
     SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
     SEpSet dstEpSet = connectRsp.epSet;
-    rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
-                      dstEpSet.eps[dstEpSet.inUse].fqdn);
-  } else if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
-    SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+    if (srcEpSet.numOfEps == 1) {
+      rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
+                        dstEpSet.eps[dstEpSet.inUse].fqdn);
+      updateEpSet = 0;
+    }
+  }
+  if (updateEpSet == 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+    SEpSet corEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+    SEpSet* pOrig = &corEpSet;
     SEp*    pOrigEp = &pOrig->eps[pOrig->inUse];
     SEp*    pNewEp = &connectRsp.epSet.eps[connectRsp.epSet.inUse];
     tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in connRsp", pOrig->inUse, pOrig->numOfEps,

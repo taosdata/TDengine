@@ -168,6 +168,7 @@ SSnodeObj* mndSchedFetchOneSnode(SMnode* pMnode) {
   void*      pIter = NULL;
   // TODO random fetch
   pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void**)&pObj);
+  sdbCancelFetch(pMnode->pSdb, pIter);
   return pObj;
 }
 
@@ -199,6 +200,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
       sdbRelease(pMnode->pSdb, pVgroup);
       continue;
     }
+    sdbCancelFetch(pMnode->pSdb, pIter);
     return pVgroup;
   }
   return pVgroup;
