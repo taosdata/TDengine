@@ -1688,9 +1688,9 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   // filter the block extracted from WAL files, according to the time window apply additional time window filter
   doBlockDataWindowFilter(pInfo->pRes, pInfo->primaryTsIndex, pTimeWindow, id);
-  blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   pInfo->pRes->info.dataLoad = 1;
 
+  blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   if (pInfo->pRes->info.rows == 0) {
     return 0;
   }
