@@ -346,9 +346,9 @@ int32_t sndProcessStreamTaskCheckReq(SSnode *pSnode, SRpcMsg *pMsg) {
     rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
 
-    qDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%s, rsp status %d",
-            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId,
-            streamGetTaskStatusStr(pTask->status.taskStatus), rsp.status);
+    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+    qDebug("s-task:%s status:%s, recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+            pTask->id.idStr, pStatus, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
     qDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64
