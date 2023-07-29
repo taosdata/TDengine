@@ -379,7 +379,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return -1;
     }
 
-    qDebug("s-task:%s data block enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
+    qDebug("s-task:%s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr, total, size);
     int32_t code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamDataBlock((SStreamDataBlock*) pItem);
