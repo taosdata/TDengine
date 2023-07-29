@@ -211,7 +211,7 @@ int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
 
 static void checkForFillHistoryVerRange(SStreamTask* pTask, int64_t ver) {
   if ((pTask->info.fillHistory == 1) && ver > pTask->dataRange.range.maxVer) {
-    qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 "reach the maximum ver:%" PRId64
+    qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64
           ", not scan wal anymore, set the transfer state flag",
           pTask->id.idStr, ver, pTask->dataRange.range.maxVer);
     pTask->status.transferState = true;
@@ -256,14 +256,15 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__SCAN_HISTORY_WAL) {
+    if (status != TASK_STATUS__NORMAL/* && status != TASK_STATUS__SCAN_HISTORY_WAL*/) {
       tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
     if ((pTask->info.fillHistory == 1) && pTask->status.transferState) {
-      ASSERT(status == TASK_STATUS__SCAN_HISTORY_WAL);
+//      ASSERT(status == TASK_STATUS__SCAN_HISTORY_WAL);
+      ASSERT(status == TASK_STATUS__NORMAL);
       // the maximum version of data in the WAL has reached already, the step2 is done
       tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
