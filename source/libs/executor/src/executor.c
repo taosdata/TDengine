@@ -341,6 +341,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
     return NULL;
   }
 
+  qResetStreamInfoTimeWindow(pTaskInfo);
   return pTaskInfo;
 }
 
