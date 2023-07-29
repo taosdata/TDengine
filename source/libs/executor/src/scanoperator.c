@@ -2121,8 +2121,7 @@ FETCH_NEXT_BLOCK:
       return pInfo->pUpdateRes;
     }
 
-    SSDataBlock*    pBlock = pInfo->pRes;
-    SDataBlockInfo* pBlockInfo = &pBlock->info;
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
     int32_t         totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
 
   NEXT_SUBMIT_BLK:
@@ -2146,35 +2145,36 @@ FETCH_NEXT_BLOCK:
         }
       }
 
-      blockDataCleanup(pBlock);
+      blockDataCleanup(pInfo->pRes);
 
       while (pAPI->tqReaderFn.tqNextBlockImpl(pInfo->tqReader, id)) {
         SSDataBlock* pRes = NULL;
 
         int32_t code = pAPI->tqReaderFn.tqRetrieveBlock(pInfo->tqReader, &pRes, id);
-        qDebug("retrieve data from submit completed code:%s, rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows,
-               id);
+        qDebug("retrieve data from submit completed code:%s rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows, id);
 
         if (code != TSDB_CODE_SUCCESS || pRes->info.rows == 0) {
           qDebug("retrieve data failed, try next block in submit block, %s", id);
           continue;
         }
 
-        setBlockIntoRes(pInfo, pRes, false);
+        // filter the block extracted from WAL files, according to the time window
+        // apply additional time window filter
+        doBlockDataWindowFilter(pRes, pInfo->primaryTsIndex, &pStreamInfo->fillHistoryWindow, id);
+        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+        if (pRes->info.rows == 0) {
+          continue;
+        }
 
+        setBlockIntoRes(pInfo, pRes, false);
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
           qDebug("create table res exists, rows:%"PRId64" return from stream scan, %s", pInfo->pCreateTbRes->info.rows, id);
           return pInfo->pCreateTbRes;
         }
 
-        // apply additional time window filter
-        doBlockDataWindowFilter(pBlock, pInfo->primaryTsIndex, &pStreamInfo->fillHistoryWindow, id);
-        pBlock->info.dataLoad = 1;
-        blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
-
-        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
-        doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
+        doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
         int64_t numOfUpdateRes = pInfo->pUpdateDataRes->info.rows;
         qDebug("%s %" PRId64 " rows in datablock, update res:%" PRId64, id, pBlockInfo->rows, numOfUpdateRes);
@@ -2196,7 +2196,7 @@ FETCH_NEXT_BLOCK:
 
     qDebug("stream scan completed, and return source rows:%" PRId64", %s", pBlockInfo->rows, id);
     if (pBlockInfo->rows > 0) {
-      return pBlock;
+      return pInfo->pRes;
     }
 
     if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -2779,7 +2779,7 @@ _error:
   return NULL;
 }
 
-static SSDataBlock* getTableDataBlockImpl(void* param) {
+static SSDataBlock* getBlockForTableMergeScan(void* param) {
   STableMergeScanSortSourceParam* source = param;
   SOperatorInfo*                  pOperator = source->pOperator;
   STableMergeScanInfo*            pInfo = pOperator->info;
@@ -2797,6 +2797,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
     if (code != 0) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+      qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -2805,8 +2806,9 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     }
 
     if (isTaskKilled(pTaskInfo)) {
+      qInfo("table merge scan fetch next data block found task killed. %s", GET_TASKID(pTaskInfo));
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      break;
     }
 
     // process this data block based on the probabilities
@@ -2819,6 +2821,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
     //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
+      qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
@@ -2909,7 +2912,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
                                           
     tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
   }
-  tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlockImpl, NULL, NULL);
+
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
 
   // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
