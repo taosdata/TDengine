@@ -1563,8 +1563,6 @@ static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeW
       ASSERT(pCol->pData != NULL);
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         int64_t* ts = (int64_t*)colDataGetData(pCol, i);
-        printf("-------------------%"PRId64"\n", *ts);
-
         p[i] = (*ts >= pWindow->skey);
 
         if (!p[i]) {
