@@ -172,6 +172,12 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
   bool finished = false;
 
   while (1) {
+    if (streamTaskShouldPause(&pTask->status)) {
+      double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
+      qDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
+      return 0;
+    }
+
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
     if (pRes == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -404,6 +410,8 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
+  // clear the link between fill-history task and stream task info
+  pStreamTask->historyTaskId.taskId = 0;
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
@@ -414,6 +422,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   // save to disk
   taosWLockLatch(&pMeta->lock);
+
   streamMetaSaveTask(pMeta, pStreamTask);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
@@ -615,7 +624,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
     // todo the task should be commit here
     if (taosQueueEmpty(pTask->inputQueue->queue)) {
       // fill-history WAL scan has completed
-      if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY_WAL && pTask->status.transferState == true) {
+      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && pTask->status.transferState == true) {
         streamTaskRecoverSetAllStepFinished(pTask);
         streamTaskEndScanWAL(pTask);
       } else {
