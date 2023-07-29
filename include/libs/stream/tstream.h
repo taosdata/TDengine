@@ -299,6 +299,12 @@ typedef struct {
   SStreamQueue* queue;
 } STaskOutputInfo;
 
+typedef struct {
+  int64_t init;
+  int64_t step1Start;
+  int64_t step2Start;
+} STaskTimestamp;
+
 struct SStreamTask {
   SStreamId        id;
   SSTaskBasicInfo  info;
@@ -312,10 +318,10 @@ struct SStreamTask {
   SStreamId        streamTaskId;
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
-  int64_t          initTs;
-  SArray*          pUpstreamInfoList;  // SArray<SStreamChildEpInfo*>, // children info
+  STaskTimestamp   tsInfo;
   SArray*          pReadyMsgList;      // SArray<SStreamChkptReadyInfo*>
   TdThreadMutex    lock;               // secure the operation of set task status and puting data into inputQ
+  SArray*          pUpstreamInfoList;
 
   // output
   union {
@@ -588,6 +594,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
+int32_t streamTaskEndScanWAL(SStreamTask* pTask);
 
 void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
@@ -605,9 +612,8 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
-//void    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask);
+bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 int32_t streamTaskGetInputQItems(const SStreamTask* pTask);
-void    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 
 bool    streamTaskRecoverScanStep1Finished(SStreamTask* pTask);
 bool    streamTaskRecoverScanStep2Finished(SStreamTask* pTask);
@@ -644,13 +650,15 @@ void         streamMetaInit();
 void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
+
+// save to b-tree meta store
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
-int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t checkpointVer, char* msg, int32_t msgLen);
-int32_t      streamMetaGetNumOfTasks(const SStreamMeta* pMeta);  // todo remove it
+int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);
+int32_t      streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);   // todo remove it
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
-void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

@@ -83,9 +83,9 @@ void tqDestroyTqHandle(void* data) {
   }
 }
 
-static bool tqOffsetLessOrEqual(const STqOffset* pLeft, const STqOffset* pRight) {
+static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
   return pLeft->val.type == TMQ_OFFSET__LOG && pRight->val.type == TMQ_OFFSET__LOG &&
-         pLeft->val.version <= pRight->val.version;
+         pLeft->val.version == pRight->val.version;
 }
 
 STQ* tqOpen(const char* path, SVnode* pVnode) {
@@ -335,22 +335,19 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   STqOffset* pOffset = &vgOffset.offset;
 
   if (pOffset->val.type == TMQ_OFFSET__SNAPSHOT_DATA || pOffset->val.type == TMQ_OFFSET__SNAPSHOT_META) {
-    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:snapshot) uid:%" PRId64 ", ts:%" PRId64,
+    tqInfo("receive offset commit msg to %s on vgId:%d, offset(type:snapshot) uid:%" PRId64 ", ts:%" PRId64,
             pOffset->subKey, vgId, pOffset->val.uid, pOffset->val.ts);
   } else if (pOffset->val.type == TMQ_OFFSET__LOG) {
-    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, pOffset->subKey, vgId,
+    tqInfo("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, pOffset->subKey, vgId,
             pOffset->val.version);
-    if (pOffset->val.version + 1 == sversion) {
-      pOffset->val.version += 1;
-    }
   } else {
     tqError("invalid commit offset type:%d", pOffset->val.type);
     return -1;
   }
 
   STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
-  if (pSavedOffset != NULL && tqOffsetLessOrEqual(pOffset, pSavedOffset)) {
-    tqDebug("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
+  if (pSavedOffset != NULL && tqOffsetEqual(pOffset, pSavedOffset)) {
+    tqInfo("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
             vgId, pOffset->subKey, pOffset->val.version, pSavedOffset->val.version);
     return 0;  // no need to update the offset value
   }
@@ -363,86 +360,124 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   return 0;
 }
 
-int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  SMqVgOffset vgOffset = {0};
+int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
+  SMqSeekReq  req = {0};
   int32_t     vgId = TD_VID(pTq->pVnode);
+  SRpcMsg     rsp = {.info = pMsg->info};
+  int         code = 0;
 
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
-    tqError("vgId:%d failed to decode seek msg", vgId);
-    return -1;
+  tqDebug("tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s", req.consumerId, vgId, req.subKey);
+  if (tDeserializeSMqSeekReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
   }
 
-  tDecoderClear(&decoder);
-
-  tqDebug("topic:%s, vgId:%d process offset seek by consumer:0x%" PRIx64 ", req offset:%" PRId64,
-          vgOffset.offset.subKey, vgId, vgOffset.consumerId, vgOffset.offset.val.version);
-
-  STqOffset* pOffset = &vgOffset.offset;
-  if (pOffset->val.type != TMQ_OFFSET__LOG) {
-    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, pOffset->subKey, pOffset->val.type);
-    return -1;
-  }
-
-  STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
-    tqError("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", vgOffset.consumerId, vgId, pOffset->subKey);
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    tqWarn("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", req.consumerId, vgId, req.subKey);
+    code = 0;
+    goto end;
   }
 
   // 2. check consumer-vg assignment status
   taosRLockLatch(&pTq->lock);
-  if (pHandle->consumerId != vgOffset.consumerId) {
-    tqDebug("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            vgOffset.consumerId, vgId, pOffset->subKey, pHandle->consumerId);
-    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+  if (pHandle->consumerId != req.consumerId) {
+    tqError("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            req.consumerId, vgId, req.subKey, pHandle->consumerId);
     taosRUnLockLatch(&pTq->lock);
-    return -1;
+    code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    goto end;
   }
+
+  //if consumer register to push manager, push empty to consumer to change vg status from TMQ_VG_STATUS__WAIT to TMQ_VG_STATUS__IDLE,
+  //otherwise poll data failed after seek.
+  tqUnregisterPushHandle(pTq, pHandle);
   taosRUnLockLatch(&pTq->lock);
 
-  // 3. check the offset info
-  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
-  if (pSavedOffset != NULL) {
-    if (pSavedOffset->val.type != TMQ_OFFSET__LOG) {
-      tqError("invalid saved offset type, vgId:%d sub:%s", vgId, pOffset->subKey);
-      return 0;  // no need to update the offset value
-    }
-
-    if (pSavedOffset->val.version == pOffset->val.version) {
-      tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey,
-              pOffset->val.version, pSavedOffset->val.version);
-      return 0;
-    }
-  }
-
-  int64_t sver = 0, ever = 0;
-  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
-  if (pOffset->val.version < sver) {
-    pOffset->val.version = sver;
-  } else if (pOffset->val.version > ever) {
-    pOffset->val.version = ever;
-  }
-
-  // save the new offset value
-  if (pSavedOffset != NULL) {
-    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
-            pSavedOffset->val.version);
-  } else {
-    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " not saved yet", vgId, pOffset->subKey, pOffset->val.version);
-  }
-
-  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
-    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);
-    return -1;
-  }
-
-  tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
-          vgOffset.consumerId, vgOffset.offset.val.version);
-
+end:
+  rsp.code = code;
+  tmsgSendRsp(&rsp);
   return 0;
+
+//  SMqVgOffset vgOffset = {0};
+//  int32_t     vgId = TD_VID(pTq->pVnode);
+//
+//  SDecoder decoder;
+//  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+//  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
+//    tqError("vgId:%d failed to decode seek msg", vgId);
+//    return -1;
+//  }
+//
+//  tDecoderClear(&decoder);
+//
+//  tqDebug("topic:%s, vgId:%d process offset seek by consumer:0x%" PRIx64 ", req offset:%" PRId64,
+//          vgOffset.offset.subKey, vgId, vgOffset.consumerId, vgOffset.offset.val.version);
+//
+//  STqOffset* pOffset = &vgOffset.offset;
+//  if (pOffset->val.type != TMQ_OFFSET__LOG) {
+//    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, pOffset->subKey, pOffset->val.type);
+//    return -1;
+//  }
+//
+//  STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
+//  if (pHandle == NULL) {
+//    tqError("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", vgOffset.consumerId, vgId, pOffset->subKey);
+//    terrno = TSDB_CODE_INVALID_MSG;
+//    return -1;
+//  }
+//
+//  // 2. check consumer-vg assignment status
+//  taosRLockLatch(&pTq->lock);
+//  if (pHandle->consumerId != vgOffset.consumerId) {
+//    tqDebug("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+//            vgOffset.consumerId, vgId, pOffset->subKey, pHandle->consumerId);
+//    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+//    taosRUnLockLatch(&pTq->lock);
+//    return -1;
+//  }
+//  taosRUnLockLatch(&pTq->lock);
+//
+//  // 3. check the offset info
+//  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+//  if (pSavedOffset != NULL) {
+//    if (pSavedOffset->val.type != TMQ_OFFSET__LOG) {
+//      tqError("invalid saved offset type, vgId:%d sub:%s", vgId, pOffset->subKey);
+//      return 0;  // no need to update the offset value
+//    }
+//
+//    if (pSavedOffset->val.version == pOffset->val.version) {
+//      tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey,
+//              pOffset->val.version, pSavedOffset->val.version);
+//      return 0;
+//    }
+//  }
+//
+//  int64_t sver = 0, ever = 0;
+//  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+//  if (pOffset->val.version < sver) {
+//    pOffset->val.version = sver;
+//  } else if (pOffset->val.version > ever) {
+//    pOffset->val.version = ever;
+//  }
+//
+//  // save the new offset value
+//  if (pSavedOffset != NULL) {
+//    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
+//            pSavedOffset->val.version);
+//  } else {
+//    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " not saved yet", vgId, pOffset->subKey, pOffset->val.version);
+//  }
+//
+//  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
+//    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);
+//    return -1;
+//  }
+//
+//  tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
+//          vgOffset.consumerId, vgOffset.offset.val.version);
+//
+//  return 0;
 }
 
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
@@ -576,6 +611,49 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
+int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
+  void* data = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t len = pMsg->contLen - sizeof(SMsgHead);
+
+  SMqVgOffset vgOffset = {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)data, len);
+  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tDecoderClear(&decoder);
+
+  STqOffset* pOffset = &vgOffset.offset;
+  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+  if (pSavedOffset == NULL) {
+    return TSDB_CODE_TMQ_NO_COMMITTED;
+  }
+  vgOffset.offset = *pSavedOffset;
+
+  int32_t code = 0;
+  tEncodeSize(tEncodeMqVgOffset, &vgOffset, len, code);
+  if (code < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  void* buf = rpcMallocCont(len);
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, len);
+  tEncodeMqVgOffset(&encoder, &vgOffset);
+  tEncoderClear(&encoder);
+
+  SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = len, .code = 0};
+
+  tmsgSendRsp(&rsp);
+
+  return 0;
+}
+
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqPollReq req = {0};
   if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
@@ -661,7 +739,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
   int32_t        vgId = TD_VID(pTq->pVnode);
 
-  tqDebug("vgId:%d, tq process delete sub req %s", vgId, pReq->subKey);
+  tqInfo("vgId:%d, tq process delete sub req %s", vgId, pReq->subKey);
   int32_t code = 0;
 
   taosWLockLatch(&pTq->lock);
@@ -742,7 +820,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     return -1;
   }
 
-  tqDebug("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+  tqInfo("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
           req.oldConsumerId, req.newConsumerId);
 
   STqHandle* pHandle = NULL;
@@ -820,7 +898,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     return -1;
   }
 
-  pTask->initTs = taosGetTimestampMs();
+  pTask->tsInfo.init = taosGetTimestampMs();
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
@@ -979,9 +1057,9 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
-    tqDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%s, rsp status %d",
-            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId,
-            streamGetTaskStatusStr(pTask->status.taskStatus), rsp.status);
+    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+    tqDebug("s-task:%s status:%s, recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+            pTask->id.idStr, pStatus, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
     tqDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64
@@ -1055,26 +1133,35 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SStreamMeta* pStreamMeta = pTq->pStreamMeta;
 
   // 2.save task, use the newest commit version as the initial start version of stream task.
-  int32_t taskId = 0;
-  taosWLockLatch(&pStreamMeta->lock);
-  code = streamMetaAddDeployedTask(pStreamMeta, sversion, pTask);
+  int32_t taskId = pTask->id.taskId;
+  bool    added = false;
 
-  taskId = pTask->id.taskId;
+  taosWLockLatch(&pStreamMeta->lock);
+  code = streamMetaRegisterTask(pStreamMeta, sversion, pTask, &added);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
+
   if (code < 0) {
-    tqError("vgId:%d failed to add s-task:%s, total:%d", vgId, pTask->id.idStr, numOfTasks);
+    tqError("vgId:%d failed to add s-task:0x%x, total:%d", vgId, pTask->id.taskId, numOfTasks);
+    tFreeStreamTask(pTask);
     taosWUnLockLatch(&pStreamMeta->lock);
     return -1;
   }
 
+  // not added into meta store
+  if (!added) {
+    tqWarn("vgId:%d failed to add s-task:0x%x, already exists in meta store", vgId, taskId);
+    tFreeStreamTask(pTask);
+    pTask = NULL;
+  }
+
   taosWUnLockLatch(&pStreamMeta->lock);
-  tqDebug("vgId:%d s-task:%s is deployed and add into meta, status:%s, numOfTasks:%d", vgId, pTask->id.idStr,
-          streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
+
+  tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
 
   // 3. It's an fill history task, do nothing. wait for the main task to start it
   SStreamTask* p = streamMetaAcquireTask(pStreamMeta, taskId);
-  if (p != NULL) {
-    streamTaskCheckDownstreamTasks(pTask);
+  if (p != NULL) { // reset the downstreamReady flag.
+    streamTaskCheckDownstreamTasks(p);
   }
 
   streamMetaReleaseTask(pStreamMeta, p);
@@ -1082,12 +1169,10 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 }
 
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  char*   msg = pMsg->pCont;
-
+  SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
   SStreamMeta*           pMeta = pTq->pStreamMeta;
-  SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)msg;
 
+  int32_t      code = TSDB_CODE_SUCCESS;
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to acquire stream task:0x%x during stream recover, task may have been destroyed",
@@ -1095,12 +1180,20 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  // do recovery step 1
+  // do recovery step1
   const char* id = pTask->id.idStr;
   const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-  tqDebug("s-task:%s start history data scan stage(step 1), status:%s", id, pStatus);
+  tqDebug("s-task:%s start scan-history stage(step 1), status:%s", id, pStatus);
 
-  int64_t st = taosGetTimestampMs();
+  if (pTask->tsInfo.step1Start == 0) {
+    ASSERT(pTask->status.pauseAllowed == false);
+    pTask->tsInfo.step1Start = taosGetTimestampMs();
+    if (pTask->info.fillHistory == 1) {
+      streamTaskEnablePause(pTask);
+    }
+  } else {
+    tqDebug("s-task:%s resume from paused, start ts:%"PRId64, pTask->id.idStr, pTask->tsInfo.step1Start);
+  }
 
   // we have to continue retrying to successfully execute the scan history task.
   int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
@@ -1113,114 +1206,100 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  ASSERT(pTask->status.pauseAllowed == false);
-
   if (pTask->info.fillHistory == 1) {
-    streamTaskEnablePause(pTask);
+    ASSERT(pTask->status.pauseAllowed == true);
   }
 
-  if (!streamTaskRecoverScanStep1Finished(pTask)) {
-    streamSourceScanHistoryData(pTask);
-  }
-
-  // disable the pause when handling the step2 scan of tsdb data.
-  // the whole next procedure cann't be stopped.
-  // todo fix it: the following procedure should be executed completed and then shutdown when trying to close vnode.
-  if (pTask->info.fillHistory == 1) {
-    streamTaskDisablePause(pTask);
-  }
-
-  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
-    tqDebug("s-task:%s is dropped or paused, abort recover in step1", id);
+  streamSourceScanHistoryData(pTask);
+  if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+    double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
+    tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el,
+            TASK_SCHED_STATUS__INACTIVE);
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", id, el);
+  // the following procedure should be executed, no matter status is stop/pause or not
+  double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
+  tqDebug("s-task:%s scan-history stage(step 1) ended, elapsed time:%.2fs", id, el);
 
   if (pTask->info.fillHistory) {
     SVersionRange* pRange = NULL;
     SStreamTask*   pStreamTask = NULL;
+    bool           done = false;
 
-    if (!pReq->igUntreated && !streamTaskRecoverScanStep1Finished(pTask)) {
-      // 1. stop the related stream task, get the current scan wal version of stream task, ver.
-      pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
-      if (pStreamTask == NULL) {
-        qError("failed to find s-task:0x%x, it may have been destroyed, drop fill-history task:%s",
-               pTask->streamTaskId.taskId, pTask->id.idStr);
+    // 1. get the related stream task
+    pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
+    if (pStreamTask == NULL) {
+      // todo delete this task, if the related stream task is dropped
+      qError("failed to find s-task:0x%x, it may have been destroyed, drop fill-history task:%s",
+             pTask->streamTaskId.taskId, pTask->id.idStr);
 
-        pTask->status.taskStatus = TASK_STATUS__DROPPING;
-        tqDebug("s-task:%s scan-history-task set status to be dropping", id);
+      tqDebug("s-task:%s fill-history task set status to be dropping", id);
 
-        streamMetaSaveTask(pMeta, pTask);
-        streamMetaReleaseTask(pMeta, pTask);
-        return -1;
-      }
-
-      ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
-      // stream task in TASK_STATUS__SCAN_HISTORY can not be paused.
-      // wait for the stream task get ready for scan history data
-      while (pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-        tqDebug(
-            "s-task:%s level:%d related stream task:%s(status:%s) not ready for halt, wait for it and recheck in 100ms",
-            id, pTask->info.taskLevel, pStreamTask->id.idStr, streamGetTaskStatusStr(pStreamTask->status.taskStatus));
-        taosMsleep(100);
-      }
-
-      // now we can stop the stream task execution
-      streamTaskHalt(pStreamTask);
-      tqDebug("s-task:%s level:%d is halt by fill-history task:%s", pStreamTask->id.idStr, pStreamTask->info.taskLevel,
-              id);
-
-      // if it's an source task, extract the last version in wal.
-      pRange = &pTask->dataRange.range;
-      int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-      streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
+      streamMetaUnregisterTask(pMeta, pTask->id.taskId);
+      streamMetaReleaseTask(pMeta, pTask);
+      return -1;
     }
 
-    if (!streamTaskRecoverScanStep1Finished(pTask)) {
-      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " do secondary scan-history-data after halt the related stream task:%s",
-              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, id);
+    ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
+
+    // 2. it cannot be paused, when the stream task in TASK_STATUS__SCAN_HISTORY status. Let's wait for the
+    // stream task get ready for scan history data
+    while (pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+      tqDebug(
+          "s-task:%s level:%d related stream task:%s(status:%s) not ready for halt, wait for it and recheck in 100ms",
+          id, pTask->info.taskLevel, pStreamTask->id.idStr, streamGetTaskStatusStr(pStreamTask->status.taskStatus));
+      taosMsleep(100);
+    }
+
+    // now we can stop the stream task execution
+    streamTaskHalt(pStreamTask);
+
+    tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
+            pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
+
+    // if it's an source task, extract the last version in wal.
+    pRange = &pTask->dataRange.range;
+    int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+    done = streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
+
+    if (done) {
+      pTask->tsInfo.step2Start = taosGetTimestampMs();
+      streamTaskEndScanWAL(pTask);
+      streamMetaReleaseTask(pMeta, pTask);
+    } else {
+      STimeWindow* pWindow = &pTask->dataRange.window;
+      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+              ", do secondary scan-history from WAL after halt the related stream task:%s",
+              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey,
+              pStreamTask->id.idStr);
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
-      st = taosGetTimestampMs();
-      streamSetParamForStreamScannerStep2(pTask, pRange, &pTask->dataRange.window);
-    }
+      pTask->tsInfo.step2Start = taosGetTimestampMs();
+      streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
 
-    if (!streamTaskRecoverScanStep2Finished(pTask)) {
-      streamSourceScanHistoryData(pTask);
+      int64_t dstVer = pTask->dataRange.range.minVer - 1;
 
-      if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
-        tqDebug("s-task:%s is dropped or paused, abort recover in step1", id);
-        streamMetaReleaseTask(pMeta, pTask);
-        return 0;
+      pTask->chkInfo.currentVer = dstVer;
+      walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
+      tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
+              pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
+
+      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+
+      // set the fill-history task to be normal
+      if (pTask->info.fillHistory == 1) {
+        streamSetStatusNormal(pTask);
       }
 
-      streamTaskRecoverSetAllStepFinished(pTask);
+      // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
+      // 5. resume the related stream task.
+      streamMetaReleaseTask(pMeta, pTask);
+      streamMetaReleaseTask(pMeta, pStreamTask);
+
+      tqStartStreamTasks(pTq);
     }
-
-    el = (taosGetTimestampMs() - st) / 1000.0;
-    tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", id, el);
-
-    // 3. notify downstream tasks to transfer executor state after handle all history blocks.
-    if (!pTask->status.transferState) {
-      code = streamDispatchTransferStateMsg(pTask);
-      if (code != TSDB_CODE_SUCCESS) {
-        // todo handle error
-      }
-
-      pTask->status.transferState = true;
-    }
-
-    // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
-    // 5. resume the related stream task.
-    streamTryExec(pTask);
-
-    streamMetaReleaseTask(pMeta, pTask);
-    streamMetaReleaseTask(pMeta, pStreamTask);
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of
@@ -1230,12 +1309,15 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (pTask->historyTaskId.taskId == 0) {
       *pWindow = (STimeWindow){INT64_MIN, INT64_MAX};
       tqDebug(
-          "s-task:%s scan history in stream time window completed, no related fill history task, reset the time "
+          "s-task:%s scan-history in stream time window completed, no related fill-history task, reset the time "
           "window:%" PRId64 " - %" PRId64,
           id, pWindow->skey, pWindow->ekey);
+      qResetStreamInfoTimeWindow(pTask->exec.pExecutor);
     } else {
+      // when related fill-history task exists, update the fill-history time window only when the
+      // state transfer is completed.
       tqDebug(
-          "s-task:%s scan history in stream time window completed, now start to handle data from WAL, start "
+          "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, start "
           "ver:%" PRId64 ", window:%" PRId64 " - %" PRId64,
           id, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
     }
@@ -1275,6 +1357,7 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t remain = streamAlignTransferState(pTask);
   if (remain > 0) {
     tqDebug("s-task:%s receive upstream transfer state msg, remain:%d", pTask->id.idStr, remain);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
 
@@ -1334,13 +1417,14 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x", pTask->id.idStr, req.downstreamId);
-
   int32_t remain = atomic_sub_fetch_32(&pTask->notReadyTasks, 1);
   if (remain > 0) {
-    tqDebug("s-task:%s remain:%d not send finish rsp", pTask->id.idStr, remain);
+    tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x, remain:%d not send finish rsp",
+            pTask->id.idStr, req.downstreamId, remain);
   } else {
-    tqDebug("s-task:%s all downstream tasks rsp scan-history completed msg", pTask->id.idStr);
+    tqDebug(
+        "s-task:%s scan-history finish rsp received from downstream task:0x%x, all downstream tasks rsp scan-history "
+        "completed msg", pTask->id.idStr, req.downstreamId);
     streamProcessScanHistoryFinishRsp(pTask);
   }
 
@@ -1367,15 +1451,15 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask != NULL) {
     // even in halt status, the data in inputQ must be processed
-    int8_t status = pTask->status.taskStatus;
-    if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
-      tqDebug("vgId:%d s-task:%s start to process block from inputQ, status:%s, checkpointVer:%" PRId64, vgId,
-              pTask->id.idStr, streamGetTaskStatusStr(status), pTask->chkInfo.checkpointVer);
+    int8_t st = pTask->status.taskStatus;
+    if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
+      tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
+              pTask->chkInfo.currentVer);
       streamProcessRunReq(pTask);
     } else {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
-              pTask->id.idStr, streamGetTaskStatusStr(status), pTask->status.schedStatus);
+              pTask->id.idStr, streamGetTaskStatusStr(st), pTask->status.schedStatus);
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -1430,8 +1514,14 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   tqDebug("vgId:%d receive msg to drop stream task:0x%x", TD_VID(pTq->pVnode), pReq->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire s-task:0x%x when dropping it", pTq->pStreamMeta->vgId, pReq->taskId);
+    return 0;
+  }
 
-  streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
+  streamMetaUnregisterTask(pTq->pStreamMeta, pReq->taskId);
+  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }
 
@@ -1500,7 +1590,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
               vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
     }
 
-    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory) {
+    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
       streamStartRecoverTask(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (taosQueueItemSize(pTask->inputQueue->queue) == 0)) {
       tqStartStreamTasks(pTq);

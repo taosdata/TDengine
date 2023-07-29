@@ -213,7 +213,7 @@ typedef struct SSyncNode {
   int64_t minMatchIndex;
 
   int64_t startTime;
-  int64_t leaderTime;
+  int64_t roleTimeMs;
   int64_t lastReplicateTime;
 
   int32_t electNum;

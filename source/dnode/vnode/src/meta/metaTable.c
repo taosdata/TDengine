@@ -1662,10 +1662,11 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
   if (ret < 0) {
     terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     return -1;
+  } else {
+    uid = *(tb_uid_t *)pVal;
+    tdbFree(pVal);
+    pVal = NULL;
   }
-  uid = *(tb_uid_t *)pVal;
-  tdbFree(pVal);
-  pVal = NULL;
 
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
     ret = -1;
@@ -1744,12 +1745,16 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
       nTagData = tDataTypes[pCol->type].bytes;
     }
     if (metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, uid, &pTagIdxKey, &nTagIdxKey) < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
       metaDestroyTagIdxKey(pTagIdxKey);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaDestroyTagIdxKey(pTagIdxKey);
   }
+  tdbTbcClose(pCtbIdxc);
   return 0;
 
 _err:

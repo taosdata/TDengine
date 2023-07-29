@@ -5,7 +5,7 @@ description: This document describes the supported platforms for the TDengine se
 
 ## List of supported platforms for TDengine server
 
-|              | **Windows Server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18/20** | **macOS** |
+|              | **Windows Server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18 or later** | **macOS** |
 | ------------ | ---------------------------- | ----------------- | ---------------- | ---------------- | --------- |
 | X64          | ●                            | ●                 | ●                | ●                | ●         |
 | ARM64        |                              |                   | ●                |                  | ●         |

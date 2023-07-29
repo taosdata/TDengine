@@ -746,12 +746,14 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       if (numOfStream > MND_STREAM_MAX_NUM) {
         mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
         terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+        sdbCancelFetch(pMnode->pSdb, pIter);
         goto _OVER;
       }
 
       if (pStream->targetStbUid == streamObj.targetStbUid) {
         mError("Cannot write the same stable as other stream:%s", pStream->name);
         terrno = TSDB_CODE_MND_INVALID_TARGET_TABLE;
+        sdbCancelFetch(pMnode->pSdb, pIter);
         goto _OVER;
       }
     }

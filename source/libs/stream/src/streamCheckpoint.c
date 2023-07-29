@@ -259,7 +259,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
+int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
   taosWLockLatch(&pMeta->lock);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
@@ -292,4 +292,41 @@ int32_t streamSaveTasks(SStreamMeta* pMeta, int64_t checkpointId) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
+  int32_t code = 0;
+
+  if (pTask->status.taskStatus == TASK_STATUS__CK_READY) {
+    // check for all tasks, and do generate the vnode-wide checkpoint data.
+    SStreamMeta* pMeta = pTask->pMeta;
+    int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
+    ASSERT(remain >= 0);
+
+    if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
+      streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
+      streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
+
+      qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, checkpointId:%" PRId64, pMeta->vgId,
+             pTask->checkpointingId);
+    } else {
+      qDebug("vgId:%d vnode wide tasks not reach checkpoint ready status, not ready:%d/%d", pMeta->vgId, remain,
+             (int32_t)taosArrayGetSize(pMeta->pTaskList));
+    }
+
+    // send check point response to upstream task
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      code = streamTaskSendCheckpointSourceRsp(pTask);
+    } else {
+      code = streamTaskSendCheckpointReadyMsg(pTask);
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo: let's retry send rsp to upstream/mnode
+      qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%" PRId64 ", code:%s",
+             pTask->id.idStr, pTask->checkpointingId, tstrerror(code));
+    }
+  }
+
+  return code;
 }

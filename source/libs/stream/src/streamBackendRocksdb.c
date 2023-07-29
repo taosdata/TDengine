@@ -1328,49 +1328,48 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
                                           rocksdb_readoptions_t** readOpt) {
   int idx = streamStateGetCfIdx(pState, cfKeyName);
 
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  if (snapshot != NULL) {
-    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
-  }
   rocksdb_readoptions_t* rOpt = rocksdb_readoptions_create();
   *readOpt = rOpt;
 
-  rocksdb_readoptions_set_snapshot(rOpt, *snapshot);
-  rocksdb_readoptions_set_fill_cache(rOpt, 0);
+  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
+  if (snapshot != NULL) {
+    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
+    rocksdb_readoptions_set_snapshot(rOpt, *snapshot);
+    rocksdb_readoptions_set_fill_cache(rOpt, 0);
+  }
 
   return rocksdb_create_iterator_cf(wrapper->rocksdb, rOpt, ((rocksdb_column_family_handle_t**)wrapper->pHandle)[idx]);
 }
 
-#define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                                  \
-  do {                                                                                                                \
-    code = 0;                                                                                                         \
-    char  buf[128] = {0};                                                                                             \
-    char* err = NULL;                                                                                                 \
-    int   i = streamStateGetCfIdx(pState, funcname);                                                                  \
-    if (i < 0) {                                                                                                      \
-      qWarn("streamState failed to get cf name: %s", funcname);                                                       \
-      code = -1;                                                                                                      \
-      break;                                                                                                          \
-    }                                                                                                                 \
-    SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;                                                \
-    char               toString[128] = {0};                                                                           \
-    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                                       \
-    int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                      \
-    rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pHandle)[ginitDict[i].idx]; \
-    rocksdb_t*                      db = wrapper->rocksdb;                                                            \
-    rocksdb_writeoptions_t*         opts = wrapper->writeOpts;                                                        \
-    char*                           ttlV = NULL;                                                                      \
-    int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                 \
-    rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);              \
-    if (err != NULL) {                                                                                                \
-      qError("streamState str: %s failed to write to %s_%s, err: %s", toString, wrapper->idstr, funcname, err);       \
-      taosMemoryFree(err);                                                                                            \
-      code = -1;                                                                                                      \
-    } else {                                                                                                          \
-      qTrace("streamState str:%s succ to write to %s_%s, rowValLen:%d, ttlValLen:%d", toString, wrapper->idstr,       \
-             funcname, vLen, ttlVLen);                                                                                \
-    }                                                                                                                 \
-    taosMemoryFree(ttlV);                                                                                             \
+#define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                                   \
+  do {                                                                                                                 \
+    code = 0;                                                                                                          \
+    char  buf[128] = {0};                                                                                              \
+    char* err = NULL;                                                                                                  \
+    int   i = streamStateGetCfIdx(pState, funcname);                                                                   \
+    if (i < 0) {                                                                                                       \
+      qWarn("streamState failed to get cf name: %s", funcname);                                                        \
+      code = -1;                                                                                                       \
+      break;                                                                                                           \
+    }                                                                                                                  \
+    SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;                                                 \
+    char               toString[128] = {0};                                                                            \
+    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                                        \
+    int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                       \
+    rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pHandle)[ginitDict[i].idx];  \
+    rocksdb_t*                      db = wrapper->rocksdb;                                                             \
+    rocksdb_writeoptions_t*         opts = wrapper->writeOpts;                                                         \
+    char*                           ttlV = NULL;                                                                       \
+    int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                  \
+    rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);               \
+    if (err != NULL) {                                                                                                 \
+      qError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                           \
+      taosMemoryFree(err);                                                                                             \
+      code = -1;                                                                                                       \
+    } else {                                                                                                           \
+      qTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d", toString, funcname, vLen, ttlVLen); \
+    }                                                                                                                  \
+    taosMemoryFree(ttlV);                                                                                              \
   } while (0);
 
 #define STREAM_STATE_GET_ROCKSDB(pState, funcname, key, pVal, vLen)                                                   \
@@ -1527,6 +1526,8 @@ int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey,
     if (pKey->groupId == groupId) {
       return 0;
     }
+    taosMemoryFree((void*)*pVal);
+    *pVal = NULL;
   }
   return -1;
 }
@@ -1715,8 +1716,6 @@ int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* k
   int              code = 0;
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, value, vLen);
-  if (code == -1) {
-  }
   return code;
 }
 int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
@@ -1734,8 +1733,10 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
       code = -1;
     } else {
       *key = resKey;
-      *pVal = taosMemoryCalloc(1, *pVLen);
-      memcpy(*pVal, tmp, *pVLen);
+      if (pVal != NULL && pVLen != NULL) {
+        *pVal = taosMemoryCalloc(1, *pVLen);
+        memcpy(*pVal, tmp, *pVLen);
+      }
     }
   }
   taosMemoryFree(tmp);

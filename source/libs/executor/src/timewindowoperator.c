@@ -3426,11 +3426,12 @@ SStreamStateCur* getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* 
   return pCur;
 }
 
-static void compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
+static int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
                                  SSHashObj* pStDeleted, bool addGap) {
-  SExprSupp*                     pSup = &pOperator->exprSupp;
-  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI*                   pAPI = &pOperator->pTaskInfo->storageAPI;
+  SExprSupp*     pSup = &pOperator->exprSupp;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pOperator->pTaskInfo->storageAPI;
+  int32_t        winNum = 0;
 
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SResultRow*                    pCurResult = NULL;
@@ -3464,7 +3465,9 @@ static void compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pC
     doDeleteSessionWindow(pAggSup, &winInfo.sessionWin);
     pAPI->stateStore.streamStateFreeCur(pCur);
     taosMemoryFree(winInfo.pOutputBuf);
+    winNum++;
   }
+  return winNum;
 }
 
 int32_t saveSessionOutputBuf(SStreamAggSupporter* pAggSup, SResultWindowInfo* pWinInfo) {
@@ -4115,9 +4118,20 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
     setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
-    compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
+    int32_t winNum = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
+    if (winNum > 0) {
+      if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
+        saveResult(winInfo, pInfo->pStUpdated);
+      } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+        if (!isCloseWindow(&winInfo.sessionWin.win, &pInfo->twAggSup)) {
+          saveDeleteRes(pInfo->pStDeleted, winInfo.sessionWin);
+        }
+        SSessionKey key = {0};
+        getSessionHashKey(&winInfo.sessionWin, &key);
+        tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
+      }
+    }
     saveSessionOutputBuf(pAggSup, &winInfo);
-    saveResult(winInfo, pInfo->pStUpdated);
   }
   taosMemoryFree(pBuf);
 
@@ -4906,12 +4920,20 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
     setStateOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].groupId, NULL, &curInfo, &nextInfo);
     if (compareStateKey(curInfo.pStateKey,nextInfo.pStateKey)) {
       compactStateWindow(pOperator, &curInfo.winInfo, &nextInfo.winInfo, pInfo->pSeUpdated, pInfo->pSeUpdated);
-      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
-      saveResult(curInfo.winInfo, pInfo->pSeUpdated);
+      if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
+        saveResult(curInfo.winInfo, pInfo->pSeUpdated);
+      } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+        if (!isCloseWindow(&curInfo.winInfo.sessionWin.win, &pInfo->twAggSup)) {
+          saveDeleteRes(pInfo->pSeDeleted, curInfo.winInfo.sessionWin);
+        }
+        SSessionKey key = {0};
+        getSessionHashKey(&curInfo.winInfo.sessionWin, &key);
+        tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curInfo.winInfo, sizeof(SResultWindowInfo));
+      }
     }
 
     if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
-      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)curInfo.winInfo.pOutputBuf, &pAggSup->pSessionAPI->stateStore);
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
     }
 
     if (IS_VALID_SESSION_WIN(nextInfo.winInfo)) {
@@ -5159,6 +5181,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
         resetResultRow(pMiaInfo->pResultRow, pIaInfo->aggSup.resultRowSize - sizeof(SResultRow));
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
+        doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
       }
 
       setOperatorCompleted(pOperator);
@@ -5179,6 +5202,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
 
         pMiaInfo->prefetchedBlock = pBlock;
         cleanupAfterGroupResultGen(pMiaInfo, pRes);
+        doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
         break;
       } else {
         // continue

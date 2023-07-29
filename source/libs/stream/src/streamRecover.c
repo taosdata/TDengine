@@ -24,7 +24,7 @@ static void streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static void streamTaskSetForReady(SStreamTask* pTask, int32_t numOfReqs) {
   ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
-  int64_t el = (taosGetTimestampMs() - pTask->initTs);
+  int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
 
   qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%dms, task status:%s",
          pTask->id.idStr, numOfReqs, (int32_t) el, streamGetTaskStatusStr(pTask->status.taskStatus));
@@ -65,7 +65,9 @@ const char* streamGetTaskStatusStr(int32_t status) {
 
 static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
   SVersionRange* pRange = &pTask->dataRange.range;
-  streamSetParamForScanHistory(pTask);
+  if (pTask->info.fillHistory) {
+    streamSetParamForScanHistory(pTask);
+  }
   streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
 
   int32_t code = streamStartRecoverTask(pTask, 0);
@@ -83,7 +85,10 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
              walReaderGetCurrentVer(pTask->exec.pWalReader));
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    streamSetParamForScanHistory(pTask);
+    if (pTask->info.fillHistory) {
+      streamSetParamForScanHistory(pTask);
+    }
+    streamTaskEnablePause(pTask);
     streamTaskScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     qDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
@@ -287,7 +292,7 @@ int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* 
 
 // common
 int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
-  qDebug("s-task:%s set operator option for scan-history-data", pTask->id.idStr);
+  qDebug("s-task:%s set operator option for scan-history data", pTask->id.idStr);
   return qSetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
 }
 
@@ -404,7 +409,7 @@ int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask) {
 
 int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
-  if (qRestoreStreamOperatorOption(exec) < 0) {
+  if (pTask->info.fillHistory && qRestoreStreamOperatorOption(exec) < 0) {
     return -1;
   }
 
@@ -477,7 +482,7 @@ static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   pHTask->dataRange.range.maxVer = pTask->chkInfo.currentVer;
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    qDebug("s-task:%s set the launch condition for fill history s-task:%s, window:%" PRId64 " - %" PRId64
+    qDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
            " ver range:%" PRId64 " - %" PRId64,
            pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
            pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
@@ -595,9 +600,12 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   }
 
   // restore param
-  int32_t code = streamRestoreParam(pTask);
-  if (code < 0) {
-    return -1;
+  int32_t code = 0;
+  if (pTask->info.fillHistory) {
+    code = streamRestoreParam(pTask);
+    if (code < 0) {
+      return -1;
+    }
   }
 
   // dispatch recover finish req to all related downstream task
@@ -624,7 +632,7 @@ int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
   return qStreamRecoverSetAllStepFinished(exec);
 }
 
-void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
+bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
   SVersionRange* pRange = &pTask->dataRange.range;
   ASSERT(latestVer >= pRange->maxVer);
 
@@ -633,13 +641,16 @@ void streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
     // no input data yet. no need to execute the secondardy scan while stream task halt
     streamTaskRecoverSetAllStepFinished(pTask);
     qDebug(
-        "s-task:%s no need to perform secondary scan-history-data(step 2), since no data ingest during secondary scan",
-        pTask->id.idStr);
+        "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during step1 scan, "
+        "related stream task currentVer:%" PRId64,
+        pTask->id.idStr, latestVer);
+    return true;
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
     // [pTask->dataRange.range.maxVer, ver1]
     pRange->minVer = nextStartVer;
     pRange->maxVer = latestVer - 1;
+    return false;
   }
 }
 
@@ -735,7 +746,13 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
   } else {
     SHistDataRange* pRange = &pTask->dataRange;
 
-    int64_t ekey = pRange->window.ekey + 1;
+    int64_t ekey = 0;
+    if (pRange->window.ekey < INT64_MAX) {
+      ekey = pRange->window.ekey + 1;
+    } else {
+      ekey = pRange->window.ekey;
+    }
+
     int64_t ver = pRange->range.minVer;
 
     pRange->window.skey = ekey;
@@ -793,7 +810,7 @@ void streamTaskPause(SStreamTask* pTask) {
     return;
   }
 
-  while(!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
+  while (!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
     status = pTask->status.taskStatus;
     if (status == TASK_STATUS__DROPPING) {
       qDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
@@ -805,12 +822,24 @@ void streamTaskPause(SStreamTask* pTask) {
       return;
     }
 
-    qDebug("s-task:%s wait for the task can be paused, vgId:%d", pTask->id.idStr, pMeta->vgId);
+    const char* pStatus = streamGetTaskStatusStr(status);
+    qDebug("s-task:%s wait for the task can be paused, status:%s, vgId:%d", pTask->id.idStr, pStatus, pMeta->vgId);
     taosMsleep(100);
+  }
+
+  // todo: use the lock of the task.
+  taosWLockLatch(&pMeta->lock);
+
+  status = pTask->status.taskStatus;
+  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
+    taosWUnLockLatch(&pMeta->lock);
+    qDebug("vgId:%d s-task:%s task already dropped/stopped/paused, do nothing", pMeta->vgId, pTask->id.idStr);
+    return;
   }
 
   atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
   atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+  taosWUnLockLatch(&pMeta->lock);
 
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,

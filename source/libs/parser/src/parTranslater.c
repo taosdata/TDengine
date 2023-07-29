@@ -3413,7 +3413,8 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
     }
-    if ((pSliding->datum.i < convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, precision)) ||
+    if ((pSliding->datum.i <
+         convertTimeFromPrecisionToUnit(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, pSliding->unit)) ||
         (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
@@ -6196,9 +6197,7 @@ static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* p
 static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt) {
   SMDropTopicReq dropReq = {0};
 
-  SName name;
-  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
-  tNameGetFullDbName(&name, dropReq.name);
+  snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);

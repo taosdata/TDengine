@@ -886,7 +886,10 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
   pLoad->syncState = state.state;
   pLoad->syncRestore = state.restored;
-  mTrace("mnode current syncState is %s, syncRestore:%d", syncStr(pLoad->syncState), pLoad->syncRestore);
+  pLoad->syncTerm = state.term;
+  pLoad->roleTimeMs = state.roleTimeMs;
+  mTrace("mnode current syncState is %s, syncRestore:%d, syncTerm:%" PRId64 " ,roleTimeMs:%" PRId64,
+         syncStr(pLoad->syncState), pLoad->syncRestore, pLoad->syncTerm, pLoad->roleTimeMs);
   return 0;
 }
 

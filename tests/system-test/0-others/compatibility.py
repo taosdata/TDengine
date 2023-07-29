@@ -193,7 +193,6 @@ class TDTestCase:
         tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
-        tdsql.execute("alter database db wal_retention_period 3600")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
@@ -204,7 +203,6 @@ class TDTestCase:
         tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
         tdsql.query("select * from db.ct4")
         tdsql.checkData(0,1,14)
-        print(1)
         tdsql=tdCom.newTdSql()
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   

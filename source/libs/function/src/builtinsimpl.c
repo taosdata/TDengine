@@ -920,6 +920,7 @@ void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos)
 
 void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) { *pDestPos = *pSourcePos; }
 
+#define COMPARE_MINMAX_DATA(type) (( (*(type*)&pDBuf->v) < (*(type*)&pSBuf->v) ) ^ isMinFunc)
 int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t isMinFunc) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SMinmaxResInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -927,18 +928,57 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SMinmaxResInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
-  if (IS_FLOAT_TYPE(type)) {
-    if (pSBuf->assign && ((((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign)) {
-      *(double*)&pDBuf->v = *(double*)&pSBuf->v;
-      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
-      pDBuf->assign = true;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int64_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int32_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int16_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(int8_t) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
+    case TSDB_DATA_TYPE_FLOAT: {
+      if (pSBuf->assign && (COMPARE_MINMAX_DATA(double) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
     }
-  } else {
-    if (pSBuf->assign && (((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign)) {
-      pDBuf->v = pSBuf->v;
-      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
-      pDBuf->assign = true;
-    }
+    default:
+      if (pSBuf->assign && (strcmp((char*)&pDBuf->v, (char*)&pSBuf->v) || !pDBuf->assign)) {
+        pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+      break;
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
