@@ -118,6 +118,12 @@ int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 SNode*  createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 
+/**
+ * @brief return a - b with overflow check
+ * @retval val range between [INT64_MIN, INT64_MAX]
+ */
+int64_t int64SafeSub(int64_t a, int64_t b);
+
 #ifdef __cplusplus
 }
 #endif
