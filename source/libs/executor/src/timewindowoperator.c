@@ -4406,14 +4406,12 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
         getSessionHashKey(&curInfo.winInfo.sessionWin, &key);
         tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curInfo.winInfo, sizeof(SResultWindowInfo));
       }
+    } else if (IS_VALID_SESSION_WIN(nextInfo.winInfo)) {
+      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)nextInfo.winInfo.pOutputBuf, &pAggSup->pSessionAPI->stateStore);
     }
 
     if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
       saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
-    }
-
-    if (IS_VALID_SESSION_WIN(nextInfo.winInfo)) {
-      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)nextInfo.winInfo.pOutputBuf, &pAggSup->pSessionAPI->stateStore);
     }
   }
   taosMemoryFree(pBuf);
