@@ -209,7 +209,7 @@ export default {
     replication: "数据复制",
   },
   login: {
-    versiontip:'仅支持企业版本!',
+    versiontip:'仅支持企业版本，当前用户无权限查看系统信息，登录失败!',
     signin:'登录',
     taosxtip:`请先在 /etc/${taosname}/explorer.toml 中配置Taosx`,
     username:'用户名',
