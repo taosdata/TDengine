@@ -561,7 +561,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
     if (taosQueueEmpty(pTask->inputQueue->queue)) {
       // fill-history WAL scan has completed
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && pTask->status.transferState == true) {
-        streamTaskRecoverSetAllStepFinished(pTask);
+        streamTaskFillHistoryFinished(pTask);
         streamTaskEndScanWAL(pTask);
       } else {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
