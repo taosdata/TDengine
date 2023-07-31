@@ -262,7 +262,7 @@ export default {
     cluster: 'Cluster'
   },
   login: {
-    versiontip: 'Only enterprise edition is supported!',
+    versiontip: 'Only enterprise edition is supported.The current user does not have permission to view system information, login failed!',
     signin: 'Sign In',
     taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: 'Log in Explorer',
