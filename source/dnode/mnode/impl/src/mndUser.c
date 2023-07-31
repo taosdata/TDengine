@@ -1174,26 +1174,30 @@ static void mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, int3
     if (strcmp("t", value) != 0) {
       SNode  *pAst = NULL;
       int32_t sqlLen = 0;
-      char    sql[TSDB_EXPLAIN_RESULT_ROW_SIZE] = {0};
+      size_t bufSz = strlen(value) + 1;
+      char* sql = taosMemoryMalloc(bufSz + 1);
+      char* obj = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
 
-      if (nodesStringToNode(value, &pAst) == 0) {
-        nodesNodeToSQL(pAst, sql, TSDB_EXPLAIN_RESULT_ROW_SIZE, &sqlLen);
+      if (sql != NULL && obj != NULL && nodesStringToNode(value, &pAst) == 0) {
+        nodesNodeToSQL(pAst, sql, bufSz, &sqlLen);
         nodesDestroyNode(pAst);
       } else {
         sqlLen = 5;
         sprintf(sql, "error");
       }
 
-      char obj[TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(obj, sql, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, *numOfRows, (const char *)obj, false);
+      taosMemoryFree(obj);
+      taosMemoryFree(sql);
     } else {
-      char condition[TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE] = {0};
+      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, *numOfRows, (const char *)condition, false);
+      taosMemoryFree(condition);
     }
 
     (*numOfRows)++;
@@ -1242,10 +1246,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char condition[TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE] = {0};
+      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
+      taosMemoryFree(condition);
 
       numOfRows++;
     }
@@ -1276,10 +1281,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char condition[TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE] = {0};
+      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
+      taosMemoryFree(condition);
 
       numOfRows++;
       db = taosHashIterate(pUser->readDbs, db);
@@ -1311,10 +1317,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char condition[TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE] = {0};
+      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
+      taosMemoryFree(condition);
 
       numOfRows++;
       db = taosHashIterate(pUser->writeDbs, db);
@@ -1348,10 +1355,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char condition[TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE] = {0};
+      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
+      taosMemoryFree(condition);
 
       numOfRows++;
       topic = taosHashIterate(pUser->topics, topic);
