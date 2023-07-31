@@ -35,7 +35,10 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
     tqProcessSubmitReqForSubscribe(pTq);
   }
 
+  taosRLockLatch(&pTq->pStreamMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
+  taosRUnLockLatch(&pTq->pStreamMeta->lock);
+
   tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, numOfTasks);
 
   // push data for stream processing:

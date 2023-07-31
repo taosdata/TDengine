@@ -66,20 +66,25 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
 }
 
 static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32_t rowIndex, int64_t currentKey) {
+  bool isNull = (TSDB_DATA_TYPE_NULL == pVar->nType) ? true : false;
   if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = 0;
-    GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-    colDataSetVal(pDst, rowIndex, (char*)&v, false);
+    GET_TYPED_DATA(v, float, pVar->nType, &pVar->f);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
     double v = 0;
-    GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-    colDataSetVal(pDst, rowIndex, (char*)&v, false);
+    GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
     int64_t v = 0;
     GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-    colDataSetVal(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pDst->info.type)) {
+    uint64_t v = 0;
+    GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
+    colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, false);
+    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, isNull);
   } else {  // varchar/nchar data
     colDataSetNULL(pDst, rowIndex);
   }
@@ -247,7 +252,7 @@ static void initBeforeAfterDataBuf(SFillInfo* pFillInfo) {
 
 static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bool isNull);
 
-static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVal* pRowVal) {
+static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVal* pRowVal, bool reset) {
   SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
   pRowVal->key = ((int64_t*)pTsCol->pData)[rowIndex];
 
@@ -268,7 +273,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
 
-      saveColData(pRowVal->pRowVal, i, p, isNull);
+      saveColData(pRowVal->pRowVal, i, p, reset ? true : isNull);
     } else {
       ASSERT(0);
     }
@@ -293,10 +298,10 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
     // set the next value for interpolation
     if (pFillInfo->currentKey < ts && ascFill) {
       SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->next : &pFillInfo->prev;
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal);
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal, false);
     } else if (pFillInfo->currentKey > ts && !ascFill) {
       SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->prev : &pFillInfo->next;
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal);
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal, false);
     }
 
     if (((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) &&
@@ -316,9 +321,14 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       ASSERT(pFillInfo->currentKey == ts);
       int32_t index = pBlock->info.rows;
 
-      if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
+      if (pFillInfo->type == TSDB_FILL_NEXT) {
         int32_t nextRowIndex = pFillInfo->index + 1;
-        copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next);
+        if ((pFillInfo->index + 1) < pFillInfo->numOfRows) {
+          copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, false);
+        } else {
+          // reset to null after last row
+          copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
+        }
       }
 
       // copy rows to dst buffer

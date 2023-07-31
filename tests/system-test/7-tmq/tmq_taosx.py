@@ -220,6 +220,17 @@ class TDTestCase:
 
         return
 
+    def checkWal1VgroupOnlyMeta(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -d -onlymeta'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp")
+
+        return
+
     def checkWal1VgroupTable(self):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
@@ -301,6 +312,8 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
+        self.checkWal1VgroupOnlyMeta()
+
         self.checkWal1Vgroup()
         self.checkSnapshot1Vgroup()
 

@@ -23,25 +23,23 @@ struct SVnodeTask {
   void* arg;
 };
 
-struct SVnodeGlobal {
-  int8_t        init;
-  int8_t        stop;
+typedef struct {
   int           nthreads;
   TdThread*     threads;
   TdThreadMutex mutex;
   TdThreadCond  hasTask;
   SVnodeTask    queue;
+} SVnodeThreadPool;
+
+struct SVnodeGlobal {
+  int8_t           init;
+  int8_t           stop;
+  SVnodeThreadPool tp[2];
 };
 
 struct SVnodeGlobal vnodeGlobal;
 
 static void* loop(void* arg);
-
-static tsem_t canCommit = {0};
-
-static void vnodeInitCommit() { tsem_init(&canCommit, 0, 4); };
-void        vnode_wait_commit() { tsem_wait(&canCommit); }
-void        vnode_done_commit() { tsem_wait(&canCommit); }
 
 int vnodeInit(int nthreads) {
   int8_t init;
@@ -51,28 +49,30 @@ int vnodeInit(int nthreads) {
   if (init) {
     return 0;
   }
-
-  taosThreadMutexInit(&vnodeGlobal.mutex, NULL);
-  taosThreadCondInit(&vnodeGlobal.hasTask, NULL);
-
-  taosThreadMutexLock(&vnodeGlobal.mutex);
-
   vnodeGlobal.stop = 0;
-  vnodeGlobal.queue.next = &vnodeGlobal.queue;
-  vnodeGlobal.queue.prev = &vnodeGlobal.queue;
 
-  taosThreadMutexUnlock(&(vnodeGlobal.mutex));
+  for (int32_t i = 0; i < ARRAY_SIZE(vnodeGlobal.tp); i++) {
+    taosThreadMutexInit(&vnodeGlobal.tp[i].mutex, NULL);
+    taosThreadCondInit(&vnodeGlobal.tp[i].hasTask, NULL);
 
-  vnodeGlobal.nthreads = nthreads;
-  vnodeGlobal.threads = taosMemoryCalloc(nthreads, sizeof(TdThread));
-  if (vnodeGlobal.threads == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    vError("failed to init vnode module since:%s", tstrerror(terrno));
-    return -1;
-  }
+    taosThreadMutexLock(&vnodeGlobal.tp[i].mutex);
 
-  for (int i = 0; i < nthreads; i++) {
-    taosThreadCreate(&(vnodeGlobal.threads[i]), NULL, loop, NULL);
+    vnodeGlobal.tp[i].queue.next = &vnodeGlobal.tp[i].queue;
+    vnodeGlobal.tp[i].queue.prev = &vnodeGlobal.tp[i].queue;
+
+    taosThreadMutexUnlock(&(vnodeGlobal.tp[i].mutex));
+
+    vnodeGlobal.tp[i].nthreads = nthreads;
+    vnodeGlobal.tp[i].threads = taosMemoryCalloc(nthreads, sizeof(TdThread));
+    if (vnodeGlobal.tp[i].threads == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      vError("failed to init vnode module since:%s", tstrerror(terrno));
+      return -1;
+    }
+
+    for (int j = 0; j < nthreads; j++) {
+      taosThreadCreate(&(vnodeGlobal.tp[i].threads[j]), NULL, loop, &vnodeGlobal.tp[i]);
+    }
   }
 
   if (walInit() < 0) {
@@ -92,27 +92,29 @@ void vnodeCleanup() {
   if (init == 0) return;
 
   // set stop
-  taosThreadMutexLock(&(vnodeGlobal.mutex));
   vnodeGlobal.stop = 1;
-  taosThreadCondBroadcast(&(vnodeGlobal.hasTask));
-  taosThreadMutexUnlock(&(vnodeGlobal.mutex));
+  for (int32_t i = 0; i < ARRAY_SIZE(vnodeGlobal.tp); i++) {
+    taosThreadMutexLock(&(vnodeGlobal.tp[i].mutex));
+    taosThreadCondBroadcast(&(vnodeGlobal.tp[i].hasTask));
+    taosThreadMutexUnlock(&(vnodeGlobal.tp[i].mutex));
 
-  // wait for threads
-  for (int i = 0; i < vnodeGlobal.nthreads; i++) {
-    taosThreadJoin(vnodeGlobal.threads[i], NULL);
+    // wait for threads
+    for (int j = 0; j < vnodeGlobal.tp[i].nthreads; j++) {
+      taosThreadJoin(vnodeGlobal.tp[i].threads[j], NULL);
+    }
+
+    // clear source
+    taosMemoryFreeClear(vnodeGlobal.tp[i].threads);
+    taosThreadCondDestroy(&(vnodeGlobal.tp[i].hasTask));
+    taosThreadMutexDestroy(&(vnodeGlobal.tp[i].mutex));
   }
-
-  // clear source
-  taosMemoryFreeClear(vnodeGlobal.threads);
-  taosThreadCondDestroy(&(vnodeGlobal.hasTask));
-  taosThreadMutexDestroy(&(vnodeGlobal.mutex));
 
   walCleanUp();
   tqCleanUp();
   smaCleanUp();
 }
 
-int vnodeScheduleTask(int (*execute)(void*), void* arg) {
+int vnodeScheduleTaskEx(int tpid, int (*execute)(void*), void* arg) {
   SVnodeTask* pTask;
 
   ASSERT(!vnodeGlobal.stop);
@@ -126,35 +128,42 @@ int vnodeScheduleTask(int (*execute)(void*), void* arg) {
   pTask->execute = execute;
   pTask->arg = arg;
 
-  taosThreadMutexLock(&(vnodeGlobal.mutex));
-  pTask->next = &vnodeGlobal.queue;
-  pTask->prev = vnodeGlobal.queue.prev;
-  vnodeGlobal.queue.prev->next = pTask;
-  vnodeGlobal.queue.prev = pTask;
-  taosThreadCondSignal(&(vnodeGlobal.hasTask));
-  taosThreadMutexUnlock(&(vnodeGlobal.mutex));
+  taosThreadMutexLock(&(vnodeGlobal.tp[tpid].mutex));
+  pTask->next = &vnodeGlobal.tp[tpid].queue;
+  pTask->prev = vnodeGlobal.tp[tpid].queue.prev;
+  vnodeGlobal.tp[tpid].queue.prev->next = pTask;
+  vnodeGlobal.tp[tpid].queue.prev = pTask;
+  taosThreadCondSignal(&(vnodeGlobal.tp[tpid].hasTask));
+  taosThreadMutexUnlock(&(vnodeGlobal.tp[tpid].mutex));
 
   return 0;
 }
 
+int vnodeScheduleTask(int (*execute)(void*), void* arg) { return vnodeScheduleTaskEx(0, execute, arg); }
+
 /* ------------------------ STATIC METHODS ------------------------ */
 static void* loop(void* arg) {
-  SVnodeTask* pTask;
-  int         ret;
+  SVnodeThreadPool* tp = (SVnodeThreadPool*)arg;
+  SVnodeTask*       pTask;
+  int               ret;
 
-  setThreadName("vnode-commit");
+  if (tp == &vnodeGlobal.tp[0]) {
+    setThreadName("vnode-commit");
+  } else if (tp == &vnodeGlobal.tp[1]) {
+    setThreadName("vnode-merge");
+  }
 
   for (;;) {
-    taosThreadMutexLock(&(vnodeGlobal.mutex));
+    taosThreadMutexLock(&(tp->mutex));
     for (;;) {
-      pTask = vnodeGlobal.queue.next;
-      if (pTask == &vnodeGlobal.queue) {
+      pTask = tp->queue.next;
+      if (pTask == &tp->queue) {
         // no task
         if (vnodeGlobal.stop) {
-          taosThreadMutexUnlock(&(vnodeGlobal.mutex));
+          taosThreadMutexUnlock(&(tp->mutex));
           return NULL;
         } else {
-          taosThreadCondWait(&(vnodeGlobal.hasTask), &(vnodeGlobal.mutex));
+          taosThreadCondWait(&(tp->hasTask), &(tp->mutex));
         }
       } else {
         // has task
@@ -164,7 +173,7 @@ static void* loop(void* arg) {
       }
     }
 
-    taosThreadMutexUnlock(&(vnodeGlobal.mutex));
+    taosThreadMutexUnlock(&(tp->mutex));
 
     pTask->execute(pTask->arg);
     taosMemoryFree(pTask);
