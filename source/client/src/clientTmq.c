@@ -586,30 +586,36 @@ static int32_t asyncCommitOffset(tmq_t* tmq, char* pTopicName, int32_t vgId, STq
   if(code != 0){
     goto end;
   }
-  if (offsetVal->type > 0 && !tOffsetEqual(offsetVal, &pVg->offsetInfo.committedOffset)) {
-    char offsetBuf[TSDB_OFFSET_LEN] = {0};
-    tFormatOffset(offsetBuf, tListLen(offsetBuf), offsetVal);
-
-    char commitBuf[TSDB_OFFSET_LEN] = {0};
-    tFormatOffset(commitBuf, tListLen(commitBuf), &pVg->offsetInfo.committedOffset);
-
-    SMqCommitCbParamSet* pParamSet = prepareCommitCbParamSet(tmq, pCommitFp, userParam, 0);
-    if (pParamSet == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto end;
-    }
-    code = doSendCommitMsg(tmq, pVg->vgId, &pVg->epSet, offsetVal, pTopicName, pParamSet);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("consumer:0x%" PRIx64 " topic:%s on vgId:%d end commit msg failed, send offset:%s committed:%s, code:%s",
-               tmq->consumerId, pTopicName, pVg->vgId, offsetBuf, commitBuf, tstrerror(terrno));
-      taosMemoryFree(pParamSet);
-      goto end;
-    }
-
-    tscInfo("consumer:0x%" PRIx64 " topic:%s on vgId:%d send commit msg success, send offset:%s committed:%s",
-            tmq->consumerId, pTopicName, pVg->vgId, offsetBuf, commitBuf);
-    pVg->offsetInfo.committedOffset = *offsetVal;
+  if (offsetVal->type <= 0) {
+    code = TSDB_CODE_TMQ_INVALID_MSG;
+    goto end;
   }
+  if (tOffsetEqual(offsetVal, &pVg->offsetInfo.committedOffset)){
+    code = TSDB_CODE_TMQ_SAME_COMMITTED_VALUE;
+    goto end;
+  }
+  char offsetBuf[TSDB_OFFSET_LEN] = {0};
+  tFormatOffset(offsetBuf, tListLen(offsetBuf), offsetVal);
+
+  char commitBuf[TSDB_OFFSET_LEN] = {0};
+  tFormatOffset(commitBuf, tListLen(commitBuf), &pVg->offsetInfo.committedOffset);
+
+  SMqCommitCbParamSet* pParamSet = prepareCommitCbParamSet(tmq, pCommitFp, userParam, 0);
+  if (pParamSet == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  code = doSendCommitMsg(tmq, pVg->vgId, &pVg->epSet, offsetVal, pTopicName, pParamSet);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("consumer:0x%" PRIx64 " topic:%s on vgId:%d end commit msg failed, send offset:%s committed:%s, code:%s",
+             tmq->consumerId, pTopicName, pVg->vgId, offsetBuf, commitBuf, tstrerror(terrno));
+    taosMemoryFree(pParamSet);
+    goto end;
+  }
+
+  tscInfo("consumer:0x%" PRIx64 " topic:%s on vgId:%d send commit msg success, send offset:%s committed:%s",
+          tmq->consumerId, pTopicName, pVg->vgId, offsetBuf, commitBuf);
+  pVg->offsetInfo.committedOffset = *offsetVal;
 
 end:
   taosRUnLockLatch(&tmq->lock);
@@ -650,7 +656,8 @@ static void asyncCommitFromResult(tmq_t* tmq, const TAOS_RES* pRes, tmq_commit_c
   code = asyncCommitOffset(tmq, pTopicName, vgId, &offsetVal, pCommitFp, userParam);
 
 end:
-  if(code != TSDB_CODE_SUCCESS){
+  if(code != TSDB_CODE_SUCCESS && pCommitFp != NULL){
+    if(code == TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) code = TSDB_CODE_SUCCESS;
     pCommitFp(tmq, code, userParam);
   }
 }
@@ -2350,7 +2357,7 @@ int32_t tmq_commit_sync(tmq_t* tmq, const TAOS_RES* pRes) {
   tsem_destroy(&pInfo->sem);
   taosMemoryFree(pInfo);
 
-  tscDebug("consumer:0x%" PRIx64 " sync commit done, code:%s", tmq->consumerId, tstrerror(code));
+  tscInfo("consumer:0x%" PRIx64 " sync res commit done, code:%s", tmq->consumerId, tstrerror(code));
   return code;
 }
 
@@ -2406,15 +2413,17 @@ int32_t tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId,
   tsem_init(&pInfo->sem, 0, 0);
   pInfo->code = 0;
 
-  asyncCommitOffset(tmq, tname, vgId, &offsetVal, commitCallBackFn, pInfo);
+  code = asyncCommitOffset(tmq, tname, vgId, &offsetVal, commitCallBackFn, pInfo);
+  if(code == 0){
+    tsem_wait(&pInfo->sem);
+    code = pInfo->code;
+  }
 
-  tsem_wait(&pInfo->sem);
-  code = pInfo->code;
-
+  if(code == TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) code = TSDB_CODE_SUCCESS;
   tsem_destroy(&pInfo->sem);
   taosMemoryFree(pInfo);
 
-  tscInfo("consumer:0x%" PRIx64 " sync send seek to vgId:%d, offset:%" PRId64" code:%s", tmq->consumerId, vgId, offset, tstrerror(code));
+  tscInfo("consumer:0x%" PRIx64 " sync send commit to vgId:%d, offset:%" PRId64" code:%s", tmq->consumerId, vgId, offset, tstrerror(code));
 
   return code;
 }
@@ -2451,10 +2460,11 @@ void tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, i
 
   code = asyncCommitOffset(tmq, tname, vgId, &offsetVal, cb, param);
 
-  tscInfo("consumer:0x%" PRIx64 " async send seek to vgId:%d, offset:%" PRId64" code:%s", tmq->consumerId, vgId, offset, tstrerror(code));
+  tscInfo("consumer:0x%" PRIx64 " async send commit to vgId:%d, offset:%" PRId64" code:%s", tmq->consumerId, vgId, offset, tstrerror(code));
 
 end:
   if(code != 0 && cb != NULL){
+    if(code == TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) code = TSDB_CODE_SUCCESS;
     cb(tmq, code, param);
   }
 }
