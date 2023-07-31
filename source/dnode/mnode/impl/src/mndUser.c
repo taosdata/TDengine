@@ -1235,6 +1235,8 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
     int32_t numOfWriteTbs = taosHashGetSize(pUser->writeTbs);
     if (numOfRows + numOfReadDbs + numOfWriteDbs + numOfTopics + numOfReadTbs + numOfWriteTbs >= rows) {
+      mInfo("will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables %d", 
+        numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs);
       pShow->restore = true;
       sdbRelease(pSdb, pUser);
       break;
