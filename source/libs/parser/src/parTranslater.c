@@ -3296,23 +3296,25 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   if (NULL == pInterval) {
     return TSDB_CODE_SUCCESS;
   }
-
-  int64_t timeRange = TABS(pFill->timeRange.skey - pFill->timeRange.ekey);
+  int64_t timeRange = 0;
   int64_t intervalRange = 0;
-  if (IS_CALENDAR_TIME_DURATION(pInterval->unit)) {
-    int64_t f = 1;
-    if (pInterval->unit == 'n') {
-      f = 30LL * MILLISECOND_PER_DAY;
-    } else if (pInterval->unit == 'y') {
-      f = 365LL * MILLISECOND_PER_DAY;
+  if (!pCxt->createStream) {
+    int64_t res = int64SafeSub(pFill->timeRange.skey, pFill->timeRange.ekey);
+    timeRange = res < 0 ? res == INT64_MIN ? INT64_MAX : -res : res;
+    if (IS_CALENDAR_TIME_DURATION(pInterval->unit)) {
+      int64_t f = 1;
+      if (pInterval->unit == 'n') {
+        f = 30LL * MILLISECOND_PER_DAY;
+      } else if (pInterval->unit == 'y') {
+        f = 365LL * MILLISECOND_PER_DAY;
+      }
+      intervalRange = pInterval->datum.i * f;
+    } else {
+      intervalRange = pInterval->datum.i;
     }
-    intervalRange = pInterval->datum.i * f;
-  } else {
-    intervalRange = pInterval->datum.i;
-  }
-
-  if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+    if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3413,7 +3415,8 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
     }
-    if ((pSliding->datum.i < convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, precision)) ||
+    if ((pSliding->datum.i <
+         convertTimeFromPrecisionToUnit(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, pSliding->unit)) ||
         (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
@@ -6196,9 +6199,7 @@ static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* p
 static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt) {
   SMDropTopicReq dropReq = {0};
 
-  SName name;
-  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
-  tNameGetFullDbName(&name, dropReq.name);
+  snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);

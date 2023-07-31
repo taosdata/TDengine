@@ -238,7 +238,7 @@ void initCacheFn(SStoreCacheReader* pCache) {
 }
 
 void initSnapshotFn(SStoreSnapshotFn* pSnapshot) {
-  pSnapshot->createSnapshot = setForSnapShot;
+  pSnapshot->setForSnapShot = setForSnapShot;
   pSnapshot->destroySnapshot = destroySnapContext;
   pSnapshot->getMetaTableInfoFromSnapshot = getMetaTableInfoFromSnapshot;
   pSnapshot->getTableInfoFromSnapshot = getTableInfoFromSnapshot;

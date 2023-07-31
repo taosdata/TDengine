@@ -72,7 +72,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     return -1;
   }
 
-  pTask->initTs = taosGetTimestampMs();
+  pTask->tsInfo.init = taosGetTimestampMs();
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pSnode->msgCb;
@@ -160,7 +160,9 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   // 2.save task
   taosWLockLatch(&pSnode->pMeta->lock);
-  code = streamMetaRegisterTask(pSnode->pMeta, -1, pTask);
+
+  bool added = false;
+  code = streamMetaRegisterTask(pSnode->pMeta, -1, pTask, &added);
   if (code < 0) {
     taosWUnLockLatch(&pSnode->pMeta->lock);
     return -1;
@@ -344,9 +346,9 @@ int32_t sndProcessStreamTaskCheckReq(SSnode *pSnode, SRpcMsg *pMsg) {
     rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
 
-    qDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%s, rsp status %d",
-            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId,
-            streamGetTaskStatusStr(pTask->status.taskStatus), rsp.status);
+    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+    qDebug("s-task:%s status:%s, recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+            pTask->id.idStr, pStatus, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
     qDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64
