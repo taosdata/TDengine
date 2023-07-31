@@ -16,7 +16,7 @@ use file_rotate::{
     ContentLimit, FileRotate, TimeFrequency,
 };
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use itertools::Itertools;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
@@ -1218,6 +1218,23 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
 
     log::info!("OPC exit with status {}", output.status);
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(
+            plugin = "opc",
+            module = "datasets",
+            "Get OPC datasets error:\n{}",
+            error
+        );
+        let pattern =
+            regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
+        let matches = pattern.captures(&error);
+        if let Some(matches) = matches {
+            bail!("{}: {}", &matches["msg"], &matches["error"]);
+        } else {
+            bail!("Get OPC datasets error: {}", &error);
+        }
+    }
 
     temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
