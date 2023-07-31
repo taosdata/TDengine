@@ -899,6 +899,7 @@ export default {
   },
 
   datasource: {
+    copytokentip:'拷贝Token到Agent配置文件',
     uploadtip:'请上传csv文件',
     uploadcsv:'上传CSV文件',
     configcsv:'配置CSV地址',

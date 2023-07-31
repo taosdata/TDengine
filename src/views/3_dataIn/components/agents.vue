@@ -168,9 +168,10 @@
       width="1000px"
       :visible.sync="copyDialog"
       :destroy-on-close="true"
+      :before-close="beforeClose"
       :close-on-click-modal="false"
     >
-      <AgentDoc :token="agenttoken"></AgentDoc>
+      <AgentDoc :token="agenttoken" ></AgentDoc>
       <!-- <el-alert
         :title="$t('copyagentWaring')"
         type="warning"
@@ -251,6 +252,19 @@ export default {
     },
   },
   methods: {
+    beforeClose(){
+      this.$confirm(this.$t('datasource.copytokentip'),this.$t('tips'),{
+        confirmButtonText:this.$t('datasource.ok'),
+        cancelButtonText:this.$t('datasource.cancel'),
+        type:'warning',
+        center:true
+      }).then(()=>{
+        this.copyToken(this.agenttoken)
+        this.copyDialog=false
+      }).catch(()=>{
+        this.copyDialog=true
+      })
+    },
     handlePageChange() {},
     closeDialog() {
       this.$refs.ruleForm.resetFields();
@@ -512,6 +526,13 @@ export default {
   .el-button {
     border: none;
     background: transparent;
+  }
+}
+</style>
+<style lang="scss">
+.el-message-box__btns{
+  .el-button{
+    width:80px;
   }
 }
 </style>
