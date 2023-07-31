@@ -268,7 +268,8 @@ async fn x_api(
         .wrap(Tracing)
         .finish();
     let method = req.method();
-    let mut client = client.request(method.clone(), url);
+    let client = client.request(method.clone(), url);
+    let mut client = client.timeout(Duration::from_secs(std::u64::MAX));
     *client.headers_mut() = req.headers().clone();
     let info = req.connection_info();
     if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
@@ -277,18 +278,14 @@ async fn x_api(
             .insert_header(("X-Real-IP", addr));
     }
 
-    let mut resp = client.send_stream(body).await?;
-
-    let mut builder = HttpResponse::Ok();
+    let resp = client.send_stream(body).await?;
+    let status = resp.status();
+    let mut builder = HttpResponse::build(status);
 
     for e in resp.headers() {
         builder.insert_header(e);
     }
-
-    Ok(builder
-        .content_type(resp.content_type())
-        // .streaming(resp); // streaming is also ok.
-        .body(resp.body().limit(std::usize::MAX).await?))
+    Ok(builder.content_type(resp.content_type()).streaming(resp))
 }
 
 async fn x_api_doc(
