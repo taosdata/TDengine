@@ -309,7 +309,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
         tbData.uid = pTableSinkInfo->uid;
       } else {
         SMetaReader mr = {0};
-        metaReaderInit(&mr, pVnode->pMeta, 0);
+        metaReaderDoInit(&mr, pVnode->pMeta, 0);
         if (metaGetTableEntryByName(&mr, ctbName) < 0) {
           metaReaderClear(&mr);
           taosMemoryFree(pTableSinkInfo);
@@ -412,7 +412,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
           if (k == 0) {
             SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
             void*            colData = colDataGetData(pColData, j);
-            tqDebug("tq sink pipe2, row %d, col %d ts %" PRId64, j, k, *(int64_t*)colData);
+            tqTrace("tq sink pipe2, row %d, col %d ts %" PRId64, j, k, *(int64_t*)colData);
           }
           if (IS_SET_NULL(pCol)) {
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);

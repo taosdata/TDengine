@@ -115,7 +115,6 @@ class TDTestCase:
         jiacy0_read_conn = taos.connect(user='jiacy0_read', password='123')
         jiacy0_write_conn = taos.connect(user='jiacy0_write', password='123')
         jiacy0_none_conn = taos.connect(user='jiacy0_none', password='123')
-        tdSql.execute('alter database db wal_retention_period 3600')
         tdSql.execute('create topic root_db as select * from db.stb')
         for user in [jiacy1_all_conn, jiacy1_read_conn, jiacy0_all_conn, jiacy0_read_conn]:
             user.execute(f'create topic db_jiacy as select * from db.stb')

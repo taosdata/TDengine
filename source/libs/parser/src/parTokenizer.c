@@ -140,6 +140,7 @@ static SKeyword keywordTable[] = {
     {"MAX_SPEED",            TK_MAX_SPEED},
     {"MERGE",                TK_MERGE},
     {"META",                 TK_META},
+    {"ONLY",                 TK_ONLY},
     {"MINROWS",              TK_MINROWS},
     {"MINUS",                TK_MINUS},
     {"MNODE",                TK_MNODE},

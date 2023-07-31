@@ -403,7 +403,7 @@ In this section we will demonstrate 5 examples of developing UDF in Python langu
 
 In the guide, some debugging skills of using Python UDF will be explained too. 
 
-We assume you are using Linux system and already have TDengine 3.0.4.0+ and Python 3.x.
+We assume you are using Linux system and already have TDengine 3.0.4.0+ and Python 3.7+.
 
 Note:**You can't use print() function to output log inside a UDF, you have to write the log to a specific file or use logging module of Python.**
 

@@ -158,7 +158,7 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   // void   *buf = taosMemoryCalloc(1, bufLen);
   // int32_t resSize = updateInfoSerialize(buf, bufLen, pSU7);
 
-  // SUpdateInfo *pSU6 = updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
+  // SUpdateInfo *pSU6 = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   // int32_t      desSize = updateInfoDeserialize(buf, bufLen, pSU6);
   // GTEST_ASSERT_EQ(desSize, 0);
 

@@ -75,7 +75,6 @@ class TDTestCase:
     def prepare_data(self):
         tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")                                         #1 query
         tdSql.execute(f'use {self.dbname}')                                                                             #1 query
-        tdsql.execute(f"alter database {self.dbname} wal_retention_period 3600")
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))                   #1 query
         
         for i in range(self.tbnum):                                                                                     #self.tbnum query

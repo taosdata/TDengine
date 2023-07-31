@@ -74,38 +74,36 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 提供用户创建的数据库对象的相关信息。也可以使用 SHOW DATABASES 来查询这些信息。
 
-| #   |       **列名**       | **数据类型** | **说明**                                                                                                                                            |
-| --- | :------------------: | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   |         name         | BINARY(32)   | 数据库名                                                                                                                                            |
-| 2   |     create_time      | TIMESTAMP    | 创建时间                                                                                                                                            |
-| 3   |       ntables        | INT          | 数据库中表的数量，包含子表和普通表但不包含超级表                                                                                                    |
-| 4   |       vgroups        | INT          | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                |
-| 6   |       replica        | INT          | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                                 |
-| 7   |        strict        | BINARY(4)    | 废弃参数                                                                                                                                            |
-| 8   |       duration       | INT          | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                              |
-| 9   |         keep         | INT          | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                              |
-| 10  |        buffer        | INT          | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                  |
-| 11  |       pagesize       | INT          | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                        |
-| 12  |        pages         | INT          | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                    |
-| 13  |       minrows        | INT          | 文件块中记录的最大条数。需要注意，`minrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                 |
-| 14  |       maxrows        | INT          | 文件块中记录的最小条数。需要注意，`maxrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                 |
-| 15  |         comp         | INT          | 数据压缩方式。需要注意，`comp` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                              |
-| 16  |      precision       | BINARY(2)    | 时间分辨率。需要注意，`precision` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                           |
-| 17  |        status        | BINARY(10)   | 数据库状态                                                                                                                                          |
-| 18  |      retentions      | BINARY (60)  | 数据的聚合周期和保存时长。需要注意，`retentions` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                            |
-| 19  |    single_stable     | BOOL         | 表示此数据库中是否只可以创建一个超级表。需要注意，`single_stable` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
-| 20  |      cachemodel      | BINARY(60)   | 表示是否在内存中缓存子表的最近数据。需要注意，`cachemodel` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                  |
-| 21  |      cachesize       | INT          | 表示每个 vnode 中用于缓存子表最近数据的内存大小。需要注意，`cachesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                      |
-| 22  |      wal_level       | INT          | WAL 级别。需要注意，`wal_level` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                             |
-| 23  |   wal_fsync_period   | INT          | 数据落盘周期。需要注意，`wal_fsync_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                                  |
-| 24  | wal_retention_period | INT          | WAL 的保存时长。需要注意，`wal_retention_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                            |
-| 25  |  wal_retention_size  | INT          | WAL 的保存上限。需要注意，`wal_retention_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                              |
-| 26  |   wal_roll_period    | INT          | wal 文件切换时长。需要注意，`wal_roll_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                               |
-| 27  |   wal_segment_size   | BIGINT       | wal 单个文件大小。需要注意，`wal_segment_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                              |
-| 28  |     stt_trigger      | SMALLINT     | 触发文件合并的落盘文件的个数。需要注意，`stt_trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                       |
-| 29  |     table_prefix     | SMALLINT     | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。需要注意，`table_prefix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
-| 30  |     table_suffix     | SMALLINT     | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。需要注意，`table_suffix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
-| 31  |    tsdb_pagesize     | INT          | 时序数据存储引擎中的页大小。需要注意，`tsdb_pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                       |
+| #   |       **列名**       | **数据类型**     | **说明**                                         |
+| --- | :------------------: | ---------------- | ------------------------------------------------ |
+| 1   |         name         | BINARY(32)       | 数据库名                                         |
+| 2   |     create_time      | TIMESTAMP        | 创建时间                                         |
+| 3   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
+| 4   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
+| 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                           |
+| 7   |        strict        | BINARY(4)        | 废弃参数 |
+| 8   |       duration       | INT              | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
+| 9   |         keep         | INT              | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
+| 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。   |
+| 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。            |
+| 13  |       minrows        | INT              | 文件块中记录的最大条数。需要注意，`minrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 14  |       maxrows        | INT              | 文件块中记录的最小条数。需要注意，`maxrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 15  |         comp         | INT              | 数据压缩方式。需要注意，`comp` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 16  |      precision       | BINARY(2)        | 时间分辨率。需要注意，`precision` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                       |
+| 17  |        status        | BINARY(10)       | 数据库状态                                       |
+| 18  |      retentions       | BINARY (60)      | 数据的聚合周期和保存时长。需要注意，`retentions` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
+| 19  |    single_stable     | BOOL             | 表示此数据库中是否只可以创建一个超级表。需要注意，`single_stable` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
+| 20  |      cachemodel      | BINARY(60)       | 表示是否在内存中缓存子表的最近数据。需要注意，`cachemodel` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。               |
+| 21  |      cachesize       | INT              | 表示每个 vnode 中用于缓存子表最近数据的内存大小。需要注意，`cachesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  |
+| 22  |      wal_level       | INT              | WAL 级别。需要注意，`wal_level` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
+| 23  |   wal_fsync_period   | INT              | 数据落盘周期。需要注意，`wal_fsync_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 24  | wal_retention_period | INT              | WAL 的保存时长，单位为秒。需要注意，`wal_retention_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
+| 25  |  wal_retention_size  | INT              | WAL 的保存上限。需要注意，`wal_retention_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
+| 26  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数。需要注意，`stt_trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 27  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。需要注意，`table_prefix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 28  |   table_suffix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。需要注意，`table_suffix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 29  |   tsdb_pagesize   | INT | 时序数据存储引擎中的页大小。需要注意，`tsdb_pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 
 ## INS_FUNCTIONS
 

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInc.h"
+#include "streamInt.h"
 
 SStreamQueue* streamQueueOpen(int64_t cap) {
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
