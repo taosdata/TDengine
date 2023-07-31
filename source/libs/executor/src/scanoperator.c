@@ -2043,7 +2043,7 @@ FETCH_NEXT_BLOCK:
         }
 
         setBlockGroupIdByUid(pInfo, pDelBlock);
-        rebuildDeleteBlockData(pDelBlock, pStreamInfo->fillHistoryWindow.skey, id);
+        rebuildDeleteBlockData(pDelBlock, &pStreamInfo->fillHistoryWindow, id);
         printDataBlock(pDelBlock, "stream scan delete recv filtered");
         if (pDelBlock->info.rows == 0) {
           if (pInfo->tqReader) {
