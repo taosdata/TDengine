@@ -455,8 +455,8 @@ impl Client {
                     }
                     "heartbeat-ok" => {
                         let resp: HeartbeatResponse = serde_json::from_str(&context).unwrap();
-                        let delay = resp.duration().to_std().unwrap();
-                        info!("Server is alive, delay: {:?}", delay);
+                        // let delay = resp.duration().to_std().unwrap();
+                        info!("Server is alive, delay: {}ms", resp.duration().num_milliseconds());
                     }
                     _ => unreachable!(),
                 }
