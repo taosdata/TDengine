@@ -630,6 +630,10 @@ void        streamTaskHalt(SStreamTask* pTask);
 void        streamTaskResumeFromHalt(SStreamTask* pTask);
 void        streamTaskDisablePause(SStreamTask* pTask);
 void        streamTaskEnablePause(SStreamTask* pTask);
+int32_t     streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
+void        streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
+void        streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
+void        streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask);
 
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
@@ -651,7 +655,7 @@ void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-// save to b-tree meta store
+// save to stream meta store
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t      streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);

@@ -34,14 +34,14 @@
 #define MND_STREAM_HB_INTERVAL  100  // 100 sec
 
 typedef struct SNodeEntry {
-  int32_t vgId;
+  int32_t nodeId;
   SEpSet  epset;           // compare the epset to identify the vgroup tranferring between different dnodes.
   int64_t hbTimestamp;     // second
 } SNodeEntry;
 
 typedef struct SStreamVnodeRevertIndex {
   SHashObj* pVnodeMap;
-  SArray*   pVnodeEntryList;
+  SArray*   pNodeEntryList;
 } SStreamVnodeRevertIndex;
 
 static SStreamVnodeRevertIndex execNodeList;
@@ -1017,10 +1017,11 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
   for (int32_t i = 0; i < totLevel; i++) {
     SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
     SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+
     if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
-        SStreamTask *pTask = taosArrayGetP(pLevel, j);
+        pTask = taosArrayGetP(pLevel, j);
         if (pTask->info.fillHistory == 1) {
           continue;
         }
@@ -1083,6 +1084,7 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
   }
   return 0;
 }
+
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -1756,13 +1758,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SArray* pList = taosArrayInit(4, sizeof(int32_t));
 
   // record the timeout node
-  for(int32_t i = 0; i < taosArrayGetSize(execNodeList.pVnodeEntryList); ++i) {
-    SNodeEntry* pEntry = taosArrayGet(execNodeList.pVnodeEntryList, i);
+  for(int32_t i = 0; i < taosArrayGetSize(execNodeList.pNodeEntryList); ++i) {
+    SNodeEntry* pEntry = taosArrayGet(execNodeList.pNodeEntryList, i);
     if (now - pEntry->hbTimestamp > MND_STREAM_HB_INTERVAL) { // execNode timeout, try next
 //      taosArrayPush(pList, &pEntry);
     }
 
-    if (pEntry->vgId != req.vgId) {
+    if (pEntry->nodeId != req.vgId) {
       continue;
     }
 
@@ -1774,9 +1776,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t nodeId = 0;
   SEpSet  newEpSet = {0};
 
-  {//check all streams that involved this vnode
+  {  // check all streams that involved this vnode
     SStreamObj *pStream = NULL;
-    void* pIter = NULL;
+    void       *pIter = NULL;
     while (1) {
       pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
       if (pIter == NULL) {
@@ -1784,58 +1786,37 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
 
       // update the related upstream and downstream tasks
-      taosRLockLatch(&pStream->lock);
+      taosWLockLatch(&pStream->lock);
       int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
 
-      for(int32_t j = 0; j < numOfLevels; ++j) {
-        SArray* pLevel = taosArrayGetP(pStream->tasks, j);
+      for (int32_t j = 0; j < numOfLevels; ++j) {
+        SArray *pLevel = taosArrayGetP(pStream->tasks, j);
 
         int32_t numOfTasks = taosArrayGetSize(pLevel);
-        for(int32_t k = 0; k < numOfTasks; ++k) {
-          SStreamTask* pTask = taosArrayGetP(pLevel, k);
+        for (int32_t k = 0; k < numOfTasks; ++k) {
+          SStreamTask *pTask = taosArrayGetP(pLevel, k);
           if (pTask->info.nodeId == nodeId) {
-            //            pTask->info.epSet = 0; set the new epset
+            //pTask->info.epSet = 0; set the new epset
             continue;
           }
 
           // check for the dispath info and the upstream task info
-
-            int32_t level = pTask->info.taskLevel;
-            if (level == TASK_LEVEL__SOURCE) {
-              // only update the upstream info of the direct downstream tasks
-              if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-                  // todo extract method
-                  SArray* pVgs = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
-
-                  int32_t numOfVgroups = taosArrayGetSize(pVgs);
-                  for (int32_t i = 0; i < numOfVgroups; i++) {
-                    SVgroupInfo* pVgInfo = taosArrayGet(pVgs, i);
-
-                    if (pVgInfo->vgId == nodeId) {
-                      pVgInfo->epSet = newEpSet;
-                    }
-                  }
-
-              } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-                STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
-                if (pDispatcher->nodeId == nodeId) {
-                  pDispatcher->epSet = newEpSet;
-                }
-              } else {
-                // do nothing
-              }
-            } else if (level == TASK_LEVEL__AGG) {
-              // update the upstream info
-              SArray* pupstream = pTask->pUpstreamInfoList;
-//              for(int32_t i = 0; i < )
-            } else {
-              // update the upstream tasks
-            }
+          int32_t level = pTask->info.taskLevel;
+          if (level == TASK_LEVEL__SOURCE) {
+            streamTaskUpdateDownstreamInfo(pTask, nodeId, &newEpSet);
+          } else if (level == TASK_LEVEL__AGG) {
+            streamTaskUpdateUpstreamInfo(pTask, nodeId, &newEpSet);
+            streamTaskUpdateDownstreamInfo(pTask, nodeId, &newEpSet);
+          } else { // TASK_LEVEL__SINK
+            streamTaskUpdateUpstreamInfo(pTask, nodeId, &newEpSet);
           }
         }
       }
-      taosRLockLatch(&pStream->lock);
+
+      taosWUnLockLatch(&pStream->lock);
     }
+
+  }
 
   mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
   return TSDB_CODE_SUCCESS;

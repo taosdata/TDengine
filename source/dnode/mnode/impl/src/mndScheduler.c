@@ -25,12 +25,8 @@
 #define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
-static int32_t setTaskUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
-static int32_t updateTaskUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId,
                                       SVgObj* pVgroup, int32_t fillHistory);
-static void    setFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask);
-static void    updateFixDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
@@ -143,7 +139,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
     }
   } else {
     SStreamTask* pOneSinkTask = taosArrayGetP(pSinkNodeList, 0);
-    setFixedDownstreamInfo(pTask, pOneSinkTask);
+    streamTaskSetFixedDownstreamInfo(pTask, pOneSinkTask);
   }
 
   return 0;
@@ -274,48 +270,9 @@ static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTas
 
   for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
     SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
-    setTaskUpstreamInfo(pSinkTask, pTask);
+    streamTaskSetUpstreamInfo(pSinkTask, pTask);
   }
 
-  return TSDB_CODE_SUCCESS;
-}
-
-static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
-  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
-  if (pEpInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pEpInfo->childId = pTask->info.selfChildId;
-  pEpInfo->epSet = pTask->info.epSet;
-  pEpInfo->nodeId = pTask->info.nodeId;
-  pEpInfo->taskId = pTask->id.taskId;
-
-  return pEpInfo;
-}
-
-void setFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask) {
-  STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
-  pDispatcher->taskId = pDownstreamTask->id.taskId;
-  pDispatcher->nodeId = pDownstreamTask->info.nodeId;
-  pDispatcher->epSet = pDownstreamTask->info.epSet;
-
-  pTask->outputInfo.type = TASK_OUTPUT__FIXED_DISPATCH;
-  pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
-}
-
-int32_t setTaskUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
-  SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
-  if (pEpInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  if (pTask->pUpstreamInfoList == NULL) {
-    pTask->pUpstreamInfoList = taosArrayInit(4, POINTER_BYTES);
-  }
-
-  taosArrayPush(pTask->pUpstreamInfoList, &pEpInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -423,12 +380,12 @@ static int32_t doAddSourceTask(SArray* pTaskList, int8_t fillHistory, int64_t ui
          pWindow->skey, pWindow->ekey);
 
   // all the source tasks dispatch result to a single agg node.
-  setFixedDownstreamInfo(pTask, pDownstreamTask);
+  streamTaskSetFixedDownstreamInfo(pTask, pDownstreamTask);
   if (mndAssignStreamTaskToVgroup(pMnode, pTask, pPlan, pVgroup) < 0) {
     return -1;
   }
 
-  return setTaskUpstreamInfo(pDownstreamTask, pTask);
+  return streamTaskSetUpstreamInfo(pDownstreamTask, pTask);
 }
 
 static int32_t doAddAggTask(uint64_t uid, SArray* pTaskList, SArray* pSinkNodeList, SMnode* pMnode, SStreamObj* pStream,
@@ -600,7 +557,7 @@ static void setSinkTaskUpstreamInfo(SArray* pTasksList, const SStreamTask* pUpst
   SArray* pSinkTaskList = taosArrayGetP(pTasksList, SINK_NODE_LEVEL);
   for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
     SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
-    setTaskUpstreamInfo(pSinkTask, pUpstreamTask);
+    streamTaskSetUpstreamInfo(pSinkTask, pUpstreamTask);
   }
 }
 

@@ -321,3 +321,79 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
     }
   }
 }
+
+static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
+  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
+  if (pEpInfo == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pEpInfo->childId = pTask->info.selfChildId;
+  pEpInfo->epSet = pTask->info.epSet;
+  pEpInfo->nodeId = pTask->info.nodeId;
+  pEpInfo->taskId = pTask->id.taskId;
+
+  return pEpInfo;
+}
+
+int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
+  SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
+  if (pEpInfo == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (pTask->pUpstreamInfoList == NULL) {
+    pTask->pUpstreamInfoList = taosArrayInit(4, POINTER_BYTES);
+  }
+
+  taosArrayPush(pTask->pUpstreamInfoList, &pEpInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
+  int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
+  for(int32_t i = 0; i < numOfUpstream; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
+    if (pInfo->nodeId == nodeId) {
+      pInfo->epSet = *pEpSet;
+      break;
+    }
+  }
+}
+
+void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask) {
+  STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
+  pDispatcher->taskId = pDownstreamTask->id.taskId;
+  pDispatcher->nodeId = pDownstreamTask->info.nodeId;
+  pDispatcher->epSet = pDownstreamTask->info.epSet;
+
+  pTask->outputInfo.type = TASK_OUTPUT__FIXED_DISPATCH;
+  pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
+}
+
+void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
+  int8_t type = pTask->outputInfo.type;
+  if (type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* pVgs = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+
+    int32_t numOfVgroups = taosArrayGetSize(pVgs);
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      SVgroupInfo* pVgInfo = taosArrayGet(pVgs, i);
+
+      if (pVgInfo->vgId == nodeId) {
+        pVgInfo->epSet = *pEpSet;
+        qDebug("s-task:0x%x update the dispatch info, nodeId:%d", pTask->id.taskId, nodeId);
+        break;
+      }
+    }
+  } else if (type == TASK_OUTPUT__FIXED_DISPATCH) {
+    STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
+    if (pDispatcher->nodeId == nodeId) {
+      pDispatcher->epSet = *pEpSet;
+      qDebug("s-task:0x%x update the dispatch info, nodeId:%d", pTask->id.taskId, nodeId);
+    }
+  } else {
+    // do nothing
+  }
+}
