@@ -1296,7 +1296,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
           "s-task:%s scan-history in stream time window completed, no related fill-history task, reset the time "
           "window:%" PRId64 " - %" PRId64,
           id, pWindow->skey, pWindow->ekey);
-      qResetStreamInfoTimeWindow(pTask->exec.pExecutor);
+      qStreamInfoResetTimewindowFilter(pTask->exec.pExecutor);
     } else {
       // when related fill-history task exists, update the fill-history time window only when the
       // state transfer is completed.
