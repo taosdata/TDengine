@@ -3736,7 +3736,6 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
     setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
     int32_t winNum = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
     if (winNum > 0) {
-      saveSessionOutputBuf(pAggSup, &winInfo);
       if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
         saveResult(winInfo, pInfo->pStUpdated);
       } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -3747,9 +3746,8 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
         getSessionHashKey(&winInfo.sessionWin, &key);
         tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
       }
-    } else {
-      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)winInfo.pOutputBuf, &pAggSup->stateStore);
     }
+    saveSessionOutputBuf(pAggSup, &winInfo);
   }
   taosMemoryFree(pBuf);
 
@@ -4398,7 +4396,6 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
     setStateOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].groupId, NULL, &curInfo, &nextInfo);
     if (compareStateKey(curInfo.pStateKey,nextInfo.pStateKey)) {
       compactStateWindow(pOperator, &curInfo.winInfo, &nextInfo.winInfo, pInfo->pSeUpdated, pInfo->pSeUpdated);
-      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
       if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
         saveResult(curInfo.winInfo, pInfo->pSeUpdated);
       } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -4409,14 +4406,12 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
         getSessionHashKey(&curInfo.winInfo.sessionWin, &key);
         tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curInfo.winInfo, sizeof(SResultWindowInfo));
       }
+    } else if (IS_VALID_SESSION_WIN(nextInfo.winInfo)) {
+      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)nextInfo.winInfo.pOutputBuf, &pAggSup->pSessionAPI->stateStore);
     }
 
     if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
-      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)curInfo.winInfo.pOutputBuf, &pAggSup->pSessionAPI->stateStore);
-    }
-
-    if (IS_VALID_SESSION_WIN(nextInfo.winInfo)) {
-      releaseOutputBuf(pAggSup->pState, NULL, (SResultRow*)nextInfo.winInfo.pOutputBuf, &pAggSup->pSessionAPI->stateStore);
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
     }
   }
   taosMemoryFree(pBuf);
