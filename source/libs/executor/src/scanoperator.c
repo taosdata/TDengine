@@ -1590,38 +1590,51 @@ static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeW
 }
 
 // re-build the delete block, ONLY according to the split timestamp
-static void rebuildDeleteBlockData(SSDataBlock* pBlock, int64_t skey, const char* id) {
-  if (skey == INT64_MIN) {
-    return;
-  }
-
+static void rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
   int32_t numOfRows = pBlock->info.rows;
-
-  bool* p = taosMemoryCalloc(numOfRows, sizeof(bool));
-  bool  hasUnqualified = false;
+  bool*   p = taosMemoryCalloc(numOfRows, sizeof(bool));
+  bool    hasUnqualified = false;
+  int64_t skey = pWindow->skey;
+  int64_t ekey = pWindow->ekey;
 
   SColumnInfoData* pSrcStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   uint64_t*        tsStartCol = (uint64_t*)pSrcStartCol->pData;
   SColumnInfoData* pSrcEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
   uint64_t*        tsEndCol = (uint64_t*)pSrcEndCol->pData;
 
-  for (int32_t i = 0; i < numOfRows; i++) {
-    if (tsStartCol[i] < skey) {
-      tsStartCol[i] = skey;
-    }
+  if (pWindow->skey != INT64_MIN) {
+    for (int32_t i = 0; i < numOfRows; i++) {
+      if (tsStartCol[i] < skey) {
+        tsStartCol[i] = skey;
+      }
 
-    if (tsEndCol[i] >= skey) {
-      p[i] = true;
-    } else { // this row should be removed, since it is not in this query time window, which is [skey, INT64_MAX]
-      hasUnqualified = true;
+      if (tsEndCol[i] >= skey) {
+        p[i] = true;
+      } else {  // this row should be removed, since it is not in this query time window, which is [skey, INT64_MAX]
+        hasUnqualified = true;
+      }
+    }
+  } else if (pWindow->ekey != INT64_MAX) {
+    for(int32_t i = 0; i < numOfRows; ++i) {
+      if (tsEndCol[i] > ekey) {
+        tsEndCol[i] = ekey;
+      }
+
+      if (tsStartCol[i] <= ekey) {
+        p[i] = true;
+      } else {
+        hasUnqualified = true;
+      }
     }
   }
 
   if (hasUnqualified) {
     trimDataBlock(pBlock, pBlock->info.rows, p);
+    qDebug("%s re-build delete datablock, start key revised to:%"PRId64", rows:%"PRId64, id, skey, pBlock->info.rows);
+  } else {
+    qDebug("%s not update the delete block", id);
   }
 
-  qDebug("%s re-build delete datablock, start key revised to:%"PRId64", rows:%"PRId64, id, skey, pBlock->info.rows);
   taosMemoryFree(p);
 }
 
