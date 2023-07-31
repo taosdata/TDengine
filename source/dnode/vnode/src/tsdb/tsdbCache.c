@@ -1667,10 +1667,6 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
       }
 
       if (record.version <= pReader->info.verRange.maxVer) {
-        /*
-        tsdbError("tomb xx load/cache: vgId:%d fid:%d commit %" PRId64 "~%" PRId64 "~%" PRId64 " tomb records",
-                  TD_VID(pReader->pTsdb->pVnode), pReader->pCurFileSet->fid, record.skey, record.ekey, uid);
-        */
         SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
         taosArrayPush(pInfo->pTombData, &delData);
       }
@@ -1912,15 +1908,14 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
       int indexSize = TARRAY_SIZE(state->pIndexList);
       if (indexSize <= 0) {
-        clearLastFileSet(state);
-        state->state = SFSNEXTROW_FILESET;
-        goto _next_fileset;
+        goto _check_stt_data;
       }
 
       state->state = SFSNEXTROW_INDEXLIST;
       state->iBrinIndex = indexSize;
     }
 
+  _check_stt_data:
     if (state->pFileSet != state->pr->pCurFileSet) {
       state->pr->pCurFileSet = state->pFileSet;
     }
