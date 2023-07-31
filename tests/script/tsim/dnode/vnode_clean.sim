@@ -71,10 +71,10 @@ sql insert into d2.t2 values(now+5s, 21)
 sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(2)[2]
-if $data(1)[2] != 0 then
+if $data(1)[2] != 1 then
 	return -1
 endi
-if $data(2)[2] != 2 then
+if $data(2)[2] != 1 then
 	return -1
 endi
 
@@ -181,10 +181,10 @@ sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(3)[2]
 print dnode2 openVnodes $data(4)[2]
-if $data(1)[2] != 0 then
+if $data(1)[2] != 1 then
 	return -1
 endi
-if $data(3)[2] != 2 then
+if $data(3)[2] != 1 then
 	return -1
 endi
 if $data(4)[2] != 1 then
@@ -204,13 +204,13 @@ sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(3)[2]
 print dnode2 openVnodes $data(4)[2]
-if $data(1)[2] != 0 then
+if $data(1)[2] != 1 then
 	return -1
 endi
 if $data(3)[2] != 2 then
 	return -1
 endi
-if $data(4)[2] != 2 then
+if $data(4)[2] != 1 then
 	return -1
 endi
 
@@ -220,13 +220,13 @@ sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(3)[2]
 print dnode2 openVnodes $data(4)[2]
-if $data(1)[2] != 1 then
+if $data(1)[2] != 2 then
 	return -1
 endi
 if $data(3)[2] != null then
 	return -1
 endi
-if $data(4)[2] != 3 then
+if $data(4)[2] != 2 then
 	return -1
 endi
 

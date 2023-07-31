@@ -1,5 +1,6 @@
 ---
 title: FAQ & Others
+description: This document describes common issues related with TDengine.
 ---
 
 ```mdx-code-block

@@ -20,13 +20,6 @@ using namespace std;
 
 class PlanSysTableTest : public PlannerTestBase {};
 
-TEST_F(PlanSysTableTest, show) {
-  useDb("root", "test");
-
-  run("show tables");
-  run("show stables");
-}
-
 TEST_F(PlanSysTableTest, informationSchema) {
   useDb("root", "information_schema");
 
@@ -37,4 +30,18 @@ TEST_F(PlanSysTableTest, withAgg) {
   useDb("root", "information_schema");
 
   run("SELECT COUNT(1) FROM ins_users");
+}
+
+TEST_F(PlanSysTableTest, tableCount) {
+  useDb("root", "information_schema");
+
+  run("SELECT COUNT(*) FROM ins_tables");
+
+  run("SELECT COUNT(*) FROM ins_tables WHERE db_name = 'test'");
+
+  run("SELECT COUNT(*) FROM ins_tables WHERE db_name = 'test' AND stable_name = 'st1'");
+
+  run("SELECT db_name, COUNT(*) FROM ins_tables GROUP BY db_name");
+
+  run("SELECT db_name, stable_name, COUNT(*) FROM ins_tables GROUP BY db_name, stable_name");
 }

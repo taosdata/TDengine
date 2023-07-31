@@ -1566,7 +1566,7 @@
     },
     {
       "datasource": "${ds}",
-      "description": "taosd  max  memery  last 10 minutes",
+      "description": "taosd  max  memory  last 10 minutes",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1933,7 +1933,7 @@
     },
     {
       "datasource": "${ds}",
-      "description": "taosd  max  memery  last 10 minutes",
+      "description": "taosd  max  memory  last 10 minutes",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2000,7 +2000,7 @@
     },
     {
       "datasource": "${ds}",
-      "description": "taosd  max  memery  last 10 minutes",
+      "description": "taosd  max  memory  last 10 minutes",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2961,7 +2961,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Requets Count per Minutes $fqdn",
+      "title": "Requests Count per Minutes $fqdn",
       "tooltip": {
         "shared": true,
         "sort": 0,

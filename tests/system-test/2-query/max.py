@@ -20,8 +20,8 @@ class TDTestCase:
         intData = []
         floatData = []
         tdSql.execute(f'''create table {dbname}.stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
-                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
-        tdSql.execute(f"create table {dbname}.stb_1 using {dbname}.stb tags('beijing')")
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(t0 tinyint, t1 float, loc nchar(20))''')
+        tdSql.execute(f"create table {dbname}.stb_1 using {dbname}.stb tags(5, 5.5, 'beijing')")
         for i in range(self.rowNum):
             tdSql.execute(f"insert into {dbname}.stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
@@ -55,12 +55,19 @@ class TDTestCase:
         tdSql.checkData(0, 1, np.max(intData))
 
         tdSql.query(f"select ts, min(col9) from {dbname}.stb")
-        tdSql.checkRows(1)        
+        tdSql.checkRows(1)
         tdSql.checkData(0, 1, np.min(floatData))
 
         tdSql.query(f"select ts, min(col9) from {dbname}.stb_1")
-        tdSql.checkRows(1)        
+        tdSql.checkRows(1)
         tdSql.checkData(0, 1, np.min(floatData))
+
+        # check tags
+        tdSql.query(f"select max(t0) from {dbname}.stb")
+        tdSql.checkData(0,0,5)
+
+        tdSql.query(f"select max(t1) from {dbname}.stb")
+        tdSql.checkData(0,0,5.5)
 
     def max_check_ntb_base(self, dbname="db"):
         tdSql.prepare()

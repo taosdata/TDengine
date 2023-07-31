@@ -174,6 +174,8 @@ bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC
 
 bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
+bool fmIsDateTimeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_DATETIME_FUNC); }
+
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
 
 bool fmIsScanPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCAN_PC_FUNC); }
@@ -183,6 +185,7 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
 
 bool fmIsIndefiniteRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INDEFINITE_ROWS_FUNC); }
+
 
 bool fmIsSpecialDataRequiredFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_SPECIAL_DATA_REQUIRED);
@@ -216,6 +219,8 @@ bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
+bool fmIsForbidSysTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_SYSTABLE_FUNC); }
+
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -241,7 +246,11 @@ bool fmIsNotNullOutputFunc(int32_t funcId) {
          FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
-         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_COUNT == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_MERGE == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsSelectValueFunc(int32_t funcId) {
@@ -256,6 +265,13 @@ bool fmIsGroupKeyFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsBlockDistFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_BLOCK_DIST == funcMgtBuiltins[funcId].type;
 }
 
 void fmFuncMgtDestroy() {
@@ -330,7 +346,7 @@ static int32_t getFuncInfo(SFunctionNode* pFunc) {
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 
-static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return NULL;
@@ -435,4 +451,11 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   }
 
   return code;
+}
+
+char* fmGetFuncName(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return taosStrdup("invalid function");
+  }
+  return  taosStrdup(funcMgtBuiltins[funcId].name);
 }

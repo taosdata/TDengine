@@ -55,7 +55,7 @@ $loop_cnt = 0
 check_db_ready:
 $loop_cnt = $loop_cnt + 1
 sleep 200
-if $loop_cnt == 100 then
+if $loop_cnt == 500 then
   print ====> db not ready!
 	return -1
 endi

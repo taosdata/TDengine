@@ -40,7 +40,7 @@ TEST_F(DndTestMnode, 01_Create_Mnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MNODE_ALREADY_DEPLOYED);
   }
 
   {
@@ -57,7 +57,7 @@ TEST_F(DndTestMnode, 01_Create_Mnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MNODE_ALREADY_DEPLOYED);
   }
 
   {
@@ -77,7 +77,7 @@ TEST_F(DndTestMnode, 01_Create_Mnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MNODE_ALREADY_DEPLOYED);
   }
 }
 
@@ -171,7 +171,7 @@ TEST_F(DndTestMnode, 03_Drop_Mnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_MNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MNODE_NOT_DEPLOYED);
   }
 
   {
@@ -188,7 +188,7 @@ TEST_F(DndTestMnode, 03_Drop_Mnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_MNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MNODE_NOT_DEPLOYED);
   }
 
   {

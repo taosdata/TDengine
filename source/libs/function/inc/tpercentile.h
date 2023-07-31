@@ -53,7 +53,7 @@ typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *va
 typedef struct tMemBucket {
   int16_t            numOfSlots;
   int16_t            type;
-  int16_t            bytes;
+  int32_t            bytes;
   int32_t            total;
   int32_t            elemPerPage;  // number of elements for each object
   int32_t            maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
@@ -67,13 +67,13 @@ typedef struct tMemBucket {
   SHashObj          *groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);
+tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval);
 
 void tMemBucketDestroy(tMemBucket *pBucket);
 
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
 
-double getPercentile(tMemBucket *pMemBucket, double percent);
+int32_t getPercentile(tMemBucket *pMemBucket, double percent, double *result);
 
 #endif  // TDENGINE_TPERCENTILE_H
 

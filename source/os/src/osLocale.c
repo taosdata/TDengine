@@ -59,16 +59,19 @@ char *taosCharsetReplace(char *charsetstr) {
 
   for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
     if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
+      return taosStrdup(charsetRep[i].newCharset);
     }
   }
 
-  return strdup(charsetstr);
+  return taosStrdup(charsetstr);
 }
 
 /**
+ * TODO: here we may employ the systemctl API to set/get the correct locale on the Linux. In some cases, the setlocale
+ *  seems does not response as expected.
+ *
  * In some Linux systems, setLocale(LC_CTYPE, "") may return NULL, in which case the launch of
- * both the TDengine Server and the Client may be interrupted.
+ * both the Server and the Client may be interrupted.
  *
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
@@ -148,7 +151,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
    *
    * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
    *
-   * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
+   * If user does not specify the locale in taos.cfg, the program then uses default LC_CTYPE as system locale.
    *
    * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
    * for libiconv that is employed to convert string in this system. This program will automatically use
@@ -168,7 +171,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     strcpy(outLocale, "en_US.UTF-8");
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
-    // printf("locale not configured, set to system default:%s", outLocale);
+    //printf("locale not configured, set to system default:%s\n", outLocale);
   }
 
   // if user does not specify the charset, extract it from locale

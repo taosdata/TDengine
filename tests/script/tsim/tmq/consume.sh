@@ -79,15 +79,15 @@ CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 
 echo "------------------------------------------------------------------------"
+echo "TOP_DIR: $TOP_DIR"
 echo "BUILD_DIR: $BUILD_DIR"
 echo "SIM_DIR  : $SIM_DIR"
 echo "CFG_DIR  : $CFG_DIR"
 
-
-echo "PROGRAM: $PROGRAM
-echo "CFG_DIR: $CFG_DIR 
-echo "POLL_DELAY: $POLL_DELAY 
-echo "DB_NAME: $DB_NAME
+echo "PROGRAM: $PROGRAM"
+echo "CFG_DIR: $CFG_DIR"
+echo "POLL_DELAY: $POLL_DELAY"
+echo "DB_NAME: $DB_NAME"
 
 echo "------------------------------------------------------------------------"
 if [ "$EXEC_OPTON" = "start" ]; then 

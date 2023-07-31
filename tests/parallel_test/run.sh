@@ -164,14 +164,29 @@ function run_thread() {
         if [ -z "$case_redo_time" ]; then
             case_redo_time=${DEFAULT_RETRY_TIME:-2}
         fi
-        local exec_dir=`echo "$line"|cut -d, -f3`
-        local case_cmd=`echo "$line"|cut -d, -f4`
+        local case_build_san=`echo "$line"|cut -d, -f3`
+        if [ "${case_build_san}" == "y" ]; then
+            case_build_san="y"
+            DEBUGPATH="debugSan"
+        elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
+            case_build_san="n"
+            DEBUGPATH="debugNoSan"
+        else
+            usage
+            exit 1
+        fi
+        local exec_dir=`echo "$line"|cut -d, -f4`
+        local case_cmd=`echo "$line"|cut -d, -f5`
         local case_file=""
         echo "$case_cmd"|grep -q "\.sh"
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.sh"|awk '{print $NF}'`
         fi
         echo "$case_cmd"|grep -q "^python3"
+        if [ $? -eq 0 ]; then
+            case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
+        fi
+        echo "$case_cmd"|grep -q "^./pytest.sh"
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
         fi
@@ -191,7 +206,7 @@ function run_thread() {
         if [ ! -z "$case_path" ]; then
             mkdir -p $log_dir/$case_path
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
@@ -199,7 +214,7 @@ function run_thread() {
         start_time=`date +%s`
         local case_index=`flock -x $lock_file -c "sh -c \"echo \\\$(( \\\$( cat $index_file ) + 1 )) | tee $index_file\""`
         case_index=`printf "%5d" $case_index`
-        local case_info=`echo "$line"|cut -d, -f 3,4`
+        local case_info=`echo "$line"|cut -d, -f 3,4,5`
         while [ ${redo_count} -lt 6 ]; do
             if [ -f $case_log_file ]; then
                 cp $case_log_file $log_dir/$case_file.${redo_count}.redotxt
@@ -261,6 +276,7 @@ function run_thread() {
         # echo "$thread_no ${line} DONE"
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
+            flock -x $lock_file -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
         else
             if [ ! -z ${web_server} ]; then
                 flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
@@ -287,10 +303,10 @@ function run_thread() {
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
-                local remote_build_dir="${workdirs[index]}/TDengine/debug/build"
-                if [ $ent -ne 0 ]; then
-                    remote_build_dir="${workdirs[index]}/TDinternal/debug/build"
-                fi
+                local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
+                # if [ $ent -ne 0 ]; then
+                #     remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
+                # fi
                 mkdir $build_dir 2>/dev/null
                 if [ $? -eq 0 ]; then
                     # scp build binary
@@ -352,6 +368,8 @@ lock_file=$log_dir/$$.lock
 index_file=$log_dir/case_index.txt
 stat_file=$log_dir/stat.txt
 failed_case_file=$log_dir/failed.txt
+success_case_file=$log_dir/success.txt
+
 echo "0" >$index_file
 
 i=0
@@ -413,7 +431,7 @@ if [ -f "${failed_case_file}" ]; then
                 continue
             fi
         fi
-        line=`echo "$line"|cut -d, -f 3,4`
+        line=`echo "$line"|cut -d, -f 3,4,5`
         echo -e "$i. $line \e[31m failed\e[0m" >&2
         i=$(( i + 1 ))
     done <${failed_case_file}

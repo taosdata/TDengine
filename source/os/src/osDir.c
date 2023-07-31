@@ -89,6 +89,8 @@ typedef struct dirent TdDirEntry;
 
 #endif
 
+#define TDDIRMAXLEN 1024
+
 void taosRemoveDir(const char *dirname) {
   TdDirPtr pDir = taosOpenDir(dirname);
   if (pDir == NULL) return;
@@ -133,8 +135,8 @@ int32_t taosMkDir(const char *dirname) {
 }
 
 int32_t taosMulMkDir(const char *dirname) {
-  if (dirname == NULL) return -1;
-  char    temp[1024];
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
+  char    temp[TDDIRMAXLEN];
   char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
@@ -163,7 +165,7 @@ int32_t taosMulMkDir(const char *dirname) {
       code = mkdir(temp, 0755);
 #endif
       if (code < 0 && errno != EEXIST) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        // terrno = TAOS_SYSTEM_ERROR(errno);
         return code;
       }
       *pos = TD_DIRSEP[0];
@@ -179,7 +181,7 @@ int32_t taosMulMkDir(const char *dirname) {
     code = mkdir(temp, 0755);
 #endif
     if (code < 0 && errno != EEXIST) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      // terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
     }
   }
@@ -192,8 +194,8 @@ int32_t taosMulMkDir(const char *dirname) {
 }
 
 int32_t taosMulModeMkDir(const char *dirname, int mode) {
-  if (dirname == NULL) return -1;
-  char    temp[1024];
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
+  char    temp[TDDIRMAXLEN];
   char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
@@ -204,8 +206,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
 #endif
 
   if (taosDirExist(temp)) {
-    chmod(temp, mode);
-    return code;
+    return chmod(temp, mode);
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
@@ -225,7 +226,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
       code = mkdir(temp, mode);
 #endif
       if (code < 0 && errno != EEXIST) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        // terrno = TAOS_SYSTEM_ERROR(errno);
         return code;
       }
       *pos = TD_DIRSEP[0];
@@ -241,18 +242,16 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
     code = mkdir(temp, mode);
 #endif
     if (code < 0 && errno != EEXIST) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      // terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
     }
   }
 
   if (code < 0 && errno == EEXIST) {
-    chmod(temp, mode);
-    return 0;
+    return chmod(temp, mode);
   }
 
-  chmod(temp, mode);
-  return code;
+  return chmod(temp, mode);
 }
 
 void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
@@ -336,12 +335,14 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
 #else
   if (realpath(dirname, tmp) != NULL) {
 #endif
-    if (realPath == NULL) {
-      strncpy(dirname, tmp, maxlen);
-    } else {
-      strncpy(realPath, tmp, maxlen);
+    if (strlen(tmp) < maxlen) {
+      if (realPath == NULL) {
+        strncpy(dirname, tmp, maxlen);
+      } else {
+        strncpy(realPath, tmp, maxlen);
+      }
+      return 0;
     }
-    return 0;
   }
 
   return -1;
@@ -392,8 +393,8 @@ char *taosDirEntryBaseName(char *name) {
   char *pPoint = strrchr(name, '/');
   if (pPoint != NULL) {
     if (*(pPoint + 1) == '\0') {
-        *pPoint = '\0';
-        return taosDirEntryBaseName(name);
+      *pPoint = '\0';
+      return taosDirEntryBaseName(name);
     }
     return pPoint + 1;
   }
@@ -493,5 +494,14 @@ int32_t taosCloseDir(TdDirPtr *ppDir) {
   closedir((DIR *)*ppDir);
   *ppDir = NULL;
   return 0;
+#endif
+}
+
+void taosGetCwd(char *buf, int32_t len) {
+#if !defined(WINDOWS)
+  char *unused __attribute__((unused));
+  unused = getcwd(buf, len - 1);
+#else
+  strncpy(buf, "not implemented on windows", len - 1);
 #endif
 }

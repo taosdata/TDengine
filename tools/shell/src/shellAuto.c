@@ -15,8 +15,8 @@
 
 #define __USE_XOPEN
 
-#include "shellInt.h"
 #include "shellAuto.h"
+#include "shellInt.h"
 #include "shellTire.h"
 #include "tthread.h"
 
@@ -26,12 +26,14 @@
 #define UNION_ALL " union all "
 
 // extern function
-void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
-void shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
-void shellShowOnScreen(SShellCmd* cmd);
-void shellInsertChar(SShellCmd* cmd, char* c, int size);
-void shellInsertStr(SShellCmd* cmd, char* str, int size);
-bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
+void  shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
+void  shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
+void  shellShowOnScreen(SShellCmd* cmd);
+void  shellInsertChar(SShellCmd* cmd, char* c, int size);
+void  shellInsertStr(SShellCmd* cmd, char* str, int size);
+bool  appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
+char* tireSearchWord(int type, char* pre);
+bool  updateTireValue(int type, bool autoFill);
 
 typedef struct SAutoPtr {
   STire* p;
@@ -60,67 +62,80 @@ SWords shellCommands[] = {
     {"alter database <db_name> <alter_db_options> <anyword> <alter_db_options> <anyword> <alter_db_options> <anyword> "
      "<alter_db_options> <anyword> <alter_db_options> <anyword> ;",
      0, 0, NULL},
-    {"alter dnode <dnode_id> balance ", 0, 0, NULL},
-    {"alter dnode <dnode_id> resetlog;", 0, 0, NULL},
-    {"alter dnode <dnode_id> debugFlag 141;", 0, 0, NULL},
-    {"alter dnode <dnode_id> monitor 1;", 0, 0, NULL},
-    {"alter all dnodes monitor ", 0, 0, NULL},
-    {"alter alldnodes balance ", 0, 0, NULL},
-    {"alter alldnodes resetlog;", 0, 0, NULL},
-    {"alter alldnodes debugFlag 141;", 0, 0, NULL},
-    {"alter alldnodes monitor 1;", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"resetlog\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"debugFlag\" \"141\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"monitor\" \"0\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"monitor\" \"1\";", 0, 0, NULL},
+    {"alter all dnodes \"resetlog\";", 0, 0, NULL},
+    {"alter all dnodes \"debugFlag\" \"141\";", 0, 0, NULL},
+    {"alter all dnodes \"monitor\" \"0\";", 0, 0, NULL},
+    {"alter all dnodes \"monitor\" \"1\";", 0, 0, NULL},
     {"alter table <tb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
-    {"alter table modify column", 0, 0, NULL},
-    {"alter local resetlog;", 0, 0, NULL},
-    {"alter local DebugFlag 143;", 0, 0, NULL},
-    {"alter local cDebugFlag 143;", 0, 0, NULL},
-    {"alter local uDebugFlag 143;", 0, 0, NULL},
-    {"alter local rpcDebugFlag 143;", 0, 0, NULL},
-    {"alter local tmrDebugFlag 143;", 0, 0, NULL},
+    {"alter local \"resetlog\";", 0, 0, NULL},
+    {"alter local \"DebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"cDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"uDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"rpcDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"tmrDebugFlag\" \"143\";", 0, 0, NULL},
     {"alter topic", 0, 0, NULL},
     {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
     // 20
     {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
     {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> "
      "<anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> "
-     "<db_options> <anyword> <db_options> <anyword> ;",
-     0, 0, NULL},
-    {"create dnode ", 0, 0, NULL},
-    {"create index ", 0, 0, NULL},
+     "<db_options> <anyword> <db_options> <anyword> ;", 0, 0, NULL},
+    {"create dnode <anyword>", 0, 0, NULL},
+    {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
-    {"create function ", 0, 0, NULL},
+    {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
+    {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
+    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
+    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"compact database <db_name>", 0, 0, NULL},
+#endif
     {"describe <all_table>", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>", 0, 0, NULL},
+    {"drop index <anyword>", 0, 0, NULL},
     {"drop table <all_table>", 0, 0, NULL},
     {"drop dnode <dnode_id>", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"drop qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"drop user <user_name> ;", 0, 0, NULL},
     // 40
-    {"drop function", 0, 0, NULL},
+    {"drop function <udf_name> ;", 0, 0, NULL},
     {"drop consumer group <anyword> on ", 0, 0, NULL},
     {"drop topic <topic_name> ;", 0, 0, NULL},
     {"drop stream <stream_name> ;", 0, 0, NULL},
     {"explain select", 0, 0, NULL},  // 44 append sub sql
+    {"flush database <db_name> ;", 0, 0, NULL},
+    {"help;", 0, 0, NULL},
     {"grant all on <anyword> to <user_name> ;", 0, 0, NULL},
     {"grant read on <anyword> to <user_name> ;", 0, 0, NULL},
     {"grant write on <anyword> to <user_name> ;", 0, 0, NULL},
     {"kill connection <anyword> ;", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"merge vgroup ", 0, 0, NULL},
+#endif
+    {"pause stream <stream_name> ;", 0, 0, NULL},
+    {"resume stream <stream_name> ;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
+    {"restore dnode <dnode_id> ;", 0, 0, NULL},
+    {"restore vnode on dnode <dnode_id> ;", 0, 0, NULL},
+    {"restore mnode on dnode <dnode_id> ;", 0, 0, NULL},
+    {"restore qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"revoke all on <anyword> from <user_name> ;", 0, 0, NULL},
     {"revoke read on <anyword> from <user_name> ;", 0, 0, NULL},
     {"revoke write on <anyword> from <user_name> ;", 0, 0, NULL},
     {"select * from <all_table>", 0, 0, NULL},
-    {"select _block_dist() from <all_table> \\G;", 0, 0, NULL},
     {"select client_version();", 0, 0, NULL},
     // 60
     {"select current_user();", 0, 0, NULL},
@@ -137,6 +152,7 @@ SWords shellCommands[] = {
     {"show create table <tb_name> \\G;", 0, 0, NULL},
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
+    {"show cluster alive;", 0, 0, NULL},
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
@@ -166,7 +182,9 @@ SWords shellCommands[] = {
     {"show vgroups;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"split vgroup ", 0, 0, NULL},
+#endif    
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -246,7 +264,7 @@ char* db_options[] = {"keep ",
                       "wal_retention_size ",
                       "wal_segment_size "};
 
-char* alter_db_options[] = {"keep ", "cachemodel ", "cachesize ", "wal_fsync_period ", "wal_level "};
+char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "cachesize ", "wal_fsync_period ", "wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
                       "int unsigned", "varchar(16)",
@@ -261,8 +279,17 @@ char* key_tags[] = {"tags("};
 
 char* key_select[] = {"select "};
 
+char* key_systable[] = {
+    "ins_dnodes",        "ins_mnodes",     "ins_modules",      "ins_qnodes",  "ins_snodes",          "ins_cluster",
+    "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
+    "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
+    "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
+    "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
+
+char* udf_language[] = {"\'Python\'", "\'C\'"};
+
 //
-//  ------- gobal variant define ---------
+//  ------- global variant define ---------
 //
 int32_t firstMatchIndex = -1;  // first match shellCommands index
 int32_t lastMatchIndex = -1;   // last match shellCommands index
@@ -280,23 +307,28 @@ bool    waitAutoFill = false;
 #define WT_VAR_USERNAME       4
 #define WT_VAR_TOPIC          5
 #define WT_VAR_STREAM         6
-#define WT_VAR_ALLTABLE       7
-#define WT_VAR_FUNC           8
-#define WT_VAR_KEYWORD        9
-#define WT_VAR_TBACTION       10
-#define WT_VAR_DBOPTION       11
-#define WT_VAR_ALTER_DBOPTION 12
-#define WT_VAR_DATATYPE       13
-#define WT_VAR_KEYTAGS        14
-#define WT_VAR_ANYWORD        15
-#define WT_VAR_TBOPTION       16
-#define WT_VAR_USERACTION     17
-#define WT_VAR_KEYSELECT      18
+#define WT_VAR_UDFNAME        7
 
-#define WT_VAR_CNT 19
-
-#define WT_FROM_DB_MAX 6  // max get content from db
+#define WT_FROM_DB_MAX        7  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
+
+#define WT_VAR_ALLTABLE       8
+#define WT_VAR_FUNC           9
+#define WT_VAR_KEYWORD        10
+#define WT_VAR_TBACTION       11
+#define WT_VAR_DBOPTION       12
+#define WT_VAR_ALTER_DBOPTION 13
+#define WT_VAR_DATATYPE       14
+#define WT_VAR_KEYTAGS        15
+#define WT_VAR_ANYWORD        16
+#define WT_VAR_TBOPTION       17
+#define WT_VAR_USERACTION     18
+#define WT_VAR_KEYSELECT      19
+#define WT_VAR_SYSTABLE       20
+#define WT_VAR_LANGUAGE       21
+
+#define WT_VAR_CNT 22
+
 
 #define WT_TEXT 0xFF
 
@@ -307,13 +339,13 @@ TdThreadMutex tiresMutex;
 // save thread handle obtain var name from db server
 TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
-char varTypes[WT_VAR_CNT][64] = {"<db_name>",    "<stb_name>",    "<tb_name>",          "<dnode_id>",   "<user_name>",
-                                 "<topic_name>", "<stream_name>", "<all_table>",        "<function>",   "<keyword>",
-                                 "<tb_actions>", "<db_options>",  "<alter_db_options>", "<data_types>", "<key_tags>",
-                                 "<anyword>",    "<tb_options>",  "<user_actions>",     "<key_select>"};
+char varTypes[WT_VAR_CNT][64] = {
+    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
+    "<udf_name>",   "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
+    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
-                                    "show users;",     "show topics;",  "show streams;"};
+                                    "show users;",     "show topics;",  "show streams;", "show functions;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -321,55 +353,64 @@ bool varMode = false;  // enter var names list mode
 
 TAOS*      varCon = NULL;
 SShellCmd* varCmd = NULL;
+bool       varRunOnce = false;
 SMatch*    lastMatch = NULL;  // save last match result
 int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ******************************  Tab Completion  **********************************\n");
-  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
-  printf("   *   including database names, table names, function names and keywords.          *\n");
-  printf("   *   The full list of shortcut keys is as follows:                                *\n");
-  printf("   *    [ TAB ]        ......  complete the current word                            *\n");
-  printf("   *                   ......  if used on a blank line, display all valid commands  *\n");
-  printf("   *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line               *\n");
-  printf("   *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                 *\n");
-  printf("   *    [ Ctrl + W ]   ......  move cursor to the middle of the line                *\n");
-  printf("   *    [ Ctrl + L ]   ......  clear the entire screen                              *\n");
-  printf("   *    [ Ctrl + K ]   ......  clear the screen after the cursor                    *\n");
-  printf("   *    [ Ctrl + U ]   ......  clear the screen before the cursor                   *\n");
-  printf("   **********************************************************************************\n\n");
+  printf("  ********************************  Tab Completion  ************************************\n");
+  char secondLine[160] = "\0";
+  sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
+  printf("%s", secondLine);
+  int secondLineLen = strlen(secondLine);
+  while (87 - (secondLineLen++) > 0) {
+    printf(" ");
+  }
+  printf("*\n");
+  printf("  *   including database names, table names, function names and keywords.              *\n");
+  printf("  *   The full list of shortcut keys is as follows:                                    *\n");
+  printf("  *    [ TAB ]        ......  complete the current word                                *\n");
+  printf("  *                   ......  if used on a blank line, display all supported commands  *\n");
+  printf("  *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line                   *\n");
+  printf("  *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                     *\n");
+  printf("  *    [ Ctrl + W ]   ......  move cursor to the middle of the line                    *\n");
+  printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                  *\n");
+  printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                        *\n");
+  printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                       *\n");
+  printf("  **************************************************************************************\n\n");
 }
 
 void showHelp() {
-  printf("\nThe TDengine CLI supports the following commands:");
+  printf("\nThe %s CLI supports the following commands:", shell.info.cusName);
   printf(
       "\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
-    alter dnode <dnode_id> balance \n\
-    alter dnode <dnode_id> resetlog;\n\
-    alter all dnodes monitor \n\
-    alter alldnodes balance \n\
-    alter alldnodes resetlog;\n\
-    alter alldnodes debugFlag \n\
-    alter alldnodes monitor \n\
+    alter dnode <dnode_id> 'resetlog';\n\
+    alter dnode <dnode_id> 'monitor' '0';\n\
+    alter dnode <dnode_id> 'monitor' \"1\";\n\
+    alter dnode <dnode_id> \"debugflag\" \"143\";\n\
+    alter all dnodes \"monitor\" \"0\";\n\
+    alter all dnodes \"monitor\" \"1\";\n\
+    alter all dnodes \"resetlog\";\n\
+    alter all dnodes \"debugFlag\" \n\
     alter table <tb_name> <tb_actions> ;\n\
-    alter table modify column\n\
-    alter local resetlog;\n\
-    alter local DebugFlag 143;\n\
+    alter local \"resetlog\";\n\
+    alter local \"DebugFlag\" \"143\";\n\
     alter topic\n\
     alter user <user_name> <user_actions> ...\n\
   ----- C ----- \n\
     create table <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
-    create dnode ...\n\
-    create index ...\n\
+    create dnode \"fqdn:port\" ...\n\
+    create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
     create stream <stream_name> into <stb_name> as select ...\n\
     create topic <topic_name> as select ...\n\
-    create function ...\n\
+    create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
+    create aggregate function  <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
     create user <user_name> pass <password> ...\n\
   ----- D ----- \n\
     describe <all_table>\n\
@@ -380,12 +421,17 @@ void showHelp() {
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
     drop user <user_name> ;\n\
-    drop function <function_name>;\n\
+    drop function <udf_name>;\n\
     drop consumer group ... \n\
     drop topic <topic_name> ;\n\
     drop stream <stream_name> ;\n\
+    drop index <index_name>;\n\
   ----- E ----- \n\
     explain select clause ...\n\
+  ----- F ----- \n\
+    flush database <db_name>;\n\
+  ----- H ----- \n\
+    help;\n\
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
     insert into <tb_name> using <stb_name> tags(...) values(...) ;\n\
@@ -397,16 +443,20 @@ void showHelp() {
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
     kill transaction <transaction_id>;\n\
-  ----- M ----- \n\
-    merge vgroup ...\n\
+  ----- P ----- \n\
+    pause stream <stream_name>;\n\
   ----- R ----- \n\
+    resume stream <stream_name>;\n\
     reset query cache;\n\
+    restore dnode <dnode_id> ;\n\
+    restore vnode on dnode <dnode_id> ;\n\
+    restore mnode on dnode <dnode_id> ;\n\
+    restore qnode on dnode <dnode_id> ;\n\
     revoke all   on <priv_level> from <user_name> ;\n\
     revoke read  on <priv_level> from <user_name> ;\n\
     revoke write on <priv_level> from <user_name> ;\n\
   ----- S ----- \n\
     select * from <all_table> where ... \n\
-    select _block_dist() from <all_table>;\n\
     select client_version();\n\
     select current_user();\n\
     select database();\n\
@@ -422,6 +472,7 @@ void showHelp() {
     show create table <tb_name>;\n\
     show connections;\n\
     show cluster;\n\
+    show cluster alive;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
@@ -450,14 +501,20 @@ void showHelp() {
     show vgroups;\n\
     show consumers;\n\
     show grants;\n\
-    split vgroup ...\n\
   ----- T ----- \n\
     trim database <db_name>;\n\
   ----- U ----- \n\
     use <db_name>;");
 
-  printf("\n\n");
+#ifdef TD_ENTERPRISE
+  printf(
+      "\n\n\
+  ----- special commands on enterpise version ----- \n\
+    compact database <db_name>; \n\
+    split vgroup <vgroup_id>;");
+#endif
 
+  printf("\n\n");
   // define in getDuration() function
   printf(
       "\
@@ -510,7 +567,7 @@ SWord* addWord(const char* p, int32_t len, bool pattern) {
   word->len = len;
 
   // check format
-  if (pattern) {
+  if (pattern && len > 0) {
     word->type = wordType(p, len);
   } else {
     word->type = WT_TEXT;
@@ -590,7 +647,7 @@ void GenerateVarType(int type, char** p, int count) {
 //  -------------------- shell auto ----------------
 //
 
-// init shell auto funciton , shell start call once
+// init shell auto function , shell start call once
 bool shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -616,14 +673,21 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_TBOPTION, tb_options, sizeof(tb_options) / sizeof(char*));
   GenerateVarType(WT_VAR_USERACTION, user_actions, sizeof(user_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYSELECT, key_select, sizeof(key_select) / sizeof(char*));
+  GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
+  GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
 
   return true;
 }
 
 // set conn
-void shellSetConn(TAOS* conn) { varCon = conn; }
+void shellSetConn(TAOS* conn, bool runOnce) {
+  varCon = conn;
+  varRunOnce = runOnce;
+  // init database and stable
+  if (!runOnce) updateTireValue(WT_VAR_DBNAME, false);
+}
 
-// exit shell auto funciton, shell exit call once
+// exit shell auto function, shell exit call once
 void shellAutoExit() {
   // free command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -640,7 +704,7 @@ void shellAutoExit() {
     }
   }
   taosThreadMutexUnlock(&tiresMutex);
-  // destory
+  // destroy
   taosThreadMutexDestroy(&tiresMutex);
 
   // free threads
@@ -661,7 +725,7 @@ void shellAutoExit() {
 //
 //  -------------------  auto ptr for tires --------------------------
 //
-bool setNewAuotPtr(int type, STire* pNew) {
+bool setNewAutoPtr(int type, STire* pNew) {
   if (pNew == NULL) return false;
 
   taosThreadMutexLock(&tiresMutex);
@@ -704,13 +768,13 @@ void putBackAutoPtr(int type, STire* tire) {
   if (tires[type] != tire) {
     // update by out,  can't put back , so free
     if (--tire->ref == 1) {
-      // support multi thread getAuotPtr
+      // support multi thread getAutoPtr
       freeTire(tire);
     }
 
   } else {
     tires[type]->ref--;
-    assert(tires[type]->ref > 0);
+    ASSERT(tires[type]->ref > 0);
   }
   taosThreadMutexUnlock(&tiresMutex);
 
@@ -759,9 +823,18 @@ int writeVarNames(int type, TAOS_RES* tres) {
   } while (row != NULL);
 
   // replace old tire
-  setNewAuotPtr(type, tire);
+  setNewAutoPtr(type, tire);
 
   return numOfRows;
+}
+
+void setThreadNull(int type) {
+  taosThreadMutexLock(&tiresMutex);
+  if (threads[type]) {
+    taosMemoryFree(threads[type]);
+  }
+  threads[type] = NULL;
+  taosThreadMutexUnlock(&tiresMutex);
 }
 
 bool firstMatchCommand(TAOS* con, SShellCmd* cmd);
@@ -779,6 +852,7 @@ void* varObtainThread(void* param) {
   TAOS_RES* pSql = taos_query(varCon, varSqls[type]);
   if (taos_errno(pSql)) {
     taos_free_result(pSql);
+    setThreadNull(type);
     return NULL;
   }
 
@@ -794,12 +868,46 @@ void* varObtainThread(void* param) {
     firstMatchCommand(varCon, varCmd);
   }
 
+  setThreadNull(type);
   return NULL;
+}
+
+// return true is need update value by async
+bool updateTireValue(int type, bool autoFill) {
+  // TYPE CONTEXT GET FROM DB
+  taosThreadMutexLock(&tiresMutex);
+
+  // check need obtain from server
+  if (tires[type] == NULL) {
+    waitAutoFill = autoFill;
+    // need async obtain var names from db sever
+    if (threads[type] != NULL) {
+      if (taosThreadRunning(threads[type])) {
+        // thread running , need not obtain again, return
+        taosThreadMutexUnlock(&tiresMutex);
+        return NULL;
+      }
+      // destroy previous thread handle for new create thread handle
+      taosDestroyThread(threads[type]);
+      threads[type] = NULL;
+    }
+
+    // create new
+    void* param = taosMemoryMalloc(sizeof(int));
+    *((int*)param) = type;
+    threads[type] = taosCreateThread(varObtainThread, param);
+    taosThreadMutexUnlock(&tiresMutex);
+    return true;
+  }
+  taosThreadMutexUnlock(&tiresMutex);
+
+  return false;
 }
 
 // only match next one word from all match words, return valuue must free by caller
 char* matchNextPrefix(STire* tire, char* pre) {
   SMatch* match = NULL;
+  if (tire == NULL) return NULL;
 
   // re-use last result
   if (lastMatch) {
@@ -837,7 +945,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
   if (cursorVar == -1) {
     // first
     cursorVar = 0;
-    return strdup(match->head->word);
+    return taosStrdup(match->head->word);
   }
 
   // according to cursorVar , calculate next one
@@ -853,7 +961,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
         cursorVar = i;
       }
 
-      return strdup(item->word);
+      return taosStrdup(item->word);
     }
 
     // check end item
@@ -861,7 +969,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
       // if cursorVar > var list count, return last and reset cursorVar
       cursorVar = -1;
 
-      return strdup(item->word);
+      return taosStrdup(item->word);
     }
 
     // move next
@@ -885,32 +993,9 @@ char* tireSearchWord(int type, char* pre) {
     return matchNextPrefix(tire, pre);
   }
 
-  // TYPE CONTEXT GET FROM DB
-  taosThreadMutexLock(&tiresMutex);
-
-  // check need obtain from server
-  if (tires[type] == NULL) {
-    waitAutoFill = true;
-    // need async obtain var names from db sever
-    if (threads[type] != NULL) {
-      if (taosThreadRunning(threads[type])) {
-        // thread running , need not obtain again, return
-        taosThreadMutexUnlock(&tiresMutex);
-        return NULL;
-      }
-      // destroy previous thread handle for new create thread handle
-      taosDestroyThread(threads[type]);
-      threads[type] = NULL;
-    }
-
-    // create new
-    void* param = taosMemoryMalloc(sizeof(int));
-    *((int*)param) = type;
-    threads[type] = taosCreateThread(varObtainThread, param);
-    taosThreadMutexUnlock(&tiresMutex);
+  if (updateTireValue(type, true)) {
     return NULL;
   }
-  taosThreadMutexUnlock(&tiresMutex);
 
   // can obtain var names from local
   STire* tire = getAutoPtr(type);
@@ -966,38 +1051,43 @@ bool matchVarWord(SWord* word1, SWord* word2) {
 //  -------------------  match words --------------------------
 //
 
-// compare command cmd1 come from shellCommands , cmd2 come from user input
-int32_t compareCommand(SWords* cmd1, SWords* cmd2) {
-  SWord* word1 = cmd1->head;
-  SWord* word2 = cmd2->head;
+// compare command cmdPattern come from shellCommands , cmdInput come from user input
+int32_t compareCommand(SWords* cmdPattern, SWords* cmdInput) {
+  SWord* wordPattern = cmdPattern->head;
+  SWord* wordInput = cmdInput->head;
 
-  if (word1 == NULL || word2 == NULL) {
+  if (wordPattern == NULL || wordInput == NULL) {
     return -1;
   }
 
-  for (int32_t i = 0; i < cmd1->count; i++) {
-    if (word1->type == WT_TEXT) {
+  for (int32_t i = 0; i < cmdPattern->count; i++) {
+    if (wordPattern->type == WT_TEXT) {
       // WT_TEXT match
-      if (word1->len == word2->len) {
-        if (strncasecmp(word1->word, word2->word, word1->len) != 0) return -1;
-      } else if (word1->len < word2->len) {
+      if (wordPattern->len == wordInput->len) {
+        if (strncasecmp(wordPattern->word, wordInput->word, wordPattern->len) != 0) return -1;
+      } else if (wordPattern->len < wordInput->len) {
         return -1;
       } else {
-        // word1->len > word2->len
-        if (strncasecmp(word1->word, word2->word, word2->len) == 0) {
-          cmd1->matchIndex = i;
-          cmd1->matchLen = word2->len;
-          return i;
+        // wordPattern->len > wordInput->len
+        if (strncasecmp(wordPattern->word, wordInput->word, wordInput->len) == 0) {
+          if (i + 1 == cmdInput->count) {
+            // last word return match
+            cmdPattern->matchIndex = i;
+            cmdPattern->matchLen = wordInput->len;
+            return i;
+          } else {
+            return -1;
+          }
         } else {
           return -1;
         }
       }
     } else {
       // WT_VAR auto match any one word
-      if (word2->next == NULL) {  // input words last one
-        if (matchVarWord(word1, word2)) {
-          cmd1->matchIndex = i;
-          cmd1->matchLen = word2->len;
+      if (wordInput->next == NULL) {  // input words last one
+        if (matchVarWord(wordPattern, wordInput)) {
+          cmdPattern->matchIndex = i;
+          cmdPattern->matchLen = wordInput->len;
           varMode = true;
           return i;
         }
@@ -1006,9 +1096,9 @@ int32_t compareCommand(SWords* cmd1, SWords* cmd2) {
     }
 
     // move next
-    word1 = word1->next;
-    word2 = word2->next;
-    if (word1 == NULL || word2 == NULL) {
+    wordPattern = wordPattern->next;
+    wordInput = wordInput->next;
+    if (wordPattern == NULL || wordInput == NULL) {
       return -1;
     }
   }
@@ -1022,7 +1112,7 @@ SWords* matchCommand(SWords* input, bool continueSearch) {
   for (int32_t i = 0; i < count; i++) {
     SWords* shellCommand = shellCommands + i;
     if (continueSearch && lastMatchIndex != -1 && i <= lastMatchIndex) {
-      // new match must greate than lastMatchIndex
+      // new match must greater than lastMatchIndex
       if (varMode && i == lastMatchIndex) {
         // do nothing, var match on lastMatchIndex
       } else {
@@ -1108,6 +1198,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
 
 // main key press tab , matched return true else false
 bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
+  if (con == NULL || cmd == NULL) return false;
   // parse command
   SWords* input = (SWords*)taosMemoryMalloc(sizeof(SWords));
   memset(input, 0, sizeof(SWords));
@@ -1151,7 +1242,7 @@ void createInputFromFirst(SWords* input, SWords* firstMatch) {
   for (int i = 0; i < firstMatch->matchIndex && word; i++) {
     // combine source from each word
     strncpy(input->source + input->source_len, word->word, word->len);
-    strcat(input->source, " ");          // append blank splite
+    strcat(input->source, " ");          // append blank space
     input->source_len += word->len + 1;  // 1 is blank length
     // move next
     word = word->next;
@@ -1380,7 +1471,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
       return true;
     }
 
-    // fill funciton
+    // fill function
     if (fieldEnd) {
       // fields is end , need match keyword
       ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
@@ -1478,24 +1569,36 @@ bool matchSelectQuery(TAOS* con, SShellCmd* cmd) {
 
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
-  char* left = strrchr(p, '(');
-  if (left == NULL) {
-    // like 'create table st'
-    return false;
-  }
+  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
+  char* p1 = taosStrdup(p);
+  bool  ret = false;
+  while (1) {
+    char* left = strrchr(p1, '(');
+    if (left == NULL) {
+      // like 'create table st'
+      ret = false;
+      break;
+    }
 
-  char* right = strrchr(p, ')');
-  if (right == NULL) {
-    // like 'create table st( '
-    return true;
-  }
+    char* right = strrchr(p1, ')');
+    if (right == NULL) {
+      // like 'create table st( '
+      ret = true;
+      break;
+    }
 
-  if (left > right) {
-    // like 'create table st( ts timestamp, age int) tags(area '
-    return true;
-  }
+    if (left > right) {
+      // like 'create table st( ts timestamp, age int) tags(area '
+      ret = true;
+      break;
+    }
 
-  return false;
+    // set string end by small for next strrchr search
+    *left = 0;
+  }
+  taosMemoryFree(p1);
+
+  return ret;
 }
 
 bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
@@ -1551,7 +1654,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
 
   // tb options
   if (!ret) {
-    // find like create talbe st (...) tags(..)  <here is fill tb option area>
+    // find like create table st (...) tags(..)  <here is fill tb option area>
     char* p1 = strchr(ps, ')');  // first ')' end
     if (p1) {
       if (strchr(p1 + 1, ')')) {  // second ')' end
@@ -1640,12 +1743,52 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   return false;
 }
 
+// last match if nothing matched
+bool matchEnd(TAOS* con, SShellCmd* cmd) {
+  // str dump
+  bool  ret = false;
+  char* ps = strndup(cmd->command, cmd->commandSize);
+  char* last = lastWord(ps);
+  char* elast = strrchr(last, '.');  // find end last
+  if (elast) {
+    last = elast + 1;
+  }
+
+  // less one char can match
+  if (strlen(last) == 0) {
+    goto _return;
+  }
+  if (strcmp(last, " ") == 0) {
+    goto _return;
+  }
+
+  // match database
+  if (elast == NULL) {
+    // dot need not completed with dbname
+    if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
+      ret = true;
+      goto _return;
+    }
+  }
+
+  if (fillWithType(con, cmd, last, WT_VAR_SYSTABLE)) {
+    ret = true;
+    goto _return;
+  }
+
+_return:
+  taosMemoryFree(ps);
+  return ret;
+}
+
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-  // check
+  // check empty tab key
   if (cmd->commandSize == 0) {
-    // empty
-    showHelp();
+    // have multi line tab key
+    if (cmd->bufferSize == 0) {
+      showHelp();
+    }
     shellShowOnScreen(cmd);
     return;
   }
@@ -1674,6 +1817,9 @@ void pressTabKey(SShellCmd* cmd) {
   // manual match like select * from ...
   matched = matchSelectQuery(varCon, cmd);
   if (matched) return;
+
+  // match end
+  matched = matchEnd(varCon, cmd);
 
   return;
 }
@@ -1891,6 +2037,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
+    if (!varRunOnce) updateTireValue(WT_VAR_STABLE, false);
     return;
   }
 

@@ -1,12 +1,4 @@
-#include "syncIndexMgr.h"
-//#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
-#include "syncVoteMgr.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

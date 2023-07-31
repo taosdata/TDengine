@@ -88,6 +88,7 @@ int32_t taosFsyncFile(TdFilePtr pFile);
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count);
 int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset);
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
+int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset);
 void    taosFprintfFile(TdFilePtr pFile, const char *format, ...);
 
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf);
@@ -108,6 +109,8 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 bool taosValidFile(TdFilePtr pFile);
 
 int32_t taosGetErrorFile(TdFilePtr pFile);
+
+int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 #ifdef __cplusplus
 }

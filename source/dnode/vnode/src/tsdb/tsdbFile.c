@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vnd.h"
 
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   int32_t n = 0;
@@ -92,34 +93,69 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 }
 
 // EXPOSED APIS ==================================================
+static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
+  const char* p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
+  int32_t len = strlen(p1);
+
+  char* p = memcpy(fname, p1, len);
+  p += len;
+
+  *(p++) = TD_DIRSEP[0];
+  len = strlen(pTsdb->path);
+
+  memcpy(p, pTsdb->path, len);
+  p += len;
+
+  *(p++) = TD_DIRSEP[0];
+  *(p++) = 'v';
+
+  p += titoa(TD_VID(pTsdb->pVnode), 10, p);
+  *(p++) = 'f';
+
+  if (fid < 0) {
+    *(p++) = '-';
+  }
+  p += titoa((fid < 0) ? -fid : fid, 10, p);
+
+  memcpy(p, "ver", 3);
+  p += 3;
+
+  p += titoa(commitId, 10, p);
+  return p;
+}
+
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pHeadF->commitID, ".head");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
+  memcpy(p, ".head", 5);
+  p[5] = 0;
 }
 
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pDataF->commitID, ".data");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
+  memcpy(p, ".data", 5);
+  p[5] = 0;
 }
 
 void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSttF->commitID, ".stt");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
+  memcpy(p, ".stt", 4);
+  p[4] = 0;
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSmaF->commitID, ".sma");
+  char* p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
+  memcpy(p, ".sma", 4);
+  p[4] = 0;
 }
 
 bool tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2) { return pDelFile1->commitID == pDelFile2->commitID; }
 
 int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   int32_t   code = 0;
-  int64_t   size;
+  int64_t   size = 0;
   int64_t   n;
   TdFilePtr pFD;
-  char      fname[TSDB_FILENAME_LEN];
+  char      fname[TSDB_FILENAME_LEN] = {0};
   char      hdr[TSDB_FHDR_SIZE] = {0};
 
   // truncate
@@ -135,7 +171,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
       tPutSmaFile(hdr, pSet->pSmaF);
       break;
     default:
-      ASSERT(0);
+      goto _err;  // make the coverity scan happy
   }
 
   taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
@@ -250,8 +286,13 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
 
 // SDelFile ===============================================
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
+  int32_t offset = 0;
+  SVnode *pVnode = pTsdb->pVnode;
+
+  vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  offset = strlen(fname);
+  snprintf((char *)fname + offset, TSDB_FILENAME_LEN - offset - 1, "%sv%dver%" PRId64 ".del", TD_DIRSEP,
+           TD_VID(pTsdb->pVnode), pFile->commitID);
 }
 
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {

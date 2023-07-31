@@ -16,21 +16,21 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
-from util.taosadapter import *
+
 
 class TDTestCase:
     def caseDescription(self):
-        '''
+        """
         [TD-11510] taosBenchmark test cases
-        '''
-        return
+        """
 
     def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
     def getPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -53,38 +53,30 @@ class TDTestCase:
             return paths[0]
 
     def run(self):
-        tAdapter.init("")
-        adapter_cfg = {
-            "influxdb": {
-                "enable": True
-            },
-            "opentsdb": {
-                "enable": True
-            },
-            "opentsdb_telnet": {
-                "enable": True,
-                "maxTCPConnection": 250,
-                "tcpKeepAlive": True,
-                "dbs": ["opentsdb_telnet", "collectd", "icinga2", "tcollector"],
-                "ports": [6046, 6047, 6048, 6049],
-                "user": "root",
-                "password": "taosdata"
-            }
-        }
-        tAdapter.update_cfg(adapter_cfg) 
-        tAdapter.deploy()
-        tAdapter.start()
         binPath = self.getPath()
-        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/sml_telnet_tcp.json" %binPath
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/sml_telnet_tcp.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(5)
         tdSql.execute("reset query cache")
-        tdSql.query("select count(*) from (select distinct(tbname) from opentsdb_telnet.stb1)")
+        tdSql.query("select client_version()")
+        client_ver = "".join(tdSql.queryResult[0])
+        major_ver = client_ver.split(".")[0]
+        if major_ver == "3":
+            tdSql.query(
+                "select count(*) from (select distinct(tbname) from opentsdb_telnet.stb1)"
+            )
+        else:
+            tdSql.query("select count(tbname) from opentsdb_telnet.stb1")
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from opentsdb_telnet.stb1")
         tdSql.checkData(0, 0, 160)
-        tdSql.query("select count(*) from (select distinct(tbname) from opentsdb_telnet.stb2)")
+        if major_ver == "3":
+            tdSql.query(
+                "select count(*) from (select distinct(tbname) from opentsdb_telnet.stb2)"
+            )
+        else:
+            tdSql.query("select count(tbname) from opentsdb_telnet.stb2")
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from opentsdb_telnet.stb2")
         tdSql.checkData(0, 0, 160)

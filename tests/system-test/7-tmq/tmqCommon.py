@@ -10,7 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
+import math
 from asyncore import loop
 from collections import defaultdict
 import subprocess
@@ -37,6 +37,9 @@ from util.common import *
 #     INSERT_DATA     = 3
 
 class TMQCom:
+    def __init__(self):
+        self.g_end_insert_flag = 0
+    
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor())
@@ -60,7 +63,7 @@ class TMQCom:
 
     def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
         sql = "insert into %s.consumeinfo values "%cdbName
-        sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
+        sql += "(now + %ds, %d, '%s', '%s', %d, %d, %d)"%(consumerId, consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
 
@@ -128,12 +131,17 @@ class TMQCom:
         os.system(shellCmd)
 
     def stopTmqSimProcess(self, processorName):
-        psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        psCmd = "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        if platform.system().lower() == 'windows':
+            psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
         while(processID):
             if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -INT %s > /dev/nul 2>&1" % processID
+                else:
+                    killCmd = "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 onlyKillOnceWindows = 1
             time.sleep(0.2)
@@ -143,29 +151,23 @@ class TMQCom:
     def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb',rows=1):
         loopFlag = 1
         while loopFlag:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            tdSql.query("select * from %s.notifyinfo where cmdid = 0"%cdbName)
             actRows = tdSql.getRows()
+            tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
-                for i in range(actRows):
-                    if tdSql.getData(i, 1) == 0:
-                        loopFlag = 0
-                        break
-            time.sleep(0.1)
+                    loopFlag = 0
+            time.sleep(0.02)
         return
 
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=2):
+    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=1):
         loopFlag = 1
         while loopFlag:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            tdSql.query("select * from %s.notifyinfo where cmdid = 1"%cdbName)
             actRows = tdSql.getRows()
+            tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
-                for i in range(actRows):
-                    if tdSql.getData(i, 1) == 1:
-                        loopFlag = 0
-                        break
-            time.sleep(0.1)
+                loopFlag = 0
+            time.sleep(0.02)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
@@ -331,8 +333,11 @@ class TMQCom:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0
+        rowsOfCtb = 0        
         while rowsOfCtb < rowsPerTbl:
+            if (0 != self.g_end_insert_flag):
+                tdLog.debug("get signal to stop insert data")
+                break
             for i in range(ctbNum):
                 sql += " %s.%s%d values "%(dbName,ctbPrefix,i+ctbStartIdx)
                 rowsBatched = 0
@@ -462,18 +467,24 @@ class TMQCom:
         for i in range(0,skipRowsOfCons):
             consumeFile.readline()
 
-        lines = 0
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
-            lines += 1
-            if dst:
-                if dst != src:
-                    tdLog.info("src row: %s"%src)
-                    tdLog.info("dst row: %s"%dst)
-                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
-            else:
+            dstSplit = dst.split(',')
+            srcSplit = src.split(',')
+
+            if not dst or not src:
                 break
+            if len(dstSplit) != len(srcSplit):
+                tdLog.exit("consumerId %d consume rows len is not match the rows by direct query,len(dstSplit):%d != len(srcSplit):%d, dst:%s, src:%s"
+                           %(consumerId, len(dstSplit), len(srcSplit), dst, src))
+
+            for i in range(len(dstSplit)):
+                if srcSplit[i] != dstSplit[i]:
+                    srcFloat = float(srcSplit[i])
+                    dstFloat = float(dstSplit[i])
+                    if not math.isclose(srcFloat, dstFloat, abs_tol=1e-9):
+                        tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
         return
 
     def getResultFileByTaosShell(self, consumerId, queryString):
@@ -565,6 +576,20 @@ class TMQCom:
         tdLog.info("show subscriptions:")
         tdLog.info(tsql.queryResult)
         tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
+
+    def killProcesser(self, processerName):
+        killCmd = (
+            "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+            % processerName
+        )
+
+        psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
+        processID = subprocess.check_output(psCmd, shell=True)
+
+        while processID:
+            os.system(killCmd)
+            time.sleep(1)
+            processID = subprocess.check_output(psCmd, shell=True)
 
     def close(self):
         self.cursor.close()

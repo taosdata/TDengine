@@ -26,24 +26,28 @@ extern "C" {
 #endif
 
 typedef struct SVnodeMgmt {
-  SDnodeData    *pData;
-  SMsgCb         msgCb;
-  const char    *path;
-  const char    *name;
-  SQWorkerPool   queryPool;
-  SQWorkerPool   streamPool;
-  SWWorkerPool   fetchPool;
-  SSingleWorker  mgmtWorker;
-  SHashObj      *hash;
-  TdThreadRwlock lock;
-  SVnodesStat    state;
-  STfs          *pTfs;
+  SDnodeData      *pData;
+  SMsgCb           msgCb;
+  const char      *path;
+  const char      *name;
+  SQWorkerPool     queryPool;
+  SAutoQWorkerPool streamPool;
+  SWWorkerPool     fetchPool;
+  SSingleWorker    mgmtWorker;
+  SHashObj        *hash;
+  TdThreadRwlock   lock;
+  SVnodesStat      state;
+  STfs            *pTfs;
+  TdThread         thread;
+  bool             stop;
 } SVnodeMgmt;
 
 typedef struct {
   int32_t vgId;
   int32_t vgVersion;
   int8_t  dropped;
+  int32_t diskPrimary;
+  int32_t toVgId;
   char    path[PATH_MAX + 20];
 } SWrapperCfg;
 
@@ -52,11 +56,14 @@ typedef struct {
   int32_t       vgVersion;
   int32_t       refCount;
   int8_t        dropped;
+  int8_t        disable;
+  int32_t       diskPrimary;
+  int32_t       toVgId;
   char         *path;
   SVnode       *pImpl;
   SMultiWorker  pWriteW;
   SMultiWorker  pSyncW;
-  SMultiWorker  pSyncCtrlW;
+  SMultiWorker  pSyncRdW;
   SMultiWorker  pApplyW;
   STaosQueue   *pQueryQ;
   STaosQueue   *pStreamQ;
@@ -67,6 +74,7 @@ typedef struct {
   int32_t      vnodeNum;
   int32_t      opened;
   int32_t      failed;
+  bool         updateVnodesList;
   int32_t      threadIndex;
   TdThread     thread;
   SVnodeMgmt  *pMgmt;
@@ -75,16 +83,20 @@ typedef struct {
 } SVnodeThread;
 
 // vmInt.c
+int32_t    vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
-void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
+void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
 int32_t     vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
@@ -102,7 +114,7 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 
 int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutMsgToSyncCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToSyncRdQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

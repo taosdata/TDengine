@@ -11,7 +11,7 @@ namespace TDengineExample
             IntPtr conn = GetConnection();
             try
             {
-                IntPtr res = TDengine.Query(conn, "CREATE DATABASE power");
+                IntPtr res = TDengine.Query(conn, "CREATE DATABASE power WAL_RETENTION_PERIOD 3600");
                 CheckRes(conn, res, "failed to create database");
                 res = TDengine.Query(conn, "USE power");
                 CheckRes(conn, res, "failed to change database");

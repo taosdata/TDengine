@@ -4,11 +4,11 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 system sh/deploy.sh -n dnode5 -i 5
-system sh/cfg.sh -n dnode1 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode4 -c supportVnodes -v 4
-system sh/cfg.sh -n dnode5 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode4 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode5 -c supportVnodes -v 5
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
@@ -161,13 +161,13 @@ print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]
 print dnode5 openVnodes $data(5)[2]
-if $data(1)[2] != 2 then
+if $data(1)[2] != 3 then
 	return -1
 endi
 if $data(3)[2] != 3 then
 	return -1
 endi
-if $data(4)[2] != 4 then
+if $data(4)[2] != 3 then
 	return -1
 endi
 if $data(5)[2] != 3 then

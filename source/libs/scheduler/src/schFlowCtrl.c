@@ -46,7 +46,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t sum = 0;
+  int64_t sum = 0;
   int32_t taskNum = taosArrayGetSize(pJob->dataSrcTasks);
   for (int32_t i = 0; i < taskNum; ++i) {
     SSchTask *pTask = *(SSchTask **)taosArrayGet(pJob->dataSrcTasks, i);
@@ -55,7 +55,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   }
 
   if (schMgmt.cfg.maxNodeTableNum <= 0 || sum < schMgmt.cfg.maxNodeTableNum) {
-    SCH_JOB_DLOG("job no need flow ctrl, totalTableNum:%d", sum);
+    SCH_JOB_DLOG("job no need flow ctrl, totalTableNum:%" PRId64, sum);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -63,12 +63,12 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
       taosHashInit(pJob->taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->flowCtrl) {
     SCH_JOB_ELOG("taosHashInit %d flowCtrl failed", pJob->taskNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   SCH_SET_JOB_NEED_FLOW_CTRL(pJob);
 
-  SCH_JOB_DLOG("job NEED flow ctrl, totalTableNum:%d", sum);
+  SCH_JOB_DLOG("job NEED flow ctrl, totalTableNum:%" PRId64, sum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -94,7 +94,7 @@ int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask) {
   --ctrl->execTaskNum;
   ctrl->tableNumSum -= pTask->plan->execNodeStat.tableNum;
 
-  SCH_TASK_DLOG("task quota removed, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", ep->fqdn,
+  SCH_TASK_DLOG("task quota removed, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
                 ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
 _return:
@@ -122,10 +122,10 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
         }
 
         SCH_TASK_ELOG("taosHashPut flowCtrl failed, size:%d", (int32_t)sizeof(nctrl));
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
-      SCH_TASK_DLOG("task quota added, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", ep->fqdn,
+      SCH_TASK_DLOG("task quota added, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
                     ep->port, pTask->plan->execNodeStat.tableNum, nctrl.tableNumSum, nctrl.execTaskNum);
 
       *enough = true;
@@ -142,7 +142,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
       break;
     }
 
-    int32_t sum = pTask->plan->execNodeStat.tableNum + ctrl->tableNumSum;
+    int64_t sum = pTask->plan->execNodeStat.tableNum + ctrl->tableNumSum;
 
     if (sum <= schMgmt.cfg.maxNodeTableNum) {
       ctrl->tableNumSum = sum;
@@ -156,13 +156,13 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
       ctrl->taskList = taosArrayInit(pLevel->taskNum, POINTER_BYTES);
       if (NULL == ctrl->taskList) {
         SCH_TASK_ELOG("taosArrayInit taskList failed, size:%d", (int32_t)pLevel->taskNum);
-        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
 
     if (NULL == taosArrayPush(ctrl->taskList, &pTask)) {
       SCH_TASK_ELOG("taosArrayPush to taskList failed, size:%d", (int32_t)taosArrayGetSize(ctrl->taskList));
-      SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     *enough = false;
@@ -173,7 +173,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
 
 _return:
 
-  SCH_TASK_DLOG("task quota %s added, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d",
+  SCH_TASK_DLOG("task quota %s added, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d",
                 ((*enough) ? "" : "NOT"), ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum,
                 ctrl->execTaskNum);
 
@@ -203,7 +203,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t   remainNum = schMgmt.cfg.maxNodeTableNum - ctrl->tableNumSum;
+  int64_t   remainNum = schMgmt.cfg.maxNodeTableNum - ctrl->tableNumSum;
   int32_t   taskNum = taosArrayGetSize(ctrl->taskList);
   int32_t   code = 0;
   SSchTask *pTask = NULL;
@@ -217,7 +217,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
 
     if (pTask->plan->execNodeStat.tableNum > remainNum && ctrl->execTaskNum > 0) {
-      SCH_TASK_DLOG("task NOT to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", ep->fqdn,
+      SCH_TASK_DLOG("task NOT to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
                     ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
       continue;
@@ -228,14 +228,14 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
 
     taosArrayRemove(ctrl->taskList, i);
 
-    SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", ep->fqdn,
+    SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
                   ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
     SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
 
     remainNum -= pTask->plan->execNodeStat.tableNum;
     if (remainNum <= 0) {
-      SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%d, remainExecTaskNum:%d", ep->fqdn, ep->port,
+      SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn, ep->port,
                     ctrl->tableNumSum, ctrl->execTaskNum);
 
       break;
@@ -244,7 +244,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     if (i < (taskNum - 1)) {
       SSchTask *pLastTask = *(SSchTask **)taosArrayGetLast(ctrl->taskList);
       if (remainNum < pLastTask->plan->execNodeStat.tableNum) {
-        SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%d, remainExecTaskNum:%d, smallestInList:%d",
+        SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d, smallestInList:%d",
                       ep->fqdn, ep->port, ctrl->tableNumSum, ctrl->execTaskNum, pLastTask->plan->execNodeStat.tableNum);
 
         break;
@@ -282,7 +282,6 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask) {
   }
 
   int32_t code = schLaunchTasksInFlowCtrlListImpl(pJob, ctrl);
-  ;
   SCH_ERR_RET(code);
 
   return code;  // to avoid compiler error

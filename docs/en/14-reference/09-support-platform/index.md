@@ -1,11 +1,11 @@
 ---
 title: List of supported platforms
-description: "List of platforms supported by TDengine server, client, and connector"
+description: This document describes the supported platforms for the TDengine server, client, and connectors.
 ---
 
 ## List of supported platforms for TDengine server
 
-|              | **Windows Server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18/20** | **macOS** |
+|              | **Windows Server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18 or later** | **macOS** |
 | ------------ | ---------------------------- | ----------------- | ---------------- | ---------------- | --------- |
 | X64          | ●                            | ●                 | ●                | ●                | ●         |
 | ARM64        |                              |                   | ●                |                  | ●         |
@@ -14,7 +14,7 @@ Note: ● means officially tested and verified, ○ means unofficially tested an
 
 ## List of supported platforms for TDengine clients and connectors
 
-TDengine's connector can support a wide range of platforms, including X64/X86/ARM64/ARM32/MIPS/Alpha hardware platforms and Linux/Win64/Win32/macOS development environments.
+TDengine's connector can support a wide range of platforms, including X64/X86/ARM64/ARM32/MIPS/Alpha/LoongArch64 hardware platforms and Linux/Win64/Win32/macOS development environments.
 
 The comparison matrix is as follows.
 

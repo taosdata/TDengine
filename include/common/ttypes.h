@@ -53,10 +53,6 @@ typedef struct {
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
 
-// this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_POINTER_ARRAY (1000)
-#define TSDB_DATA_TYPE_VALUE_ARRAY   (1001)
-
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
     switch (_type) {                                 \
@@ -266,23 +262,22 @@ typedef struct {
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
 #define IS_INTEGER_TYPE(_t)          ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)))
 #define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
+#define IS_BOOLEAN_TYPE(_t)          ((_t) == TSDB_DATA_TYPE_BOOL)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 #define IS_MATHABLE_TYPE(_t) \
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
 #define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON))
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
 #define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
 #define IS_VALID_INT(_t)       ((_t) >= INT32_MIN && (_t) <= INT32_MAX)
-#define IS_VALID_BIGINT(_t)    ((_t) >= INT64_MIN && (_t) <= INT64_MAX)
 #define IS_VALID_UTINYINT(_t)  ((_t) >= 0 && (_t) <= UINT8_MAX)
 #define IS_VALID_USMALLINT(_t) ((_t) >= 0 && (_t) <= UINT16_MAX)
 #define IS_VALID_UINT(_t)      ((_t) >= 0 && (_t) <= UINT32_MAX)
-#define IS_VALID_UBIGINT(_t)   ((_t) >= 0 && (_t) <= UINT64_MAX)
 #define IS_VALID_FLOAT(_t)     ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)    ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
 
@@ -321,6 +316,8 @@ static FORCE_INLINE bool isNull(const void *val, int32_t type) {
       return *(uint32_t *)val == TSDB_DATA_UINT_NULL;
     case TSDB_DATA_TYPE_UBIGINT:
       return *(uint64_t *)val == TSDB_DATA_UBIGINT_NULL;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      return varDataLen(val) == sizeof(int8_t) && *(uint8_t *)varDataVal(val) == TSDB_DATA_GEOMETRY_NULL;
 
     default:
       return false;
@@ -344,10 +341,10 @@ typedef struct tDataTypeDescriptor {
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
 bool                       isValidDataType(int32_t type);
 
+int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void  assignVal(char *val, const char *src, int32_t len, int32_t type);
-void  operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
-void *getDataMin(int32_t type);
-void *getDataMax(int32_t type);
+void *getDataMin(int32_t type, void* value);
+void *getDataMax(int32_t type, void* value);
 
 #ifdef __cplusplus
 }

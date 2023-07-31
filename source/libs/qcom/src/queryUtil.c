@@ -52,6 +52,10 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         return false;
       }
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+      if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
+        return false;
+      }
     } else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         return false;
@@ -116,8 +120,6 @@ int32_t cleanupTaskQueue() {
 }
 
 static void execHelper(struct SSchedMsg* pSchedMsg) {
-  assert(pSchedMsg != NULL && pSchedMsg->ahandle != NULL);
-
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
   int32_t           code = execFn(pSchedMsg->thandle);
   if (code != 0 && pSchedMsg->msg != NULL) {
@@ -126,8 +128,6 @@ static void execHelper(struct SSchedMsg* pSchedMsg) {
 }
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
-  assert(execFn != NULL);
-
   SSchedMsg schedMsg = {0};
   schedMsg.fp = execHelper;
   schedMsg.ahandle = execFn;
@@ -138,13 +138,22 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
-  assert(pMsgBody != NULL);
+  if (NULL == pMsgBody) {
+    return;
+  }
+
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
     (*pMsgBody->paramFreeFp)(pMsgBody->param);
   }
   taosMemoryFreeClear(pMsgBody);
+}
+void destroyAhandle(void *ahandle) {
+  SMsgSendInfo *pSendInfo = ahandle;
+  if (pSendInfo == NULL) return;
+
+  destroySendMsgInfo(pSendInfo);
 }
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
@@ -153,7 +162,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     destroySendMsgInfo(pInfo);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -164,7 +173,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .contLen = pInfo->msgInfo.len,
     .info.ahandle = (void*)pInfo,
     .info.handle = pInfo->msgInfo.handle,
-    .info.persistHandle = persistHandle, 
+    .info.persistHandle = persistHandle,
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
@@ -189,6 +198,8 @@ char* jobTaskStatusStr(int32_t status) {
       return "EXECUTING";
     case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
+    case JOB_TASK_STATUS_FETCH:
+      return "FETCHING";
     case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
     case JOB_TASK_STATUS_FAIL:
@@ -237,10 +248,11 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     case TDMT_VND_SUBMIT: {
-      tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
+      tDestroySSubmitRsp2((SSubmitRsp2*)pRes->res, TSDB_MSG_FLG_DECODE);
+      taosMemoryFreeClear(pRes->res);
       break;
     }
-    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
@@ -289,6 +301,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -387,7 +400,7 @@ char* parseTagDatatoJson(void* p) {
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
       } else {
-        ASSERT(0);
+        goto end;
       }
 
       cJSON_AddItemToObject(json, tagJsonKey, value);
@@ -406,7 +419,7 @@ char* parseTagDatatoJson(void* p) {
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
     } else {
-      ASSERT(0);
+      goto end;
     }
   }
   string = cJSON_PrintUnformatted(json);
@@ -414,7 +427,7 @@ end:
   cJSON_Delete(json);
   taosArrayDestroy(pTagVals);
   if (string == NULL) {
-    string = strdup(TSDB_DATA_NULL_STR_L);
+    string = taosStrdup(TSDB_DATA_NULL_STR_L);
   }
   return string;
 }
@@ -435,10 +448,33 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, metaSize);
   return TSDB_CODE_SUCCESS;
+}
+
+void getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType) {
+  int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
+  for (int32_t i = 0; i < nums; ++i) {
+    if (0 == strcmp(pName, pMeta->schema[i].name)) {
+      *pType = (i < pMeta->tableInfo.numOfColumns) ? TCOL_TYPE_COLUMN : TCOL_TYPE_TAG;
+      return;
+    }
+  }
+
+  *pType = TCOL_TYPE_NONE;
+}
+
+void freeVgInfo(SDBVgInfo* vgInfo) {
+  if (NULL == vgInfo) {
+    return;
+  }
+
+  taosHashCleanup(vgInfo->vgHash);
+  taosArrayDestroy(vgInfo->vgArray);
+
+  taosMemoryFreeClear(vgInfo);
 }
 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
@@ -449,7 +485,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   if (pSrc->vgHash) {
@@ -457,7 +493,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       taosMemoryFreeClear(*pDst);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     SVgroupInfo* vgInfo = NULL;
@@ -469,8 +505,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
       if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
-        taosHashCleanup((*pDst)->vgHash);
-        taosMemoryFreeClear(*pDst);
+        freeVgInfo(*pDst);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
@@ -480,3 +515,61 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == *pDst) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pDst)->flags = pSrc->flags;
+  if (pSrc->name) {
+    (*pDst)->name = taosStrdup(pSrc->name);
+  }
+  (*pDst)->uid = pSrc->uid;
+  (*pDst)->btime = pSrc->btime;
+  (*pDst)->ttl = pSrc->ttl;
+  (*pDst)->commentLen = pSrc->commentLen;
+  if (pSrc->comment) {
+    (*pDst)->comment = taosStrdup(pSrc->comment);
+  }
+  (*pDst)->type = pSrc->type;
+
+  if (pSrc->type == TSDB_CHILD_TABLE) {
+    if (pSrc->ctb.stbName) {
+      (*pDst)->ctb.stbName = taosStrdup(pSrc->ctb.stbName);
+    }
+    (*pDst)->ctb.tagNum = pSrc->ctb.tagNum;
+    (*pDst)->ctb.suid = pSrc->ctb.suid;
+    if (pSrc->ctb.tagName) {
+      (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
+    }
+    STag* pTag = (STag*)pSrc->ctb.pTag;
+    if (pTag) {
+      (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
+      memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
+    }
+  } else {
+    (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
+    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
+    if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
+      (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+      memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void freeDbCfgInfo(SDbCfgInfo *pInfo) {
+  if (pInfo) {
+    taosArrayDestroy(pInfo->pRetensions);
+  }
+  taosMemoryFree(pInfo);
+}
+

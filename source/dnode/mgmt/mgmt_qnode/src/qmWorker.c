@@ -58,22 +58,24 @@ int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
   if (pMsg == NULL) return -1;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
 
   switch (qtype) {
     case QUERY_QUEUE:
-      dTrace("msg:%p, is created and will put into qnode-query queue", pMsg);
+      dTrace("msg:%p, is created and will put into qnode-query queue, len:%d", pMsg, pRpc->contLen);
       taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
       return 0;
     case READ_QUEUE:
     case FETCH_QUEUE:
-      dTrace("msg:%p, is created and will put into qnode-fetch queue", pMsg);
+      dTrace("msg:%p, is created and will put into qnode-fetch queue, len:%d", pMsg, pRpc->contLen);
       taosWriteQitem(pMgmt->fetchWorker.queue, pMsg);
       return 0;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
+      rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       return -1;
   }

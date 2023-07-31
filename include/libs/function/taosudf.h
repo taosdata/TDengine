@@ -80,10 +80,6 @@ typedef struct SUdfInterBuf {
 } SUdfInterBuf;
 typedef void *UdfcFuncHandle;
 
-// dynamic lib init and destroy
-typedef int32_t (*TUdfInitFunc)();
-typedef int32_t (*TUdfDestroyFunc)();
-
 #define UDF_MEMORY_EXP_GROWTH 1.5
 #define NBIT                  (3u)
 #define BitPos(_n)            ((_n) & ((1 << NBIT) - 1))
@@ -104,7 +100,7 @@ typedef int32_t (*TUdfDestroyFunc)();
   } while (0)
 #define udfColDataSetNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
 
-typedef uint16_t VarDataLenT;  // maxVarDataLen: 32767
+typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define VARSTR_HEADER_SIZE     sizeof(VarDataLenT)
 #define varDataLen(v)          ((VarDataLenT *)(v))[0]
 #define varDataVal(v)          ((char *)(v) + VARSTR_HEADER_SIZE)
@@ -113,7 +109,7 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 32767
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
 #define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON))
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
 #define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t row) {
@@ -153,6 +149,8 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     allocCapacity *= UDF_MEMORY_EXP_GROWTH;
   }
 
+  int32_t existedRows = data->numOfRows;
+
   if (IS_VAR_DATA_TYPE(meta->type)) {
     char *tmp = (char *)realloc(data->varLenCol.varOffsets, sizeof(int32_t) * allocCapacity);
     if (tmp == NULL) {
@@ -160,14 +158,20 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     }
     data->varLenCol.varOffsets = (int32_t *)tmp;
     data->varLenCol.varOffsetsLen = sizeof(int32_t) * allocCapacity;
+    memset(&data->varLenCol.varOffsets[existedRows], 0, sizeof(int32_t) * (allocCapacity - existedRows));
     // for payload, add data in udfColDataAppend
   } else {
     char *tmp = (char *)realloc(data->fixLenCol.nullBitmap, BitmapLen(allocCapacity));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    uint32_t extend = BitmapLen(allocCapacity) - BitmapLen(data->rowsAlloc);
+    memset(tmp + BitmapLen(data->rowsAlloc), 0, extend);
     data->fixLenCol.nullBitmap = tmp;
     data->fixLenCol.nullBitmapLen = BitmapLen(allocCapacity);
+    int32_t oldLen = BitmapLen(existedRows);
+    memset(&data->fixLenCol.nullBitmap[oldLen], 0, BitmapLen(allocCapacity) - oldLen);
+
     if (meta->type == TSDB_DATA_TYPE_NULL) {
       return TSDB_CODE_SUCCESS;
     }
@@ -194,6 +198,7 @@ static FORCE_INLINE void udfColDataSetNull(SUdfColumn *pColumn, int32_t row) {
     udfColDataSetNull_f(pColumn, row);
   }
   pColumn->hasNull = true;
+  pColumn->colData.numOfRows = ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
 }
 
 static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentRow, const char *pData, bool isNull) {
@@ -228,7 +233,7 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
           newSize = 8;
         }
 
-        while (newSize < data->varLenCol.payloadLen + dataLen) {
+        while (newSize < (uint32_t)(data->varLenCol.payloadLen + dataLen)) {
           newSize = newSize * UDF_MEMORY_EXP_GROWTH;
         }
 
@@ -248,9 +253,13 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
       data->varLenCol.payloadLen += dataLen;
     }
   }
-  data->numOfRows = (currentRow + 1 > data->numOfRows) ? (currentRow + 1) : data->numOfRows;
+  data->numOfRows = ((int32_t)(currentRow + 1) > data->numOfRows) ? (int32_t)(currentRow + 1) : data->numOfRows;
   return 0;
 }
+
+// dynamic lib init and destroy for C UDF
+typedef int32_t (*TUdfInitFunc)();
+typedef int32_t (*TUdfDestroyFunc)();
 
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol);
 
@@ -258,6 +267,43 @@ typedef int32_t (*TUdfAggStartFunc)(SUdfInterBuf *buf);
 typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf);
 typedef int32_t (*TUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf);
 typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+typedef struct SScriptUdfEnvItem {
+  const char *name;
+  const char *value;
+} SScriptUdfEnvItem;
+
+typedef enum EUdfFuncType { UDF_FUNC_TYPE_SCALAR = 1, UDF_FUNC_TYPE_AGG = 2 } EUdfFuncType;
+
+typedef struct SScriptUdfInfo {
+  const char *name;
+  int32_t version;
+  int64_t createdTime;
+
+  EUdfFuncType funcType;
+  int8_t       scriptType;
+  int8_t       outputType;
+  int32_t      outputLen;
+  int32_t      bufSize;
+
+  const char *path;
+} SScriptUdfInfo;
+
+typedef int32_t (*TScriptUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx);
+
+typedef int32_t (*TScriptUdfAggStartFunc)(SUdfInterBuf *buf, void *udfCtx);
+typedef int32_t (*TScriptUdfAggProcessFunc)(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf,
+                                            void *udfCtx);
+typedef int32_t (*TScriptUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
+                                          void *udfCtx);
+typedef int32_t (*TScriptUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx);
+typedef int32_t (*TScriptUdfInitFunc)(SScriptUdfInfo *info, void **pUdfCtx);
+typedef int32_t (*TScriptUdfDestoryFunc)(void *udfCtx);
+
+// the following function is for open/close script plugin.
+typedef int32_t (*TScriptOpenFunc)(SScriptUdfEnvItem *items, int numItems);
+typedef int32_t (*TScriptCloseFunc)();
 
 #ifdef __cplusplus
 }

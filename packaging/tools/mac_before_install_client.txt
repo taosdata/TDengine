@@ -1,0 +1,9 @@
+TDengine is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.
+
+After the installation process is complete, perform the following steps to start using TDengine:
+1: Open Terminal on your Mac.
+2: To connect to a TDengine server using the default settings and credentials, run the taos command.
+3: To connect to a TDengine server using custom settings or credentials, run taos --help for more information.
+4: To connect to TDengine Cloud, follow the instructions on the Tools - TDengine CLI page in your TDengine Cloud account. 
+
+If any issues occur during installation, check the /var/log/taos/tdengine_install.log file to troubleshoot.

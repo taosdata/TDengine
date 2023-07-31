@@ -17,7 +17,7 @@
 #include "ttypes.h"
 #include "tcompression.h"
 
-const int32_t TYPE_BYTES[16] = {
+const int32_t TYPE_BYTES[21] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
@@ -34,6 +34,11 @@ const int32_t TYPE_BYTES[16] = {
     INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
     TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
+    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_VARBINARY: placeholder, not implemented
+    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
+    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
+    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
 };
 
 tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
@@ -56,31 +61,46 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString},
+    {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, NULL, NULL},     // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
+    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
+    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
+    {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
 };
 
 static float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
 static double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
 
-FORCE_INLINE void *getDataMin(int32_t type) {
+FORCE_INLINE void *getDataMin(int32_t type, void *value) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
-      return &floatMin;
+      *(float *)value = floatMin;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
-      return &doubleMin;
+      *(double *)value = doubleMin;
+      break;
     default:
-      return &tDataTypes[type].minValue;
+      *(int64_t *)value = tDataTypes[type].minValue;
+      break;
   }
+
+  return value;
 }
 
-FORCE_INLINE void *getDataMax(int32_t type) {
+FORCE_INLINE void *getDataMax(int32_t type, void *value) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
-      return &floatMax;
+      *(float *)value = floatMax;
+      break;
     case TSDB_DATA_TYPE_DOUBLE:
-      return &doubleMax;
+      *(double *)value = doubleMax;
+      break;
     default:
-      return &tDataTypes[type].maxValue;
+      *(int64_t *)value = tDataTypes[type].maxValue;
+      break;
   }
+
+  return value;
 }
 
 bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_MAX; }
@@ -115,19 +135,23 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       *((int64_t *)val) = GET_INT64_VAL(src);
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       varDataCopy(val, src);
       break;
     case TSDB_DATA_TYPE_NCHAR:
       varDataCopy(val, src);
       break;
     default: {
-      memcpy(val, src, len);
+      if (len > 0) {
+        memcpy(val, src, len);
+      }
+
       break;
     }
   }
 }
 
-void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
+int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   if (optr == OP_TYPE_ADD) {
     switch (type) {
       case TSDB_DATA_TYPE_TINYINT:
@@ -164,11 +188,12 @@ void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
         SET_DOUBLE_VAL(dst, GET_DOUBLE_VAL(s1) + GET_DOUBLE_VAL(s2));
         break;
       default: {
-        assert(0);
-        break;
+        return -1;
       }
     }
   } else {
-    assert(0);
+    return -1;
   }
+
+  return 0;
 }

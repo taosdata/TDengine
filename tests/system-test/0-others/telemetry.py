@@ -181,7 +181,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
-        vgroups = "30"
+        vgroups = "4"
         sql = "create database db3 vgroups " + vgroups
         tdSql.query(sql)
 

@@ -148,7 +148,7 @@ class TDTestCase:
 
         for i in range(5):
             # create  scalar functions
-            tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+            tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
             # create aggregate functions
 
@@ -173,7 +173,7 @@ class TDTestCase:
                 tdLog.info("drop two udf functions success ")
 
         # create  scalar functions
-        tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+        tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
         # create aggregate functions
 

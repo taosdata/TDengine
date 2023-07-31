@@ -1,0 +1,48 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql drop database if exists test
+sql create database test;
+sql use test;
+
+sql create table st(ts timestamp, f int) tags (t int);
+sql insert into ct1 using st tags(1) values(now, 1);
+sql insert into ct2 using st tags(2) values(now, 2);
+sql insert into ct3 using st tags(3) values(now, 3);
+sql insert into ct4 using st tags(4) values(now, 4);
+
+sql create table st2(ts timestamp, f int) tags (t int);
+sql insert into ct21 using st2 tags(1) values(now, 1);
+sql insert into ct22 using st2 tags(2) values(now, 2);
+sql insert into ct23 using st2 tags(3) values(now, 3);
+sql insert into ct24 using st2 tags(4) values(now, 4);
+
+sql select tbname, 1 from st group by tbname order by tbname;
+print $rows  $data00 $data10 $data20
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @ct1@ then
+  return -1
+endi
+if $data10 != @ct2@ then
+  return -1
+endi
+sql select tbname, 1 from st group by tbname slimit 0, 1;
+print $rows
+if $rows != 1 then
+  return -1
+endi
+sql select tbname, 1 from st group by tbname slimit 2, 2;
+print $rows $data00 $data10
+if $rows != 2 then
+  return -1
+endi
+sql select tbname, 1 from st group by tbname order by tbname slimit 0, 1;
+print $rows  $data00 $data10 $data20
+if $rows != 4 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

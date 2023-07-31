@@ -85,6 +85,7 @@ typedef struct SDnode {
 // dmEnv.c
 SDnode *dmInstance();
 void    dmReportStartup(const char *pName, const char *pDesc);
+int64_t dmGetClusterId();
 
 // dmMgmt.c
 int32_t       dmInitDnode(SDnode *pDnode);

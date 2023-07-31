@@ -17,6 +17,7 @@
 #define _TD_UTIL_HEAP_H_
 
 #include "os.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,6 +58,54 @@ void heapRemove(Heap* heap, struct HeapNode* node);
 void heapDequeue(Heap* heap);
 
 size_t heapSize(Heap* heap);
+
+typedef bool (*pq_comp_fn)(void* l, void* r, void* param);
+
+typedef struct PriorityQueueNode {
+  void* data;
+} PriorityQueueNode;
+
+typedef struct PriorityQueue PriorityQueue;
+
+PriorityQueue* createPriorityQueue(pq_comp_fn fn, FDelete deleteFn, void* param);
+
+void taosPQSetFn(PriorityQueue* pq, pq_comp_fn fn);
+
+void destroyPriorityQueue(PriorityQueue* pq);
+
+PriorityQueueNode* taosPQTop(PriorityQueue* pq);
+
+size_t taosPQSize(PriorityQueue* pq);
+
+PriorityQueueNode* taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node);
+
+void taosPQPop(PriorityQueue* pq);
+
+typedef struct BoundedQueue BoundedQueue;
+
+BoundedQueue* createBoundedQueue(uint32_t maxSize, pq_comp_fn fn, FDelete deleteFn, void* param);
+
+void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn);
+
+void destroyBoundedQueue(BoundedQueue* q);
+
+/*
+ * Push one node into BQ
+ * @retval NULL if n is upper than top node in q, and n is not freed
+ * @retval the pushed Node if pushing succeeded
+ * @note if maxSize exceeded, the original highest node is popped and freed with deleteFn
+ * */
+PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n);
+
+PriorityQueueNode* taosBQTop(BoundedQueue* q);
+
+size_t taosBQSize(BoundedQueue* q);
+
+size_t taosBQMaxSize(BoundedQueue* q);
+
+void taosBQBuildHeap(BoundedQueue* q);
+
+void taosBQPop(BoundedQueue* q);
 
 #ifdef __cplusplus
 }

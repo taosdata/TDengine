@@ -35,6 +35,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def getPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -116,11 +118,11 @@ class TDTestCase:
 
         assert times == 1, "result is %s != expect: 1" % times
 
-
+        tAdapter.stop()
 
 
     def stop(self):
-        tdSql.close()
+        tdSql.close()        
         tdLog.success("%s successfully executed" % __file__)
 
 

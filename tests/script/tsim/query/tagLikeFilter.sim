@@ -1,0 +1,36 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database if not exists db1 vgroups 10;
+sql use db1;
+sql create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 binary(100));
+sql create table tba1 using sta tags('ZQMPvstuzZVzCRjFTQawILuGSqZKSqlJwcBtZMxrAEqBbzChHWVDMiAZJwESzJAf');
+sql create table tba2 using sta tags('ieofwehughkreghughuerugu34jf9340aieefjalie28ffj8fj8fafjaekdfjfii');
+sql create table tba3 using sta tags('ZQMPvstuzZVzCRjFTQawILuGSqabSqlJwcBtZMxrAEqBbzChHWVDMiAZJwESzJAf');
+sql insert into tba1 values ('2022-04-26 15:15:01', 1.0, "a");
+sql insert into tba2 values ('2022-04-26 15:15:01', 1.0, "a");
+sql insert into tba2 values ('2022-04-26 15:15:02', 1.0, "a");
+sql insert into tba3 values ('2022-04-26 15:15:01', 1.0, "a");
+sql insert into tba3 values ('2022-04-26 15:15:02', 1.0, "a");
+sql insert into tba3 values ('2022-04-26 15:15:03', 1.0, "a");
+sql select t1 from sta where t1 like '%ab%';
+if $rows != 3 then
+  return -1
+endi
+sql select t1 from sta where t1 like '%ax%';
+if $rows != 0 then
+  return -1
+endi
+sql select t1 from sta where t1 like '%cd%';
+if $rows != 0 then
+  return -1
+endi
+sql select t1 from sta where t1 like '%ii';
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

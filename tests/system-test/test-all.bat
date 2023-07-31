@@ -90,7 +90,7 @@ goto :eof
 
 :CheckSkipCase
 set skipCase=false
-if "%*" == "python3 ./test.py -f 1-insert/insertWithMoreVgroup.py" ( set skipCase=true )
-if "%*" == "python3 ./test.py -f 2-query/queryQnode.py" ( set skipCase=true )
+if "%*" == "python3 ./test.py -f 1-insert/insertWithMoreVgroup.py" ( set skipCase=false )
+if "%*" == "python3 ./test.py -f 2-query/queryQnode.py" ( set skipCase=false )
 echo %* | grep "\-R" && set skipCase=true
 :goto eof

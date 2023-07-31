@@ -16,6 +16,8 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    updatecfgDict = {"tsdbDebugFlag":135}
+
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
@@ -117,7 +119,7 @@ class TDTestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:1000, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
@@ -186,7 +188,7 @@ class TDTestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:1000, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")

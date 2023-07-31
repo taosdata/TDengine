@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "texception.h"
+#include "tlog.h"
 
 static threadlocal SExceptionNode* expList;
 
@@ -71,7 +72,7 @@ static wrapper wrappers[] = {
 };
 
 void cleanupPush_void_ptr_ptr(bool failOnly, void* func, void* arg1, void* arg2) {
-  assert(expList->numCleanupAction < expList->maxCleanupAction);
+  ASSERTS(expList->numCleanupAction < expList->maxCleanupAction, "numCleanupAction over maxCleanupAction");
 
   SCleanupAction* ca = expList->cleanupActions + expList->numCleanupAction++;
   ca->wrapper = 0;
@@ -82,7 +83,7 @@ void cleanupPush_void_ptr_ptr(bool failOnly, void* func, void* arg1, void* arg2)
 }
 
 void cleanupPush_void_ptr_bool(bool failOnly, void* func, void* arg1, bool arg2) {
-  assert(expList->numCleanupAction < expList->maxCleanupAction);
+  ASSERTS(expList->numCleanupAction < expList->maxCleanupAction, "numCleanupAction over maxCleanupAction");
 
   SCleanupAction* ca = expList->cleanupActions + expList->numCleanupAction++;
   ca->wrapper = 1;
@@ -93,7 +94,7 @@ void cleanupPush_void_ptr_bool(bool failOnly, void* func, void* arg1, bool arg2)
 }
 
 void cleanupPush_void_ptr(bool failOnly, void* func, void* arg) {
-  assert(expList->numCleanupAction < expList->maxCleanupAction);
+  ASSERTS(expList->numCleanupAction < expList->maxCleanupAction, "numCleanupAction over maxCleanupAction");
 
   SCleanupAction* ca = expList->cleanupActions + expList->numCleanupAction++;
   ca->wrapper = 2;
@@ -103,7 +104,7 @@ void cleanupPush_void_ptr(bool failOnly, void* func, void* arg) {
 }
 
 void cleanupPush_int_int(bool failOnly, void* func, int32_t arg) {
-  assert(expList->numCleanupAction < expList->maxCleanupAction);
+  ASSERTS(expList->numCleanupAction < expList->maxCleanupAction, "numCleanupAction over maxCleanupAction");
 
   SCleanupAction* ca = expList->cleanupActions + expList->numCleanupAction++;
   ca->wrapper = 3;
@@ -113,7 +114,7 @@ void cleanupPush_int_int(bool failOnly, void* func, int32_t arg) {
 }
 
 void cleanupPush_void(bool failOnly, void* func) {
-  assert(expList->numCleanupAction < expList->maxCleanupAction);
+  ASSERTS(expList->numCleanupAction < expList->maxCleanupAction, "numCleanupAction over maxCleanupAction");
 
   SCleanupAction* ca = expList->cleanupActions + expList->numCleanupAction++;
   ca->wrapper = 4;
@@ -122,7 +123,7 @@ void cleanupPush_void(bool failOnly, void* func) {
 }
 
 void cleanupPush_int_ptr(bool failOnly, void* func, void* arg) {
-  assert(expList->numCleanupAction < expList->maxCleanupAction);
+  ASSERTS(expList->numCleanupAction < expList->maxCleanupAction, "numCleanupAction over maxCleanupAction");
 
   SCleanupAction* ca = expList->cleanupActions + expList->numCleanupAction++;
   ca->wrapper = 5;

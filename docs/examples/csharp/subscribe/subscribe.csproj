@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.1" />
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" />
   </ItemGroup>
 
 </Project>

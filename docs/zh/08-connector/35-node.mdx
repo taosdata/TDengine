@@ -31,7 +31,8 @@ REST 连接器支持所有能运行 Node.js 的平台。
 
 ## 支持的功能特性
 
-### 原生连接器
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接器">
 
 1. 连接管理
 2. 普通查询
@@ -40,11 +41,16 @@ REST 连接器支持所有能运行 Node.js 的平台。
 5. 订阅功能
 6. Schemaless
 
-### REST 连接器
+</TabItem>
+<TabItem value="rest" label="REST 连接器">
 
 1. 连接管理
 2. 普通查询
 3. 连续查询
+
+</TabItem>
+</Tabs>
+
 
 ## 安装步骤
 
@@ -62,6 +68,16 @@ REST 连接器支持所有能运行 Node.js 的平台。
 - C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
 
 </TabItem>
+
+<TabItem value="macOS" label="macOS 系统安装依赖工具">
+
+- `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
+- `@tdengine/client` 3.0.0 目前是只支持 Node.js v12.22.12 或 v12 的更高版本；其他版本可能存在包兼容性的问题
+- `make`
+- C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
+
+</TabItem>
+
 <TabItem value="Windows" label="Windows 系统安装依赖工具">
 
 - 安装方法 1
@@ -104,6 +120,9 @@ npm install @tdengine/rest
 
 ### 安装验证
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接器">
+
 在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
 
 验证方法：
@@ -120,11 +139,35 @@ node nodejsChecker.js host=localhost
 
 - 执行以上步骤后，在命令行会输出 nodejsChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
+</TabItem>
+<TabItem value="rest" label="REST 连接器">
+
+在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
+
+验证方法：
+
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [restChecker.js 源代码](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/restexample/restChecker.js)到本地。
+
+- 在命令行中执行以下命令。
+
+```bash
+npm init -y
+npm install @tdengine/rest
+node restChecker.js
+```
+
+- 执行以上步骤后，在命令行会输出 restChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
+
+</TabItem>
+</Tabs>
+
+
+
 ## 建立连接
 
 请选择使用一种连接器。
 
-<Tabs defaultValue="rest">
+<Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
 
 安装并引用 `@tdengine/client` 包。
@@ -171,23 +214,70 @@ let cursor = conn.cursor();
 
 #### SQL 写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeInsert />
+
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+
+```js
+{{#include docs/examples/node/restexample/insert_example.js}}
+```
+
+</TabItem>
+</Tabs>
+
+
 
 #### InfluxDB 行协议写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeInfluxLine />
+
+</TabItem>
+</Tabs>
 
 #### OpenTSDB Telnet 行协议写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeOpenTSDBTelnet />
+
+</TabItem>
+</Tabs>
 
 #### OpenTSDB JSON 行协议写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeOpenTSDBJson />
+
+</TabItem>
+</Tabs>
 
 ### 查询数据
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeQuery />
+
+</TabItem>
+
+<TabItem value="rest" label="REST 连接">
+
+```js
+{{#include docs/examples/node/restexample/query_example.js}}
+```
+
+</TabItem>
+</Tabs>
 
 
 ## 更多示例程序

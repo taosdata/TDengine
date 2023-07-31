@@ -20,7 +20,7 @@
 
 // Set the initial value of the multiway merge tree.
 static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
-  assert((pTree->totalSources & 0x01) == 0 && (pTree->numOfSources << 1 == pTree->totalSources));
+  ASSERT((pTree->totalSources & 0x01) == 0 && (pTree->numOfSources << 1 == pTree->totalSources));
 
   for (int32_t i = 0; i < pTree->totalSources; ++i) {
     if (i < pTree->numOfSources) {
@@ -71,16 +71,16 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
   return 0;
 }
 
-void tMergeTreeDestroy(SMultiwayMergeTreeInfo* pTree) {
-  if (pTree == NULL) {
+void tMergeTreeDestroy(SMultiwayMergeTreeInfo** pTree) {
+  if (pTree == NULL || *pTree == NULL) {
     return;
   }
 
-  taosMemoryFreeClear(pTree);
+  taosMemoryFreeClear(*pTree);
 }
 
 void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
-  assert(idx <= pTree->totalSources - 1 && idx >= pTree->numOfSources && pTree->totalSources >= 2);
+  ASSERT(idx <= pTree->totalSources - 1 && idx >= pTree->numOfSources && pTree->totalSources >= 2);
 
   if (pTree->totalSources == 2) {
     pTree->pNode[0].index = 0;
@@ -115,8 +115,6 @@ void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
 }
 
 void tMergeTreeRebuild(SMultiwayMergeTreeInfo* pTree) {
-  assert((pTree->totalSources & 0x1) == 0);
-
   tMergeTreeInit(pTree);
   for (int32_t i = pTree->totalSources - 1; i >= pTree->numOfSources; i--) {
     tMergeTreeAdjust(pTree, i);

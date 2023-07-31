@@ -17,11 +17,21 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
 
 osType=Linux
 pagMode=full
 verMode=edge
+
+clientName2="taos"
+serverName2="taosd"
+productName2="TDengine"
+emailName2="taosdata.com"
+
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+demoName2="${clientName2}demo"
+uninstallScript2="rm${clientName2}"
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -85,7 +95,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
   ${csudo}mkdir -p ${install_main_dir}/driver
-  if [ $productName == "TDengine" ]; then
+  if [ "$productName2" == "TDengine" ]; then
     ${csudo}mkdir -p ${install_main_dir}/examples
   fi
   ${csudo}mkdir -p ${install_main_dir}/include
@@ -108,10 +118,20 @@ function install_bin() {
   #Make link
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName}                 || :
   if [ "$osType" != "Darwin" ]; then
-      [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+      [ -x ${install_main_dir}/bin/${demoName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName2} ${bin_link_dir}/${demoName2}  || :
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    #Make link
+    [ -x ${install_main_dir}/bin/${clientName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName2} ${bin_link_dir}/${clientName2}                 || :
+    if [ "$osType" != "Darwin" ]; then
+        [ -x ${install_main_dir}/bin/${demoName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName2} ${bin_link_dir}/${demoName2}  || :
+        [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${benchmarkName2}  || :
+    fi
+    [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript2} || :
+  fi
 }
 
 function clean_lib() {
@@ -194,13 +214,13 @@ function install_jemalloc() {
             ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
             ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
             ${csudo}/usr/bin/install -c -d /usr/local/lib
-            if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-                ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
-            fi
-            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-                ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
-            fi
-            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+            # if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+            #     ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+            # fi
+            # if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+            #     ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+            # fi
+            if [ -f ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc ]; then
                 ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
                 ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
             fi
@@ -247,7 +267,9 @@ function install_log() {
 }
 
 function install_connector() {
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    if [ -d ${script_dir}/connector ]; then
+        ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    fi
 }
 
 function install_examples() {
@@ -263,9 +285,9 @@ function update_TDengine() {
         exit 1
     fi
     tar -zxf ${tarName}
-    echo -e "${GREEN}Start to update ${productName} client...${NC}"
+    echo -e "${GREEN}Start to update ${productName2} client...${NC}"
     # Stop the client shell if running
-    if ps aux | grep -v grep | grep ${clientName} &> /dev/null; then
+    if ps aux | grep -v grep | grep ${clientName2} &> /dev/null; then
         kill_client
         sleep 1
     fi
@@ -284,9 +306,9 @@ function update_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName})
+    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 function install_TDengine() {
@@ -296,7 +318,7 @@ function install_TDengine() {
         exit 1
     fi
     tar -zxf ${tarName}
-    echo -e "${GREEN}Start to install ${productName} client...${NC}"
+    echo -e "${GREEN}Start to install ${productName2} client...${NC}"
 
     install_main_path
     install_log
@@ -311,9 +333,9 @@ function install_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName})
+    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 
@@ -321,7 +343,7 @@ function install_TDengine() {
 # Install or updata client and client
 # if server is already install, don't install client
 if [ -e ${bin_dir}/${serverName} ]; then
-    echo -e "\033[44;32;1mThere are already installed ${productName} server, so don't need install client!${NC}"
+    echo -e "\033[44;32;1mThere are already installed ${productName2} server, so don't need install client!${NC}"
     exit 0
 fi
 

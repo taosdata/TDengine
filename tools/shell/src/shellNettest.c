@@ -15,13 +15,14 @@
 
 #define _GNU_SOURCE
 #include "shellInt.h"
+#include "tversion.h"
 
 static void shellWorkAsClient() {
   SShellArgs *pArgs = &shell.args;
   SRpcInit    rpcInit = {0};
   SEpSet      epSet = {.inUse = 0, .numOfEps = 1};
   SRpcMsg     rpcRsp = {0};
-  void *      clientRpc = NULL;
+  void       *clientRpc = NULL;
   char        pass[TSDB_PASSWORD_LEN + 1] = {0};
 
   taosEncryptPass_c((uint8_t *)("_pwd"), strlen("_pwd"), pass);
@@ -31,7 +32,9 @@ static void shellWorkAsClient() {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
     printf("failed to init net test client since %s\r\n", terrstr());
@@ -121,6 +124,8 @@ static void shellWorkAsServer() {
   rpcInit.sessions = 10;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
+
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   void *serverRpc = rpcOpen(&rpcInit);
   if (serverRpc == NULL) {

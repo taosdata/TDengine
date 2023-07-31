@@ -101,7 +101,6 @@ FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   int32_t slen;
 
   uint8_t* data = fstSliceData(s, &slen);
-  assert(tlen <= slen);
 
   uint8_t* buf = taosMemoryMalloc(sizeof(uint8_t) * tlen);
   memcpy(buf, data + start, tlen);

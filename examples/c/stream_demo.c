@@ -108,10 +108,13 @@ int32_t create_stream() {
 }
 
 int main(int argc, char* argv[]) {
-  int code;
   if (argc > 1) {
     printf("env init\n");
-    code = init_env();
+    int code = init_env();
+    if (code) {
+       return code;
+    }
+
   }
   create_stream();
 }

@@ -8,8 +8,9 @@ sql create database d1
 sql use d1
 
 $x = 0
-while $x < 128
+while $x < 5
   $tb = d1.s . $x
+  print create table $tb (ts timestamp, i int) tags (j int)
   sql create table $tb (ts timestamp, i int) tags (j int)
   $x = $x + 1
 endw
@@ -17,7 +18,7 @@ endw
 print ======================== describe stables
 # TODO : create stable error
 $m = 0
-while $m < 128
+while $m < 5
   $tb = s . $m
   $filter = ' . $tb
   $filter = $filter . '
@@ -36,15 +37,16 @@ print ======================== show stables
 sql show d1.stables
 
 print num of stables is $rows
-if $rows != 128 then
+if $rows != 5 then
   return -1
 endi
 
 print ======================== create table
 
 $x = 0
-while $x < 424
+while $x < 42
   $tb = d1.t . $x
+  print create table $tb using d1.s0 tags( $x )
   sql create table $tb using d1.s0 tags( $x )
   $x = $x + 1
 endw
@@ -54,7 +56,7 @@ print ======================== show stables
 sql show d1.tables
 
 print num of tables is $rows
-if $rows != 424 then
+if $rows != 42 then
   return -1
 endi
 

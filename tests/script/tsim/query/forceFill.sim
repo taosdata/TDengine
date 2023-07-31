@@ -1,0 +1,367 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 10;
+sql use db1;
+sql create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 int);
+sql create table tba1 using sta tags(1);
+sql insert into tba1 values ('2022-04-26 15:15:01', 1.0, "a");
+sql insert into tba1 values ('2022-04-26 15:15:02', 2.0, "b");
+sql insert into tba1 values ('2022-04-26 15:15:04', 4.0, "b");
+sql insert into tba1 values ('2022-04-26 15:15:05', 5.0, "b");
+
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:00' and ts <= '2022-04-26 15:15:06' interval(1s) fill(value_f, 8.8);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != 8.800000000 then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:00' and ts <= '2022-04-26 15:15:06' interval(1s) fill(value, 8.8);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != 8.800000000 then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:00' and ts <= '2022-04-26 15:15:06' interval(1s) fill(null);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != NULL then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:00' and ts <= '2022-04-26 15:15:06' interval(1s) fill(null_f);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != NULL then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:06' and ts <= '2022-04-26 15:15:10' interval(1s) fill(value, 8.8);
+if $rows != 0 then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:06' and ts <= '2022-04-26 15:15:10' interval(1s) fill(value_f, 8.8);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 8.800000000 then
+  return -1
+endi
+if $data20 != 8.800000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 8.800000000 then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:06' and ts <= '2022-04-26 15:15:10' interval(1s) fill(null);
+if $rows != 0 then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:15:06' and ts <= '2022-04-26 15:15:10' interval(1s) fill(null_f);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != NULL then
+  return -1
+endi
+if $data20 != NULL then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != NULL then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:16:00' and ts <= '2022-04-26 19:15:59' interval(1s) fill(value_f, 8.8);
+if $rows != 14400 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+sql select avg(f1) from tba1 where ts >= '2022-04-26 15:16:00' and ts <= '2022-04-26 19:15:59' interval(1s) fill(null_f);
+if $rows != 14400 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:00','2022-04-26 15:15:06') every(1s) fill(value_f, 8.8);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != 8.800000000 then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:00','2022-04-26 15:15:06') every(1s) fill(value, 8.8);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != 8.800000000 then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:00','2022-04-26 15:15:06') every(1s) fill(null);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != NULL then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:00','2022-04-26 15:15:06') every(1s) fill(null_f);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != 1.000000000 then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != 4.000000000 then
+  return -1
+endi
+if $data50 != 5.000000000 then
+  return -1
+endi
+if $data60 != NULL then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:06','2022-04-26 15:15:10') every(1s) fill(value, 8.8);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 8.800000000 then
+  return -1
+endi
+if $data20 != 8.800000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 8.800000000 then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:06','2022-04-26 15:15:10') every(1s) fill(value_f, 8.8);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+if $data10 != 8.800000000 then
+  return -1
+endi
+if $data20 != 8.800000000 then
+  return -1
+endi
+if $data30 != 8.800000000 then
+  return -1
+endi
+if $data40 != 8.800000000 then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:06','2022-04-26 15:15:10') every(1s) fill(null);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != NULL then
+  return -1
+endi
+if $data20 != NULL then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != NULL then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:15:06','2022-04-26 15:15:10') every(1s) fill(null_f);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data10 != NULL then
+  return -1
+endi
+if $data20 != NULL then
+  return -1
+endi
+if $data30 != NULL then
+  return -1
+endi
+if $data40 != NULL then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:16:00','2022-04-26 19:15:59') every(1s) fill(value_f, 8.8);
+if $rows != 14400 then
+  return -1
+endi
+if $data00 != 8.800000000 then
+  return -1
+endi
+sql select interp(f1) from tba1 range('2022-04-26 15:16:00','2022-04-26 19:15:59') every(1s) fill(null_f);
+if $rows != 14400 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

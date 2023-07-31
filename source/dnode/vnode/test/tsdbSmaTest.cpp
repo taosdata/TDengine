@@ -283,7 +283,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   metaRemoveSmaFromDb(pMeta, indexUid2);
 
   tDestroyTSma(&tSma);
-  metaClose(pMeta);
+  metaClose(&pMeta);
 }
 #endif
 
@@ -436,7 +436,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pDataBlock->pBlockAgg = NULL;
     taosArrayGetSize(pDataBlock->pDataBlock) = tSmaNumOfCols;
     pDataBlock->info.rows = tSmaNumOfRows;
-    pDataBlock->info.groupId = tSmaGroupId + g;
+    pDataBlock->info.id.groupId = tSmaGroupId + g;
 
     pDataBlock->pDataBlock = taosArrayInit(tSmaNumOfCols, sizeof(SColumnInfoData *));
     EXPECT_NE(pDataBlock->pDataBlock, nullptr);
@@ -577,7 +577,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tDestroyTSma(&tSma);
   tfsClose(pTsdb->pTfs);
   tsdbClose(pTsdb);
-  metaClose(pMeta);
+  metaClose(&pMeta);
 }
 
 #endif

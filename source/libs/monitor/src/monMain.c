@@ -20,6 +20,7 @@
 #include "ttime.h"
 
 static SMonitor tsMonitor = {0};
+static char* tsMonUri = "/report";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   taosThreadMutexLock(&tsMonitor.lock);
@@ -36,7 +37,7 @@ void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
 
 int32_t monGetLogs(SMonLogs *logs) {
   taosThreadMutexLock(&tsMonitor.lock);
-  logs->logs = taosArrayDup(tsMonitor.logs);
+  logs->logs = taosArrayDup(tsMonitor.logs, NULL);
   logs->numOfInfoLogs = tsNumOfInfoLogs;
   logs->numOfErrorLogs = tsNumOfErrorLogs;
   logs->numOfDebugLogs = tsNumOfDebugLogs;
@@ -209,6 +210,8 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "vnodes_total", pInfo->vnodes_total);
   tjsonAddDoubleToObject(pJson, "vnodes_alive", pInfo->vnodes_alive);
   tjsonAddDoubleToObject(pJson, "connections_total", pInfo->connections_total);
+  tjsonAddDoubleToObject(pJson, "topics_total", pInfo->topics_toal);
+  tjsonAddDoubleToObject(pJson, "streams_total", pInfo->streams_total);
 
   SJson *pDnodesJson = tjsonAddArrayToObject(pJson, "dnodes");
   if (pDnodesJson == NULL) return;
@@ -465,9 +468,6 @@ static void monGenLogJson(SMonInfo *pMonitor) {
     return;
   }
 
-  SJson *pLogsJson = tjsonAddArrayToObject(pJson, "logs");
-  if (pLogsJson == NULL) return;
-
   SMonLogs *logs[6];
   logs[0] = &pMonitor->log;
   logs[1] = &pMonitor->mmInfo.log;
@@ -487,22 +487,6 @@ static void monGenLogJson(SMonInfo *pMonitor) {
     numOfInfoLogs += pLog->numOfInfoLogs;
     numOfDebugLogs += pLog->numOfDebugLogs;
     numOfTraceLogs += pLog->numOfTraceLogs;
-
-    for (int32_t i = 0; i < taosArrayGetSize(pLog->logs); ++i) {
-      SJson *pLogJson = tjsonCreateObject();
-      if (pLogJson == NULL) continue;
-
-      SMonLogItem *pLogItem = taosArrayGet(pLog->logs, i);
-
-      char buf[40] = {0};
-      taosFormatUtcTime(buf, sizeof(buf), pLogItem->ts, TSDB_TIME_PRECISION_MILLI);
-
-      tjsonAddStringToObject(pLogJson, "ts", buf);
-      tjsonAddStringToObject(pLogJson, "level", monLogLevelStr(pLogItem->level));
-      tjsonAddStringToObject(pLogJson, "content", pLogItem->content);
-
-      if (tjsonAddItemToArray(pLogsJson, pLogJson) != 0) tjsonDelete(pLogJson);
-    }
   }
 
   SJson *pSummaryJson = tjsonAddArrayToObject(pJson, "summary");
@@ -550,7 +534,7 @@ void monSendReport() {
   // uDebugL("report cont:%s\n", pCont);
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
       uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);

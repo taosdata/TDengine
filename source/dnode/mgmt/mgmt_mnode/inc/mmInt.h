@@ -34,7 +34,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker  readWorker;
   SSingleWorker  writeWorker;
   SSingleWorker  syncWorker;
-  SSingleWorker  syncCtrlWorker;
+  SSingleWorker  syncRdWorker;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
@@ -54,7 +54,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t mmPutMsgToSyncCtrlQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);

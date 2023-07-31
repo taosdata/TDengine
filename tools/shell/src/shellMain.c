@@ -19,12 +19,42 @@
 
 SShellObj shell = {0};
 
+
+void shellCrashHandler(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif  
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
+  tscWriteCrashInfo(signum, sigInfo, context);
+
+#ifdef _TD_DARWIN_64
+  exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
+}
+
 int main(int argc, char *argv[]) {
   shell.exit = false;
 #ifdef WEBSOCKET
-  shell.args.timeout = 10;
+  shell.args.timeout = SHELL_WS_TIMEOUT;
   shell.args.cloud = true;
 #endif
+
+#if !defined(WINDOWS)
+  taosSetSignal(SIGBUS, shellCrashHandler);
+#endif
+  taosSetSignal(SIGABRT, shellCrashHandler);
+  taosSetSignal(SIGFPE, shellCrashHandler);
+  taosSetSignal(SIGSEGV, shellCrashHandler);
 
   if (shellCheckIntSize() != 0) {
     return -1;
@@ -52,6 +82,9 @@ int main(int argc, char *argv[]) {
   shellCheckConnectMode();
 #endif
   taos_init();
+
+  // kill heart-beat thread when quit
+  taos_set_hb_quit(1);
 
   if (shell.args.is_dump_config) {
     shellDumpConfig();

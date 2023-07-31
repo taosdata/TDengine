@@ -228,6 +228,7 @@ int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char 
 }
 
 int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
+
   int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
@@ -262,6 +263,185 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   int32_t     count = 0;
   int32_t     _pos = 0;
   int64_t     prev_value = 0;
+
+#if __AVX2__
+  while (1) {
+    if (_pos == nelements) break;
+
+    uint64_t w = 0;
+    memcpy(&w, ip, LONG_BYTES);
+
+    char    selector = (char)(w & INT64MASK(4));       // selector = 4
+    char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
+    int32_t elems = selector_to_elems[(int32_t)selector];
+
+    // Optimize the performance, by remove the constantly switch operation.
+    int32_t  v = 4;
+    uint64_t zigzag_value = 0;
+    uint64_t mask = INT64MASK(bit);
+
+    switch (type) {
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t* p = (int64_t*) output;
+
+        int32_t gRemainder = (nelements - _pos);
+        int32_t num = (gRemainder > elems)? elems:gRemainder;
+
+        int32_t batch = num >> 2;
+        int32_t remain = num & 0x03;
+        if (selector == 0 || selector == 1) {
+          if (tsAVX2Enable && tsSIMDBuiltins) {
+            for (int32_t i = 0; i < batch; ++i) {
+              __m256i prev = _mm256_set1_epi64x(prev_value);
+              _mm256_storeu_si256((__m256i *)&p[_pos], prev);
+              _pos += 4;
+            }
+
+            for (int32_t i = 0; i < remain; ++i) {
+              p[_pos++] = prev_value;
+            }
+          } else {
+            for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+              p[_pos++] = prev_value;
+              v += bit;
+            }
+          }
+        } else {
+          if (tsAVX2Enable && tsSIMDBuiltins) {
+            __m256i base = _mm256_set1_epi64x(w);
+            __m256i maskVal = _mm256_set1_epi64x(mask);
+
+            __m256i shiftBits = _mm256_set_epi64x(bit * 3 + 4, bit * 2 + 4, bit + 4, 4);
+            __m256i inc = _mm256_set1_epi64x(bit << 2);
+
+            for (int32_t i = 0; i < batch; ++i) {
+              __m256i after = _mm256_srlv_epi64(base, shiftBits);
+              __m256i zigzagVal = _mm256_and_si256(after, maskVal);
+
+              // ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))
+              __m256i signmask = _mm256_and_si256(_mm256_set1_epi64x(1), zigzagVal);
+              signmask = _mm256_sub_epi64(_mm256_setzero_si256(), signmask);
+              // get the four zigzag values here
+              __m256i delta = _mm256_xor_si256(_mm256_srli_epi64(zigzagVal, 1), signmask);
+
+              // calculate the cumulative sum (prefix sum) for each number
+              // decode[0] = prev_value + final[0]
+              // decode[1] = decode[0] + final[1]   -----> prev_value + final[0] + final[1]
+              // decode[2] = decode[1] + final[2]   -----> prev_value + final[0] + final[1] + final[2]
+              // decode[3] = decode[2] + final[3]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
+
+              //  1, 2, 3, 4
+              //+ 0, 1, 0, 3
+              //  1, 3, 3, 7
+              // shift and add for the first round
+              __m128i prev = _mm_set1_epi64x(prev_value);
+              __m256i x =  _mm256_slli_si256(delta, 8);
+
+              delta = _mm256_add_epi64(delta, x);
+              _mm256_storeu_si256((__m256i *)&p[_pos], delta);
+
+              //  1, 3, 3, 7
+              //+ 0, 0, 3, 3
+              //  1, 3, 6, 10
+              // shift and add operation for the second round
+              __m128i firstPart = _mm_loadu_si128((__m128i *)&p[_pos]);
+              __m128i secondItem = _mm_set1_epi64x(p[_pos + 1]);
+              __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), secondItem);
+              firstPart = _mm_add_epi64(firstPart, prev);
+              secPart = _mm_add_epi64(secPart, prev);
+
+              // save it in the memory
+              _mm_storeu_si128((__m128i *)&p[_pos], firstPart);
+              _mm_storeu_si128((__m128i *)&p[_pos + 2], secPart);
+
+              shiftBits = _mm256_add_epi64(shiftBits, inc);
+              prev_value = p[_pos + 3];
+//              uDebug("_pos:%d %"PRId64", %"PRId64", %"PRId64", %"PRId64, _pos, p[_pos], p[_pos+1], p[_pos+2], p[_pos+3]);
+              _pos += 4;
+            }
+
+            // handle the remain value
+            for (int32_t i = 0; i < remain; i++) {
+              zigzag_value = ((w >> (v + (batch * bit * 4))) & mask);
+              prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+              p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
+              v += bit;
+            }
+          } else {
+            for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+              zigzag_value = ((w >> v) & mask);
+              prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+              p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
+              v += bit;
+            }
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_INT: {
+        int32_t* p = (int32_t*) output;
+
+        if (selector == 0 || selector == 1) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            p[_pos++] = (int32_t)prev_value;
+          }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+            p[_pos++] = (int32_t)prev_value;
+            v += bit;
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t* p = (int16_t*) output;
+
+        if (selector == 0 || selector == 1) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            p[_pos++] = (int16_t)prev_value;
+          }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+            p[_pos++] = (int16_t)prev_value;
+            v += bit;
+          }
+        }
+      } break;
+
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *p = (int8_t *)output;
+
+        if (selector == 0 || selector == 1) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            p[_pos++] = (int8_t)prev_value;
+          }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+            p[_pos++] = (int8_t)prev_value;
+            v += bit;
+          }
+        }
+      } break;
+    }
+
+    ip += LONG_BYTES;
+  }
+
+  return nelements * word_length;
+#else
 
   while (1) {
     if (count == nelements) break;
@@ -313,6 +493,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   }
 
   return nelements * word_length;
+#endif
 }
 
 /* ----------------------------------------------Bool Compression
@@ -470,7 +651,7 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
 // TODO: Take care here, we assumes little endian encoding.
 int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 1;
-  assert(nelements >= 0);
+  ASSERTS(nelements >= 0, "nelements is negative");
 
   if (nelements == 0) return 0;
 
@@ -565,7 +746,7 @@ _exit_over:
 }
 
 int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
-  assert(nelements >= 0);
+  ASSERTS(nelements >= 0, "nelements is negative");
   if (nelements == 0) return 0;
 
   if (input[0] == 0) {
@@ -629,7 +810,7 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     }
 
   } else {
-    assert(0);
+    ASSERT(0);
     return -1;
   }
 }
@@ -731,11 +912,11 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   return opos;
 }
 
-uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
+FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
   uint64_t diff = 0ul;
-  int32_t  nbytes = (flag & INT8MASK(3)) + 1;
+  int32_t  nbytes = (flag & 0x7) + 1;
   for (int32_t i = 0; i < nbytes; i++) {
-    diff = diff | ((INT64MASK(8) & input[(*ipos)++]) << BITS_PER_BYTE * i);
+    diff |= (((uint64_t)0xff & input[(*ipos)++]) << BITS_PER_BYTE * i);
   }
   int32_t shift_width = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff <<= shift_width;
@@ -755,25 +936,22 @@ int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, 
   uint8_t  flags = 0;
   int32_t  ipos = 1;
   int32_t  opos = 0;
-  uint64_t prev_value = 0;
+  uint64_t diff = 0;
+  union {
+    uint64_t bits;
+    double   real;
+  } curr;
+
+  curr.bits = 0;
 
   for (int32_t i = 0; i < nelements; i++) {
-    if (i % 2 == 0) {
+    if ((i & 0x01) == 0) {
       flags = input[ipos++];
     }
 
-    uint8_t flag = flags & INT8MASK(4);
+    diff = decodeDoubleValue(input, &ipos, flags & 0x0f);
     flags >>= 4;
-
-    uint64_t diff = decodeDoubleValue(input, &ipos, flag);
-    union {
-      uint64_t bits;
-      double   real;
-    } curr;
-
-    uint64_t predicted = prev_value;
-    curr.bits = predicted ^ diff;
-    prev_value = curr.bits;
+    curr.bits ^= diff;
 
     ostream[opos++] = curr.real;
   }
@@ -1200,6 +1378,14 @@ static struct {
      .getI64 = NULL,
      .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_MEDIUMBLOB,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_GEOMETRY,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
@@ -2146,7 +2332,7 @@ int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
     int32_t len = tsCompressTimestampImp(pIn, nEle, pBuf);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo not one or two stage");
     return -1;
   }
 }
@@ -2159,7 +2345,7 @@ int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, 
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressTimestampImp(pBuf, nEle, pOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2180,7 +2366,7 @@ int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
       int32_t len = tsCompressFloatImp(pIn, nEle, pBuf);
       return tsCompressStringImp(pBuf, len, pOut, nOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2203,7 +2389,7 @@ int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
       if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
       return tsDecompressFloatImp(pBuf, nEle, pOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2227,7 +2413,7 @@ int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
       int32_t len = tsCompressDoubleImp(pIn, nEle, pBuf);
       return tsCompressStringImp(pBuf, len, pOut, nOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2250,7 +2436,7 @@ int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
       if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
       return tsDecompressDoubleImp(pBuf, nEle, pOut);
     } else {
-      assert(0);
+      ASSERTS(0, "compress algo invalid");
       return -1;
     }
 #ifdef TD_TSZ
@@ -2281,7 +2467,7 @@ int32_t tsCompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t
     }
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2294,7 +2480,7 @@ int32_t tsDecompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressBoolImp(pBuf, nEle, pOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2308,7 +2494,7 @@ int32_t tsCompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_TINYINT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2321,7 +2507,7 @@ int32_t tsDecompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_TINYINT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2335,7 +2521,7 @@ int32_t tsCompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_SMALLINT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2348,7 +2534,7 @@ int32_t tsDecompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, i
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_SMALLINT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2362,7 +2548,7 @@ int32_t tsCompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t 
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_INT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2375,7 +2561,7 @@ int32_t tsDecompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_INT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2389,7 +2575,7 @@ int32_t tsCompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_BIGINT);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }
@@ -2402,7 +2588,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
     return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_BIGINT);
   } else {
-    assert(0);
+    ASSERTS(0, "compress algo invalid");
     return -1;
   }
 }

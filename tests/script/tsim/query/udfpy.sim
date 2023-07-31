@@ -1,0 +1,341 @@
+system_content printf %OS%
+if $system_content == Windows_NT then
+  return 0;
+endi
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c udf -v 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1 udf
+system sh/compile_udf.sh
+system sh/prepare_pyudf.sh
+system mkdir -p /tmp/pyudf
+system cp sh/pybitand.py /tmp/pyudf/
+system cp sh/pyl2norm.py /tmp/pyudf/
+system cp sh/pycumsum.py /tmp/pyudf/
+system ls /tmp/pyudf
+
+sql create database udf vgroups 3;
+sql use udf;
+sql select * from information_schema.ins_databases;
+
+sql create table t (ts timestamp, f int);
+sql insert into t values(now, 1)(now+1s, 2);
+
+system_content printf %OS%
+if $system_content == Windows_NT then
+  return 0;
+endi
+if $system_content == Windows_NT then
+  sql create function bit_and as 'C:\\Windows\\Temp\\bitand.dll' outputtype int;
+  sql create aggregate function l2norm as 'C:\\Windows\\Temp\\l2norm.dll' outputtype double bufSize 8;
+else
+  sql create function bit_and as '/tmp/udf/libbitand.so' outputtype int;
+  sql create aggregate function l2norm as '/tmp/udf/libl2norm.so' outputtype double bufSize 8;
+endi
+sql create function pybitand as '/tmp/pyudf/pybitand.py' outputtype int language 'python';
+sql create aggregate function pyl2norm as '/tmp/pyudf/pyl2norm.py' outputtype double bufSize 128 language 'python';
+
+sql show functions;
+if $rows != 4 then
+  return -1
+endi
+
+sql select func_language, func_body,name from information_schema.ins_functions order by name
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != @C@ then 
+  return -1
+endi
+if $data10 != @C@ then 
+  return -1
+endi
+if $data20 != @Python@ then 
+  return -1
+endi
+if $data30 != @Python@ then 
+  return -1
+endi
+
+sql select bit_and(f, f) from t;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+
+sql select pybitand(f, f) from t;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+
+sql select l2norm(f) from t;
+if $rows != 1 then
+  print expect 1, actual $rows
+  return -1
+endi
+if $data00 != 2.236067977 then
+  return -1
+endi
+
+sql select pyl2norm(f) from t;
+if $rows != 1 then
+  print expect 1, actual $rows
+  return -1
+endi
+if $data00 != 2.236067977 then
+  return -1
+endi
+
+sql create table t2 (ts timestamp, f1 int, f2 int);
+sql insert into t2 values(now, 0, 0)(now+1s, 1, 1);
+sql select bit_and(f1, f2) from t2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+sql select l2norm(f1, f2) from t2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+sql select pybitand(f1, f2) from t2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+sql select pyl2norm(f1, f2) from t2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+sql insert into t2 values(now+2s, 1, null)(now+3s, null, 2);
+sql select bit_and(f1, f2) from t2;
+print $rows , $data00 , $data10 , $data20 , $data30
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != NULL then
+  return -1
+endi
+
+if $data30 != NULL then
+  return -1
+endi
+
+sql select l2norm(f1, f2) from t2;
+print $rows, $data00
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.645751311 then
+  return -1
+endi
+
+sql select pybitand(f1, f2) from t2;
+print $rows , $data00 , $data10 , $data20 , $data30
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != NULL then
+  return -1
+endi
+
+if $data30 != NULL then
+  return -1
+endi
+
+sql select pyl2norm(f1, f2) from t2;
+print $rows, $data00
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.645751311 then
+  return -1
+endi
+
+
+sql insert into t2 values(now+4s, 4, 8)(now+5s, 5, 9);
+sql select l2norm(f1-f2), l2norm(f1+f2) from t2;
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1;
+endi
+if $data00 != 5.656854249 then
+  return -1
+endi
+if $data01 != 18.547236991 then
+  return -1
+endi
+
+sql select l2norm(bit_and(f2, f1)), l2norm(bit_and(f1, f2)) from t2;
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1.414213562 then
+  return -1
+endi
+if $data01 != 1.414213562 then
+  return -1
+endi
+
+sql select l2norm(f2) from udf.t2 group by 1-bit_and(f1, f2) order by 1-bit_and(f1,f2);
+print $rows , $data00 , $data10 , $data20
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data10 != 9.055385138 then
+  return -1
+endi
+if $data20 != 8.000000000 then
+  return -1
+endi
+
+sql select pyl2norm(f1-f2), pyl2norm(f1+f2) from t2;
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1;
+endi
+if $data00 != 5.656854249 then
+  return -1
+endi
+if $data01 != 18.547236991 then
+  return -1
+endi
+
+sql select pyl2norm(pybitand(f2, f1)), pyl2norm(pybitand(f1, f2)) from t2;
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1.414213562 then
+  return -1
+endi
+if $data01 != 1.414213562 then
+  return -1
+endi
+
+sql select pyl2norm(f2) from udf.t2 group by 1-pybitand(f1, f2) order by 1-pybitand(f1,f2);
+print $rows , $data00 , $data10 , $data20
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data10 != 9.055385138 then
+  return -1
+endi
+if $data20 != 8.000000000 then
+  return -1
+endi
+
+#sql create aggregate function pycumsum as '/tmp/pyudf/pycumsum.py' outputtype double bufSize 128 language 'python';
+#sql select pycumsum(f2) from udf.t2
+#print ======= pycumsum
+#print $rows $data00
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data00 != 20.000000000 then
+#  return -1
+#endi
+#sql drop function pycumsum
+
+sql create or replace function bit_and as '/tmp/udf/libbitand.so' outputtype int
+sql select func_version from information_schema.ins_functions where name='bit_and'
+if $data00 != 1 then
+  return -1
+endi
+sql select bit_and(f1, f2) from t2;
+print $rows , $data00 , $data10 , $data20 , $data30 , $data40 , $data50
+if $rows != 6 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != NULL then
+  return -1
+endi
+
+if $data30 != NULL then
+  return -1
+endi
+
+if $data40 != 0 then
+  return -1
+endi
+if $data50 != 1 then
+  return -1
+endi
+#sql drop function bit_and;
+#sql show functions;
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data00 != @l2norm@ then
+#  return -1
+#  endi
+#sql drop function l2norm;
+#sql show functions;
+#if $rows != 0 then
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

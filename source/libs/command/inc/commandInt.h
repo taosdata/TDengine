@@ -34,6 +34,7 @@ extern "C" {
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"
+#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Row Scan on %s"
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
 #define EXPLAIN_AGG_FORMAT "Aggragate"
@@ -63,6 +64,9 @@ extern "C" {
 #define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 #define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
 #define EXPLAIN_INTERP_FORMAT "Interp"
+#define EXPLAIN_EVENT_FORMAT "Event"
+#define EXPLAIN_EVENT_START_FORMAT "Start Cond: "
+#define EXPLAIN_EVENT_END_FORMAT "End Cond: "
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
@@ -97,6 +101,8 @@ extern "C" {
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
 #define COMMAND_ENABLE_RESCHEDULE "enableReSchedule"
 #define COMMAND_CATALOG_DEBUG "catalogDebug"
+#define COMMAND_ENABLE_MEM_DEBUG "enableMemDebug"
+#define COMMAND_DISABLE_MEM_DEBUG "disableMemDebug"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;
@@ -139,7 +145,7 @@ typedef struct SExplainCtx {
   SHashObj    *groupHash;     // Hash<SExplainGroup>
 } SExplainCtx;
 
-#define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : "desc")
+#define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : ORDER_DESC == _order ? "desc" : "unknown")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p) (((_u) == 'n' || (_u) == 'y') ? (_t) : (convertTimeFromPrecisionToUnit(_t, _p, _u)))

@@ -46,6 +46,7 @@ typedef struct SRpcHandleInfo {
   int8_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp)
   int8_t  persistHandle;  // persist handle or not
   int8_t  hasEpSet;
+  int32_t cliVer;
 
   // app info
   void *ahandle;  // app handle set by client
@@ -72,6 +73,8 @@ typedef struct SRpcMsg {
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
+typedef bool (*RpcFFfp)(tmsg_t msgType);
+typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -81,6 +84,15 @@ typedef struct SRpcInit {
   int32_t  sessions;      // number of sessions allowed
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
+  int32_t  compatibilityVer;
+
+  int32_t retryMinInterval;  // retry init interval
+  int32_t retryStepFactor;   // retry interval factor
+  int32_t retryMaxInterval;  // retry max interval
+  int64_t retryMaxTimouet;
+
+  int32_t failFastThreshold;
+  int32_t failFastInterval;
 
   int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
   int8_t  encryption;    // encrypt or not
@@ -97,7 +109,17 @@ typedef struct SRpcInit {
   // set up timeout for particular msg
   RpcTfp tfp;
 
-  void *parent;
+  // destroy client ahandle;
+  RpcDfp dfp;
+  // fail fast fp
+  RpcFFfp ffp;
+
+  int32_t connLimitNum;
+  int32_t connLimitLock;
+  int32_t timeToGetConn;
+  int8_t  supportBatch;  // 0: no batch, 1. batch
+  int32_t batchSize;
+  void   *parent;
 } SRpcInit;
 
 typedef struct {

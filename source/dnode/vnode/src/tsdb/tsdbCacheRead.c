@@ -17,88 +17,139 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tsdb.h"
+#include "tsdbDataFileRW.h"
 
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 
-static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
-                       void** pRes) {
-  ASSERT(pReader->numOfCols <= taosArrayGetSize(pBlock->pDataBlock));
+static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
+                          const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t numOfRows = pBlock->info.rows;
+  bool    allNullRow = true;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
-    bool allNullRow = true;
-
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
       SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[i]);
+      int32_t          slotId = slotIds[i];
+      SLastCol*        pColVal = (SLastCol*)taosArrayGet(pRow, i);
 
-      if (slotIds[i] == -1) {  // the primary timestamp
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
-        p->ts = pColVal->ts;
-        p->bytes = TSDB_KEYSIZE;
-        *(int64_t*)p->buf = pColVal->ts;
-        allNullRow = false;
-      } else {
-        int32_t   slotId = slotIds[i];
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
+      p->ts = pColVal->ts;
+      p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
+      allNullRow = p->isNull & allNullRow;
 
-        p->ts = pColVal->ts;
-        p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
-        allNullRow = p->isNull & allNullRow;
+      if (!p->isNull) {
+        if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+          varDataSetLen(p->buf, pColVal->colVal.value.nData);
 
-        if (!p->isNull) {
-          if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-            varDataSetLen(p->buf, pColVal->colVal.value.nData);
-            memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
-          } else {
-            memcpy(p->buf, &pColVal->colVal.value, pReader->pSchema->columns[slotId].bytes);
-            p->bytes = pReader->pSchema->columns[slotId].bytes;
-          }
+          memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+          p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
+        } else {
+          memcpy(p->buf, &pColVal->colVal.value, pReader->pSchema->columns[slotId].bytes);
+          p->bytes = pReader->pSchema->columns[slotId].bytes;
         }
       }
 
       // pColInfoData->info.bytes includes the VARSTR_HEADER_SIZE, need to substruct it
       p->hasResult = true;
       varDataSetLen(pRes[i], pColInfoData->info.bytes - VARSTR_HEADER_SIZE);
-      colDataAppend(pColInfoData, numOfRows, (const char*)pRes[i], false);
+      colDataSetVal(pColInfoData, numOfRows, (const char*)pRes[i], false);
+    }
+
+    pBlock->info.rows += allNullRow ? 0 : 1;
+  } else if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
+    for (int32_t i = 0; i < pReader->numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
+
+      int32_t   slotId = slotIds[i];
+      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
+      SColVal*  pVal = &pColVal->colVal;
+
+      allNullRow = false;
+      if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+        if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
+          colDataSetNULL(pColInfoData, numOfRows);
+        } else {
+          varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
+
+          memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
+          colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
+        }
+      } else {
+        colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
+      }
     }
 
     pBlock->info.rows += allNullRow ? 0 : 1;
   } else {
-    ASSERT(HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW));
+    tsdbError("invalid retrieve type:%d, %s", pReader->type, idStr);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
-    for (int32_t i = 0; i < pReader->numOfCols; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+  return TSDB_CODE_SUCCESS;
+}
 
-      if (slotIds[i] == -1) {
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
-        colDataAppend(pColInfoData, numOfRows, (const char*)&pColVal->ts, false);
-      } else {
-        int32_t   slotId = slotIds[i];
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
-        SColVal*  pVal = &pColVal->colVal;
+static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* idstr) {
+  int32_t numOfTables = p->numOfTables;
 
-        if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-          if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
-            colDataAppendNULL(pColInfoData, numOfRows);
-          } else {
-            varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
-            memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
-            colDataAppend(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
-          }
-        } else {
-          colDataAppend(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
-        }
+  if (suid != 0) {
+    p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, suid, -1, 1);
+    if (p->pSchema == NULL) {
+      tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  } else {
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      uint64_t uid = p->pTableList[i].uid;
+      p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, uid, -1, 1);
+      if (p->pSchema != NULL) {
+        break;
       }
+
+      tsdbWarn("table:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", uid, idstr);
     }
 
-    pBlock->info.rows += 1;
+    // all queried tables have been dropped already, return immediately.
+    if (p->pSchema == NULL) {
+      tsdbWarn("all queried tables has been dropped, try next group, %s", idstr);
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOfTables) {
+  SCacheRowsReader* pReader = (SCacheRowsReader*)reader;
+
+  pReader->pTableList = pTableIdList;
+  pReader->numOfTables = numOfTables;
+  pReader->lastTs = INT64_MIN;
+
+  int64_t blocks;
+  double  elapse;
+  pReader->pLDataIterArray = destroySttBlockReader(pReader->pLDataIterArray, &blocks, &elapse);
+  pReader->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t uidComparFunc(const void* p1, const void* p2) {
+  uint64_t pu1 = *(uint64_t*)p1;
+  uint64_t pu2 = *(uint64_t*)p2;
+  if (pu1 == pu2) {
+    return 0;
+  } else {
+    return (pu1 < pu2) ? -1 : 1;
   }
 }
 
+static void freeTableInfoFunc(void* param) {
+  void** p = (void**)param;
+  taosMemoryFreeClear(*p);
+}
+
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                uint64_t suid, void** pReader) {
+                                SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
@@ -107,18 +158,47 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->type = type;
   p->pVnode = pVnode;
+  p->pTsdb = p->pVnode->pTsdb;
+  p->info.verRange = (SVersionRange){.minVer = 0, .maxVer = UINT64_MAX};
+  p->info.suid = suid;
   p->numOfCols = numOfCols;
-  p->suid = suid;
+  p->pCidList = pCidList;
+  p->pSlotIds = pSlotIds;
 
   if (numOfTables == 0) {
     *pReader = p;
     return TSDB_CODE_SUCCESS;
   }
 
-  STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableIdList)[0];
-  p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1, 1);
   p->pTableList = pTableIdList;
   p->numOfTables = numOfTables;
+
+  p->pTableMap = tSimpleHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (p->pTableMap == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  p->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
+  if (p->uidList == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    uint64_t uid = p->pTableList[i].uid;
+    p->uidList[i] = uid;
+    STableLoadInfo* pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
+    tSimpleHashPut(p->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+  }
+
+  tSimpleHashSetFreeFp(p->pTableMap, freeTableInfoFunc);
+
+  taosSort(p->uidList, numOfTables, sizeof(uint64_t), uidComparFunc);
+
+  int32_t code = setTableSchema(p, suid, idstr);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbCacherowsReaderClose(p);
+    return code;
+  }
 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
   if (p->transferBuf == NULL) {
@@ -136,11 +216,18 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     }
   }
 
-  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0);
-  if (p->pLoadInfo == NULL) {
+  SVnodeCfg* pCfg = &((SVnode*)pVnode)->config;
+  int32_t    numOfStt = pCfg->sttTrigger;
+  p->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+  if (p->pLDataIterArray == NULL) {
     tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  p->idstr = taosStrdup(idstr);
+  taosThreadMutexInit(&p->readerMutex, NULL);
+
+  p->lastTs = INT64_MIN;
 
   *pReader = p;
   return TSDB_CODE_SUCCESS;
@@ -148,6 +235,9 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
 void* tsdbCacherowsReaderClose(void* pReader) {
   SCacheRowsReader* p = pReader;
+  if (p == NULL) {
+    return NULL;
+  }
 
   if (p->pSchema != NULL) {
     for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
@@ -158,55 +248,77 @@ void* tsdbCacherowsReaderClose(void* pReader) {
     taosMemoryFree(p->pSchema);
   }
 
-  destroyLastBlockLoadInfo(p->pLoadInfo);
+  taosMemoryFree(p->pCurrSchema);
+
+  int64_t loadBlocks = 0;
+  double  elapse = 0;
+  destroySttBlockReader(p->pLDataIterArray, &loadBlocks, &elapse);
+
+  if (p->pFileReader) {
+    tsdbDataFileReaderClose(&p->pFileReader);
+    p->pFileReader = NULL;
+  }
+
+  taosMemoryFree((void*)p->idstr);
+  taosThreadMutexDestroy(&p->readerMutex);
+
+  if (p->pTableMap) {
+    void*   pe = NULL;
+    int32_t iter = 0;
+    while ((pe = tSimpleHashIterate(p->pTableMap, pe, &iter)) != NULL) {
+      STableLoadInfo* pInfo = *(STableLoadInfo**)pe;
+      pInfo->pTombData = taosArrayDestroy(pInfo->pTombData);
+    }
+
+    tSimpleHashCleanup(p->pTableMap);
+  }
+  if (p->uidList) {
+    taosMemoryFree(p->uidList);
+  }
 
   taosMemoryFree(pReader);
   return NULL;
 }
 
-static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint64_t uid, SArray** pRow,
-                                 LRUHandle** h) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  *pRow = NULL;
-
-  if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
-    code = tsdbCacheGetLastrowH(lruCache, uid, pr, h);
-  } else {
-    code = tsdbCacheGetLastH(lruCache, uid, pr, h);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  // no data in the table of Uid
-  if (*h != NULL) {
-    *pRow = (SArray*)taosLRUCacheValue(lruCache, *h);
-  }
-
-  return code;
-}
-
 static void freeItem(void* pItem) {
   SLastCol* pCol = (SLastCol*)pItem;
-  if (IS_VAR_DATA_TYPE(pCol->colVal.type)) {
+  if (IS_VAR_DATA_TYPE(pCol->colVal.type) && pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
 }
 
-int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, SArray* pTableUidList) {
+static int32_t tsdbCacheQueryReseek(void* pQHandle) {
+  int32_t           code = 0;
+  SCacheRowsReader* pReader = pQHandle;
+
+  code = taosThreadMutexTryLock(&pReader->readerMutex);
+  if (code == 0) {
+    // pause current reader's state if not paused, save ts & version for resuming
+    // just wait for the big all tables' snapshot untaking for now
+
+    code = TSDB_CODE_VND_QUERY_BUSY;
+
+    taosThreadMutexUnlock(&pReader->readerMutex);
+
+    return code;
+  } else if (code == EBUSY) {
+    return TSDB_CODE_VND_QUERY_BUSY;
+  } else {
+    return -1;
+  }
+}
+
+int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, const int32_t* dstSlotIds,
+                              SArray* pTableUidList) {
   if (pReader == NULL || pResBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   SCacheRowsReader* pr = pReader;
-
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SLRUCache* lruCache = pr->pVnode->pTsdb->lruCache;
-  LRUHandle* h = NULL;
-  SArray*    pRow = NULL;
-  bool       hasRes = false;
-  SArray*    pLastCols = NULL;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SArray*           pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
+  bool              hasRes = false;
+  SArray*           pLastCols = NULL;
 
   void** pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
@@ -215,20 +327,23 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[slotIds[j]].bytes + VARSTR_HEADER_SIZE);
+    pRes[j] =
+        taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[/*-1 == slotIds[j] ? 0 : */ slotIds[j]].bytes +
+                                VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
 
-  pLastCols = taosArrayInit(pr->pSchema->numOfCols, sizeof(SLastCol));
+  pLastCols = taosArrayInit(pr->numOfCols, sizeof(SLastCol));
   if (pLastCols == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
-  for (int32_t i = 0; i < pr->pSchema->numOfCols; ++i) {
-    struct STColumn* pCol = &pr->pSchema->columns[i];
-    SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type};
+  for (int32_t i = 0; i < pr->numOfCols; ++i) {
+    int32_t          slotId = slotIds[i];
+    struct STColumn* pCol = &pr->pSchema->columns[slotId];
+    SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
 
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
@@ -236,95 +351,122 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     taosArrayPush(pLastCols, &p);
   }
 
-  tsdbTakeReadSnap(pr->pVnode->pTsdb, &pr->pReadSnap, "cache-l");
-  pr->pDataFReader = NULL;
-  pr->pDataFReaderLast = NULL;
+  taosThreadMutexLock(&pr->readerMutex);
+  code = tsdbTakeReadSnap2((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+
+  int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
+    int64_t st = taosGetTimestampUs();
+    int64_t totalLastTs = INT64_MAX;
+
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
-      code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
+      tsdbCacheGetBatch(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
+      // tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
+      if (TARRAY_SIZE(pRow) <= 0) {
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
+        continue;
       }
-
-      if (h == NULL) {
+      SLastCol* pColVal = taosArrayGet(pRow, 0);
+      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
         continue;
       }
 
       {
+        bool    hasNotNullRow = true;
+        int64_t singleTableLastTs = INT64_MAX;
         for (int32_t k = 0; k < pr->numOfCols; ++k) {
-          int32_t slotId = slotIds[k];
+          SLastCol* p = taosArrayGet(pLastCols, k);
+          SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, k);
 
-          if (slotId == -1) {  // the primary timestamp
-            SLastCol* p = taosArrayGet(pLastCols, 0);
-            SLastCol* pCol = (SLastCol*)taosArrayGet(pRow, 0);
-            if (pCol->ts > p->ts) {
-              hasRes = true;
-              p->ts = pCol->ts;
-              p->colVal = pCol->colVal;
+          if (pColVal->ts > p->ts) {
+            if (!COL_VAL_IS_VALUE(&pColVal->colVal) && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+              if (!COL_VAL_IS_VALUE(&p->colVal)) {
+                hasNotNullRow = false;
+              }
+              continue;
+            }
 
-              // only set value for last row query
-              if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
-                if (taosArrayGetSize(pTableUidList) == 0) {
-                  taosArrayPush(pTableUidList, &pKeyInfo->uid);
-                } else {
-                  taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
-                }
+            hasRes = true;
+            p->ts = pColVal->ts;
+            if (k == 0) {
+              if (TARRAY_SIZE(pTableUidList) == 0) {
+                taosArrayPush(pTableUidList, &pKeyInfo->uid);
+              } else {
+                taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
               }
             }
-          } else {
-            SLastCol* p = taosArrayGet(pLastCols, slotId);
-            SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
-            if (pColVal->ts > p->ts) {
-              if (!COL_VAL_IS_VALUE(&pColVal->colVal) && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
-                continue;
-              }
+            if (pColVal->ts < singleTableLastTs && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+              singleTableLastTs = pColVal->ts;
+            }
 
-              hasRes = true;
-              p->ts = pColVal->ts;
-
-              uint8_t* px = p->colVal.value.pData;
+            if (!IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
               p->colVal = pColVal->colVal;
-
-              if (COL_VAL_IS_VALUE(&pColVal->colVal) && IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-                p->colVal.value.pData = px;
-                memcpy(px, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+            } else {
+              if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
+                memcpy(p->colVal.value.pData, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
               }
+
+              p->colVal.value.nData = pColVal->colVal.value.nData;
+              p->colVal.type = pColVal->colVal.type;
+              p->colVal.flag = pColVal->colVal.flag;
+              p->colVal.cid = pColVal->colVal.cid;
             }
+          }
+        }
+
+        if (hasNotNullRow) {
+          if (INT64_MAX == totalLastTs || (INT64_MAX != singleTableLastTs && totalLastTs < singleTableLastTs)) {
+            totalLastTs = singleTableLastTs;
+          }
+          double cost = (taosGetTimestampUs() - st) / 1000.0;
+          if (cost > tsCacheLazyLoadThreshold) {
+            pr->lastTs = totalLastTs;
           }
         }
       }
 
-      tsdbCacheRelease(lruCache, h);
+      taosArrayClearEx(pRow, freeItem);
+      // taosArrayClear(pRow);
     }
 
     if (hasRes) {
-      saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes);
+      saveOneRow(pLastCols, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
     }
-
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = &pr->pTableList[i];
-      code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+      tb_uid_t uid = pr->pTableList[i].uid;
 
-      if (h == NULL) {
+      tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
+      if (TARRAY_SIZE(pRow) <= 0) {
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
+        continue;
+      }
+      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
+      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
         continue;
       }
 
-      saveOneRow(pRow, pResBlock, pr, slotIds, pRes);
-      // TODO reset the pRes
+      saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
+      taosArrayClearEx(pRow, freeItem);
+      // taosArrayClear(pRow);
 
-      taosArrayPush(pTableUidList, &pKeyInfo->uid);
-      tsdbCacheRelease(lruCache, h);
+      taosArrayPush(pTableUidList, &uid);
 
-      pr->tableIndex += 1;
+      ++pr->tableIndex;
       if (pResBlock->info.rows >= pResBlock->info.capacity) {
         goto _end;
       }
@@ -334,17 +476,25 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
 _end:
-  tsdbDataFReaderClose(&pr->pDataFReaderLast);
-  tsdbDataFReaderClose(&pr->pDataFReader);
+  tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
 
-  tsdbUntakeReadSnap(pr->pVnode->pTsdb, pr->pReadSnap, "cache-l");
-  resetLastBlockLoadInfo(pr->pLoadInfo);
+  int64_t loadBlocks = 0;
+  double  elapse = 0;
+  pr->pLDataIterArray = destroySttBlockReader(pr->pLDataIterArray, &loadBlocks, &elapse);
+  pr->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
-  for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    taosMemoryFree(pRes[j]);
+  taosThreadMutexUnlock(&pr->readerMutex);
+
+  if (pRes != NULL) {
+    for (int32_t j = 0; j < pr->numOfCols; ++j) {
+      taosMemoryFree(pRes[j]);
+    }
   }
 
   taosMemoryFree(pRes);
+  // taosArrayDestroyEx(pRow, freeItem);
+  taosArrayDestroy(pRow);
   taosArrayDestroyEx(pLastCols, freeItem);
+
   return code;
 }

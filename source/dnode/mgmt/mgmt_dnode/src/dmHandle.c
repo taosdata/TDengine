@@ -41,6 +41,8 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
       dmWriteEps(pMgmt->pData);
+      dInfo("dnode will exit since it is in the dropped state");
+      raise(SIGINT);
     }
   } else {
     SStatusRsp statusRsp = {0};
@@ -57,6 +59,16 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     tFreeSStatusRsp(&statusRsp);
   }
   rpcFreeCont(pRsp->pCont);
+}
+
+void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
+  int32_t n = 0;
+  n += snprintf(buf + n, len - n, "%s", "{");
+  for (int i = 0; i < epSet->numOfEps; i++) {
+    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+                  (i + 1 < epSet->numOfEps ? ", " : ""));
+  }
+  n += snprintf(buf + n, len - n, "%s", "}");
 }
 
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
@@ -78,6 +90,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
+  req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -103,7 +116,12 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
-  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_STATUS,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
   SRpcMsg rpcRsp = {0};
 
   dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
@@ -112,11 +130,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
   rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   if (rpcRsp.code != 0) {
-    dError("failed to send status req since %s, numOfEps:%d inUse:%d", tstrerror(rpcRsp.code), epSet.numOfEps,
-           epSet.inUse);
-    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-      dDebug("index:%d, mnode ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    }
+    dmRotateMnodeEpSet(pMgmt->pData);
+    char tbuf[256];
+    dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
+    dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
@@ -150,7 +167,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
-  if (minfo.isMnode && minfo.load.syncState == TAOS_SYNC_STATE_ERROR) {
+  if (minfo.isMnode &&
+      (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
     snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
     return;
@@ -160,7 +178,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
   for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
-    if (pLoad->syncState == TAOS_SYNC_STATE_ERROR) {
+    if (pLoad->syncState == TAOS_SYNC_STATE_ERROR || pLoad->syncState == TAOS_SYNC_STATE_OFFLINE) {
       pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
       snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pLoad->vgId,
                syncStr(pLoad->syncState));
@@ -234,19 +252,25 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
     GRANT_CFG_SKIP;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, (const char *)&dnodeId, false);
+    colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
+
+    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    varDataSetLen(scope, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataSetVal(pColInfo, i, scope, false);
 
     numOfRows++;
   }
@@ -307,8 +331,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     pStart += sizeof(SSysTableSchema);
   }
 
-  int32_t len = 0;
-  blockEncode(pBlock, pStart, &len, numOfCols, false);
+  int32_t len = blockEncode(pBlock, pStart, numOfCols);
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
@@ -336,6 +359,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

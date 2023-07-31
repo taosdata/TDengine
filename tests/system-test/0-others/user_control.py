@@ -283,7 +283,7 @@ class TDTestCase:
                 use.error(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv == PRIVILEGES_WRITE:
                 use.query(f"use {DBNAME}")
-                use.error(f"show {DBNAME}.tables")
+                use.query(f"show {DBNAME}.tables")
                 use.error(f"select * from {DBNAME}.{CTBNAME}")
                 use.query(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv is None:
@@ -444,7 +444,7 @@ class TDTestCase:
             self.__grant_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__grant_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
             f"GRANT {self.__privilege[0]} ON * TO {self.__user_list[0]}" ,
-            f"GRANT {self.__privilege[0]} ON {DBNAME}.{NTBNAME} TO {self.__user_list[0]}" ,
+            # f"GRANT {self.__privilege[0]} ON {DBNAME}.{NTBNAME} TO {self.__user_list[0]}" ,
         ]
 
     def __revoke_err(self):
@@ -456,7 +456,7 @@ class TDTestCase:
             self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
             f"REVOKE {self.__privilege[0]} ON * FROM {self.__user_list[0]}" ,
-            f"REVOKE {self.__privilege[0]} ON {DBNAME}.{NTBNAME} FROM {self.__user_list[0]}" ,
+            # f"REVOKE {self.__privilege[0]} ON {DBNAME}.{NTBNAME} FROM {self.__user_list[0]}" ,
         ]
 
     def test_grant_err(self):

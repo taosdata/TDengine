@@ -23,17 +23,17 @@ extern "C" {
 #endif
 
 enum {
-  MQ_CONSUMER_STATUS__MODIFY = 1,
-  MQ_CONSUMER_STATUS__MODIFY_IN_REB,
-  MQ_CONSUMER_STATUS__READY,
-  MQ_CONSUMER_STATUS__LOST,
-  MQ_CONSUMER_STATUS__LOST_IN_REB,
-  MQ_CONSUMER_STATUS__LOST_REBD,
-  MQ_CONSUMER_STATUS__REMOVED,
-};
+  MQ_CONSUMER_STATUS_REBALANCE = 1,
+//  MQ_CONSUMER_STATUS__MODIFY_IN_REB,     // this value is not used anymore
+  MQ_CONSUMER_STATUS_READY,
+  MQ_CONSUMER_STATUS_LOST,
+//  MQ_CONSUMER_STATUS__LOST_IN_REB,       // this value is not used anymore
+//  MQ_CONSUMER_STATUS__LOST_REBD,
+};\
 
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
+void    mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId);
 
 SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId);
 void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
@@ -44,6 +44,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 
 int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
+int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 
 bool mndRebTryStart();
 void mndRebEnd();

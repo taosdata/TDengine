@@ -27,6 +27,11 @@ extern "C" {
 
 #if !defined(WINDOWS)
 #include <dirent.h>
+
+#if !defined(_ALPINE)
+#include <execinfo.h>
+#endif
+
 #include <libgen.h>
 #include <sched.h>
 #include <unistd.h>
@@ -48,6 +53,10 @@ extern "C" {
 #else
 #include <argp.h>
 #include <sys/prctl.h>
+#include <sys/sysinfo.h>
+#if defined(_TD_X86_)
+#include <cpuid.h>
+#endif
 #endif
 #else
 
@@ -82,6 +91,12 @@ extern "C" {
 #include <wchar.h>
 #include <wctype.h>
 
+#if __AVX__
+#include <immintrin.h>
+#elif __SSE4_2__
+#include <nmmintrin.h>
+#endif
+
 #include "osThread.h"
 
 #include "osAtomic.h"
@@ -106,6 +121,7 @@ extern "C" {
 #include "osTimer.h"
 #include "osTimezone.h"
 #include "taoserror.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 }

@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_UV
-
 #include "transComm.h"
 
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
@@ -47,14 +45,40 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->compressSize = pInit->compressSize;
+  if (pRpc->compressSize < 0) {
+    pRpc->compressSize = -1;
+  }
+
   pRpc->encryption = pInit->encryption;
+  pRpc->compatibilityVer = pInit->compatibilityVer;
+
+  pRpc->retryMinInterval = pInit->retryMinInterval;  // retry init interval
+  pRpc->retryStepFactor = pInit->retryStepFactor;
+  pRpc->retryMaxInterval = pInit->retryMaxInterval;
+  pRpc->retryMaxTimouet = pInit->retryMaxTimouet;
+
+  pRpc->failFastThreshold = pInit->failFastThreshold;
+  pRpc->failFastInterval = pInit->failFastInterval;
 
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
+  pRpc->destroyFp = pInit->dfp;
+  pRpc->failFastFp = pInit->ffp;
+  pRpc->connLimitNum = pInit->connLimitNum;
+  if (pRpc->connLimitNum == 0) {
+    pRpc->connLimitNum = 20;
+  }
+
+  pRpc->connLimitLock = pInit->connLimitLock;
+  pRpc->supportBatch = pInit->supportBatch;
+  pRpc->batchSize = pInit->batchSize;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
+  if (pRpc->numOfThreads <= 0) {
+    pRpc->numOfThreads = 1;
+  }
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -67,16 +91,20 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
+  pRpc->parent = pInit->parent;
+  if (pInit->user) {
+    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
+  }
+  pRpc->timeToGetConn = pInit->timeToGetConn;
+  if (pRpc->timeToGetConn == 0) {
+    pRpc->timeToGetConn = 10 * 1000;
+  }
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
     taosMemoryFree(pRpc);
     return NULL;
-  }
-  pRpc->parent = pInit->parent;
-  if (pInit->user) {
-    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
@@ -143,21 +171,12 @@ int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
 
 int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
-void rpcRefHandle(void* handle, int8_t type) {
-  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  (*taosRefHandle[type])(handle);
-}
+void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 
-void rpcUnrefHandle(void* handle, int8_t type) {
-  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  (*taosUnRefHandle[type])(handle);
-}
+void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle); }
 
 int rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
-int rpcReleaseHandle(void* handle, int8_t type) {
-  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  return (*transReleaseHandle[type])(handle);
-}
+int rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
 
 int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
@@ -176,5 +195,3 @@ void rpcCleanup(void) {
 
   return;
 }
-
-#endif

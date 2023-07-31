@@ -4,8 +4,21 @@ local Pool = require "tdpool"
 local config = require "config"
 ngx.say("start time:"..os.time())
 
-local pool = Pool.new(Pool,config)
-local conn = pool:get_connection()
+local pool = Pool.new(Pool, config)
+local another_pool = Pool.new(Pool, config)
+local conn, conn1, conn2
+conn = pool:get_connection()
+conn1 = pool:get_connection()
+conn2 = pool:get_connection()
+local temp_conn = another_pool:get_connection()
+ngx.say("pool size:"..config.connection_pool_size)
+ngx.say("pool watermark:"..pool:get_watermark())
+ngx.say("pool current load:"..pool:get_current_load())
+pool:release_connection(conn1)
+pool:release_connection(conn2)
+another_pool:release_connection(temp_conn)
+ngx.say("pool watermark:"..pool:get_watermark())
+ngx.say("pool current load:"..pool:get_current_load())
 
 local res = driver.query(conn,"drop database if exists nginx")
 if res.code ~=0 then
@@ -31,7 +44,6 @@ end
 res = driver.query(conn,"create table m1 (ts timestamp, speed int,owner binary(20))")
 if res.code ~=0 then
    ngx.say("create table---failed: "..res.error)
-
 else
    ngx.say("create table--- pass.")
 end
@@ -83,8 +95,5 @@ while not flag do
 --   ngx.say("i am here once...")
    ngx.sleep(0.001) -- time unit is second
 end
-
-ngx.say("pool water_mark:"..pool:get_water_mark())
-
 pool:release_connection(conn)
 ngx.say("end time:"..os.time())

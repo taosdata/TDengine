@@ -22,7 +22,7 @@ taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数�
 
 taosdump 有两种安装方式:
 
-- 安装 taosTools 官方安装包, 请从[所有下载链接](https://www.taosdata.com/all-downloads)页面找到 taosTools 并下载安装。
+- 安装 taosTools 官方安装包, 请从[发布历史页面](https://docs.taosdata.com/releases/tools/)页面找到 taosTools 并下载安装。
 
 - 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
@@ -79,10 +79,9 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -A, --all-databases        Dump all databases.
   -D, --databases=DATABASES  Dump inputted databases. Use comma to separate
                              databases' name.
+  -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump tables' schema.
-  -y, --answer-yes           Input yes for prompt. It will skip data file
-                             checking!
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
                              and lzma.
   -S, --start-time=START_TIME   Start time to dump. Either epoch or

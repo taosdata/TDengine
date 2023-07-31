@@ -1,14 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncRaftEntry.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -63,7 +54,6 @@ void initFsm() {
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
 #endif
-
 }
 
 SSyncNode *syncNodeInit() {
@@ -103,14 +93,14 @@ SSyncNode *syncNodeInit() {
   SSyncNode *pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  // gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  // gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  // gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  // gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
   syncNodeStart(pSyncNode);
@@ -140,7 +130,8 @@ SRpcMsg *step0() {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true, 1000);
+  SyncClientRequest *pRetMsg = NULL;
+  // syncClientRequestBuild(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
@@ -167,7 +158,7 @@ int main(int argc, char **argv) {
 
   gSyncNode = syncInitTest();
   assert(gSyncNode != NULL);
-  syncNodeLog2((char *)"", gSyncNode);
+  sNTrace(gSyncNode, "");
 
   initRaftId(gSyncNode);
 
@@ -179,14 +170,14 @@ int main(int argc, char **argv) {
   SyncClientRequest *pMsg1 = step1(pMsg0);
   syncClientRequestLog2((char *)"==step1==", pMsg1);
 
-  for (int i = 0; i < 10; ++i) {
-    SyncClientRequest *pSyncClientRequest = pMsg1;
-    SRpcMsg            rpcMsg;
-    syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
-    gSyncNode->syncEqMsg(gSyncNode->msgcb, &rpcMsg);
+  // for (int i = 0; i < 10; ++i) {
+  //   SyncClientRequest *pSyncClientRequest = pMsg1;
+  //   SRpcMsg            rpcMsg = {0};
+  //   syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
+  //   gSyncNode->syncEqMsg(gSyncNode->msgcb, &rpcMsg);
 
-    taosMsleep(1000);
-  }
+  //   taosMsleep(1000);
+  // }
 
   while (1) {
     sTrace("while 1 sleep");

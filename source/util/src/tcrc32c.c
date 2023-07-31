@@ -19,12 +19,11 @@
         */
 
 #define _DEFAULT_SOURCE
-#if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_)
 #include <nmmintrin.h>
 #endif
 
 #include "tcrc32c.h"
-#include "tdef.h"
 
 #define POLY        0x82f63b78
 #define LONG_SHIFT  8192
@@ -512,7 +511,7 @@ static uint32_t table[16][256] = {
      0x9c221d09, 0x6e2e10f7, 0x7dd67004, 0x8fda7dfa}
 
 };
-#if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_)
 static uint32_t long_shifts[4][256] = {
     {0x00000000, 0xe040e0ac, 0xc56db7a9, 0x252d5705, 0x8f3719a3, 0x6f77f90f, 0x4a5aae0a, 0xaa1a4ea6, 0x1b8245b7,
      0xfbc2a51b, 0xdeeff21e, 0x3eaf12b2, 0x94b55c14, 0x74f5bcb8, 0x51d8ebbd, 0xb1980b11, 0x37048b6e, 0xd7446bc2,
@@ -846,7 +845,7 @@ uint32_t crc32c_sf(uint32_t crci, crc_stream input, size_t length) {
   }
   return (uint32_t)crc ^ 0xffffffff;
 }
-#if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_)
 /* Apply the zeros operator table to crc. */
 static uint32_t shift_crc(uint32_t shift_table[][256], uint32_t crc) {
   return shift_table[0][crc & 0xff] ^ shift_table[1][(crc >> 8) & 0xff] ^ shift_table[2][(crc >> 16) & 0xff] ^
@@ -857,7 +856,7 @@ static uint32_t shift_crc(uint32_t shift_table[][256], uint32_t crc) {
    version.  Otherwise, use the software version. */
 uint32_t (*crc32c)(uint32_t crci, crc_stream bytes, size_t len) = crc32c_sf;
 
-#if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_)
 /* Compute CRC-32C using the Intel hardware instruction. */
 uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
   crc_stream next = buf;
@@ -1012,7 +1011,7 @@ uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
 #endif  // #ifndef _TD_ARM_
 
 void        taosResolveCRC() {
-#if defined _TD_ARM_ || defined _TD_MIPS_ || defined WINDOWS
+#if defined _TD_ARM_ || defined _TD_MIPS_ || defined WINDOWS || defined _TD_LOONGARCH_
   crc32c = crc32c_sf;
 #else
   int32_t sse42;

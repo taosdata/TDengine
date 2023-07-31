@@ -1,5 +1,5 @@
 [Unit]
-Description=TDengine server service
+Description=server service
 After=network-online.target
 Wants=network-online.target
 

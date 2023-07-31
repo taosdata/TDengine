@@ -165,6 +165,17 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_EVENT_WINDOW: {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pNode;
+      res = walkExpr(pEvent->pCol, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pEvent->pStartCond, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pEvent->pEndCond, order, walker, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -203,6 +214,18 @@ void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContex
   (void)walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
+static void checkParamIsFunc(SFunctionNode *pFunc) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams > 1) {
+    for (int32_t i = 0; i < numOfParams; ++i) {
+      SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
+      if (nodeType(pPara) == QUERY_NODE_FUNCTION) {
+        ((SFunctionNode *)pPara)->node.asParam = true;
+      }
+    }
+  }
+}
+
 static EDealRes rewriteExprs(SNodeList* pNodeList, ETraversalOrder order, FNodeRewriter rewriter, void* pContext);
 
 static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewriter rewriter, void* pContext) {
@@ -237,9 +260,12 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_LOGIC_CONDITION:
       res = rewriteExprs(((SLogicConditionNode*)pNode)->pParameterList, order, rewriter, pContext);
       break;
-    case QUERY_NODE_FUNCTION:
-      res = rewriteExprs(((SFunctionNode*)pNode)->pParameterList, order, rewriter, pContext);
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      checkParamIsFunc(pFunc);
+      res = rewriteExprs(pFunc->pParameterList, order, rewriter, pContext);
       break;
+    }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
       break;  // todo
@@ -326,6 +352,17 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExprs(pCaseWhen->pWhenThenList, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EVENT_WINDOW: {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pNode;
+      res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pEvent->pStartCond, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pEvent->pEndCond, order, rewriter, pContext);
       }
       break;
     }

@@ -1,12 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -54,7 +47,7 @@ void init() {
   pSyncNode->pWal = pWal;
 
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
-  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
+  // pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 void cleanup() {

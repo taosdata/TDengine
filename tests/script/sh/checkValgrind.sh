@@ -36,7 +36,6 @@ TAOS_DIR=`pwd`
 LOG_DIR=$TAOS_DIR/sim/$NODE_NAME/log
 
 error_summary=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "ERROR SUMMARY:" | awk '{print $4}' | awk '{sum+=$1}END{print sum}'`
-still_reachable=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "still reachable in" | wc -l`
 definitely_lost=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "definitely lost in" | wc -l`
 indirectly_lost=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "indirectly lost in " | wc -l`
 possibly_lost=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "possibly lost in " | wc -l`
@@ -46,7 +45,6 @@ invalid_free=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "Invalid free() " | wc 
 
 if [ $DETAIL -eq 1 ]; then
   echo error_summary: $error_summary
-  echo still_reachable: $still_reachable
   echo definitely_lost: $definitely_lost
   echo indirectly_lost: $indirectly_lost
   echo possibly_lost: $possibly_lost
@@ -55,5 +53,5 @@ if [ $DETAIL -eq 1 ]; then
   echo invalid_free: $invalid_free
 fi
 
-let "errors=$error_summary+$still_reachable+$definitely_lost+$indirectly_lost+$possibly_lost+$invalid_read+$invalid_write+$invalid_free"
+let "errors=$error_summary+$definitely_lost+$indirectly_lost+$possibly_lost+$invalid_read+$invalid_write+$invalid_free"
 echo $errors

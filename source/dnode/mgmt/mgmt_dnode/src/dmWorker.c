@@ -15,22 +15,38 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "thttp.h"
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
-  
+
+  const static int16_t TRIM_FREQ = 30;
+  int32_t              trimCount = 0;
+  int32_t              upTimeCount = 0;
+  int64_t              upTime = 0;
+
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
-      taosMemoryTrim(0); 
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
+
+      trimCount = (trimCount + 1) % TRIM_FREQ;
+      if (trimCount == 0) {
+        taosMemoryTrim(0);
+      }
+
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
+        upTime = taosGetOsUptime() - tsDndStartOsUptime;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
+      }
     }
   }
 
@@ -47,7 +63,8 @@ static void *dmMonitorThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
@@ -56,6 +73,65 @@ static void *dmMonitorThreadFp(void *param) {
 
   return NULL;
 }
+
+static void *dmCrashReportThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-crashReport");
+  char filepath[PATH_MAX] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
+  char *pMsg = NULL;
+  int64_t msgLen = 0;
+  TdFilePtr pFile = NULL;
+  bool truncateFile = false;
+  int32_t sleepTime = 200;
+  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;;
+  int32_t loopTimes = reportPeriodNum;
+  
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+    if (loopTimes++ < reportPeriodNum) {
+      taosMsleep(sleepTime);
+      continue;
+    }
+
+    taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
+    if (pMsg && msgLen > 0) {
+      if (taosSendHttpReport(tsTelemServer, tsSvrCrashReportUri, tsTelemPort, pMsg, msgLen, HTTP_FLAT) != 0) {
+        dError("failed to send crash report");
+        if (pFile) {
+          taosReleaseCrashLogFile(pFile, false);
+          pFile = NULL;
+          continue;
+        }
+      } else {
+        dInfo("succeed to send crash report");
+        truncateFile = true;
+      }
+    } else {
+      dDebug("no crash info");
+    }
+
+    taosMemoryFree(pMsg);
+
+    if (pMsg && msgLen > 0) {
+      pMsg = NULL;
+      continue;
+    }
+    
+    if (pFile) {
+      taosReleaseCrashLogFile(pFile, truncateFile);
+      pFile = NULL;
+      truncateFile = false;
+    }
+    
+    taosMsleep(sleepTime);
+    loopTimes = 0;
+  }
+
+  return NULL;
+}
+
 
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
@@ -99,6 +175,36 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   }
 }
 
+int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
+  if (!tsEnableCrashReport) {
+    return 0;
+  }
+
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->crashReportThread, &thAttr, dmCrashReportThreadFp, pMgmt) != 0) {
+    dError("failed to create crashReport thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-crashReport", "initialized");
+  return 0;
+}
+
+void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
+  if (!tsEnableCrashReport) {
+    return;
+  }
+
+  if (taosCheckPthreadValid(pMgmt->crashReportThread)) {
+    taosThreadJoin(pMgmt->crashReportThread, NULL);
+    taosThreadClear(&pMgmt->crashReportThread);
+  }
+}
+
+
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
@@ -133,6 +239,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
+    case TDMT_DND_ALTER_MNODE_TYPE:
+      code = (*pMgmt->processAlterNodeTypeFp)(MNODE, pMsg);
+      break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);
       break;
@@ -140,10 +249,11 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = dmProcessRetrieve(pMgmt, pMsg);
       break;
     case TDMT_MND_GRANT:
-      code = dmProcessGrantReq(pMsg);
+      code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      dGError("msg:%p, not processed in mgmt queue", pMsg);
       break;
   }
 

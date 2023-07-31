@@ -1,6 +1,7 @@
 ---
-sidebar_label: Reserved Keywords
 title: Reserved Keywords
+sidebar_label: Reserved Keywords
+description: This document describes the reserved keywords in TDengine that cannot be used in object names.
 ---
 
 ## Keyword List
@@ -17,6 +18,7 @@ The following list shows all reserved keywords:
 - ADD
 - AFTER
 - AGGREGATE
+- ALIVE
 - ALL
 - ALTER
 - ANALYZE
@@ -332,8 +334,6 @@ The following list shows all reserved keywords:
 - WAL_LEVEL
 - WAL_RETENTION_PERIOD
 - WAL_RETENTION_SIZE
-- WAL_ROLL_PERIOD
-- WAL_SEGMENT_SIZE
 - WATERMARK
 - WHERE
 - WINDOW_CLOSE

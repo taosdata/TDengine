@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_ALPINE)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
 typedef pthread_mutex_t pthread_spinlock_t;
@@ -100,7 +100,11 @@ typedef pthread_key_t        TdThreadKey;
 #define pthread_condattr_init          PTHREAD_CONDATTR_INIT_FUNC_TAOS_FORBID
 #define pthread_condattr_setpshared    PTHREAD_CONDATTR_SETPSHARED_FUNC_TAOS_FORBID
 #define pthread_detach                 PTHREAD_DETACH_FUNC_TAOS_FORBID
+
+#if !defined(_ALPINE)
 #define pthread_equal                  PTHREAD_EQUAL_FUNC_TAOS_FORBID
+#endif
+
 #define pthread_exit                   PTHREAD_EXIT_FUNC_TAOS_FORBID
 #define pthread_getschedparam          PTHREAD_GETSCHEDPARAM_FUNC_TAOS_FORBID
 #define pthread_getspecific            PTHREAD_GETSPECIFIC_FUNC_TAOS_FORBID

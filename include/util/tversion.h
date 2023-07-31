@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_VERSION_H_
-#define _TD_UTIL_VERSION_H_
+#ifndef _TD_UTIL_TVERSION_H_
+#define _TD_UTIL_TVERSION_H_
 
 #include "os.h"
 
@@ -25,9 +25,11 @@ extern "C" {
 int32_t taosVersionStrToInt(const char *vstr, int32_t *vint);
 int32_t taosVersionIntToStr(int32_t vint, char *vstr, int32_t len);
 int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t comparedSegments);
+int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char *pServerVersion,
+                                          int32_t comparedSegments);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_VERSION_H_*/
+#endif /*_TD_UTIL_TVERSION_H_*/

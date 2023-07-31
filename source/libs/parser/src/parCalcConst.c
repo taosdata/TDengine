@@ -169,7 +169,7 @@ static int32_t calcConstStmtCondition(SCalcConstContext* pCxt, SNode** pCond, bo
 static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
   SArray* pAssociation = NULL;
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
-    pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation);
+    pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation, NULL);
     if (NULL == pAssociation) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -183,16 +183,18 @@ static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
   } else {
     code = scalarCalculateConstants(pProject, pNew);
   }
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+  if (TSDB_CODE_SUCCESS == code) {
     strcpy(((SExprNode*)*pNew)->aliasName, aliasName);
-    int32_t size = taosArrayGetSize(pAssociation);
-    for (int32_t i = 0; i < size; ++i) {
-      SNode** pCol = taosArrayGetP(pAssociation, i);
-      nodesDestroyNode(*pCol);
-      *pCol = nodesCloneNode(*pNew);
-      if (NULL == *pCol) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
+    if (QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+      int32_t size = taosArrayGetSize(pAssociation);
+      for (int32_t i = 0; i < size; ++i) {
+        SNode** pCol = taosArrayGetP(pAssociation, i);
+        nodesDestroyNode(*pCol);
+        *pCol = nodesCloneNode(*pNew);
+        if (NULL == *pCol) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          break;
+        }
       }
     }
   }
@@ -309,6 +311,9 @@ static int32_t calcConstDelete(SCalcConstContext* pCxt, SDeleteStmt* pDelete) {
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstStmtCondition(pCxt, &pDelete->pWhere, &pDelete->deleteZeroRows);
   }
+  if (code == TSDB_CODE_SUCCESS && pDelete->timeRange.skey > pDelete->timeRange.ekey) {
+    pDelete->deleteZeroRows = true;
+  }
   return code;
 }
 
@@ -316,6 +321,122 @@ static int32_t calcConstInsert(SCalcConstContext* pCxt, SInsertStmt* pInsert) {
   int32_t code = calcConstFromTable(pCxt, pInsert->pTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstQuery(pCxt, pInsert->pQuery, false);
+  }
+  return code;
+}
+
+static SNodeList* getChildProjection(SNode* pStmt) {
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      return ((SSelectStmt*)pStmt)->pProjectionList;
+    case QUERY_NODE_SET_OPERATOR:
+      return ((SSetOperator*)pStmt)->pProjectionList;
+    default:
+      break;
+  }
+  return NULL;
+}
+
+static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
+  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
+  nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pLeft)) {
+    eraseSetOpChildProjection((SSetOperator*)pSetOp->pLeft, index);
+  }
+  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
+  nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pRight)) {
+    eraseSetOpChildProjection((SSetOperator*)pSetOp->pRight, index);
+  }
+}
+
+typedef struct SNotRefByOrderByCxt {
+  SColumnNode* pCol;
+  bool         hasThisCol;
+} SNotRefByOrderByCxt;
+
+static EDealRes notRefByOrderByImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SNotRefByOrderByCxt* pCxt = (SNotRefByOrderByCxt*)pContext;
+    if (nodesEqualNode((SNode*)pCxt->pCol, pNode)) {
+      pCxt->hasThisCol = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool notRefByOrderBy(SColumnNode* pCol, SNodeList* pOrderByList) {
+  SNotRefByOrderByCxt cxt = {.pCol = pCol, .hasThisCol = false};
+  nodesWalkExprs(pOrderByList, notRefByOrderByImpl, &cxt);
+  return !cxt.hasThisCol;
+}
+
+static bool isDistinctSubQuery(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT:
+      return ((SSelectStmt*)pNode)->isDistinct;
+    case QUERY_NODE_SET_OPERATOR:
+      return isDistinctSubQuery((((SSetOperator*)pNode)->pLeft)) || isDistinctSubQuery((((SSetOperator*)pNode)->pLeft));
+    default:
+      break;
+  }
+  return false;
+}
+
+static bool isSetUselessCol(SSetOperator* pSetOp, int32_t index, SExprNode* pProj) {
+  if (!isUselessCol(pProj)) {
+    return false;
+  }
+
+  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pLeftProjs, index)) || isDistinctSubQuery(pSetOp->pLeft)) {
+    return false;
+  }
+
+  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pRightProjs, index)) || isDistinctSubQuery(pSetOp->pLeft)) {
+    return false;
+  }
+
+  return true;
+}
+
+static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
+  if (subquery && pSetOp->opType == SET_OP_TYPE_UNION) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t index = 0;
+  SNode*  pProj = NULL;
+  WHERE_EACH(pProj, pSetOp->pProjectionList) {
+    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
+        isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
+      ERASE_NODE(pSetOp->pProjectionList);
+      eraseSetOpChildProjection(pSetOp, index);
+      continue;
+    }
+    ++index;
+    WHERE_NEXT;
+  }
+  if (0 == LIST_LENGTH(pSetOp->pProjectionList)) {
+    return nodesListStrictAppend(pSetOp->pProjectionList, createConstantValue());
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t calcConstSetOperator(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
+  int32_t code = calcConstSetOpProjections(pCxt, pSetOp, subquery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstQuery(pCxt, pSetOp->pLeft, false);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstQuery(pCxt, pSetOp->pRight, false);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstList(pSetOp->pOrderByList);
   }
   return code;
 }
@@ -330,11 +451,7 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
       code = calcConstQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery, subquery);
       break;
     case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSetOp = (SSetOperator*)pStmt;
-      code = calcConstQuery(pCxt, pSetOp->pLeft, false);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = calcConstQuery(pCxt, pSetOp->pRight, false);
-      }
+      code = calcConstSetOperator(pCxt, (SSetOperator*)pStmt, subquery);
       break;
     }
     case QUERY_NODE_DELETE_STMT:
@@ -366,10 +483,38 @@ static bool isEmptyResultQuery(SNode* pStmt) {
       }
       break;
     }
+    case QUERY_NODE_DELETE_STMT:
+      isEmptyResult = ((SDeleteStmt*)pStmt)->deleteZeroRows;
+      break;
     default:
       break;
   }
   return isEmptyResult;
+}
+
+static void resetProjectNullTypeImpl(SNodeList* pProjects) {
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    SExprNode* pExpr = (SExprNode*)pProj;
+    if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
+      pExpr->resType.type = TSDB_DATA_TYPE_VARCHAR;
+      pExpr->resType.bytes = 0;
+    }
+  }
+}
+
+static void resetProjectNullType(SNode* pStmt) {
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      resetProjectNullTypeImpl(((SSelectStmt*)pStmt)->pProjectionList);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      resetProjectNullTypeImpl(((SSetOperator*)pStmt)->pProjectionList);
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
@@ -378,8 +523,11 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
                            .msgBuf.len = pParseCxt->msgLen,
                            .code = TSDB_CODE_SUCCESS};
   int32_t           code = calcConstQuery(&cxt, pQuery->pRoot, false);
-  if (TSDB_CODE_SUCCESS == code && isEmptyResultQuery(pQuery->pRoot)) {
-    pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+  if (TSDB_CODE_SUCCESS == code) {
+    resetProjectNullType(pQuery->pRoot);
+    if (isEmptyResultQuery(pQuery->pRoot)) {
+      pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+    }
   }
   return code;
 }

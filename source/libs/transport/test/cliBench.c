@@ -19,6 +19,7 @@
 #include "transLog.h"
 #include "trpc.h"
 #include "tutil.h"
+#include "tversion.h"
 
 typedef struct {
   int      index;
@@ -31,6 +32,21 @@ typedef struct {
   TdThread thread;
   void    *pRpc;
 } SInfo;
+
+void initLogEnv() {
+  const char   *logDir = "/tmp/trans_cli";
+  const char   *defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10000;
+  tsAsyncLog = 0;
+  // idxDebugFlag = 143;
+  strcpy(tsLogDir, (char *)logDir);
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir);
+
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+}
 
 static void processResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->info.ahandle;
@@ -56,11 +72,12 @@ static void *sendRequest(void *param) {
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.info.ahandle = pInfo;
+    rpcMsg.info.noResp = 1;
     rpcMsg.msgType = 1;
     tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
-    tsem_wait(&pInfo->rspSem);
+    // tsem_wait(&pInfo->rspSem);
   }
 
   tDebug("thread:%d, it is over", pInfo->index);
@@ -96,9 +113,14 @@ int main(int argc, char *argv[]) {
   rpcInit.sessions = 100;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "michael";
-  rpcInit.connType = TAOS_CONN_CLIENT;
 
-  rpcDebugFlag = 131;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.connLimitNum = 10;
+  rpcInit.connLimitLock = 1;
+  rpcInit.batchSize = 16 * 1024;
+  rpcInit.supportBatch = 1;
+
+  rpcDebugFlag = 135;
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
     } else if (strcmp(argv[i], "-i") == 0 && i < argc - 1) {
@@ -132,8 +154,9 @@ int main(int argc, char *argv[]) {
       exit(0);
     }
   }
-  taosInitLog("client.log", 100000);
 
+  initLogEnv();
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to initialize RPC");

@@ -116,6 +116,8 @@ typedef struct {
   int32_t vnodes_total;
   int32_t vnodes_alive;
   int32_t connections_total;
+  int32_t topics_toal;
+  int32_t streams_total;
   SArray *dnodes;  // array of SMonDnodeDesc
   SArray *mnodes;  // array of SMonMnodeDesc
 } SMonClusterInfo;
@@ -147,9 +149,9 @@ typedef struct {
 } SMonStbInfo;
 
 typedef struct {
-  int32_t expire_time;
-  int64_t timeseries_used;
-  int64_t timeseries_total;
+  uint32_t expire_time;
+  int64_t  timeseries_used;
+  int64_t  timeseries_total;
 } SMonGrantInfo;
 
 typedef struct {

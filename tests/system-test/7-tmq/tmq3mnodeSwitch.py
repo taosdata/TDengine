@@ -54,9 +54,9 @@ class TDTestCase:
             time.sleep(1)
             tdLog.debug("............... waiting for all dnodes ready!")
 
-        tdLog.info("==============create two new mnodes ========")
-        tdSql.execute("create mnode on dnode 2")
-        tdSql.execute("create mnode on dnode 3")
+        # tdLog.info("==============create two new mnodes ========")
+        # tdSql.execute("create mnode on dnode 2")
+        # tdSql.execute("create mnode on dnode 3")
         self.check3mnode()
         return
 
@@ -138,34 +138,6 @@ class TDTestCase:
         else:
             tdLog.exit("three mnodes is not ready in 10s ")
 
-    def checkFileContent(self, consumerId, queryString):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
-        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
-        tdLog.info(cmdStr)
-        os.system(cmdStr)
-
-        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
-        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
-
-        consumeFile = open(consumeRowsFile, mode='r')
-        queryFile = open(dstFile, mode='r')
-
-        # skip first line for it is schema
-        queryFile.readline()
-
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-
-            if dst:
-                if dst != src:
-                    tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
-            else:
-                break
-        return
-
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db1',
@@ -179,17 +151,20 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbNum':     1,
-                    'rowsPerTbl': 100000,
+                    'rowsPerTbl': 40000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1}
+        
+        if self.replicaVar == 3:
+            paraDict["rowsPerTbl"] = 20000
 
         topicNameList = ['topic1']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=self.replicaVar)
         tdLog.info("create stb")
         tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
         tdLog.info("create ctb")
@@ -198,7 +173,9 @@ class TDTestCase:
         pThread = tmqCom.asyncInsertData(paraDict)
 
         tdLog.info("create topics from stb with filter")
-        queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
+        # queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
+        
+        queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
@@ -206,7 +183,7 @@ class TDTestCase:
         # init consume info, and start tmq_sim, then check consume result
         tdLog.info("insert consume info to consume processor")
         consumerId   = 0
-        expectrowcnt = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
+        expectrowcnt = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2   # because taosd switch, may be consume duplication data
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
@@ -231,8 +208,8 @@ class TDTestCase:
         tdDnodes[0].starttaosd()
         self.check3mnode()
 
-        tdLog.info("3. stop dnode 1")
-        tdDnodes[1].stoptaosd()
+        tdLog.info("3. stop dnode 2")
+        tdDnodes[2].stoptaosd()
         time.sleep(10)
         self.check3mnode1off()
 
@@ -246,11 +223,12 @@ class TDTestCase:
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        if expectRowsList[0] != resultList[0]:
-            tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
+        tdLog.info("expect consume rows: %d should less/equal than act consume rows: %d"%(expectRowsList[0], resultList[0]))
+        if expectRowsList[0] > resultList[0]:
             tdLog.exit("0 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        if expectRowsList[0] == resultList[0]:
+            tmqCom.checkFileContent(consumerId, queryString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):

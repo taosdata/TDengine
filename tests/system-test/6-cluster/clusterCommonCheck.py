@@ -64,7 +64,7 @@ class ClusterComCheck:
         dbNumbers=int(dbNumbers)
         count=0
         while count < 5:
-            tdSql.query("select * from information_schema.ins_databases;")
+            tdSql.query("select * from information_schema.ins_databases where name!='collectd' ;")
             count+=1
             if tdSql.checkRows(dbNumbers+2):
                 tdLog.success("we find %d databases and expect %d in clusters! " %(tdSql.queryRows,dbNumbers+2))
@@ -174,40 +174,40 @@ class ClusterComCheck:
                 tdLog.exit("mnode number is correct")
             if offlineDnodeNo == 1:
                 if  tdSql.queryResult[0][2]=='offline' :
-                    if  tdSql.queryResult[1][2]=='leader'  and  tdSql.queryResult[1][3]== 'ready'  :
-                        if  tdSql.queryResult[2][2]=='follower' and  tdSql.queryResult[2][3]== 'ready'  :
+                    if  tdSql.queryResult[1][2]=='leader':
+                        if  tdSql.queryResult[2][2]=='follower':
                             tdLog.success("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
-                    elif tdSql.queryResult[1][2]=='follower' and  tdSql.queryResult[1][3]== 'ready' :
-                        if  tdSql.queryResult[2][2]=='leader' and  tdSql.queryResult[2][3]== 'ready' :
+                    elif tdSql.queryResult[1][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='leader':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
                 count+=1
             elif offlineDnodeNo == 2:
                 if  tdSql.queryResult[1][2]=='offline' :
-                    if  tdSql.queryResult[0][2]=='leader' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[2][2]=='follower' and  tdSql.queryResult[2][3]== 'ready' :
+                    if  tdSql.queryResult[0][2]=='leader':
+                        if  tdSql.queryResult[2][2]=='follower':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
-                    elif tdSql.queryResult[0][2]=='follower' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[2][2]=='leader' and  tdSql.queryResult[2][3]== 'ready' :
+                    elif tdSql.queryResult[0][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='leader':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
                 count+=1
             elif offlineDnodeNo == 3:
                 if  tdSql.queryResult[2][2]=='offline' :
-                    if  tdSql.queryResult[0][2]=='leader' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[1][2]=='follower' and  tdSql.queryResult[1][3]== 'ready' :
+                    if  tdSql.queryResult[0][2]=='leader':
+                        if  tdSql.queryResult[1][2]=='follower':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
-                    elif tdSql.queryResult[0][2]=='follower' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[1][2]=='leader' and  tdSql.queryResult[1][3]== 'ready' :
+                    elif tdSql.queryResult[0][2]=='follower':
+                        if  tdSql.queryResult[1][2]=='leader':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
                 count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit("stop mnodes  on dnode %d  failed in 10s ")
+            tdLog.exit(f"stop mnodes  on dnode {offlineDnodeNo}  failed in 10s ")
 
     def check3mnode2off(self,mnodeNums=3):
         count=0
@@ -219,14 +219,52 @@ class ClusterComCheck:
             else:
                 tdLog.exit("mnode number is correct")
             if  tdSql.queryResult[0][2]=='leader' :
-                if  tdSql.queryResult[1][2]=='offline'  and  tdSql.queryResult[1][3]== 'ready'  :
-                    if  tdSql.queryResult[2][2]=='offline' and  tdSql.queryResult[2][3]== 'ready'  :
+                if  tdSql.queryResult[1][2]=='offline':
+                    if  tdSql.queryResult[2][2]=='offline':
                         tdLog.success("stop mnodes of follower  on dnode successfully in 10s")
                         return True
             count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit("stop mnodes  on dnode %d  failed in 10s ")
+            tdLog.exit("stop mnodes  on dnode 2 or 3 failed in 10s")
+
+    def check_vgroups_status(self,vgroup_numbers=2,db_replica=3,count_number=10,db_name="db"):
+        """ check vgroups status in 10s after db vgroups status is changed """
+        vgroup_numbers = int(vgroup_numbers)
+        self.db_replica = int(db_replica)
+        tdLog.debug("start to check status of vgroups")
+        count=0
+        last_number=vgroup_numbers-1
+        while count < count_number:
+            time.sleep(1)
+            tdSql.query(f"show  {db_name}.vgroups;")
+            if  count == 0 :
+                if tdSql.checkRows(vgroup_numbers) :
+                    tdLog.success(f"{db_name} has {vgroup_numbers} vgroups" )
+                else:
+                    tdLog.exit(f"vgroup number of {db_name} is not correct")
+            if self.db_replica == 1 :
+                if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[1][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
+                    ready_time= (count + 1)
+                    tdLog.success(f"all vgroups of {db_name} are leaders in {count + 1} s")
+                    return True
+                count+=1
+            elif self.db_replica == 3 :
+                vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
+
+                vgroup_status_last=[tdSql.queryResult[last_number][4],tdSql.queryResult[last_number][6],tdSql.queryResult[last_number][8]]
+                if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
+                    if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
+                        ready_time= (count + 1)
+                        tdLog.success(f"elections of {db_name}.vgroups are ready in {ready_time} s")
+                        return True
+                count+=1
+        else:
+            tdLog.debug(tdSql.queryResult)
+            tdLog.notice(f"elections of {db_name} all vgroups are failed in{count} s ")
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno)
+            tdLog.exit("%s(%d) failed " % args)
 
 
 

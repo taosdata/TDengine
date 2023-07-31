@@ -1,40 +1,36 @@
-# Contributing
+# Contributing to TDengine
 
-We appreciate contributions from all developers. Feel free to follow us, fork the repository, report bugs, and even submit your code on GitHub. However, we would like developers to follow the guidelines in this document to ensure effective cooperation.
+TDengine Community Edition is free, open-source software. Its development is led by the TDengine Team, but we welcome contributions from all community members and open-source developers. This document describes how you can contribute, no matter whether you're a user or a developer yourself.
 
-## Reporting a bug
+## Bug reports
 
-- Any users can report bugs to us through the **[GitHub issue tracker](https://github.com/taosdata/TDengine/issues)**. We would appreciate if you could provide **a detailed description** of the problem you encountered, including steps to reproduce it.
+All users can report bugs to us through the **[GitHub issue tracker](https://github.com/taosdata/TDengine/issues)**. To ensure that the development team can locate and resolve the issue that you experienced, please include the following in your bug report:
 
-- Attaching log files caused by the bug is really appreciated.
+- A detailed description of the issue, including the steps to reproduce it.
+- Any log files that may be relevant to the issue.
 
-## Guidelines for committing code
+## Code contributions
 
-- You must agree to the **Contributor License Agreement(CLA) before submitting your code patch**. Follow the **[TAOSData CLA](https://cla-assistant.io/taosdata/TDengine)** link to read through and sign the agreement. If you do not accept the agreement, your contributions cannot be accepted.
+Developers are encouraged to submit patches to the project, and all contributions, from minor documentation changes to bug fixes, are appreciated by our team. To ensure that your code can be merged successfully and improve the experience for other community members, we ask that you go through the following procedure before submitting a pull request: 
 
-- Please solve an issue or add a feature registered in the **[GitHub issue tracker](https://github.com/taosdata/TDengine/issues)**.
-- If no corresponding issue or feature is found in the issue tracker, please **create one**.
-- When submitting your code to our repository, please create a pull request with the **issue number** included.
+1. Read and accept the terms of the TAOS Data Contributor License Agreement (CLA) located at [https://cla-assistant.io/taosdata/TDengine](https://cla-assistant.io/taosdata/TDengine).
 
-## Guidelines for communicating
+2. For bug fixes, search the [GitHub issue tracker](https://github.com/taosdata/TDengine/issues) to check whether the bug has already been filed.
+   - If the bug that you want to fix already exists in the issue tracker, review the previous discussion before submitting your patch.
+   - If the bug that you want to fix does not exist in the issue tracker, click **New issue** and file a report.
+   - Ensure that you note the issue number in your pull request when you submit your patch.
+	
+3. Fork our repository to your GitHub account and create a branch for your patch.
+   **Important:** The `main` branch is for stable versions and cannot accept patches directly. For all code and documentation changes, create your own branch from the development branch `3.0` and not from `main`.
+   Note: For a documentation change, ensure that the branch name starts with `docs/` so that the change can be merged without running tests.
+   
+4. Create a pull request to merge your changes into the development branch `3.0`, and our team members will review the request as soon as possible.
 
-1. Please be **nice and polite** in the description.
-2. **Active voice is better than passive voice in general**. Sentences in the active voice will highlight who is performing the action rather than the recipient of the action highlighted by the passive voice.
-3. Documentation writing advice
+If you encounter any difficulties or problems in contributing your code, you can join our [Discord server](https://discord.com/invite/VZdSuUg4pS) and receive assistance from members of the TDengine Team.
 
-- Spell the product name "TDengine" correctly. "TD" is written in capital letters, and there is no space between "TD" and "engine" (**Correct spelling: TDengine**).
-- Please **capitalize the first letter** of every sentence.
-- Leave **only one space** after periods or other punctuation marks.
-- Use **American spelling**.
-- When possible, **use second person** rather than first person (e.g.“You are recommended to use a reverse proxy such as Nginx.” rather than “We recommend to use a reverse proxy such as Nginx.”).
+## Expressing our thanks
 
-5. Use **simple sentences**, rather than complex sentences.
-
-## Gifts for the contributors
-
-Developers, as long as you contribute to TDengine, whether it's code contributions to fix bugs or feature requests, or documentation changes, **you are eligible for a very special Contributor Souvenir Gift!**
-
-**You can choose one of the following gifts:**
+To thank community members for your support, we are offering a free gift to any developer who submits at least one contribution. You can choose one of the following items:
 
 <p align="left">
   <img
@@ -53,12 +49,10 @@ Developers, as long as you contribute to TDengine, whether it's code contributio
     width="200"
     />
 
-The TDengine community is committed to making TDengine accepted and used by more developers.
+If you would like to claim your gift, send an email to [developer@tdengine.com](mailto:developer@tdengine.com?subject=Claiming&20my%20developer%20gift) including the following information:
 
-Just fill out the **Contributor Submission Form** to choose your desired gift.
+- Your GitHub account name
+- Your name and mailing address
+- Your preferred gift
 
-- [Contributor Submission Form](https://page.ma.scrmtech.com/form/index?pf_uid=27715_2095&id=12100)
-
-## Contact us
-
-If you have any problems or questions that need help from us, please feel free to add our WeChat account: TDengineECO.
+Note: Limit one per person.

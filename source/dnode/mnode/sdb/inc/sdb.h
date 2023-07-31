@@ -37,8 +37,6 @@ extern "C" {
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define SDB_WRITE_DELTA 20
-
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
     if (func(pRaw, dataPos, val) != 0) {                  \
@@ -124,6 +122,7 @@ typedef enum {
   SDB_STATUS_DROPPING = 2,
   SDB_STATUS_DROPPED = 3,
   SDB_STATUS_READY = 4,
+  SDB_STATUS_UPDATE = 5,
 } ESdbStatus;
 
 typedef enum {
@@ -147,7 +146,8 @@ typedef enum {
   SDB_STB = 18,
   SDB_DB = 19,
   SDB_FUNC = 20,
-  SDB_MAX = 21
+  SDB_IDX = 21,
+  SDB_MAX = 22
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -291,6 +291,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw);
  * @return void* The object of the row.
  */
 void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey);
 
 /**
  * @brief Release a row from sdb.
@@ -392,7 +393,7 @@ void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
 int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);
-int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
+void    sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);

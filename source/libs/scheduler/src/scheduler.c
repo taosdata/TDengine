@@ -18,6 +18,7 @@
 #include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
+#include "tglobal.h"
 
 SSchedulerMgmt schMgmt = {
     .jobRef = -1,
@@ -30,30 +31,37 @@ int32_t schedulerInit() {
   }
 
   schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
-  schMgmt.cfg.maxNodeTableNum = SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM;
+  schMgmt.cfg.maxNodeTableNum = tsQueryMaxConcurrentTables;
   schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
   schMgmt.cfg.enableReSchedule = true;
 
-  qDebug("schedule policy init to %d", schMgmt.cfg.schPolicy);
+  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
+    schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
 
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
     qError("init schduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   schMgmt.hbConnections = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == schMgmt.hbConnections) {
     qError("taosHashInit hb connections failed");
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  schMgmt.timer = taosTmrInit(0, 0, 0, "scheduler");
+  if (NULL == schMgmt.timer) {
+    qError("init timer failed, error:%s", tstrerror(terrno));
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
-    qError("generate schdulerId failed, errno:%d", errno);
+    qError("generate schedulerId failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
   }
 
-  qInfo("scheduler 0x%" PRIx64 " initizlized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
+  qInfo("scheduler 0x%" PRIx64 " initialized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -85,7 +93,7 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
 
-  SCH_ERR_JRET(schJobFetchRows(pJob));
+  SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
 
 _return:
 
@@ -151,7 +159,7 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
 
   SSchJob *pJob = schAcquireJob(*jobId);
   if (NULL == pJob) {
-    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 

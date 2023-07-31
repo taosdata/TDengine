@@ -141,8 +141,20 @@ taos tools is uninstalled successfully!
 ```
 
 </TabItem>
+
 <TabItem label="Windows 卸载" value="windows">
 在 C:\TDengine 目录下，通过运行 unins000.exe 卸载程序来卸载 TDengine。
+</TabItem>
+
+<TabItem label="Mac 卸载" value="mac">
+
+卸载 TDengine 命令如下:
+
+```
+$ rmtaos
+TDengine is removed successfully!
+```
+
 </TabItem>
 </Tabs>
 

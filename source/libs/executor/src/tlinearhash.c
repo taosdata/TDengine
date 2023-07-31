@@ -17,6 +17,7 @@
 #include "taoserror.h"
 #include "tdef.h"
 #include "tpagedbuf.h"
+#include "tlog.h"
 
 #define LHASH_CAP_RATIO 0.85
 
@@ -122,8 +123,6 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
 }
 
 static void doRemoveFromBucket(SFilePage* pPage, SLHashNode* pNode, SLHashBucket* pBucket) {
-  ASSERT(pPage != NULL && pNode != NULL && pBucket->size >= 1);
-
   int32_t len = GET_LHASH_NODE_LEN(pNode);
   char*   p = (char*)pNode + len;
 
@@ -249,8 +248,8 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
   }
 
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    printf("tHash Init failed since %s", terrstr(terrno));
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    printf("tHash Init failed since %s, tempDir:%s", terrstr(), tsTempDir);
     taosMemoryFree(pHashObj);
     return NULL;
   }
@@ -300,8 +299,6 @@ void* tHashCleanup(SLHashObj* pHashObj) {
 }
 
 int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data, size_t size) {
-  ASSERT(pHashObj != NULL && key != NULL);
-
   if (pHashObj->bits == 0) {
     SLHashBucket* pBucket = pHashObj->pBucket[0];
     doAddToBucket(pHashObj, pBucket, 0, key, keyLen, data, size);
@@ -362,14 +359,12 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
         if (v1 != splitBucketId) {  // place it into the new bucket
           ASSERT(v1 == newBucketId);
           //          printf("move key:%d to 0x%x bucket, remain items:%d\n", *(int32_t*)k, v1, pBucket->size - 1);
-
           SLHashBucket* pNewBucket = pHashObj->pBucket[newBucketId];
           doAddToBucket(pHashObj, pNewBucket, newBucketId, (void*)GET_LHASH_NODE_KEY(pNode), pNode->keyLen,
                         GET_LHASH_NODE_KEY(pNode), pNode->dataLen);
           doRemoveFromBucket(p, pNode, pBucket);
         } else {
           //          printf("check key:%d, located into: %d, skip it\n", *(int*) k, v1);
-
           int32_t nodeSize = GET_LHASH_NODE_LEN(pStart);
           pStart += nodeSize;
         }
@@ -384,7 +379,6 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
 }
 
 char* tHashGet(SLHashObj* pHashObj, const void* key, size_t keyLen) {
-  ASSERT(pHashObj != NULL && key != NULL && keyLen > 0);
   int32_t hashv = pHashObj->hashFn(key, keyLen);
 
   int32_t bucketId = doGetBucketIdFromHashVal(hashv, pHashObj->bits);

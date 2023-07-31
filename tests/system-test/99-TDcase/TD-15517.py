@@ -51,7 +51,7 @@ class TDTestCase:
         return cur
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
-        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))
+        tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"

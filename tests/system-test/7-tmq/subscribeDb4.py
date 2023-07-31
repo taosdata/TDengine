@@ -31,7 +31,8 @@ class TDTestCase:
                 'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                 'pollDelay':  20,
                 'showMsg':    1,
-                'showRow':    1}
+                'showRow':    1,
+                'snapshot':    1}
 
     cdbName = 'cdb'
     # some parameter to consumer processor
@@ -42,7 +43,7 @@ class TDTestCase:
     ifManualCommit = 1
     groupId = 'group.id:cgrp1'
     autoCommit = 'enable.auto.commit:true'
-    autoCommitInterval = 'auto.commit.interval.ms:1000'
+    autoCommitInterval = 'auto.commit.interval.ms:100'
     autoOffset = 'auto.offset.reset:earliest'
 
     pollDelay = 20
@@ -86,7 +87,7 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(self.consumerId, self.expectrowcnt,topicList,keyList,self.ifcheckdata,self.ifManualCommit)
 
         tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
+        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName,0,0,self.paraDict["snapshot"])
 
         tdLog.info("After waiting for a commit notify, drop one stable")
         #time.sleep(3)

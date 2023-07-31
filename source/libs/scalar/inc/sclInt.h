@@ -40,8 +40,11 @@ typedef struct SScalarCtx {
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM       10
 
+#define SCL_IS_NOTNULL_CONST_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
 #define SCL_IS_CONST_NODE(_node) \
-  ((NULL == (_node)) || (QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
+  ((NULL == (_node)) || SCL_IS_NOTNULL_CONST_NODE(_node))
+#define SCL_IS_VAR_VALUE_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) && IS_STR_DATA_TYPE(((SValueNode*)(_node))->node.resType.type))
+
 #define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList)
 //#define SCL_IS_NULL_VALUE_NODE(_node) ((QUERY_NODE_VALUE == nodeType(_node)) && (TSDB_DATA_TYPE_NULL == ((SValueNode
 //*)_node)->node.resType.type) && (((SValueNode *)_node)->placeholderNo <= 0))
@@ -50,9 +53,6 @@ typedef struct SScalarCtx {
 #define SCL_IS_COMPARISON_OPERATOR(_opType) ((_opType) >= OP_TYPE_GREATER_THAN && (_opType) < OP_TYPE_IS_NOT_UNKNOWN)
 #define SCL_DOWNGRADE_DATETYPE(_type) \
   ((_type) == TSDB_DATA_TYPE_BIGINT || TSDB_DATA_TYPE_DOUBLE == (_type) || (_type) == TSDB_DATA_TYPE_UBIGINT)
-#define SCL_NO_NEED_CONVERT_COMPARISION(_ltype, _rtype, _optr) \
-  (IS_NUMERIC_TYPE(_ltype) && IS_NUMERIC_TYPE(_rtype) &&       \
-   ((_optr) >= OP_TYPE_GREATER_THAN && (_optr) <= OP_TYPE_NOT_EQUAL))
 
 #define sclFatal(...) qFatal(__VA_ARGS__)
 #define sclError(...) qError(__VA_ARGS__)

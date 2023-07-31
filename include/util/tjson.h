@@ -30,6 +30,27 @@ extern "C" {
     val = _tmp;                                      \
   } while (0)
 
+#define tjsonGetInt32ValueFromDouble(pJson, pName, val, code) \
+  do {                                                        \
+    double _tmp = 0;                                          \
+    code = tjsonGetDoubleValue(pJson, pName, &_tmp);          \
+    val = (int32_t)_tmp;                                      \
+  } while (0)
+
+#define tjsonGetInt8ValueFromDouble(pJson, pName, val, code) \
+  do {                                                       \
+    double _tmp = 0;                                         \
+    code = tjsonGetDoubleValue(pJson, pName, &_tmp);         \
+    val = (int8_t)_tmp;                                      \
+  } while (0)
+
+#define tjsonGetUInt16ValueFromDouble(pJson, pName, val, code) \
+  do {                                                         \
+    double _tmp = 0;                                           \
+    code = tjsonGetDoubleValue(pJson, pName, &_tmp);           \
+    val = (uint16_t)_tmp;                                      \
+  } while (0)
+
 typedef void SJson;
 
 SJson* tjsonCreateObject();

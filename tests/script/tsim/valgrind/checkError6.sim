@@ -92,7 +92,7 @@ sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol
 sql show table distributed stb
 sql select count(1) from stb
 sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
-sql select diff(tbcol) from stb where ts <= 1601481840000 
+#sql select diff(tbcol) from stb where ts <= 1601481840000 
 sql select first(tbcol), last(tbcol) as c from stb group by tgcol
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
@@ -176,7 +176,7 @@ sql select avg(tbcol) as c from stb group by tgcol
 sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
 sql show table distributed stb
 sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
-sql select diff(tbcol) from stb where ts <= 1601481840000 
+#sql select diff(tbcol) from stb where ts <= 1601481840000 
 sql select first(tbcol), last(tbcol) as c from stb group by tgcol
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)

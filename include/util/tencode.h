@@ -116,6 +116,7 @@ static int32_t tEncodeI64v(SEncoder* pCoder, int64_t val);
 static int32_t tEncodeFloat(SEncoder* pCoder, float val);
 static int32_t tEncodeDouble(SEncoder* pCoder, double val);
 static int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len);
+static int32_t tEncodeBinaryEx(SEncoder* pCoder, const uint8_t* val, uint32_t len);
 static int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len);
 static int32_t tEncodeCStr(SEncoder* pCoder, const char* val);
 

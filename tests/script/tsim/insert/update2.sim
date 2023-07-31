@@ -1,0 +1,221 @@
+################################################################################################
+# migrate from 2.0 insert_update2.sim
+################################################################################################
+
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+### 4096*0.8 - 1 = 3275
+$rowSuperBlk = 3275
+### 4096 - 3275 -1 - 1 = 819
+$rowSubBlk = 819
+$ts0 = 1672372800000
+$ts1 = 1672372900000
+$ts2 = 1672686800000
+
+$i = 0
+$db = db0
+$stb1 = stb1
+$tb1 = tb1
+$stb2 = stb2
+$tb2 = tb2
+
+print ====== create database
+sql drop database if exists $db
+sql create database $db keep 1000 duration 10
+print ====== create tables
+sql use $db
+sql create table $stb1 (ts timestamp, c1 bigint, c2 bigint, c3 bigint) tags(t1 int)
+sql create table $stb2 (ts timestamp, c1 bigint, c2 bigint, c3 bigint, c4 bigint, c5 bigint, c6 bigint, c7 bigint, c8 bigint, c9 bigint, c10 bigint, c11 bigint, c12 bigint, c13 bigint, c14 bigint, c15 bigint, c16 bigint, c17 bigint, c18 bigint, c19 bigint, c20 bigint, c21 bigint, c22 bigint, c23 bigint, c24 bigint, c25 bigint, c26 bigint, c27 bigint, c28 bigint, c29 bigint, c30 bigint) tags(t1 int)
+sql create table $tb1 using $stb1 tags(1)
+sql create table $tb2 using $stb2 tags(2)
+print ====== tables created
+
+
+print ========== step 1: merge dataRow in mem
+
+$i = 0
+while $i < $rowSuperBlk
+  $xs = $i * 10
+  $ts = $ts2 + $xs
+  sql insert into $tb1 (ts,c1) values ( $ts , $i ) 
+  $i = $i + 1
+endw 
+
+sql insert into $tb1 values ( $ts0 , 1,NULL,0)
+sql insert into $tb1 (ts,c2,c3) values ( $ts0 , 1,1)
+
+sql select * from $tb1 where ts = $ts0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+
+print ========== step 2: merge kvRow in mem
+$i = 0
+while $i < $rowSuperBlk
+  $xs = $i * 10
+  $ts = $ts2 + $xs
+  sql insert into $tb2 (ts,c1) values ( $ts , $i ) 
+  $i = $i + 1
+endw 
+
+sql insert into $tb2 (ts,c3,c8,c10) values ( $ts0 , 1,NULL,0)
+sql insert into $tb2 (ts,c8,c10) values ( $ts0 , 1,1)
+
+sql select ts,c1,c3,c8,c10 from $tb2 where ts = $ts0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 2000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sleep 2000
+
+print ========== step 3: merge dataRow in file
+sql insert into $tb1 (ts,c1) values ( $ts0 , 2)
+print ========== step 4: merge kvRow in file
+sql insert into $tb2 (ts,c3) values ( $ts0 , 2)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 2000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sleep 2000
+
+sql select * from $tb1 where ts = $ts0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+
+sql select ts,c1,c3,c8,c10 from $tb2 where ts = $ts0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then 
+  return -1
+endi
+if $data02 != 2 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+
+
+print ========== step 5: merge dataRow in file/mem
+$i = 0
+while $i < $rowSubBlk
+  $xs = $i * 1
+  $ts = $ts1 + $xs
+  sql insert into $tb1 (ts,c1) values ( $ts , $i ) 
+  $i = $i + 1
+endw
+print ========== step 6: merge kvRow in file/mem
+$i = 0
+while $i < $rowSubBlk
+  $xs = $i * 1
+  $ts = $ts1 + $xs
+  sql insert into $tb2 (ts,c1) values ( $ts , $i ) 
+  $i = $i + 1
+endw
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 2000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sleep 2000
+
+sql insert into $tb1 (ts,c3) values ( $ts0 , 3)
+sql insert into $tb2 (ts,c3) values ( $ts0 , 3)
+$tsN = $ts0 + 1
+sql insert into $tb1 (ts,c1,c3) values ( $tsN , 1,0)
+sql insert into $tb2 (ts,c3,c8) values ( $tsN , 100,200)
+$tsN = $ts0 + 2
+sql insert into $tb1 (ts,c1,c3) values ( $tsN , 1,0)
+sql insert into $tb2 (ts,c3,c8) values ( $tsN , 100,200)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 2000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sleep 2000
+
+
+sql select * from $tb1 where ts = $ts0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data03 != 3 then 
+  return -1
+endi
+
+sql select ts,c1,c3,c8,c10 from $tb2 where ts = $ts0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then 
+  return -1
+endi
+if $data02 != 3 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+
+if $data04 != 1 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

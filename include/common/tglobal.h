@@ -24,11 +24,17 @@
 extern "C" {
 #endif
 
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
 extern char     tsLocalFqdn[];
 extern char     tsLocalEp[];
+extern char     tsVersionName[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
@@ -43,17 +49,22 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
+extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
+extern float   tsSelectivityRatio;
+extern int32_t tsTagFilterResCacheSize;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
+extern int32_t tsNumOfRpcSessions;
+extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
-extern int32_t tsNumOfVnodeStreamThreads;
+extern float   tsRatioOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
@@ -61,6 +72,26 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
+
+// sync raft
+extern int32_t tsElectInterval;
+extern int32_t tsHeartbeatInterval;
+extern int32_t tsHeartbeatTimeout;
+
+// vnode
+extern int64_t tsVndCommitMaxIntervalMs;
+
+// mnode
+extern int64_t tsMndSdbWriteDelta;
+extern int64_t tsMndLogRetention;
+extern int8_t  tsGrant;
+extern int32_t tsMndGrantMode;
+extern bool    tsMndSkipGrant;
+
+// dnode
+extern int64_t tsDndStart;
+extern int64_t tsDndStartOsUptime;
+extern int64_t tsDndUpTime;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -75,14 +106,20 @@ extern bool     tsEnableTelem;
 extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
+extern bool     tsEnableCrashReport;
+extern char    *tsTelemUri;
+extern char    *tsClientCrashReportUri;
+extern char    *tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node
+extern int64_t tsQueryBufferSizeBytes;    // maximum allowed usage buffer size in byte for each data node
+extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row loading cache as much as possible
 
 // query client
 extern int32_t tsQueryPolicy;
 extern int32_t tsQueryRspPolicy;
+extern int64_t tsQueryMaxConcurrentTables;
 extern int32_t tsQuerySmaOptimize;
 extern int32_t tsQueryRsmaTolerance;
 extern bool    tsQueryPlannerTrace;
@@ -90,11 +127,21 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern bool    tsEnableScience;
+extern bool    tsTtlChangeOnWrite;
+extern int32_t tsRedirectPeriod;
+extern int32_t tsRedirectFactor;
+extern int32_t tsRedirectMaxPeriod;
+extern int32_t tsMaxRetryWaitTime;
+extern bool    tsUseAdapter;
+extern int32_t tsMetaCacheMaxSize;
+extern int32_t tsSlowLogThreshold;
+extern int32_t tsSlowLogScope;
 
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
-extern int32_t tsMaxMemUsedByInsert;
+extern int32_t tsMaxInsertBatchRows;
 
 // build info
 extern char version[];
@@ -122,7 +169,10 @@ extern char tsUdfdLdLibPath[];
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
-extern bool tsSmlDataFormat;
+// extern bool    tsSmlDataFormat;
+// extern int32_t tsSmlBatchSize;
+
+extern int32_t tmqMaxTopicNum;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
@@ -130,12 +180,24 @@ extern int64_t tsWalFsyncDataSizeLimit;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
+extern int32_t tsStreamCheckpointTickInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 
-//#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+extern int32_t tsRpcRetryLimit;
+extern int32_t tsRpcRetryInterval;
+
+extern bool    tsDisableStream;
+extern int64_t tsStreamBufferSize;
+extern int64_t tsCheckpointInterval;
+extern bool    tsFilterScalarMode;
+extern int32_t tsKeepTimeOffset;
+extern int32_t tsMaxStreamBackendCache;
+extern int32_t tsPQSortMemThreshold;
+
+// #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
@@ -148,8 +210,9 @@ struct SConfig *taosGetCfg();
 
 void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
-int32_t taosSetCfg(SConfig *pCfg, char *name);
+int32_t taosApplyLocalCfg(SConfig *pCfg, char *name);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
+int8_t  taosGranted();
 
 #ifdef __cplusplus
 }

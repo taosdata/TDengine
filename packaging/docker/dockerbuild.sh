@@ -5,7 +5,7 @@ set -e
 #set -x
 
 # dockerbuild.sh 
-#             -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...]  
+#             -c [aarch32 | aarch64 | amd64 | x86 | mips64 | loongarch64...]
 #             -n [version number]
 #             -p [password for docker hub]
 #             -V [stable | beta]
@@ -57,7 +57,7 @@ do
       dockerLatest=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0`  -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...] "
+      echo "Usage: `basename $0`  -c [aarch32 | aarch64 | amd64 | x86 | mips64 | loongarch64...] "
       echo "                      -n [version number] "
       echo "                      -p [password for docker hub] "
       echo "                      -V [stable | beta] "
@@ -74,7 +74,7 @@ do
 done
 
 
-# Check_verison()
+# Check_version()
 # {
 # }
 
@@ -102,14 +102,14 @@ scriptDir=$(dirname $(readlink -f $0))
 communityDir=${scriptDir}/../../../community
 DockerfilePath=${communityDir}/packaging/docker/
 if [ "$cloudBuild" == "y" ]; then
-  comunityArchiveDir=/nas/TDengine/v$version/cloud
+  communityArchiveDir=/nas/TDengine/v$version/cloud
   Dockerfile=${communityDir}/packaging/docker/DockerfileCloud
 else
-  comunityArchiveDir=/nas/TDengine/v$version/community
+  communityArchiveDir=/nas/TDengine/v$version/community
   Dockerfile=${communityDir}/packaging/docker/Dockerfile
 fi
 cd ${scriptDir}
-cp -f ${comunityArchiveDir}/${pkgFile}  .
+cp -f ${communityArchiveDir}/${pkgFile}  .
 
 echo "dirName=${dirName}"
 
@@ -122,6 +122,16 @@ elif [[ "${cpuType}" == "aarch32" ]]; then
 else
     echo "Unknown cpuType: ${cpuType}"
     exit 1
+fi
+# check the tdengine cloud base image existed or not
+if [ "$cloudBuild" == "y" ]; then
+  CloudBase=$(docker images | grep tdengine/tdengine-cloud-base ||:)
+  if [[ "$CloudBase" == "" ]]; then
+    echo "Rebuild tdengine cloud base image..."
+    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloud.base" -t tdengine/tdengine-cloud-base "." --build-arg cpuType=${cpuTypeAlias}
+  else
+    echo "Already found tdengine cloud base image"
+  fi
 fi
 
 docker build --rm -f "${Dockerfile}"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName} --build-arg cpuType=${cpuTypeAlias}

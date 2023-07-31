@@ -109,14 +109,14 @@ TEST(testCase, Datablock_test) {
     if (i & 0x01) {
       int32_t len = sprintf(buf, str, i);
       STR_TO_VARSTR(varbuf, buf)
-      colDataAppend(p0, i, (const char*)&i, false);
-      colDataAppend(p1, i, (const char*)varbuf, false);
+      colDataSetVal(p0, i, (const char*)&i, false);
+      colDataSetVal(p1, i, (const char*)varbuf, false);
 
       memset(varbuf, 0, sizeof(varbuf));
       memset(buf, 0, sizeof(buf));
     } else {
-      colDataAppend(p0, i, (const char*)&i, true);
-      colDataAppend(p1, i, (const char*)varbuf, true);
+      colDataSetVal(p0, i, (const char*)&i, true);
+      colDataSetVal(p1, i, (const char*)varbuf, true);
     }
 
     b->info.rows++;
@@ -185,8 +185,8 @@ TEST(testCase, non_var_dataBlock_split_test) {
     SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
 
     int8_t v = i;
-    colDataAppend(p0, i, (const char*)&i, false);
-    colDataAppend(p1, i, (const char*)&v, false);
+    colDataSetVal(p0, i, (const char*)&i, false);
+    colDataSetVal(p1, i, (const char*)&v, false);
     b->info.rows++;
   }
 
@@ -231,12 +231,12 @@ TEST(testCase, var_dataBlock_split_test) {
     SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
 
     int8_t v = i;
-    colDataAppend(p0, i, (const char*)&i, false);
+    colDataSetVal(p0, i, (const char*)&i, false);
 
     sprintf(buf, "the number of row:%d", i);
     int32_t len = sprintf(buf1, buf, i);
     STR_TO_VARSTR(buf1, buf)
-    colDataAppend(p1, i, buf1, false);
+    colDataSetVal(p1, i, buf1, false);
     b->info.rows++;
 
     memset(buf, 0, sizeof(buf));

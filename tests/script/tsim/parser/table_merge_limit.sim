@@ -1,0 +1,47 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_fl_db
+$tbPrefix = m_fl_tb
+$mtPrefix = m_fl_mt
+$tbNum = 2
+$rowNum = 513
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== fill.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db vgroups 1
+sql use $db
+sql create table $mt (ts timestamp, c1 int) tags(tgcol int)
+
+$i = 0
+$ts = $ts0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    sql insert into $tb values ( $ts , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sql select * from $mt order by ts limit 10
+if $rows != 10 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

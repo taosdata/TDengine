@@ -18,6 +18,7 @@ description: TDengine 保留关键字的详细列表
 - ADD
 - AFTER
 - AGGREGATE
+- ALIVE
 - ALL
 - ALTER
 - ANALYZE
@@ -268,7 +269,7 @@ description: TDengine 保留关键字的详细列表
 - SPLIT
 - STABLE
 - STABLES
-- STAR
+- START
 - STATE
 - STATE_WINDOW
 - STATEMENT
@@ -333,8 +334,6 @@ description: TDengine 保留关键字的详细列表
 - WAL_LEVEL
 - WAL_RETENTION_PERIOD
 - WAL_RETENTION_SIZE
-- WAL_ROLL_PERIOD
-- WAL_SEGMENT_SIZE
 - WATERMARK
 - WHERE
 - WINDOW_CLOSE

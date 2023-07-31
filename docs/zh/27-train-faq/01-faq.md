@@ -77,7 +77,7 @@ description: 一些常见问题的解决方法汇总
 
  - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
 
-11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](https://docs.taosdata.com/3.0-preview/operation/diagnose/)。
+11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](../../operation/diagnose/)。
 
 ### 5. 遇到错误 Unable to resolve FQDN” 怎么办？
 
@@ -201,3 +201,63 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 OOM 是操作系统的保护机制，当操作系统内存(包括 SWAP )不足时，会杀掉某些进程，从而保证操作系统的稳定运行。通常内存不足主要是如下两个原因导致，一是剩余内存小于 vm.min_free_kbytes ；二是程序请求的内存大于剩余内存。还有一种情况是内存充足但程序占用了特殊的内存地址，也会触发 OOM 。
 
 TDengine 会预先为每个 VNode 分配好内存，每个 Database 的 VNode 个数受 建库时的vgroups参数影响，每个 VNode 占用的内存大小受 buffer参数 影响。要防止 OOM，需要在项目建设之初合理规划内存，并合理设置 SWAP ，除此之外查询过量的数据也有可能导致内存暴涨，这取决于具体的查询语句。TDengine 企业版对内存管理做了优化，采用了新的内存分配器，对稳定性有更高要求的用户可以考虑选择企业版。
+
+### 19. 在macOS上遇到Too many open files怎么办？
+
+taosd日志文件报错Too many open file，是由于taosd打开文件数超过系统设置的上限所致。
+解决方案如下：
+1. 新建文件 /Library/LaunchDaemons/limit.maxfiles.plist，写入以下内容(以下示例将limit和maxfiles改为10万，可按需修改)：
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>Label</key>
+  <string>limit.maxfiles</string>
+<key>ProgramArguments</key>
+<array>
+  <string>launchctl</string>
+  <string>limit</string>
+  <string>maxfiles</string>
+  <string>100000</string>
+  <string>100000</string>
+</array>
+<key>RunAtLoad</key>
+  <true/>
+<key>ServiceIPC</key>
+  <false/>
+</dict>
+</plist>
+```
+2. 修改文件权限
+```
+sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
+sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
+```
+3. 加载 plist 文件 (或重启系统后生效。launchd在启动时会自动加载该目录的 plist)
+```
+sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
+```
+4.确认更改后的限制
+```
+launchctl limit maxfiles
+```
+### 20 建库时提示 Out of dnodes
+该提示是创建 db 的 vnode 数量不够了，需要的 vnode 不能超过了 dnode 中 vnode 的上限。因为系统默认是一个 dnode 中有 CPU 核数两倍的 vnode，也可以通过配置文件中的参数 supportVnodes 控制。
+正常调大 taos.cfg 中 supportVnodes 参数即可。
+
+### 21 在服务器上的使用 taos-CLI 能查到指定时间段的数据，但在客户端机器上查不到？
+这种情况是因为客户端与服务器上设置的时区不一致导致的，调整客户端与服务器的时区一致即可解决。
+
+### 22 表名确认是存在的，但在写入或查询时返回表名不存在，什么原因？ 
+TDengine 中的所有名称，包括数据库名、表名等都是区分大小写的，如果这些名称在程序或 taos-CLI 中没有使用反引号（`）括起来使用，即使你输入的是大写的，引擎也会转化成小写来使用，如果名称前后加上了反引号，引擎就不会再转化成小写，会保持原样来使用。
+
+### 23 在 taos-CLI 中查询，字段内容不能完全显示出来怎么办？
+可以使用 \G 参数来竖式显示，如 show databases\G; （为了输入方便，在"\"后加 TAB 键，会自动补全后面的内容）
+
+### 24 使用 taosBenchmark 测试工具写入数据查询很快，为什么我写入的数据查询非常慢？
+TDengine 在写入数据时如果有很严重的乱序写入问题，会严重影响查询性能，所以需要在写入前解决乱序的问题。如果业务是从 kafka 消费写入，请合理设计消费者，尽可能的一个子表数据由一个消费者去消费并写入，避免由设计产生的乱序。
+
+### 25 我想统计下前后两条写入记录之间的时间差值是多少？
+使用 DIFF 函数，可以查看时间列或数值列前后两条记录的差值，非常方便，详细说明见 SQL手册->函数->DIFF

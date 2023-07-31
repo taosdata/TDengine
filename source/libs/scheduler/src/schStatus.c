@@ -34,6 +34,9 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
     case JOB_TASK_STATUS_PART_SUCC:
       SCH_ERR_JRET(schProcessOnJobPartialSuccess(pJob));
       break;
+    case JOB_TASK_STATUS_FETCH:
+      SCH_ERR_JRET(schJobFetchRows(pJob));
+      break;
     case JOB_TASK_STATUS_SUCC:
       break;
     case JOB_TASK_STATUS_FAIL:
@@ -64,7 +67,7 @@ _return:
 int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq) {
   SSchJob* pJob = schAcquireJob(jobId);
   if (NULL == pJob) {
-    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
+    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 

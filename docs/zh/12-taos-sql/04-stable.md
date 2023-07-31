@@ -13,12 +13,11 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name [COMMENT 'string_value']
+    type_name
 ```
 
 **使用说明**
 - 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
-- 建表时可以给列或标签附加注释。
 - TAGS语法指定超级表的标签列，标签列需要遵循以下约定：
     - TAGS 中的 TIMESTAMP 列写入数据时需要提供给定值，而暂不支持四则运算，例如 NOW + 10s 这类表达式。
     - TAGS 列名不能与其他列名相同。
@@ -34,7 +33,7 @@ column_definition:
 SHOW STABLES [LIKE tb_name_wildcard];
 ```
 
-查看数据库内全部 STable，及其相关信息，包括 STable 的名称、创建时间、列数量、标签（TAG）数量、通过该 STable 建表的数量。
+查看数据库内全部超级表。
 
 ### 显示一个超级表的创建语句
 
@@ -51,6 +50,11 @@ DESCRIBE [db_name.]stb_name;
 ```
 
 ### 获取超级表中所有子表的标签信息
+
+```
+SHOW TABLE TAGS FROM table_name [FROM db_name];
+SHOW TABLE TAGS FROM [db_name.]table_name;
+```
 
 ```
 taos> SHOW TABLE TAGS FROM st1;
@@ -139,10 +143,10 @@ alter_table_option: {
 
 - ADD COLUMN：添加列。
 - DROP COLUMN：删除列。
-- MODIFY COLUMN：修改列定义，如果数据列的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
+- MODIFY COLUMN：修改列的宽度，数据列的类型必须是 nchar 和 binary，使用此指令可以修改其宽度，只能改大，不能改小。
 - ADD TAG：给超级表添加一个标签。
 - DROP TAG：删除超级表的一个标签。从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
-- MODIFY TAG：修改超级表的一个标签的定义。如果标签的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
+- MODIFY TAG：修改超级表的一个标签的列宽度。标签的类型只能是 nchar 和 binary，使用此指令可以修改其宽度，只能改大，不能改小。
 - RENAME TAG：修改超级表的一个标签的名称。从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
 
 ### 增加列

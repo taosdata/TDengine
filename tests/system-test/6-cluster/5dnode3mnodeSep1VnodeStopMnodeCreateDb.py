@@ -85,8 +85,11 @@ class TDTestCase:
 
         dnodeNumbers=int(dnodeNumbers)
         mnodeNums=int(mnodeNums)
+        repeatNumber = 2
+        dbNumbers=int(paraDict['dbNumbers'])
+
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allDbNumbers=(paraDict['dbNumbers']*restartNumbers)
+        allDbNumbers=dbNumbers
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         paraDict['replica'] = self.replicaVar
 
@@ -111,10 +114,10 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
-        for i in range(restartNumbers):
+        for i in range(dbNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
             newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(newTdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
@@ -167,7 +170,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=4,stopRole='mnode')
 
     def stop(self):
         tdSql.close()

@@ -45,7 +45,7 @@ fi
 
 # Now getting ready to execute Python
 # The following is the default of our standard dev env (Ubuntu 20.04), modify/adjust at your own risk
-PYTHON_EXEC=python3.8
+PYTHON_EXEC=python3
 
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
 # export PYTHONPATH=$(pwd)/../../src/connector/python:$(pwd)

@@ -733,6 +733,7 @@ sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1
 
 sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having sum(f1) > 2 order by f1;
 if $rows != 3 then
+  print expect 3 , actual: $rows
   return -1
 endi
 if $data00 != 2.000000000 then

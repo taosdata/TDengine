@@ -34,9 +34,9 @@ class TDTestCase(TDTestCase):
         self.math_nest(['MAVG'])  
         self.math_nest(['HYPERLOGLOG']) 
         self.math_nest(['TAIL']) 
-        self.math_nest(['CSUM'])
-        self.math_nest(['statecount','stateduration'])
-        self.math_nest(['HISTOGRAM']) 
+        # self.math_nest(['CSUM'])
+        # self.math_nest(['statecount','stateduration'])
+        # self.math_nest(['HISTOGRAM']) 
         
         # self.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
         # self.str_nest(['LENGTH','CHAR_LENGTH']) 

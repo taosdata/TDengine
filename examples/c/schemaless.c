@@ -1,31 +1,16 @@
-#include "../../../include/client/taos.h"
-#include "os.h"
-#include "taoserror.h"
-
+#include "taos.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <inttypes.h>
+#include <string.h>
+
 
 int numSuperTables = 8;
 int numChildTables = 4;
 int numRowsPerChildTable = 2048;
-
-void shuffle(char**lines, size_t n)
-{
-  if (n > 1)
-  {
-    size_t i;
-    for (i = 0; i < n - 1; i++)
-    {
-      size_t j = i + taosRand() / (RAND_MAX / (n - i) + 1);
-      char* t = lines[j];
-      lines[j] = lines[i];
-      lines[i] = t;
-    }
-  }
-}
 
 static int64_t getTimeInUs() {
   struct timeval systemTime;
@@ -46,7 +31,7 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  char* info = taos_get_server_info(taos);
+  const char* info = taos_get_server_info(taos);
   printf("server info: %s\n", info);
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
@@ -61,9 +46,10 @@ int main(int argc, char* argv[]) {
 
   time_t ct = time(0);
   int64_t ts = ct * 1000;
-  char* lineFormat = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %lldms";
+  char* lineFormat = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %" PRId64;
 
-  char** lines = calloc(numSuperTables * numChildTables * numRowsPerChildTable, sizeof(char*));
+  int lineNum = numSuperTables * numChildTables * numRowsPerChildTable;
+  char** lines = calloc((size_t)lineNum, sizeof(char*));
   int l = 0;
   for (int i = 0; i < numSuperTables; ++i) {
     for (int j = 0; j < numChildTables; ++j) {
@@ -75,13 +61,13 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-  //shuffle(lines, numSuperTables * numChildTables * numRowsPerChildTable);
 
   printf("%s\n", "begin taos_insert_lines");
   int64_t  begin = getTimeInUs();
-  int32_t code = taos_insert_lines(taos, lines, numSuperTables * numChildTables * numRowsPerChildTable);
+  TAOS_RES *res = taos_schemaless_insert(taos, lines, lineNum, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   int64_t end = getTimeInUs();
-  printf("code: %d, %s. time used: %"PRId64"\n", code, tstrerror(code), end-begin);
+  printf("code: %s. time used: %" PRId64 "\n", taos_errstr(res), end-begin);
+  taos_free_result(res);
 
   return 0;
 }

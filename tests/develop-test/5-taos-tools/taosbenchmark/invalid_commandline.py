@@ -25,11 +25,13 @@ class TDTestCase:
         return
 
     def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+        # comment off by Shuduo for CI       self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
     def getPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -53,7 +55,7 @@ class TDTestCase:
 
     def run(self):
         binPath = self.getPath()
-        cmd = "%s -F abc -P abc -I abc -T abc -H abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y" %binPath
+        cmd = "%s -F abc -P abc -I abc -T abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from test.meters")

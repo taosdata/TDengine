@@ -23,7 +23,7 @@ STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
     return NULL;
   }
 
-  pDisk->path = strdup(path);
+  pDisk->path = taosStrdup(path);
   if (pDisk->path == NULL) {
     taosMemoryFree(pDisk);
     terrno = TSDB_CODE_OUT_OF_MEMORY;

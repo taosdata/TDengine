@@ -1,5 +1,6 @@
 ---
 title: Releases
+description: This document describes TDengine products that have been released.
 ---
 
 ```mdx-code-block

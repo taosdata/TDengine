@@ -1,6 +1,6 @@
 ---
 title: taosdump
-description: "taosdump is a tool that supports backing up data from a running TDengine cluster and restoring the backed up data to the same, or another running TDengine cluster."
+description: This document describes how to use taosdump, a tool for backing up and restoring the data in a TDengine cluster.
 ---
 
 ## Introduction
@@ -19,7 +19,7 @@ Users should not use taosdump to back up raw data, environment settings, hardwar
 
 There are two ways to install taosdump:
 
-- Install the taosTools official installer. Please find taosTools from [All download links](https://www.tdengine.com/all-downloads) page and download and install it.
+- Install the taosTools official installer. Please find taosTools from [Release History](https://docs.taosdata.com/releases/tools/) page and download and install it.
 
 - Compile taos-tools separately and install it. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
 
@@ -76,10 +76,9 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -A, --all-databases        Dump all databases.
   -D, --databases=DATABASES  Dump listed databases. Use comma to separate
                              database names.
+  -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump table schemas.
-  -y, --answer-yes           Input yes for prompt. It will skip data file
-                             checking!
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
                              and lzma.
   -S, --start-time=START_TIME   Start time to dump. Either epoch or

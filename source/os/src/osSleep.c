@@ -22,6 +22,7 @@
 #endif
 
 void taosSsleep(int32_t s) {
+  if (s < 0) return;
 #ifdef WINDOWS
   Sleep(1000 * s);
 #else
@@ -30,6 +31,7 @@ void taosSsleep(int32_t s) {
 }
 
 void taosMsleep(int32_t ms) {
+  if (ms < 0) return;
 #ifdef WINDOWS
   Sleep(ms);
 #else
@@ -38,6 +40,7 @@ void taosMsleep(int32_t ms) {
 }
 
 void taosUsleep(int32_t us) {
+  if (us < 0) return;
 #ifdef WINDOWS
   HANDLE        timer;
   LARGE_INTEGER interval;

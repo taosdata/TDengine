@@ -27,7 +27,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   const char* pSql = pStr;
 
   int32_t index = 0;
-  SToken  t = tStrGetToken((char*)pStr, &index, false);
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (TK_INSERT != t.type && TK_IMPORT != t.type) {
     return false;
   }
@@ -35,7 +35,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   do {
     pStr += index;
     index = 0;
-    t = tStrGetToken((char*)pStr, &index, false);
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
     if (TK_USING == t.type || TK_VALUES == t.type || TK_FILE == t.type) {
       return true;
     } else if (TK_SELECT == t.type) {
@@ -99,6 +99,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   switch (pParam->buffer_type) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -167,7 +168,7 @@ static void rewriteExprAlias(SNode* pRoot) {
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
-    code = parseInsertSql(pCxt, pQuery, NULL);
+    code = parseInsertSql(pCxt, pQuery, NULL, NULL);
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
   }
@@ -175,21 +176,26 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
-int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+static int32_t parseQuerySyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   SParseMetaCache metaCache = {0};
-  int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
+  int32_t         code = parseSqlSyntax(pCxt, pQuery, &metaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCatalogReq(&metaCache, pCatalogReq);
+  }
+  destoryParseMetaCache(&metaCache, true);
+  return code;
+}
+
+int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+  int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
     if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
-      code = parseInsertSyntax(pCxt, pQuery, &metaCache);
+      code = parseInsertSql(pCxt, pQuery, pCatalogReq, NULL);
     } else {
-      code = parseSqlSyntax(pCxt, pQuery, &metaCache);
+      code = parseQuerySyntax(pCxt, pQuery, pCatalogReq);
     }
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
-  }
   nodesReleaseAllocator(pCxt->allocatorId);
-  destoryParseMetaCache(&metaCache, true);
   terrno = code;
   return code;
 }
@@ -198,19 +204,35 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
+    code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (NULL == pQuery->pRoot) {
-      code = parseInsertSql(pCxt, &pQuery, &metaCache);
-    } else {
-      code = analyseSemantic(pCxt, pQuery, &metaCache);
-    }
+    code = analyseSemantic(pCxt, pQuery, &metaCache);
   }
   nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, false);
   terrno = code;
+  return code;
+}
+
+int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
+                          SQuery* pQuery) {
+  return parseInsertSql(pCxt, &pQuery, pCatalogReq, pMetaData);
+}
+
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pResRow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      code = translatePostCreateStream(pCxt, pQuery, pResRow);
+      break;
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      code = translatePostCreateSmaIndex(pCxt, pQuery, pResRow);
+    default:
+      break;
+  }
+
   return code;
 }
 

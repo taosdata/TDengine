@@ -101,6 +101,11 @@ typedef int32_t (*filter_desc_compare_func)(const void *, const void *);
 typedef bool (*filter_exec_func)(void *, int32_t, SColumnInfoData *, SColumnDataAgg *, int16_t, int32_t *);
 typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char *, void **);
 
+typedef struct SFilterDataInfo {
+  int32_t idx;
+  void*   addr;
+} SFilterDataInfo;
+
 typedef struct SFilterRangeCompare {
   int64_t       s;
   int64_t       e;
@@ -222,8 +227,10 @@ typedef struct SFltTreeStat {
   SFilterInfo *info;
 } SFltTreeStat;
 
+
 typedef struct SFltScalarCtx {
   SNode *node;
+  SArray* fltSclRange;
 } SFltScalarCtx;
 
 typedef struct SFltBuildGroupCtx {
@@ -231,6 +238,11 @@ typedef struct SFltBuildGroupCtx {
   SArray      *group;
   int32_t      code;
 } SFltBuildGroupCtx;
+
+typedef struct {
+  SColumnNode *colNode;
+  SArray      *points;
+} SFltSclColumnRange;
 
 struct SFilterInfo {
   bool              scalarMode;
@@ -259,8 +271,9 @@ struct SFilterInfo {
   SFilterPCtx pctx;
 };
 
-#define FILTER_NO_MERGE_DATA_TYPE(t) \
-  ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON)
+#define FILTER_NO_MERGE_DATA_TYPE(t)                                                            \
+  ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON || \
+   (t) == TSDB_DATA_TYPE_GEOMETRY)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
@@ -294,9 +307,9 @@ struct SFilterInfo {
 #define CHK_OR_OPTR(ctx)  ((ctx)->isnull == true && (ctx)->notnull == true)
 #define CHK_AND_OPTR(ctx) ((ctx)->isnull == true && (((ctx)->notnull == true) || ((ctx)->isrange == true)))
 
-#define FILTER_GET_FLAG(st, f) (st & f)
-#define FILTER_SET_FLAG(st, f) st |= (f)
-#define FILTER_CLR_FLAG(st, f) st &= (~f)
+#define FILTER_GET_FLAG(st, f) ((st) & (f))
+#define FILTER_SET_FLAG(st, f) (st) |= (f)
+#define FILTER_CLR_FLAG(st, f) (st) &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
 #define FLT_PACKAGE_UNIT_HASH_KEY(v, op1, op2, lidx, ridx, ridx2) \

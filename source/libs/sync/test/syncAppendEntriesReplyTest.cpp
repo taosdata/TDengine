@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -23,7 +19,7 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->success = true;
   pMsg->matchIndex = 77;
   pMsg->term = 33;
-  pMsg->privateTerm = 44;
+  // pMsg->privateTerm = 44;
   pMsg->startTime = taosGetTimestampMs();
   return pMsg;
 }

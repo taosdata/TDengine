@@ -35,11 +35,13 @@ typedef struct {
 
 bool    taosCheckSystemIsLittleEnd();
 void    taosGetSystemInfo();
+int64_t taosGetOsUptime();
 int32_t taosGetEmail(char *email, int32_t maxLen);
-int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
+int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t maxLen);
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
 int32_t taosGetCpuCores(float *numOfCores);
 void    taosGetCpuUsage(double *cpu_system, double *cpu_engine);
+int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
 int32_t taosGetSysMemory(int64_t *usedKB);
@@ -59,6 +61,13 @@ void    taosSetCoreDump(bool enable);
 
 #endif  // WINDOWS
 
+#if defined(_ALPINE)
+
+#define _UTSNAME_LENGTH         65
+#define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
+
+#endif
+
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];
   char nodename[_UTSNAME_MACHINE_LENGTH];
@@ -69,6 +78,7 @@ typedef struct {
 
 SysNameInfo taosGetSysNameInfo();
 bool        taosCheckCurrentInDll();
+int         taosGetlocalhostname(char *hostname, size_t maxLen);
 
 #ifdef __cplusplus
 }

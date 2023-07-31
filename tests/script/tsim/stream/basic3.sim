@@ -1,0 +1,114 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c keepColumnName -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 1000
+sql connect
+
+print ========== interval\session\state window
+
+sql CREATE DATABASE test1 VGROUPS 2;
+sql use test1;
+sql CREATE STABLE st (time TIMESTAMP, ca DOUBLE, cb DOUBLE, cc int) TAGS (ta VARCHAR(10) );
+
+print ========== create table before stream
+
+sql CREATE TABLE t1 using st TAGS ('aaa');
+sql CREATE TABLE t2 using st TAGS ('bbb');
+sql CREATE TABLE t3 using st TAGS ('ccc');
+sql CREATE TABLE t4 using st TAGS ('ddd');
+
+sql create stream streamd1 into streamt1 as select ca, _wstart,_wend, count(*) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca interval(60m) fill(linear);
+sql create stream streamd2 into streamt2 as select tbname, _wstart,_wend, count(*) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by tbname interval(60m) fill(linear);
+
+sql create stream streamd3 into streamt3 as select ca, _wstart,_wend, count(*), max(ca), min(cb), APERCENTILE(cc, 20) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca session(time, 60m);
+sql create stream streamd4 into streamt4 as select tbname, _wstart,_wend, count(*), max(ca), min(cb), APERCENTILE(cc, 20) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by tbname session(time, 60m);
+
+sql create stream streamd5 into streamt5 as select tbname, _wstart,_wend, count(*), max(ca), min(cb) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by tbname state_window(cc);
+sql create stream streamd6 into streamt6 as select ca, _wstart,_wend, count(*), max(ca), min(cb) from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);
+
+
+sql alter local 'keepColumnName' '1'
+sql CREATE STABLE `meters_test_data` (`ts` TIMESTAMP, `close` FLOAT, `parttime` TIMESTAMP, `parttime_str` VARCHAR(32)) TAGS (`id` VARCHAR(32));
+
+sql_error create stream realtime_meters fill_history 1 into realtime_meters as select last(parttime),first(close),last(close) from meters_test_data partition by tbname state_window(parttime_str);
+sql_error create stream streamd7 into streamt7 as select  _wstart, _wend, count(*), first(ca), last(ca) from t1 interval(10s);
+sql_error create stream streamd71 into streamt71 as select _wstart, _wend, count(*) as ca, first(ca), last(ca) as c2 from t1 interval(10s);
+
+sql create stream streamd8 into streamt8 as select _wstart, _wend, count(*), first(ca) as c1, last(ca) as c2 from t1 interval(10s);
+sql desc streamt8;
+
+if $rows == 0 then
+  return -1
+endi
+
+sql create stream streamd9 into streamt9 as select  _wstart, _wend, count(*), first(ca) as c1, last(ca) from t1 interval(10s);
+sql desc streamt9;
+
+if $rows == 0 then
+  return -1
+endi
+
+sql_error create stream streamd11 into streamd11 as select _wstart, _wend, count(*), last(ca), last(ca) from t1 interval(10s);
+
+sql alter local 'keepColumnName' '0'
+
+sql create stream realtime_meters fill_history 1 into realtime_meters as select last(parttime),first(close),last(close) from meters_test_data partition by tbname state_window(parttime_str);
+sql desc realtime_meters;
+if $rows == 0 then
+  return -1
+endi
+
+sql create stream streamd7 into streamt7 as select  _wstart t1, _wend t2, count(*), first(ca), last(ca) from t1 interval(10s);
+sql desc streamt7;
+if $rows == 0 then
+  return -1
+endi
+
+sql create stream streamd71 into streamt71 as select _wstart, _wend, count(*) as ca, first(ca), last(ca) as c2 from t1 interval(10s);
+
+sql desc streamt71;
+if $rows == 0 then
+  return -1
+endi
+
+sleep 1000
+
+sql drop stream if exists streamd1;
+sql drop stream if exists streamd2;
+sql drop stream if exists streamd3;
+sql drop stream if exists streamd4;
+sql drop stream if exists streamd5;
+sql drop stream if exists streamd6;
+
+sql create stream streamd10 into streamd10 as select _wstart, _wend, count(*), first(ca), last(cb) as c2 from t1 interval(10s);
+
+sql desc streamd10;
+if $rows == 0 then
+  return -1
+endi
+
+sql_error create stream streamd11 into streamd11 as select _wstart, _wend, count(*), last(ca), last(ca) from t1 interval(10s);
+
+sql create stream streamd12 into streamd12 as select _wstart, _wend, count(*), last(ca), last(cb) as c2 from t1 interval(10s);
+sql desc streamd12;
+
+if $rows == 0 then
+  return -1
+endi
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

@@ -204,6 +204,13 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   创建数据库时指定其副本数，默认值为 1 。
 
+- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+
+- **-v/--vgroups <NUMBER\>** :
+  创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效。
+
 - **-V/--version** :
   显示版本信息并退出。不能与其它参数混用。
 
@@ -230,6 +237,17 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ### 插入场景配置参数
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+
+- ** keep_trying ** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** trying_interval ** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
+- ** childtable_from 和 childtable_to ** : 指定写入子表范围，开闭区间为 [childtable_from, childtable_to).
+ 
+- ** continue_if_fail ** : 允许用户定义失败后行为
+
+  “continue_if_fail”:  “no”, 失败 taosBenchmark 自动退出，默认行为
+  “continue_if_fail”: “yes”, 失败 taosBenchmark 警告用户，并继续写入
+  “continue_if_fail”: “smart”, 如果子表不存在失败，taosBenchmark 会建立子表并继续写入
 
 #### 数据库相关配置参数
 
@@ -344,6 +362,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **max** : 数据类型的 列/标签 的最大值。生成的值将小于最小值。
 
+- **fun** : 此列数据以函数填充，目前只支持 sin 和 cos 两函数，输入参数为时间戳换算成角度值，换算公式： 角度 x = 输入的时间列ts值 % 360。同时支持系数调节，随机波动因子调节，以固定格式的表达式展现，如 fun=“10\*sin(x)+100\*random(5)” , x 表示角度，取值 0 ~ 360度，增长步长与时间列步长一致。10 表示乘的系数，100 表示加或减的系数，5 表示波动幅度在 5% 的随机范围内。目前支持的数据类型为 int, bigint, float, double 四种数据类型。注意：表达式为固定模式，不可前后颠倒。
+
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
 - **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
@@ -382,11 +402,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 执行指定查询语句的配置参数
 
-查询子表或者普通表的配置参数在 `specified_table_query` 中设置。
+查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads** : 执行查询 SQL 的线程数，默认值为 1。
+- **threads/concurrent** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
   - **sql**: 执行的 SQL 命令，必填。
@@ -413,9 +433,35 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 执行指定订阅语句的配置参数
 
-订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
+订阅指定表（可以指定超级表、子表或者普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **threads/concurrent** : 执行 SQL 的线程数，默认为 1。
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填。
+ 
+#### 配置文件中数据类型书写对照表
+
+| #   |     **引擎**      | **taosBenchmark** 
+| --- | :----------------: | :---------------:
+| 1   |  TIMESTAMP         |    timestamp
+| 2   |  INT               |    int
+| 3   |  INT UNSIGNED      |    uint
+| 4   |  BIGINT            |    bigint
+| 5   |  BIGINT UNSIGNED   |    ubigint
+| 6   |  FLOAT             |    float
+| 7   |  DOUBLE            |    double
+| 8   |  BINARY            |    binary
+| 9   |  SMALLINT          |    smallint
+| 10  |  SMALLINT UNSIGNED |    usmallint
+| 11  |  TINYINT           |    tinyint
+| 12  |  TINYINT UNSIGNED  |    utinyint
+| 13  |  BOOL              |    bool
+| 14  |  NCHAR             |    nchar
+| 15  |  VARCHAR           |    varchar
+| 15  |  JSON              |    json
+
+注意：taosBenchmark 配置文件中数据类型必须小写方可识别
+
+
+

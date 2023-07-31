@@ -5,7 +5,7 @@ set -e
 #set -x
 
 # dockerbuild.sh 
-#             -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...]  
+#             -c [aarch32 | aarch64 | amd64 | x86 | mips64 | loongarch64...]
 #             -n [version number]
 #             -p [password for docker hub]
 
@@ -30,7 +30,7 @@ do
       passWord=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...] "
+      echo "Usage: `basename $0` -c [aarch32 | aarch64 | amd64 | x86 | mips64 | loongarch64...] "
       echo "                      -n [version number] "
       echo "                      -p [password for docker hub] "
       exit 0

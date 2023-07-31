@@ -24,7 +24,7 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
-
+msec_per_min=60*1000
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -127,22 +127,33 @@ class TDTestCase:
             return
 
         else:
-            tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
+            sql = f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}"
+            tdSql.query(sql)
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
             pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
             if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
                 pre_result = np.array(pre_result, dtype = 'int64')
             pre_diff = np.diff(pre_result)[offset_val:]
-            tdSql.query(self.diff_query_form(
-                col=col, alias=alias, table_expr=table_expr, condition=condition
-            ))
-
-            for i in range(tdSql.queryRows):
-                print(f"case in {line}: ", end='')
-                if isinstance(pre_diff[i] , float ):
-                    pass
-                else:
-                    tdSql.checkData(i, 0, pre_diff[i])
+            if len(pre_diff) > 0:
+                sql =self.diff_query_form(col=col, alias=alias, table_expr=table_expr, condition=condition)
+                tdSql.query(sql)
+                j = 0
+                diff_cnt = len(pre_diff)
+                for i in range(tdSql.queryRows):
+                    print(f"case in {line}: i={i} j={j}  pre_diff[j]={pre_diff[j]}  ", end='')
+                    if isinstance(pre_diff[j] , float ):
+                        if j + 1 < diff_cnt: 
+                           j += 1
+                        pass
+                    else:
+                        if tdSql.getData(i,0) != None:
+                            tdSql.checkData(i, 0, pre_diff[j])
+                            if j + 1 < diff_cnt:
+                                j += 1
+                        else:
+                            print(f"getData i={i} is None j={j} ")
+            else:
+                print("pre_diff len is zero.")
 
         pass
 
@@ -312,19 +323,19 @@ class TDTestCase:
             for j in range(data_row):
                 tdSql.execute(
                     f"insert into db.t{i} values ("
-                    f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
+                    f"{basetime + (j+1)*10 + i* msec_per_min}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
                     f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
                 )
 
                 tdSql.execute(
                     f"insert into db.t{i} values ("
-                    f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
+                    f"{basetime - (j+1) * 10 + i* msec_per_min}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
                     f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
                 )
                 tdSql.execute(
-                    f"insert into db.tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                    f"insert into db.tt{i} values ( {basetime-(j+1) * 10 + i* msec_per_min}, {random.randint(1, 200)} )"
                 )
 
         pass
@@ -354,31 +365,31 @@ class TDTestCase:
         tdSql.checkRows(229)
         tdSql.checkData(0,0,0)
         tdSql.query("select diff(c1) from db.stb1 partition by tbname ")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
       
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
 
         # bug need fix
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
 
         # bug need fix
         tdSql.query("select tbname , diff(c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select tbname , diff(st1) from db.stb1 partition by tbname")
         tdSql.checkRows(220)
 
 
         # partition by tags
         tdSql.query("select st1 , diff(c1) from db.stb1 partition by st1")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select diff(c1) from db.stb1 partition by st1")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
 
 
     def diff_test_run(self) :
@@ -394,26 +405,26 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5 + i* msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5 + i* msec_per_min})")
         self.diff_current_query()
         self.diff_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.diff_test_table(tbnum)
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+                      f"({nowtime - (per_table_rows + 1) * 10 + i* msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+                      f"({nowtime - (per_table_rows + 2) * 10 + i* msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         self.diff_current_query()
         self.diff_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         self.diff_test_table(tbnum)
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
+                      f"({nowtime - (per_table_rows + 1) * 10 + i* msec_per_min}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
         tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
+                      f"({nowtime - (per_table_rows + 2) * 10 + i* msec_per_min}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
         self.diff_current_query()
         self.diff_error_query()
 
@@ -426,9 +437,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + i* msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10 + i* msec_per_min})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10 + i* msec_per_min})")
         self.diff_current_query()
         self.diff_error_query()
 

@@ -16,9 +16,35 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static SDnode global = {0};
+#define STR_CASE_CMP(s, d)   (0 == strcasecmp((s), (d)))
+#define STR_STR_CMP(s, d)    (strstr((s), (d)))
+#define STR_INT_CMP(s, d, c) (taosStr2Int32(s, 0, 10) c(d))
+#define STR_STR_SIGN         ("ia")
+#define DM_INIT_MON()                   \
+  do {                                  \
+    code = (int32_t)(2147483648 | 298); \
+    strncpy(stName, tsVersionName, 64); \
+    monCfg.maxLogs = tsMonitorMaxLogs;  \
+    monCfg.port = tsMonitorPort;        \
+    monCfg.server = tsMonitorFqdn;      \
+    monCfg.comp = tsMonitorComp;        \
+    if (monInit(&monCfg) != 0) {        \
+      if (terrno != 0) code = terrno;   \
+      goto _exit;                       \
+    }                                   \
+  } while (0)
 
-SDnode *dmInstance() { return &global; }
+#define DM_ERR_RTN(c) \
+  do {                \
+    code = (c);       \
+    goto _exit;       \
+  } while (0)
+
+static SDnode      globalDnode = {0};
+static const char *dmOS[10] = {"Ubuntu",  "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",
+                               "FreeBSD", "openSUSE",     "SLES",    "Fedora",     "MacOS"};
+
+SDnode *dmInstance() { return &globalDnode; }
 
 static int32_t dmCheckRepeatInit(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
@@ -37,16 +63,37 @@ static int32_t dmInitSystem() {
 }
 
 static int32_t dmInitMonitor() {
+  int32_t code = 0;
   SMonCfg monCfg = {0};
-  monCfg.maxLogs = tsMonitorMaxLogs;
-  monCfg.port = tsMonitorPort;
-  monCfg.server = tsMonitorFqdn;
-  monCfg.comp = tsMonitorComp;
-  if (monInit(&monCfg) != 0) {
-    dError("failed to init monitor since %s", terrstr());
-    return -1;
+  char    reName[64] = {0};
+  char    stName[64] = {0};
+  char    ver[64] = {0};
+
+  DM_INIT_MON();
+
+  if (STR_STR_CMP(stName, STR_STR_SIGN)) {
+    DM_ERR_RTN(0);
   }
-  return 0;
+  if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
+    DM_ERR_RTN(code);
+  }
+  if (STR_CASE_CMP(stName, dmOS[0])) {
+    if (STR_INT_CMP(ver, 17, >)) {
+      DM_ERR_RTN(0);
+    }
+  } else if (STR_CASE_CMP(stName, dmOS[1])) {
+    if (STR_INT_CMP(ver, 6, >)) {
+      DM_ERR_RTN(0);
+    }
+  } else if (STR_STR_CMP(stName, dmOS[2]) || STR_STR_CMP(stName, dmOS[3]) || STR_STR_CMP(stName, dmOS[4]) ||
+             STR_STR_CMP(stName, dmOS[5]) || STR_STR_CMP(stName, dmOS[6]) || STR_STR_CMP(stName, dmOS[7]) ||
+             STR_STR_CMP(stName, dmOS[8]) || STR_STR_CMP(stName, dmOS[9])) {
+    DM_ERR_RTN(0);
+  }
+
+_exit:
+  if (code) terrno = code;
+  return code;
 }
 
 static bool dmCheckDiskSpace() {
@@ -152,10 +199,24 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dmReleaseWrapper(pWrapper);
-    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    switch (ntype) {
+      case MNODE:
+        terrno = TSDB_CODE_MNODE_ALREADY_DEPLOYED;
+        break;
+      case QNODE:
+        terrno = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
+        break;
+      case SNODE:
+        terrno = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
+        break;
+      default:
+        terrno = TSDB_CODE_APP_ERROR;
+    }
     dError("failed to create node since %s", terrstr());
     return -1;
   }
+
+  dInfo("start to process create-node-request");
 
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
@@ -186,12 +247,94 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   return code;
 }
 
+static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  SDnode *pDnode = dmInstance();
+
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    dError("fail to process alter node type since node not exist");
+    return -1;
+  }
+  dmReleaseWrapper(pWrapper);
+
+  dInfo("node:%s, start to process alter-node-type-request", pWrapper->name);
+
+  pWrapper = &pDnode->wrappers[ntype];
+
+  if(pWrapper->func.nodeRoleFp != NULL){
+    ESyncRole role = (*pWrapper->func.nodeRoleFp)(pWrapper->pMgmt);
+    dInfo("node:%s, checking node role:%d", pWrapper->name, role);
+    if(role == TAOS_SYNC_ROLE_VOTER){
+      dError("node:%s, failed to alter node type since node already is role:%d", pWrapper->name, role);
+      terrno = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
+      return -1;
+    }
+  }
+
+  if(pWrapper->func.isCatchUpFp != NULL){
+    dInfo("node:%s, checking node catch up", pWrapper->name);
+    if((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1){
+      terrno = TSDB_CODE_MNODE_NOT_CATCH_UP;
+      return -1;
+    }
+  }
+
+  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pWrapper->name);
+
+  taosThreadMutexLock(&pDnode->mutex);
+
+  dInfo("node:%s, stopping node", pWrapper->name);
+  dmStopNode(pWrapper);
+  dInfo("node:%s, closing node", pWrapper->name);
+  dmCloseNode(pWrapper);
+
+  pWrapper = &pDnode->wrappers[ntype];
+  if (taosMkDir(pWrapper->path) != 0) {
+    dmReleaseWrapper(pWrapper);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+    return -1;
+  }
+
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+
+  dInfo("node:%s, start to create", pWrapper->name);
+  int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
+  } else {
+    dInfo("node:%s, has been created", pWrapper->name);
+    code = dmOpenNode(pWrapper);
+    if (code == 0) {
+      code = dmStartNode(pWrapper);
+    }
+    pWrapper->deployed = true;
+    pWrapper->required = true;
+  }
+
+  taosThreadMutexUnlock(&pDnode->mutex);
+  return code;
+}
+
 static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    switch (ntype) {
+      case MNODE:
+        terrno = TSDB_CODE_MNODE_NOT_DEPLOYED;
+        break;
+      case QNODE:
+        terrno = TSDB_CODE_QNODE_NOT_DEPLOYED;
+        break;
+      case SNODE:
+        terrno = TSDB_CODE_SNODE_NOT_DEPLOYED;
+        break;
+      default:
+        terrno = TSDB_CODE_APP_ERROR;
+    }
+
     dError("failed to drop node since %s", terrstr());
     return -1;
   }
@@ -226,6 +369,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .name = pWrapper->name,
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
+      .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
       .getVnodeLoadsFp = dmGetVnodeLoads,
@@ -243,3 +387,8 @@ void dmReportStartup(const char *pName, const char *pDesc) {
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
+
+int64_t dmGetClusterId() {
+  return globalDnode.data.clusterId;
+}
+

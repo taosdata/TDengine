@@ -94,15 +94,17 @@ TEST_F(ParserInitialDTest, dropDnode) {
 
   auto clearDropDnodeReq = [&]() { memset(&expect, 0, sizeof(SDropDnodeReq)); };
 
-  auto setDropDnodeReqById = [&](int32_t dnodeId, bool force = false) {
+  auto setDropDnodeReqById = [&](int32_t dnodeId, bool force = false, bool unsafe = false) {
     expect.dnodeId = dnodeId;
     expect.force = force;
+    expect.unsafe = unsafe;
   };
 
-  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port, bool force = false) {
+  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port = tsServerPort, bool force = false, bool unsafe = false) {
     strcpy(expect.fqdn, pFqdn);
     expect.port = port;
     expect.force = force;
+    expect.unsafe = unsafe;
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -114,6 +116,7 @@ TEST_F(ParserInitialDTest, dropDnode) {
     ASSERT_EQ(std::string(req.fqdn), std::string(expect.fqdn));
     ASSERT_EQ(req.port, expect.port);
     ASSERT_EQ(req.force, expect.force);
+    ASSERT_EQ(req.unsafe, expect.unsafe);
   });
 
   setDropDnodeReqById(1);
@@ -124,12 +127,32 @@ TEST_F(ParserInitialDTest, dropDnode) {
   run("DROP DNODE 2 FORCE");
   clearDropDnodeReq();
 
+  setDropDnodeReqById(2, false, true);
+  run("DROP DNODE 2 UNSAFE");
+  clearDropDnodeReq();
+
   setDropDnodeReqByEndpoint("host1", 7030);
   run("DROP DNODE 'host1:7030'");
   clearDropDnodeReq();
 
   setDropDnodeReqByEndpoint("host2", 8030, true);
   run("DROP DNODE 'host2:8030' FORCE");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host2", 8030, false, true);
+  run("DROP DNODE 'host2:8030' UNSAFE");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host1");
+  run("DROP DNODE host1");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host2", tsServerPort, true);
+  run("DROP DNODE host2 FORCE");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host2", tsServerPort, false, true);
+  run("DROP DNODE host2 UNSAFE");
   clearDropDnodeReq();
 }
 
@@ -174,7 +197,21 @@ TEST_F(ParserInitialDTest, dropMnode) {
 TEST_F(ParserInitialDTest, dropQnode) {
   useDb("root", "test");
 
-  run("DROP qnode on dnode 1");
+  SMDropQnodeReq expect = {0};
+
+  auto setDropQnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_QNODE_STMT);
+    SMDropQnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+  });
+
+  setDropQnodeReq(1);
+  run("DROP QNODE ON DNODE 1");
 }
 
 TEST_F(ParserInitialDTest, dropSnode) {
@@ -223,6 +260,7 @@ TEST_F(ParserInitialDTest, dropTable) {
   useDb("root", "test");
 
   run("DROP TABLE t1");
+  run("DROP TABLE t1, st1s1, st1s2");
 }
 
 TEST_F(ParserInitialDTest, dropTopic) {
@@ -237,7 +275,29 @@ TEST_F(ParserInitialDTest, dropUser) {
   login("root");
   useDb("root", "test");
 
-  run("DROP user wxy");
+  SDropUserReq expect = {0};
+
+  auto setDropUserReq = [&](const char* pUser) { sprintf(expect.user, "%s", pUser); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_USER_STMT);
+    SDropUserReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSDropUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.user), std::string(expect.user));
+  });
+
+  setDropUserReq("wxy");
+  run("DROP USER wxy");
+}
+
+TEST_F(ParserInitialDTest, IntervalOnSysTable) {
+  login("root");
+  run("SELECT  count('reboot_time') FROM information_schema.ins_dnodes interval(14m) sliding(9m)",
+      TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT  count('create_time') FROM information_schema.ins_qnodes interval(14m) sliding(9m)",
+      TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, PARSER_STAGE_TRANSLATE);
 }
 
 }  // namespace ParserTest

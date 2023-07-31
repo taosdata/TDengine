@@ -1,6 +1,13 @@
 ## TDengine SpringBoot + Mybatis Demo
 
 ## 需要提前创建 test 数据库
+
+```
+$ taos -s 'create database if not exists test'
+
+$ curl http://localhost:8080/weather/init
+```
+
 ### 配置 application.properties
 ```properties
 # datasource config

@@ -49,7 +49,8 @@ int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
 int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
 // vnodeModule.c
-int32_t vnodeScheduleTask(int32_t (*execute)(void*), void* arg);
+int vnodeScheduleTask(int (*execute)(void*), void* arg);
+int vnodeScheduleTaskEx(int tpid, int (*execute)(void*), void* arg);
 
 // vnodeBufPool.c
 typedef struct SVBufPoolNode SVBufPoolNode;
@@ -61,22 +62,37 @@ struct SVBufPoolNode {
 };
 
 struct SVBufPool {
-  SVBufPool*       next;
-  SVnode*          pVnode;
-  volatile int32_t nRef;
-  TdThreadSpinlock lock;
-  int64_t          size;
-  uint8_t*         ptr;
-  SVBufPoolNode*   pTail;
-  SVBufPoolNode    node;
+  SVBufPool* freeNext;
+  SVBufPool* recycleNext;
+  SVBufPool* recyclePrev;
+
+  // query handle list
+  TdThreadMutex mutex;
+  int32_t       nQuery;
+  SQueryNode    qList;
+
+  SVnode*           pVnode;
+  int32_t           id;
+  volatile int32_t  nRef;
+  TdThreadSpinlock* lock;
+  int64_t           size;
+  uint8_t*          ptr;
+  SVBufPoolNode*    pTail;
+  SVBufPoolNode     node;
 };
 
 int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
+void    vnodeBufPoolAddToFreeList(SVBufPool* pPool);
+int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
+
+// vnodeOpen.c
+int32_t vnodeGetPrimaryDir(const char* relPath, int32_t diskPrimary, STfs* pTfs, char* buf, size_t bufLen);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
+void    vnodeQueryPreClose(SVnode* pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
@@ -84,11 +100,10 @@ int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
-int32_t vnodeShouldCommit(SVnode* pVnode);
-int32_t vnodeCommit(SVnode* pVnode);
+int32_t vnodeShouldCommit(SVnode* pVnode, bool atExit);
 void    vnodeRollback(SVnode* pVnode);
 int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
-int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int32_t vnodeCommitInfo(const char* dir);
 int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
@@ -96,10 +111,11 @@ bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
-void    vnodeSyncStart(SVnode* pVnode);
+int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);
+void    vnodeSyncPostClose(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
-void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
+void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
 

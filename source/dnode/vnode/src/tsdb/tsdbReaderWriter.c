@@ -16,7 +16,7 @@
 #include "tsdb.h"
 
 // =============== PAGE-WISE FILE ===============
-static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
+int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
   int32_t  code = 0;
   STsdbFD *pFD = NULL;
 
@@ -47,22 +47,28 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
     taosMemoryFree(pFD);
     goto _exit;
   }
-  if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosMemoryFree(pFD->pBuf);
-    taosCloseFile(&pFD->pFD);
-    taosMemoryFree(pFD);
-    goto _exit;
+
+  // not check file size when reading data files.
+  if (flag != TD_FILE_READ) {
+    if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      taosMemoryFree(pFD->pBuf);
+      taosCloseFile(&pFD->pFD);
+      taosMemoryFree(pFD);
+      goto _exit;
+    }
+
+    ASSERT(pFD->szFile % szPage == 0);
+    pFD->szFile = pFD->szFile / szPage;
   }
-  ASSERT(pFD->szFile % szPage == 0);
-  pFD->szFile = pFD->szFile / szPage;
+
   *ppFD = pFD;
 
 _exit:
   return code;
 }
 
-static void tsdbCloseFile(STsdbFD **ppFD) {
+void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
@@ -103,7 +109,7 @@ _exit:
 static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   int32_t code = 0;
 
-  ASSERT(pgno <= pFD->szFile);
+  // ASSERT(pgno <= pFD->szFile);
 
   // seek
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
@@ -135,7 +141,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
+int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
@@ -167,7 +173,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
@@ -175,7 +181,7 @@ static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  ASSERT(pgno && pgno <= pFD->szFile);
+  // ASSERT(pgno && pgno <= pFD->szFile);
   ASSERT(bOffset < szPgCont);
 
   while (n < size) {
@@ -196,7 +202,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbFsyncFile(STsdbFD *pFD) {
+int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
   code = tsdbWriteFilePage(pFD);
@@ -514,13 +520,13 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
   pSmaInfo->size = 0;
 
   // encode
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-    if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type)) continue;
+    if ((!pColData->smaOn) || ((pColData->flag & HAS_VALUE) == 0)) continue;
 
-    SColumnDataAgg sma;
-    tsdbCalcColDataSMA(pColData, &sma);
+    SColumnDataAgg sma = {.colId = pColData->cid};
+    tColDataCalcSMA[pColData->type](pColData, &sma.sum, &sma.max, &sma.min, &sma.numOfNull);
 
     code = tRealloc(&pWriter->aBuf[0], pSmaInfo->size + tPutColumnDataAgg(NULL, &sma));
     if (code) goto _err;
@@ -743,14 +749,14 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   int64_t   size;
   TdFilePtr pOutFD = NULL;
   TdFilePtr PInFD = NULL;
-  int32_t   szPage = pTsdb->pVnode->config.szPage;
+  int32_t   szPage = pTsdb->pVnode->config.tsdbPageSize;
   char      fNameFrom[TSDB_FILENAME_LEN];
   char      fNameTo[TSDB_FILENAME_LEN];
 
   // head
   tsdbHeadFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pHeadF, fNameFrom);
   tsdbHeadFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pHeadF, fNameTo);
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -771,7 +777,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   // data
   tsdbDataFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pDataF, fNameFrom);
   tsdbDataFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pDataF, fNameTo);
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -781,7 +787,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, LOGIC_TO_FILE_OFFSET(pSetFrom->pDataF->size, szPage));
+  n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->pDataF->size, szPage));
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -792,7 +798,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   // sma
   tsdbSmaFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pSmaF, fNameFrom);
   tsdbSmaFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pSmaF, fNameTo);
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -814,7 +820,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   for (int8_t iStt = 0; iStt < pSetFrom->nSttF; iStt++) {
     tsdbSttFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSttF[iStt], fNameFrom);
     tsdbSttFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSttF[iStt], fNameTo);
-    pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
     if (pOutFD == NULL) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
@@ -1112,7 +1118,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   ASSERT(p - pReader->aBuf[0] == pBlkInfo->szKey);
 
   // read and decode columns
-  if (taosArrayGetSize(pBlockData->aIdx) == 0) goto _exit;
+  if (pBlockData->nColData == 0) goto _exit;
 
   if (hdr.szBlkCol > 0) {
     int64_t offset = pBlkInfo->offset + pBlkInfo->szKey;
@@ -1128,7 +1134,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   SBlockCol *pBlockCol = &blockCol;
   int32_t    n = 0;
 
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
     while (pBlockCol && pBlockCol->cid < pColData->cid) {
@@ -1211,49 +1217,6 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
   if (code) goto _err;
 
   ASSERT(pDataBlk->nSubBlock == 1);
-
-#if 0
-  if (pDataBlk->nSubBlock > 1) {
-    SBlockData bData1;
-    SBlockData bData2;
-
-    // create
-    code = tBlockDataCreate(&bData1);
-    if (code) goto _err;
-    code = tBlockDataCreate(&bData2);
-    if (code) goto _err;
-
-    // init
-    tBlockDataInitEx(&bData1, pBlockData);
-    tBlockDataInitEx(&bData2, pBlockData);
-
-    for (int32_t iSubBlock = 1; iSubBlock < pDataBlk->nSubBlock; iSubBlock++) {
-      code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[iSubBlock], &bData1);
-      if (code) {
-        tBlockDataDestroy(&bData1, 1);
-        tBlockDataDestroy(&bData2, 1);
-        goto _err;
-      }
-
-      code = tBlockDataCopy(pBlockData, &bData2);
-      if (code) {
-        tBlockDataDestroy(&bData1, 1);
-        tBlockDataDestroy(&bData2, 1);
-        goto _err;
-      }
-
-      code = tBlockDataMerge(&bData1, &bData2, pBlockData);
-      if (code) {
-        tBlockDataDestroy(&bData1, 1);
-        tBlockDataDestroy(&bData2, 1);
-        goto _err;
-      }
-    }
-
-    tBlockDataDestroy(&bData1, 1);
-    tBlockDataDestroy(&bData2, 1);
-  }
-#endif
 
   return code;
 
@@ -1520,13 +1483,16 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
     }
     taosMemoryFree(pReader);
   }
-  *ppReader = NULL;
 
-_exit:
+  *ppReader = NULL;
   return code;
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {
+  return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
+}
+
+int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
   int32_t code = 0;
   int64_t offset = pDelIdx->offset;
   int64_t size = pDelIdx->size;
@@ -1548,11 +1514,15 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
     SDelData delData;
     n += tGetDelData(pReader->aBuf[0] + n, &delData);
 
+    if (delData.version > maxVer) {
+      continue;
+    }
     if (taosArrayPush(aDelData, &delData) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
   }
+
   ASSERT(n == size);
 
   return code;

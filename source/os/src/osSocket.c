@@ -55,7 +55,7 @@ typedef struct TdSocket {
 #endif
   int      refId;
   SocketFd fd;
-} * TdSocketPtr, TdSocket;
+} *TdSocketPtr, TdSocket;
 
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
@@ -63,7 +63,7 @@ typedef struct TdSocketServer {
 #endif
   int      refId;
   SocketFd fd;
-} * TdSocketServerPtr, TdSocketServer;
+} *TdSocketServerPtr, TdSocketServer;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
@@ -71,7 +71,7 @@ typedef struct TdEpoll {
 #endif
   int     refId;
   EpollFd fd;
-} * TdEpollPtr, TdEpoll;
+} *TdEpollPtr, TdEpoll;
 
 #if 0
 int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, const struct sockaddr *dest_addr,
@@ -298,7 +298,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
@@ -662,7 +662,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   int                fd;
@@ -689,7 +689,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   int ret = -1;
@@ -745,8 +745,10 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 #endif
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
-    // printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+  fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (fd < 0) { // exception
+    return false;
+  } else if (fd <= 2) { // in, out, err
     taosCloseSocketNoCheck1(fd);
     return false;
   }
@@ -924,7 +926,7 @@ uint32_t ip2uint(const char *const ip_addr) {
 
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -944,7 +946,7 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
     // printf("WSAStartup failed: %d\n", iResult);
-    return 1;
+    return 0xFFFFFFFF;
   }
 #endif
   struct addrinfo hints = {0};
@@ -988,40 +990,38 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif
   char hostname[1024];
   hostname[1023] = '\0';
-  if (gethostname(hostname, 1023) == -1) {
+  if (taosGetlocalhostname(hostname, 1023) == -1) {
 #ifdef WINDOWS
     printf("failed to get hostname, reason:%s\n", strerror(WSAGetLastError()));
 #else
     printf("failed to get hostname, reason:%s\n", strerror(errno));
 #endif
-    assert(0);
+    ASSERT(0);
     return -1;
   }
 
-  struct addrinfo  hints = {0};
-  struct addrinfo *result = NULL;
 #ifdef __APPLE__
   // on macosx, hostname -f has the form of xxx.local
   // which will block getaddrinfo for a few seconds if AI_CANONNAME is set
   // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
   // immediately
-  hints.ai_family = AF_INET;
-#else   // __APPLE__
+  // hints.ai_family = AF_INET;
+  strcpy(fqdn, hostname);
+  strcpy(fqdn + strlen(hostname), ".local");
+#else   // linux
+  struct addrinfo  hints = {0};
+  struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
-#endif  // __APPLE__
+
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
     fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
     return -1;
   }
-
-#ifdef __APPLE__
-  // refer to comments above
-  strcpy(fqdn, hostname);
-#else   // __APPLE__
   strcpy(fqdn, result->ai_canonname);
-#endif  // __APPLE__
   freeaddrinfo(result);
+#endif  // linux
+
   return 0;
 }
 
@@ -1033,7 +1033,7 @@ void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
 void taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -1062,7 +1062,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
-  int      fd;
+  int fd;
 #endif
   if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
     return -1;
@@ -1073,13 +1073,14 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
     return -1;
   }
 #elif defined(_TD_DARWIN_64)
-  uint32_t conn_timeout_ms = timeout * 1000;
-  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
-    taosCloseSocketNoCheck1(fd);
-    return -1;
-  }
+  // invalid config
+  // uint32_t conn_timeout_ms = timeout * 1000;
+  // if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+  //  taosCloseSocketNoCheck1(fd);
+  //  return -1;
+  //}
 #else  // Linux like systems
-  uint32_t conn_timeout_ms = timeout * 1000;
+  uint32_t conn_timeout_ms = timeout;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     taosCloseSocketNoCheck1(fd);
     return -1;
@@ -1101,5 +1102,32 @@ void taosWinSocketInit() {
     }
   }
 #else
+#endif
+}
+
+uint64_t taosHton64(uint64_t val) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return ((val & 0x00000000000000ff) << 7 * 8) | ((val & 0x000000000000ff00) << 5 * 8) |
+         ((val & 0x0000000000ff0000) << 3 * 8) | ((val & 0x00000000ff000000) << 1 * 8) |
+         ((val & 0x000000ff00000000) >> 1 * 8) | ((val & 0x0000ff0000000000) >> 3 * 8) |
+         ((val & 0x00ff000000000000) >> 5 * 8) | ((val & 0xff00000000000000) >> 7 * 8);
+#else
+  if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+    return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+  } else if (__BYTE_ORDER == __BIG_ENDIAN) {
+    return val;
+  }
+#endif
+}
+
+uint64_t taosNtoh64(uint64_t val) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return taosHton64(val);
+#else
+  if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+    return (((uint64_t)htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+  } else if (__BYTE_ORDER == __BIG_ENDIAN) {
+    return val;
+  }
 #endif
 }

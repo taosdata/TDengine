@@ -25,7 +25,15 @@
 
 void taosSeedRand(uint32_t seed) { return srand(seed); }
 
-uint32_t taosRand(void) { return rand(); }
+uint32_t taosRand(void) {
+#ifdef WINDOWS
+    unsigned int pSeed;
+    rand_s(&pSeed);
+    return pSeed;
+#else
+    return rand();
+#endif
+}
 
 uint32_t taosRandR(uint32_t* pSeed) {
 #ifdef WINDOWS

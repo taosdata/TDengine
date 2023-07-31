@@ -1,6 +1,7 @@
 ---
-sidebar_label: JupyterLab
 title: Connect JupyterLab to TDengine
+sidebar_label: JupyterLab
+description: This document describes how to integrate TDengine with JupyterLab.
 ---
 
 JupyterLab is the next generation of the ubiquitous Jupyter Notebook. In this note we show you how to install the TDengine Python connector to connect to TDengine in JupyterLab. You can then insert data and perform queries against the TDengine instance within JupyterLab.

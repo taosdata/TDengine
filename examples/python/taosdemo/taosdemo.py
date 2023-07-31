@@ -21,7 +21,7 @@ import json
 import random
 import time
 import datetime
-from multiprocessing import Manager, Pool, Lock
+from multiprocessing import Manager, Pool
 from multipledispatch import dispatch
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
@@ -102,12 +102,7 @@ def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
     v_print("resp status: %d", resp.status_code)
 
     if debug:
-        v_print(
-            "resp text: %s",
-            json.dumps(
-                resp.json(),
-                sort_keys=True,
-                indent=2))
+        v_print("resp text: %s", json.dumps(resp.json(), sort_keys=True, indent=2))
     else:
         print("resp: %s" % json.dumps(resp.json()))
 
@@ -115,34 +110,29 @@ def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
 def query_func(process: int, thread: int, cmd: str):
     v_print("%d process %d thread cmd: %s", process, thread, cmd)
 
-    if oneMoreHost != "NotSupported" and random.randint(
-            0, 1) == 1:
+    if oneMoreHost != "NotSupported" and random.randint(0, 1) == 1:
         v_print("%s", "Send to second host")
         if native:
-            cursor2.execute(cmd)
+            cursor.execute(cmd)
         else:
-            restful_execute(
-                oneMoreHost, port, user, password, cmd)
+            restful_execute(oneMoreHost, port, user, password, cmd)
     else:
         v_print("%s%s%s", "Send ", cmd, " to the host")
         if native:
             pass
-#            cursor.execute(cmd)
+        #            cursor.execute(cmd)
         else:
-            restful_execute(
-                host, port, user, password, cmd)
+            restful_execute(host, port, user, password, cmd)
 
 
 def query_data_process(cmd: str):
     # establish connection if native
     if native:
-        v_print("host:%s, user:%s passwd:%s configDir:%s ", host, user, password, configDir)
+        v_print("host:%s, user:%s passwd:xxxxxx configDir:%s ", host, user, configDir)
         try:
             conn = taos.connect(
-                host=host,
-                user=user,
-                password=password,
-                config=configDir)
+                host=host, user=user, password=password, config=configDir
+            )
             v_print("conn: %s", str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
@@ -160,6 +150,7 @@ def query_data_process(cmd: str):
         try:
             cursor.execute(cmd)
             cols = cursor.description
+            print(cols)
             data = cursor.fetchall()
 
             for col in data:
@@ -170,12 +161,7 @@ def query_data_process(cmd: str):
             sys.exit(1)
 
     else:
-        restful_execute(
-                host,
-                port,
-                user,
-                password,
-                cmd)
+        restful_execute(host, port, user, password, cmd)
 
     if native:
         cursor.close()
@@ -186,21 +172,21 @@ def create_stb():
     for i in range(0, numOfStb):
         if native:
             cursor.execute(
-                "CREATE TABLE IF NOT EXISTS %s%d (ts timestamp, value float) TAGS (uuid binary(50))" %
-                (stbName, i))
+                "CREATE TABLE IF NOT EXISTS %s%d (ts timestamp, value float) TAGS (uuid binary(50))"
+                % (stbName, i)
+            )
         else:
             restful_execute(
                 host,
                 port,
                 user,
                 password,
-                "CREATE TABLE IF NOT EXISTS %s%d (ts timestamp, value float) TAGS (uuid binary(50))" %
-                (stbName, i)
+                "CREATE TABLE IF NOT EXISTS %s%d (ts timestamp, value float) TAGS (uuid binary(50))"
+                % (stbName, i),
             )
 
 
 def use_database():
-
     if native:
         cursor.execute("USE %s" % current_db)
     else:
@@ -212,15 +198,15 @@ def create_databases():
         v_print("will create database db%d", int(i))
 
         if native:
-            cursor.execute(
-                "CREATE DATABASE IF NOT EXISTS %s%d" % (dbName, i))
+            cursor.execute("CREATE DATABASE IF NOT EXISTS %s%d" % (dbName, i))
         else:
             restful_execute(
                 host,
                 port,
                 user,
                 password,
-                "CREATE DATABASE IF NOT EXISTS %s%d" % (dbName, i))
+                "CREATE DATABASE IF NOT EXISTS %s%d" % (dbName, i),
+            )
 
 
 def drop_tables():
@@ -243,17 +229,11 @@ def drop_databases():
         v_print("will drop database db%d", int(i))
 
         if native:
-            cursor.execute(
-                "DROP DATABASE IF EXISTS %s%d" %
-                (dbName, i))
+            cursor.execute("DROP DATABASE IF EXISTS %s%d" % (dbName, i))
         else:
             restful_execute(
-                host,
-                port,
-                user,
-                password,
-                "DROP DATABASE IF EXISTS %s%d" %
-                (dbName, i))
+                host, port, user, password, "DROP DATABASE IF EXISTS %s%d" % (dbName, i)
+            )
 
 
 def insert_func(process: int, thread: int):
@@ -266,13 +246,11 @@ def insert_func(process: int, thread: int):
 
     # establish connection if native
     if native:
-        v_print("host:%s, user:%s passwd:%s configDir:%s ", host, user, password, configDir)
+        v_print("host:%s, user:%s passwd:xxxxxx configDir:%s ", host, user, configDir)
         try:
             conn = taos.connect(
-                host=host,
-                user=user,
-                password=password,
-                config=configDir)
+                host=host, user=user, password=password, config=configDir
+            )
             v_print("conn: %s", str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
@@ -291,26 +269,29 @@ def insert_func(process: int, thread: int):
     row = 0
     while row < numOfRec:
         v_print("row: %d", row)
-        sqlCmd = ['INSERT INTO ']
+        sqlCmd = ["INSERT INTO "]
         try:
-            sqlCmd.append(
-                "%s.%s%d " % (current_db, tbName, thread))
+            sqlCmd.append("%s.%s%d " % (current_db, tbName, thread))
 
-            if (numOfStb > 0 and autosubtable):
-                sqlCmd.append("USING %s.%s%d TAGS('%s') " %
-                              (current_db, stbName, numOfStb - 1, uuid))
+            if numOfStb > 0 and autosubtable:
+                sqlCmd.append(
+                    "USING %s.%s%d TAGS('%s') "
+                    % (current_db, stbName, numOfStb - 1, uuid)
+                )
 
-            start_time = datetime.datetime(
-                2021, 1, 25) + datetime.timedelta(seconds=row)
+            start_time = datetime.datetime(2021, 1, 25) + datetime.timedelta(
+                seconds=row
+            )
 
             sqlCmd.append("VALUES ")
             for batchIter in range(0, batch):
-                sqlCmd.append("('%s', %f) " %
-                              (
-                               start_time +
-                                datetime.timedelta(
-                                    milliseconds=batchIter),
-                                  random.random()))
+                sqlCmd.append(
+                    "('%s', %f) "
+                    % (
+                        start_time + datetime.timedelta(milliseconds=batchIter),
+                        random.random(),
+                    )
+                )
                 row = row + 1
                 if row >= numOfRec:
                     v_print("BREAK, row: %d numOfRec:%d", row, numOfRec)
@@ -319,23 +300,21 @@ def insert_func(process: int, thread: int):
         except Exception as e:
             print("Error: %s" % e.args[0])
 
-        cmd = ' '.join(sqlCmd)
+        cmd = " ".join(sqlCmd)
 
         if measure:
             exec_start_time = datetime.datetime.now()
 
         if native:
             affectedRows = cursor.execute(cmd)
+            print("affectedRows: %d" % affectedRows)
         else:
-            restful_execute(
-                host, port, user, password, cmd)
+            restful_execute(host, port, user, password, cmd)
 
         if measure:
             exec_end_time = datetime.datetime.now()
             exec_delta = exec_end_time - exec_start_time
-            v_print(
-                "consume %d microseconds",
-                 exec_delta.microseconds)
+            v_print("consume %d microseconds", exec_delta.microseconds)
 
         v_print("cmd: %s, length:%d", cmd, len(cmd))
 
@@ -355,51 +334,39 @@ def create_tb():
         if native:
             cursor.execute("USE %s%d" % (dbName, i))
         else:
-            restful_execute(
-                host, port, user, password, "USE %s%d" %
-                (dbName, i))
+            restful_execute(host, port, user, password, "USE %s%d" % (dbName, i))
 
         for j in range(0, numOfTb):
             if native:
                 cursor.execute(
-                    "CREATE TABLE %s%d (ts timestamp, value float)" %
-                    (tbName, j))
+                    "CREATE TABLE %s%d (ts timestamp, value float)" % (tbName, j)
+                )
             else:
                 restful_execute(
                     host,
                     port,
                     user,
                     password,
-                    "CREATE TABLE %s%d (ts timestamp, value float)" %
-                    (tbName, j))
+                    "CREATE TABLE %s%d (ts timestamp, value float)" % (tbName, j),
+                )
 
 
 def insert_data_process(lock, i: int, begin: int, end: int):
     lock.acquire()
     tasks = end - begin
-    v_print("insert_data_process:%d table from %d to %d, tasks %d", i, begin, end, tasks)
+    v_print(
+        "insert_data_process:%d table from %d to %d, tasks %d", i, begin, end, tasks
+    )
 
-    if (threads < (end - begin)):
+    if threads < (end - begin):
         for j in range(begin, end, threads):
             with ThreadPoolExecutor(max_workers=threads) as executor:
                 k = end if ((j + threads) > end) else (j + threads)
-                workers = [
-                    executor.submit(
-                        insert_func,
-                        i,
-                        n) for n in range(
-                        j,
-                        k)]
+                workers = [executor.submit(insert_func, i, n) for n in range(j, k)]
                 wait(workers, return_when=ALL_COMPLETED)
     else:
         with ThreadPoolExecutor(max_workers=threads) as executor:
-            workers = [
-                executor.submit(
-                    insert_func,
-                    i,
-                    j) for j in range(
-                    begin,
-                    end)]
+            workers = [executor.submit(insert_func, i, j) for j in range(begin, end)]
             wait(workers, return_when=ALL_COMPLETED)
 
     lock.release()
@@ -409,22 +376,18 @@ def query_db(i):
     if native:
         cursor.execute("USE %s%d" % (dbName, i))
     else:
-        restful_execute(
-            host, port, user, password, "USE %s%d" %
-            (dbName, i))
+        restful_execute(host, port, user, password, "USE %s%d" % (dbName, i))
 
     for j in range(0, numOfTb):
         if native:
-            cursor.execute(
-                "SELECT COUNT(*) FROM %s%d" % (tbName, j))
+            cursor.execute("SELECT COUNT(*) FROM %s%d" % (tbName, j))
         else:
             restful_execute(
-                host, port, user, password, "SELECT COUNT(*) FROM %s%d" %
-                (tbName, j))
+                host, port, user, password, "SELECT COUNT(*) FROM %s%d" % (tbName, j)
+            )
 
 
 def printConfig():
-
     print("###################################################################")
     print("# Use native interface:              %s" % native)
     print("# Server IP:                         %s" % host)
@@ -435,7 +398,6 @@ def printConfig():
 
     print("# Configuration Dir:                 %s" % configDir)
     print("# User:                              %s" % user)
-    print("# Password:                          %s" % password)
     print("# Number of Columns per record:      %s" % colsPerRecord)
     print("# Number of Threads:                 %s" % threads)
     print("# Number of Processes:               %s" % processes)
@@ -455,13 +417,14 @@ def printConfig():
     print("# Query command:                     %s" % queryCmd)
     print("# Insert Only:                       %s" % insertOnly)
     print("# Verbose output                     %s" % verbose)
-    print("# Test time:                         %s" %
-          datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+    print(
+        "# Test time:                         %s"
+        % datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    )
     print("###################################################################")
 
 
 if __name__ == "__main__":
-
     native = False
     verbose = False
     debug = False
@@ -497,73 +460,131 @@ if __name__ == "__main__":
     skipPrompt = False
 
     try:
-        opts, args = getopt.gnu_getopt(sys.argv[1:],
-                                       'Nh:p:u:P:d:a:m:Ms:Q:T:C:r:l:t:n:c:xOR:D:vgyH',
-                                       [
-            'native', 'host', 'port', 'user', 'password', 'dbname', 'replica', 'tbname',
-            'stable', 'stbname', 'query', 'threads', 'processes',
-            'recPerReq', 'colsPerRecord', 'numOfTb', 'numOfRec', 'config',
-            'insertOnly', 'outOfOrder', 'rateOOOO', 'deleteMethod',
-            'verbose', 'debug', 'skipPrompt', 'help'
-        ])
+        opts, args = getopt.gnu_getopt(
+            sys.argv[1:],
+            "Nh:p:u:P:d:a:m:Ms:Q:T:C:r:l:t:n:c:xOR:D:vgyH",
+            [
+                "native",
+                "host",
+                "port",
+                "user",
+                "password",
+                "dbname",
+                "replica",
+                "tbname",
+                "stable",
+                "stbname",
+                "query",
+                "threads",
+                "processes",
+                "recPerReq",
+                "colsPerRecord",
+                "numOfTb",
+                "numOfRec",
+                "config",
+                "insertOnly",
+                "outOfOrder",
+                "rateOOOO",
+                "deleteMethod",
+                "verbose",
+                "debug",
+                "skipPrompt",
+                "help",
+            ],
+        )
     except getopt.GetoptError as err:
-        print('ERROR:', err)
-        print('Try `taosdemo.py --help` for more options.')
+        print("ERROR:", err)
+        print("Try `taosdemo.py --help` for more options.")
         sys.exit(1)
 
     if bool(opts) is False:
-        print('Try `taosdemo.py --help` for more options.')
+        print("Try `taosdemo.py --help` for more options.")
         sys.exit(1)
 
     for key, value in opts:
-        if key in ['-H', '--help']:
-            print('')
-            print(
-                'taosdemo.py for TDengine')
-            print('')
-            print('Author: Shuduo Sang <sangshuduo@gmail.com>')
-            print('')
+        if key in ["-H", "--help"]:
+            print("")
+            print("taosdemo.py for TDengine")
+            print("")
+            print("Author: Shuduo Sang <sangshuduo@gmail.com>")
+            print("")
 
-            print('\t-H, --help                        Show usage.')
-            print('')
+            print("\t-H, --help                        Show usage.")
+            print("")
 
-            print('\t-N, --native                      flag, Use native interface if set. Default is using RESTful interface.')
-            print('\t-h, --host <hostname>             host, The host to connect to TDengine. Default is localhost.')
-            print('\t-p, --port <port>                 port, The TCP/IP port number to use for the connection. Default is 0.')
-            print('\t-u, --user <username>             user, The user name to use when connecting to the server. Default is \'root\'.')
-            print('\t-P, --password <password>         password, The password to use when connecting to the server. Default is \'taosdata\'.')
-            print('\t-l, --colsPerRec <number>         num_of_columns_per_record, The number of columns per record. Default is 3.')
             print(
-                  '\t-d, --dbname <dbname>             database, Destination database. Default is \'test\'.')
-            print('\t-a, --replica <replications>      replica, Set the replica parameters of the database, Default 1, min: 1, max: 5.')
+                "\t-N, --native                      flag, Use native interface if set. Default is using RESTful interface."
+            )
             print(
-                  '\t-m, --tbname <table prefix>       table_prefix, Table prefix name. Default is \'t\'.')
+                "\t-h, --host <hostname>             host, The host to connect to TDengine. Default is localhost."
+            )
             print(
-                  '\t-M, --stable                      flag, Use super table. Default is no')
+                "\t-p, --port <port>                 port, The TCP/IP port number to use for the connection. Default is 0."
+            )
             print(
-                  '\t-s, --stbname <stable prefix>     stable_prefix, STable prefix name. Default is \'st\'')
-            print('\t-Q, --query [NO|EACHTB|command]   query, Execute query command. set \'EACHTB\' means select * from each table')
+                "\t-u, --user <username>             user, The user name to use when connecting to the server. Default is 'root'."
+            )
             print(
-                  '\t-T, --threads <number>            num_of_threads, The number of threads. Default is 1.')
+                "\t-P, --password <password>         password, The password to use when connecting to the server. Default is 'taosdata'."
+            )
             print(
-                  '\t-C, --processes <number>          num_of_processes, The number of threads. Default is 1.')
-            print('\t-r, --batch <number>              num_of_records_per_req, The number of records per request. Default is 1000.')
+                "\t-l, --colsPerRec <number>         num_of_columns_per_record, The number of columns per record. Default is 3."
+            )
             print(
-                  '\t-t, --numOfTb <number>            num_of_tables, The number of tables. Default is 1.')
-            print('\t-n, --numOfRec <number>           num_of_records_per_table, The number of records per table. Default is 1.')
-            print('\t-c, --config <path>               config_directory, Configuration directory. Default is \'/etc/taos/\'.')
-            print('\t-x, --inserOnly                   flag, Insert only flag.')
-            print('\t-O, --outOfOrder                  out of order data insert, 0: In order, 1: Out of order. Default is in order.')
-            print('\t-R, --rateOOOO <number>           rate, Out of order data\'s rate--if order=1 Default 10, min: 0, max: 50.')
-            print('\t-D, --deleteMethod <number>       Delete data methods 0: don\'t delete, 1: delete by table, 2: delete by stable, 3: delete by database.')
-            print('\t-v, --verbose                     Print verbose output')
-            print('\t-g, --debug                       Print debug output')
+                "\t-d, --dbname <dbname>             database, Destination database. Default is 'test'."
+            )
             print(
-                  '\t-y, --skipPrompt                  Skip read key for continous test, default is not skip')
-            print('')
+                "\t-a, --replica <replications>      replica, Set the replica parameters of the database, Default 1, min: 1, max: 5."
+            )
+            print(
+                "\t-m, --tbname <table prefix>       table_prefix, Table prefix name. Default is 't'."
+            )
+            print(
+                "\t-M, --stable                      flag, Use super table. Default is no"
+            )
+            print(
+                "\t-s, --stbname <stable prefix>     stable_prefix, STable prefix name. Default is 'st'"
+            )
+            print(
+                "\t-Q, --query [NO|EACHTB|command]   query, Execute query command. set 'EACHTB' means select * from each table"
+            )
+            print(
+                "\t-T, --threads <number>            num_of_threads, The number of threads. Default is 1."
+            )
+            print(
+                "\t-C, --processes <number>          num_of_processes, The number of threads. Default is 1."
+            )
+            print(
+                "\t-r, --batch <number>              num_of_records_per_req, The number of records per request. Default is 1000."
+            )
+            print(
+                "\t-t, --numOfTb <number>            num_of_tables, The number of tables. Default is 1."
+            )
+            print(
+                "\t-n, --numOfRec <number>           num_of_records_per_table, The number of records per table. Default is 1."
+            )
+            print(
+                "\t-c, --config <path>               config_directory, Configuration directory. Default is '/etc/taos/'."
+            )
+            print("\t-x, --inserOnly                   flag, Insert only flag.")
+            print(
+                "\t-O, --outOfOrder                  out of order data insert, 0: In order, 1: Out of order. Default is in order."
+            )
+            print(
+                "\t-R, --rateOOOO <number>           rate, Out of order data's rate--if order=1 Default 10, min: 0, max: 50."
+            )
+            print(
+                "\t-D, --deleteMethod <number>       Delete data methods 0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database."
+            )
+            print("\t-v, --verbose                     Print verbose output")
+            print("\t-g, --debug                       Print debug output")
+            print(
+                "\t-y, --skipPrompt                  Skip read key for continous test, default is not skip"
+            )
+            print("")
             sys.exit(0)
 
-        if key in ['-N', '--native']:
+        if key in ["-N", "--native"]:
             try:
                 import taos
             except Exception as e:
@@ -571,104 +592,104 @@ if __name__ == "__main__":
                 sys.exit(1)
             native = True
 
-        if key in ['-h', '--host']:
+        if key in ["-h", "--host"]:
             host = value
 
-        if key in ['-p', '--port']:
+        if key in ["-p", "--port"]:
             port = int(value)
 
-        if key in ['-u', '--user']:
+        if key in ["-u", "--user"]:
             user = value
 
-        if key in ['-P', '--password']:
+        if key in ["-P", "--password"]:
             password = value
         else:
             password = defaultPass
 
-        if key in ['-d', '--dbname']:
+        if key in ["-d", "--dbname"]:
             dbName = value
 
-        if key in ['-a', '--replica']:
+        if key in ["-a", "--replica"]:
             replica = int(value)
             if replica < 1:
                 print("FATAL: number of replica need > 0")
                 sys.exit(1)
 
-        if key in ['-m', '--tbname']:
+        if key in ["-m", "--tbname"]:
             tbName = value
 
-        if key in ['-M', '--stable']:
+        if key in ["-M", "--stable"]:
             useStable = True
             numOfStb = 1
 
-        if key in ['-s', '--stbname']:
+        if key in ["-s", "--stbname"]:
             stbName = value
 
-        if key in ['-Q', '--query']:
+        if key in ["-Q", "--query"]:
             queryCmd = str(value)
 
-        if key in ['-T', '--threads']:
+        if key in ["-T", "--threads"]:
             threads = int(value)
             if threads < 1:
                 print("FATAL: number of threads must be larger than 0")
                 sys.exit(1)
 
-        if key in ['-C', '--processes']:
+        if key in ["-C", "--processes"]:
             processes = int(value)
             if processes < 1:
                 print("FATAL: number of processes must be larger than 0")
                 sys.exit(1)
 
-        if key in ['-r', '--batch']:
+        if key in ["-r", "--batch"]:
             batch = int(value)
 
-        if key in ['-l', '--colsPerRec']:
+        if key in ["-l", "--colsPerRec"]:
             colsPerRec = int(value)
 
-        if key in ['-t', '--numOfTb']:
+        if key in ["-t", "--numOfTb"]:
             numOfTb = int(value)
             v_print("numOfTb is %d", numOfTb)
 
-        if key in ['-n', '--numOfRec']:
+        if key in ["-n", "--numOfRec"]:
             numOfRec = int(value)
             v_print("numOfRec is %d", numOfRec)
             if numOfRec < 1:
                 print("FATAL: number of records must be larger than 0")
                 sys.exit(1)
 
-
-        if key in ['-c', '--config']:
+        if key in ["-c", "--config"]:
             configDir = value
             v_print("config dir: %s", configDir)
 
-        if key in ['-x', '--insertOnly']:
+        if key in ["-x", "--insertOnly"]:
             insertOnly = True
             v_print("insert only: %d", insertOnly)
 
-        if key in ['-O', '--outOfOrder']:
+        if key in ["-O", "--outOfOrder"]:
             outOfOrder = int(value)
             v_print("out of order is %d", outOfOrder)
 
-        if key in ['-R', '--rateOOOO']:
+        if key in ["-R", "--rateOOOO"]:
             rateOOOO = int(value)
             v_print("the rate of out of order is %d", rateOOOO)
 
-        if key in ['-D', '--deleteMethod']:
+        if key in ["-D", "--deleteMethod"]:
             deleteMethod = int(value)
             if (deleteMethod < 0) or (deleteMethod > 3):
                 print(
-                    "inputed delete method is %d, valid value is 0~3, set to default 0" %
-                    deleteMethod)
+                    "inputed delete method is %d, valid value is 0~3, set to default 0"
+                    % deleteMethod
+                )
                 deleteMethod = 0
             v_print("the delete method is %d", deleteMethod)
 
-        if key in ['-v', '--verbose']:
+        if key in ["-v", "--verbose"]:
             verbose = True
 
-        if key in ['-g', '--debug']:
+        if key in ["-g", "--debug"]:
             debug = True
 
-        if key in ['-y', '--skipPrompt']:
+        if key in ["-y", "--skipPrompt"]:
             skipPrompt = True
 
     if verbose:
@@ -679,13 +700,11 @@ if __name__ == "__main__":
 
     # establish connection first if native
     if native:
-        v_print("host:%s, user:%s passwd:%s configDir:%s ", host, user, password, configDir)
+        v_print("host:%s, user:%s passwd:xxxxxx configDir:%s ", host, user, configDir)
         try:
             conn = taos.connect(
-                host=host,
-                user=user,
-                password=password,
-                config=configDir)
+                host=host, user=user, password=password, config=configDir
+            )
             v_print("conn: %s", str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
@@ -705,7 +724,7 @@ if __name__ == "__main__":
             drop_tables()
             print("Drop tables done.")
         elif deleteMethod == 2:
-            drop_stables()
+            drop_stable()
             print("Drop super tables done.")
         elif deleteMethod == 3:
             drop_databases()
@@ -725,7 +744,7 @@ if __name__ == "__main__":
 
     if numOfStb > 0:
         create_stb()
-        if (autosubtable == False):
+        if autosubtable is False:
             create_tb_using_stb()
     else:
         create_tb()
@@ -734,7 +753,9 @@ if __name__ == "__main__":
         end_time = time.time()
         print(
             "Total time consumed {} seconds for create table.".format(
-            (end_time - start_time_begin)))
+                (end_time - start_time_begin)
+            )
+        )
 
     if native:
         cursor.close()
@@ -758,10 +779,8 @@ if __name__ == "__main__":
 
     remainder = numOfTb % processes
     v_print(
-        "num of tables: %d, quotient: %d, remainder: %d",
-        numOfTb,
-        quotient,
-        remainder)
+        "num of tables: %d, quotient: %d, remainder: %d", numOfTb, quotient, remainder
+    )
 
     for i in range(processes):
         begin = end
@@ -770,7 +789,15 @@ if __name__ == "__main__":
             end = begin + quotient + 1
         else:
             end = begin + quotient
-        pool.apply_async(insert_data_process, args=(lock, i, begin, end,))
+        pool.apply_async(
+            insert_data_process,
+            args=(
+                lock,
+                i,
+                begin,
+                end,
+            ),
+        )
 
     pool.close()
     pool.join()
@@ -780,8 +807,9 @@ if __name__ == "__main__":
         end_time = time.time()
         print(
             "Total time consumed {} seconds for insert data.".format(
-            (end_time - start_time)))
-
+                (end_time - start_time)
+            )
+        )
 
     # query data
     if queryCmd != "NO":
@@ -790,8 +818,6 @@ if __name__ == "__main__":
 
     if measure:
         end_time = time.time()
-        print(
-            "Total time consumed {} seconds.".format(
-                (end_time - start_time_begin)))
+        print("Total time consumed {} seconds.".format((end_time - start_time_begin)))
 
     print("done")

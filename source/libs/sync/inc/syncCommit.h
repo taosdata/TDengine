@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -51,8 +47,11 @@ extern "C" {
 //
 void syncOneReplicaAdvance(SSyncNode* pSyncNode);
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
-bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index);
-bool syncAgree(SSyncNode* pSyncNode, SyncIndex index);
+
+bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
+
+int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex);
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely);
 
 #ifdef __cplusplus
 }

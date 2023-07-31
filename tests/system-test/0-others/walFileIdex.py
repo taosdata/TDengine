@@ -58,7 +58,7 @@ class TDTestCase:
 
         #stream
         tdSql.execute("drop database if exists source_db;")
-        tdSql.query("create database source_db vgroups 3;")
+        tdSql.query("create database source_db vgroups 3 wal_retention_period 3600;")
         tdSql.query("use source_db")
         tdSql.query("create table if not exists source_db.stb (ts timestamp, k int) tags (a int);")
         tdSql.query("create table source_db.ct1 using source_db.stb tags(1000);create table source_db.ct2 using source_db.stb tags(2000);create table source_db.ct3 using source_db.stb tags(3000);")

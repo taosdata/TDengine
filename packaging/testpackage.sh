@@ -1,13 +1,72 @@
 #!/bin/sh
+
+
+function usage() {
+    echo "$0"
+    echo -e "\t -f test file type,server/client/tools/"
+    echo -e "\t -m pacakage version Type,community/enterprise"
+    echo -e "\t -l package type,lite or not"
+    echo -e "\t -c operation type,x64/arm64"
+    echo -e "\t -v pacakage version,3.0.1.7"
+    echo -e "\t -o pacakage version,3.0.1.7"
+    echo -e "\t -s source Path,web/nas"
+    echo -e "\t -t package Type,tar/rpm/deb"
+    echo -e "\t -h help"
+}
+
+
 #parameter
 scriptDir=$(dirname $(readlink -f $0))
-packgeName=$1
-version=$2
-originPackageName=$3
-originversion=$4
-testFile=$5
-subFile="taos.tar.gz"
+version="3.0.1.7"
+originversion="3.0.1.7"
+testFile="server"
+verMode="communtity"
+sourcePath="nas"
+cpuType="x64"
+lite="true"
+packageType="tar"
+subFile="package.tar.gz"
+while getopts "m:c:f:l:s:o:t:v:h" opt; do
+    case $opt in
+        m)
+            verMode=$OPTARG
+            ;;
+        v)
+            version=$OPTARG
+            ;;
+        f)
+            testFile=$OPTARG
+            ;;
+        l)
+            lite=$OPTARG
+            ;;
+        s)
+            sourcePath=$OPTARG
+            ;;
+        o)
+            originversion=$OPTARG
+            ;;
+        c)
+            cpuType=$OPTARG
+            ;;
+        t)
+            packageType=$OPTARG
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        ?)
+            echo "Invalid option: -$OPTARG"
+            usage
+            exit 0
+            ;;
+    esac
+done
 
+
+
+echo "testFile:${testFile},verMode:${verMode},lite:${lite},cpuType:${cpuType},packageType:${packageType},version-${version},originversion:${originversion},sourcePath:${sourcePath}"
 # Color setting
 RED='\033[41;30m'
 GREEN='\033[1;32m'
@@ -19,20 +78,40 @@ BLUE_DARK='\033[0;34m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
-if [ ${testFile} = "server" ];then
-    tdPath="TDengine-server-${version}"
-    originTdpPath="TDengine-server-${originversion}"
+if [[ ${verMode} = "enterprise" ]];then
+    prePackage="TDengine-enterprise-${testFile}"
+elif [ ${verMode} = "community" ];then
+    prePackage="TDengine-${testFile}"
+fi
+if [ ${lite} = "true" ];then
+    packageLite="-Lite"
+elif [ ${lite} = "false"  ];then
+    packageLite=""
+fi
+if [[ "$packageType" = "tar" ]] ;then
+    packageType="tar.gz"
+fi
+
+tdPath="${prePackage}-${version}"
+originTdpPath="${prePackage}-${originversion}"
+
+packageName="${tdPath}-Linux-${cpuType}${packageLite}.${packageType}"
+originPackageName="${originTdpPath}-Linux-${cpuType}${packageLite}.${packageType}"
+
+if [ "$testFile" == "server" ] ;then
     installCmd="install.sh"
 elif [ ${testFile} = "client" ];then
-    tdPath="TDengine-client-${version}"
-    originTdpPath="TDengine-client-${originversion}"
     installCmd="install_client.sh"    
 elif [ ${testFile} = "tools" ];then
     tdPath="taosTools-${version}"
     originTdpPath="taosTools-${originversion}"
+    packageName="${tdPath}-Linux-${cpuType}${packageLite}.${packageType}"
+    originPackageName="${originTdpPath}-Linux-${cpuType}${packageLite}.${packageType}"    
     installCmd="install-taostools.sh"
 fi
 
+
+echo "tdPath:${tdPath},originTdpPath:${originTdpPath},packageName:${packageName},originPackageName:${originPackageName}"
 function cmdInstall {
 command=$1
 if command -v ${command} ;then
@@ -71,16 +150,23 @@ fi
 function wgetFile {
 
 file=$1
-
-if [ ! -f  ${file}  ];then
-    echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
-    wget https://www.taosdata.com/assets-download/3.0/${file}
-else
-    echoColor  YD "${file} already exists and use new file "
+versionPath=$2
+sourceP=$3
+nasServerIP="192.168.1.213"
+packagePath="/nas/TDengine/v${versionPath}/${verMode}"
+if [ -f  ${file}  ];then
+    echoColor  YD "${file} already exists ,it will delete it and download  it again "
     rm -rf ${file}
-    echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
-    wget https://www.taosdata.com/assets-download/3.0/${file}  
 fi
+
+if [[ ${sourceP} = 'web' ]];then
+    echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
+    wget https://www.taosdata.com/assets-download/3.0/${file}
+elif [[ ${sourceP} = 'nas' ]];then
+    echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
+    scp root@${nasServerIP}:${packagePath}/${file} .
+fi
+
 }
 
 function newPath {
@@ -120,6 +206,10 @@ else
 fi
 
 
+if [[ ${packageName} =~ "server" ]] ;then
+    echoColor BD " pkill -9 taosd "
+    pkill -9 taosd
+fi
 
 
 echoColor G "===== new workroom path ====="
@@ -142,24 +232,25 @@ if [ -d ${installPath}/${tdPath} ] ;then
 fi
 
 echoColor G "===== download  installPackage ====="
-cd ${installPath} && wgetFile ${packgeName}
-cd  ${oriInstallPath}  && wgetFile ${originPackageName}
+cd ${installPath} && wgetFile ${packageName} ${version}  ${sourcePath}
+cd  ${oriInstallPath}  && wgetFile ${originPackageName} ${originversion}   ${sourcePath}
+
 
 cd ${installPath}
 cp -r ${scriptDir}/debRpmAutoInstall.sh   . 
 
-packageSuffix=$(echo ${packgeName}  | awk -F '.' '{print $NF}')
+packageSuffix=$(echo ${packageName}  | awk -F '.' '{print $NF}')
 
 
 if [ ! -f  debRpmAutoInstall.sh  ];then
     echo '#!/usr/bin/expect ' >  debRpmAutoInstall.sh
-    echo 'set packgeName [lindex $argv 0]' >>  debRpmAutoInstall.sh
+    echo 'set packageName [lindex $argv 0]' >>  debRpmAutoInstall.sh
     echo 'set packageSuffix [lindex $argv 1]' >>  debRpmAutoInstall.sh
-    echo 'set timeout 3 ' >>  debRpmAutoInstall.sh
+    echo 'set timeout 30 ' >>  debRpmAutoInstall.sh
     echo 'if { ${packageSuffix} == "deb" } {' >>  debRpmAutoInstall.sh
-    echo '    spawn  dpkg -i ${packgeName} '  >>  debRpmAutoInstall.sh
+    echo '    spawn  dpkg -i ${packageName} '  >>  debRpmAutoInstall.sh
     echo '} elseif { ${packageSuffix} == "rpm"} {' >>  debRpmAutoInstall.sh
-    echo '    spawn rpm -ivh ${packgeName}'  >>  debRpmAutoInstall.sh
+    echo '    spawn rpm -ivh ${packageName}'  >>  debRpmAutoInstall.sh
     echo '}' >>  debRpmAutoInstall.sh
     echo 'expect "*one:"' >>  debRpmAutoInstall.sh
     echo 'send  "\r"' >>  debRpmAutoInstall.sh
@@ -170,36 +261,36 @@ fi
 
 echoColor G "===== instal Package ====="
 
-if [[ ${packgeName} =~ "deb" ]];then
+if [[ ${packageName} =~ "deb" ]];then
     cd ${installPath}
     dpkg -r taostools
     dpkg -r tdengine
-    if [[ ${packgeName} =~ "TDengine" ]];then
-        echoColor BD "./debRpmAutoInstall.sh ${packgeName}  ${packageSuffix}" &&   chmod 755 debRpmAutoInstall.sh &&  ./debRpmAutoInstall.sh  ${packgeName}  ${packageSuffix}
+    if [[ ${packageName} =~ "TDengine" ]];then
+        echoColor BD "./debRpmAutoInstall.sh ${packageName}  ${packageSuffix}" &&   chmod 755 debRpmAutoInstall.sh &&  ./debRpmAutoInstall.sh  ${packageName}  ${packageSuffix}
     else
-        echoColor BD "dpkg  -i ${packgeName}" &&   dpkg  -i ${packgeName}
+        echoColor BD "dpkg  -i ${packageName}" &&   dpkg  -i ${packageName}
     fi
-elif [[ ${packgeName} =~ "rpm" ]];then
+elif [[ ${packageName} =~ "rpm" ]];then
     cd ${installPath}
     sudo rpm -e tdengine
     sudo rpm -e taostools
-    if [[ ${packgeName} =~ "TDengine" ]];then
-        echoColor BD "./debRpmAutoInstall.sh ${packgeName}  ${packageSuffix}" &&   chmod 755 debRpmAutoInstall.sh &&  ./debRpmAutoInstall.sh  ${packgeName}  ${packageSuffix}
+    if [[ ${packageName} =~ "TDengine" ]];then
+        echoColor BD "./debRpmAutoInstall.sh ${packageName}  ${packageSuffix}" &&   chmod 755 debRpmAutoInstall.sh &&  ./debRpmAutoInstall.sh  ${packageName}  ${packageSuffix}
     else
-        echoColor BD "rpm  -ivh ${packgeName}" &&   rpm  -ivh ${packgeName}
+        echoColor BD "rpm  -ivh ${packageName}" &&   rpm  -ivh ${packageName}
     fi
-elif [[ ${packgeName} =~ "tar" ]];then
+elif [[ ${packageName} =~ "tar" ]];then
     echoColor G "===== check installPackage File of tar ====="
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
         echoColor YD "download  base installPackage"
-        wgetFile ${originPackageName}
+        wgetFile ${originPackageName} ${originversion} ${sourcePath} 
     fi
     echoColor YD "unzip the base installation package" 
     echoColor BD "tar -xf ${originPackageName}" && tar -xf ${originPackageName} 
     cd ${installPath} 
     echoColor YD "unzip the new installation package" 
-    echoColor BD "tar -xf ${packgeName}" && tar -xf ${packgeName} 
+    echoColor BD "tar -xf ${packageName}" && tar -xf ${packageName} 
 
     if [ ${testFile} != "tools" ] ;then
         cd ${installPath}/${tdPath} && tar xf ${subFile}
@@ -235,44 +326,49 @@ fi
 
 cd ${installPath}
 
-if [[ ${packgeName} =~ "Lite" ]]  ||   ([[ ${packgeName} =~ "x64" ]] && [[ ${packgeName} =~ "client" ]]) ||  ([[ ${packgeName} =~ "deb" ]] && [[ ${packgeName} =~ "server" ]])  || ([[ ${packgeName} =~ "rpm" ]] && [[ ${packgeName} =~ "server" ]]) ;then
+if [[ ${packageName} =~ "Lite" ]]  ||   ([[ ${packageName} =~ "x64" ]] && [[ ${packageName} =~ "client" ]]) ||  ([[ ${packageName} =~ "deb" ]] && [[ ${packageName} =~ "server" ]])  || ([[ ${packageName} =~ "rpm" ]] && [[ ${packageName} =~ "server" ]]) ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
-    wgetFile taosTools-2.1.3-Linux-x64.tar.gz .
-    tar xf taosTools-2.1.3-Linux-x64.tar.gz
+    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
+        wgetFile taosTools-2.1.3-Linux-x64.tar.gz v2.1.3 web
+        tar xf taosTools-2.1.3-Linux-x64.tar.gz  
+    fi
     cd taosTools-2.1.3 && bash install-taostools.sh
-elif  ([[ ${packgeName} =~ "arm64" ]] && [[ ${packgeName} =~ "client" ]]);then
+elif  ([[ ${packageName} =~ "arm64" ]] && [[ ${packageName} =~ "client" ]]);then
     echoColor G "===== install taos-tools arm when package is arm64-client ====="
     cd ${installPath}
-    wgetFile taosTools-2.1.3-Linux-arm64.tar.gz .
-    tar xf taosTools-2.1.3-Linux-arm64.tar.gz
+    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
+        wgetFile taosTools-2.1.3-Linux-arm64.tar.gz v2.1.3 web
+        tar xf taosTools-2.1.3-Linux-arm64.tar.gz
+    fi    
+    
     cd taosTools-2.1.3 && bash install-taostools.sh
 fi
 
 echoColor G  "===== start TDengine ====="
 
-if [[ ${packgeName} =~ "server" ]] ;then
+if [[ ${packageName} =~ "server" ]] ;then
     echoColor BD " rm -rf /var/lib/taos/* &&  systemctl restart taosd "
     rm -rf /var/lib/taos/*
     systemctl restart taosd
 fi
 
-rm -rf ${installPath}/${packgeName}
+rm -rf ${installPath}/${packageName}
 rm -rf ${installPath}/${tdPath}/
 
-# if ([[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]) ||   [[ ${packgeName} =~ "client" ]] ;then
+# if ([[ ${packageName} =~ "Lite" ]] &&  [[ ${packageName} =~ "tar" ]]) ||   [[ ${packageName} =~ "client" ]] ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
 #     cd ${installPath}
 #     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
 #     tar xf taosTools-2.1.2-Linux-x64.tar.gz
 #     cd taosTools-2.1.2 && bash install-taostools.sh
-# elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "deb" ]] ;then
+# elif [[ ${packageName} =~ "Lite" ]] &&  [[ ${packageName} =~ "deb" ]] ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
 #     cd ${installPath}
 #     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
 #     tar xf taosTools-2.1.2-Linux-x64.tar.gz
 #     cd taosTools-2.1.2 && bash install-taostools.sh
-# elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "rpm" ]]  ;then
+# elif [[ ${packageName} =~ "Lite" ]] &&  [[ ${packageName} =~ "rpm" ]]  ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
 #     cd ${installPath}
 #     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .

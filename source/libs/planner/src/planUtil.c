@@ -51,6 +51,7 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       }
       return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
     }
+    case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
@@ -138,7 +139,10 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
     pScan->scanType = SCAN_TYPE_TABLE_MERGE;
   }
-  pScan->node.resultDataOrder = requirement;
+
+  if (TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType) {
+    pScan->node.resultDataOrder = requirement;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -197,6 +201,15 @@ static int32_t adjustStateDataRequirement(SWindowLogicNode* pWindow, EDataOrderL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustEventDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  pWindow->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   switch (pWindow->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -205,6 +218,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustSessionDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_STATE:
       return adjustStateDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_EVENT:
+      return adjustEventDataRequirement(pWindow, requirement);
     default:
       break;
   }
@@ -233,8 +248,7 @@ static int32_t adjustPartitionDataRequirement(SPartitionLogicNode* pPart, EDataO
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   pPart->node.resultDataOrder = requirement;
-  pPart->node.requireDataOrder =
-      (requirement >= DATA_ORDER_LEVEL_IN_BLOCK ? DATA_ORDER_LEVEL_GLOBAL : DATA_ORDER_LEVEL_NONE);
+  pPart->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -307,3 +321,57 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
   }
   return code;
 }
+
+static bool stbNotSystemScan(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return SCAN_TYPE_SYSTEM_TABLE != ((SScanLogicNode*)pNode)->scanType;
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return stbNotSystemScan((SLogicNode*)nodesListGetNode(pNode->pChildren, 0));
+  } else {
+    return true;
+  }
+}
+
+static bool stbHasPartTbname(SNodeList* pPartKeys) {
+  if (NULL == pPartKeys) {
+    return false;
+  }
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pPartKeys) {
+    if (QUERY_NODE_GROUPING_SET == nodeType(pPartKey)) {
+      pPartKey = nodesListGetNode(((SGroupingSetNode*)pPartKey)->pParameterList, 0);
+    }
+    if ((QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType) ||
+        (QUERY_NODE_COLUMN == nodeType(pPartKey) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pPartKey)->colType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static SNodeList* stbSplGetPartKeys(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return ((SScanLogicNode*)pNode)->pGroupTags;
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return ((SPartitionLogicNode*)pNode)->pPartitionKeys;
+  } else {
+    return NULL;
+  }
+}
+
+bool isPartTableAgg(SAggLogicNode* pAgg) {
+  if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
+    return false;
+  }
+  if (NULL != pAgg->pGroupKeys) {
+    return stbHasPartTbname(pAgg->pGroupKeys) &&
+           stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
+  }
+  return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
+}
+
+bool isPartTableWinodw(SWindowLogicNode* pWindow) {
+  return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+}
+
+

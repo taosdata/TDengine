@@ -120,6 +120,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
   FUNCTION_TYPE_IROWTS,
+  FUNCTION_TYPE_ISFILLED,
   FUNCTION_TYPE_TAGS,
 
   // internal function
@@ -130,6 +131,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_GROUP_KEY,
   FUNCTION_TYPE_CACHE_LAST_ROW,
   FUNCTION_TYPE_CACHE_LAST,
+  FUNCTION_TYPE_TABLE_COUNT,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -155,6 +157,17 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_AVG_MERGE,
   FUNCTION_TYPE_STDDEV_PARTIAL,
   FUNCTION_TYPE_STDDEV_MERGE,
+
+  // geometry functions
+  FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
+  FUNCTION_TYPE_AS_TEXT,
+  FUNCTION_TYPE_MAKE_POINT,
+  FUNCTION_TYPE_INTERSECTS,
+  FUNCTION_TYPE_EQUALS,
+  FUNCTION_TYPE_TOUCHES,
+  FUNCTION_TYPE_COVERS,
+  FUNCTION_TYPE_CONTAINS,
+  FUNCTION_TYPE_CONTAINS_PROPERLY,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
@@ -187,7 +200,7 @@ bool fmIsScalarFunc(int32_t funcId);
 bool fmIsVectorFunc(int32_t funcId);
 bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
-bool fmIsDatetimeFunc(int32_t funcId);
+bool fmIsDateTimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
@@ -203,7 +216,7 @@ bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
 bool fmIsForbidStreamFunc(int32_t funcId);
-bool fmIsForbidSuperTableFunc(int32_t funcId);
+bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
@@ -217,16 +230,19 @@ bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
+bool fmIsBlockDistFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
-  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_SMA_LOAD,
   FUNC_DATA_REQUIRED_NOT_LOAD,
   FUNC_DATA_REQUIRED_FILTEROUT,
+  FUNC_DATA_REQUIRED_ALL_FILTEROUT,
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
@@ -238,6 +254,7 @@ int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 bool    fmIsInvertible(int32_t funcId);
+char*   fmGetFuncName(int32_t funcId);
 
 #ifdef __cplusplus
 }

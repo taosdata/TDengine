@@ -1,0 +1,23 @@
+{
+    "filetype": "subscribe",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "tmq_info": {
+        "concurrent": 1,
+        "poll_delay": 10000,
+        "group.id": "grpId_0",
+        "client.id": "clientId",
+        "auto.offset.reset": "earliest",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": 1000,
+        "experimental.snapshot.enable": "true",
+        "msg.with.table.name": "false",
+        "topic_list": [
+            {"name": "tmq_topic_1", "sql": "select  current,voltage,phase from test.meters where voltage <= 106 ;"}
+        ]
+    }
+}

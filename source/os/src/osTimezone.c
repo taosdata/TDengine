@@ -744,9 +744,9 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
                            enum TdTimezone *tsTimezone) {
   if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) return;
 
-  char *buf = taosMemoryMalloc(strlen(inTimezoneStr) + 1);
-  buf[strlen(inTimezoneStr)] = 0;
-  for (int32_t i = 0; i < strlen(inTimezoneStr); i++) {
+  size_t len = strlen(inTimezoneStr);
+  char  *buf = taosMemoryCalloc(len + 1, 1);
+  for (int32_t i = 0; i < len; i++) {
     if (inTimezoneStr[i] == ' ' || inTimezoneStr[i] == '(') {
       buf[i] = 0;
       break;
@@ -893,7 +893,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  taosLocalTime(&tx1, &tm1);
+  taosLocalTime(&tx1, &tm1, NULL);
   daylight = tm1.tm_isdst;
 
   /*
@@ -909,7 +909,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   char  buf[4096] = {0};
   char *tz = NULL;
   {
-    int n = readlink("/etc/localtime", buf, sizeof(buf));
+    int n = readlink("/etc/localtime", buf, sizeof(buf)-1);
     if (n < 0) {
       printf("read /etc/localtime error, reason:%s", strerror(errno));
 
@@ -921,7 +921,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
          */
         time_t    tx1 = taosGetTimestampSec();
         struct tm tm1;
-        taosLocalTime(&tx1, &tm1);
+        taosLocalTime(&tx1, &tm1, NULL);
         /* load time zone string from /etc/timezone */
         // FILE *f = fopen("/etc/timezone", "r");
         errno = 0;
@@ -1008,7 +1008,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  taosLocalTime(&tx1, &tm1);
+  taosLocalTime(&tx1, &tm1, NULL);
 
   /*
    * format example:

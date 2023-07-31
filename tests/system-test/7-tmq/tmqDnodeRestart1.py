@@ -54,6 +54,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1,wal_retention_size=-1, wal_retention_period=-1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -120,7 +121,7 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("create some new child table and insert data for latest mode")
         paraDict["batchNum"] = 100
@@ -149,6 +150,8 @@ class TDTestCase:
 
         tmqCom.waitSubscriptionExit(tdSql, topicFromStb)
         tdSql.query("drop topic %s"%topicFromStb)
+        
+        tmqCom.stopTmqSimProcess(processorName="tmq_sim")
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
@@ -178,6 +181,8 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
+        
+        tmqCom.initConsumerTable()
    
         tdLog.info("create topics from stb")
         topicFromDb = 'topic_db'
@@ -200,13 +205,13 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("create some new child table and insert data for latest mode")
-        paraDict["batchNum"] = 100
+        paraDict["batchNum"] = 10
         paraDict["ctbPrefix"] = 'newCtb'
-        paraDict["ctbNum"]     = 10
-        paraDict["rowsPerTbl"] = 10
+        paraDict["ctbNum"]     = 100
+        paraDict["rowsPerTbl"] = 100
         tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
 
         tdLog.info("================= restart dnode ===========================")

@@ -21,8 +21,6 @@ extern "C" {
 #endif
 #include "catalog.h"
 
-typedef void STableDataBlocks;
-
 typedef enum {
   STMT_TYPE_INSERT = 1,
   STMT_TYPE_MULTI_INSERT,
@@ -43,8 +41,8 @@ typedef enum {
 } STMT_STATUS;
 
 typedef struct SStmtTableCache {
-  STableDataBlocks *pDataBlock;
-  void             *boundTags;
+  STableDataCxt *pDataCtx;
+  void          *boundTags;
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
@@ -71,10 +69,11 @@ typedef struct SStmtBindInfo {
 } SStmtBindInfo;
 
 typedef struct SStmtExecInfo {
-  int32_t      affectedRows;
-  SRequestObj *pRequest;
-  SHashObj    *pBlockHash;
-  bool         autoCreateTbl;
+  int32_t        affectedRows;
+  SRequestObj   *pRequest;
+  SHashObj      *pBlockHash;
+  STableDataCxt *pCurrBlock;
+  SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 
 typedef struct SStmtSQLInfo {
@@ -101,11 +100,19 @@ typedef struct STscStmt {
   SStmtSQLInfo  sql;
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
+
+  int64_t reqid;
+  int32_t errCode;
 } STscStmt;
 
 extern char *gStmtStatusStr[];
 
-#define STMT_LOG_SEQ(n) do { (pStmt)->seqId++; (pStmt)->seqIds[n]++; STMT_DLOG("the %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmtStatusStr[n]); } while (0)
+#define STMT_LOG_SEQ(n)                                                                 \
+  do {                                                                                  \
+    (pStmt)->seqId++;                                                                   \
+    (pStmt)->seqIds[n]++;                                                               \
+    STMT_DLOG("the %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmtStatusStr[n]); \
+  } while (0)
 
 #define STMT_STATUS_NE(S) (pStmt->sql.status != STMT_##S)
 #define STMT_STATUS_EQ(S) (pStmt->sql.status == STMT_##S)
@@ -115,6 +122,7 @@ extern char *gStmtStatusStr[];
     int32_t _code = c;                \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
+      pStmt->errCode = _code;         \
       return _code;                   \
     }                                 \
   } while (0)
@@ -123,6 +131,7 @@ extern char *gStmtStatusStr[];
     int32_t _code = c;                \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
+      pStmt->errCode = _code;         \
     }                                 \
     return _code;                     \
   } while (0)
@@ -131,9 +140,19 @@ extern char *gStmtStatusStr[];
     code = c;                        \
     if (code != TSDB_CODE_SUCCESS) { \
       terrno = code;                 \
+      pStmt->errCode = code;         \
       goto _return;                  \
     }                                \
   } while (0)
+#define STMT_ERRI_JRET(c)            \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
 
 #define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
@@ -141,7 +160,7 @@ extern char *gStmtStatusStr[];
 #define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
 #define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
 
-TAOS_STMT  *stmtInit(STscObj *taos);
+TAOS_STMT  *stmtInit(STscObj *taos, int64_t reqid);
 int         stmtClose(TAOS_STMT *stmt);
 int         stmtExec(TAOS_STMT *stmt);
 const char *stmtErrstr(TAOS_STMT *stmt);

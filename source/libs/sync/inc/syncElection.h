@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // TLA+ Spec
 // RequestVote(i, j) ==
@@ -38,9 +34,7 @@ extern "C" {
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeElect(SSyncNode* pSyncNode);
-int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode);
-int32_t syncNodeSendRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg);
+int32_t syncNodeElect(SSyncNode* pNode);
 
 #ifdef __cplusplus
 }

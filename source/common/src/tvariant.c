@@ -109,7 +109,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
     }
     case TSDB_DATA_TYPE_FLOAT: {
       pVar->nLen = tDataTypes[type].bytes;
-      pVar->d = GET_FLOAT_VAL(pz);
+      pVar->f = GET_FLOAT_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {  // here we get the nchar length from raw binary bits length
@@ -121,7 +121,8 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
 
       break;
     }
-    case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {  // todo refactor, extract a method
       pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
@@ -140,24 +141,11 @@ void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR ||
-      pVar->nType == TSDB_DATA_TYPE_JSON) {
+      pVar->nType == TSDB_DATA_TYPE_JSON || pVar->nType == TSDB_DATA_TYPE_GEOMETRY) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
 
-  // NOTE: this is only for string array
-  if (pVar->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {
-    size_t num = taosArrayGetSize(pVar->arr);
-    for (size_t i = 0; i < num; i++) {
-      void *p = taosArrayGetP(pVar->arr, i);
-      taosMemoryFree(p);
-    }
-    taosArrayDestroy(pVar->arr);
-    pVar->arr = NULL;
-  } else if (pVar->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
-    taosArrayDestroy(pVar->arr);
-    pVar->arr = NULL;
-  }
 }
 
 void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
@@ -165,10 +153,10 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
 
   pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR ||
-      pSrc->nType == TSDB_DATA_TYPE_JSON) {
+      pSrc->nType == TSDB_DATA_TYPE_JSON || pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
-    assert(p);
+    ASSERT(p);
 
     memset(p, 0, len);
     pDst->pz = p;
@@ -180,28 +168,8 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
 
   if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i = pSrc->i;
-  } else if (pSrc->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {  // this is only for string array
-    size_t num = taosArrayGetSize(pSrc->arr);
-    pDst->arr = taosArrayInit(num, sizeof(char *));
-    for (size_t i = 0; i < num; i++) {
-      char *p = (char *)taosArrayGetP(pSrc->arr, i);
-      char *n = strdup(p);
-      taosArrayPush(pDst->arr, &n);
-    }
-  } else if (pSrc->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
-    size_t num = taosArrayGetSize(pSrc->arr);
-    pDst->arr = taosArrayInit(num, sizeof(int64_t));
-    pDst->nLen = pSrc->nLen;
-    assert(pSrc->nLen == num);
-    for (size_t i = 0; i < num; i++) {
-      int64_t *p = taosArrayGet(pSrc->arr, i);
-      taosArrayPush(pDst->arr, p);
-    }
   }
 
-  if (pDst->nType != TSDB_DATA_TYPE_POINTER_ARRAY && pDst->nType != TSDB_DATA_TYPE_VALUE_ARRAY) {
-    pDst->nLen = tDataTypes[pDst->nType].bytes;
-  }
 }
 
 int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
@@ -217,17 +185,23 @@ int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
     return 1;
   }
 
-  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR || p1->nType == TSDB_DATA_TYPE_GEOMETRY) {
     if (p1->nLen == p2->nLen) {
       return memcmp(p1->pz, p2->pz, p1->nLen);
     } else {
       return p1->nLen > p2->nLen ? 1 : -1;
     }
-  } else if (p1->nType == TSDB_DATA_TYPE_FLOAT || p1->nType == TSDB_DATA_TYPE_DOUBLE) {
+  } else if (p1->nType == TSDB_DATA_TYPE_DOUBLE) {
     if (p1->d == p2->d) {
       return 0;
     } else {
       return p1->d > p2->d ? 1 : -1;
+    }
+  } else if (p1->nType == TSDB_DATA_TYPE_FLOAT) {
+    if (p1->f == p2->f) {
+      return 0;
+    } else {
+      return p1->f > p2->f ? 1 : -1;
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(p1->nType)) {
     if (p1->u == p2->u) {
@@ -259,10 +233,12 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
     case TSDB_DATA_TYPE_UBIGINT:
       return (char *)&pVar->u;
     case TSDB_DATA_TYPE_DOUBLE:
-    case TSDB_DATA_TYPE_FLOAT:
       return (char *)&pVar->d;
+    case TSDB_DATA_TYPE_FLOAT:
+      return (char *)&pVar->f;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (char *)pVar->pz;
     case TSDB_DATA_TYPE_NCHAR:
       return (char *)pVar->ucs4;

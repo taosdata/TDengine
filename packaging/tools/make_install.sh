@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # This file is used to install TAOS time-series database on linux systems. The operating system
 # is required to use systemd to manage services at boot
@@ -200,6 +200,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/*explorer ] && ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
@@ -212,6 +213,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/*explorer ] && ${csudo}ln -s ${install_main_dir}/bin/*explorer ${bin_link_dir}/*explorer > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} > /dev/null 2>&1 || :
   fi
 }
@@ -239,10 +241,10 @@ function install_jemalloc() {
       ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
       ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so > /dev/null 2>&1
       ${csudo}/usr/bin/install -c -d /usr/local/lib
-      [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
-      [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
+      # [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
+      #   ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
+      # [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
+      #   ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
       if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
         ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
         ${csudo}/usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc \
@@ -340,7 +342,7 @@ function install_lib() {
   #install_avro lib64
 
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}ldconfig
+    ${csudo}ldconfig /etc/ld.so.conf.d
   fi
 }
 
@@ -428,12 +430,6 @@ function install_connector() {
 
 function install_examples() {
   ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || :
-}
-
-function install_web() {
-  if [ -d "${binary_dir}/build/share" ]; then
-    ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || :
-  fi
 }
 
 function clean_service_on_sysvinit() {
@@ -531,13 +527,13 @@ function install_taosadapter_service() {
 }
 
 function install_service_on_launchctl() {
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
   ${csudo}cp ${script_dir}/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist
-  ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+  ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
 
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
   ${csudo}cp ${script_dir}/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist
-  ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+  ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
 }
 
 function install_service() {
@@ -590,7 +586,6 @@ function update_TDengine() {
   install_lib
   #  install_connector
   install_examples
-  install_web
   install_bin
   install_app
 
@@ -606,23 +601,23 @@ function update_TDengine() {
 
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
   [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-    echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+    echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+      echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+      echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
   else
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start Adapter ${NC}: taosadapter &${NC}"
     else
       echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
+      echo -e "${GREEN_DARK}To start Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
     fi
   fi
 
@@ -658,23 +653,23 @@ function install_TDengine() {
   echo
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
   [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-    echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+    echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+      echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}    ${NC}: ${csudo}service ${serverName} start${NC}"
     [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+      echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
   else
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start Adapter ${NC}: taosadapter &${NC}"
     else
       echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
+      echo -e "${GREEN_DARK}To start Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
     fi
   fi
 

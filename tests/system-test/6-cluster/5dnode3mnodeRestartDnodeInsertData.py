@@ -161,6 +161,19 @@ class TDTestCase:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
+        
+        for i in range(5):
+            clusterComCreate.createUser(newTdSql,f"user{i}",f"pass{i}")
+            userTdSql=tdCom.newTdSql(user=f"user{i}",password=f"pass{i}")
+            clusterComCreate.alterUser(userTdSql,f"user{i}",f"pass{i+1}")
+            clusterComCreate.deleteUser(newTdSql,f"user{i}")
+        for j in range(5):
+            i=100
+            clusterComCreate.createUser(newTdSql,f"user{i}",f"pass{i}")
+            userTdSql=tdCom.newTdSql(user=f"user{i}",password=f"pass{i}")
+            clusterComCreate.alterUser(userTdSql,f"user{i}",f"pass{i+1}")
+            clusterComCreate.deleteUser(newTdSql,f"user{i}")
+
         for tr in threads:
             tr.start()
         for tr in threads:

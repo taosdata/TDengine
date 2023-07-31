@@ -64,19 +64,13 @@ public class TestAll {
 
     @Test
     public void testSubscribe() {
-
-        Thread thread = new Thread(() -> {
-            try {
-                Thread.sleep(1000);
-                insertData();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        });
-        thread.start();
         SubscribeDemo.main(args);
+    }
+
+
+    @Test
+    public void testSubscribeOverWebsocket() {
+        WebsocketSubscribeDemo.main(args);
     }
 
     @Test

@@ -1,0 +1,47 @@
+---
+title: 从 Kafka 写入
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import PyKafka from "./_py_kafka.mdx";
+
+## Kafka 介绍
+
+Apache Kafka 是开源的分布式消息分发平台，被广泛应用于高性能数据管道、流式数据分析、数据集成和事件驱动类型的应用程序。Kafka 包含 Producer、Consumer 和 Topic，其中 Producer 是向 Kafka 发送消息的进程，Consumer 是从 Kafka 消费消息的进程。Kafka 相关概念可以参考[官方文档](https://kafka.apache.org/documentation/#gettingStarted)。
+
+
+### kafka topic
+
+Kafka 的消息按 topic 组织，每个 topic 会有一到多个 partition。可以通过 kafka 的 `kafka-topics` 管理 topic。
+
+创建名为 `kafka-events` 的topic:
+
+```
+bin/kafka-topics.sh --create --topic kafka-events --bootstrap-server localhost:9092
+```
+
+修改 `kafka-events` 的 partition 数量为 3:
+
+```
+bin/kafka-topics.sh --alter --topic kafka-events --partitions 3 --bootstrap-server=localhost:9092
+```
+
+展示所有的 topic 和 partition:
+
+```
+bin/kafka-topics.sh --bootstrap-server=localhost:9092 --describe
+```
+
+## 写入 TDengine
+
+TDengine 支持 Sql 方式和 Schemaless 方式的数据写入，Sql 方式数据写入可以参考 [TDengine SQL 写入](/develop/insert-data/sql-writing/) 和 [TDengine 高效写入](/develop/insert-data/high-volume/)。Schemaless 方式数据写入可以参考 [TDengine Schemaless 写入](/reference/schemaless/) 文档。
+
+## 示例代码
+
+<Tabs defaultValue="Python" groupId="lang">
+  <TabItem label="Python" value="Python">
+    <PyKafka />
+  </TabItem>
+</Tabs>
+

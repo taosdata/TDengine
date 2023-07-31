@@ -39,11 +39,7 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$OS_TYPE" != "Darwin" ]]; then
-  cut_opt="--field="
-else
-  cut_opt="-f "
-fi
+cut_opt="-f "
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
   BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
@@ -122,7 +118,7 @@ echo "statusInterval         1"                  >> $TAOS_CFG
 echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
 echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
 echo "debugFlag              0"                  >> $TAOS_CFG
-echo "tmrDebugFlag           131"                >> $TAOS_CFG
+echo "tmrDebugFlag           143"                >> $TAOS_CFG
 echo "uDebugFlag             143"                >> $TAOS_CFG
 echo "rpcDebugFlag           143"                >> $TAOS_CFG
 echo "jniDebugFlag           143"                >> $TAOS_CFG
@@ -134,6 +130,7 @@ echo "mDebugFlag             143"                >> $TAOS_CFG
 echo "wDebugFlag             143"                >> $TAOS_CFG
 echo "sDebugFlag             143"                >> $TAOS_CFG
 echo "tsdbDebugFlag          143"                >> $TAOS_CFG
+echo "tdbDebugFlag           143"                >> $TAOS_CFG
 echo "tqDebugFlag            143"                >> $TAOS_CFG
 echo "fsDebugFlag            143"                >> $TAOS_CFG
 echo "idxDebugFlag           143"                >> $TAOS_CFG

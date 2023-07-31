@@ -121,7 +121,16 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeCur = -1;
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, failed to init taosArray of fileInfoSet due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+           pWal->path);
+    goto _err;
+  }
+
+  // init gc
+  pWal->toDeleteFiles = taosArrayInit(8, sizeof(SWalFileInfo));
+  if (pWal->toDeleteFiles == NULL) {
+    wError("vgId:%d, failed to init taosArray of toDeleteFiles due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+           pWal->path);
     goto _err;
   }
 
@@ -168,19 +177,25 @@ _err:
 }
 
 int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
-  if (pWal == NULL) return TSDB_CODE_WAL_APP_ERROR;
+  if (pWal == NULL) return TSDB_CODE_APP_ERROR;
 
-  if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod) {
-    wDebug("vgId:%d, old walLevel:%d fsync:%d, new walLevel:%d fsync:%d not change", pWal->cfg.vgId, pWal->cfg.level,
-           pWal->cfg.fsyncPeriod, pCfg->level, pCfg->fsyncPeriod);
+  if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod &&
+      pWal->cfg.retentionPeriod == pCfg->retentionPeriod && pWal->cfg.retentionSize == pCfg->retentionSize) {
+    wDebug("vgId:%d, walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64 " not change",
+           pWal->cfg.vgId, pWal->cfg.level, pWal->cfg.fsyncPeriod, pWal->cfg.retentionPeriod, pWal->cfg.retentionSize);
     return 0;
   }
 
-  wInfo("vgId:%d, change old walLevel:%d fsync:%d, new walLevel:%d fsync:%d", pWal->cfg.vgId, pWal->cfg.level,
-        pWal->cfg.fsyncPeriod, pCfg->level, pCfg->fsyncPeriod);
+  wInfo("vgId:%d, change old walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64
+        ", new walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64,
+        pWal->cfg.vgId, pWal->cfg.level, pWal->cfg.fsyncPeriod, pWal->cfg.retentionPeriod, pWal->cfg.retentionSize,
+        pCfg->level, pCfg->fsyncPeriod, pCfg->retentionPeriod, pCfg->retentionSize);
 
   pWal->cfg.level = pCfg->level;
   pWal->cfg.fsyncPeriod = pCfg->fsyncPeriod;
+  pWal->cfg.retentionPeriod = pCfg->retentionPeriod;
+  pWal->cfg.retentionSize = pCfg->retentionSize;
+
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
@@ -203,7 +218,18 @@ void walClose(SWal *pWal) {
   pWal->pIdxFile = NULL;
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+  taosArrayDestroy(pWal->toDeleteFiles);
+  pWal->toDeleteFiles = NULL;
+
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = *(SWalRef **)pIter;
+    taosMemoryFree(pRef);
+  }
   taosHashCleanup(pWal->pRefHash);
+  pWal->pRefHash = NULL;
   taosThreadMutexUnlock(&pWal->mutex);
 
   taosRemoveRef(tsWal.refSetId, pWal->refId);
@@ -243,7 +269,7 @@ static void walFsyncAll() {
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-               strerror(code));
+               strerror(errno));
       }
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);

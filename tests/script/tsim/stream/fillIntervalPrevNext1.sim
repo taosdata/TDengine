@@ -1,0 +1,559 @@
+$loop_all = 0
+looptest:
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+#==system sh/exec.sh -n dnode1 -s start -v
+
+sleep 1000
+sql connect
+
+
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+sql drop database if exists test7;
+sql create database test7  vgroups 1;
+sql use test7;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt7 as select  _wstart as ts, max(a), b+c, s  from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt8 as select  _wstart as ts, max(a), 1, b+1 from t1 where ts >= 1648791150000 and ts < 1648791261000 interval(1s) fill(next);
+sql insert into t1 values(1648791215000,1,1,1,1.0,'aaa');
+sql insert into t1 values(1648791217000,2,2,2,2.0,'bbb');
+sql insert into t1 values(1648791211000,3,3,3,3.0,'ccc');
+sql insert into t1 values(1648791213000,4,4,4,4.0,'ddd');
+
+
+$loop_count = 0
+
+loop7:
+sleep 1000
+sql select * from streamt7 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+
+if $rows != 7 then
+  print =====rows=$rows
+  goto loop7
+endi
+
+
+if $data01 != 3 then
+  print =====data01=$data01
+  goto loop7
+endi
+if $data02 != 6.000000000 then
+  print =====data02=$data02
+  goto loop7
+endi
+if $data03 != ccc then
+  print =====data03=$data03
+  goto loop7
+endi
+
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop7
+endi
+if $data12 != 6.000000000 then
+  print =====data12=$data12
+  goto loop7
+endi
+if $data13 != ccc then
+  print =====data13=$data13
+  goto loop7
+endi
+
+
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop7
+endi
+if $data22 != 8.000000000 then
+  print =====data22=$data22
+  goto loop7
+endi
+if $data23 != ddd then
+  print =====data23=$data23
+  goto loop7
+endi
+
+
+if $data31 != 4 then
+  print =====data31=$data31
+  goto loop7
+endi
+if $data32 != 8.000000000 then
+  print =====data32=$data32
+  goto loop7
+endi
+if $data33 != ddd then
+  print =====data33=$data33
+  goto loop7
+endi
+
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop7
+endi
+if $data42 != 2.000000000 then
+  print =====data42=$data42
+  goto loop7
+endi
+if $data43 != aaa then
+  print =====data43=$data43
+  goto loop7
+endi
+
+
+if $data51 != 1 then
+  print =====data51=$data51
+  goto loop7
+endi
+if $data52 != 2.000000000 then
+  print =====data52=$data52
+  goto loop7
+endi
+if $data53 != aaa then
+  print =====data53=$data53
+  goto loop7
+endi
+
+
+if $data61 != 2 then
+  print =====data61=$data61
+  goto loop7
+endi
+if $data62 != 4.000000000 then
+  print =====data62=$data62
+  goto loop7
+endi
+if $data63 != bbb then
+  print =====data63=$data63
+  goto loop7
+endi
+
+#--------------
+
+loop71:
+
+$loop_count = 0
+sleep 1000
+
+sql select * from streamt8 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 7 then
+  print =====rows=$rows
+  goto loop71
+endi
+
+
+if $data01 != 3 then
+  print =====data01=$data01
+  goto loop71
+endi
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop71
+endi
+if $data03 != 4.000000000 then
+  print =====data03=$data03
+  goto loop71
+endi
+
+if $data11 != 4 then
+  print =====data11=$data11
+  goto loop71
+endi
+if $data12 != 1 then
+  print =====data12=$data12
+  goto loop71
+endi
+if $data13 != 5.000000000 then
+  print =====data13=$data13
+  goto loop71
+endi
+
+
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop71
+endi
+if $data22 != 1 then
+  print =====data22=$data22
+  goto loop71
+endi
+if $data23 != 5.000000000 then
+  print =====data23=$data23
+  goto loop71
+endi
+
+
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop71
+endi
+if $data32 != 1 then
+  print =====data32=$data32
+  goto loop71
+endi
+if $data33 != 2.000000000 then
+  print =====data33=$data33
+  goto loop71
+endi
+
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop71
+endi
+if $data42 != 1 then
+  print =====data42=$data42
+  goto loop71
+endi
+if $data43 != 2.000000000 then
+  print =====data43=$data43
+  goto loop71
+endi
+
+
+if $data51 != 2 then
+  print =====data51=$data51
+  goto loop71
+endi
+if $data52 != 1 then
+  print =====data52=$data52
+  goto loop71
+endi
+if $data53 != 3.000000000 then
+  print =====data53=$data53
+  goto loop71
+endi
+
+
+if $data61 != 2 then
+  print =====data61=$data61
+  goto loop71
+endi
+if $data62 != 1 then
+  print =====data62=$data62
+  goto loop71
+endi
+if $data63 != 3.000000000 then
+  print =====data63=$data63
+  goto loop71
+endi
+
+sql insert into t1 values(1648791212000,5,5,5,5.0,'eee');
+sql insert into t1 values(1648791207000,6,6,6,6.0,'fff') (1648791209000,7,7,7,7.0,'ggg') (1648791219000,8,8,8,8.0,'hhh') (1648791221000,9,9,9,9.0,'iii');
+
+
+
+$loop_count = 0
+
+loop8:
+sleep 1000
+sql select * from streamt7 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+
+if $rows != 15 then
+  print =====rows=$rows
+  goto loop8
+endi
+
+
+if $data01 != 6 then
+  print =====data01=$data01
+  goto loop8
+endi
+if $data02 != 12.000000000 then
+  print =====data02=$data02
+  goto loop8
+endi
+if $data03 != fff then
+  print =====data03=$data03
+  goto loop8
+endi
+
+if $data11 != 6 then
+  print =====data11=$data11
+  goto loop8
+endi
+if $data12 != 12.000000000 then
+  print =====data12=$data12
+  goto loop8
+endi
+if $data13 != fff then
+  print =====data13=$data13
+  goto loop8
+endi
+
+
+if $data21 != 7 then
+  print =====data21=$data21
+  goto loop8
+endi
+if $data22 != 14.000000000 then
+  print =====data22=$data22
+  goto loop8
+endi
+if $data23 != ggg then
+  print =====data23=$data23
+  goto loop8
+endi
+
+
+if $data31 != 7 then
+  print =====data31=$data31
+  goto loop8
+endi
+if $data32 != 14.000000000 then
+  print =====data32=$data32
+  goto loop8
+endi
+if $data33 != ggg then
+  print =====data33=$data33
+  goto loop8
+endi
+
+if $data51 != 5 then
+  print =====data51=$data51
+  goto loop8
+endi
+if $data52 != 10.000000000 then
+  print =====data52=$data52
+  goto loop8
+endi
+if $data53 != eee then
+  print =====data53=$data53
+  goto loop8
+endi
+
+
+if $data[11][1] != 2 then
+  print =====data[11][1]=$data[11][1]
+  goto loop8
+endi
+if $data[11][2] != 4.000000000 then
+  print =====data[11][2]=$data[11][2]
+  goto loop8
+endi
+if $data[11][3] != bbb then
+  print =====data[11][3]=$data[11][3]
+  goto loop8
+endi
+
+if $data[12][1] != 8 then
+  print =====data[12][1]=$data[12][1]
+  goto loop8
+endi
+if $data[12][2] != 16.000000000 then
+  print =====data[12][2]=$data[12][2]
+  goto loop8
+endi
+if $data[12][3] != hhh then
+  print =====data[12][3]=$data[12][3]
+  goto loop8
+endi
+
+if $data[13][1] != 8 then
+  print =====data[13][1]=$data[13][1]
+  goto loop8
+endi
+if $data[13][2] != 16.000000000 then
+  print =====data[13][2]=$data[13][2]
+  goto loop8
+endi
+if $data[13][3] != hhh then
+  print =====data[13][3]=$data[13][3]
+  goto loop8
+endi
+
+if $data[14][1] != 9 then
+  print =====data[14][1]=$data[14][1]
+  goto loop8
+endi
+if $data[14][2] != 18.000000000 then
+  print =====data[14][2]=$data[14][2]
+  goto loop8
+endi
+if $data[14][3] != iii then
+  print =====data[14][3]=$data[14][3]
+  goto loop8
+endi
+
+print fill next-----------------890
+sql use test7;
+sql select * from streamt8 order by ts;
+
+if $rows != 15 then
+  print =====rows=$rows
+  goto loop8
+endi
+
+
+if $data01 != 6 then
+  print =====data01=$data01
+  goto loop8
+endi
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop8
+endi
+if $data03 != 7.000000000 then
+  print =====data03=$data03
+  goto loop8
+endi
+
+if $data11 != 7 then
+  print =====data11=$data11
+  goto loop8
+endi
+if $data13 != 8.000000000 then
+  print =====data13=$data13
+  goto loop8
+endi
+
+
+if $data21 != 7 then
+  print =====data21=$data21
+  goto loop8
+endi
+if $data23 != 8.000000000 then
+  print =====data23=$data23
+  goto loop8
+endi
+
+
+if $data31 != 3 then
+  print =====data31=$data31
+  goto loop8
+endi
+if $data33 != 4.000000000 then
+  print =====data33=$data33
+  goto loop8
+endi
+
+if $data51 != 5 then
+  print =====data51=$data51
+  goto loop8
+endi
+if $data53 != 6.000000000 then
+  print =====data53=$data53
+  goto loop8
+endi
+
+
+if $data[11][1] != 8 then
+  print =====data[11][1]=$data[11][1]
+  goto loop8
+endi
+if $data[11][2] != 1 then
+  print =====data[11][2]=$data[11][2]
+  goto loop8
+endi
+if $data[11][3] != 9.000000000 then
+  print =====data[11][3]=$data[11][3]
+  goto loop8
+endi
+
+if $data[12][1] != 8 then
+  print =====data[12][1]=$data[12][1]
+  goto loop8
+endi
+if $data[12][3] != 9.000000000 then
+  print =====data[12][3]=$data[12][3]
+  goto loop8
+endi
+
+if $data[13][1] != 9 then
+  print =====data[13][1]=$data[13][1]
+  goto loop8
+endi
+if $data[13][3] != 10.000000000 then
+  print =====data[13][3]=$data[13][3]
+  goto loop8
+endi
+
+if $data[14][1] != 9 then
+  print =====data[14][1]=$data[14][1]
+  goto loop8
+endi
+if $data[14][3] != 10.000000000 then
+  print =====data[14][3]=$data[14][3]
+  goto loop8
+endi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#==system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#==print =============== check
+#==$null=
+
+#==system_content sh/checkValgrind.sh -n dnode1 
+#==print cmd return result ----> [ $system_content ]
+#==if $system_content > 0 then
+#==  return -1
+#==endi 
+
+#==if $system_content == $null then
+#==  return -1
+#==endi
+#==return 1
+
+
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop stream if exists streams6;
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+
+sql use test7;
+sql select * from t1;
+print $data00
+
+$loop_all = $loop_all + 1
+print ============loop_all=$loop_all
+
+system sh/stop_dnodes.sh
+
+#goto looptest

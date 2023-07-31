@@ -27,14 +27,15 @@ extern "C" {
 #define QUERY_SMA_OPTIMIZE_DISABLE 0
 #define QUERY_SMA_OPTIMIZE_ENABLE  1
 
-int32_t parseInsertSyntax(SParseContext* pContext, SQuery** pQuery, SParseMetaCache* pMetaCache);
-int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache* pMetaCache);
+int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow);
+int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow);
 
 #ifdef __cplusplus
 }

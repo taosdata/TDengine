@@ -17,6 +17,7 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "types.h"
+#include "xxhash.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 
@@ -192,9 +193,8 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
       fn = taosIntHash_64;
       break;
     case TSDB_DATA_TYPE_BINARY:
-      fn = MurmurHash3_32;
-      break;
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       fn = MurmurHash3_32;
       break;
     case TSDB_DATA_TYPE_UINT:

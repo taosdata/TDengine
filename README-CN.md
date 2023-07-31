@@ -15,7 +15,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 
-简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
@@ -39,7 +39,7 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 构建
 
-TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
+TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
 用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubernetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
   
@@ -52,7 +52,7 @@ TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBench
 ### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
 ```
 
 #### 为 taos-tools 安装编译需要的软件
@@ -60,7 +60,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
 ```
 
 ### CentOS 7.9
@@ -68,14 +68,14 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
+sudo dnf install -y gcc gcc-c++ gflags make cmake epel-release git openssl-devel
 ```
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
@@ -85,29 +85,39 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 
 ```
-sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
-#### CentOS 8/Rocky Linux 
+#### CentOS 8/Fedora/Rocky Linux 
 
 ```
 sudo yum install -y epel-release
 sudo yum install -y dnf-plugins-core
 sudo yum config-manager --set-enabled powertools
-sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持（参考 [链接](https://github.com/google/snappy/pull/86)），会导致 cmake 提示无法发现 libsnappy，实际上工作正常。
 
 若 powertools 安装失败，可以尝试改用：
 ```
-sudo yum config-manager --set-enabled Powertools
+sudo yum config-manager --set-enabled powertools
+```
+
+#### CentOS + devtoolset
+
+除上述编译依赖包，需要执行以下命令：
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
 ```
 
 ### macOS
 
 ```
-brew install argp-standalone pkgconfig
+brew install argp-standalone gflags pkgconfig
 ```
 
 ### 设置 golang 开发环境
@@ -276,7 +286,7 @@ sudo make install
 安装成功后，可以在应用程序中双击 TDengine 图标启动服务，或者在终端中启动 TDengine 服务：
 
 ```bash
-launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosd
 ```
 
 用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：

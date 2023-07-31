@@ -17,7 +17,6 @@
 #include "mndTelem.h"
 #include "mndCluster.h"
 #include "mndSync.h"
-#include "tbuffer.h"
 #include "thttp.h"
 #include "tjson.h"
 
@@ -95,7 +94,7 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   tjsonAddStringToObject(pJson, "instanceId", clusterName);
   tjsonAddDoubleToObject(pJson, "reportVersion", 1);
 
-  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
+  if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
     tjsonAddStringToObject(pJson, "os", tmp);
   }
 
@@ -132,7 +131,7 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
   taosThreadMutexUnlock(&pMgmt->lock);
 
   if (pCont != NULL) {
-    if (taosSendHttpReport(tsTelemServer, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
+    if (taosSendHttpReport(tsTelemServer, tsTelemUri, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
       mError("failed to send telemetry report");
     } else {
       mInfo("succeed to send telemetry report");

@@ -285,6 +285,7 @@ void dumpTopic(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "subType", i642str(pObj->subType));
     tjsonAddStringToObject(item, "withMeta", i642str(pObj->withMeta));
     tjsonAddStringToObject(item, "stbUid", i642str(pObj->stbUid));
+    tjsonAddStringToObject(item, "stbName", mndGetStableStr(pObj->stbName));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
     tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
@@ -366,10 +367,10 @@ void dumpStream(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "status", i642str(pObj->status));
-    tjsonAddStringToObject(item, "igExpired", i642str(pObj->igExpired));
-    tjsonAddStringToObject(item, "trigger", i642str(pObj->trigger));
-    tjsonAddStringToObject(item, "triggerParam", i642str(pObj->triggerParam));
-    tjsonAddStringToObject(item, "watermark", i642str(pObj->watermark));
+    tjsonAddStringToObject(item, "igExpired", i642str(pObj->conf.igExpired));
+    tjsonAddStringToObject(item, "trigger", i642str(pObj->conf.trigger));
+    tjsonAddStringToObject(item, "triggerParam", i642str(pObj->conf.triggerParam));
+    tjsonAddStringToObject(item, "watermark", i642str(pObj->conf.watermark));
     tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid));
     tjsonAddStringToObject(item, "targetDbUid", i642str(pObj->targetDbUid));
     tjsonAddStringToObject(item, "sourceDb", mndGetDbStr(pObj->sourceDb));
@@ -421,6 +422,7 @@ void dumpUser(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "superUser", i642str(pObj->superUser));
     tjsonAddStringToObject(item, "authVersion", i642str(pObj->authVersion));
+    tjsonAddStringToObject(item, "passVersion", i642str(pObj->passVersion));
     tjsonAddStringToObject(item, "numOfReadDbs", i642str(taosHashGetSize(pObj->readDbs)));
     tjsonAddStringToObject(item, "numOfWriteDbs", i642str(taosHashGetSize(pObj->writeDbs)));
     sdbRelease(pSdb, pObj);
@@ -629,7 +631,7 @@ void mndDumpSdb() {
   }
   taosWriteFile(pFile, pCont, contLen);
   taosWriteFile(pFile, "\n", 1);
-  taosFsyncFile(pFile);
+  UNUSED(taosFsyncFile(pFile));
   taosCloseFile(&pFile);
   tjsonDelete(json);
   taosMemoryFree(pCont);

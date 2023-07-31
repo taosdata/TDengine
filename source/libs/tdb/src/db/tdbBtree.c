@@ -69,12 +69,15 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
 static int tdbBtcMoveDownward(SBTC *pBtc);
 static int tdbBtcMoveUpward(SBTC *pBtc);
 
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
                  SBTree **ppBt) {
   SBTree *pBt;
   int     ret;
 
-  ASSERT(keyLen != 0);
+  if (keyLen == 0) {
+    tdbError("tdb/btree-open: key len cannot be zero.");
+    return -1;
+  }
 
   *ppBt = NULL;
 
@@ -106,22 +109,29 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
   if (pgno == 0) {
     // fetch page & insert into main db
     SPage *pPage;
-    TXN    txn;
-    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    TXN   *txn;
 
-    pPager->inTran = 1;
+    ret = tdbBegin(pEnv, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    if (ret < 0) {
+      tdbOsFree(pBt);
+      return -1;
+    }
 
     SBtreeInitPageArg zArg;
     zArg.flags = 0x1 | 0x2;  // root leaf node;
     zArg.pBt = pBt;
-    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, &txn);
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, txn);
     if (ret < 0) {
+      tdbAbort(pEnv, txn);
+      tdbOsFree(pBt);
       return -1;
     }
 
     ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page since %s", terrstr());
+      tdbAbort(pEnv, txn);
+      tdbOsFree(pBt);
       return -1;
     }
 
@@ -130,20 +140,26 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
       pBt->info.nLevel = 1;
       pBt->info.nData = 0;
       pBt->tbname = (char *)tbname;
-      // ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pgno, sizeof(SPgno), &txn);
-      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pBt->info, sizeof(pBt->info), &txn);
+
+      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pBt->info, sizeof(pBt->info), txn);
       if (ret < 0) {
+        tdbAbort(pEnv, txn);
+        tdbOsFree(pBt);
         return -1;
       }
     }
 
-    // tdbUnrefPage(pPage);
-    tdbPCacheRelease(pPager->pCache, pPage, &txn);
-    tdbCommit(pPager->pEnv, &txn);
-    tdbTxnClose(&txn);
+    tdbPCacheRelease(pPager->pCache, pPage, txn);
+
+    tdbCommit(pPager->pEnv, txn);
+    tdbPostCommit(pPager->pEnv, txn);
   }
 
-  ASSERT(pgno != 0);
+  if (pgno == 0) {
+    tdbError("tdb/btree-open: pgno cannot be zero.");
+    tdbOsFree(pBt);
+    return -1;
+  }
   pBt->root = pgno;
   /*
   // TODO: pBt->root
@@ -183,7 +199,7 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
   if (ret < 0) {
     tdbBtcClose(&btc);
-    ASSERT(0);
+    tdbError("tdb/btree-insert: btc move to failed with ret: %d.", ret);
     return -1;
   }
 
@@ -193,16 +209,17 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
     if (c > 0) {
       btc.idx++;
     } else if (c == 0) {
-      // dup key not allowed
-      ASSERT(0);
+      // dup key not allowed with insert
+      tdbBtcClose(&btc);
+      tdbError("tdb/btree-insert: dup key. pKey: %p, kLen: %d, btc: %p, pTxn: %p", pKey, kLen, &btc, pTxn);
       return -1;
     }
   }
 
   ret = tdbBtcUpsert(&btc, pKey, kLen, pVal, vLen, 1);
   if (ret < 0) {
-    ASSERT(0);
     tdbBtcClose(&btc);
+    tdbError("tdb/btree-insert: btc upsert failed with ret: %d.", ret);
     return -1;
   }
 
@@ -216,14 +233,18 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
   int  ret;
 
   tdbBtcOpen(&btc, pBt, pTxn);
-
+  /*
+  btc.coder.ofps = taosArrayInit(8, sizeof(SPage *));
+  // btc.coder.ofps = taosArrayInit(8, sizeof(SPgno));
+  //pBtc->coder.ofps = taosArrayInit(8, sizeof(SPage *));
+  */
   tdbTrace("tdb delete, btc: %p, pTxn: %p", &btc, pTxn);
 
   // move the cursor
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
   if (ret < 0) {
     tdbBtcClose(&btc);
-    ASSERT(0);
+    tdbError("tdb/btree-delete: btc move to failed with ret: %d.", ret);
     return -1;
   }
 
@@ -237,13 +258,24 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
     tdbBtcClose(&btc);
     return -1;
   }
+  /*
+  SArray *ofps = btc.coder.ofps;
+  if (ofps) {
+    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+      tdbPagerInsertFreePage(btc.pBt->pPager, ofp, btc.pTxn);
+    }
 
+    taosArrayDestroy(ofps);
+    btc.coder.ofps = NULL;
+  }
+  */
   tdbBtcClose(&btc);
   return 0;
 }
 
 int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn) {
-  SBTC btc;
+  SBTC btc = {0};
   int  c;
   int  ret;
 
@@ -254,9 +286,16 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
   // move the cursor
   ret = tdbBtcMoveTo(&btc, pKey, nKey, &c);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btree-upsert: btc move to failed with ret: %d.", ret);
+    if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
+      tdbFree(btc.coder.pKey);
+    }
     tdbBtcClose(&btc);
     return -1;
+  }
+
+  if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
+    tdbFree(btc.coder.pKey);
   }
 
   if (btc.idx == -1) {
@@ -270,8 +309,8 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
 
   ret = tdbBtcUpsert(&btc, pKey, nKey, pData, nData, c);
   if (ret < 0) {
-    ASSERT(0);
     tdbBtcClose(&btc);
+    tdbError("tdb/btree-upsert: btc upsert failed with ret: %d.", ret);
     return -1;
   }
 
@@ -299,7 +338,8 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &cret);
   if (ret < 0) {
     tdbBtcClose(&btc);
-    ASSERT(0);
+    tdbError("tdb/btree-pget: btc move to failed with ret: %d.", ret);
+    return -1;
   }
 
   if (btc.idx < 0 || cret) {
@@ -315,24 +355,24 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
     pTKey = tdbRealloc(*ppKey, cd.kLen);
     if (pTKey == NULL) {
       tdbBtcClose(&btc);
-      ASSERT(0);
+      tdbError("tdb/btree-pget: realloc pTKey failed.");
       return -1;
     }
     *ppKey = pTKey;
     *pkLen = cd.kLen;
-    memcpy(*ppKey, cd.pKey, cd.kLen);
+    memcpy(*ppKey, cd.pKey, (size_t)cd.kLen);
   }
 
   if (ppVal) {
     pTVal = tdbRealloc(*ppVal, cd.vLen);
     if (pTVal == NULL) {
       tdbBtcClose(&btc);
-      ASSERT(0);
+      tdbError("tdb/btree-pget: realloc pTVal failed.");
       return -1;
     }
     *ppVal = pTVal;
     *vLen = cd.vLen;
-    memcpy(*ppVal, cd.pVal, cd.vLen);
+    memcpy(*ppVal, cd.pVal, (size_t)cd.vLen);
   }
 
   if (TDB_CELLDECODER_FREE_KEY(&cd)) {
@@ -340,7 +380,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   }
 
   if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-    tdbDebug("tdb btc/pget/2 decoder: %p pVal free: %p", &cd, cd.pVal);
+    tdbTrace("tdb btc/pget/2 decoder: %p pVal free: %p", &cd, cd.pVal);
 
     tdbFree(cd.pVal);
   }
@@ -356,7 +396,9 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   int mlen;
   int cret;
 
-  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+  if (ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL)) {
+    // -1 is less than
+  }
 
   mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
   cret = memcmp(pKey1, pKey2, mlen);
@@ -371,36 +413,7 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   }
   return cret;
 }
-/*
-static int tdbBtreeOpenImpl(SBTree *pBt) {
-  // Try to get the root page of the an existing btree
-  SPgno  pgno;
-  SPage *pPage;
-  int    ret;
 
-  {
-    // 1. TODO: Search the main DB to check if the DB exists
-    ret = tdbPagerOpenDB(pBt->pPager, &pgno, true, pBt);
-    ASSERT(ret == 0);
-  }
-
-  if (pgno != 0) {
-    pBt->root = pgno;
-    return 0;
-  }
-
-  // Try to create a new database
-  ret = tdbPagerAllocPage(pBt->pPager, &pgno);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
-  ASSERT(pgno != 0);
-  pBt->root = pgno;
-  return 0;
-}
-*/
 int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
   SBTree *pBt;
   u8      flags;
@@ -536,11 +549,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       nOlds = 3;
     }
     for (int i = 0; i < nOlds; i++) {
-      ASSERT(sIdx + i <= nCells);
+      if (ASSERT(sIdx + i <= nCells)) {
+        return -1;
+      }
 
       SPgno pgno;
       if (sIdx + i == nCells) {
-        ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pParent));
+        if (ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pParent))) {
+          return -1;
+        }
         pgno = ((SIntHdr *)(pParent->pData))->pgno;
       } else {
         pCell = tdbPageGetCell(pParent, sIdx + i);
@@ -550,7 +567,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       ret = tdbPagerFetchPage(pBt->pPager, &pgno, pOlds + i, tdbBtreeInitPage,
                               &((SBtreeInitPageArg){.pBt = pBt, .flags = 0}), pTxn);
       if (ret < 0) {
-        ASSERT(0);
+        tdbError("tdb/btree-balance: fetch page failed with ret: %d.", ret);
         return -1;
       }
 
@@ -561,6 +578,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       }
     }
     // copy the parent key out if child pages are not leaf page
+    // childNotLeaf = !(TDB_BTREE_PAGE_IS_LEAF(pOlds[0]) || TDB_BTREE_PAGE_IS_OVFL(pOlds[0]));
     childNotLeaf = !TDB_BTREE_PAGE_IS_LEAF(pOlds[0]);
     if (childNotLeaf) {
       for (int i = 0; i < nOlds; i++) {
@@ -590,7 +608,30 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     for (int i = 0; i < nOlds; i++) {
       nCells = TDB_PAGE_TOTAL_CELLS(pParent);
       if (sIdx < nCells) {
+        bool destroyOfps = false;
+        if (!childNotLeaf) {
+          if (!pParent->pPager->ofps) {
+            pParent->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+            destroyOfps = true;
+          }
+        }
+
         tdbPageDropCell(pParent, sIdx, pTxn, pBt);
+
+        if (!childNotLeaf) {
+          SArray *ofps = pParent->pPager->ofps;
+          if (ofps) {
+            for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+              SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+              tdbPagerInsertFreePage(pParent->pPager, ofp, pTxn);
+            }
+
+            if (destroyOfps) {
+              taosArrayDestroy(ofps);
+              pParent->pPager->ofps = NULL;
+            }
+          }
+        }
       } else {
         ((SIntHdr *)pParent->pData)->pgno = 0;
       }
@@ -669,7 +710,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           szRCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
         }
 
-        ASSERT(infoNews[iNew - 1].cnt > 0);
+        if (ASSERT(infoNews[iNew - 1].cnt > 0)) {
+          return -1;
+        }
 
         if (infoNews[iNew].size + szRCell >= infoNews[iNew - 1].size - szRCell) {
           break;
@@ -712,7 +755,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         iarg.flags = flags;
         ret = tdbPagerFetchPage(pBt->pPager, &pgno, pNews + iNew, tdbBtreeInitPage, &iarg, pTxn);
         if (ret < 0) {
-          ASSERT(0);
+          tdbError("tdb/btree-balance: fetch page failed with ret: %d.", ret);
+          return -1;
         }
 
         ret = tdbPagerWrite(pBt->pPager, pNews[iNew]);
@@ -740,14 +784,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       tdbPageCreate(pOlds[0]->pageSize, &pOldsCopy[i], tdbDefaultMalloc, NULL);
       tdbBtreeInitPage(pOldsCopy[i], &iarg, 0);
       tdbPageCopy(pOlds[i], pOldsCopy[i], 0);
-    }
-
-    for (iNew = 0; iNew < nNews; ++iNew) {
-      tdbBtreeInitPage(pNews[iNew], &iarg, 0);
+      pOlds[i]->nOverflow = 0;
     }
 
     iNew = 0;
     nNewCells = 0;
+    tdbBtreeInitPage(pNews[iNew], &iarg, 0);
 
     for (int iOld = 0; iOld < nOlds; iOld++) {
       SPage *pPage;
@@ -758,8 +800,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pCell = tdbPageGetCell(pPage, oIdx);
         szCell = tdbBtreeCellSize(pPage, pCell, 0, NULL, NULL);
 
-        ASSERT(nNewCells <= infoNews[iNew].cnt);
-        ASSERT(iNew < nNews);
+        if (ASSERT(nNewCells <= infoNews[iNew].cnt)) {
+          return -1;
+        }
+        if (ASSERT(iNew < nNews)) {
+          return -1;
+        }
 
         if (nNewCells < infoNews[iNew].cnt) {
           tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
@@ -798,14 +844,20 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             }
           }
         } else {
-          ASSERT(childNotLeaf);
-          ASSERT(iNew < nNews - 1);
+          if (ASSERT(childNotLeaf)) {
+            return -1;
+          }
+          if (ASSERT(iNew < nNews - 1)) {
+            return -1;
+          }
 
           // set current new page right-most child
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
           // insert to parent as divider cell
-          ASSERT(iNew < nNews - 1);
+          if (ASSERT(iNew < nNews - 1)) {
+            return -1;
+          }
           ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
           tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
 
@@ -820,7 +872,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
 
     if (childNotLeaf) {
-      ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt);
+      if (ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt)) {
+        return -1;
+      }
       ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
 
       SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
@@ -846,6 +900,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {
       ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
     }
+
+    tdbPagerInsertFreePage(pBt->pPager, pNews[0], pTxn);
   }
 
   for (int i = 0; i < 3; i++) {
@@ -855,6 +911,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
   }
 
   for (pageIdx = 0; pageIdx < nOlds; ++pageIdx) {
+    if (pageIdx >= nNews) {
+      tdbPagerInsertFreePage(pBt->pPager, pOlds[pageIdx], pTxn);
+    }
     tdbPagerReturnPage(pBt->pPager, pOlds[pageIdx], pTxn);
   }
   for (; pageIdx < nNews; ++pageIdx) {
@@ -1010,7 +1069,9 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       nLeft -= kLen;
       // pack partial val to local if any space left
       if (nLocal > nHeader + kLen + sizeof(SPgno)) {
-        ASSERT(pVal != NULL && vLen != 0);
+        if (ASSERT(pVal != NULL && vLen != 0)) {
+          return -1;
+        }
         memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
         nLeft -= nLocal - nHeader - kLen - sizeof(SPgno);
       }
@@ -1055,11 +1116,11 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     } else {
       int nLeftKey = kLen;
       // pack partial key and nextPgno
-      memcpy(pCell + nHeader, pKey, nLocal - 4);
-      nLeft -= nLocal - 4;
-      nLeftKey -= nLocal - 4;
+      memcpy(pCell + nHeader, pKey, nLocal - nHeader - sizeof(pgno));
+      nLeft -= nLocal - nHeader - sizeof(pgno);
+      nLeftKey -= nLocal - nHeader - sizeof(pgno);
 
-      memcpy(pCell + nHeader + nLocal - 4, &pgno, sizeof(pgno));
+      memcpy(pCell + nLocal - sizeof(pgno), &pgno, sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // pack left key & val to ovpages
@@ -1079,9 +1140,12 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
         if (lastKeyPage) {
           if (lastKeyPageSpace >= vLen) {
-            memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
+            if (vLen > 0) {
+              memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
 
-            nLeft -= vLen;
+              nLeft -= vLen;
+            }
+
             pgno = 0;
           } else {
             memcpy(pBuf + kLen - nLeftKey, pVal, lastKeyPageSpace);
@@ -1103,7 +1167,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
           }
         }
 
-        memcpy(pBuf + kLen - nLeft, &pgno, sizeof(pgno));
+        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
 
         ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
         if (ret < 0) {
@@ -1172,9 +1236,15 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   int nPayload;
   int ret;
 
-  ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen);
-  ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen);
-  ASSERT(pKey != NULL && kLen > 0);
+  if (ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen)) {
+    return -1;
+  }
+  if (ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen)) {
+    return -1;
+  }
+  if (ASSERT(pKey != NULL && kLen > 0)) {
+    return -1;
+  }
 
   nPayload = 0;
   nHeader = 0;
@@ -1183,7 +1253,10 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   // 1. Encode Header part
   /* Encode SPgno if interior page */
   if (!leaf) {
-    ASSERT(pPage->vLen == sizeof(SPgno));
+    if (pPage->vLen != sizeof(SPgno)) {
+      tdbError("tdb/btree-encode-cell: invalid cell.");
+      return -1;
+    }
 
     ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
     nHeader = nHeader + sizeof(SPgno);
@@ -1208,8 +1281,8 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   ret = tdbBtreeEncodePayload(pPage, pCell, nHeader, pKey, kLen, pVal, vLen, &nPayload, pTxn, pBt);
   if (ret < 0) {
     // TODO
-    ASSERT(0);
-    return 0;
+    tdbError("tdb/btree-encode-cell: encode payload failed with ret: %d.", ret);
+    return -1;
   }
 
   *szCell = nHeader + nPayload;
@@ -1226,7 +1299,10 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
   int vLen = pDecoder->vLen;
 
   if (pDecoder->pVal) {
-    ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pPage));
+    if (TDB_BTREE_PAGE_IS_LEAF(pPage)) {
+      tdbError("tdb/btree-decode-payload: leaf page with non-null pVal.");
+      return -1;
+    }
     nPayload = pDecoder->kLen;
   } else {
     nPayload = pDecoder->kLen + pDecoder->vLen;
@@ -1279,7 +1355,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         if (ret < 0) {
           return -1;
         }
-
+        /*
+        if (pDecoder->ofps) {
+          taosArrayPush(pDecoder->ofps, &ofp);
+        }
+        */
         ofpCell = tdbPageGetCell(ofp, 0);
 
         if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
@@ -1305,20 +1385,26 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       }
       TDB_CELLDECODER_SET_FREE_KEY(pDecoder);
 
-      memcpy(pDecoder->pKey, pCell + nHeader, nLocal - 4);
-      nLeft -= nLocal - 4;
-      nLeftKey -= nLocal - 4;
+      memcpy(pDecoder->pKey, pCell + nHeader, nLocal - nHeader - sizeof(pgno));
+      nLeft -= nLocal - nHeader - sizeof(pgno);
+      nLeftKey -= nLocal - nHeader - sizeof(pgno);
 
-      memcpy(&pgno, pCell + nHeader + nLocal - 4, sizeof(pgno));
+      memcpy(&pgno, pCell + nLocal - sizeof(pgno), sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // load left key & val to ovpages
       while (pgno != 0) {
+        tdbTrace("tdb decode-ofp, pTxn: %p, pgno:%u by cell:%p", pTxn, pgno, pCell);
+        // printf("tdb decode-ofp, pTxn: %p, pgno:%u by cell:%p\n", pTxn, pgno, pCell);
         ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
         if (ret < 0) {
           return -1;
         }
-
+        /*
+        if (pDecoder->ofps) {
+          taosArrayPush(pDecoder->ofps, &ofp);
+        }
+        */
         ofpCell = tdbPageGetCell(ofp, 0);
 
         int lastKeyPage = 0;
@@ -1335,9 +1421,11 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
         if (lastKeyPage) {
           if (lastKeyPageSpace >= vLen) {
-            pDecoder->pVal = ofpCell + kLen - nLeftKey;
+            if (vLen > 0) {
+              pDecoder->pVal = ofpCell + kLen - nLeftKey;
 
-            nLeft -= vLen;
+              nLeft -= vLen;
+            }
             pgno = 0;
           } else {
             // read partial val to local
@@ -1415,19 +1503,26 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   // Clear the state of decoder
   if (TDB_CELLDECODER_FREE_VAL(pDecoder)) {
     tdbFree(pDecoder->pVal);
+    TDB_CELLDECODER_CLZ_FREE_VAL(pDecoder);
+    // tdbTrace("tdb btc decoder val set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
+  }
+  if (TDB_CELLDECODER_FREE_KEY(pDecoder)) {
+    tdbFree(pDecoder->pKey);
+    TDB_CELLDECODER_CLZ_FREE_KEY(pDecoder);
+    // tdbTrace("tdb btc decoder key set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
   }
   pDecoder->kLen = -1;
   pDecoder->pKey = NULL;
   pDecoder->vLen = -1;
   pDecoder->pVal = NULL;
   pDecoder->pgno = 0;
-  TDB_CELLDECODER_SET_FREE_NIL(pDecoder);
-
-  // tdbTrace("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
 
   // 1. Decode header part
   if (!leaf) {
-    ASSERT(pPage->vLen == sizeof(SPgno));
+    if (pPage->vLen != sizeof(SPgno)) {
+      tdbError("tdb/btree-decode-cell: invalid cell.");
+      return -1;
+    }
 
     pDecoder->pgno = ((SPgno *)(pCell + nHeader))[0];
     pDecoder->pVal = (u8 *)(&(pDecoder->pgno));
@@ -1441,7 +1536,10 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   }
 
   if (pPage->vLen == TDB_VARIANT_LEN) {
-    ASSERT(leaf);
+    if (!leaf) {
+      tdbError("tdb/btree-decode-cell: not a leaf page.");
+      return -1;
+    }
     nHeader += tdbGetVarInt(pCell + nHeader, &(pDecoder->vLen));
   } else {
     pDecoder->vLen = pPage->vLen;
@@ -1473,7 +1571,10 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
   }
 
   if (pPage->vLen == TDB_VARIANT_LEN) {
-    ASSERT(leaf);
+    if (!leaf) {
+      tdbError("tdb/btree-cell-size: not a leaf page:%p, pgno:%" PRIu32 ".", pPage, TDB_PAGE_PGNO(pPage));
+      // return -1;
+    }
     nHeader += tdbGetVarInt(pCell + nHeader, &vLen);
   } else if (leaf) {
     vLen = pPage->vLen;
@@ -1512,7 +1613,26 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
           bytes = ofp->maxLocal - sizeof(SPgno);
         }
 
+        // SPgno origPgno = pgno;
         memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+
+        ret = tdbPagerWrite(pBt->pPager, ofp);
+        if (ret < 0) {
+          tdbError("failed to write page since %s", terrstr());
+          return -1;
+        }
+        /*
+        tdbPageDropCell(ofp, 0, pTxn, pBt);
+        */
+        // SIntHdr *pIntHdr = (SIntHdr *)(ofp->pData);
+        //  pIntHdr->flags = TDB_FLAG_ADD(0, TDB_BTREE_OVFL);
+        // pIntHdr->pgno = 0;
+        // ofp->pPager = NULL;
+
+        SArray *ofps = pPage->pPager->ofps;
+        if (ofps) {
+          taosArrayPush(ofps, &ofp);
+        }
 
         tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
 
@@ -1534,10 +1654,21 @@ int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn) {
   memset(&pBtc->coder, 0, sizeof(SCellDecoder));
 
   if (pTxn == NULL) {
-    pBtc->pTxn = &pBtc->txn;
-    tdbTxnOpen(pBtc->pTxn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+    TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
+    if (!pTxn) {
+      return -1;
+    }
+
+    if (tdbTxnOpen(pTxn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
+      tdbOsFree(pTxn);
+      return -1;
+    }
+
+    pBtc->pTxn = pTxn;
+    pBtc->freeTxn = 1;
   } else {
     pBtc->pTxn = pTxn;
+    pBtc->freeTxn = 0;
   }
 
   return 0;
@@ -1558,29 +1689,42 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,
                             &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("tdb/btc-move-tofirst: fetch page failed with ret: %d.", ret);
       return -1;
     }
 
-    ASSERT(TDB_BTREE_PAGE_IS_ROOT(pBtc->pPage));
+    if (!TDB_BTREE_PAGE_IS_ROOT(pBtc->pPage)) {
+      tdbError("tdb/btc-move-tofirst: not a root page");
+      return -1;
+    }
 
     pBtc->iPage = 0;
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) > 0) {
       pBtc->idx = 0;
     } else {
       // no any data, point to an invalid position
-      ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+      if (!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+        tdbError("tdb/btc-move-to-first: not a leaf page.");
+        return -1;
+      }
+
       pBtc->idx = -1;
       return 0;
     }
   } else {
-    ASSERT(0);
+    // TODO
+    tdbError("tdb/btc-move-to-first: move from a dirty cursor.");
+    return -1;
 #if 0
     // move from a position
     int iPage = 0;
 
     for (; iPage < pBtc->iPage; iPage++) {
-      ASSERT(pBtc->idxStack[iPage] >= 0);
+      if (pBtc->idxStack[iPage] < 0) {
+        tdbError("tdb/btc-move-to-first: invalid idx: %d.", pBtc->idxStack[iPage]);
+        return -1;
+      }
+
       if (pBtc->idxStack[iPage]) break;
     }
 
@@ -1602,7 +1746,7 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
 
     ret = tdbBtcMoveDownward(pBtc);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("tdb/btc-move-tofirst: btc move downward failed with ret: %d.", ret);
       return -1;
     }
 
@@ -1627,7 +1771,7 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,
                             &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("tdb/btc-move-tolast: fetch page failed with ret: %d.", ret);
       return -1;
     }
 
@@ -1637,18 +1781,28 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
       pBtc->idx = TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage) ? nCells - 1 : nCells;
     } else {
       // no data at all, point to an invalid position
-      ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+      if (!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+        tdbError("tdb/btc-move-to-last: not a leaf page.");
+        return -1;
+      }
+
       pBtc->idx = -1;
       return 0;
     }
   } else {
-    ASSERT(0);
+    // TODO
+    tdbError("tdb/btc-move-to-last: move from a dirty cursor.");
+    return -1;
 #if 0
     int iPage = 0;
 
     // downward search
     for (; iPage < pBtc->iPage; iPage++) {
-      ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pBtc->pgStack[iPage]));
+      if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pgStack[iPage])) {
+        tdbError("tdb/btc-move-to-last: leaf page in cursor stack.");
+        return -1;
+      }
+
       nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pgStack[iPage]);
       if (pBtc->idxStack[iPage] != nCells) break;
     }
@@ -1675,7 +1829,7 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
 
     ret = tdbBtcMoveDownward(pBtc);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("tdb/btc-move-tolast: btc move downward failed with ret: %d.", ret);
       return -1;
     }
 
@@ -1712,7 +1866,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   *ppKey = pKey;
   *kLen = cd.kLen;
-  memcpy(pKey, cd.pKey, cd.kLen);
+  memcpy(pKey, cd.pKey, (size_t)cd.kLen);
 
   if (ppVal) {
     if (cd.vLen > 0) {
@@ -1723,17 +1877,26 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
       }
 
       memcpy(pVal, cd.pVal, cd.vLen);
+      if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+        tdbTrace("tdb/btree-next decoder: %p pVal free: %p", &cd, cd.pVal);
+        tdbFree(cd.pVal);
+      }
     } else {
       pVal = NULL;
     }
 
     *ppVal = pVal;
     *vLen = cd.vLen;
+  } else {
+    if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+      tdbTrace("tdb/btree-next2 decoder: %p pVal free: %p", &cd, cd.pVal);
+      tdbFree(cd.pVal);
+    }
   }
 
   ret = tdbBtcMoveToNext(pBtc);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btree-next: btc move to next failed with ret: %d.", ret);
     return -1;
   }
 
@@ -1762,7 +1925,7 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   *ppKey = pKey;
   *kLen = cd.kLen;
-  memcpy(pKey, cd.pKey, cd.kLen);
+  memcpy(pKey, cd.pKey, (size_t)cd.kLen);
 
   if (ppVal) {
     // TODO: vLen may be zero
@@ -1774,12 +1937,12 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
     *ppVal = pVal;
     *vLen = cd.vLen;
-    memcpy(pVal, cd.pVal, cd.vLen);
+    memcpy(pVal, cd.pVal, (size_t)cd.vLen);
   }
 
   ret = tdbBtcMoveToPrev(pBtc);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btree-prev: btc move to prev failed with ret: %d.", ret);
     return -1;
   }
 
@@ -1791,7 +1954,10 @@ int tdbBtcMoveToNext(SBTC *pBtc) {
   int    ret;
   SCell *pCell;
 
-  ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+  if (!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+    tdbError("tdb/btc-move-to-next: not a leaf page.");
+    return -1;
+  }
 
   if (pBtc->idx < 0) return -1;
 
@@ -1810,7 +1976,10 @@ int tdbBtcMoveToNext(SBTC *pBtc) {
     tdbBtcMoveUpward(pBtc);
     pBtc->idx++;
 
-    ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+    if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+      tdbError("tdb/btree-decode-cell: should not be a leaf page here.");
+      return -1;
+    }
     if (pBtc->idx <= TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
       break;
     }
@@ -1822,7 +1991,7 @@ int tdbBtcMoveToNext(SBTC *pBtc) {
 
     ret = tdbBtcMoveDownward(pBtc);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("tdb/btc-move-tonext: btc move downward failed with ret: %d.", ret);
       return -1;
     }
 
@@ -1874,8 +2043,20 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
   SPgno  pgno;
   SCell *pCell;
 
-  ASSERT(pBtc->idx >= 0);
-  ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
+  if (pBtc->idx < 0) {
+    tdbError("tdb/btc-move-downward: invalid idx: %d.", pBtc->idx);
+    return -1;
+  }
+
+  if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
+    tdbError("tdb/btc-move-downward: should not be a leaf page here.");
+    return -1;
+  }
+
+  if (TDB_BTREE_PAGE_IS_OVFL(pBtc->pPage)) {
+    tdbError("tdb/btc-move-downward: should not be a ovfl page here.");
+    return -1;
+  }
 
   if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
     pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
@@ -1884,7 +2065,10 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
     pgno = ((SIntHdr *)pBtc->pPage->pData)->pgno;
   }
 
-  ASSERT(pgno);
+  if (!pgno) {
+    tdbError("tdb/btc-move-downward: invalid pgno.");
+    return -1;
+  }
 
   pBtc->pgStack[pBtc->iPage] = pBtc->pPage;
   pBtc->idxStack[pBtc->iPage] = pBtc->idx;
@@ -1895,7 +2079,7 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
   ret = tdbPagerFetchPage(pBtc->pBt->pPager, &pgno, &pBtc->pPage, tdbBtreeInitPage,
                           &((SBtreeInitPageArg){.pBt = pBtc->pBt, .flags = 0}), pBtc->pTxn);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btc-move-downward: fetch page failed with ret: %d.", ret);
     return -1;
   }
 
@@ -1950,7 +2134,10 @@ int tdbBtcDelete(SBTC *pBtc) {
   int         nKey;
   int         ret;
 
-  ASSERT(idx >= 0 && idx < nCells);
+  if (idx < 0 || idx >= nCells) {
+    tdbError("tdb/btc-delete: idx: %d out of range[%d, %d).", idx, 0, nCells);
+    return -1;
+  }
 
   // drop the cell on the leaf
   ret = tdbPagerWrite(pPager, pBtc->pPage);
@@ -1959,7 +2146,26 @@ int tdbBtcDelete(SBTC *pBtc) {
     return -1;
   }
 
+  bool destroyOfps = false;
+  if (!pBtc->pPage->pPager->ofps) {
+    pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+    destroyOfps = true;
+  }
+
   tdbPageDropCell(pBtc->pPage, idx, pBtc->pTxn, pBtc->pBt);
+
+  SArray *ofps = pBtc->pPage->pPager->ofps;
+  if (ofps) {
+    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
+    }
+
+    if (destroyOfps) {
+      taosArrayDestroy(ofps);
+      pBtc->pPage->pPager->ofps = NULL;
+    }
+  }
 
   // update interior page or do balance
   if (idx == nCells - 1) {
@@ -1988,7 +2194,7 @@ int tdbBtcDelete(SBTC *pBtc) {
           ret = tdbPageUpdateCell(pPage, idx, pCell, szCell, pBtc->pTxn, pBtc->pBt);
           if (ret < 0) {
             tdbOsFree(pCell);
-            ASSERT(0);
+            tdbError("tdb/btc-delete: page update cell failed with ret: %d.", ret);
             return -1;
           }
           tdbOsFree(pCell);
@@ -1999,11 +2205,16 @@ int tdbBtcDelete(SBTC *pBtc) {
       }
     } else {
       // delete the leaf page and do balance
-      ASSERT(TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0);
+      if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) != 0) {
+        tdbError("tdb/btc-delete: page to be deleted should be empty.");
+        return -1;
+      }
+
+      // printf("tdb/btc-delete: btree balance delete pgno: %d.\n", TDB_PAGE_PGNO(pBtc->pPage));
 
       ret = tdbBtreeBalance(pBtc);
       if (ret < 0) {
-        ASSERT(0);
+        tdbError("tdb/btc-delete: btree balance failed with ret: %d.", ret);
         return -1;
       }
     }
@@ -2020,13 +2231,16 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
   void  *pBuf;
   int    ret;
 
-  ASSERT(pBtc->idx >= 0);
+  if (pBtc->idx < 0) {
+    tdbError("tdb/btc-upsert: invalid idx: %d.", pBtc->idx);
+    return -1;
+  }
 
   // alloc space
   szBuf = kLen + nData + 14;
   pBuf = tdbRealloc(pBtc->pBt->pBuf, pBtc->pBt->pageSize > szBuf ? szBuf : pBtc->pBt->pageSize);
   if (pBuf == NULL) {
-    ASSERT(0);
+    tdbError("tdb/btc-upsert: realloc pBuf failed.");
     return -1;
   }
   pBtc->pBt->pBuf = pBuf;
@@ -2035,7 +2249,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
   // encode cell
   ret = tdbBtreeEncodeCell(pBtc->pPage, pKey, kLen, pData, nData, pCell, &szCell, pBtc->pTxn, pBtc->pBt);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btc-upsert: btree encode cell failed with ret: %d.", ret);
     return -1;
   }
 
@@ -2048,28 +2262,53 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
 
   // insert or update
   if (insert) {
-    ASSERT(pBtc->idx <= nCells);
+    if (pBtc->idx > nCells) {
+      tdbError("tdb/btc-upsert: invalid idx: %d, nCells: %d.", pBtc->idx, nCells);
+      return -1;
+    }
 
     ret = tdbPageInsertCell(pBtc->pPage, pBtc->idx, pCell, szCell, 0);
   } else {
-    ASSERT(pBtc->idx < nCells);
+    if (pBtc->idx >= nCells) {
+      tdbError("tdb/btc-upsert: invalid idx: %d, nCells: %d.", pBtc->idx, nCells);
+      return -1;
+    }
 
     ret = tdbPageUpdateCell(pBtc->pPage, pBtc->idx, pCell, szCell, pBtc->pTxn, pBtc->pBt);
   }
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btc-upsert: page insert/update cell failed with ret: %d.", ret);
     return -1;
   }
-
+  /*
+  bool destroyOfps = false;
+  if (!pBtc->pPage->pPager->ofps) {
+    pBtc->pPage->pPager->ofps = taosArrayInit(8, sizeof(SPage *));
+    destroyOfps = true;
+  }
+  */
   // check balance
   if (pBtc->pPage->nOverflow > 0) {
     ret = tdbBtreeBalance(pBtc);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("tdb/btc-upsert: btree balance failed with ret: %d.", ret);
       return -1;
     }
   }
+  /*
+  SArray *ofps = pBtc->pPage->pPager->ofps;
+  if (ofps) {
+    for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
+      SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
+      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
+    }
 
+    if (destroyOfps) {
+      taosArrayDestroy(ofps);
+      pBtc->pPage->pPager->ofps = NULL;
+    }
+  }
+  */
   return 0;
 }
 
@@ -2090,8 +2329,8 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
                             &((SBtreeInitPageArg){.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF}), pBtc->pTxn);
     if (ret < 0) {
       // TODO
-      ASSERT(0);
-      return 0;
+      tdbError("tdb/btc-move-to: fetch page failed with ret: %d.", ret);
+      return -1;
     }
 
     pBtc->iPage = 0;
@@ -2099,7 +2338,9 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     // for empty tree, just return with an invalid position
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
   } else {
-    ASSERT(0);
+    // TODO
+    tdbError("tdb/btc-move-to: move from a dirty cursor.");
+    return -1;
 #if 0
     SPage *pPage;
     int    idx;
@@ -2111,7 +2352,10 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       idx = pBtc->idxStack[iPage];
       nCells = TDB_PAGE_TOTAL_CELLS(pPage);
 
-      ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pPage));
+      if (TDB_BTREE_PAGE_IS_LEAF(pPage)) {
+        tdbError("tdb/btc-move-to: leaf page in cursor stack.");
+        return -1;
+      }
 
       // check if key <= current position
       if (idx < nCells) {
@@ -2160,7 +2404,6 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     } else {
       lidx = lidx + 1;
     }
-
     // compare last cell
     if (lidx <= ridx) {
       pBtc->idx = ridx;
@@ -2214,7 +2457,10 @@ int tdbBtcClose(SBTC *pBtc) {
   if (pBtc->iPage < 0) return 0;
 
   for (;;) {
-    ASSERT(pBtc->pPage);
+    if (NULL == pBtc->pPage) {
+      tdbError("tdb/btc-close: null ptr pPage.");
+      return -1;
+    }
 
     tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
 
@@ -2229,6 +2475,10 @@ int tdbBtcClose(SBTC *pBtc) {
     tdbDebug("tdb btc/close decoder: %p pVal free: %p", &pBtc->coder, pBtc->coder.pVal);
 
     tdbFree(pBtc->coder.pVal);
+  }
+
+  if (pBtc->freeTxn) {
+    tdbTxnClose(pBtc->pTxn);
   }
 
   return 0;

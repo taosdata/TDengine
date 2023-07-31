@@ -60,6 +60,8 @@ const char *sdbTableName(ESdbType type) {
       return "db";
     case SDB_FUNC:
       return "func";
+    case SDB_IDX:
+      return "idx";
     default:
       return "undefine";
   }
@@ -108,7 +110,7 @@ static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
 
   SHashObj *hash = pSdb->hashObjs[type];
   if (hash == NULL) {
-    terrno = TSDB_CODE_SDB_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     return NULL;
   }
 
@@ -158,6 +160,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
+      if (terrno == 0) terrno = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       code = terrno;
       taosHashRemove(hash, pRow->pObj, keySize);
       sdbFreeRow(pSdb, pRow, false);
@@ -193,13 +196,13 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
   sdbPrintOper(pSdb, pOldRow, "update");
-  sdbUnLock(pSdb, type);
 
   int32_t     code = 0;
   SdbUpdateFp updateFp = pSdb->updateFps[type];
   if (updateFp != NULL) {
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
+  sdbUnLock(pSdb, type);
 
   // sdbUnLock(pSdb, type);
   sdbFreeRow(pSdb, pNewRow, false);
@@ -253,6 +256,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_READY:
+    case SDB_STATUS_UPDATE:
     case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
       break;
@@ -270,7 +274,7 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
   return code;
 }
 
-void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
+void *sdbAcquireAll(SSdb *pSdb, ESdbType type, const void *pKey, bool onlyReady) {
   terrno = 0;
 
   SHashObj *hash = sdbGetHash(pSdb, type);
@@ -302,12 +306,26 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
       terrno = TSDB_CODE_SDB_OBJ_DROPPING;
       break;
     default:
-      terrno = TSDB_CODE_SDB_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
       break;
+  }
+
+  if (pRet == NULL) {
+    if (!onlyReady) {
+      terrno = 0;
+      atomic_add_fetch_32(&pRow->refCount, 1);
+      pRet = pRow->pObj;
+      sdbPrintOper(pSdb, pRow, "acquire");
+    }
   }
 
   sdbUnLock(pSdb, type);
   return pRet;
+}
+
+void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) { return sdbAcquireAll(pSdb, type, pKey, true); }
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey) {
+  return sdbAcquireAll(pSdb, type, pKey, false);
 }
 
 static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {

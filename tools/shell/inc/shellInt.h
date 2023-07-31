@@ -28,6 +28,10 @@
 
 #ifdef WEBSOCKET
 #include "taosws.h"
+
+#define SHELL_WS_TIMEOUT                        30
+#define SHELL_WS_DSN_BUFF                       256
+#define SHELL_WS_DSN_MASK                       10
 #endif
 
 #define SHELL_MAX_HISTORY_SIZE                 1000
@@ -41,6 +45,8 @@
 #define SHELL_MAX_PKG_NUM                      1 * 1024 * 1024
 #define SHELL_MIN_PKG_NUM                      1
 #define SHELL_DEF_PKG_NUM                      100
+#define SHELL_FLOAT_WIDTH                      20
+#define SHELL_DOUBLE_WIDTH                     25
 
 typedef struct {
   char*   hist[SHELL_MAX_HISTORY_SIZE];
@@ -80,12 +86,13 @@ typedef struct {
 } SShellArgs;
 
 typedef struct {
-  const char* clientVersion;
-  const char* promptHeader;
-  const char* promptContinue;
+  const char *clientVersion;
+  char cusName[32];
+  char promptHeader[32];
+  char promptContinue[32];
   const char* osname;
   int32_t     promptSize;
-  char        programVersion[32];
+  char        programVersion[256];
 } SShellOsDetails;
 
 typedef struct {
@@ -98,7 +105,7 @@ typedef struct {
   bool            exit;
 #ifdef WEBSOCKET
   WS_TAOS*        ws_conn;
-  bool		      stop_query;
+  bool            stop_query;
 #endif
 } SShellObj;
 
@@ -138,7 +145,7 @@ void    shellExit();
 void shellTestNetWork();
 
 #ifdef WEBSOCKET
-void	shellCheckConnectMode();
+void shellCheckConnectMode();
 // shellWebsocket.c
 int shell_conn_ws_server(bool first);
 int32_t shell_run_websocket();
@@ -147,5 +154,6 @@ void shellRunSingleCommandWebsocketImp(char *command);
 
 // shellMain.c
 extern SShellObj shell;
+extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
 
 #endif /*_TD_SHELL_INT_H_*/

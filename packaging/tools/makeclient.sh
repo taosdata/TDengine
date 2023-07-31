@@ -2,7 +2,7 @@
 #
 # Generate tar.gz package for linux client in all os system
 set -e
-#set -x
+set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -13,12 +13,21 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
-dbName=$9
+#comVersion=$9
+dbName=$10
+
+productName2="${11}"
+#serverName2="${12}d"
+clientName2="${12}"
+# cusEmail2=${13}
 
 productName="TDengine"
 clientName="taos"
+benchmarkName="taosBenchmark"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
+
+benchmarkName2="${clientName2}Benchmark"
 
 if [ "$osType" != "Darwin" ]; then
   script_dir="$(dirname $(readlink -f $0))"
@@ -38,14 +47,21 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-  install_dir="${release_dir}/${productName}-enterprise-client-${version}"
+  install_dir="${release_dir}/${productName2}-enterprise-client-${version}"
 elif [ "$verMode" == "cloud" ]; then
-  install_dir="${release_dir}/${productName}-cloud-client-${version}"
+  install_dir="${release_dir}/${productName2}-cloud-client-${version}"
 else
-  install_dir="${release_dir}/${productName}-client-${version}"
+  install_dir="${release_dir}/${productName2}-client-${version}"
 fi
 
 # Directories and files.
+
+#if [ "$verMode" == "cluster" ]; then
+#  sed -i 's/verMode=edge/verMode=cluster/g' ${script_dir}/remove_client.sh
+#  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" ${script_dir}/remove_client.sh
+#  sed -i "s/configFile2=\"taos\"/configFile2=\"${clientName2}\"/g" ${script_dir}/remove_client.sh
+#  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" ${script_dir}/remove_client.sh
+#fi
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
@@ -54,6 +70,7 @@ if [ "$osType" != "Darwin" ]; then
         ${script_dir}/remove_client.sh"
   else
     bin_files="${build_dir}/bin/${clientName} \
+        ${build_dir}/bin/${benchmarkName} \
         ${script_dir}/remove_client.sh \
         ${script_dir}/set_core.sh \
         ${script_dir}/get_client.sh"
@@ -101,12 +118,12 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
     cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
     ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
   fi
-  if [ -f ${build_dir}/lib/libjemalloc.a ]; then
-    cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
-  fi
-  if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
-    cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
-  fi
+  # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+  # fi
+  # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+  # fi
   if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
     cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
   fi
@@ -131,27 +148,34 @@ fi
 
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
+cp ${install_dir}/install_client.sh install_client_temp.sh
 if [ "$osType" == "Darwin" ]; then
-  sed 's/osType=Linux/osType=Darwin/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/osType=Linux/osType=Darwin/g' install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 
 if [ "$verMode" == "cluster" ]; then
-  sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/verMode=edge/verMode=cluster/g' install_client_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_client_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_client_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_client_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_client_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_client_temp.sh
+
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 if [ "$verMode" == "cloud" ]; then
-  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/verMode=edge/verMode=cloud/g' install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 
 if [ "$pagMode" == "lite" ]; then
-  sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/pagMode=full/pagMode=lite/g' install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 chmod a+x ${install_dir}/install_client.sh
 
-if [[ $productName == "TDengine" ]]; then
+if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
   # Copy example code
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
@@ -167,13 +191,14 @@ if [[ $productName == "TDengine" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+  if [ "$verMode" == "cluster" ]; then
       # Copy connector
       connector_dir="${code_dir}/connector"
       mkdir -p ${install_dir}/connector
       if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
           if [ "$osType" != "Darwin" ]; then
-              [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+              jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
+              [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
           fi
           git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
           rm -rf ${install_dir}/connector/go/.git ||:
@@ -187,7 +212,7 @@ if [[ $productName == "TDengine" ]]; then
           git clone --depth 1 https://github.com/taosdata/taos-connector-dotnet ${install_dir}/connector/dotnet
           rm -rf ${install_dir}/connector/dotnet/.git ||:
 #          cp -r ${connector_dir}/nodejs ${install_dir}/connector
-          git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
+          git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
           rm -rf ${install_dir}/connector/rust/.git ||:
       fi
   fi
@@ -249,9 +274,9 @@ if [ "$osType" != "Darwin" ]; then
   tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 else
   tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) || :
-  mv "$(basename ${pkg_name}).tar.gz" ..
-  rm -rf ./*
-  mv ../"$(basename ${pkg_name}).tar.gz" .
+#  mv "$(basename ${pkg_name}).tar.gz" ..
+  rm -rf ${install_dir} ||:
+#  mv ../"$(basename ${pkg_name}).tar.gz" .
 fi
 
 cd ${curr_dir}

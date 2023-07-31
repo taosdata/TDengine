@@ -88,6 +88,7 @@ sql insert into car1 values (now, 1, 1,1 ) (now +1s, 2,2,2) car2 values (now, 1,
 
 sql select c1+speed from stb where c1 > 0
 if $rows != 3 then
+  print $rows , expect 3
   return -1
 endi
 

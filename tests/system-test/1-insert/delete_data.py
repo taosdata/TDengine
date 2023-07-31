@@ -1,3 +1,4 @@
+
 ###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
@@ -26,7 +27,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor())
         self.dbname = 'db_test'
         self.setsql = TDSetSql()
         self.stbname = 'stb'

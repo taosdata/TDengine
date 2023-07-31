@@ -24,15 +24,12 @@
 #include "os.h"
 
 #include "executor.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "function.h"
+#include "operator.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"
-#include "tglobal.h"
-#include "tmsg.h"
-#include "tname.h"
-#include "trpc.h"
 #include "tvariant.h"
 
 namespace {
@@ -42,6 +39,19 @@ enum {
   data_asc = 0x2,
   data_desc = 0x3,
 };
+
+TEST(testCase, windowFunctionTest) {
+  int64_t tsCol[100000];
+  int32_t rows = 100000;
+  for (int32_t i = 0; i < rows; i++) {
+    tsCol[i] = 1648791213000 + i;
+  }
+  int32_t ekeyNum = 50000;
+  int32_t pos = 40000;
+  int64_t ekey = tsCol[ekeyNum];
+  int32_t num = getForwardStepsInBlock(rows, binarySearchForKey, ekey, pos, TSDB_ORDER_ASC, tsCol);
+  ASSERT_EQ(num, ekeyNum - pos + 1);
+}
 
 typedef struct SDummyInputInfo {
   int32_t      totalPages;  // numOfPages
@@ -97,13 +107,13 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
       v = taosRand();
     }
 
-    colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+    colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
 
     //    sprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
     //
     //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
-    //    colDataAppend(pColInfo2, i, b1, false);
+    //    colDataSetVal(pColInfo2, i, b1, false);
   }
 
   pBlock->info.rows = pInfo->numOfRowsPerPage;
@@ -142,7 +152,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
     ts = (++pInfo->tsStart);
-    colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&ts), false);
+    colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&ts), false);
 
     SColumnInfoData* pColInfo1 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
     if (pInfo->type == data_desc) {
@@ -153,19 +163,20 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
       v = taosRand();
     }
 
-    colDataAppend(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
+    colDataSetVal(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
 
     //    sprintf(buf, "this is %d row", i);
     //    STR_TO_VARSTR(b1, buf);
     //
     //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
-    //    colDataAppend(pColInfo2, i, b1, false);
+    //    colDataSetVal(pColInfo2, i, b1, false);
   }
 
   pBlock->info.rows = pInfo->numOfRowsPerPage;
 
   pInfo->current += 1;
 
+  pBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pBlock, 0);
   return pBlock;
 }

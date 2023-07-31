@@ -1,0 +1,239 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== prepare data 
+
+sql drop database if exists db1;
+sql create database db1 vgroups 5;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(10), f3 bool) tags(t1 int, t2 bool, t3 binary(10));
+sql create table tba1 using sta tags(0, false, '0');
+sql create table tba2 using sta tags(1, true, '1');
+sql insert into tba1 values ('2022-09-26 15:15:01', 0, "a", false);
+sql insert into tba1 values ('2022-09-26 15:15:02', 1, "0", true);
+sql insert into tba1 values ('2022-09-26 15:15:03', 5, "5", false);
+sql insert into tba1 values ('2022-09-26 15:15:04', 3, 'b', false);
+sql insert into tba1 values ('2022-09-26 15:15:05', 0, '1', false);
+sql insert into tba1 values ('2022-09-26 15:15:06', 2, 'd', true);
+sql insert into tba2 values ('2022-09-26 15:15:01', 0, "a", false);
+sql insert into tba2 values ('2022-09-26 15:15:02', 1, "0", true);
+sql insert into tba2 values ('2022-09-26 15:15:03', 5, "5", false);
+sql insert into tba2 values ('2022-09-26 15:15:04', 3, 'b', false);
+sql insert into tba2 values ('2022-09-26 15:15:05', 0, '1', false);
+sql insert into tba2 values ('2022-09-26 15:15:06', 2, 'd', true);
+
+# child table: no window
+print ====> select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'c';
+sql select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'c';
+if $rows != 0 then
+  return -1
+endi
+
+# child table: single row window
+print ====> select count(*) from tba1 event_window start with f1 = 0 end with f3 = false;
+sql select count(*) from tba1 event_window start with f1 = 0 end with f3 = false;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+
+# child table: multi rows window
+print ====> select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'b';
+sql select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'b';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+# child table: multi windows
+print ====> select count(*) from tba1 event_window start with f1 >= 0 end with f3 = true;
+sql select count(*) from tba1 event_window start with f1 >= 0 end with f3 = true;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 4 then
+  return -1
+endi
+
+# super table: no window
+print ====> select count(*) from sta event_window start with f1 = 0 end with f2 = 'c';
+sql select count(*) from sta event_window start with f1 = 0 end with f2 = 'c';
+if $rows != 0 then
+  return -1
+endi
+
+# super table: single row window
+print ====> select count(*) from sta event_window start with f1 = 0 end with f3 = false;
+sql select count(*) from sta event_window start with f1 = 0 end with f3 = false;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+
+# super table: multi rows window
+print ====> select count(*) from sta event_window start with f1 = 0 end with f2 = 'b';
+sql select count(*) from sta event_window start with f1 = 0 end with f2 = 'b';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 7 then
+  return -1
+endi
+
+# super table: multi windows
+print ====> select count(*) from sta event_window start with f1 >= 0 end with f3 = true;
+sql select count(*) from sta event_window start with f1 >= 0 end with f3 = true;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 3 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 7 then
+  return -1
+endi
+if $data30 != 1 then
+  return -1
+endi
+
+# multi-child table: no window
+print ====> select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'c';
+sql select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'c';
+if $rows != 0 then
+  return -1
+endi
+
+# multi-child table: single row window
+print ====> select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f3 = false;
+sql select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f3 = false;
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+# multi-child table: multi rows window
+print ====> select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'b';
+sql select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'b';
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data11 != 4 then
+  return -1
+endi
+
+# multi-child table: multi windows
+print ====> select tbname, count(*) from sta partition by tbname event_window start with f1 >= 0 end with f3 = true;
+sql select tbname, count(*) from sta partition by tbname event_window start with f1 >= 0 end with f3 = true;
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data11 != 4 then
+  return -1
+endi
+
+# where + partition by
+print ====> select tbname, count(*) from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0;
+sql select tbname, count(*) from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+
+# where + order by
+print ====> select count(*) cnt from tba1 where f3 = false event_window start with f1 >0 end with f2 > 0 order by cnt desc;
+sql select count(*) cnt from tba1 where f3 = false event_window start with f1 >0 end with f2 > 0 order by cnt desc;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+
+# where + partition by + order by
+print ====> select tbname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt;
+sql select tbname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt;
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+
+# where + partition by + order by + limit
+print ====> select tbname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2;
+sql select tbname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2;
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+
+# subquery(where + partition by + order by + limit)
+print ====> select * from (select tbname tname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2);
+sql select * from (select tbname tname, count(*) cnt from sta where f3 = false partition by tbname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2);
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+
+# subquery + where + partition by + order by + limit
+print ====> select tname, count(*) cnt from (select tbname tname, * from sta) where f3 = false partition by tname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2;
+sql select tname, count(*) cnt from (select tbname tname, * from sta) where f3 = false partition by tname event_window start with f1 >0 end with f2 > 0 order by cnt limit 2 offset 2;
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+
+sql_error select f1, f2 from sta event_window start with f1 >0 end with f2 > 0;
+sql_error select count(*) from sta event_window start with f1 >0 end with f2 > 0 partition by tbname;
+sql_error select count(*) from sta event_window start with f1 >0 end with f2 > 0 group by tbname;
+sql_error select count(*) from sta event_window start with f1 >0 end with f2 > 0 fill(NULL);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

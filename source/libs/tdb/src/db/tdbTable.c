@@ -105,23 +105,21 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 #endif
 
-  ASSERT(pPager != NULL);
-
-  // pTb->pBt
-  ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, &(pTb->pBt));
-  if (ret < 0) {
-    tdbOsFree(pTb);
-    return -1;
-  }
-
   if (rollback) {
-    tdbPagerRollback(pPager);
-  } else {
-    ret = tdbPagerRestore(pPager, pTb->pBt);
+    ret = tdbPagerRestoreJournals(pPager);
     if (ret < 0) {
       tdbOsFree(pTb);
       return -1;
     }
+  } else {
+    tdbPagerRollback(pPager);
+  }
+
+  // pTb->pBt
+  ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, pEnv, &(pTb->pBt));
+  if (ret < 0) {
+    tdbOsFree(pTb);
+    return -1;
   }
 
   *ppTb = pTb;
@@ -136,9 +134,65 @@ int tdbTbClose(TTB *pTb) {
   return 0;
 }
 
+bool tdbTbExist(const char *tbname, TDB *pEnv) {
+  bool    exist = false;
+  SPager *pPager;
+  char    fFullName[TDB_FILENAME_LEN];
+
+#ifdef USE_MAINDB
+
+  snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, TDB_MAINDB_NAME);
+
+  if (strcmp(TDB_MAINDB_NAME, tbname)) {
+    pPager = tdbEnvGetPager(pEnv, fFullName);
+
+    exist = tdbTbGet(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, NULL, NULL) == 0;
+  } else {
+    exist = taosCheckExistFile(fFullName);
+  }
+
+#else
+
+  snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, tbname);
+
+  exist = taosCheckExistFile(fFullName);
+
+#endif
+
+  return exist;
+}
+
 int tdbTbDrop(TTB *pTb) {
   // TODO
   return 0;
+}
+
+int tdbTbDropByName(const char *tbname, TDB *pEnv, TXN *pTxn) {
+  int     ret;
+  SPager *pPager;
+  char    fFullName[TDB_FILENAME_LEN];
+
+#ifdef USE_MAINDB
+
+  snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, TDB_MAINDB_NAME);
+
+  if (strcmp(TDB_MAINDB_NAME, tbname)) {
+    pPager = tdbEnvGetPager(pEnv, fFullName);
+
+    ret = tdbTbDelete(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, pTxn);
+  } else {
+    ret = taosRemoveFile(fFullName);
+  }
+
+#else
+
+  snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, tbname);
+
+  ret = taosRemoveFile(fFullName);
+
+#endif
+
+  return ret;
 }
 
 int tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
@@ -172,6 +226,38 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
 
   *ppTbc = pTbc;
+  return 0;
+}
+
+int32_t tdbTbTraversal(TTB *pTb, void *data,
+                       int32_t (*func)(const void *pKey, int keyLen, const void *pVal, int valLen, void *data)) {
+  TBC *pCur;
+  int  ret = tdbTbcOpen(pTb, &pCur, NULL);
+  if (ret < 0) {
+    return ret;
+  }
+
+  tdbTbcMoveToFirst(pCur);
+
+  void *pKey = NULL;
+  int   kLen = 0;
+  void *pValue = NULL;
+  int   vLen = 0;
+
+  while (1) {
+    ret = tdbTbcNext(pCur, &pKey, &kLen, &pValue, &vLen);
+    if (ret < 0) {
+      ret = 0;
+      break;
+    }
+
+    ret = func(pKey, kLen, pValue, vLen, data);
+    if (ret < 0) break;
+  }
+  tdbFree(pKey);
+  tdbFree(pValue);
+  tdbTbcClose(pCur);
+
   return 0;
 }
 

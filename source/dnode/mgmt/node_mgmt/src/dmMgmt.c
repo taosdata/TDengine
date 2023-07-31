@@ -18,6 +18,7 @@
 #include "dmNodes.h"
 #include "index.h"
 #include "qworker.h"
+#include "tstream.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -79,6 +80,13 @@ static void dmClearVars(SDnode *pDnode) {
 
   SDnodeData *pData = &pDnode->data;
   taosThreadRwlockWrlock(&pData->lock);
+  if (pData->oldDnodeEps != NULL) {
+    if (dmWriteEps(pData) == 0) {
+      dmRemoveDnodePairs(pData);
+    }
+    taosArrayDestroy(pData->oldDnodeEps);
+    pData->oldDnodeEps = NULL;
+  }
   if (pData->dnodeEps != NULL) {
     taosArrayDestroy(pData->dnodeEps);
     pData->dnodeEps = NULL;
@@ -117,7 +125,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     taosThreadRwlockInit(&pWrapper->lock, NULL);
 
     snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
-    pWrapper->path = strdup(path);
+    pWrapper->path = taosStrdup(path);
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
@@ -146,6 +154,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   indexInit(tsNumOfCommitThreads);
+  streamMetaInit();
 
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
@@ -168,6 +177,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
   rpcCleanup();
+  streamMetaCleanup();
   indexCleanup();
   taosConvDestroy();
   dDebug("dnode is closed, ptr:%p", pDnode);
@@ -189,7 +199,6 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
   } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     pRetWrapper = NULL;
   }
   taosThreadRwlockUnlock(&pWrapper->lock);
@@ -205,7 +214,23 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    switch (pWrapper->ntype) {
+      case MNODE:
+        terrno = TSDB_CODE_MNODE_NOT_FOUND;
+        break;
+      case QNODE:
+        terrno = TSDB_CODE_QNODE_NOT_FOUND;
+        break;
+      case SNODE:
+        terrno = TSDB_CODE_SNODE_NOT_FOUND;
+        break;
+      case VNODE:
+        terrno = TSDB_CODE_VND_STOPPED;
+        break;
+      default:
+        terrno = TSDB_CODE_APP_IS_STOPPING;
+        break;
+    }
     code = -1;
   }
   taosThreadRwlockUnlock(&pWrapper->lock);

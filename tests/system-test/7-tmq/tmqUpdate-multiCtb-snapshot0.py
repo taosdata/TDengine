@@ -128,7 +128,7 @@ class TDTestCase:
         ifManualCommit = 1
         keyList        = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
+                        auto.commit.interval.ms:200,\
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
@@ -213,9 +213,9 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2 + 1/2*1/2*2 + 1/2*1/2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] *(2 + 1/2*1/2*2 + 1/2 + 1/4))
         elif self.snapshot == 1:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2 + 1/2*1/2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/2))
 
         topicList      = topicFromStb1
         ifcheckdata    = 1

@@ -126,7 +126,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   idx->version = 1;
-  idx->path = tstrdup(path);
+  idx->path = taosStrdup(path);
   taosThreadMutexInit(&idx->mtx, NULL);
   tsem_init(&idx->sem, 0, 0);
 
@@ -226,7 +226,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     indexDebug("w suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
-    assert(*cache != NULL);
+    ASSERTS(*cache != NULL, "index-cache already release");
+    if (*cache == NULL) return -1;
+
     int ret = idxCachePut(*cache, p, uid);
     if (ret != 0) {
       return ret;

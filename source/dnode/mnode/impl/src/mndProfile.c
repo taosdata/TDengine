@@ -24,7 +24,7 @@
 #include "mndStb.h"
 #include "mndUser.h"
 #include "tglobal.h"
-#include "version.h"
+#include "tversion.h"
 
 typedef struct {
   uint32_t id;
@@ -221,11 +221,18 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   char            ip[24] = {0};
   const STraceId *trace = &pReq->info.traceId;
 
-  if (tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+  if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
+    terrno = (-1 == code ? TSDB_CODE_INVALID_MSG : code);
     goto _OVER;
   }
 
+  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
+    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, version);
+    terrno = code;
+    goto _OVER;
+  }
+
+  code = -1;
   taosIp2String(pReq->info.conn.clientIp, ip);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
@@ -238,7 +245,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
+  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
@@ -249,10 +256,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_INVALID_DB;
-      mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
-              terrstr());
-      goto _OVER;
+      if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
+          (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
+        terrno = TSDB_CODE_MND_INVALID_DB;
+        mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
+                terrstr());
+        goto _OVER;
+      }
     }
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {
@@ -260,6 +270,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     }
   }
 
+_CONNECT:
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
@@ -276,6 +287,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
+  connectRsp.passVer = pUser->passVersion;
+  connectRsp.authVer = pUser->authVersion;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -523,7 +536,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_DBINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbVgVersion), &rspMsg, &rspLen);
+        mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
@@ -542,7 +555,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
       default:
         mError("invalid kv key:%d", kv->key);
-        hbRsp.status = TSDB_CODE_MND_APP_ERROR;
+        hbRsp.status = TSDB_CODE_APP_ERROR;
         break;
     }
 
@@ -709,32 +722,32 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->id, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->id, false);
 
     char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(user, pConn->user);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)user, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
 
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)app, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)app, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->pid, false);
 
     char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
     varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)endpoint, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
 
     numOfRows++;
   }
@@ -743,16 +756,119 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   return numOfRows;
 }
 
+/**
+ * @param pConn the conn queries pack from
+ * @param[out] pBlock the block data packed into
+ * @param offset skip [offset] queries in pConn
+ * @param rowsToPack at most rows to pack
+ * @return rows packed
+*/
+static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBlock* pBlock, uint32_t offset, uint32_t rowsToPack) {
+  int32_t cols = 0;
+  taosRLockLatch(&pConn->queryLock);
+  int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
+  if (NULL == pConn->pQueries || numOfQueries <= offset) {
+    taosRUnLockLatch(&pConn->queryLock);
+    return 0;
+  }
+
+  int32_t i = offset;
+  for (; i < numOfQueries && (i - offset) < rowsToPack; ++i) {
+    int32_t curRowIndex = pBlock->info.rows;
+    SQueryDesc *pQuery = taosArrayGet(pConn->pQueries, i);
+    cols = 0;
+
+    char queryId[26 + VARSTR_HEADER_SIZE] = {0};
+    sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
+    varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->id, false);
+
+    char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(app, pConn->app);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)app, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pConn->pid, false);
+
+    char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(user, pConn->user);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)user, false);
+
+    char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->stableQuery, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->isSubQuery, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
+
+    char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t strSize = sizeof(subStatus);
+    int32_t offset = VARSTR_HEADER_SIZE;
+    for (int32_t i = 0; i < pQuery->subPlanNum && offset < strSize; ++i) {
+      if (i) {
+        offset += snprintf(subStatus + offset, strSize - offset - 1, ",");
+      }
+      SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
+      offset += snprintf(subStatus + offset, strSize - offset - 1, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+    }
+    varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+
+    char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(sql, pQuery->sql);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, curRowIndex, (const char *)sql, false);
+
+    pBlock->info.rows++;
+  }
+
+  taosRUnLockLatch(&pConn->queryLock);
+  return i - offset;
+}
+
 static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode   *pMnode = pReq->info.node;
-  SSdb     *pSdb = pMnode->pSdb;
+  SMnode *  pMnode = pReq->info.node;
+  SSdb *    pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
-  int32_t   cols = 0;
   SConnObj *pConn = NULL;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->connCache);
+  }
+
+  // means fetched some data last time for this conn
+  if (pShow->curIterPackedRows > 0) {
+    size_t len = 0;
+    pConn = taosCacheIterGetData(pShow->pIter, &len);
+    if (pConn && (taosArrayGetSize(pConn->pQueries) > pShow->curIterPackedRows)) {
+      numOfRows = packQueriesIntoBlock(pShow, pConn, pBlock, pShow->curIterPackedRows, rows);
+      pShow->curIterPackedRows += numOfRows;
+    }
   }
 
   while (numOfRows < rows) {
@@ -762,85 +878,10 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       break;
     }
 
-    taosRLockLatch(&pConn->queryLock);
-    if (NULL == pConn->pQueries || taosArrayGetSize(pConn->pQueries) <= 0) {
-      taosRUnLockLatch(&pConn->queryLock);
-      continue;
-    }
-
-    int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
-    for (int32_t i = 0; i < numOfQueries; ++i) {
-      SQueryDesc *pQuery = taosArrayGet(pConn->pQueries, i);
-      cols = 0;
-
-      char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-      sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
-      varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)queryId, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->queryId, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pConn->id, false);
-
-      char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
-      STR_TO_VARSTR(app, pConn->app);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)app, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pConn->pid, false);
-
-      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(user, pConn->user);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)user, false);
-
-      char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-      sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
-      varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)endpoint, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->stime, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->useconds, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->stableQuery, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->subPlanNum, false);
-
-      char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
-      int32_t strSize = sizeof(subStatus);
-      int32_t offset = VARSTR_HEADER_SIZE;
-      for (int32_t i = 0; i < pQuery->subPlanNum && offset < strSize; ++i) {
-        if (i) {
-          offset += snprintf(subStatus + offset, strSize - offset - 1, ",");
-        }
-        SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-        offset += snprintf(subStatus + offset, strSize - offset - 1, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
-      }
-      varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, subStatus, false);
-
-      char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(sql, pQuery->sql);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
-
-      numOfRows++;
-    }
-
-    taosRUnLockLatch(&pConn->queryLock);
+    int32_t packedRows = packQueriesIntoBlock(pShow, pConn, pBlock, 0, rows - numOfRows);
+    pShow->curIterPackedRows = packedRows;
+    numOfRows += packedRows;
   }
-
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
@@ -867,55 +908,55 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->appId, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->appId, false);
 
     char ip[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
     varDataLen(ip) = strlen(&ip[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)ip, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->pid, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->pid, false);
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
 
     numOfRows++;
   }

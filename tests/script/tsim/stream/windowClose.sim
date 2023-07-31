@@ -22,11 +22,20 @@ sql create stream stream1 trigger window_close into streamt as select  _wstart, 
 
 sql insert into tu1 values(now, 1);
 
-sleep 500
+$loop_count = 0
+
+loop0:
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt;
+
 if $rows != 0 then
   print ======$rows
-  return -1
+  goto loop0
 endi
 
 
@@ -57,10 +66,10 @@ $loop_count = 0
 
 loop1:
 
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 20 then
   return -1
 endi
 
@@ -68,7 +77,7 @@ sql select * from streamt2;
 
 if $rows != 1 then
   print ======streamt2=$rows
-  return -1
+  goto loop1
 endi
 
 sql select * from streamt3;
@@ -80,7 +89,7 @@ endi
 sql select * from streamt4;
 if $rows != 1 then
   print ======streamt4=$rows
-  return -1
+  goto loop1
 endi
 
 sql select * from streamt5;
@@ -92,7 +101,7 @@ endi
 sql select * from streamt6;
 if $rows != 1 then
   print ======streamt6=$rows
-  return -1
+  goto loop1
 endi
 
 sql select * from streamt7;
@@ -104,7 +113,7 @@ endi
 sql select * from streamt8;
 if $rows != 1 then
   print ======streamt8=$rows
-  return -1
+  goto loop1
 endi
 
 sql select * from streamt9;
@@ -116,7 +125,7 @@ endi
 sql select * from streamt10;
 if $rows != 1 then
   print ======streamt10=$rows
-  return -1
+  goto loop1
 endi
 
 sql select * from streamt11;
@@ -124,5 +133,7 @@ if $rows != 2 then
   print ======streamt11=$rows
   goto loop1
 endi
+
+print ======over
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

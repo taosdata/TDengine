@@ -29,7 +29,6 @@ extern "C" {
 #define DS_BUF_FULL  2
 #define DS_BUF_EMPTY 3
 
-struct SDataSink;
 struct SSDataBlock;
 
 typedef struct SDeleterRes {
@@ -60,7 +59,7 @@ typedef struct SDataSinkMgtCfg {
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg);
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI);
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
@@ -68,7 +67,7 @@ typedef struct SInputData {
 
 typedef struct SOutputData {
   int32_t numOfBlocks;
-  int32_t numOfRows;
+  int64_t numOfRows; // int32_t changed to int64_t
   int32_t numOfCols;
   int8_t  compressed;
   char*   pData;

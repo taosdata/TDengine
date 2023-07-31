@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_UV
 
 #include "transComm.h"
 
@@ -60,21 +59,20 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
 
-  char*          pCont = transContFromHead(pHead);
+  char* pCont = transContFromHead(pHead);
+
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = htonl(pComp->contLen);
 
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
-
-  int32_t decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), pNewHead->content,
-                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+  int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
+                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
 
   taosMemoryFree(pHead);
-
   *msg = buf;
   if (decompLen != oriLen) {
     return -1;
@@ -135,7 +133,9 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     memcpy(*buf, p->buf, total);
-    transResetBuffer(connBuf);
+    if (transResetBuffer(connBuf) < 0) {
+      return -1;
+    }
   } else {
     total = -1;
   }
@@ -155,7 +155,8 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->total = 0;
     p->len = 0;
   } else {
-    assert(0);
+    ASSERTS(0, "invalid read from sock buf");
+    return -1;
   }
   return 0;
 }
@@ -191,7 +192,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
       memcpy((char*)&head, connBuf->buf, sizeof(head));
       int32_t msgLen = (int32_t)htonl(head.msgLen);
       p->total = msgLen;
-      p->invalid = TRANS_NOVALID_PACKET(htonl(head.magicNum));
+      p->invalid = TRANS_NOVALID_PACKET(htonl(head.magicNum)) || head.version != TRANS_VER;
     }
     if (p->total >= p->len) {
       p->left = p->total - p->len;
@@ -203,9 +204,12 @@ bool transReadComplete(SConnBuffer* connBuf) {
 }
 
 int transSetConnOption(uv_tcp_t* stream) {
-  uv_tcp_nodelay(stream, 0);
-  int ret = uv_tcp_keepalive(stream, 5, 60);
-  return ret;
+#if defined(WINDOWS) || defined(DARWIN)
+#else
+  uv_tcp_keepalive(stream, 1, 20);
+#endif
+  return uv_tcp_nodelay(stream, 1);
+  // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
@@ -213,24 +217,37 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
 
-  for (int i = 0; i < pool->nAsync; i++) {
+  int i = 0, err = 0;
+  for (i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
     taosThreadMutexInit(&item->mtx, NULL);
 
-    uv_async_t* async = &(pool->asyncs[i]);
-    uv_async_init(loop, async, cb);
     async->data = item;
+    err = uv_async_init(loop, async, cb);
+    if (err != 0) {
+      tError("failed to init async, reason:%s", uv_err_name(err));
+      break;
+    }
   }
+
+  if (i != pool->nAsync) {
+    transAsyncPoolDestroy(pool);
+    pool = NULL;
+  }
+
   return pool;
 }
 
 void transAsyncPoolDestroy(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
-
     SAsyncItem* item = async->data;
+    if (item == NULL) continue;
+
     taosThreadMutexDestroy(&item->mtx);
     taosMemoryFree(item);
   }
@@ -252,7 +269,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index % pool->nAsync;
 
   // no need mutex here
-  if (pool->index++ > pool->nAsync) {
+  if (pool->index++ > pool->nAsync * 2000) {
     pool->index = 0;
   }
   uv_async_t* async = &(pool->asyncs[idx]);
@@ -284,6 +301,9 @@ void transCtxCleanup(STransCtx* ctx) {
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
+  if (src->args == NULL || src->freeFunc == NULL) {
+    return;
+  }
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
@@ -497,7 +517,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
 
     STaskArg* arg = task->arg;
-    if (freeFunc) freeFunc(arg->param1);
+    if (freeFunc) freeFunc(arg);
     taosMemoryFree(arg);
 
     taosMemoryFree(task);
@@ -634,4 +654,3 @@ void transDestoryExHandle(void* handle) {
   }
   taosMemoryFree(handle);
 }
-#endif

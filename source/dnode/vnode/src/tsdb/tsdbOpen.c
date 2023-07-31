@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "tsdbFS2.h"
 
 int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -49,7 +50,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
 
   pTsdb->path = (char *)&pTsdb[1];
   snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
-  taosRealPath(pTsdb->path, NULL, slen);
+  // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   taosThreadRwlockInit(&pTsdb->rwLock, NULL);
   if (!pKeepCfg) {
@@ -66,7 +67,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
 
   // open tsdb
-  if (tsdbFSOpen(pTsdb, rollback) < 0) {
+  if (tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback) < 0) {
     goto _err;
   }
 
@@ -88,13 +89,13 @@ _err:
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
-    tsdbMemTableDestroy((*pTsdb)->mem);
+    tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;
     taosThreadRwlockUnlock(&(*pTsdb)->rwLock);
 
     taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
 
-    tsdbFSClose(*pTsdb);
+    tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
     taosMemoryFreeClear(*pTsdb);
   }

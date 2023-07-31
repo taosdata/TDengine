@@ -1,8 +1,8 @@
 ---
 title: taosBenchmark
 sidebar_label: taosBenchmark
+description: This document describes how to use taosBenchmark, a tool for testing the performance of TDengine.
 toc_max_heading_level: 4
-description: "taosBenchmark (once called taosdemo ) is a tool for testing the performance of TDengine."
 ---
 
 # Introduction
@@ -92,7 +92,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-## Command-line argument in detailed
+## Command-line argument in detail
 
 - **-f/--file <json file\>** :
   specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.
@@ -198,11 +198,20 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-R/--disorder-range <timeRange\>** :
   Specify the timestamp range for the disordered data. It leads the resulting disorder timestamp as the ordered timestamp minus a random value in this range. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.
 
-- **-F/--prepare_rand <Num\>** :
+- **-F/--prepared_rand <Num\>** :
   Specify the number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
 - **-a/--replica <replicaNum\>** :
   Specify the number of replicas when creating the database. The default value is 1.
+
+- **-k/--keep-trying <NUMBER\>** :
+  Keep trying if failed to insert, default is no. Available with v3.0.9+.
+
+- **-z/--trying-interval <NUMBER\>** :
+  Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+
+- **-v/--vgroups <NUMBER\>** :
+  Specify vgroups number for creating a database, only valid with daemon version 3.0+
 
 - **-V/--version** :
   Show version information only. Users should not use it with other parameters.
@@ -210,7 +219,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-? /--help** :
   Show help information and exit. Users should not use it with other parameters.
 
-## Configuration file parameters in detailed
+## Configuration file parameters in detail
 
 ### General configuration parameters
 
@@ -230,6 +239,18 @@ The parameters listed in this section apply to all function modes.
 ### Insert scenario configuration parameters
 
 `filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#General Configuration Parameters)
+
+- ** keep_trying ** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
+
+- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+
+- ** childtable_from and childtable_to ** : specify the child table range to create. The range is [childtable_from, childtable_to).
+
+- ** continue_if_fail ** :  allow the user to specify the reaction if the insertion failed.
+
+  - "continue_if_fail" : "no"  // means taosBenchmark will exit if it fails to insert as default reaction behavior.
+  - "continue_if_fail" : "yes"  // means taosBenchmark will warn the user if it fails to insert but continue to insert the next record.
+  - "continue_if_fail": "smart" // means taosBenchmark will try to create the non-existent child table if it fails to insert.
 
 #### Database related configuration parameters
 
@@ -342,7 +363,8 @@ The configuration parameters for specifying super table tag columns and data col
 
 - **min**: The minimum value of the column/label of the data type. The generated value will equal or large than the minimum value.
 
-- **max**: The maximum value of the column/label of the data type. The generated value will less than the maxium value.
+- **max**: The maximum value of the column/label of the data type. The generated value will less than the maximum value.
+- **fun**: This column of data is filled with functions. Currently, only the sin and cos functions are supported. The input parameter is the timestamp and converted to an angle value. The conversion formula is: angle x=input time column ts value % 360. At the same time, it supports coefficient adjustment and random fluctuation factor adjustment, presented in a fixed format expression, such as fun="10\*sin(x)+100\*random(5)", where x represents the angle, ranging from 0 to 360 degrees, and the growth step size is consistent with the time column step size. 10 represents the coefficient of multiplication, 100 represents the coefficient of addition or subtraction, and 5 represents the fluctuation range within a random range of 5%. The currently supported data types are int, bigint, float, and double. Note: The expression is fixed and cannot be reversed.
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.
 
@@ -370,7 +392,7 @@ The configuration parameters for specifying super table tag columns and data col
 - **num_of_records_per_req** :
   Writing the number of rows of records per request to TDengine, the default value is 30000. When it is set too large, the TDengine client driver will return the corresponding error message, so you need to lower the setting of this parameter to meet the writing requirements.
 
-- **prepare_rand**: The number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
+- **prepared_rand**: The number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
 ### Query scenario configuration parameters
 
@@ -382,11 +404,11 @@ See [General Configuration Parameters](#General Configuration Parameters) for de
 
 #### Configuration parameters for executing the specified query statement
 
-The configuration parameters for querying the sub-tables or the normal tables are set in `specified_table_query`.
+The configuration parameters for querying the specified table (it can be a super table, a sub-table or a normal table) are set in `specified_table_query`.
 
 - **query_interval** : The query interval in seconds, the default value is 0.
 
-- **threads**: The number of threads to execute the query SQL, the default value is 1.
+- **threads/concurrent**: The number of threads to execute the query SQL, the default value is 1.
 
 - **sqls**.
   - **sql**: the SQL command to be executed.
@@ -413,9 +435,9 @@ The configuration parameters of the super table query are set in `super_table_qu
 
 #### Configuration parameters for executing the specified subscription statement
 
-The configuration parameters for subscribing to a sub-table or a generic table are set in `specified_table_query`.
+The configuration parameters for subscribing to a specified table (it can be a super table, a sub-table or a generic table) are set in `specified_table_query`.
 
-- **threads**: The number of threads to execute SQL, default is 1.
+- **threads/concurrent**: The number of threads to execute SQL, default is 1.
 
 - **interval**: The time interval to execute the subscription, in seconds, default is 0.
 
@@ -449,3 +471,26 @@ The configuration parameters for subscribing to a super table are set in `super_
   - **sql**: The SQL command to be executed. For the query SQL of super table, keep "xxxx" in the SQL command. The program will automatically replace it with all the sub-table names of the super table.
     Replace it with all the sub-table names in the super table.
   - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.
+
+#### data type on taosBenchmark
+
+| #   |   **TDengine**     | **taosBenchmark** 
+| --- | :----------------: | :---------------:
+| 1   |  TIMESTAMP         |    timestamp
+| 2   |  INT               |    int
+| 3   |  INT UNSIGNED      |    uint
+| 4   |  BIGINT            |    bigint
+| 5   |  BIGINT UNSIGNED   |    ubigint
+| 6   |  FLOAT             |    float
+| 7   |  DOUBLE            |    double
+| 8   |  BINARY            |    binary
+| 9   |  SMALLINT          |    smallint
+| 10  |  SMALLINT UNSIGNED |    usmallint
+| 11  |  TINYINT           |    tinyint
+| 12  |  TINYINT UNSIGNED  |    utinyint
+| 13  |  BOOL              |    bool
+| 14  |  NCHAR             |    nchar
+| 15  |  VARCHAR           |    varchar
+| 15  |  JSON              |    json
+
+note：Lowercase characters must be used on taosBenchmark datatype

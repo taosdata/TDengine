@@ -1,8 +1,11 @@
 import pandas
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 engine = create_engine("taos://root:taosdata@localhost:6030/power")
-df = pandas.read_sql("SELECT * FROM meters", engine)
+conn = engine.connect()
+df = pandas.read_sql(text("SELECT * FROM power.meters"), conn)
+conn.close()
+
 
 # print index
 print(df.index)

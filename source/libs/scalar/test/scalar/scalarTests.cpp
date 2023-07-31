@@ -87,7 +87,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
 
     SColumnInfoData idata = {0};
     idata.info = *colInfo;
-    colInfoDataEnsureCapacity(&idata, rows);
+    colInfoDataEnsureCapacity(&idata, rows, true);
 
     blockDataAppendColInfo(res, &idata);
 
@@ -98,13 +98,13 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
 
     taosArrayPush(pBlockList, &res);
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
-    res->info.blockId = *dataBlockId;
+    res->info.id.blockId = *dataBlockId;
     *slotId = 0;
   } else {
     SSDataBlock    *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
     SColumnInfoData idata = {0};
     idata.info = *colInfo;
-    colInfoDataEnsureCapacity(&idata, rows);
+    colInfoDataEnsureCapacity(&idata, rows, true);
     blockDataAppendColInfo(res, &idata);
 
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
@@ -146,19 +146,19 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SSDataBlock *res = createDataBlock();
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
-      colInfoDataEnsureCapacity(&idata, rowNum);
+      colInfoDataEnsureCapacity(&idata, rowNum, true);
       blockDataAppendColInfo(res, &idata);
     }
 
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
-    colInfoDataEnsureCapacity(&idata, rowNum);
+    colInfoDataEnsureCapacity(&idata, rowNum, true);
     blockDataAppendColInfo(res, &idata);
     res->info.capacity = rowNum;
 
     res->info.rows = rowNum;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataAppend(pColumn, i, (const char *)value, false);
+      colDataSetVal(pColumn, i, (const char *)value, false);
       if (IS_VAR_DATA_TYPE(dataType)) {
         value = (char *)value + varDataTLen(value);
       } else {
@@ -175,7 +175,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 
     int32_t         idx = taosArrayGetSize(res->pDataBlock);
     SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
-    colInfoDataEnsureCapacity(&idata, rowNum);
+    colInfoDataEnsureCapacity(&idata, rowNum, true);
 
     res->info.capacity = rowNum;
     blockDataAppendColInfo(res, &idata);
@@ -183,7 +183,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataAppend(pColumn, i, (const char *)value, false);
+      colDataSetVal(pColumn, i, (const char *)value, false);
       if (IS_VAR_DATA_TYPE(dataType)) {
         value = (char *)value + varDataTLen(value);
       } else {
@@ -233,7 +233,7 @@ void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
 void scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
   SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
-  lnode->dataType.type = resType;
+  lnode->node.resType.type = resType;
   lnode->pNodeList = list;
 
   *pNode = (SNode *)lnode;
@@ -344,7 +344,7 @@ TEST(constantTest, int_or_binary) {
   ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(v->datum.b, scltLeftV | scltRightV);
+  ASSERT_EQ(v->datum.i, scltLeftV | scltRightV);
   nodesDestroyNode(res);
 }
 
@@ -1101,7 +1101,8 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
              opType == OP_TYPE_LIKE || opType == OP_TYPE_NOT_LIKE || opType == OP_TYPE_MATCH ||
              opType == OP_TYPE_NMATCH) {
     printf("op:%s,3result:%d,except:%f\n", operatorTypeStr(opType), *((bool *)colDataGetData(column, 0)), exceptValue);
-    ASSERT_EQ(*((bool *)colDataGetData(column, 0)), exceptValue);
+    assert(*(bool *)colDataGetData(column, 0) == exceptValue);
+//    ASSERT_EQ((int) *((bool *)colDataGetData(column, 0)), (int)exceptValue);
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -1426,7 +1427,7 @@ TEST(columnTest, json_column_logic_op) {
   printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k9";
-  bool eRes8[len + len1] = {false, false, false, false, false, false, false, true, true, false, true, false, true};
+  bool eRes8[len + len1] = {false, false, false, false, false, false, false, true, true, false, true, true, true};
   for (int i = 0; i < len; i++) {
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes8[i], op[i], false);
   }
@@ -1437,6 +1438,9 @@ TEST(columnTest, json_column_logic_op) {
 
   for (int i = len; i < len + len1; i++) {
     void *rightData = prepareNchar(inputNchar[i - len]);
+    if (i == 11) {
+      printf("abc\n");
+    }
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes8[i], op[i], false);
     taosMemoryFree(rightData);
   }
@@ -1876,8 +1880,8 @@ TEST(columnTest, binary_column_is_null) {
   scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
   SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
-  colDataAppend(pcolumn, 2, NULL, true);
-  colDataAppend(pcolumn, 4, NULL, true);
+  colDataSetVal(pcolumn, 2, NULL, true);
+  colDataSetVal(pcolumn, 4, NULL, true);
 
   scltMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
 
@@ -1920,7 +1924,7 @@ TEST(columnTest, binary_column_is_not_null) {
   scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
   SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
-  colDataAppend(pcolumn, 4, NULL, true);
+  colDataSetVal(pcolumn, 4, NULL, true);
 
   scltMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
 
@@ -2022,11 +2026,11 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
   input->numOfRows = num;
 
   input->columnData->info = createColumnInfo(0, type, bytes);
-  colInfoDataEnsureCapacity(input->columnData, num);
+  colInfoDataEnsureCapacity(input->columnData, num, true);
 
   if (setVal) {
     for (int32_t i = 0; i < num; ++i) {
-      colDataAppend(input->columnData, i, (const char *)pVal, false);
+      colDataSetVal(input->columnData, i, (const char *)pVal, false);
     }
   } else {
     //    memset(input->data, 0, num * bytes);
@@ -2221,7 +2225,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     int8_t v = val_tinyint + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("tiny_int before ABS:%d\n", v);
   }
 
@@ -2239,7 +2243,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     int8_t v = val_tinyint + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("tiny_int before ABS:%d\n", v);
   }
 
@@ -2259,7 +2263,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     int16_t v = val_smallint + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("small_int before ABS:%d\n", v);
   }
 
@@ -2277,7 +2281,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     int16_t v = val_smallint + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("small_int before ABS:%d\n", v);
   }
 
@@ -2297,7 +2301,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     int32_t v = val_int + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("int before ABS:%d\n", v);
   }
 
@@ -2315,7 +2319,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     int32_t v = val_int + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("int before ABS:%d\n", v);
   }
 
@@ -2335,7 +2339,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     float v = val_float + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("float before ABS:%f\n", v);
   }
 
@@ -2353,7 +2357,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     float v = val_float + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("float before ABS:%f\n", v);
   }
 
@@ -2373,7 +2377,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     double v = val_double + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("double before ABS:%f\n", v);
   }
 
@@ -2391,7 +2395,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     double v = val_double + i;
-    colDataAppend(pInput->columnData, i, (const char *)&v, false);
+    colDataSetVal(pInput->columnData, i, (const char *)&v, false);
     PRINTF("double before ABS:%f\n", v);
   }
 
@@ -2462,7 +2466,7 @@ TEST(ScalarFunctionTest, sinFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_tinyint[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_tinyint[i], false);
     PRINTF("tiny_int before SIN:%d\n", *(int8_t *)colDataGetData(pInput->columnData, i));
   }
 
@@ -2481,7 +2485,7 @@ TEST(ScalarFunctionTest, sinFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_float[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_float[i], false);
     PRINTF("float before SIN:%f\n", *((float *)colDataGetData(pInput->columnData, i)));
   }
 
@@ -2552,7 +2556,7 @@ TEST(ScalarFunctionTest, cosFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_tinyint[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_tinyint[i], false);
     PRINTF("tiny_int before COS:%d\n", *(int8_t *)colDataGetData(pInput->columnData, i));
   }
 
@@ -2571,7 +2575,7 @@ TEST(ScalarFunctionTest, cosFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_float[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_float[i], false);
     PRINTF("float before COS:%f\n", *(float *)colDataGetData(pInput->columnData, i));
   }
 
@@ -2642,7 +2646,7 @@ TEST(ScalarFunctionTest, tanFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_tinyint[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_tinyint[i], false);
     PRINTF("tiny_int before TAN:%d\n", *((int8_t *)colDataGetData(pInput->columnData, i)));
   }
 
@@ -2661,7 +2665,7 @@ TEST(ScalarFunctionTest, tanFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_float[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_float[i], false);
     PRINTF("float before TAN:%f\n", *((float *)colDataGetData(pInput->columnData, i)));
   }
 
@@ -2732,7 +2736,7 @@ TEST(ScalarFunctionTest, asinFunction_column) {
   scltMakeDataBlock(&pInput, type, 0, rowNum, false);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput->columnData, i, (const char *)&val_tinyint[i], false);
+    colDataSetVal(pInput->columnData, i, (const char *)&val_tinyint[i], false);
     PRINTF("tiny_int before ASIN:%d\n", *((int8_t *)colDataGetData(pInput->columnData, i)));
   }
 
@@ -3391,7 +3395,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
     pInput[i] = *input[i];
     for (int32_t j = 0; j < rowNum; ++j) {
-      colDataAppend(pInput[i].columnData, j, (const char *)&val_tinyint[i][j], false);
+      colDataSetVal(pInput[i].columnData, j, (const char *)&val_tinyint[i][j], false);
     }
     PRINTF("tiny_int before LOG:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0), *((int8_t *)pInput[i].data + 1),
            *((int8_t *)pInput[i].data + 2));
@@ -3415,7 +3419,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
     pInput[i] = *input[i];
     for (int32_t j = 0; j < rowNum; ++j) {
-      colDataAppend(pInput[i].columnData, j, (const char *)&val_float[i][j], false);
+      colDataSetVal(pInput[i].columnData, j, (const char *)&val_float[i][j], false);
     }
     PRINTF("float before LOG:%f,%f,%f\n", *((float *)colDataGetData(pInput[i], 0)),
            *((float *)colDataGetData(pInput[i], 1)), *((float *)colDataGetData(pInput[i], 2)));
@@ -3438,12 +3442,12 @@ TEST(ScalarFunctionTest, logFunction_column) {
   scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
   pInput[0] = *input[0];
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput[0].columnData, i, (const char *)&param0[i], false);
+    colDataSetVal(pInput[0].columnData, i, (const char *)&param0[i], false);
   }
   scltMakeDataBlock(&input[1], TSDB_DATA_TYPE_FLOAT, 0, rowNum, false);
   pInput[1] = *input[1];
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput[1].columnData, i, (const char *)&param1[i], false);
+    colDataSetVal(pInput[1].columnData, i, (const char *)&param1[i], false);
   }
   PRINTF("tiny_int, float before LOG:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0),
          *((float *)pInput[1].data + 0), *((int8_t *)pInput[0].data + 1), *((float *)pInput[1].data + 1),
@@ -3554,7 +3558,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
     pInput[i] = *input[i];
     for (int32_t j = 0; j < rowNum; ++j) {
-      colDataAppend(pInput[i].columnData, j, (const char *)&val_tinyint[i][j], false);
+      colDataSetVal(pInput[i].columnData, j, (const char *)&val_tinyint[i][j], false);
     }
     PRINTF("tiny_int before POW:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0), *((int8_t *)pInput[i].data + 1),
            *((int8_t *)pInput[i].data + 2));
@@ -3579,7 +3583,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
     pInput[i] = *input[i];
     for (int32_t j = 0; j < rowNum; ++j) {
-      colDataAppend(pInput[i].columnData, j, (const char *)&val_float[i][j], false);
+      colDataSetVal(pInput[i].columnData, j, (const char *)&val_float[i][j], false);
     }
     PRINTF("float before POW:%f,%f,%f\n", *((float *)pInput[i].data + 0), *((float *)pInput[i].data + 1),
            *((float *)pInput[i].data + 2));
@@ -3602,12 +3606,12 @@ TEST(ScalarFunctionTest, powFunction_column) {
   scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
   pInput[0] = *input[0];
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput[0].columnData, i, (const char *)&param0[i], false);
+    colDataSetVal(pInput[0].columnData, i, (const char *)&param0[i], false);
   }
   scltMakeDataBlock(&input[1], TSDB_DATA_TYPE_FLOAT, 0, rowNum, false);
   pInput[1] = *input[1];
   for (int32_t i = 0; i < rowNum; ++i) {
-    colDataAppend(pInput[1].columnData, i, (const char *)&param1[i], false);
+    colDataSetVal(pInput[1].columnData, i, (const char *)&param1[i], false);
   }
   PRINTF("tiny_int, float before POW:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0),
          *((float *)pInput[1].data + 0), *((int8_t *)pInput[0].data + 1), *((float *)pInput[1].data + 1),

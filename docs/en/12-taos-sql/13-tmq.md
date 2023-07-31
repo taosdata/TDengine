@@ -1,6 +1,7 @@
 ---
-sidebar_label: Data Subscription
 title: Data Subscription
+sidebar_label: Data Subscription
+description: This document describes the SQL statements related to the data subscription component of TDengine.
 ---
 
 The information in this document is related to the TDengine data subscription feature.

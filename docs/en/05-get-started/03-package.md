@@ -1,6 +1,7 @@
 ---
-sidebar_label: Package
 title: Quick Install from Package
+sidebar_label: Package
+description: This document describes how to install TDengine on Linux, Windows, and macOS and perform queries and inserts.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -9,7 +10,7 @@ import PkgListV3 from "/components/PkgListV3";
 
 This document describes how to install TDengine on Linux/Windows/macOS and perform queries and inserts.
 
-- The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com). 
+- The easiest way to explore TDengine is through [TDengine Cloud](https://cloud.tdengine.com). 
 - To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
@@ -17,7 +18,20 @@ The full package of TDengine includes the TDengine Server (`taosd`), TDengine Cl
 
 The standard server installation package includes `taos`, `taosd`, `taosAdapter`, `taosBenchmark`, and sample code. You can also download the Lite package that includes only `taosd` and the C/C++ connector.
 
-The TDengine Community Edition is released as Deb and RPM packages. The Deb package can be installed on Debian, Ubuntu, and derivative systems. The RPM package can be installed on CentOS, RHEL, SUSE, and derivative systems. A .tar.gz package is also provided for enterprise customers, and you can install TDengine over `apt-get` as well. The .tar.tz package includes `taosdump` and the TDinsight installation script. If you want to use these utilities with the Deb or RPM package, download and install taosTools separately. TDengine can also be installed on x64 Windows and x64/m1 macOS.
+TDengine OSS is released as Deb and RPM packages. The Deb package can be installed on Debian, Ubuntu, and derivative systems. The RPM package can be installed on CentOS, RHEL, SUSE, and derivative systems. A .tar.gz package is also provided for enterprise customers, and you can install TDengine over `apt-get` as well. The .tar.tz package includes `taosdump` and the TDinsight installation script. If you want to use these utilities with the Deb or RPM package, download and install taosTools separately. TDengine can also be installed on x64 Windows and x64/m1 macOS.
+
+## Operating environment requirements
+In the Linux system, the minimum requirements for the operating environment are as follows:
+
+linux core version - 3.10.0-1160.83.1.el7.x86_64;
+
+glibc version - 2.17;
+
+If compiling and installing through clone source code, it is also necessary to meet the following requirements:
+
+cmake version - 3.26.4 or above;
+
+gcc version - 9.3.1 or above;
 
 ## Installation
 
@@ -101,7 +115,7 @@ sudo apt-get install tdengine
 
 :::tip
 This installation method is supported only for Debian and Ubuntu.
-::::
+:::
 </TabItem>
 <TabItem label="Windows" value="windows">
 
@@ -187,7 +201,7 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 
 <TabItem label="Windows" value="windows">
 
-After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengine Server.
+After the installation is complete, please run `sc start taosd` or run `C:\TDengine\taosd.exe` with administrator privilege to start TDengine Server. Please run `sc start taosadapter` or run `C:\TDengine\taosadapter.exe` with administrator privilege to start taosAdapter to provide http/REST service.
 
 ## Command Line Interface (CLI)
 
@@ -201,16 +215,20 @@ After the installation is complete, double-click the /applications/TDengine to s
 
 The following `launchctl` commands can help you manage TDengine service:
 
-- Start TDengine Server: `launchctl start com.tdengine.taosd`
+- Start TDengine Server: `sudo launchctl start com.tdengine.taosd`
 
-- Stop TDengine Server: `launchctl stop com.tdengine.taosd`
+- Stop TDengine Server: `sudo launchctl stop com.tdengine.taosd`
 
-- Check TDengine Server status: `launchctl list | grep taosd`
+- Check TDengine Server status: `sudo launchctl list | grep taosd`
+
+- Check TDengine Server status details: `launchctl print system/com.tdengine.taosd`
 
 :::info
-
-- The `launchctl` command  does not require _root_ privileges. You don't need to use the `sudo` command.
-- The first content returned by the `launchctl list | grep taosd` command is the PID of the program, if '-' indicates that the TDengine service is not running.
+- Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
+- The administrator privilege is required for service management to enhance security.
+- Troubleshooting:
+- The first column returned by the command `launchctl list | grep taosd` is the PID of the program. If it's `-`, that means the TDengine service is not running.
+- If the service is abnormal, please check the `launchd.log` file from the system log or the `taosdlog` from the `/var/log/taos directory` for more information.
 
 :::
 
