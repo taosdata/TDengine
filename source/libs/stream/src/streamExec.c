@@ -381,10 +381,11 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
     return code;
   }
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+  int32_t level = pTask->info.taskLevel;
+  if (level == TASK_LEVEL__SOURCE) {
     streamTaskFillHistoryFinished(pTask);
     streamTaskEndScanWAL(pTask);
-  } else { // do transfer task operator states.
+  } else if (level == TASK_LEVEL__AGG) { // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
     if (code != TSDB_CODE_SUCCESS) {  // todo handle this
       return code;
