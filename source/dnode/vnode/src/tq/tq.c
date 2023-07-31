@@ -1567,9 +1567,8 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   SStreamMeta* pMeta = pTq->pStreamMeta;
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
+    tqError("vgId:%d process pause req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             pReq->taskId);
-
     // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
     return TSDB_CODE_SUCCESS;
   }
@@ -1581,9 +1580,8 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   if (pTask->historyTaskId.taskId != 0) {
     pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
     if (pHistoryTask == NULL) {
-      tqError("vgId:%d failed to acquire fill-history task:0x%x, it may have been dropped already. Pause success",
+      tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%x, it may have been dropped already",
               pMeta->vgId, pTask->historyTaskId.taskId);
-
       streamMetaReleaseTask(pMeta, pTask);
 
       // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
@@ -1591,14 +1589,12 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
 
     tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
-    streamTaskPause(pHistoryTask);
-  }
 
-  streamMetaReleaseTask(pMeta, pTask);
-  if (pHistoryTask != NULL) {
+    streamTaskPause(pHistoryTask);
     streamMetaReleaseTask(pMeta, pHistoryTask);
   }
 
+  streamMetaReleaseTask(pMeta, pTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1627,7 +1623,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
     }
 
     if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-      streamStartRecoverTask(pTask, igUntreated);
+      streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (taosQueueItemSize(pTask->inputQueue->queue) == 0)) {
       tqStartStreamTasks(pTq);
     } else {

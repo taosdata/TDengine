@@ -582,12 +582,9 @@ int32_t streamTryExec(SStreamTask* pTask) {
     // todo the task should be commit here
     if (taosQueueEmpty(pTask->inputQueue->queue)) {
       // fill-history WAL scan has completed
-      if (pTask->status.transferState) {
-        code = streamTransferStateToStreamTask(pTask);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-        streamSchedExec(pTask);
+      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && pTask->status.transferState == true) {
+        streamTaskFillHistoryFinished(pTask);
+        streamTaskEndScanWAL(pTask);
       } else {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
