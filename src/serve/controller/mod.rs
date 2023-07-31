@@ -392,6 +392,17 @@ pub(super) enum Schedule {
 static ONCE: OnceCell<PortPool> = OnceCell::const_new();
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    if activity.status == "completed" {
+        let _ = sqlx::query!(
+            "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
+            activity.at,
+            Status::Completed,
+            activity.id,
+            Status::Completed,
+        )
+        .execute(pool)
+        .await?;
+    }
     sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(
@@ -1806,6 +1817,7 @@ impl AgentFilter {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
 pub(super) enum Status {
     /// Created by API.
     Created,
