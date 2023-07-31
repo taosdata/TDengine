@@ -98,7 +98,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 21  |      cachesize       | INT              | 表示每个 vnode 中用于缓存子表最近数据的内存大小。需要注意，`cachesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  |
 | 22  |      wal_level       | INT              | WAL 级别。需要注意，`wal_level` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
 | 23  |   wal_fsync_period   | INT              | 数据落盘周期。需要注意，`wal_fsync_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
-| 24  | wal_retention_period | INT              | WAL 的保存时长。需要注意，`wal_retention_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
+| 24  | wal_retention_period | INT              | WAL 的保存时长，单位为秒。需要注意，`wal_retention_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
 | 25  |  wal_retention_size  | INT              | WAL 的保存上限。需要注意，`wal_retention_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
 | 26  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数。需要注意，`stt_trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 | 27  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。需要注意，`table_prefix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
