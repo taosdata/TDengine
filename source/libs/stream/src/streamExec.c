@@ -197,10 +197,13 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
-      if (qExecTask(exec, &output, &ts) < 0) {
+      code = qExecTask(exec, &output, &ts);
+      if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {
+        qError("%s scan-history data error occurred code:%s, continue scan", pTask->id.idStr, tstrerror(code));
         continue;
       }
 
+      // the generated results before fill-history task been paused, should be dispatched to sink node
       if (output == NULL && qStreamRecoverScanFinished(exec)) {
         finished = true;
         break;
