@@ -655,19 +655,9 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   return 0;
 }
 
-bool streamTaskRecoverScanStep1Finished(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamRecoverScanStep1Finished(exec);
-}
-
-bool streamTaskRecoverScanStep2Finished(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamRecoverScanStep2Finished(exec);
-}
-
 int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
-  return qStreamRecoverSetAllStepFinished(exec);
+  return qStreamInfoResetTimewindowFilter(exec);
 }
 
 bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
