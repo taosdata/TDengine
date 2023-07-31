@@ -11,7 +11,7 @@ cp plugins/influxdb/target/taosx-influxdb.jar target/package/plugins/influxdb/
 cp plugins/mqtt/target/taosx-mqtt target/package/plugins/mqtt/
 cp plugins/opc/target/taosx-opc target/package/plugins/opc/
 cp target/*.service target/package/etc/systemd/
-cp taosx-agent/examples/agent.example.toml target/package/etc/
+cp taosx-agent/examples/agent.toml target/package/etc/
 
 cp scripts/install.sh target/package/
 
