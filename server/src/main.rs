@@ -256,14 +256,10 @@ async fn x_api(
     // req_id: RequestId,
     api: web::Path<String>,
     args: web::Data<Args>,
-    mut body: web::Payload,
+    body: web::Payload,
 ) -> Result<HttpResponse, Error> {
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
-    }
-    let mut bytes = web::BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item?);
     }
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
@@ -280,10 +276,8 @@ async fn x_api(
             .insert_header(("X-Forward-For", addr))
             .insert_header(("X-Real-IP", addr));
     }
-    let mut resp = client
-        .content_type(req.content_type())
-        .send_body(bytes)
-        .await?;
+
+    let mut resp = client.send_stream(body).await?;
 
     let mut builder = HttpResponse::Ok();
 
