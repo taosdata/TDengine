@@ -19,7 +19,7 @@ if(${BUILD_WITH_ROCKSDB})
       PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
   else()
-    if (TD_LINUX)
+    if (TD_ROCKS_STATIC)
       target_include_directories(
       stream
       PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"

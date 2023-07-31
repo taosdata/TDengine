@@ -122,7 +122,7 @@ else()
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
     )
-    if (${TD_LINUX})
+    if (${TD_ROCKS_STATIC})
         target_include_directories(
             vnode 
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"

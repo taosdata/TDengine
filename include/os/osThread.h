@@ -30,6 +30,8 @@ typedef pthread_mutex_t pthread_spinlock_t;
 #endif
 
 typedef pthread_t            TdThread;
+
+#ifndef WINDOWS
 typedef pthread_spinlock_t   TdThreadSpinlock;
 typedef pthread_mutex_t      TdThreadMutex;
 typedef pthread_mutexattr_t  TdThreadMutexAttr;
@@ -40,6 +42,18 @@ typedef pthread_rwlockattr_t TdThreadRwlockAttr;
 typedef pthread_cond_t       TdThreadCond;
 typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
+#else
+typedef struct pthread_spinlock_t_   TdThreadSpinlock;
+typedef struct pthread_mutex_t_      TdThreadMutex;
+typedef struct pthread_mutexattr_t_  TdThreadMutexAttr;
+typedef struct pthread_rwlock_t_     TdThreadRwlock;
+typedef struct pthread_attr_t_       TdThreadAttr;
+typedef struct pthread_once_t_       TdThreadOnce;
+typedef struct pthread_rwlockattr_t_ TdThreadRwlockAttr;
+typedef struct pthread_cond_t_       TdThreadCond;
+typedef struct pthread_condattr_t_   TdThreadCondAttr;
+typedef struct pthread_key_t_        TdThreadKey;
+#endif
 
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop
