@@ -65,7 +65,6 @@ class TDTestCase:
         tmqCom.initConsumerTable(self.cdbName)
 
         tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"])
-        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
 
         self.paraDict["stbName"] = 'stb1'
         tdCom.create_stable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],column_elm_list=self.paraDict["colSchema"],tag_elm_list=self.paraDict["tagSchema"],count=1, default_stbname_prefix=self.paraDict["stbName"])

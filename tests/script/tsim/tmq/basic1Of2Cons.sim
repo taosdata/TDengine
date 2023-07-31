@@ -35,7 +35,6 @@ sql connect
 sql use $dbName
 
 print == alter database
-sql alter database $dbName wal_retention_period 3600
 
 print == create topics from super table
 sql create topic topic_stb_column as select ts, c3 from stb
@@ -87,7 +86,6 @@ sleep 500
 sql use $cdbName
 
 print == alter database
-sql alter database $cdbName wal_retention_period 3600
 
 print == create consume info table and consume result table for stb
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
@@ -193,7 +191,6 @@ sleep 500
 sql use $cdbName
 
 print == alter database
-sql alter database $cdbName wal_retention_period 3600
 
 print == create consume info table and consume result table for ctb
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
@@ -298,7 +295,6 @@ sleep 500
 sql use $cdbName
 
 print == alter database
-sql alter database $cdbName wal_retention_period 3600
 
 print == create consume info table and consume result table for ntb
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
