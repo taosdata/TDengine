@@ -221,12 +221,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
-bool    qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo);
-bool    qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo);
-int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo);
+int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
 void    resetTaskInfo(qTaskInfo_t tinfo);
-
-void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo);
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);

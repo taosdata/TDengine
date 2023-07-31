@@ -163,15 +163,14 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 }
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
-  int32_t code = 0;
-
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
-  void* exec = pTask->exec.pExecutor;
+  int32_t code = TSDB_CODE_SUCCESS;
+  void*   exec = pTask->exec.pExecutor;
+  bool    finished = false;
 
   qSetStreamOpOpen(exec);
-  bool finished = false;
 
-  while (1) {
+  while (!finished) {
     if (streamTaskShouldPause(&pTask->status)) {
       double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
       qDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
@@ -184,11 +183,15 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       return -1;
     }
 
-    int32_t batchCnt = 0;
+    int32_t numOfBlocks = 0;
     while (1) {
       if (streamTaskShouldStop(&pTask->status)) {
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
         return 0;
+      }
+
+      if (streamTaskShouldPause(&pTask->status)) {
+        break;
       }
 
       SSDataBlock* output = NULL;
@@ -197,31 +200,13 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
         continue;
       }
 
-      if (output == NULL) {
-        if (qStreamRecoverScanFinished(exec)) {
-          finished = true;
-        } else {
-          qSetStreamOpOpen(exec);
-          if (streamTaskShouldPause(&pTask->status)) {
-            SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
-            if (qRes == NULL) {
-              taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-              terrno = TSDB_CODE_OUT_OF_MEMORY;
-              return -1;
-            }
-
-            qRes->type = STREAM_INPUT__DATA_BLOCK;
-            qRes->blocks = pRes;
-            code = streamTaskOutputResultBlock(pTask, qRes);
-            if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
-              taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-              taosFreeQitem(qRes);
-              return code;
-            }
-            return 0;
-          }
-        }
+      if (output == NULL && qStreamRecoverScanFinished(exec)) {
+        finished = true;
         break;
+      } else {
+        if (output == NULL) {
+          ASSERT(0);
+        }
       }
 
       SSDataBlock block = {0};
@@ -229,86 +214,37 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       block.info.childId = pTask->info.selfChildId;
       taosArrayPush(pRes, &block);
 
-      batchCnt++;
-
-      qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d", pTask->id.idStr, batchCnt, batchSz);
-      if (batchCnt >= batchSz) {
+      numOfBlocks++;
+      qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d", pTask->id.idStr, numOfBlocks, batchSz);
+      if (numOfBlocks >= batchSz) {
         break;
       }
     }
 
-    if (taosArrayGetSize(pRes) == 0) {
-      taosArrayDestroy(pRes);
-
-      if (finished) {
-        qDebug("s-task:%s finish recover exec task ", pTask->id.idStr);
-        break;
-      } else {
-        qDebug("s-task:%s continue recover exec task ", pTask->id.idStr);
-        continue;
+    if (taosArrayGetSize(pRes) > 0) {
+      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
+      if (qRes == NULL) {
+        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
       }
-    }
 
-    SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
-    if (qRes == NULL) {
-      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
+      qRes->type = STREAM_INPUT__DATA_BLOCK;
+      qRes->blocks = pRes;
 
-    qRes->type = STREAM_INPUT__DATA_BLOCK;
-    qRes->blocks = pRes;
-    code = streamTaskOutputResultBlock(pTask, qRes);
-    if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
-      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-      taosFreeQitem(qRes);
-      return code;
-    }
-
-    if (finished) {
-      break;
-    }
-  }
-  return 0;
-}
-
-#if 0
-int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
-  // fetch all queue item, merge according to batchLimit
-  int32_t numOfItems = taosReadAllQitems(pTask->inputQueue1, pTask->inputQall);
-  if (numOfItems == 0) {
-    qDebug("task: %d, stream task exec over, queue empty", pTask->id.taskId);
-    return 0;
-  }
-  SStreamQueueItem* pMerged = NULL;
-  SStreamQueueItem* pItem = NULL;
-  taosGetQitem(pTask->inputQall, (void**)&pItem);
-  if (pItem == NULL) {
-    if (pMerged != NULL) {
-      // process merged item
+      code = streamTaskOutputResultBlock(pTask, qRes);
+      if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+        taosFreeQitem(qRes);
+        return code;
+      }
     } else {
-      return 0;
+      taosArrayDestroy(pRes);
     }
   }
 
-  // if drop
-  if (pItem->type == STREAM_INPUT__DESTROY) {
-    // set status drop
-    return -1;
-  }
-
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    ASSERT(((SStreamQueueItem*)pItem)->type == STREAM_INPUT__DATA_BLOCK);
-    streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pItem);
-  }
-
-  // exec impl
-
-  // output
-  // try dispatch
   return 0;
 }
-#endif
 
 int32_t updateCheckPointInfo(SStreamTask* pTask) {
   int64_t ckId = 0;
@@ -404,7 +340,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   // expand the query time window for stream scanner
   pTimeWindow->skey = INT64_MIN;
-  qResetStreamInfoTimeWindow(pStreamTask->exec.pExecutor);
+  qStreamInfoResetTimewindowFilter(pStreamTask->exec.pExecutor);
 
   // transfer the ownership of executor state
   streamTaskReleaseState(pTask);

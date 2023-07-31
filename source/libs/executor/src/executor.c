@@ -116,17 +116,6 @@ void resetTaskInfo(qTaskInfo_t tinfo) {
   clearStreamBlock(pTaskInfo->pRoot);
 }
 
-void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
-  if (pTaskInfo == NULL) {
-    return;
-  }
-
-  qDebug("%s set stream fill-history window:%" PRId64"-%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN, INT64_MAX);
-  pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
-  pTaskInfo->streamInfo.fillHistoryWindow.ekey = INT64_MAX;
-}
-
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -341,7 +330,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
     return NULL;
   }
 
-  qResetStreamInfoTimeWindow(pTaskInfo);
+  qStreamInfoResetTimewindowFilter(pTaskInfo);
   return pTaskInfo;
 }
 
@@ -891,8 +880,6 @@ int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->fillHistoryVer = *pVerRange;
   pStreamInfo->fillHistoryWindow = *pWindow;
   pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE1;
-  pStreamInfo->recoverStep1Finished = false;
-  pStreamInfo->recoverStep2Finished = false;
 
   qDebug("%s step 1. set param for stream scanner for scan-history data, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
          " - %" PRId64,
@@ -910,8 +897,6 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->fillHistoryVer = *pVerRange;
   pStreamInfo->fillHistoryWindow = *pWindow;
   pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE2;
-  pStreamInfo->recoverStep1Finished = true;
-  pStreamInfo->recoverStep2Finished = false;
 
   qDebug("%s step 2. set param for stream scanner for scan-history data, verRange:%" PRId64 " - %" PRId64
          ", window:%" PRId64 " - %" PRId64,
@@ -1050,23 +1035,15 @@ bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.recoverScanFinished;
 }
 
-bool qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo) {
+int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return pTaskInfo->streamInfo.recoverStep1Finished;
-}
+  STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
-bool qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return pTaskInfo->streamInfo.recoverStep2Finished;
-}
+  qDebug("%s set remove scan-history filter window:%" PRId64 "-%" PRId64 ", new window:%" PRId64 "-%" PRId64,
+         GET_TASKID(pTaskInfo), pWindow->skey, pWindow->ekey, INT64_MIN, INT64_MAX);
 
-int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  pTaskInfo->streamInfo.recoverStep1Finished = true;
-  pTaskInfo->streamInfo.recoverStep2Finished = true;
-
-  // reset the time window
-  pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
+  pWindow->skey = INT64_MIN;
+  pWindow->ekey = INT64_MAX;
   return 0;
 }
 

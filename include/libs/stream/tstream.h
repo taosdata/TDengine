@@ -607,8 +607,6 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 
-bool    streamTaskRecoverScanStep1Finished(SStreamTask* pTask);
-bool    streamTaskRecoverScanStep2Finished(SStreamTask* pTask);
 int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask);
 
 // common
