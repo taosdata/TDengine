@@ -210,10 +210,8 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
       block.info.childId = pTask->info.selfChildId;
       taosArrayPush(pRes, &block);
 
-      numOfBlocks++;
-      if (numOfBlocks >= batchSize || code != TSDB_CODE_SUCCESS) {
-        qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d, code:%s", pTask->id.idStr, numOfBlocks, batchSize,
-               tstrerror(code));
+      if ((++numOfBlocks) >= batchSize) {
+        qDebug("s-task:%s scan exec numOfBlocks:%d, output limit:%d reached", pTask->id.idStr, numOfBlocks, batchSize);
         break;
       }
     }
