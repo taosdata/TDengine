@@ -1625,9 +1625,11 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   if (pVLen != NULL) *pVLen = len;
 
   if (pKTmp->opNum != pCur->number) {
+    taosMemoryFree(val);
     return -1;
   }
   if (pKey->groupId != 0 && pKey->groupId != pKTmp->key.groupId) {
+    taosMemoryFree(val);
     return -1;
   }
   *pKey = pKTmp->key;
