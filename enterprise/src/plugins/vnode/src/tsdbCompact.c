@@ -1206,33 +1206,33 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(compactArg->tsdb->pVnode), lino, code);
   }
-  if (compactArg->sync) {
-    tsem_post(&compactArg->tsdb->pVnode->canCommit);
-  }
-  taosMemoryFree(compactArg);
   return code;
+}
+
+static void tsdbFreeCompactArg(void *arg) {
+  SCompactArg *cArg = (SCompactArg *)arg;
+  if (cArg->sync) {
+    tsem_post(&cArg->tsdb->pVnode->canCommit);
+  }
+  taosMemoryFree(arg);
 }
 
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
   int64_t taskid;
 
-  if (sync) {
-    tsem_wait(&tsdb->pVnode->canCommit);
-  }
-
   SCompactArg *arg = (SCompactArg *)taosMemoryCalloc(1, sizeof(*arg));
   if (arg == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
   arg->tsdb = tsdb;
   arg->sync = sync;
   arg->tw = *tw;
 
-  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_COMPACT, tsdbDoCompact, arg, &taskid);
+  if (sync) {
+    tsem_wait(&tsdb->pVnode->canCommit);
+  }
+
+  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_COMPACT, tsdbDoCompact, tsdbFreeCompactArg, arg, &taskid);
   if (code) {
-    taosMemoryFree(arg);
-    if (sync) {
-      tsem_post(&tsdb->pVnode->canCommit);
-    }
+    tsdbFreeCompactArg(arg);
   }
   return code;
 }
