@@ -215,6 +215,8 @@ typedef struct SBrinRecordIter {
   SBrinRecord      record;
 } SBrinRecordIter;
 
+int32_t uidComparFunc(const void* p1, const void* p2);
+
 STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, const char* id);
 
 SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,

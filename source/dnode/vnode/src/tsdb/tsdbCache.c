@@ -1615,16 +1615,6 @@ static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid)
   return pInfo;
 }
 
-static int32_t uidComparFunc(const void *p1, const void *p2) {
-  uint64_t pu1 = *(uint64_t *)p1;
-  uint64_t pu2 = *(uint64_t *)p2;
-  if (pu1 == pu2) {
-    return 0;
-  } else {
-    return (pu1 < pu2) ? -1 : 1;
-  }
-}
-
 static uint64_t *getUidList(SCacheRowsReader *pReader) {
   if (!pReader->uidList) {
     int32_t numOfTables = pReader->numOfTables;
