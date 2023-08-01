@@ -185,6 +185,7 @@ pub(super) struct DataSets {
     request_body = DataSetsReq,
     responses(
         (status = 200, description = "Available data sources", body = Vec<DataSets>),
+        (status = 500, description = "List data sets error", body = Failed),
     ),
 )]
 #[post("/ds/in/sets")]
