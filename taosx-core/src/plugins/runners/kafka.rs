@@ -11,12 +11,14 @@ use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, Messag
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use kafka::client::{KafkaClient, SecurityConfig};
+use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 use taos::{AsyncTBuilder, Dsn};
 use taosx_ipc::prelude::ArrowDataType;
 use tokio_util::sync::CancellationToken;
 
 pub async fn kafka_to_taos(
-    from: Dsn,
+    mut from: Dsn,
     parser: Option<Parser>,
     _: Vec<Action>,
     to: Dsn,
@@ -44,7 +46,8 @@ pub async fn kafka_to_taos(
 
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
 
-    let mut consumer = build_consumer(&from);
+    let mut consumer = build_consumer(&mut from)?;
+
     let timeout = parse_timeout(&from);
     let mut start = chrono::Utc::now().timestamp_millis();
     loop {
@@ -90,7 +93,7 @@ pub async fn kafka_to_taos(
             ],
         )?;
         writer.write(&batch)?;
-        ipc.send(());
+        ipc.send(())?;
 
         consumer.commit_consumed().unwrap();
         start = chrono::Utc::now().timestamp_millis();
@@ -155,25 +158,25 @@ fn build_schema() -> Schema {
     schema
 }
 
-fn build_consumer(dsn: &Dsn) -> Consumer {
-    let mut bootstrap_servers = Vec::new();
-    for address in dsn.addresses.iter() {
-        bootstrap_servers.push(format!(
-            "{}:{}",
-            address.host.clone().unwrap(),
-            address.port.clone().unwrap()
-        ));
+fn build_consumer(dsn: &mut Dsn) -> Result<Consumer, KafkaConfigError> {
+    let use_ssl_default = String::from("false");
+    let use_ssl = dsn.params.get("use_ssl").unwrap_or(&use_ssl_default);
+    let use_ssl = use_ssl.parse().unwrap_or(false);
+    let mut builder: kafka::consumer::Builder;
+    if use_ssl {
+        builder = build_ssl_builder(dsn)?;
+    } else {
+        builder = build_builder(dsn);
     }
-    let mut consumer = Consumer::from_hosts(bootstrap_servers);
 
     let default_group = String::from("");
     let group = dsn.params.get("group").unwrap_or(&default_group);
-    consumer = consumer.with_group(group.to_string());
+    builder = builder.with_group(group.to_string());
 
     if dsn.params.contains_key("topics") {
         let topic = dsn.params.get("topics");
         for t in topic.unwrap().split(",") {
-            consumer = consumer.with_topic(t.to_string());
+            builder = builder.with_topic(t.to_string());
         }
     }
 
@@ -192,24 +195,85 @@ fn build_consumer(dsn: &Dsn) -> Consumer {
                         panic!("invalid partition range: {}", partition);
                     }
                     let partitions = (start..=end).collect::<Vec<i32>>();
-                    consumer = consumer.with_topic_partitions(topic.to_string(), &partitions);
+                    builder = builder.with_topic_partitions(topic.to_string(), &partitions);
                 } else {
                     let partition = partition.parse::<i32>().unwrap();
-                    consumer = consumer.with_topic_partitions(topic.to_string(), &[partition]);
+                    builder = builder.with_topic_partitions(topic.to_string(), &[partition]);
                 }
             } else {
-                consumer = consumer.with_topic(tp.to_string());
+                builder = builder.with_topic(tp.to_string());
             }
         }
     }
 
     let fallback_offset = parse_fallback_offset(dsn.params.get("fallback_offset"));
-    consumer = consumer.with_fallback_offset(fallback_offset);
+    builder = builder.with_fallback_offset(fallback_offset);
 
     let offset_storage = parse_offset_storage(dsn.params.get("offset_storage"));
-    consumer = consumer.with_offset_storage(offset_storage);
+    builder = builder.with_offset_storage(offset_storage);
 
-    consumer.create().unwrap()
+    let consumer = builder.create().unwrap();
+    Ok(consumer)
+}
+
+fn build_builder(dsn: &Dsn) -> kafka::consumer::Builder {
+    let bootstrap_servers = parse_bootstrap_servers(dsn);
+    let builder = Consumer::from_hosts(bootstrap_servers);
+    builder
+}
+
+#[derive(Debug, thiserror::Error)]
+enum KafkaConfigError {
+    #[error("Kafka source CA config read error, cause: {0}")]
+    CAConfigReadError(String),
+    // #[error("Kafka source config parse error, cause: {0}")]
+    // KafkaSourceConfigParseError(String),
+}
+
+fn build_ssl_builder(dsn: &mut Dsn) -> Result<kafka::consumer::Builder, KafkaConfigError> {
+    let bootstrap_servers = parse_bootstrap_servers(dsn);
+
+    let cert_key = super::mqtt::get_string_from_param_or_file(dsn, "cert_key", true, None)
+        .map_err(|s| KafkaConfigError::CAConfigReadError(s))?;
+    let cert = super::mqtt::get_string_from_param_or_file(dsn, "cert", true, None)
+        .map_err(|s| KafkaConfigError::CAConfigReadError(s))?;
+
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_cipher_list("DEFAULT").unwrap();
+    builder.set_certificate_file(cert.unwrap(), SslFiletype::PEM).unwrap();
+    builder.set_private_key_file(cert_key.unwrap(), SslFiletype::PEM).unwrap();
+    builder.check_private_key().unwrap();
+    builder.set_default_verify_paths().unwrap();
+    builder.set_verify(SslVerifyMode::PEER);
+    let connector = builder.build();
+
+    let mut client = KafkaClient::new_secure(bootstrap_servers, SecurityConfig::new(connector));
+    match client.load_metadata_all() {
+        Err(e) => {
+            //TODO: handle error
+            println!("Error: {:?}", e);
+        }
+        Ok(_) => {
+            if client.topics().len() == 0 {
+                println!("No topics available");
+            }
+        }
+    }
+
+    let builder = Consumer::from_client(client);
+    Ok(builder)
+}
+
+fn parse_bootstrap_servers(dsn: &Dsn) -> Vec<String> {
+    let mut bootstrap_servers = Vec::new();
+    for address in dsn.addresses.iter() {
+        bootstrap_servers.push(format!(
+            "{}:{}",
+            address.host.clone().unwrap(),
+            address.port.clone().unwrap()
+        ));
+    }
+    bootstrap_servers
 }
 
 fn print_message(ms: &MessageSet, m: &Message, ts: &i64) {
@@ -306,14 +370,14 @@ mod tests {
 
     #[test]
     fn test_topics() {
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=tp2").unwrap();
-        let consumer = build_consumer(&dsn);
+        let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=tp2").unwrap();
+        let consumer = build_consumer(&mut dsn);
         assert_eq!("", consumer.group());
         let subscriptions = consumer.subscriptions();
         assert_eq!(1, subscriptions.len());
 
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=tp1,tp2").unwrap();
-        let consumer = build_consumer(&dsn);
+        let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=tp1,tp2").unwrap();
+        let consumer = build_consumer(&mut dsn);
         assert_eq!("", consumer.group());
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
@@ -322,30 +386,30 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_topics_invalid() {
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=invalid").unwrap();
-        let consumer = build_consumer(&dsn);
+        let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=invalid").unwrap();
+        let consumer = build_consumer(&mut dsn);
     }
 
     #[test]
     fn test_topic_partitions() {
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1,tp2").unwrap();
-        let consumer = build_consumer(&dsn);
+        let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1,tp2").unwrap();
+        let consumer = build_consumer(&mut dsn);
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(5, subscriptions.get("tp1").unwrap().len());
         println!("{:?}", subscriptions);
 
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:1,tp2").unwrap();
-        let consumer = build_consumer(&dsn);
+        let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:1,tp2").unwrap();
+        let consumer = build_consumer(&mut dsn);
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(1, subscriptions.get("tp1").unwrap().len());
         println!("{:?}", subscriptions);
 
-        let dsn =
+        let mut dsn =
             Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:0..2,tp2&group=test")
                 .unwrap();
-        let consumer = build_consumer(&dsn);
+        let consumer = build_consumer(&mut dsn);
         assert_eq!("test", consumer.group());
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
@@ -356,9 +420,9 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_topic_partitions_invalid() {
-        let dsn =
+        let mut dsn =
             Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:2..1,tp2").unwrap();
-        let consumer = build_consumer(&dsn);
+        let consumer = build_consumer(&mut dsn);
     }
 
     #[test]
