@@ -338,8 +338,9 @@ bool walLogEntriesComplete(const SWal* pWal) {
   }
 
   if (!complete) {
-    wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], aligned with snaphotVer:%" PRId64,
-           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, pWal->vers.snapshotVer);
+    wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], missing index:%" PRId64
+           ", snaphotVer:%" PRId64,
+           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
   }
 

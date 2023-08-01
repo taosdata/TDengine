@@ -584,12 +584,15 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
     }
 
-    if (syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0) != 0) {
-      sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
-             ", role:%d, current term:%" PRId64,
-             vgId, pEntry->index, pEntry->term, role, currentTerm);
-      goto _out;
-    }
+    do {
+      if ((ret = syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0)) != 0) {
+        sError("vgId:%d, failed to execute sync log entry since %s. index:%" PRId64 ", term:%" PRId64
+               ", role:%d, current term:%" PRId64,
+               vgId, terrstr(), pEntry->index, pEntry->term, role, currentTerm);
+        taosMsleep(10);
+      }
+    } while (ret != 0);
+
     pBuf->commitIndex = index;
 
     sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
