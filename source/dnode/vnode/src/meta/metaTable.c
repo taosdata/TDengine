@@ -1975,7 +1975,7 @@ static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
 static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
 
-  STtlUpdTtlCtx ctx = {.uid = pME->uid};
+  STtlUpdTtlCtx ctx = {.uid = pME->uid, .pTxn = pMeta->txn};
   if (pME->type == TSDB_CHILD_TABLE) {
     ctx.ttlDays = pME->ctbEntry.ttlDays;
     ctx.changeTimeMs = pME->ctbEntry.btime;
@@ -1995,7 +1995,7 @@ int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
     return TSDB_CODE_VERSION_NOT_COMPATIBLE;
   }
 
-  STtlUpdCtimeCtx ctx = {.uid = uid, .changeTimeMs = changeTimeMs};
+  STtlUpdCtimeCtx ctx = {.uid = uid, .changeTimeMs = changeTimeMs, .pTxn = pMeta->txn};
 
   return ttlMgrUpdateChangeTime(pMeta->pTtlMgr, &ctx);
 }

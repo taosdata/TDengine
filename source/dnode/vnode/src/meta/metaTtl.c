@@ -32,14 +32,12 @@ static int     ttlMgrFillCache(STtlManger *pTtlMgr);
 static int32_t ttlMgrFillCacheOneEntry(const void *pKey, int keyLen, const void *pVal, int valLen, void *pTtlCache);
 static int32_t ttlMgrConvertOneEntry(const void *pKey, int keyLen, const void *pVal, int valLen, void *pConvertData);
 
-static int32_t ttlMgrWLock(STtlManger *pTtlMgr);
-static int32_t ttlMgrRLock(STtlManger *pTtlMgr);
-static int32_t ttlMgrULock(STtlManger *pTtlMgr);
+static bool ttlMgrNeedFlush(STtlManger *pTtlMgr);
 
 const char *ttlTbname = "ttl.idx";
 const char *ttlV1Tbname = "ttlv1.idx";
 
-int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *logPrefix) {
+int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *logPrefix, int32_t flushThreshold) {
   int     ret = TSDB_CODE_SUCCESS;
   int64_t startNs = taosGetTimestampNs();
 
@@ -55,6 +53,7 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
   }
   strcpy(logBuffer, logPrefix);
   pTtlMgr->logPrefix = logBuffer;
+  pTtlMgr->flushThreshold = flushThreshold;
 
   ret = tdbTbOpen(ttlV1Tbname, TDB_VARIANT_LEN, TDB_VARIANT_LEN, ttlIdxKeyV1Cmpr, pEnv, &pTtlMgr->pTtlIdx, rollback);
   if (ret < 0) {
@@ -65,8 +64,6 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
 
   pTtlMgr->pTtlCache = taosHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   pTtlMgr->pDirtyUids = taosHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-
-  taosThreadRwlockInit(&pTtlMgr->lock, NULL);
 
   ret = ttlMgrFillCache(pTtlMgr);
   if (ret < 0) {
@@ -130,6 +127,7 @@ int ttlMgrUpgrade(STtlManger *pTtlMgr, void *pMeta) {
   int64_t endNs = taosGetTimestampNs();
   metaInfo("%s, ttl mgr upgrade end, hash size: %d, time consumed: %" PRId64 " ns", pTtlMgr->logPrefix,
            taosHashGetSize(pTtlMgr->pTtlCache), endNs - startNs);
+
 _out:
   tdbTbClose(pTtlMgr->pOldTtlIdx);
   pTtlMgr->pOldTtlIdx = NULL;
@@ -142,7 +140,6 @@ static void ttlMgrCleanup(STtlManger *pTtlMgr) {
   taosHashCleanup(pTtlMgr->pTtlCache);
   taosHashCleanup(pTtlMgr->pDirtyUids);
   tdbTbClose(pTtlMgr->pTtlIdx);
-  taosThreadRwlockDestroy(&pTtlMgr->lock);
   taosMemoryFree(pTtlMgr);
 }
 
@@ -229,6 +226,7 @@ static int ttlMgrConvertOneEntry(const void *pKey, int keyLen, const void *pVal,
   }
 
   ret = 0;
+
 _out:
   return ret;
 }
@@ -255,8 +253,6 @@ int ttlMgrInsertTtl(STtlManger *pTtlMgr, const STtlUpdTtlCtx *updCtx) {
   STtlCacheEntry cacheEntry = {.ttlDays = updCtx->ttlDays, .changeTimeMs = updCtx->changeTimeMs};
   STtlDirtyEntry dirtryEntry = {.type = ENTRY_TYPE_UPSERT};
 
-  ttlMgrWLock(pTtlMgr);
-
   int ret = taosHashPut(pTtlMgr->pTtlCache, &updCtx->uid, sizeof(updCtx->uid), &cacheEntry, sizeof(cacheEntry));
   if (ret < 0) {
     metaError("%s, ttlMgr insert failed to update ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
@@ -269,10 +265,13 @@ int ttlMgrInsertTtl(STtlManger *pTtlMgr, const STtlUpdTtlCtx *updCtx) {
     goto _out;
   }
 
-  ret = 0;
-_out:
-  ttlMgrULock(pTtlMgr);
+  if (ttlMgrNeedFlush(pTtlMgr)) {
+    ttlMgrFlush(pTtlMgr, updCtx->pTxn);
+  }
 
+  ret = 0;
+
+_out:
   metaDebug("%s, ttl mgr insert ttl, uid: %" PRId64 ", ctime: %" PRId64 ", ttlDays: %" PRId64, pTtlMgr->logPrefix,
             updCtx->uid, updCtx->changeTimeMs, updCtx->ttlDays);
 
@@ -281,7 +280,6 @@ _out:
 
 int ttlMgrDeleteTtl(STtlManger *pTtlMgr, const STtlDelTtlCtx *delCtx) {
   if (delCtx->ttlDays == 0) return 0;
-  ttlMgrWLock(pTtlMgr);
 
   STtlDirtyEntry dirtryEntry = {.type = ENTRY_TYPE_DEL};
 
@@ -291,18 +289,19 @@ int ttlMgrDeleteTtl(STtlManger *pTtlMgr, const STtlDelTtlCtx *delCtx) {
     goto _out;
   }
 
-  ret = 0;
-_out:
-  ttlMgrULock(pTtlMgr);
+  if (ttlMgrNeedFlush(pTtlMgr)) {
+    ttlMgrFlush(pTtlMgr, delCtx->pTxn);
+  }
 
+  ret = 0;
+
+_out:
   metaDebug("%s, ttl mgr delete ttl, uid: %" PRId64, pTtlMgr->logPrefix, delCtx->uid);
 
   return ret;
 }
 
 int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtimeCtx) {
-  ttlMgrWLock(pTtlMgr);
-
   int ret = 0;
 
   STtlCacheEntry *oldData = taosHashGet(pTtlMgr->pTtlCache, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid));
@@ -327,10 +326,13 @@ int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtime
     goto _out;
   }
 
-  ret = 0;
-_out:
-  ttlMgrULock(pTtlMgr);
+  if (ttlMgrNeedFlush(pTtlMgr)) {
+    ttlMgrFlush(pTtlMgr, pUpdCtimeCtx->pTxn);
+  }
 
+  ret = 0;
+
+_out:
   metaDebug("%s, ttl mgr update ctime, uid: %" PRId64 ", ctime: %" PRId64, pTtlMgr->logPrefix, pUpdCtimeCtx->uid,
             pUpdCtimeCtx->changeTimeMs);
 
@@ -338,8 +340,6 @@ _out:
 }
 
 int ttlMgrFindExpired(STtlManger *pTtlMgr, int64_t timePointMs, SArray *pTbUids) {
-  ttlMgrRLock(pTtlMgr);
-
   TBC *pCur;
   int  ret = tdbTbcOpen(pTtlMgr->pTtlIdx, &pCur, NULL);
   if (ret < 0) {
@@ -371,14 +371,16 @@ int ttlMgrFindExpired(STtlManger *pTtlMgr, int64_t timePointMs, SArray *pTbUids)
   tdbTbcClose(pCur);
 
   ret = 0;
+
 _out:
-  ttlMgrULock(pTtlMgr);
   return ret;
 }
 
-int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
-  ttlMgrWLock(pTtlMgr);
+static bool ttlMgrNeedFlush(STtlManger *pTtlMgr) {
+  return pTtlMgr->flushThreshold > 0 && taosHashGetSize(pTtlMgr->pDirtyUids) > pTtlMgr->flushThreshold;
+}
 
+int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
   metaDebug("%s, ttl mgr flush start. dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
 
   int ret = -1;
@@ -430,40 +432,9 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
   taosHashClear(pTtlMgr->pDirtyUids);
 
   ret = 0;
+
 _out:
-  ttlMgrULock(pTtlMgr);
-
   metaDebug("%s, ttl mgr flush end.", pTtlMgr->logPrefix);
-
-  return ret;
-}
-
-static int32_t ttlMgrRLock(STtlManger *pTtlMgr) {
-  int32_t ret = 0;
-
-  metaTrace("%s, ttlMgr rlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
-
-  ret = taosThreadRwlockRdlock(&pTtlMgr->lock);
-
-  return ret;
-}
-
-static int32_t ttlMgrWLock(STtlManger *pTtlMgr) {
-  int32_t ret = 0;
-
-  metaTrace("%s, ttlMgr wlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
-
-  ret = taosThreadRwlockWrlock(&pTtlMgr->lock);
-
-  return ret;
-}
-
-static int32_t ttlMgrULock(STtlManger *pTtlMgr) {
-  int32_t ret = 0;
-
-  metaTrace("%s, ttlMgr ulock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
-
-  ret = taosThreadRwlockUnlock(&pTtlMgr->lock);
 
   return ret;
 }

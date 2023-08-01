@@ -31,15 +31,14 @@ typedef enum DirtyEntryType {
 } DirtyEntryType;
 
 typedef struct STtlManger {
-  TdThreadRwlock lock;
+  TTB* pOldTtlIdx;  // btree<{deleteTime, tuid}, NULL>
 
-  TTB* pOldTtlIdx;       // btree<{deleteTime, tuid}, NULL>
-
-  SHashObj* pTtlCache;   // key: tuid, value: {ttl, ctime}
-  SHashObj* pDirtyUids;  // dirty tuid
+  SHashObj* pTtlCache;   // hash<tuid, {ttl, ctime}>
+  SHashObj* pDirtyUids;  // hash<dirtyTuid, entryType>
   TTB*      pTtlIdx;     // btree<{deleteTime, tuid}, ttl>
 
-  char* logPrefix;
+  char*   logPrefix;
+  int32_t flushThreshold;  // max dirty entry number in memory. if -1, flush will not be triggered by write-ops
 } STtlManger;
 
 typedef struct {
@@ -68,23 +67,24 @@ typedef struct {
 typedef struct {
   tb_uid_t uid;
   int64_t  changeTimeMs;
+  TXN*     pTxn;
 } STtlUpdCtimeCtx;
 
 typedef struct {
   tb_uid_t uid;
   int64_t  changeTimeMs;
   int64_t  ttlDays;
+  TXN*     pTxn;
 } STtlUpdTtlCtx;
 
 typedef struct {
   tb_uid_t uid;
-  TXN*     pTxn;
   int64_t  ttlDays;
+  TXN*     pTxn;
 } STtlDelTtlCtx;
 
-int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix);
+int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix, int32_t flushThreshold);
 void ttlMgrClose(STtlManger* pTtlMgr);
-int  ttlMgrPostOpen(STtlManger* pTtlMgr, void* pMeta);
 
 bool ttlMgrNeedUpgrade(TDB* pEnv);
 int  ttlMgrUpgrade(STtlManger* pTtlMgr, void* pMeta);
