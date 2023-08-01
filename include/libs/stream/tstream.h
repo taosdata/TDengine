@@ -550,6 +550,14 @@ int32_t tEncodeCompleteHistoryDataMsg(SEncoder* pEncoder, const SStreamCompleteH
 int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistoryMsg* pReq);
 
 typedef struct {
+  int32_t nodeId;
+  SEpSet  epset;
+} SStreamTaskUpdateInfo;
+
+int32_t tEncodeTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskUpdateInfo* pMsg);
+int32_t tDecodeTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskUpdateInfo* pMsg);
+
+typedef struct {
   int64_t streamId;
   int32_t downstreamTaskId;
   int32_t taskId;

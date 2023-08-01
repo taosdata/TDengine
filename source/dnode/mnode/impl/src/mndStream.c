@@ -1776,7 +1776,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t nodeId = 0;
   SEpSet  newEpSet = {0};
 
-  {  // check all streams that involved this vnode
+  {  // check all streams that involved this vnode should update the epset info
     SStreamObj *pStream = NULL;
     void       *pIter = NULL;
     while (1) {
@@ -1796,7 +1796,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         for (int32_t k = 0; k < numOfTasks; ++k) {
           SStreamTask *pTask = taosArrayGetP(pLevel, k);
           if (pTask->info.nodeId == nodeId) {
-            //pTask->info.epSet = 0; set the new epset
+            pTask->info.epSet = newEpSet;
             continue;
           }
 
@@ -1813,6 +1813,39 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         }
       }
 
+      { // build trans to update the epset
+
+        STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
+        if (pTrans == NULL) {
+          mError("failed to trigger checkpoint, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+          return -1;
+        }
+//        mDebug("start to trigger checkpoint, checkpointId: %" PRId64 "", checkpointId);
+
+        mndTransSetDbName(pTrans, "checkpoint", "checkpoint");
+        if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+          mError("failed to trigger checkpoint, checkpointId: %" PRId64 ", reason:%s", checkpointId,
+                 tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        void* pBuf = NULL;
+        int32_t len = 0;
+//        doBuildStreamTaskUpdateMsg(&pBuf, &len, nodeId, newEpSet);
+
+        STransAction action = {0};
+        action.epSet = /*mndGetVgroupEpset(pMnode, pVgObj)*/;
+        action.pCont = pBuf;
+        action.contLen = len;
+        action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
+
+        if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+          taosMemoryFree(pBuf);
+          taosWUnLockLatch(&pStream->lock);
+          return -1;
+        }
+      }
       taosWUnLockLatch(&pStream->lock);
     }
 

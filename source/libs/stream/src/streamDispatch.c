@@ -958,3 +958,19 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
          num);
   return 0;
 }
+
+int32_t tEncodeTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskUpdateInfo* pMsg) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI32(pEncoder, pMsg->nodeId) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pMsg->epset) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskUpdateInfo* pMsg) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pMsg->nodeId) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pMsg->epset) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
