@@ -18,6 +18,7 @@
 #include "tcommon.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
+#include "tsdbReadUtil.h"
 
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 

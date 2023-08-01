@@ -1922,6 +1922,11 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         state->pr->pCurFileSet = state->pFileSet;
 
         loadDataTomb(state->pr, state->pr->pFileReader);
+
+        int32_t code = tsdbDataFileReadBrinBlk(state->pr->pFileReader, &state->pr->pBlkArray);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _err;
+        }
       }
 
       if (!state->pIndexList) {
@@ -1929,12 +1934,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       } else {
         taosArrayClear(state->pIndexList);
       }
-      const TBrinBlkArray *pBlkArray = NULL;
 
-      int32_t code = tsdbDataFileReadBrinBlk(state->pr->pFileReader, &pBlkArray);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _err;
-      }
+      const TBrinBlkArray *pBlkArray = state->pr->pBlkArray;
 
       for (int i = TARRAY2_SIZE(pBlkArray) - 1; i >= 0; --i) {
         SBrinBlk *pBrinBlk = &pBlkArray->data[i];

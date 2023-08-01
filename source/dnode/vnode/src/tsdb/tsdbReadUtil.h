@@ -36,6 +36,16 @@ typedef enum {
   EXTERNAL_ROWS_NEXT = 0x3,
 } EContentData;
 
+typedef struct STsdbReaderInfo {
+  uint64_t      suid;
+  STSchema*     pSchema;
+  EReadMode     readMode;
+  uint64_t      rowsNum;
+  STimeWindow   window;
+  SVersionRange verRange;
+  int16_t       order;
+} STsdbReaderInfo;
+
 typedef struct SBlockInfoBuf {
   int32_t currentIndex;
   SArray* pData;
@@ -242,6 +252,41 @@ bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
 void    loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
+
+typedef struct {
+  SArray* pTombData;
+} STableLoadInfo;
+
+struct SDataFileReader;
+
+typedef struct SCacheRowsReader {
+  STsdb*                  pTsdb;
+  STsdbReaderInfo         info;
+  TdThreadMutex           readerMutex;
+  SVnode*                 pVnode;
+  STSchema*               pSchema;
+  STSchema*               pCurrSchema;
+  uint64_t                uid;
+  char**                  transferBuf;  // todo remove it soon
+  int32_t                 numOfCols;
+  SArray*                 pCidList;
+  int32_t*                pSlotIds;
+  int32_t                 type;
+  int32_t                 tableIndex;  // currently returned result tables
+  STableKeyInfo*          pTableList;  // table id list
+  int32_t                 numOfTables;
+  uint64_t*               uidList;
+  SSHashObj*              pTableMap;
+  SArray*                 pLDataIterArray;
+  struct SDataFileReader* pFileReader;
+  STFileSet*              pCurFileSet;
+  const TBrinBlkArray*    pBlkArray;
+  STsdbReadSnap*          pReadSnap;
+  char*                   idstr;
+  int64_t                 lastTs;
+} SCacheRowsReader;
+
+int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);
 
 #ifdef __cplusplus
 }
