@@ -118,3 +118,7 @@ export function validTopicSql(sql) {
 export function validDir(arg) {
   return /^[A-Za-z0-9_\/]*$/g.test(arg)
 }
+
+export function validPath(arg) {
+  return /^\/[A-Za-z0-9_\/]*$/g.test(arg)
+}
