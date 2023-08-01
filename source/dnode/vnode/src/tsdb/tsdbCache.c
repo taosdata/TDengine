@@ -2502,15 +2502,15 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
 
         uint64_t        uid = pIter->idx.uid;
         STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
-        SArray         *pTombData = pInfo->pTombData;
-
-        if (pTombData) {
-          taosArrayAddAll(pIter->pMemDelData, pTombData);
+        if (pInfo->pTombData == NULL) {
+          pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
         }
 
-        size_t delSize = TARRAY_SIZE(pIter->pMemDelData);
+        taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData);
+
+        size_t delSize = TARRAY_SIZE(pInfo->pTombData);
         if (delSize > 0) {
-          code = tsdbBuildDeleteSkyline(pIter->pMemDelData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
+          code = tsdbBuildDeleteSkyline(pInfo->pTombData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
         }
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }
