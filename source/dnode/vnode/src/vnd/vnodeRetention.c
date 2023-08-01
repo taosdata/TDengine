@@ -15,27 +15,8 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbSyncRetention(STsdb *tsdb, int64_t now);
-extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now, int64_t *taskid);
+extern int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync);
 
 int32_t vnodeDoRetention(SVnode *pVnode, int64_t now) {
-  int32_t code;
-  int32_t lino;
-
-  if (pVnode->config.sttTrigger == 1) {
-    tsem_wait(&pVnode->canCommit);
-    code = tsdbSyncRetention(pVnode->pTsdb, now);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    // code = smaDoRetention(pVnode->pSma, now);
-    // TSDB_CHECK_CODE(code, lino, _exit);
-    tsem_post(&pVnode->canCommit);
-  } else {
-    int64_t taskid;
-    code = tsdbAsyncRetention(pVnode->pTsdb, now, &taskid);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-_exit:
-  return code;
+  return tsdbRetention(pVnode->pTsdb, now, pVnode->config.sttTrigger == 1);
 }
