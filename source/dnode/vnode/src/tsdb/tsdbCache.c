@@ -1598,21 +1598,21 @@ static void freeTableInfoFunc(void *param) {
 }
 
 static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid) {
-  STableLoadInfo *pInfo = NULL;
-
   if (!pReader->pTableMap) {
     pReader->pTableMap = tSimpleHashInit(pReader->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
     tSimpleHashSetFreeFp(pReader->pTableMap, freeTableInfoFunc);
   }
 
-  pInfo = *(STableLoadInfo **)tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
-  if (!pInfo) {
-    pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
+  STableLoadInfo **ppInfo = tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+  if (!ppInfo) {
+    STableLoadInfo *pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
     tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+
+    ppInfo = &pInfo;
   }
 
-  return pInfo;
+  return *ppInfo;
 }
 
 static uint64_t *getUidList(SCacheRowsReader *pReader) {
