@@ -590,7 +590,7 @@ bool    streamTaskIsIdle(const SStreamTask* pTask);
 int32_t streamTaskEndScanWAL(SStreamTask* pTask);
 
 SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
-int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
+int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize);
 
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 

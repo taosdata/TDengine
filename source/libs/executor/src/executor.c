@@ -186,11 +186,6 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
 }
 
-//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
-//  SExecTaskInfo* pTaskInfo = tinfo;
-//  pTaskInfo->code = code;
-//}
-
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -652,21 +647,31 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
 
   *pRes = NULL;
   int64_t curOwner = 0;
-  if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
+
+  // todo extract method
+  taosRLockLatch(&pTaskInfo->lock);
+  bool isKilled = isTaskKilled(pTaskInfo);
+  if (isKilled) {
+    clearStreamBlock(pTaskInfo->pRoot);
+    qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
+
+    taosRUnLockLatch(&pTaskInfo->lock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pTaskInfo->owner != 0) {
     qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*)curOwner);
     pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
+
+    taosRUnLockLatch(&pTaskInfo->lock);
     return pTaskInfo->code;
   }
 
+  pTaskInfo->owner = threadId;
+  taosRUnLockLatch(&pTaskInfo->lock);
+
   if (pTaskInfo->cost.start == 0) {
     pTaskInfo->cost.start = taosGetTimestampUs();
-  }
-
-  if (isTaskKilled(pTaskInfo)) {
-    clearStreamBlock(pTaskInfo->pRoot);
-    atomic_store_64(&pTaskInfo->owner, 0);
-    qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
-    return TSDB_CODE_SUCCESS;
   }
 
   // error occurs, record the error code and return to client
@@ -772,11 +777,13 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode) {
   qDebug("%s sync killed execTask", GET_TASKID(pTaskInfo));
   setTaskKilled(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
 
+  taosWLockLatch(&pTaskInfo->lock);
   while (qTaskIsExecuting(pTaskInfo)) {
     taosMsleep(10);
   }
-
   pTaskInfo->code = rspCode;
+  taosWUnLockLatch(&pTaskInfo->lock);
+
   return TSDB_CODE_SUCCESS;
 }
 
