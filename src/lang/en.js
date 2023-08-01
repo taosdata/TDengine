@@ -519,7 +519,11 @@ export default {
       "Control how code samples in the documentation are populated with system resources. Not all code samples make use of system resources.",
     createToken: "Create TOKEN",
     generateTokenTip: "There are not any API tokens, you have to generate one to connect to TDengine .",
-    enterTip: "Please enter"
+    enterTip: "Please enter",
+    level: 'Level',
+    activity: 'Activity',
+    context: 'Context',
+    at: 'Time'
   },
   replication: {
     theTaskWithId: "the task with id {id}",
