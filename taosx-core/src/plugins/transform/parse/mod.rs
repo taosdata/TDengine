@@ -99,8 +99,8 @@ pub trait Parse {
 enum FieldParser {
     Alias { alias: String },
     Cast(Cast),
-    Json(Json),
     Regex(Regex),
+    Json(Json),
 }
 
 impl Parse for FieldParser {
@@ -453,8 +453,9 @@ impl Parser {
                     match select {
                         Select::Include(incl) => {
                             for item in incl.iter() {
-                                if (item.alias().is_some() && item.alias().unwrap() == column_name) ||
-                                    item.name() == column_name {
+                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
+                                    || item.name() == column_name
+                                {
                                     return item.cast();
                                 }
                             }
@@ -477,7 +478,6 @@ impl Parser {
         schema: &'a Arc<Schema>,
         name: &str,
     ) -> Option<(usize, &'a Field)> {
-
         let (idx, field) = schema.fields().into_iter().enumerate().find(|(_, b)| {
             let meta_name = b.metadata().get("name");
             (meta_name.is_some() && name == meta_name.unwrap()) || b.name() == name
@@ -538,7 +538,6 @@ impl Parser {
                     if let Some((index, _)) =
                         Self::get_schema_column_with_name(&schema, name.as_str())
                     {
-
                         indices.push(index);
                     } else {
                         log::warn!("Selected column {} not found in stream message", name);
@@ -726,4 +725,16 @@ impl TransformExt for Parser {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
         self.parse(records)
     }
+}
+
+#[test]
+fn test_regex() {
+    let parse = r#"
+    {
+      "regex": "current (?<current>\\S+) with voltage (?<voltage>\\S+) and phase (?<phase>\\S+)",
+      "select": ["current::float", "voltage::int", "phase::float"]
+    }"#;
+    let parse: FieldParser = serde_json::from_str(parse).unwrap();
+    dbg!(&parse);
+    assert!(matches!(parse, FieldParser::Regex(_)));
 }
