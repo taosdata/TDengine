@@ -2967,7 +2967,6 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        # return
         # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
         # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
         # self.vgroups = 1
@@ -3066,9 +3065,7 @@ class StreamComputingTest(TDCase):
                 if fill_history_value != 1:
                     self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
                 self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25), fill_history_value=fill_history_value)
-                #! TD-24624
-                if fill_history_value != 1:
-                    self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
+                self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
                 self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=fill_history_value)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None)
             self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
@@ -3134,6 +3131,10 @@ class StreamComputingTest(TDCase):
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition="t1 as t5,t2 as t11,t3 as t13", subtable=None, stb_field_name_value=None, tag_value="t5,t11,t13", use_exist_stb=True)
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value=None, use_exist_stb=True)
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t1", use_exist_stb=True)
+                    # pause/resume
+                    self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
+                    self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
+                    self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False, fill_history_value=fill_history_value)
             # error cases
             self.at_once_interval_ext(interval=random.randint(10, 15), partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value="", tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, use_except=True)
             self.at_once_interval_ext(interval=random.randint(10, 15), partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm.replace("c1","c19"), tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, use_except=True)
@@ -3149,11 +3150,6 @@ class StreamComputingTest(TDCase):
             self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition="t1 as t5,t2 as t11,t3 as t14", subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t5,t11,t13", use_exist_stb=True, use_except=True)
             self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition="t1 as t5,t2 as t11,t3 as c13", subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t5,t11,c13", use_exist_stb=True, use_except=True)
 
-
-            # pause/resume
-            self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=False)
-            self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=True)
-            self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False)
 
             # ! TD-23905
             # self.json_function(partition="tbname", delete=True, fill_history_value=1)
