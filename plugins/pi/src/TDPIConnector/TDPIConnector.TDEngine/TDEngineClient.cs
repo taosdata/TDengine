@@ -1,5 +1,5 @@
 ﻿#define CLOUD_LICENSE_ONLY
-#define USE_ADAPTER
+#define UNUSE_ADAPTER
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;

@@ -1,5 +1,5 @@
 ﻿#define CLOUD_LICENSE_ONLY_DISABLED
-#define USE_ADAPTER
+#define UNUSE_ADAPTER
 using log4net;
 using System;
 using System.Collections.Generic;
