@@ -532,6 +532,7 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 
 typedef struct {
   int32_t vgId;
+  SEpSet  epset;
   int32_t numOfTasks;
 } SStreamHbMsg;
 

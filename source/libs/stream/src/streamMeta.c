@@ -553,6 +553,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->vgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->numOfTasks) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pReq->epset) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -561,6 +562,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->vgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->numOfTasks) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pReq->epset) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
