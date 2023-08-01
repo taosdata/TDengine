@@ -2,37 +2,37 @@
 id: csv
 name: CSV
 description: |
-  Import a file or a collection of files in CSV format to TDengine.
+  导入一个或多个 CSV 文件数据到 TDengine。
 type: path
 options:
   path:
     required: true
     display: Path
-    description: CSV file path or directory
-    placeholder: "Example: a.csv,b.csv"
+    description: CSV 文件名或文件路径（处理该路径下的所有 CSV 文件）。
+    placeholder: "示例: a.csv,b.csv"
 strict: true
 groups:
-  - name: CSV Options
+  - name: CSV 选项
     display_order: 2
-    description: CSV reading options
+    description: CSV 读取选项
     params:
       - name: quote
-        display: Quote escape char.
+        display: 引用字符转义字符
         # value: \"
         hint: str
       - name: sep
-        display: Separator character.
+        display: 分隔符
         # value: \,
         hint: str
-  - name: Write Options
+  - name: CSV 写入配置
     display_order: 2
-    description: Writing options
+    description: CSV 写入参数设置
     params:
       - name: batch_size
-        display: Batch Size
+        display: 批次写入量
         value: 1000
-        short_description: Batch size.
-        description: Batch size.
+        short_description: 批次写入量。
+        description: 批次写入量。
         hint:
           type: integer
           min: 1
