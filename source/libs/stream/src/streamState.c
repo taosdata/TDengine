@@ -729,6 +729,7 @@ void streamStateFreeVal(void* val) {
 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
+  qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey,key->win.ekey, key->groupId);
   return streamStateSessionPut_rocksdb(pState, key, value, vLen);
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};

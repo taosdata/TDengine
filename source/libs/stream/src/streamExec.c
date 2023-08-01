@@ -581,6 +581,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
+        streamSchedExec(pTask);
       } else {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),

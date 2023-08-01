@@ -34,7 +34,27 @@ In the schemaless writing data line protocol, each data item in the field_set ne
 
 - If there are English double quotes on both sides, it indicates the BINARY(32) type. For example, `"abc"`.
 - If there are double quotes on both sides and an L prefix, it means NCHAR(32) type. For example, `L"error message"`.
-- Spaces, equal signs (=), commas (,), and double quotes (") need to be escaped with a backslash (\\) in front. (All refer to the ASCII character)
+- Spaces, equals sign (=), comma (,), double quote ("), and backslash (\\) need to be escaped with a backslash (\\) in front. (All refer to the ASCII character). The rules are as follows:
+
+| **Serial number** | **Element**    | **Escape characters**   |
+| -------- | ----------- | -----------------------------       |
+| 1        | Measurement     | Comma, Space                    |
+| 2        | Tag key         | Comma, Equals Sign, Space       |
+| 3        | Tag value       | Comma, Equals Sign, Space       |
+| 4        | Field key       | Comma, Equals Sign, Space       |
+| 5        | Field value     | Double quote, Backslash         |
+
+With two contiguous backslashes, the first is interpreted as an escape character. Examples of backslash escape rules are as follows:
+
+| **Serial number**      | **Backslashes**    | **Interpreted as**            |
+| --------               | -----------        | ----------------------------- |
+| 1                      | \                  | \                             |
+| 2                      | \\\\               | \                             |
+| 3                      | \\\\\\             | \\\\                          |
+| 4                      | \\\\\\\\           | \\\\                          |
+| 5                      | \\\\\\\\\\         | \\\\\\                        |
+| 6                      | \\\\\\\\\\\\       | \\\\\\                        |
+
 - Numeric types will be distinguished from data types by the suffix.
 
 | **Serial number** | **Postfix** | **Mapping type**              | **Size (bytes)** |
@@ -88,6 +108,8 @@ You can configure smlChildTableName in taos.cfg to specify table names, for exam
 
 8. It is assumed that the order of field_set in a supertable is consistent, meaning that the first record contains all fields and subsequent records store fields in the same order. If the order is not consistent, set smlDataFormat in taos.cfg to false. Otherwise, data will be written out of order and a database error will occur.
    Note: TDengine 3.0.3.0 and later automatically detect whether order is consistent. This parameter is no longer used.
+9. Due to the fact that SQL table names do not support period (.), schemaless has also processed period (.). If there is a period (.) in the table name automatically created by schemaless, it will be automatically replaced with an underscore (\_). If you manually specify a sub table name, if there is a dot (.) in the sub table name, it will also be converted to an underscore (\_)
+10. Taos.cfg adds the configuration of smlTsDefaultName (with a string value), which only works on the client side. After configuration, the time column name of the schemaless automatic table creation can be set through this configuration. If not configured, defaults to _ts.
 
 :::tip
 All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48 KB(64 KB since version 3.0.5.0) and the total length of a tag value cannot exceed 16 KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
