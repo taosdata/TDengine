@@ -1139,13 +1139,13 @@ export default {
                     this.mqttcertkeyfile.length > 0
                   ) {
                     if (data.groups[index].params[g].name == "ca") {
-                      querystr += `&${data.groups[index].params[g].name}=${this.mqttcafile[0].response[0]}`;
+                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcafile[0].response[0]}`;
                     }
                     if (data.groups[index].params[g].name == "cert") {
-                      querystr += `&${data.groups[index].params[g].name}=${this.mqttcertfile[0].response[0]}`;
+                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertfile[0].response[0]}`;
                     }
                     if (data.groups[index].params[g].name == "cert_key") {
-                      querystr += `&${data.groups[index].params[g].name}=${this.mqttcertkeyfile[0].response[0]}&`;
+                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertkeyfile[0].response[0]}&`;
                     }
                   } else {
                     Message({
