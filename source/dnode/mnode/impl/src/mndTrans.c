@@ -852,9 +852,6 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
   pNew->mTraceId = pTrans->mTraceId;
-#ifdef WINDOWS
-  pNew->mutex = pTrans->mutex;
-#endif
   pTrans->pRpcArray = NULL;
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
