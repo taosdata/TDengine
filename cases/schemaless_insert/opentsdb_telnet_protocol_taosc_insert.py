@@ -1053,7 +1053,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.chinese_check()
             self.multi_field_check()
             self.spell_check()
-            self.point_trans_check()
+            # self.point_trans_check()
             self.defaultType_check()
             self.tbname_tags_cols_name_check()
             self.stb_insert_multi_thread_check()

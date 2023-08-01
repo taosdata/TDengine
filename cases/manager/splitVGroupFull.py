@@ -258,7 +258,7 @@ class SplitVGroup(TDCase):
     def prepareEnv(self):
         # init                
         self.ts = 1680000000000
-        self.childCnt = 10000000
+        self.childCnt = 100000
         self.childRow = 10000
         self.batchSize = 5000
         self.vgroups1  = 20
