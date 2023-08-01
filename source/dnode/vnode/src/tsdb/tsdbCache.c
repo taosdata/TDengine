@@ -1615,10 +1615,37 @@ static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid)
   return pInfo;
 }
 
+static int32_t uidComparFunc(const void *p1, const void *p2) {
+  uint64_t pu1 = *(uint64_t *)p1;
+  uint64_t pu2 = *(uint64_t *)p2;
+  if (pu1 == pu2) {
+    return 0;
+  } else {
+    return (pu1 < pu2) ? -1 : 1;
+  }
+}
+
+static uint64_t *getUidList(SCacheRowsReader *pReader) {
+  if (!pReader->uidList) {
+    int32_t numOfTables = pReader->numOfTables;
+
+    pReader->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
+
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      uint64_t uid = pReader->pTableList[i].uid;
+      pReader->uidList[i] = uid;
+    }
+
+    taosSort(pReader->uidList, numOfTables, sizeof(uint64_t), uidComparFunc);
+  }
+
+  return pReader->uidList;
+}
+
 static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsReader *pReader, void *pFileReader,
                                bool isFile) {
   int32_t   code = 0;
-  uint64_t *uidList = pReader->uidList;
+  uint64_t *uidList = getUidList(pReader);
   int32_t   numOfTables = pReader->numOfTables;
   int64_t   suid = pReader->info.suid;
 

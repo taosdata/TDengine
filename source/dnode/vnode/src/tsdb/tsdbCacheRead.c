@@ -133,16 +133,6 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t uidComparFunc(const void* p1, const void* p2) {
-  uint64_t pu1 = *(uint64_t*)p1;
-  uint64_t pu2 = *(uint64_t*)p2;
-  if (pu1 == pu2) {
-    return 0;
-  } else {
-    return (pu1 < pu2) ? -1 : 1;
-  }
-}
-
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
@@ -167,19 +157,6 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->pTableList = pTableIdList;
   p->numOfTables = numOfTables;
-
-  p->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
-  if (p->uidList == NULL) {
-    tsdbCacherowsReaderClose(p);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  for (int32_t i = 0; i < numOfTables; ++i) {
-    uint64_t uid = p->pTableList[i].uid;
-    p->uidList[i] = uid;
-  }
-
-  taosSort(p->uidList, numOfTables, sizeof(uint64_t), uidComparFunc);
 
   int32_t code = setTableSchema(p, suid, idstr);
   if (code != TSDB_CODE_SUCCESS) {
