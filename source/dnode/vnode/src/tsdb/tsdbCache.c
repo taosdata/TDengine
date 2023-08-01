@@ -2507,9 +2507,11 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         if (pTombData) {
           taosArrayAddAll(pIter->pMemDelData, pTombData);
         }
-        code = tsdbBuildDeleteSkyline(pIter->pMemDelData, 0, (int32_t)(TARRAY_SIZE(pIter->pMemDelData) - 1),
-                                      pIter->pSkyline);
 
+        size_t delSize = TARRAY_SIZE(pIter->pMemDelData);
+        if (delSize > 0) {
+          code = tsdbBuildDeleteSkyline(pIter->pMemDelData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
+        }
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }
 
