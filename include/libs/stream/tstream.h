@@ -554,7 +554,7 @@ typedef struct {
   SEpSet  epset;
 } SStreamTaskUpdateInfo;
 
-int32_t tEncodeTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskUpdateInfo* pMsg);
+int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskUpdateInfo* pMsg);
 int32_t tDecodeTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskUpdateInfo* pMsg);
 
 typedef struct {
