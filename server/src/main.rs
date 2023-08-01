@@ -67,13 +67,16 @@ async fn main() -> anyhow::Result<()> {
         .log_level
         .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
         .unwrap_or(log::LevelFilter::Info);
-    let subscriber = tracing_subscriber::fmt()
+
+    let mut subscriber = tracing_subscriber::fmt()
         .with_level(true)
         .with_thread_ids(true)
         .with_thread_names(true)
-        .with_span_events(FmtSpan::ACTIVE)
         .with_max_level(log_level_to_tracing_level(log_level))
         .compact();
+    if log_level > log::LevelFilter::Info {
+        subscriber = subscriber.with_span_events(FmtSpan::ACTIVE);
+    }
     if atty::is(atty::Stream::Stdout) {
         subscriber.pretty().init();
     } else {

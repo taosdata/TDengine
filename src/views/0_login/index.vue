@@ -287,7 +287,7 @@ export default {
     },
     async getClusterID() {
       try {
-        return sendSQLReq(` select id from information_schema.ins_cluster;`)
+        return sendSQLReq(`select id from information_schema.ins_cluster;`)
           .then((res) => {
             let id = res.data.flat(Infinity).toString();
             localStorage.setItem("local_clusterID", id);
@@ -322,7 +322,11 @@ export default {
           this.dynamicValidateForm.cluster,
           token,
           sql
-        ).then((res) => {
+        ).catch(reason => {
+          console.log(reason);
+          Promise.reject(reason);
+        }).then((res) => {
+          console.log("login response", res);
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
@@ -336,7 +340,7 @@ export default {
               Message.error(this.$t("login.servTaosdTip"));
               return;
             }
-            Message.error(this.$t("login.errorTip"));
+            Message.error(res.desc || this.$t("login.errorTip"));
           }
         });
       } catch (error) {
