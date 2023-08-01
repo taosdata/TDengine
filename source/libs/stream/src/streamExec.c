@@ -305,11 +305,12 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
+  // todo. the dropping status should be append to the status after the halt completed.
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
-  // for the step 2. For a agg task
+  // for the step 2.
   int8_t status = pStreamTask->status.taskStatus;
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    ASSERT(status == TASK_STATUS__HALT);
+    ASSERT(status == TASK_STATUS__HALT || status == TASK_STATUS__DROPPING);
   } else {
     ASSERT(status == TASK_STATUS__SCAN_HISTORY);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
