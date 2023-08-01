@@ -1,4 +1,3 @@
-
 import taos
 import sys
 import time
@@ -15,7 +14,7 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
-    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost', 'smlDot2Underline': 0}, 'fqdn': 'localhost'}
+    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost', 'smlTsDefaultName': "times"}, 'fqdn': 'localhost'}
     print("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
@@ -59,29 +58,29 @@ class TDTestCase:
         tdSql.query(f"select distinct tbname from {dbname}.readings")
         tdSql.checkRows(4)
 
-        tdSql.query(f"select * from {dbname}.t_0799064f5487946e5d22164a822acfc8 order by _ts")
+        tdSql.query(f"select * from {dbname}.t_0799064f5487946e5d22164a822acfc8 order by times")
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "kk")
         tdSql.checkData(1, 3, "")
 
 
-        tdSql.query(f"select distinct tbname from {dbname}.`sys.if.bytes.out`")
+        tdSql.query(f"select distinct tbname from {dbname}.`sys_if_bytes_out`")
         tdSql.checkRows(2)
 
-        tdSql.query(f"select * from {dbname}.t_fc70dec6677d4277c5d9799c4da806da order by _ts")
+        tdSql.query(f"select * from {dbname}.t_fc70dec6677d4277c5d9799c4da806da order by times")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1.300000000)
-        tdSql.checkData(1, 1,13.000000000)
+        tdSql.checkData(1, 1, 13.000000000)
 
-        tdSql.query(f"select * from {dbname}.`sys.procs.running`")
+        tdSql.query(f"select * from {dbname}.`sys_procs_running`")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 42.000000000)
         tdSql.checkData(0, 2, "web01")
 
-        tdSql.query(f"select distinct tbname from {dbname}.`sys.cpu.nice`")
+        tdSql.query(f"select distinct tbname from {dbname}.`sys_cpu_nice`")
         tdSql.checkRows(3)
 
-        tdSql.query(f"select * from {dbname}.`sys.cpu.nice` order by _ts")
+        tdSql.query(f"select * from {dbname}.`sys_cpu_nice` order by times")
         tdSql.checkRows(4)
         tdSql.checkData(0, 1, 13.000000000)
         tdSql.checkData(0, 2, "web01")
@@ -102,13 +101,13 @@ class TDTestCase:
         tdSql.query(f"desc {dbname}.macylr")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from ts3724.`.stb2`")
+        tdSql.query(f"select * from ts3724._stb2")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from ts3724.`stb.2`")
+        tdSql.query(f"select * from ts3724.stb_2")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from ts3724.`stb2.`")
+        tdSql.query(f"select * from ts3724.stb2_")
         tdSql.checkRows(1)
         return
 
@@ -123,3 +122,4 @@ class TDTestCase:
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
+

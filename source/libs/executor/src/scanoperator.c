@@ -2424,7 +2424,9 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
       pInfo->pUpdateInfo = pUpInfo;
     } else {
-      pInfo->pUpdateInfo->minTS = TMAX(pInfo->pUpdateInfo->minTS, pUpInfo->minTS);
+      pInfo->stateStore.windowSBfDelete(pInfo->pUpdateInfo, 1);
+      pInfo->stateStore.windowSBfAdd(pInfo->pUpdateInfo, 1);
+      ASSERT(pInfo->pUpdateInfo->minTS > pUpInfo->minTS);
       pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
       SHashObj* curMap = pInfo->pUpdateInfo->pMap;
       void *pIte = taosHashIterate(curMap, NULL);

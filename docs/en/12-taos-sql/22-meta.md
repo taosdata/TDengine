@@ -297,3 +297,13 @@ Provides dnode configuration information.
 | 7   | target_table | BINARY(192)   | Target table                                                                                                                                                                                   |
 | 8   |  watermark   | BIGINT        | Watermark (see stream processing documentation). It should be noted that `watermark` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
 | 9   |   trigger    | INT           | Method of triggering the result push (see stream processing documentation). It should be noted that `trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name. |
+
+## INS_USER_PRIVILEGES
+
+| #   |   **Column**   | **Data Type** | **Description**                         |**                                                                               |
+| --- | :----------: | ------------ | -------------------------------------------|
+| 1   | user_name    | VARCHAR(24)       | Username                              |
+| 2   | privilege    | VARCHAR(10)       | Privilege description                 |
+| 3   | db_name      | VARCHAR(65)       | Database name                         |
+| 4   | table_name   | VARCHAR(193)      | Table name                            |
+| 5   | condition    | VARCHAR(49152)    | The privilege filter for child tables |

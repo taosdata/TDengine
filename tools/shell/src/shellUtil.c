@@ -68,7 +68,7 @@ int32_t shellCheckIntSize() {
   return 0;
 }
 
-void shellPrintVersion() { printf("version: %s\r\n", version); }
+void shellPrintVersion() { printf("%s\r\n", shell.info.programVersion); }
 
 void shellGenerateAuth() {
   char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
