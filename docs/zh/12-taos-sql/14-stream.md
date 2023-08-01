@@ -213,8 +213,13 @@ CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select 
 PARTITION 子句中，为 concat("tag-", tbname)定义了一个别名cc, 对应超级表st1的自定义TAG的名字。在上述示例中，流新创建的子表的TAG将以前缀 'new-' 连接原表名作为TAG的值。
 
 会对TAG信息进行如下检查
-1.检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
-2.检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+1. 检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
+2. 检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+
+对于已存在的超级表，使用已存在的 tag 时，不需要在进行定义
+```sql
+CREATE STREAM streams2 trigger at_once INTO st1 TAGS(tag1) as select  _wstart, count(*) c1 from st partition by tag1 as cc interval(10s));
+```
 
 ## 清理中间状态
 
