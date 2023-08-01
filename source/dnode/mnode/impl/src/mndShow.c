@@ -232,7 +232,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
+  if(pShow->type == TSDB_MGMT_TABLE_COL || pShow->type == TSDB_MGMT_TABLE_PRIVILEGES){   // expend capacity for ins_columns
     rowsToRead = SHOW_COLS_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
