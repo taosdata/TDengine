@@ -162,7 +162,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   return code;
 }
 
-int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
+int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
   int32_t code = TSDB_CODE_SUCCESS;
   void*   exec = pTask->exec.pExecutor;
@@ -174,7 +174,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     if (streamTaskShouldPause(&pTask->status)) {
       double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
       qDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
-      return 0;
+      break;
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
@@ -190,10 +190,6 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
         return 0;
       }
 
-      if (streamTaskShouldPause(&pTask->status)) {
-        break;
-      }
-
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       code = qExecTask(exec, &output, &ts);
@@ -203,13 +199,9 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       }
 
       // the generated results before fill-history task been paused, should be dispatched to sink node
-      if (output == NULL && qStreamRecoverScanFinished(exec)) {
-        finished = true;
+      if (output == NULL) {
+        finished = qStreamRecoverScanFinished(exec);
         break;
-      } else {
-        if (output == NULL) {
-          ASSERT(0);
-        }
       }
 
       SSDataBlock block = {0};
@@ -218,8 +210,9 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       taosArrayPush(pRes, &block);
 
       numOfBlocks++;
-      qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d", pTask->id.idStr, numOfBlocks, batchSz);
-      if (numOfBlocks >= batchSz) {
+      if (numOfBlocks >= batchSize || code != TSDB_CODE_SUCCESS) {
+        qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d, code:%s", pTask->id.idStr, numOfBlocks, batchSize,
+               tstrerror(code));
         break;
       }
     }
