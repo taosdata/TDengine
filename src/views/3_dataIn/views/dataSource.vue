@@ -280,15 +280,15 @@ export default {
             item.includes("cert_key=")
           );
           if(caindex>-1){
-           let file = dnsarr[caindex].split("=")[1]
+           let file = dnsarr[caindex].split("=")[1].replace('@','')
             this.$store.commit("app/SET_MQTT_CAFILE", [].concat(file));
           }
           if(certindex>-1){
-            let file = dnsarr[certindex].split("=")[1]
+            let file = dnsarr[certindex].split("=")[1].replace('@','')
             this.$store.commit("app/SET_MQTT_CERTFILE", [].concat(file));
           }
           if(certkeyindex>-1){
-            let file = dnsarr[certkeyindex].split("=")[1]
+            let file = dnsarr[certkeyindex].split("=")[1].replace('@','')
             this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
           }
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
@@ -303,16 +303,16 @@ export default {
           if (fileindex > -1) {
             let file = dnsarr
               .filter((item) => item.includes("csv_config_file="))[0]
-              .split("=")[1];
+              .split("=")[1].replace('@','');
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
           }
 
           let certfile = dnsarr
             .filter((item) => item.includes("certificate="))[0]
-            ?.split("=")[1];
+            ?.split("=")[1].replace('@','');
           let privatefile = dnsarr
             .filter((item) => item.includes("private_key="))[0]
-            ?.split("=")[1];
+            ?.split("=")[1].replace('@','');
           // console.log(certfile, privatefile, file, "opc的文件---======");
           
           this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));

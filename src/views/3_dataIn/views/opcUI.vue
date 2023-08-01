@@ -1260,10 +1260,10 @@ export default {
               type == "file"
                 ? authName == "certificate"
                   ? this.certfileList.length > 0
-                    ? this.certfileList[0].response[0]
+                    ? '@'+this.certfileList[0].response[0]
                     : ""
                   : this.privatefileList.length > 0
-                  ? this.privatefileList[0].response[0]
+                  ? '@'+this.privatefileList[0].response[0]
                   : ""
                 : data.authentication.alternatives[2].params[i].value;
             let authDisplay =
@@ -1413,11 +1413,11 @@ export default {
               dnsarr.splice(
                 ind,
                 1,
-                `&csv_config_file=` + this.fileList[0].response[0]
+                `&csv_config_file=@` + this.fileList[0].response[0]
               );
               dns = prefix + "?" + dnsarr.join("&");
             } else {
-              dns += `&csv_config_file=` + this.fileList[0].response[0];
+              dns += `&csv_config_file=@` + this.fileList[0].response[0];
             }
           }
         }
