@@ -251,7 +251,6 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
-  taosMemoryFree(arg);
   return code;
 }
 
@@ -262,9 +261,8 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now, int64_t *taskid) {
   arg->tsdb = tsdb;
   arg->now = now;
 
-  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_RETENTION, tsdbDoRetention2, arg, taskid);
+  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_RETENTION, tsdbDoRetention2, taosMemoryFree, arg, taskid);
   if (code) taosMemoryFree(arg);
-
   return code;
 }
 
