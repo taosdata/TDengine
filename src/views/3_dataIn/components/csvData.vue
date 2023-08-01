@@ -8,6 +8,7 @@
             <el-upload
               class="upload-demo"
               ref="upload"
+              accept='.csv'
               :data="uploadData"
               :action="uploadUrl"
               :on-success="handleSuccess"
@@ -77,7 +78,7 @@ import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
-import { Message, MessageBox } from "element-ui";
+import { Message } from "element-ui";
 export default {
   name: "CsvData",
   components: { CsvParameter, CsvColumn },
@@ -254,7 +255,7 @@ export default {
           );
         }
         if (result.message) {
-          MessageBox.error(result.message);
+          Message.error(result.message);
           return;
         }
         this.csvParserConf = {
