@@ -1592,6 +1592,29 @@ _err:
   return code;
 }
 
+static void freeTableInfoFunc(void *param) {
+  void **p = (void **)param;
+  taosMemoryFreeClear(*p);
+}
+
+static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid) {
+  STableLoadInfo *pInfo = NULL;
+
+  if (!pReader->pTableMap) {
+    pReader->pTableMap = tSimpleHashInit(pReader->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+
+    tSimpleHashSetFreeFp(pReader->pTableMap, freeTableInfoFunc);
+  }
+
+  pInfo = *(STableLoadInfo **)tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+  if (!pInfo) {
+    pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
+    tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+  }
+
+  return pInfo;
+}
+
 static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsReader *pReader, void *pFileReader,
                                bool isFile) {
   int32_t   code = 0;
@@ -1618,7 +1641,7 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
     }
 
     uint64_t        uid = uidList[j];
-    STableLoadInfo *pInfo = *(STableLoadInfo **)tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+    STableLoadInfo *pInfo = getTableLoadInfo(pReader, uid);
     if (pInfo->pTombData == NULL) {
       pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
     }
@@ -1660,13 +1683,16 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
       }
 
       if (newTable) {
-        pInfo = *(STableLoadInfo **)tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+        pInfo = getTableLoadInfo(pReader, uid);
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
         }
       }
 
       if (record.version <= pReader->info.verRange.maxVer) {
+        tsdbError("tomb xx load/cache: vgId:%d fid:%d commit %" PRId64 "~%" PRId64 "~%" PRId64 " tomb records",
+                  TD_VID(pReader->pTsdb->pVnode), pReader->pCurFileSet->fid, record.skey, record.ekey, uid);
+
         SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
         taosArrayPush(pInfo->pTombData, &delData);
       }
@@ -2458,13 +2484,14 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
 
         uint64_t        uid = pIter->idx.uid;
-        STableLoadInfo *pInfo = *(STableLoadInfo **)tSimpleHashGet(pIter->pr->pTableMap, &uid, sizeof(uid));
+        STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
         SArray         *pTombData = pInfo->pTombData;
-        if (pTombData) {
-          taosArrayAddAll(pTombData, pIter->pMemDelData);
 
-          code = tsdbBuildDeleteSkyline(pTombData, 0, (int32_t)(TARRAY_SIZE(pTombData) - 1), pIter->pSkyline);
+        if (pTombData) {
+          taosArrayAddAll(pIter->pMemDelData, pTombData);
         }
+        code = tsdbBuildDeleteSkyline(pIter->pMemDelData, 0, (int32_t)(TARRAY_SIZE(pIter->pMemDelData) - 1),
+                                      pIter->pSkyline);
 
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }

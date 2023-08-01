@@ -143,11 +143,6 @@ static int32_t uidComparFunc(const void* p1, const void* p2) {
   }
 }
 
-static void freeTableInfoFunc(void* param) {
-  void** p = (void**)param;
-  taosMemoryFreeClear(*p);
-}
-
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
@@ -173,24 +168,16 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->pTableList = pTableIdList;
   p->numOfTables = numOfTables;
 
-  p->pTableMap = tSimpleHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  if (p->pTableMap == NULL) {
-    tsdbCacherowsReaderClose(p);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
   p->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (p->uidList == NULL) {
     tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   for (int32_t i = 0; i < numOfTables; ++i) {
     uint64_t uid = p->pTableList[i].uid;
     p->uidList[i] = uid;
-    STableLoadInfo* pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
-    tSimpleHashPut(p->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
   }
-
-  tSimpleHashSetFreeFp(p->pTableMap, freeTableInfoFunc);
 
   taosSort(p->uidList, numOfTables, sizeof(uint64_t), uidComparFunc);
 
