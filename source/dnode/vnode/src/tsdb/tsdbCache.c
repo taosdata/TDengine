@@ -1835,7 +1835,6 @@ struct CacheNextRowIter;
 
 typedef struct SFSNextRowIter {
   SFSNEXTROWSTATES         state;         // [input]
-  STsdb                   *pTsdb;         // [input]
   SBlockIdx               *pBlockIdxExp;  // [input]
   STSchema                *pTSchema;      // [input]
   tb_uid_t                 suid;
@@ -1871,6 +1870,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
                                 int nCols) {
   SFSNextRowIter *state = (SFSNextRowIter *)iter;
   int32_t         code = 0;
+  STsdb          *pTsdb = state->pr->pTsdb;
 
   if (SFSNEXTROW_FS == state->state) {
     state->nFileSet = TARRAY2_SIZE(state->aDFileSet);
@@ -1893,7 +1893,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     STFileObj **pFileObj = state->pFileSet->farr;
     if (pFileObj[0] != NULL || pFileObj[3] != NULL) {
       if (state->pFileSet != state->pr->pCurFileSet) {
-        SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.tsdbPageSize};
+        SDataFileReaderConfig conf = {.tsdb = pTsdb, .szPage = pTsdb->pVnode->config.tsdbPageSize};
         const char           *filesName[4] = {0};
         if (pFileObj[0] != NULL) {
           conf.files[0].file = *pFileObj[0]->f;
@@ -1963,8 +1963,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       state->pr->pCurFileSet = state->pFileSet;
     }
 
-    code = lastIterOpen(&state->lastIter, state->pFileSet, state->pTsdb, state->pTSchema, state->suid, state->uid,
-                        state->pr, state->lastTs, aCols, nCols);
+    code = lastIterOpen(&state->lastIter, state->pFileSet, pTsdb, state->pTSchema, state->suid, state->uid, state->pr,
+                        state->lastTs, aCols, nCols);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -2384,7 +2384,6 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->fsState.pRowIter = pIter;
   pIter->fsState.state = SFSNEXTROW_FS;
-  pIter->fsState.pTsdb = pTsdb;
   pIter->fsState.aDFileSet = pReadSnap->pfSetArray;
   pIter->fsState.pBlockIdxExp = &pIter->idx;
   pIter->fsState.pTSchema = pTSchema;
