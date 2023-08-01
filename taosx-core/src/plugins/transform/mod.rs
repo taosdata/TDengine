@@ -443,6 +443,24 @@ pub enum Error {
         field: String,
         error: parse::ParseError,
     },
+    #[error("The first column should be timestamp, but set as {0:?}")]
+    TimestampAtFirst(String),
+    #[error("Table name should not be empty")]
+    EmptyTableName,
+    #[error("Table columns should not be empty for table `{0}`")]
+    EmptyTableColumns(String),
+    #[error("Table contains duplicated columns: `{0}`")]
+    DuplicatedColumns(String),
+    #[error("Table contains duplicated tags: `{0}`")]
+    DuplicatedTags(String),
+    #[error("Table name should not contain dot: {0}")]
+    TableNameContainsDot(String),
+    #[error("STable name should be set when tags not empty")]
+    STableNameRequired,
+    #[error("STable name should not be empty")]
+    EmptySTableName,
+    #[error("STable name should not contain dot: {0}")]
+    STableNameContainsDot(String),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
     #[error("Unknown error: {0}")]
