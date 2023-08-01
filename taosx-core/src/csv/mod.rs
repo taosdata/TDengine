@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::datatypes::{Field, Schema};
 use arrow::ipc::writer::StreamWriter;
@@ -273,6 +273,8 @@ impl CsvSource {
             return Err(anyhow!("csv header is null"));
         }
 
+        CsvSource::validate(&paths, has_header, &headers, sep, skip)?;
+
         let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep, skip)?;
 
         Ok(CsvSource {
@@ -460,7 +462,7 @@ impl CsvSource {
                     _ => b',',
                 })
                 .has_headers(true)
-                .flexible(true)
+                .flexible(false)
                 .from_path(path)
                 .with_context(|| format!("Open file {path:?} error"))?;
             // should first fetch headers record in case it has headers.
@@ -470,7 +472,11 @@ impl CsvSource {
             if !headers.is_empty() {
                 reader.set_headers(StringRecord::from(headers.clone()));
             }
-            info!(path, "Using headers: {}", reader.headers()?.iter().join(""));
+            info!(
+                path,
+                "Using headers: \"{}\"",
+                reader.headers()?.iter().join(",")
+            );
             if let Some(skip) = skip {
                 let mut record = StringRecord::new();
                 for _ in 0..skip {
@@ -485,5 +491,70 @@ impl CsvSource {
             readers.push(reader);
         }
         Ok(readers)
+    }
+
+    fn validate(
+        paths: &[String],
+        has_header: bool,
+        headers: &Vec<String>,
+        sep: Option<u8>,
+        skip: Option<u64>,
+    ) -> Result<()> {
+        const MAX_VALIDATE_LINES: usize = 10;
+        let mut cols = 0;
+        for path in paths {
+            let mut reader = ReaderBuilder::new()
+                .delimiter(match sep {
+                    Some(sep) => sep,
+                    _ => b',',
+                })
+                .has_headers(true)
+                .flexible(false)
+                .from_path(path)
+                .with_context(|| format!("Open file {path:?} error"))?;
+            // should first fetch headers record in case it has headers.
+            if has_header {
+                let _ = reader.headers();
+            }
+            if !headers.is_empty() {
+                reader.set_headers(StringRecord::from(headers.clone()));
+            }
+            info!(
+                path,
+                "Using headers: {}",
+                reader.headers()?.iter().join(" ")
+            );
+            if let Some(skip) = skip {
+                let mut record = StringRecord::new();
+                for _ in 0..skip {
+                    let _ = reader.read_record(&mut record);
+                }
+                info!(
+                    skip,
+                    "Start reading csv from line {}",
+                    reader.position().line()
+                );
+            }
+            let headers = reader.headers()?;
+            if headers.len() <= 1 {
+                bail!("CSV fields number should greater than 1.")
+            }
+
+            if cols == 0 {
+                cols = headers.len();
+            }
+            let mut record = StringRecord::new();
+            for _ in 0..MAX_VALIDATE_LINES {
+                reader
+                    .read_record(&mut record)
+                    .with_context(|| format!("Reading file {path:?} record error"))?;
+                let len = record.len();
+                let line = reader.position().line();
+                if cols != len {
+                    bail!("CSV file {path:?} line {line} expect {cols} columns but has {len}");
+                }
+            }
+        }
+        Ok(())
     }
 }
