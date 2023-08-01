@@ -305,8 +305,6 @@ pub async fn influxdb_to_taos(
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
-    // startup the connector
-    let mut command = tokio::process::Command::new("java");
 
     let mut log_path = log_path();
 
@@ -333,13 +331,29 @@ pub async fn influxdb_to_taos(
         None,
     );
 
-    let child = command
-        .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
-        .arg("-jar")
-        .arg(&connector_path)
-        .arg(&config_path)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::piped());
+    // get the version of jdk
+    let mut getJdkVersion = tokio::process::Command::new("java").arg("-version").output().await.unwrap();
+    let jdkVersion = String::from_utf8(getJdkVersion.stderr.clone())?;
+
+    let mut command = tokio::process::Command::new("java");
+    let child;
+
+    if jdkVersion.contains("build 1.") {
+        child = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg(&config_path)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped());
+    } else {
+        child = command
+            .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg(&config_path)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped());
+    }
 
     let port_pool = port_pool.clone();
     {
