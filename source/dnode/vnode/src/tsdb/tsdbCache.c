@@ -1604,12 +1604,13 @@ static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid)
     tSimpleHashSetFreeFp(pReader->pTableMap, freeTableInfoFunc);
   }
 
+  STableLoadInfo  *pInfo = NULL;
   STableLoadInfo **ppInfo = tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
   if (!ppInfo) {
-    STableLoadInfo *pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
+    pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
     tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
 
-    ppInfo = &pInfo;
+    return pInfo;
   }
 
   return *ppInfo;
