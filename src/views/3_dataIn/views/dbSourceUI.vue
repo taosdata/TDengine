@@ -712,7 +712,7 @@ export default {
       let start = startLsit.filter(item => item.length > 0)[0]
 
       if (start[0].value) {
-        return time.getTime() < new Date(start[0].value).getTime();
+        return time.getTime() < (new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000);
       } else {
         return false;
       }
@@ -732,7 +732,7 @@ export default {
         .filter((val) => val.name == "Backfill")[0]
         .params.filter((item) => item.name == "BackfillStartTime");
       if (start[0].value) {
-        return time.getTime() < new Date(start[0].value).getTime();
+        return time.getTime() < (new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000);
       } else {
         return false;
       }
