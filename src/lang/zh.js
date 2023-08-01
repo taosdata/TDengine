@@ -172,7 +172,11 @@ export default {
     dsepPlaceholder: "TDengine主机URL，比如: http://localhost:6041",
     theDatasource: "数据源{0}",
     dsurlError: "数据源URL格式不正确，比如: http://localhost:6041",
-    enterTip: "请输入"
+    enterTip: "请输入",
+    level: '活动级别',
+    activity: '当前活动',
+    context: '活动内容',
+    at: '时间'
   },
   replication: {
     theTaskWithId: "任务 {id}",

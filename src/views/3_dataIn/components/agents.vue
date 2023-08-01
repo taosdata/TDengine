@@ -13,8 +13,34 @@
       style="margin-top: 20px"
       :data="agentList"
       size="mini"
+      row-key="id"
       max-height="250"
+      :expand-row-keys="expandRowKeys"
+      @expand-change="expandChange"
     >
+      <el-table-column type="expand">
+        <template >
+          <div>
+            <el-table :data="agentActivities" size="mini" class="tabel-expand">
+              <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
+                <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
+                  <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
+                  <i class="el-icon-error" v-if="scope.row.level == 'error'"></i>
+                  <i class="el-icon-info" v-if="scope.row.level == 'info'"></i>
+                  {{ scope.row.level }}
+                </span>
+              </el-table-column>
+              <el-table-column prop="at" :label="$t('dataIn.at')">
+                <span slot-scope="scope">{{
+                  parsinginZone(scope.row.at)
+                }}</span>
+              </el-table-column>
+              <el-table-column prop="activity" :label="$t('dataIn.activity')"></el-table-column>
+              <el-table-column prop="context" :label="$t('dataIn.context')"></el-table-column>
+            </el-table>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column label="ID" prop="id"></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.cluster_id')"
@@ -31,6 +57,10 @@
           parsinginZone(scope.row.created_at)
         }}</span>
       </el-table-column>
+      <el-table-column
+        :label="$t('taosagents.status')"
+        prop="status"
+      ></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.dsn')"
         prop="dsn"
@@ -196,7 +226,7 @@ import {
   editAgent,
 } from "@/api/explorer/agent";
 import { copy } from "@/utils/index";
-import { getUIData } from "@/api/explorer/datain";
+import { getUIData, getAgentActivities } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import AgentDoc from "./agentDoc.vue";
@@ -241,6 +271,8 @@ export default {
 
       connectorList: [],
       parsinginZone,
+      agentActivities: [],
+      expandRowKeys:[]
     };
   },
   computed: {
@@ -457,6 +489,43 @@ export default {
         err.response.data.message && Message.error(err.response.data.message);
       }
     },
+    async expandChange(row,expandedRows) {
+      if (row.id == this.expandRowKeys[0]) {
+        this.expandRowKeys = []
+        return 
+      } 
+      let res =  await getAgentActivities(row.id)
+      this.expandRowKeys = [row.id]
+      if (res && res.code && res.code != 0) {
+        Message({
+          type: "error",
+          message: res && res.message,
+        }); 
+        return
+      }
+      let activitList = res.map(item => {
+        if (item.status == 'failed') {
+          item.context = item.context.message
+        }
+        if (typeof item.context == 'object') {
+          item.context = null
+        }
+        return item
+      })
+      this.agentActivities = activitList
+    },
+    getLevelStyle(level) {
+      let style = ''
+      switch (level) {
+        case 'info': style = 'color: #67c23a'
+        break;
+        case 'warn': style = 'color: #e6a23c'
+        break;
+        case 'error': style = 'color: #fe6c6c'
+        break;
+      }
+      return style
+    }
   },
   created() {
     this.getAgents();
@@ -528,6 +597,18 @@ export default {
     background: transparent;
   }
 }
+.tabel-expand {
+   width: 54%;
+   margin-left: 40px;
+   padding: 10px 5px;
+   ::v-deep.el-table th.el-table__cell.is-leaf {
+    border: none !important;
+   }
+   ::v-deep.el-table td.el-table__cell {
+    border: none !important;
+   }
+  }
+
 </style>
 <style lang="scss">
 .el-message-box__btns{

@@ -26,8 +26,34 @@
         :data="topicList"
         size="mini"
         max-height="250"
+        row-key="taskid"
         v-loading="requestIng"
+        :expand-row-keys="expandRowKeys"
+        @expand-change="expandChange"
       >
+        <el-table-column type="expand">
+          <template >
+            <div>
+              <el-table :data="taskActivities" size="mini" class="tabel-expand">
+                <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
+                  <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
+                    <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
+                    <i class="el-icon-error" v-if="scope.row.level == 'error'"></i>
+                    <i class="el-icon-info" v-if="scope.row.level == 'info'"></i>
+                    {{ scope.row.level }}
+                  </span>
+                </el-table-column>
+                <el-table-column prop="at" :label="$t('dataIn.at')">
+                  <span slot-scope="scope">{{
+                    parsinginZone(scope.row.at)
+                  }}</span>
+                </el-table-column>
+                <el-table-column prop="activity" :label="$t('dataIn.activity')"></el-table-column>
+                <el-table-column prop="context" :label="$t('dataIn.context')"></el-table-column>
+              </el-table>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.taskid')"
           prop="taskid"
@@ -185,8 +211,8 @@
   </div>
 </template>
 <script>
-import { Message } from "element-ui";
-import { getDatain, refreshTask } from "@/api/explorer/datain";
+import { Message, Switch } from "element-ui";
+import { getDatain, refreshTask, getTaskActivities } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -220,6 +246,8 @@ export default {
       topicList: [],
       requestIng: false,
       parsinginZone,
+      taskActivities: [],
+      expandRowKeys:[],
     };
   },
   methods: {
@@ -455,6 +483,45 @@ export default {
     addAgent() {
       this.$refs.agents.add();
     },
+    async expandChange(row,expandedRows) {
+      if (row.taskid == this.expandRowKeys[0]) {
+        this.expandRowKeys = []
+        return 
+      } 
+      let res =  await getTaskActivities(row.taskid)
+      this.expandRowKeys = [row.taskid]
+      if (res && res.code && res.code != 0) {
+        Message({
+          type: "error",
+          message: res && res.message,
+        }); 
+        return
+      }
+      let activitList = res.map(item => {
+        if (item.status == 'failed') {
+          item.context = item.context.message
+        }
+        if (typeof item.context == 'object') {
+          item.context = null
+        }
+        return item
+      })
+      this.taskActivities = activitList
+      console.log('res',res);
+
+    },
+    getLevelStyle(level) {
+      let style = ''
+      switch (level) {
+        case 'info': style = 'color: #67c23a'
+        break;
+        case 'warn': style = 'color: #e6a23c'
+        break;
+        case 'error': style = 'color: #fe6c6c'
+        break;
+      }
+      return style
+    }
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
@@ -508,4 +575,17 @@ export default {
     background: transparent;
   }
 }
+
+  .tabel-expand {
+   width: 54%;
+   margin-left: 40px;
+   padding: 10px 5px;
+   ::v-deep.el-table th.el-table__cell.is-leaf {
+    border: none !important;
+   }
+   ::v-deep.el-table td.el-table__cell {
+    border: none !important;
+   }
+  }
+
 </style>

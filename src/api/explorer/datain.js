@@ -92,3 +92,19 @@ export function getCSVColumns(path,type,hasheader){
         }
     })
 }
+
+export function getAgentActivities(agentId){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/agents/${agentId}/activities`,
+        method:'get'
+    })
+}
+
+export function getTaskActivities(taskId){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/tasks/${taskId}/activities`,
+        method:'get'
+    })
+}
