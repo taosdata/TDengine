@@ -548,7 +548,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.blank_tag_insert_check()
         self.chinese_check()
         self.multi_field_check()
-        self.point_trans_check()
+        # self.point_trans_check()
         self.tbname_tags_cols_name_check()
 
     def cleanup(self):

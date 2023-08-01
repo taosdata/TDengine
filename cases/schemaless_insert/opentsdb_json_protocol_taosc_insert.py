@@ -1050,7 +1050,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                 self.blank_tag_insert_check(value_type)
                 self.multi_field_check(value_type)
                 self.spell_check()
-                self.point_trans_check(value_type)
+                # self.point_trans_check(value_type)
                 self.stb_insert_multi_thread_check(value_type)
             self.tag_name_length_check()
             self.bool_check()

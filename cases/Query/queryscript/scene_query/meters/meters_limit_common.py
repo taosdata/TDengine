@@ -132,7 +132,8 @@ class TDTestQuery(TDCase):
         endTime = time.time()*1000
         self.logger.info("sql:%s query time cost %d ms" % (sql,endTime - startTime))   
     
-    def sql_limit_retun_n_slimit_return_error(self,sql,num,tables,per_table_num,base_fun,replace_fun):   
+    def sql_limit_retun_n_slimit_return_error(self,sql,num,tables,per_table_num,base_fun,replace_fun):  
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3)) 
         #sql limit n = n;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error  
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
           
@@ -161,6 +162,7 @@ class TDTestQuery(TDCase):
         self.tdSql.error(nest_sql_0)
 
     def sql_data_limit_retun_n_slimit_return_error(self,sql,num,tables,per_table_num,base_fun,replace_fun):   
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n = n;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error  
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -189,6 +191,7 @@ class TDTestQuery(TDCase):
         self.tdSql.error(nest_sql_0)
             
     def sql_limit_retun_1_slimit_return_error(self,sql,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =1;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
         
@@ -217,6 +220,7 @@ class TDTestQuery(TDCase):
         self.tdSql.error(nest_sql_0)
         
     def sql_data_limit_retun_1_slimit_return_error(self,sql,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =1;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -244,7 +248,8 @@ class TDTestQuery(TDCase):
         nest_sql_0 = re.sub(r'\d\d',"0",nest_sql)
         self.tdSql.error(nest_sql_0)
         
-    def sql_last_limit_retun_1_slimit_return_error(self,sql,tables,per_table_num,base_fun,replace_fun): 
+    def sql_last_limit_retun_1_slimit_return_error(self,sql,tables,per_table_num,base_fun,replace_fun):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3)) 
         #sql limit n =1;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -283,6 +288,7 @@ class TDTestQuery(TDCase):
         self.tdSql.error(nest_sql_0)
         
     def sql_limit_retun_tables_slimit_return_error(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error  
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
           
@@ -311,6 +317,7 @@ class TDTestQuery(TDCase):
         self.tdSql.error(nest_sql_0)
 
     def sql_limit_retun_tables_slimit_return_n(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =tables;sql limit 0 = 0 ;sql slmit n = n;sql slimit 0  = 0   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -343,6 +350,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
 
     def sql_data_limit_retun_tables_slimit_return_n(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =tables;sql limit 0 = 0 ;sql slmit n = n;sql slimit 0  = 0   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -375,6 +383,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
 
     def sql_limit_retun_n_slimit_return_tables(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n;sql limit 0 = 0 ;sql slmit n = 100;sql slimit 0  = 0    
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -407,6 +416,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
 
     def sql_data_limit_retun_n_slimit_return_tables(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n;sql limit 0 = 0 ;sql slmit n = 100;sql slimit 0  = 0  
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
            
@@ -439,6 +449,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
 
     def sql_limit_retun_tables_times_n_slimit_return_error(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*tables;sql limit 0 = 0 ;sql slmit n = tables*n;sql slimit 0  = 0   
         #interval     
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -468,6 +479,7 @@ class TDTestQuery(TDCase):
         self.tdSql.error(nest_sql_0)
 
     def sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*tables;sql limit 0 = 0 ;sql slmit n = per_table_num*n;sql slimit 0  = 0   
         #interval   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -501,6 +513,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
 
     def sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_join_per_table_num(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*tables;sql limit 0 = 0 ;sql slmit n = per_table_num*n;sql slimit 0  = 0   
         #interval   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -534,6 +547,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
         
     def sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*tables;sql limit 0 = 0 ;sql slmit n = per_table_num*n;sql slimit 0  = 0   
         #interval   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -567,6 +581,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
 
     def sql_limit_retun_n_slimit_return_per_table_num_times_tables(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*tables;sql limit 0 = 0 ;sql slmit n = per_table_num*n;sql slimit 0  = 0   
         #interval  
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -600,6 +615,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
 
     def sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*tables;sql limit 0 = 0 ;sql slmit n = per_table_num*n;sql slimit 0  = 0   
         #interval  
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -633,6 +649,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
 
     def sql_limit_not_test_slimitkeep_return_per_table_num_times_n(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql sql slmit n = per_table_num*n;sql slimit 0  = 0 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -652,6 +669,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
 
     def sql_data_limit_not_test_slimitkeep_return_per_table_num_times_n(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql sql slmit n = per_table_num*n;sql slimit 0  = 0 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -671,6 +689,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
 
     def sql_limit_not_test_slimitkeep_return_per_table_num_times_tables(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql sql slmit n = per_table_num*tables;sql slimit 0  = 0   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -689,6 +708,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
 
     def sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(self,sql,num,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql sql slmit n = per_table_num*tables;sql slimit 0  = 0   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -707,6 +727,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
         
     def sql_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(self,sql,num,num2,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*num2;sql limit 0 = 0 ;sql slmit n = num2*n;sql slimit 0  = 0 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -738,6 +759,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
         
     def sql_data_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(self,sql,num,num2,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*num2;sql limit 0 = 0 ;sql slmit n = num2*n;sql slimit 0  = 0 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -769,6 +791,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
         
     def sql_limit_times_slimitkeep_return_n2(self,sql,num,num2,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*num2;sql limit 0 = 0 ;sql slmit n = num2*n;sql slimit 0  = 0   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -786,6 +809,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkRow(0)
         
     def sql_data_limit_times_slimitkeep_return_n2(self,sql,num,num2,tables,per_table_num,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n =n*num2;sql limit 0 = 0 ;sql slmit n = num2*n;sql slimit 0  = 0   
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
          
@@ -803,6 +827,7 @@ class TDTestQuery(TDCase):
         self.tdSql.checkData(0,0,0)
 
     def sql_retun_error(self,sql,base_fun,replace_fun): 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #sql limit n = error;sql limit 0 = error ;sql slmit n = error ;sql slimit 0 = error 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
           
@@ -1145,6 +1170,7 @@ class TDTestQuery(TDCase):
         # self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
     def drop_db_table(self,database):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #drop table:
         sql = "show %s.tables" %database
         self.tdSql.query(sql)
@@ -1168,7 +1194,7 @@ class TDTestQuery(TDCase):
         self.tdSql.execute('''drop database if exists %s ;''' %database)
         
     def run_limit_slimit_sql(self,dbname,tables,per_table_num,dbnamejoin):
-        
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         num,num2 = random.randint(10,100),random.randint(10,100)
         self.sql_base(dbname,num,num2,tables,per_table_num,dbnamejoin)
 
@@ -1178,7 +1204,7 @@ class TDTestQuery(TDCase):
         self.sql_base(dbname,num,num2,tables,per_table_num,dbnamejoin)
                 
     def sql_base(self,dbname,num,num2,tables,per_table_num,dbnamejoin):
-        
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         sql = "select count(*) from %s.meters" %dbname
         self.sql_query_time_cost(sql)
         self.tdSql.checkData(0,0,tables*per_table_num)
@@ -1215,7 +1241,9 @@ class TDTestQuery(TDCase):
         self.run_limit_slimit_sql(self.dbname,tables,per_table_num,self.dbnamejoin)   
       
     def run(self):
-        startTime = time.time()       
+        startTime = time.time()  
+        
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))     
 
         self.tdCreateData.alter_local_slowlogthreshold()  #设置慢查询
         

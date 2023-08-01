@@ -9,6 +9,9 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/spli
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_2_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_4.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_2.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/stable_query_null.py --keep --containers

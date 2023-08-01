@@ -505,7 +505,7 @@ class TDTestQuery(TDTestQuery):
         startTime = time.time() 
         
         self.tdCreateData.alter_local_slowlogthreshold()  #设置慢查询
-        self.tdSql.query("alter local 'schedulePolicy' '2';") 
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         
         self.benchmark_insert_stb(self.source_taosd_list,self.dbname_other_local,'stb',self.tables,self.per_table_num,self.vgroups,self.replica) 
         self.base_sql_count(self.dbname_other_local,self.tables,self.per_table_num)
