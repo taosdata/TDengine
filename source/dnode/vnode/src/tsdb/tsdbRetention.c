@@ -125,6 +125,7 @@ _exit:
 
 typedef struct {
   STsdb  *tsdb;
+  int32_t sync;
   int64_t now;
 } SRtnArg;
 
@@ -254,23 +255,30 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now, int64_t *taskid) {
-  SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
-  if (arg == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  arg->tsdb = tsdb;
-  arg->now = now;
-
-  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_RETENTION, tsdbDoRetention2, taosMemoryFree, arg, taskid);
-  if (code) taosMemoryFree(arg);
-  return code;
+static void tsdbFreeRtnArg(void *arg) {
+  SRtnArg *rArg = (SRtnArg *)arg;
+  if (rArg->sync) {
+    tsem_post(&rArg->tsdb->pVnode->canCommit);
+  }
+  taosMemoryFree(arg);
 }
 
-int32_t tsdbSyncRetention(STsdb *tsdb, int64_t now) {
+int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
+  SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+  if (arg == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  arg->tsdb = tsdb;
+  arg->sync = sync;
+  arg->now = now;
+
+  if (sync) {
+    tsem_wait(&tsdb->pVnode->canCommit);
+  }
+
   int64_t taskid;
-
-  int32_t code = tsdbAsyncRetention(tsdb, now, &taskid);
-  if (code) return code;
-
-  return tsdbFSWaitBgTask(tsdb->pFS, taskid);
+  int32_t code =
+      tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_RETENTION, tsdbDoRetention2, tsdbFreeRtnArg, arg, &taskid);
+  if (code) {
+    tsdbFreeRtnArg(arg);
+  }
+  return code;
 }
