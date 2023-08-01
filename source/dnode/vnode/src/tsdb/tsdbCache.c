@@ -1840,7 +1840,6 @@ typedef struct SFSNextRowIter {
   STSchema                *pTSchema;      // [input]
   tb_uid_t                 suid;
   tb_uid_t                 uid;
-  int32_t                  nFileSet;
   int32_t                  iFileSet;
   STFileSet               *pFileSet;
   TFileSetArray           *aDFileSet;
@@ -1874,8 +1873,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
   STsdb          *pTsdb = state->pr->pTsdb;
 
   if (SFSNEXTROW_FS == state->state) {
-    state->nFileSet = TARRAY2_SIZE(state->aDFileSet);
-    state->iFileSet = state->nFileSet;
+    state->iFileSet = TARRAY2_SIZE(state->aDFileSet);
 
     state->state = SFSNEXTROW_FILESET;
   }
