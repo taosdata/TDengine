@@ -336,10 +336,10 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   STqOffset* pOffset = &vgOffset.offset;
 
   if (pOffset->val.type == TMQ_OFFSET__SNAPSHOT_DATA || pOffset->val.type == TMQ_OFFSET__SNAPSHOT_META) {
-    tqInfo("receive offset commit msg to %s on vgId:%d, offset(type:snapshot) uid:%" PRId64 ", ts:%" PRId64,
+    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:snapshot) uid:%" PRId64 ", ts:%" PRId64,
             pOffset->subKey, vgId, pOffset->val.uid, pOffset->val.ts);
   } else if (pOffset->val.type == TMQ_OFFSET__LOG) {
-    tqInfo("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, pOffset->subKey, vgId,
+    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, pOffset->subKey, vgId,
             pOffset->val.version);
   } else {
     tqError("invalid commit offset type:%d", pOffset->val.type);
@@ -367,12 +367,12 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
   SRpcMsg     rsp = {.info = pMsg->info};
   int         code = 0;
 
-  tqDebug("tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s", req.consumerId, vgId, req.subKey);
   if (tDeserializeSMqSeekReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
 
+  tqDebug("tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s", req.consumerId, vgId, req.subKey);
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     tqWarn("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", req.consumerId, vgId, req.subKey);
