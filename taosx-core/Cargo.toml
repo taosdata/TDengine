@@ -14,6 +14,8 @@ arrow-flight = { workspace = true }
 parquet = { workspace = true }
 tonic = { workspace = true }
 
+regex = { workspace = true }
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"
@@ -32,7 +34,6 @@ linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
 parse_duration = "2.1"
 pretty_env_logger = "0.4"
-regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
 sha2 = "0.10"
