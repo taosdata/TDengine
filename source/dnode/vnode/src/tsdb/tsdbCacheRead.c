@@ -181,14 +181,6 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     }
   }
 
-  SVnodeCfg* pCfg = &((SVnode*)pVnode)->config;
-  int32_t    numOfStt = pCfg->sttTrigger;
-  p->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
-  if (p->pLDataIterArray == NULL) {
-    tsdbCacherowsReaderClose(p);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
   p->idstr = taosStrdup(idstr);
   taosThreadMutexInit(&p->readerMutex, NULL);
 
@@ -215,9 +207,11 @@ void* tsdbCacherowsReaderClose(void* pReader) {
 
   taosMemoryFree(p->pCurrSchema);
 
-  int64_t loadBlocks = 0;
-  double  elapse = 0;
-  destroySttBlockReader(p->pLDataIterArray, &loadBlocks, &elapse);
+  if (p->pLDataIterArray) {
+    int64_t loadBlocks = 0;
+    double  elapse = 0;
+    destroySttBlockReader(p->pLDataIterArray, &loadBlocks, &elapse);
+  }
 
   if (p->pFileReader) {
     tsdbDataFileReaderClose(&p->pFileReader);
@@ -443,11 +437,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 _end:
   tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
 
-  int64_t loadBlocks = 0;
-  double  elapse = 0;
-  pr->pLDataIterArray = destroySttBlockReader(pr->pLDataIterArray, &loadBlocks, &elapse);
-  pr->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
-
   taosThreadMutexUnlock(&pr->readerMutex);
 
   if (pRes != NULL) {
@@ -457,7 +446,6 @@ _end:
   }
 
   taosMemoryFree(pRes);
-  // taosArrayDestroyEx(pRow, freeItem);
   taosArrayDestroy(pRow);
   taosArrayDestroyEx(pLastCols, freeItem);
 
