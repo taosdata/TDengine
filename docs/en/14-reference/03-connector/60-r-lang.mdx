@@ -7,7 +7,7 @@ title: R Language Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Rdemo from "../07-develop/01-connect/_connect_r.mdx"
+import Rdemo from "../../07-develop/01-connect/_connect_r.mdx"
 
 By using the RJDBC library in R, you can enable R programs to access TDengine data. Here are the installation process, configuration steps, and an example code in R.
 
@@ -20,12 +20,13 @@ Before getting started, make sure you have installed the R language environment.
 2. Install the RJDBC library: Execute the following command in the R console to install the RJDBC library.
 
 ```r
-install.packages("RJDBC")
+install.packages("RJDBC", repos='http://cran.us.r-project.org')
 ```
 
 :::note
 On Linux systems, installing the RJDBC package may require installing the necessary components for compilation. For example, on Ubuntu, you can execute the command apt install -y libbz2-dev libpcre2-dev libicu-dev to install the required components.
 On Windows systems, you need to set the JAVA_HOME environment variable.
+:::
 
 3. Download the TDengine JDBC driver: Visit the Maven website and download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar).
 
@@ -80,34 +81,7 @@ dbDisconnect(conn)
 
 Here's an example code that uses the RJDBC library to connect to a TDengine time-series database and perform a query operation:
 
-```r
-# Load the required libraries
-library(DBI)
-library(rJava)
-library(RJDBC)
-
-# Set the JDBC driver path (modify according to the actual location)
-driverPath <- "/path/to/taos-jdbcdriver-X.X.X-dist.jar"
-
-# Set the JDBC URL (modify according to your specific environment)
-url <- "jdbc:TAOS://localhost:6030/?user=root&password=taosdata"
-
-# Load the JDBC driver
-drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
-
-# Create a database connection
-conn <- dbConnect(drv, url)
-
-# Execute a query
-query <- "SELECT * FROM your_table"
-result <- dbGetQuery(conn, query)
-
-# Print the query result
-print(result)
-
-# Close the database connection
-dbDisconnect(conn)
-```
+<Rdemo/>
 
 Please modify the JDBC driver, JDBC URL, username, password, and SQL query statement according to your specific TDengine time-series database environment and requirements.
 
