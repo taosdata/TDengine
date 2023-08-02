@@ -746,7 +746,7 @@ impl LushMessageInsert {
         parse_column_view_with_types(&self.records.record, &ty)
     }
 
-    pub fn generate_insert_sql_from_tablename(&self, data: &Vec<ColumnView>, columns: &Vec<String>,) -> Option<String> {
+    pub fn generate_insert_sql_from_tablename(&self, data: &Vec<ColumnView>, columns: &Vec<String>,) -> Option<Vec<String>> {
         let mut index = None;
         for (i, f) in self.records.record.schema().fields().iter().enumerate() {
             if f.name() == __TABLE_NAME__ {
@@ -760,6 +760,7 @@ impl LushMessageInsert {
                 let mut sql = format!("INSERT INTO ");
                 let c = data.get(i).unwrap();
                 debug_assert!(columns.len() == data.len() - 1);
+                let mut sqls = Vec::new();
                 for (j, bv) in c.into_iter().enumerate() {
                     let table_name = bv.to_string().unwrap();
                     // sql.push_str(format!("{} VALUES (", &table_name, ).as_str());
@@ -785,9 +786,17 @@ impl LushMessageInsert {
                     }
                     insert_columns.pop();
                     insert_values.pop();
-                    sql.push_str(format!("`{table_name}` ({insert_columns}) VALUES ({insert_values})").as_str());
+                    let sql_to_push = format!(" `{table_name}` ({insert_columns}) VALUES ({insert_values})");
+                    // sql len should less than 1M
+                    if sql.len() + sql_to_push.len() > 1024 * 1024 {
+                        sqls.push(sql);
+                        sql = format!("INSERT INTO {sql_to_push}");
+                    } else {
+                        sql.push_str(sql_to_push.as_str());
+                    }
                 }
-                Some(sql)
+                sqls.push(sql);
+                Some(sqls)
             }
         }
     }
