@@ -2458,6 +2458,10 @@ int32_t syncNodeRebuildPeerAndCfg(SSyncNode* ths, SSyncCfg *cfg){
     tstrncpy(ths->raftCfg.cfg.nodeInfo[i].nodeFqdn, cfg->nodeInfo[j].nodeFqdn, TSDB_FQDN_LEN);
     ths->raftCfg.cfg.nodeInfo[i].nodeId = cfg->nodeInfo[j].nodeId;
     ths->raftCfg.cfg.nodeInfo[i].nodePort = cfg->nodeInfo[j].nodePort;
+    if((strcmp(ths->myNodeInfo.nodeFqdn, cfg->nodeInfo[j].nodeFqdn) == 0 
+      && ths->myNodeInfo.nodePort == cfg->nodeInfo[j].nodePort)){
+        ths->raftCfg.cfg.myIndex = i;
+    }
     i++;
   }
   ths->raftCfg.cfg.totalReplicaNum = i;
