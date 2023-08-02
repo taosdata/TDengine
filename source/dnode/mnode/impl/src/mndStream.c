@@ -33,6 +33,7 @@
 
 #define MND_STREAM_MAX_NUM 60
 
+#define MND_STREAM_CHECKPOINT_NAME "stream-checkpoint"
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream);
@@ -1129,7 +1130,6 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
     }
   }
 
-  pStream->checkpointFreq = checkpointId;
   pStream->checkpointId = checkpointId;
   pStream->checkpointFreq = taosGetTimestampMs();
   atomic_store_64(&pStream->currentTick, 0);
@@ -1165,7 +1165,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
   int64_t                  checkpointId = pMsg->checkpointId;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, MND_STREAM_CHECKPOINT_NAME);
   if (pTrans == NULL) {
     mError("failed to trigger checkpoint, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return -1;
