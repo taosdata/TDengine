@@ -17,7 +17,7 @@ use file_rotate::{
 };
 
 use anyhow::{bail, Context};
-use itertools::Itertools;
+use itertools::{Itertools};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio::io::AsyncBufReadExt;
@@ -601,7 +601,7 @@ impl OPCConfig {
         })
     }
 
-    pub async fn parse_tables_with(&self, taos: &Taos) -> anyhow::Result<OpcTableConfig> {
+    pub async fn parse_tables_with(&self, _taos: &Taos) -> anyhow::Result<OpcTableConfig> {
         let id_code_map = self
             .param_mapping
             .iter()
@@ -645,6 +645,7 @@ pub async fn generate_opcconfig_from_csv(
     let mut column_config = Vec::new();
     let mut node_config_old = Vec::new();
     let mut tables_to_drop = Vec::new();
+    let mut current_tag_names = Vec::new();
     for mut file in files_or_strings {
         log::info!(
             "current log: {}",
@@ -696,8 +697,11 @@ pub async fn generate_opcconfig_from_csv(
                 }
                 let column_type = IpcDataType::from_str(split_tag.get(1).unwrap())
                     .map_err(|err| anyhow::Error::msg(err))?;
+                let tag_name = split_tag.get(2).unwrap().to_string();
+                check_duplicated(&current_tag_names, None, &tag_name)?;
+                current_tag_names.push(tag_name.clone());
                 tag_config.push(TagConfig {
-                    column_name: split_tag.get(2).unwrap().to_string(),
+                    column_name: tag_name,
                     column_type,
                 });
             }
@@ -751,54 +755,59 @@ pub async fn generate_opcconfig_from_csv(
                     }
                     let column_type = IpcDataType::from_str(record_map.get("type").unwrap())
                         .map_err(|err| anyhow::Error::msg(err))?;
+                    let mut current_columns = Vec::new();
                     if !column_config_init {
+                        let value_column_name = record_map
+                            .get("value_col")
+                            .unwrap_or(&"val".to_string())
+                            .clone();
+                        check_duplicated(&current_tag_names, Some(&current_columns),&value_column_name)?;
+                        current_columns.push(value_column_name.clone());
                         column_config.push(ColumnConfig {
                             column_name: "value".to_string(),
                             column_type: None,
-                            column_alias: Some(
-                                record_map
-                                    .get("value_col")
-                                    .unwrap_or(&"val".to_string())
-                                    .clone(),
-                            ),
+                            column_alias: Some(value_column_name.clone()),
                             is_primary_key: false,
                         });
+                        let quality_col_name = record_map
+                            .get("quality_col")
+                            .unwrap_or(&"quality".to_string())
+                            .clone();
+                        check_duplicated(&current_tag_names, Some(&current_columns), &quality_col_name)?;
+                        current_columns.push(quality_col_name.clone());
                         column_config.push(ColumnConfig {
                             column_name: "quality".to_string(),
                             column_type: Some(Ty::Int),
-                            column_alias: Some(
-                                record_map
-                                    .get("quality_col")
-                                    .unwrap_or(&"quality".to_string())
-                                    .clone(),
-                            ),
+                            column_alias: Some(quality_col_name.clone()),
                             is_primary_key: false,
                         });
                         let received_time_col = record_map.get("received_time_col");
                         let mut has_primary_key = false;
                         if received_time_col.is_some() {
+                            let received_time_col_name = record_map
+                                .get("received_time_col")
+                                .unwrap_or(&"received_time".to_string())
+                                .clone();
+                            check_duplicated(&current_tag_names, Some(&current_columns), &received_time_col_name)?;
+                            current_columns.push(received_time_col_name.clone());
                             has_primary_key = true;
                             column_config.push(ColumnConfig {
                                 column_name: "received_time".to_string(),
                                 column_type: Some(Ty::Timestamp),
-                                column_alias: Some(
-                                    record_map
-                                        .get("received_time_col")
-                                        .unwrap_or(&"received_time".to_string())
-                                        .clone(),
-                                ),
+                                column_alias: Some(received_time_col_name),
                                 is_primary_key: has_primary_key,
                             });
                         }
+                        let ts_col_name = record_map
+                            .get("ts_col")
+                            .unwrap_or(&"ts".to_string())
+                            .clone();
+                        check_duplicated(&current_tag_names, Some(&current_columns), &ts_col_name)?;
+                        current_columns.push(ts_col_name.clone());
                         column_config.push(ColumnConfig {
                             column_name: "original_time".to_string(),
                             column_type: Some(Ty::Timestamp),
-                            column_alias: Some(
-                                record_map
-                                    .get("ts_col")
-                                    .unwrap_or(&"ts".to_string())
-                                    .clone(),
-                            ),
+                            column_alias: Some(ts_col_name),
                             is_primary_key: !has_primary_key,
                         });
                         column_config_init = true;
@@ -822,7 +831,7 @@ pub async fn generate_opcconfig_from_csv(
                     );
                     node_config_old.push(format!("{point_id}::{code}"))
                 }
-                Err(e) => log::warn!("line {line} have different with other previous lines ",),
+                Err(_e) => log::warn!("line {line} have different with other previous lines ",),
             }
             line += 1;
         }
@@ -844,6 +853,16 @@ pub async fn generate_opcconfig_from_csv(
         node_config_old,
         tables_to_drop,
     ));
+}
+
+fn check_duplicated(current_tags: &Vec<String>, current_columns: Option<&Vec<String>>, column_name: &String) -> anyhow::Result<()> {
+    if current_tags.contains(column_name) {
+        anyhow::bail!("duplicated column or tag: {column_name}")
+    }
+    if current_columns.is_some() && current_columns.unwrap().contains(column_name) {
+        anyhow::bail!("duplicated column or tag: {column_name}")
+    }
+    Ok(())
 }
 
 pub(super) fn get_string_vec_from_param_or_file(
