@@ -208,7 +208,7 @@
                         <el-upload
                           class="upload-demo"
                           ref="upload"
-                          accept='.csv'
+                          accept=".csv"
                           :limit="limit"
                           :data="uploadData"
                           :action="uploadUrl"
@@ -442,7 +442,7 @@
                       <el-upload
                         class="upload-demo"
                         ref="upload"
-                        accept='.csv'
+                        accept=".csv"
                         :limit="limit"
                         :data="uploadData"
                         :action="uploadUrl"
@@ -547,7 +547,7 @@
                     <el-upload
                       class="upload-demo"
                       ref="upload"
-                      accept='.csv'
+                      accept=".csv"
                       :limit="limit"
                       :data="uploadData"
                       :action="uploadUrl"
@@ -871,7 +871,14 @@ export default {
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
-      if (caitem&&certitem&&certkeyitem&&caitem.length > 0 && certitem.length > 0 && certkeyitem.length > 0) {
+      if (
+        caitem &&
+        certitem &&
+        certkeyitem &&
+        caitem.length > 0 &&
+        certitem.length > 0 &&
+        certkeyitem.length > 0
+      ) {
         this.mqttcafile = [].concat({
           name: caitem?.substr(caitem.lastIndexOf("/") + 1),
           percentage: 100,
@@ -906,7 +913,7 @@ export default {
         this.dbsource[0].groups[0].params[0].value == "true" ? true : false;
       let certitem = this.$store.state.app.opccertfiles[0];
       let privateitem = this.$store.state.app.opcprivatefiles[0];
-      console.log(this.opcConfig,'opc的回显');
+      console.log(this.opcConfig, "opc的回显");
       if (certitem && privateitem) {
         this.certfileList = [].concat({
           name: certitem?.substr(certitem.lastIndexOf("/") + 1),
@@ -1263,10 +1270,10 @@ export default {
               type == "file"
                 ? authName == "certificate"
                   ? this.certfileList.length > 0
-                    ? '@'+this.certfileList[0].response[0]
+                    ? "@" + this.certfileList[0].response[0]
                     : ""
                   : this.privatefileList.length > 0
-                  ? '@'+this.privatefileList[0].response[0]
+                  ? "@" + this.privatefileList[0].response[0]
                   : ""
                 : data.authentication.alternatives[2].params[i].value;
             let authDisplay =
@@ -1450,15 +1457,29 @@ export default {
         }
         if (this.tagName == "csv") {
           let model = this.$store.state.app.csvParser.model;
-          model.using = this.$refs.csvdata.$refs.param.ruleForm.tableName;
-          piParams["parser"] = this.$store.state.app.csvParser;
-          // piParams.from +=
-          //   `&has_header=` + this.$refs.csvdata.$refs.param.ruleForm.hasHeader;
-          // piParams.from +=
-          //   `&path=` +
-          //   this.$refs.csvdata.fileList.map((item, index) => {
-          //     return item.response[0];
-          //   });
+          let parse = this.$store.state.app.csvParser.parse;
+          let tags = model?.tags;
+          if (tags&&tags.length == 0) {
+            //tags为空则创建普通表
+            model.name = this.$refs.csvdata.$refs.param.ruleForm.tableName;
+            piParams["parser"] = {
+              parse,
+              model: {
+                name: model.name,
+                columns: model.columns,
+              },
+            };
+          } else {
+            model.using = this.$refs.csvdata.$refs.param.ruleForm.tableName;
+            piParams["parser"] = this.$store.state.app.csvParser;
+          }
+          let flag=Object.keys(parse).some(item=>parse[item].as=='')
+          console.log(model.columns,'model.columnsmodel.columns');
+          if(model.columns.length==0||model.columns[0]==undefined||flag){
+            Message.error('请填写完整的csv配置信息')
+            return
+          }
+
           piParams["from"] =
             `csv:` +
             this.$refs.csvdata.fileList.map((item, index) => {

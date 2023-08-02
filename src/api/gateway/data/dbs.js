@@ -55,7 +55,7 @@ export function getDBStruct(dbName) {
 export function deleteDBReq(payload, appId = store.getters.appId) {
   let { dbName } = payload;
   return request({
-    baseURL:'',
+    baseURL:'http://192.168.0.201:6060',
     url: '/rest/sql',
     data: `DROP DATABASE \`${dbName}\`;`,
     headers: {
@@ -76,7 +76,7 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
 
 export function createDB(data, name, appId = store.getters.appId) {
   return request({
-    baseURL:'',
+    baseURL:'http://192.168.0.201:6060',
     url: '/rest/sql',
     headers: {
       "Content-Type":"text/plain"

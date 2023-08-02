@@ -87,21 +87,13 @@
               : num
           "
         ></el-input>
-        <!-- <el-input-number
-          :value="
-            /\d/.test(colData['cast'])
-              ? Number(colData['cast'].replace(/[^\d]/g, ''))
-              : num
-          "
-          controls-position="right"
-          @change="handleChange"
-          :min="1"
-          v-if="['NCHAR', 'VARCHAR'].includes(colData['cast'])"
-          size="mini"
-        ></el-input-number> -->
       </template>
     </li>
     <li class="primary">
+      <span style="color:red;font-size:24px;">{{(colData.parser.parse[csvColName].as&&
+          !colData.parser.parse[csvColName].as
+            .toUpperCase()
+            .includes('TIMESTAMP'))}}{{isEditable}}</span>
       <el-checkbox
         :disabled="
           !colData.parser.parse[csvColName].as
@@ -233,15 +225,18 @@ export default {
     getPreveiousParser(val, type, key) {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
+      let tags = oldparser.model?.tags;
       if (key == "primary") {
-        if (tags.includes(val)) {
+        if (tags&&tags.includes(val)) {
           tags.splice(columns.indexOf(val), 1);
         }
         if (columns.includes(val)) {
           this.columnChecked = false;
           if (columns[0] !== undefined) {
             columns.splice(columns.indexOf(val), 1, undefined);
+          }else{
+            columns.splice(0,1);
+            this.columnChecked = true;
           }
         } else {
           columns=columns.filter(item=>item!=undefined)
@@ -255,15 +250,15 @@ export default {
           columns.splice(columns.indexOf(val), 1);
         }
         if (this.tagChecked) {
-          if (!tags.includes(val)) {
+          if (tags&&!tags.includes(val)) {
             tags.push(val);
           }
         } else {
-          tags.splice(tags.indexOf(val), 1);
+          tags&&tags.splice(tags.indexOf(val), 1);
         }
       }
       if (type == "column" && key != "primary") {
-        if (tags.includes(val)) {
+        if (tags&&tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
         if (this.columnChecked) {
@@ -327,6 +322,7 @@ export default {
     changePrimary(val) {
       this.columnChecked = true;
       this.tagChecked = false;
+      console.log('选择主键',val);
       this.getPreveiousParser(val, "column", "primary");
     },
     watchFieldVal(val) {
@@ -342,11 +338,11 @@ export default {
     echoColOrTag() {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
+      let tags = oldparser.model?.tags;
       if (columns.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.columnChecked = true;
       }
-      if (tags.includes(this.colData.parser.parse[this.csvColName].alias)) {
+      if (tags&&tags.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.tagChecked = true;
       }
     },

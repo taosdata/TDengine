@@ -86,7 +86,7 @@ export default {
   mounted(){
     if(this.isEditable){
       this.ruleForm.dbName=this.targetName
-      this.ruleForm.tableName=this.echoData[0].model.using
+      this.ruleForm.tableName=(this.echoData[0].model?.tags)?this.echoData[0].model.using:this.echoData[0].model.name
       this.ruleForm.hasHeader=this.$store.state.app.hasheader=='true'?true:false
 
     }
