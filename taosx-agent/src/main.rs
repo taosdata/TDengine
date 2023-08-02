@@ -269,7 +269,7 @@ fn main() -> anyhow::Result<()> {
             FileLimit::Age(chrono::Duration::days(log_keep_days)),
             DateFrom::DateYesterday,
         ),
-        ContentLimit::Time(TimeFrequency::Hourly),
+        ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
         None,

@@ -13,17 +13,26 @@ options:
 strict: true
 groups:
   - name: CSV 选项
-    display_order: 2
+    display_order: 1
     description: CSV 读取选项
     params:
-      - name: quote
-        display: 引用字符转义字符
-        # value: \"
-        hint: str
       - name: sep
         display: 分隔符
-        # value: \,
         hint: str
+      - name: skip
+        display: 忽略前 N 行
+        hint:
+          type: integer
+          min: 0
+      - name: has_header
+        display: 是否包含表头
+        value: true
+        hint:
+          type: boolean
+      - name: header
+        display: 自定义表头
+        hint:
+          type: boolean
   - name: CSV 写入配置
     display_order: 2
     description: CSV 写入参数设置

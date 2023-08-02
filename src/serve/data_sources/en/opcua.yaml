@@ -206,6 +206,7 @@ groups:
         display: Data Keep Days
         hint:
           type: integer
+          min: 1
         description: Original Data Keep Days, should config if enable save data.
         placeholder: 10
 

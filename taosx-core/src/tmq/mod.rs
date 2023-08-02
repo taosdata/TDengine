@@ -19,14 +19,18 @@ pub(crate) struct TopicTable {
     pub(crate) table_sql: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum TopicType {
     Database,
     DatabaseWithMeta,
     Stable,
     StableWithMeta,
     Query,
+    #[doc(hidden)]
+    #[default]
+    NoneExhaustive,
 }
 
 impl TopicType {
@@ -64,6 +68,7 @@ pub(crate) struct Topic {
     pub(crate) database_sql: Option<String>,
     #[serde(flatten)]
     pub(crate) table: Option<TopicTable>,
+    #[serde(default)]
     pub(crate) topic_type: TopicType,
     pub(crate) use_table_name: Option<String>,
 }

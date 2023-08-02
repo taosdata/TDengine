@@ -109,6 +109,7 @@ groups:
         display: 保留天数
         hint:
           type: integer
+          min: 1
         description: 原始数据的保留天数，若启用保存原始数据需配置。
         placeholder: 10
 

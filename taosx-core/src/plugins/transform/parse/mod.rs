@@ -608,6 +608,7 @@ impl Parser {
         Ok(Message::Records(data))
     }
     pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
+        self.self_check()?;
         let schema = records.schema();
         let metadata = schema.metadata().clone();
 
@@ -642,6 +643,42 @@ impl Parser {
         let batch = RecordBatch::try_new(Arc::new(schema), new_data)?;
         tracing::info!("parsed records: {batch:?}");
         Ok(batch)
+    }
+
+    fn self_check(&self) -> Result<(), super::Error> {
+        for table in &self.model {
+            if table.name.is_empty() {
+                return Err(super::Error::EmptyTableName);
+            } else if table.name.contains('.') {
+                return Err(super::Error::TableNameContainsDot(table.name.clone()));
+            }
+
+            if let Some(columns) = table.columns.as_ref() {
+                if columns.is_empty() {
+                    return Err(super::Error::EmptyTableColumns(table.name.clone()));
+                }
+                for dup in columns.iter().duplicates() {
+                    return Err(super::Error::DuplicatedColumns(dup.clone()));
+                }
+            }
+
+            if let Some(tags) = table.tags.as_ref() {
+                if table.using.as_ref().is_none() {
+                    return Err(super::Error::STableNameRequired);
+                }
+                for dup in tags.iter().duplicates() {
+                    return Err(super::Error::DuplicatedTags(dup.clone()));
+                }
+            }
+            if let Some(stable) = table.using.as_ref() {
+                if stable.is_empty() {
+                    return Err(super::Error::EmptySTableName);
+                } else if stable.contains('.') {
+                    return Err(super::Error::STableNameContainsDot(stable.clone()));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
