@@ -285,9 +285,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    pRes[j] =
-        taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[/*-1 == slotIds[j] ? 0 : */ slotIds[j]].bytes +
-                                VARSTR_HEADER_SIZE);
+    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[slotIds[j]].bytes + VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
@@ -326,12 +324,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       tb_uid_t uid = pTableList[i].uid;
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
-      if (TARRAY_SIZE(pRow) <= 0) {
-        taosArrayClearEx(pRow, freeItem);
-        continue;
-      }
-      SLastCol* pColVal = taosArrayGet(pRow, 0);
-      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
+      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
         taosArrayClearEx(pRow, freeItem);
         continue;
       }
@@ -404,12 +397,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       tb_uid_t uid = pTableList[i].uid;
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
-      if (TARRAY_SIZE(pRow) <= 0) {
-        taosArrayClearEx(pRow, freeItem);
-        continue;
-      }
-      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
-      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
+      if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
         taosArrayClearEx(pRow, freeItem);
         continue;
       }

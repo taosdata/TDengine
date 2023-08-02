@@ -1020,10 +1020,10 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     code = tsdbCacheLoadFromRocks(pTsdb, uid, pLastArray, remainCols, pr, ltype);
 
     taosThreadMutexUnlock(&pTsdb->lruMutex);
-  }
 
-  if (remainCols) {
-    taosArrayDestroy(remainCols);
+    if (remainCols) {
+      taosArrayDestroy(remainCols);
+    }
   }
 
   return code;
