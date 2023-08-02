@@ -795,28 +795,52 @@ class TestInfluxdbLineTaoscInsert(TDCase):
     def tbname_tags_cols_name_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(dbname=self.dbname)
+        stbname, tbname = "rFa$.sta", "rFas$.ta_1"
+        expeted_stbname = "rFa$_sta"
+        if "smlDot2Underline" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlDot2Underline"] == 0:
+                expeted_stbname = "rFa$.sta"
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.tdCom.smlChildTableName_value.upper() == "ID":
-                input_sql = 'rFa$sta,id=rFas$ta_1,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?\,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?\,=7u64 1626006933640000000'
+                smlTsDefaultName = "_ts"
+                if "smlTsDefaultName" in self.taospy_setting["spec"]["config"]:
+                    smlTsDefaultName = self.taospy_setting["spec"]["config"]["smlTsDefaultName"]
+                input_sql = f'{stbname},id={tbname},Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?\,9=L\"ncharTagValue\" C)0=True,c{{}}1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?\,=7u64 1626006933640000000'
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-                query_sql = 'select * from `rFa$sta`'
+                query_sql = f'select * from `{expeted_stbname}`'
                 self.tdSql.query(query_sql)
                 self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
-                query_sql = 'describe `rFa$sta`'
+                query_sql = f'describe `{expeted_stbname}`'
                 self.tdSql.query(query_sql)
-                self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', 'C)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-                self.tdSql.execute('drop table `rFa$sta`')
+                self.tdSql.checkEqual(self.tdSql.getColNameList(), [smlTsDefaultName, 'C)0', 'c{}1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+                self.tdSql.execute(f'drop table `{expeted_stbname}`')
         else:
-            input_sql = 'rFa$sta,id=rFas$ta_1,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?\,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?\,=7u64 1626006933640000000'
+            input_sql = f'{stbname},id={tbname},Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?\,9=L\"ncharTagValue\" C)0=True,c{{}}1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?\,=7u64 1626006933640000000'
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-            query_sql = 'select * from `rFa$sta`'
+            query_sql = f'select * from `{expeted_stbname}`'
             self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'rFas$ta_1', 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
-            query_sql = 'describe `rFa$sta`'
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, tbname, 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+            query_sql = f'describe `{expeted_stbname}`'
             self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', 'C)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'id', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-            self.tdSql.execute('drop table `rFa$sta`')
+            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', 'C)0', 'c{}1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'id', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+            self.tdSql.execute(f'drop table `{expeted_stbname}`')
 
+    # def ts_col_name_check(self):
+    #     self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
+    #     self.tdCom.cleanTb(dbname=self.dbname)
+    #     if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
+    #         if self.tdCom.smlChildTableName_value.upper() == "ID":
+    #             if "smlTsDefaultName" in self.taospy_setting["spec"]["config"]:
+    #                 smlTsDefaultName = self.taospy_setting["spec"]["config"]["smlTsDefaultName"]
+    #                 input_sql = 'rFa$.sta,id=rFas$ta_1,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?\,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?\,=7u64 1626006933640000000'
+    #                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+    #                 query_sql = 'select * from `rFa$.sta`'
+    #                 self.tdSql.query(query_sql)
+    #                 self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+    #                 query_sql = 'describe `rFa$.sta`'
+    #                 self.tdSql.query(query_sql)
+    #                 self.tdSql.checkEqual(self.tdSql.getColNameList(), [smlTsDefaultName, 'C)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+    #                 self.tdSql.execute('drop table `rFa$.sta`')
 
     def stb_insert_multi_thread_check(self):
         """
@@ -897,6 +921,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
         # s_stb_d_tb_a_col_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name)[5]
         s_stb_d_tb_a_col_m_tag_list = [(f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ngxgzdzs",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 1626006833639000000', 'hpxbys'), \
@@ -907,7 +932,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_col_m_tag_list))
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
-        self.tdSql.checkEqual(self.tdSql.query_row, 2)
+        self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def s_stb_d_tb_d_data_at_mc_insert_multi_thread_check(self):
         """
@@ -1024,7 +1049,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                             (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zwgurhdp",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=False 0', 'ynnlov')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_a_col_m_tag_list))
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
-        self.tdSql.checkEqual(self.tdSql.query_row, 2)
+        self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def ts_2828(self, thread_count, batch_count, loop_times):
         count = 0
