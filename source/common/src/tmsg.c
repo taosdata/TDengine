@@ -7227,6 +7227,9 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
       return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
       return pLeft->uid == pRight->uid;
+    } else {
+      uError("offset type:%d", pLeft->type);
+      ASSERT(0);
     }
   }
   return false;

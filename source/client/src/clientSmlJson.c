@@ -996,8 +996,8 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
-  SSmlKv kvTs = {.key = TS,
-                 .keyLen = TS_LEN,
+  SSmlKv kvTs = {.key = tsSmlTsDefaultName,
+                 .keyLen = strlen(tsSmlTsDefaultName),
                  .type = TSDB_DATA_TYPE_TIMESTAMP,
                  .i = ts,
                  .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
@@ -1200,8 +1200,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       return TSDB_CODE_INVALID_TIMESTAMP;
     }
   }
-  SSmlKv kvTs = {.key = TS,
-                 .keyLen = TS_LEN,
+  SSmlKv kvTs = {.key = tsSmlTsDefaultName,
+                 .keyLen = strlen(tsSmlTsDefaultName),
                  .type = TSDB_DATA_TYPE_TIMESTAMP,
                  .i = ts,
                  .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};

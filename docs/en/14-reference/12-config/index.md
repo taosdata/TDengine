@@ -670,6 +670,15 @@ The charset that takes effect is UTF-8.
 | Value Range | 0: not consistent; 1: consistent.                                                   |
 | Default     | 0                                                                                   |
 
+### smlTsDefaultName
+
+| Attribute     | Description                                                     |
+| --------      | --------------------------------------------------------        |
+| Applicable    | Client only                                                     |
+| Meaning       | The name of the time column for schemaless automatic table creation is set through this configuration |
+| Type          | String                                                          |
+| Default Value | _ts                                                             |
+
 ## Compress Parameters
 
 ### compressMsgSize
