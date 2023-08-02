@@ -381,42 +381,50 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
     return false;
   }
 
-  SStatisBlk    *p = &pStatisBlkArray->data[i];
-  STbStatisBlock block = {0};
-  tsdbSttFileReadStatisBlock(pReader, p, &block);
+  while(i < TARRAY2_SIZE(pStatisBlkArray)) {
+    SStatisBlk *p = &pStatisBlkArray->data[i];
+    if (p->minTbid.suid > suid) {
+      return false;
+    }
 
-  int32_t index = tarray2SearchIdx(block.suid, &suid, sizeof(int64_t), suidComparFn, TD_EQ);
-  if (index == -1) {
-    tStatisBlockDestroy(&block);
-    return false;
-  }
-  
-  int32_t j = index;
-  if (block.uid->data[j] == uid) {
-    tStatisBlockDestroy(&block);
-    return true;
-  } else if (block.uid->data[j] > uid) {
-    while (j >= 0 && block.suid->data[j] == suid) {
-      if (block.uid->data[j] == uid) {
-        tStatisBlockDestroy(&block);
-        return true;
-      } else {
-        j -= 1;
+    STbStatisBlock block = {0};
+    tsdbSttFileReadStatisBlock(pReader, p, &block);
+
+    int32_t index = tarray2SearchIdx(block.suid, &suid, sizeof(int64_t), suidComparFn, TD_EQ);
+    if (index == -1) {
+      tStatisBlockDestroy(&block);
+      return false;
+    }
+
+    int32_t j = index;
+    if (block.uid->data[j] == uid) {
+      tStatisBlockDestroy(&block);
+      return true;
+    } else if (block.uid->data[j] > uid) {
+      while (j >= 0 && block.suid->data[j] == suid) {
+        if (block.uid->data[j] == uid) {
+          tStatisBlockDestroy(&block);
+          return true;
+        } else {
+          j -= 1;
+        }
+      }
+    } else {
+      j = index + 1;
+      while (j < block.suid->size && block.suid->data[j] == suid) {
+        if (block.uid->data[j] == uid) {
+          tStatisBlockDestroy(&block);
+          return true;
+        } else {
+          j += 1;
+        }
       }
     }
-  } else {
-    j = index + 1;
-    while (j < block.suid->size && block.suid->data[j] == suid) {
-      if (block.uid->data[j] == uid) {
-        tStatisBlockDestroy(&block);
-        return true;
-      } else {
-        j += 1;
-      }
-    }
+
+    tStatisBlockDestroy(&block);
+    i += 1;
   }
 
-  tStatisBlockDestroy(&block);
   return false;
 }
 
