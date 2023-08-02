@@ -81,8 +81,8 @@ namespace TDPIConnector.TDEngine
         }
         public override async Task<TDEngineResponse> GetSTables(string database, string stable)
         {
-            string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable};";
-            return await MakeHttpRequest(sqlCommand, database);
+            string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable.ToTDEngineNamingPattern()};";
+            return await MakeHttpRequest(sqlCommand);
         }
         public override void VerifyLicenseCompability()
         {
