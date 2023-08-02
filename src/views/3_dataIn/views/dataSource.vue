@@ -578,7 +578,7 @@ export default {
 }
 
   .tabel-expand {
-   width: 54%;
+   width: 60%;
    margin-left: 40px;
    padding: 10px 5px;
    ::v-deep.el-table th.el-table__cell.is-leaf {

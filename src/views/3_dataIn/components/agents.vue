@@ -3,11 +3,19 @@
     <p class="title">
       <span>{{ $t("topic.agent") }}</span>
     </p>
-    <!-- <div class="flexEnd">
-      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+    <div class="flexEnd">
+      <el-button
+        plain
+        @click="refresh"
+        size="small"
+        icon="el-icon-refresh"
+        :disabled="requestIng"
+        >{{ $t("refresh") }}</el-button
+      >
+      <!-- <el-button plain @click="add" size="small" icon="el-icon-plus">{{
         $t("taosagents.createnewagent")
-      }}</el-button>
-    </div> -->
+      }}</el-button> -->
+    </div>
     <el-table
       v-if="agentList?.length > 0"
       style="margin-top: 20px"
@@ -416,6 +424,7 @@ export default {
     },
     async getAgents() {
       try {
+        this.requestIng = true
         this.agentList = (
           await getAgentsData(
             localStorage.getItem("local_clusterID"),
@@ -427,7 +436,9 @@ export default {
             : "";
           return item;
         });
+        this.requestIng = false
       } catch (err) {
+        this.requestIng = false
         err.response.data.message && Message.error(err.response.data.message);
       }
     },
@@ -503,6 +514,7 @@ export default {
         }); 
         return
       }
+      this.refresh()
       let activitList = res.map(item => {
         if (item.status == 'failed') {
           item.context = item.context.message
@@ -598,7 +610,7 @@ export default {
   }
 }
 .tabel-expand {
-   width: 54%;
+   width: 60%;
    margin-left: 40px;
    padding: 10px 5px;
    ::v-deep.el-table th.el-table__cell.is-leaf {
