@@ -1,12 +1,12 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, borrow::Cow};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Serialize};
-use sqlx::{Decode, Encode, FromRow, Type};
+use serde::{Deserialize, Deserializer, Serialize};
+use sqlx::{sqlite::SqliteArgumentValue, Decode, Encode, FromRow, Type, encode::IsNull};
 use tracing::debug;
 use utoipa::{IntoParams, ToSchema};
 
@@ -39,7 +39,7 @@ pub struct Activity {
     pub level: LevelFilter,
     pub activity: String,
     pub status: String,
-    pub context: Option<serde_json::Value>,
+    pub context: Option<Context>,
 }
 
 impl Activity {
@@ -59,8 +59,7 @@ impl Activity {
             status: status.into(),
             context: context.into().map(|v| {
                 let v = v.to_string();
-                serde_json::Value::from_str(v.as_str())
-                    .unwrap_or_else(|_| serde_json::Value::String(v))
+                v.parse().unwrap()
             }),
         }
     }
@@ -79,8 +78,74 @@ pub struct AgentActivityItem {
     level: LevelFilter,
     activity: String,
     status: String,
-    context: Option<serde_json::Value>,
+    // #[serde(deserialize_with = "deserialize_context")]
+    context: Option<Context>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Context(serde_json::Value);
+
+impl Display for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            serde_json::Value::String(s) => f.write_str(s),
+            v => write!(f, "{}", v),
+        }
+    }
+}
+
+impl FromStr for Context {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Context(
+            s.parse()
+                .unwrap_or(serde_json::Value::String(s.to_string())),
+        ))
+    }
+}
+impl Type<sqlx::Sqlite> for Context {
+    fn type_info() -> <sqlx::Sqlite as sqlx::Database>::TypeInfo {
+        <String as sqlx::Type<sqlx::Sqlite>>::type_info()
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Context {
+    fn decode(
+        value: <sqlx::Sqlite as sqlx::database::HasValueRef<'r>>::ValueRef,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        use sqlx::Decode;
+        let value = String::decode(value)?;
+
+        // now you can parse this into your type (assuming there is a `FromStr`)
+
+        Ok(value.parse()?)
+    }
+}
+impl<'q> Encode<'q, sqlx::Sqlite> for Context {
+    fn encode(self, args: &mut Vec<SqliteArgumentValue<'q>>) -> IsNull {
+        args.push(SqliteArgumentValue::Text(Cow::Owned(self.to_string())));
+
+        IsNull::No
+    }
+
+    fn encode_by_ref(&self, args: &mut Vec<SqliteArgumentValue<'q>>) -> IsNull {
+        args.push(SqliteArgumentValue::Text(Cow::Owned(self.to_string())));
+
+        IsNull::No
+    }
+}
+
+fn deserialize_context<'de, D>(deserializer: D) -> Result<Option<Context>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: Option<String> = Option::deserialize(deserializer)?;
+    Ok(value
+        .map(|s| serde_json::Value::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+        .map(Context))
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AgentWithToken {
     pub id: i64,

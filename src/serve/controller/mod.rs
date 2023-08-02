@@ -481,14 +481,14 @@ impl TaskController {
                 if !h.0.is_finished() {
                     log::info!("try start task {id} but it is running");
                     let context = format!("try start task {id} but it is running");
-                    let activity = Activity {
+                    let activity = Activity::new(
                         id,
-                        at: now,
-                        level: LevelFilter::Info,
-                        activity: "Trying to start task but already running".to_string(),
-                        status: "running".to_string(),
-                        context: Some(json!({ "message": context })),
-                    };
+                        now,
+                        LevelFilter::Info,
+                        "Trying to start task but already running".to_string(),
+                        "running".to_string(),
+                        json!({ "message": context }),
+                    );
                     return push_task_activity(&self.pool, &activity).await;
                 } else {
                     remove_finished_task = true;
@@ -536,14 +536,14 @@ impl TaskController {
             None
         };
 
-        let activity = Activity {
+        let activity = Activity::new(
             id,
-            at: now,
-            level: LevelFilter::Info,
-            activity: "start".to_string(),
-            status: "ok".to_string(),
-            context: Some(serde_json::to_value(task).unwrap()),
-        };
+            now,
+            LevelFilter::Info,
+            "start",
+            "ok",
+            serde_json::to_value(task).unwrap(),
+        );
         push_task_activity(&self.pool, &activity).await?;
         let pool = self.pool.clone();
 
@@ -776,14 +776,7 @@ impl TaskController {
                                             .execute(&pool)
                                             .await?;
 
-                                            let activity = Activity {
-                                                id,
-                                                at: now,
-                                                level: LevelFilter::Error,
-                                                activity: "authentication failure".to_string(),
-                                                status: "failed".to_string(),
-                                                context: Some(json!({"message": err})),
-                                            };
+                                            let activity = Activity::new(id,now, LevelFilter::Error, "authentication failure".to_string(), "failed".to_string(),json!({"message": err}));
                                             push_task_activity(&pool, &activity).await?;
 
                                             break;
@@ -808,14 +801,7 @@ impl TaskController {
                                                 "message": err,
                                             });
 
-                                            let activity = Activity {
-                                                id,
-                                                at: now,
-                                                level: LevelFilter::Warn,
-                                                activity: "resume".to_string(),
-                                                status: "interrupted".to_string(),
-                                                context: Some(serde_json::to_value(&context).unwrap()),
-                                            };
+                                            let activity = Activity::new(id, now, LevelFilter::Warn, "resume", "interrupted",serde_json::to_value(&context).unwrap());
                                             push_task_activity(&pool, &activity).await?;
                                         }
                                         _ => {
@@ -836,14 +822,7 @@ impl TaskController {
                                                 "code": 0xFFFFi32,
                                                 "message": err,
                                             });
-                                            let activity = Activity {
-                                                id,
-                                                at: now,
-                                                level: LevelFilter::Error,
-                                                activity: format!("failed with: {err:#}"),
-                                                status: "failed".to_string(),
-                                                context: Some(serde_json::to_value(&context).unwrap()),
-                                            };
+                                            let activity = Activity::new(id, now, LevelFilter::Error, format!("failed with: {err:#}"), "failed", serde_json::to_value(&context).unwrap());
                                             push_task_activity(&pool, &activity).await?;
                                             break;
                                         }
@@ -895,14 +874,9 @@ impl TaskController {
                                 .execute(&pool)
                                 .await?;
 
-                                let activity = Activity {
-                                    id,
-                                    at: now,
-                                    level: LevelFilter::Info,
-                                    activity: "complete".to_string(),
-                                    status: "completed".to_string(),
-                                    context: None,
-                                };
+                                let activity = Activity::new::<String>(
+                                    id, now, LevelFilter::Info, "complete".to_string(), "completed".to_string(), None
+                                );
                                 push_task_activity(&pool, &activity).await?;
                             }
                             Err(err) => {
