@@ -338,20 +338,22 @@ async fn consume_lush_record(
                 // RawBlock
                 // taos.write_raw_block()
                 // dbg!(&map_data);
-                let sql = record.generate_insert_sql_from_tablename(&data, columns);
-                if let Some(sql) = sql {
-                    log::debug!("insert sql: {sql}");
-                    let res = taos.exec(sql).await;
-                    let mut count = 0;
-                    match res {
-                        Ok(num) => {
-                            count = count + num;
+                let sqls = record.generate_insert_sql_from_tablename(&data, columns);
+                if let Some(sqls) = sqls {
+                    for sql in sqls {
+                        log::debug!("insert sql: {sql}");
+                        let res = taos.exec(sql).await;
+                        let mut count = 0;
+                        match res {
+                            Ok(num) => {
+                                count = count + num;
+                            }
+                            Err(err) => {
+                                log::error!("written err cause: {}", err);
+                            }
                         }
-                        Err(err) => {
-                            log::error!("written err cause: {}", err);
-                        }
+                        info!("written [{count}] records");
                     }
-                    info!("written [{count}] records");
                 } else {
                     let sql = format!("insert into ? ({names}) values({marks})");
                     info!("prepare with sql: {sql}");
