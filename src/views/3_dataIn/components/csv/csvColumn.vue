@@ -87,18 +87,6 @@
               : num
           "
         ></el-input>
-        <!-- <el-input-number
-          :value="
-            /\d/.test(colData['cast'])
-              ? Number(colData['cast'].replace(/[^\d]/g, ''))
-              : num
-          "
-          controls-position="right"
-          @change="handleChange"
-          :min="1"
-          v-if="['NCHAR', 'VARCHAR'].includes(colData['cast'])"
-          size="mini"
-        ></el-input-number> -->
       </template>
     </li>
     <li class="primary">
@@ -233,7 +221,7 @@ export default {
     getPreveiousParser(val, type, key) {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
+      let tags = oldparser.model?.tags;
       if (key == "primary") {
         if (tags.includes(val)) {
           tags.splice(columns.indexOf(val), 1);
@@ -242,6 +230,9 @@ export default {
           this.columnChecked = false;
           if (columns[0] !== undefined) {
             columns.splice(columns.indexOf(val), 1, undefined);
+          }else{
+            columns.splice(0,1);
+            this.columnChecked = true;
           }
         } else {
           columns=columns.filter(item=>item!=undefined)
@@ -342,7 +333,7 @@ export default {
     echoColOrTag() {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
+      let tags = oldparser.model?.tags;
       if (columns.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.columnChecked = true;
       }
