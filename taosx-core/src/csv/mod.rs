@@ -300,7 +300,9 @@ impl CsvSource {
         let mut headers: Vec<String> = Vec::new();
 
         for path in paths {
-            let mut reader = ReaderBuilder::new().from_path(&path)?;
+            let mut reader = ReaderBuilder::new()
+                .from_path(&path)
+                .with_context(|| format!("Reading CSV file {path:?} error"))?;
             let file_headers = reader
                 .headers()?
                 .iter()
@@ -426,6 +428,9 @@ impl CsvSource {
 
     fn csv_path(path: &str) -> Result<Vec<String>> {
         let ext = "csv";
+        if path.trim().is_empty() {
+            bail!("CSV path should not be empty");
+        }
         let p = Path::new(path);
 
         // path is csv file
@@ -433,7 +438,8 @@ impl CsvSource {
             return Ok(vec![path.to_string()]);
         }
         if p.is_dir() {
-            let all_files = utils::files::get_files_in_dir(path, ext)?;
+            let all_files = utils::files::get_files_in_dir(path, ext)
+                .with_context(|| format!("Reading CSV path {p:?} error"))?;
             return Ok(all_files);
         }
         match glob::glob(path) {
