@@ -445,7 +445,7 @@ impl FlightService for FlightServiceImpl {
                 let c = self
                     .marker
                     .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                log::info!("polled: {c} {cx:?}");
+                tracing::trace!("polled: {c} {cx:?}");
 
                 if c % 2 == 0 {
                     // todo: why this is require?
@@ -489,8 +489,7 @@ impl FlightService for FlightServiceImpl {
                         .unwrap();
 
                         if let Err(err) = tx.send_async(Ok(batch)).await {
-                            dbg!(&err);
-                            log::warn!("Task listener closed");
+                            log::warn!("Task listener closed: {err:#}");
                             break;
                         }
                     }
@@ -542,6 +541,30 @@ impl FlightService for FlightServiceImpl {
                                 ]));
                                 let action: ArrayRef =
                                     Arc::new(StringArray::from_iter_values(["run".to_string()]));
+                                let batch = RecordBatch::try_from_iter(vec![
+                                    ("ts", ts),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .unwrap();
+
+                                if let Err(err) = tx.send_async(Ok(batch)).await {
+                                    dbg!(&err);
+                                    log::warn!("Task listener closed");
+                                    break;
+                                }
+                            } else {
+                                // todo!()
+                            }
+                        }
+                        AgentAction::Stop(id) => {
+                            let task = controller.get(id).await?;
+                            if let Some(task) = task {
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&task).unwrap(),
+                                ]));
+                                let action: ArrayRef =
+                                    Arc::new(StringArray::from_iter_values(["stop".to_string()]));
                                 let batch = RecordBatch::try_from_iter(vec![
                                     ("ts", ts),
                                     ("action", action),

@@ -120,6 +120,7 @@ type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
 #[derive(Debug, Clone)]
 pub enum AgentAction {
     Run(i64),
+    Stop(i64),
     Cancel(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
@@ -155,22 +156,28 @@ impl AgentTasks {
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
-                    Ok(action) => match action {
-                        AgentAction::Run(task) => {
-                            current.insert(task);
-                        }
-                        AgentAction::Cancel(task) => {
-                            current.remove(&task);
-                        }
-                        AgentAction::ListDataSets(req, sender) => {
-                            datasets.insert(req, sender);
-                        }
-                        AgentAction::RetrieveDataSets(req, sets) => {
-                            if let Some(sender) = datasets.remove(&req) {
-                                let _ = sender.1.send(Ok(sets));
+                    Ok(action) => {
+                        tracing::info!("agent action: {action:?}");
+                        match action {
+                            AgentAction::Run(task) => {
+                                current.insert(task);
+                            }
+                            AgentAction::Stop(task) => {
+                                current.remove(&task);
+                            }
+                            AgentAction::Cancel(task) => {
+                                current.remove(&task);
+                            }
+                            AgentAction::ListDataSets(req, sender) => {
+                                datasets.insert(req, sender);
+                            }
+                            AgentAction::RetrieveDataSets(req, sets) => {
+                                if let Some(sender) = datasets.remove(&req) {
+                                    let _ = sender.1.send(Ok(sets));
+                                }
                             }
                         }
-                    },
+                    }
                     Err(err) => {
                         log::error!("err: {err}");
                         break;
@@ -1312,44 +1319,62 @@ impl TaskController {
         Ok(Some(task.into()))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
-        if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-            log::error!("Cancel task by id {id}");
+        if let Some((handle, token)) = { self.tasks.write().await.remove(&id) } {
+            tracing::info_span!("stop_task", task = id);
+            tracing::info!("Stop task by id {id}");
+            let now = Utc::now();
+
+            let agent: Option<i64> = sqlx::query_scalar("select via from tasks where id = ?")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+            if let Some(agent_id) = agent {
+                if let Some(worker) = self.agent_tasks.read().await.get(&agent_id) {
+                    let res = worker.send(AgentAction::Stop(id));
+                    if let Err(err) = res {
+                        tracing::error!(
+                            agent = agent_id,
+                            backtrace = ?err,
+                            "trying to stop task via agent:{agent_id} but failed: {err:#}"
+                        );
+                    }
+                } else {
+                    tracing::warn!("trying to stop task via agent:{agent_id} but not found");
+                }
+            }
+
+            let res = sqlx::query_as_unchecked!(
+                Task,
+                "UPDATE tasks SET `last_modified_at` = ?, `status` = ? where id = ?",
+                now,
+                Status::Stopped,
+                id
+            )
+            .execute(&self.pool)
+            .await?;
+            // dbg!(res);
+            if res.rows_affected() == 1 {
+                log::info!("successfully stop task by id {id}");
+            }
+
+            sqlx::query!(
+                "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
+                id,
+                now,
+                LevelFilter::Info,
+                "stop",
+                "stopped",
+                None::<String>
+            )
+            .execute(&self.pool)
+            .await?;
+
             token.cancel();
             let _ = handle.await?;
-            // handle.abort();
-            // if !handle.is_finished() {
-            //     // token.cancel();
-            //     log::error!("Cancel task by id {id}");
-            //     let _ = handle.await;
-            // }
+            Ok(Some(()))
+        } else {
+            Ok(None)
         }
-        let now = Utc::now();
-        let res = sqlx::query_as_unchecked!(
-            Task,
-            "UPDATE tasks SET `last_modified_at` = ?, `status` = ? where id = ?",
-            now,
-            Status::Stopped,
-            id
-        )
-        .execute(&self.pool)
-        .await?;
-        // dbg!(res);
-        if res.rows_affected() == 1 {
-            log::info!("successfully stop task by id {id}");
-        }
-
-        sqlx::query!(
-            "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-            id,
-            now,
-            LevelFilter::Info,
-            "stop",
-            "ok",
-            None::<String>
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(Some(()))
     }
 
     pub async fn task_activities(
