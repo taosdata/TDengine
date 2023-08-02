@@ -22,7 +22,7 @@
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
 
-static int32_t uidComparFunc(const void* p1, const void* p2) {
+int32_t uidComparFunc(const void* p1, const void* p2) {
   uint64_t pu1 = *(uint64_t*)p1;
   uint64_t pu2 = *(uint64_t*)p2;
   if (pu1 == pu2) {

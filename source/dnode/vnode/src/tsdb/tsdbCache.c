@@ -1020,10 +1020,10 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     code = tsdbCacheLoadFromRocks(pTsdb, uid, pLastArray, remainCols, pr, ltype);
 
     taosThreadMutexUnlock(&pTsdb->lruMutex);
-  }
 
-  if (remainCols) {
-    taosArrayDestroy(remainCols);
+    if (remainCols) {
+      taosArrayDestroy(remainCols);
+    }
   }
 
   return code;
@@ -1592,10 +1592,51 @@ _err:
   return code;
 }
 
+static void freeTableInfoFunc(void *param) {
+  void **p = (void **)param;
+  taosMemoryFreeClear(*p);
+}
+
+static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid) {
+  if (!pReader->pTableMap) {
+    pReader->pTableMap = tSimpleHashInit(pReader->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+
+    tSimpleHashSetFreeFp(pReader->pTableMap, freeTableInfoFunc);
+  }
+
+  STableLoadInfo  *pInfo = NULL;
+  STableLoadInfo **ppInfo = tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+  if (!ppInfo) {
+    pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
+    tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+
+    return pInfo;
+  }
+
+  return *ppInfo;
+}
+
+static uint64_t *getUidList(SCacheRowsReader *pReader) {
+  if (!pReader->uidList) {
+    int32_t numOfTables = pReader->numOfTables;
+
+    pReader->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
+
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      uint64_t uid = pReader->pTableList[i].uid;
+      pReader->uidList[i] = uid;
+    }
+
+    taosSort(pReader->uidList, numOfTables, sizeof(uint64_t), uidComparFunc);
+  }
+
+  return pReader->uidList;
+}
+
 static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsReader *pReader, void *pFileReader,
                                bool isFile) {
   int32_t   code = 0;
-  uint64_t *uidList = pReader->uidList;
+  uint64_t *uidList = getUidList(pReader);
   int32_t   numOfTables = pReader->numOfTables;
   int64_t   suid = pReader->info.suid;
 
@@ -1618,7 +1659,7 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
     }
 
     uint64_t        uid = uidList[j];
-    STableLoadInfo *pInfo = *(STableLoadInfo **)tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+    STableLoadInfo *pInfo = getTableLoadInfo(pReader, uid);
     if (pInfo->pTombData == NULL) {
       pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
     }
@@ -1660,13 +1701,16 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
       }
 
       if (newTable) {
-        pInfo = *(STableLoadInfo **)tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
+        pInfo = getTableLoadInfo(pReader, uid);
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
         }
       }
 
       if (record.version <= pReader->info.verRange.maxVer) {
+        tsdbError("tomb xx load/cache: vgId:%d fid:%d commit %" PRId64 "~%" PRId64 "~%" PRId64 " tomb records",
+                  TD_VID(pReader->pTsdb->pVnode), pReader->pCurFileSet->fid, record.skey, record.ekey, uid);
+
         SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
         taosArrayPush(pInfo->pTombData, &delData);
       }
@@ -1792,12 +1836,10 @@ struct CacheNextRowIter;
 
 typedef struct SFSNextRowIter {
   SFSNEXTROWSTATES         state;         // [input]
-  STsdb                   *pTsdb;         // [input]
   SBlockIdx               *pBlockIdxExp;  // [input]
   STSchema                *pTSchema;      // [input]
   tb_uid_t                 suid;
   tb_uid_t                 uid;
-  int32_t                  nFileSet;
   int32_t                  iFileSet;
   STFileSet               *pFileSet;
   TFileSetArray           *aDFileSet;
@@ -1828,10 +1870,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
                                 int nCols) {
   SFSNextRowIter *state = (SFSNextRowIter *)iter;
   int32_t         code = 0;
+  STsdb          *pTsdb = state->pr->pTsdb;
 
   if (SFSNEXTROW_FS == state->state) {
-    state->nFileSet = TARRAY2_SIZE(state->aDFileSet);
-    state->iFileSet = state->nFileSet;
+    state->iFileSet = TARRAY2_SIZE(state->aDFileSet);
 
     state->state = SFSNEXTROW_FILESET;
   }
@@ -1850,7 +1892,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     STFileObj **pFileObj = state->pFileSet->farr;
     if (pFileObj[0] != NULL || pFileObj[3] != NULL) {
       if (state->pFileSet != state->pr->pCurFileSet) {
-        SDataFileReaderConfig conf = {.tsdb = state->pTsdb, .szPage = state->pTsdb->pVnode->config.tsdbPageSize};
+        SDataFileReaderConfig conf = {.tsdb = pTsdb, .szPage = pTsdb->pVnode->config.tsdbPageSize};
         const char           *filesName[4] = {0};
         if (pFileObj[0] != NULL) {
           conf.files[0].file = *pFileObj[0]->f;
@@ -1880,6 +1922,11 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         state->pr->pCurFileSet = state->pFileSet;
 
         loadDataTomb(state->pr, state->pr->pFileReader);
+
+        int32_t code = tsdbDataFileReadBrinBlk(state->pr->pFileReader, &state->pr->pBlkArray);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _err;
+        }
       }
 
       if (!state->pIndexList) {
@@ -1887,12 +1934,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       } else {
         taosArrayClear(state->pIndexList);
       }
-      const TBrinBlkArray *pBlkArray = NULL;
 
-      int32_t code = tsdbDataFileReadBrinBlk(state->pr->pFileReader, &pBlkArray);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _err;
-      }
+      const TBrinBlkArray *pBlkArray = state->pr->pBlkArray;
 
       for (int i = TARRAY2_SIZE(pBlkArray) - 1; i >= 0; --i) {
         SBrinBlk *pBrinBlk = &pBlkArray->data[i];
@@ -1920,8 +1963,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       state->pr->pCurFileSet = state->pFileSet;
     }
 
-    code = lastIterOpen(&state->lastIter, state->pFileSet, state->pTsdb, state->pTSchema, state->suid, state->uid,
-                        state->pr, state->lastTs, aCols, nCols);
+    code = lastIterOpen(&state->lastIter, state->pFileSet, pTsdb, state->pTSchema, state->suid, state->uid, state->pr,
+                        state->lastTs, aCols, nCols);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -2341,7 +2384,6 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->fsState.pRowIter = pIter;
   pIter->fsState.state = SFSNEXTROW_FS;
-  pIter->fsState.pTsdb = pTsdb;
   pIter->fsState.aDFileSet = pReadSnap->pfSetArray;
   pIter->fsState.pBlockIdxExp = &pIter->idx;
   pIter->fsState.pTSchema = pTSchema;
@@ -2458,14 +2500,17 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
 
         uint64_t        uid = pIter->idx.uid;
-        STableLoadInfo *pInfo = *(STableLoadInfo **)tSimpleHashGet(pIter->pr->pTableMap, &uid, sizeof(uid));
-        SArray         *pTombData = pInfo->pTombData;
-        if (pTombData) {
-          taosArrayAddAll(pTombData, pIter->pMemDelData);
-
-          code = tsdbBuildDeleteSkyline(pTombData, 0, (int32_t)(TARRAY_SIZE(pTombData) - 1), pIter->pSkyline);
+        STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
+        if (pInfo->pTombData == NULL) {
+          pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
         }
 
+        taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData);
+
+        size_t delSize = TARRAY_SIZE(pInfo->pTombData);
+        if (delSize > 0) {
+          code = tsdbBuildDeleteSkyline(pInfo->pTombData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
+        }
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }
 
