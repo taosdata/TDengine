@@ -759,7 +759,6 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
   pMTree->ignoreEarlierTs = false;
 
-  // todo handle other level of stt files, here only deal with the first level stt
   int32_t size = ((STFileSet *)pConf->pCurrentFileset)->lvlArr->size;
   if (size == 0) {
     goto _end;
