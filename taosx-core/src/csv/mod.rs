@@ -70,7 +70,7 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
         let path_header = CsvSource::read_header(path, has_header).await?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
             return Err(anyhow!(format!(
-                "header of files {} is different with others",
+                "CSV file \"{}\" format is different from others",
                 &path
             )));
         }
@@ -136,8 +136,9 @@ pub async fn csv_to_taos(
     let socket = format!("127.0.0.1:{}", port);
     let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
 
+    let mut source = CsvSource::new(&mut from, port)?;
+
     let worker = tokio::spawn(async move {
-        let mut source = CsvSource::new(&mut from, port)?;
         let handlers = source.read().await?;
         for handler in handlers {
             tokio::task::yield_now().await;
@@ -209,7 +210,12 @@ impl CsvSource {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
         //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=
         let dsn_paths = match &dsn.path {
-            Some(path) => path.split(",").collect_vec(),
+            Some(path) => {
+                if path.trim().is_empty() {
+                    bail!("CSV path should not be empty");
+                }
+                path.split(",").collect_vec()
+            }
             None => return Err(anyhow!("csv path is null")),
         };
 
