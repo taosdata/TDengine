@@ -1610,6 +1610,9 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   const char* curKey = rocksdb_iter_key(pCur->iter, (size_t*)&kLen);
   stateSessionKeyDecode((void*)&ktmp, (char*)curKey);
 
+  if (pVal != NULL) *pVal = NULL;
+  if (pVLen != NULL) *pVLen = 0;
+
   SStateSessionKey* pKTmp = &ktmp;
   const char*       vval = rocksdb_iter_value(pCur->iter, (size_t*)&vLen);
   char*             val = NULL;
@@ -1617,8 +1620,6 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   if (len < 0) {
     return -1;
   }
-  if (pVal != NULL) *pVal = NULL;
-  if (pVLen != NULL) *pVLen = 0;
 
   if (pKTmp->opNum != pCur->number) {
     taosMemoryFree(val);
