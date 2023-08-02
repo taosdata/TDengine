@@ -1739,7 +1739,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   tDecoderClear(&decoder);
 
-  // todo handle this bug: task not in ready state.
+  // todo handle the case when the task not in ready state, and the checkpoint msg is arrived.
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId,
@@ -1811,43 +1811,59 @@ int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
-int32_t tqProcessTaskUpdateReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-//  SStreamTaskUpdateInfo* pReq = (SVPauseStreamTaskReq*)msg;
-//
-//  SStreamMeta* pMeta = pTq->pStreamMeta;
-//  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
-//  if (pTask == NULL) {
-//    tqError("vgId:%d failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
-//            pReq->taskId);
-//
-//    // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
-//    return TSDB_CODE_SUCCESS;
-//  }
-//
-//  tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
-//  streamTaskPause(pTask);
-//
-//  SStreamTask* pHistoryTask = NULL;
-//  if (pTask->historyTaskId.taskId != 0) {
-//    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
-//    if (pHistoryTask == NULL) {
-//      tqError("vgId:%d failed to acquire fill-history task:0x%x, it may have been dropped already. Pause success",
-//              pMeta->vgId, pTask->historyTaskId.taskId);
-//
-//      streamMetaReleaseTask(pMeta, pTask);
-//
-//      // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
-//      return TSDB_CODE_SUCCESS;
-//    }
-//
-//    tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
-//    streamTaskPause(pHistoryTask);
-//  }
-//
-//  streamMetaReleaseTask(pMeta, pTask);
-//  if (pHistoryTask != NULL) {
-//    streamMetaReleaseTask(pMeta, pHistoryTask);
-//  }
-//
+int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
+  int32_t      code = 0;
+
+  SStreamTaskUpdateMsg req = {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if (tDecodeStreamTaskUpdateMsg(&decoder, &req) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
+    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(code));
+    return code;
+  }
+  tDecoderClear(&decoder);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire task:0x%x when handling update, it may have been dropped already", pMeta->vgId,
+            req.taskId);
+    // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
+//  streamTaskUpdateEpInfo(pTask);
+
+  SStreamTask* pHistoryTask = NULL;
+  if (pTask->historyTaskId.taskId != 0) {
+    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
+    if (pHistoryTask == NULL) {
+      tqError(
+          "vgId:%d failed to acquire fill-history task:0x%x when handling task update, it may have been dropped "
+          "already",
+          pMeta->vgId, pTask->historyTaskId.taskId);
+
+      streamMetaReleaseTask(pMeta, pTask);
+
+      // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
+      return TSDB_CODE_SUCCESS;
+    }
+
+    tqDebug("s-task:%s fill-history task handle task update along with related stream task", pHistoryTask->id.idStr);
+//    streamTaskUpdateEpInfo(pHistoryTask);
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  if (pHistoryTask != NULL) {
+    streamMetaReleaseTask(pMeta, pHistoryTask);
+  }
+
   return TSDB_CODE_SUCCESS;
 }

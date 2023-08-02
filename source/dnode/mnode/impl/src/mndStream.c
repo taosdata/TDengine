@@ -1728,7 +1728,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 }
 
 static int32_t doBuildStreamTaskUpdateMsg(void** pBuf, int32_t* pLen, int32_t nodeId, const SEpSet* pEpset) {
-  SStreamTaskUpdateInfo req = {0};
+  SStreamTaskUpdateMsg req = {0};
   req.nodeId = nodeId;
   req.epset = *pEpset;
 

@@ -2966,20 +2966,6 @@ typedef struct {
 } SVPauseStreamTaskRsp;
 
 typedef struct {
-  SMsgHead head;
-  int32_t  taskId;
-  int32_t  nodeId;
-  SEpSet   epset;
-} SVStreamTaskUpdateReq;
-
-typedef struct {
-  int8_t reserved;
-} SVStreamTaskUpdateRsp;
-
-int32_t tSerializeVTaskUpdateReq(void* buf, int32_t bufLen, const SVStreamTaskUpdateReq* pReq);
-int32_t tDeserializeVTaskUpdateReq(void* buf, int32_t bufLen, SVStreamTaskUpdateReq* pReq);
-
-typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
   int8_t igNotExists;
 } SMPauseStreamReq;

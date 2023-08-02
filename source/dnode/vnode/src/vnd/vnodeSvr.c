@@ -665,6 +665,8 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
       return tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_TASK_UPDATE:
+      return tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessStreamTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     default:
