@@ -316,14 +316,13 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  int8_t         ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  STableKeyInfo* pTableList = pr->pTableList;
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
-    int64_t        st = taosGetTimestampUs();
-    int64_t        totalLastTs = INT64_MAX;
-    STableKeyInfo* pTableList = pr->pTableList;
-
+    int64_t st = taosGetTimestampUs();
+    int64_t totalLastTs = INT64_MAX;
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
 
@@ -401,24 +400,21 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
-      tb_uid_t uid = pr->pTableList[i].uid;
+      tb_uid_t uid = pTableList[i].uid;
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayClearEx(pRow, freeItem);
-        // taosArrayClear(pRow);
         continue;
       }
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
       if (COL_VAL_IS_NONE(&pColVal->colVal)) {
         taosArrayClearEx(pRow, freeItem);
-        // taosArrayClear(pRow);
         continue;
       }
 
       saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
       taosArrayClearEx(pRow, freeItem);
-      // taosArrayClear(pRow);
 
       taosArrayPush(pTableUidList, &uid);
 
