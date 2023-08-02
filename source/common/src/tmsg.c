@@ -7919,6 +7919,24 @@ int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamR
   return 0;
 }
 
+int32_t tSerializeVTaskUpdateReq(void *buf, int32_t bufLen, const SVStreamTaskUpdateReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+//  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+//  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+//  if (tEncodeI8(&encoder, pReq->igUntreated) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeVTaskUpdateReq(void* buf, int32_t bufLen, SVStreamTaskUpdateReq* pReq) {
+  return 0;
+}
+
 int32_t tEncodeMqSubTopicEp(void **buf, const SMqSubTopicEp *pTopicEp) {
   int32_t tlen = 0;
   tlen += taosEncodeString(buf, pTopicEp->topic);
