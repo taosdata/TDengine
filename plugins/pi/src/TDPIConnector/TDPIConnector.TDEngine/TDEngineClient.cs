@@ -636,9 +636,9 @@ namespace TDPIConnector.TDEngine
         public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
         {
             try {
-                string sqlCommand = $"ALTER TABLE {elementName.ToTDEngineNamingPattern()} " +
+                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
                     $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
-                return await MakeHttpRequest(sqlCommand, db);
+                return await MakeHttpRequest(sqlCommand);
             }
             catch (Exception e) {
                 log.Error($"ChangeTagValueForAFElements failed. {e}");
