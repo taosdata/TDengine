@@ -277,7 +277,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   int32_t           code = TSDB_CODE_SUCCESS;
   SArray*           pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
   bool              hasRes = false;
-  SArray*           pLastCols = NULL;
 
   void** pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
@@ -293,23 +292,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     p->ts = INT64_MIN;
   }
 
-  pLastCols = taosArrayInit(pr->numOfCols, sizeof(SLastCol));
-  if (pLastCols == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
-
-  for (int32_t i = 0; i < pr->numOfCols; ++i) {
-    int32_t          slotId = slotIds[i];
-    struct STColumn* pCol = &pr->pSchema->columns[slotId];
-    SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
-
-    if (IS_VAR_DATA_TYPE(pCol->type)) {
-      p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
-    }
-    taosArrayPush(pLastCols, &p);
-  }
-
   taosThreadMutexLock(&pr->readerMutex);
   code = tsdbTakeReadSnap2((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap);
   if (code != TSDB_CODE_SUCCESS) {
@@ -321,6 +303,23 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
+    SArray* pLastCols = taosArrayInit(pr->numOfCols, sizeof(SLastCol));
+    if (pLastCols == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
+
+    for (int32_t i = 0; i < pr->numOfCols; ++i) {
+      int32_t          slotId = slotIds[i];
+      struct STColumn* pCol = &pr->pSchema->columns[slotId];
+      SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
+
+      if (IS_VAR_DATA_TYPE(pCol->type)) {
+        p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
+      }
+      taosArrayPush(pLastCols, &p);
+    }
+
     int64_t st = taosGetTimestampUs();
     int64_t totalLastTs = INT64_MAX;
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
@@ -398,6 +397,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     if (hasRes) {
       saveOneRow(pLastCols, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
     }
+
+    taosArrayDestroyEx(pLastCols, freeItem);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
@@ -440,7 +441,6 @@ _end:
 
   taosMemoryFree(pRes);
   taosArrayDestroy(pRow);
-  taosArrayDestroyEx(pLastCols, freeItem);
 
   return code;
 }
