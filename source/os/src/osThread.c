@@ -17,6 +17,15 @@
 #include <pthread.h>
 #include "os.h"
 
+#ifdef WINDOWS
+#define THREAD_PTR_CHECK(p)        \
+  do {                             \
+    if (!(p) || !(*(p))) return 0; \
+  } while (0);
+#else
+#define THREAD_PTR_CHECK(p)
+#endif
+
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
   return pthread_create(tid, attr, start, arg);
 }
@@ -83,9 +92,13 @@ int32_t taosThreadCondSignal(TdThreadCond *cond) { return pthread_cond_signal(co
 
 int32_t taosThreadCondBroadcast(TdThreadCond *cond) { return pthread_cond_broadcast(cond); }
 
-int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex) { return pthread_cond_wait(cond, mutex); }
+int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex) {
+  THREAD_PTR_CHECK(mutex)
+  return pthread_cond_wait(cond, mutex);
+}
 
 int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const struct timespec *abstime) {
+  THREAD_PTR_CHECK(mutex)
   return pthread_cond_timedwait(cond, mutex, abstime);
 }
 
@@ -124,24 +137,37 @@ int32_t taosThreadKeyDelete(TdThreadKey key) { return pthread_key_delete(key); }
 int32_t taosThreadKill(TdThread thread, int32_t sig) { return pthread_kill(thread, sig); }
 
 // int32_t taosThreadMutexConsistent(TdThreadMutex* mutex) {
+//   THREAD_PTR_CHECK(mutex)
 //   return pthread_mutex_consistent(mutex);
 // }
 
-int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) { return pthread_mutex_destroy(mutex); }
+int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
+  THREAD_PTR_CHECK(mutex)
+  return pthread_mutex_destroy(mutex);
+}
 
 int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr) {
   return pthread_mutex_init(mutex, attr);
 }
 
-int32_t taosThreadMutexLock(TdThreadMutex *mutex) { return pthread_mutex_lock(mutex); }
+int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
+  THREAD_PTR_CHECK(mutex)
+  return pthread_mutex_lock(mutex);
+}
 
 // int32_t taosThreadMutexTimedLock(TdThreadMutex * mutex, const struct timespec *abstime) {
 //   return pthread_mutex_timedlock(mutex, abstime);
 // }
 
-int32_t taosThreadMutexTryLock(TdThreadMutex *mutex) { return pthread_mutex_trylock(mutex); }
+int32_t taosThreadMutexTryLock(TdThreadMutex *mutex) {
+   THREAD_PTR_CHECK(mutex)
+   return pthread_mutex_trylock(mutex);
+}
 
-int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) { return pthread_mutex_unlock(mutex); }
+int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) {
+  THREAD_PTR_CHECK(mutex)
+  return pthread_mutex_unlock(mutex);
+}
 
 int32_t taosThreadMutexAttrDestroy(TdThreadMutexAttr *attr) { return pthread_mutexattr_destroy(attr); }
 
@@ -224,6 +250,7 @@ int32_t taosThreadSetSchedParam(TdThread thread, int32_t policy, const struct sc
 int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) { return pthread_setspecific(key, value); }
 
 int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
+  THREAD_PTR_CHECK(lock)
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_destroy((pthread_mutex_t *)lock);
 #else
@@ -242,6 +269,7 @@ int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
 }
 
 int32_t taosThreadSpinLock(TdThreadSpinlock *lock) {
+  THREAD_PTR_CHECK(lock)
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_lock((pthread_mutex_t *)lock);
 #else
@@ -250,6 +278,7 @@ int32_t taosThreadSpinLock(TdThreadSpinlock *lock) {
 }
 
 int32_t taosThreadSpinTrylock(TdThreadSpinlock *lock) {
+  THREAD_PTR_CHECK(lock)
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_trylock((pthread_mutex_t *)lock);
 #else
@@ -258,6 +287,7 @@ int32_t taosThreadSpinTrylock(TdThreadSpinlock *lock) {
 }
 
 int32_t taosThreadSpinUnlock(TdThreadSpinlock *lock) {
+  THREAD_PTR_CHECK(lock)
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
   return pthread_mutex_unlock((pthread_mutex_t *)lock);
 #else
