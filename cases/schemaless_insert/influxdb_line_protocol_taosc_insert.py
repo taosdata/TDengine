@@ -921,7 +921,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
-        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
         # s_stb_d_tb_a_col_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name)[5]
         s_stb_d_tb_a_col_m_tag_list = [(f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ngxgzdzs",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 1626006833639000000', 'hpxbys'), \
