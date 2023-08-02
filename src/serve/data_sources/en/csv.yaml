@@ -13,17 +13,29 @@ options:
 strict: true
 groups:
   - name: CSV Options
-    display_order: 2
+    display_order: 1
     description: CSV reading options
     params:
-      - name: quote
-        display: Quote escape char.
-        # value: \"
-        hint: str
       - name: sep
-        display: Separator character.
+        display: Separator
+        description: The field separator in a CSV record. Use `,` if not set.
         # value: \,
         hint: str
+      - name: skip
+        display: Skip Records
+        description: Skip number of records for each CSV file.
+        hint:
+          type: integer
+          min: 0
+      - name: has_header
+        display: Has Headers?
+        value: true
+        hint:
+          type: boolean
+      - name: header
+        display: Custom Headers
+        hint:
+          type: boolean
   - name: Write Options
     display_order: 2
     description: Writing options
@@ -31,8 +43,7 @@ groups:
       - name: batch_size
         display: Batch Size
         value: 1000
-        short_description: Batch size.
-        description: Batch size.
+        description: Batch size of records.
         hint:
           type: integer
           min: 1
