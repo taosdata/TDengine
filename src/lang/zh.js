@@ -903,6 +903,7 @@ export default {
   },
 
   datasource: {
+    uploadcsvtip:'请上传文件或输入文件地址',
     copytokentip:'拷贝Token到Agent配置文件',
     uploadtip:'请上传csv文件',
     uploadcsv:'上传CSV文件',

@@ -720,6 +720,7 @@ import { Message } from "element-ui";
 import marked from "marked";
 import CsvData from "../components/csvData.vue";
 import { decrypt, debounce, deepClone } from "@/utils/index";
+import { validPath } from '@/utils/validate'
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
@@ -1211,6 +1212,20 @@ export default {
                     let value = data.groups[index].params[g].value === 1;
                     querystr +=
                       `${data.groups[index].params[g].name}=${value}` + "&";
+                  }
+                } else if (data.groups[index].params[g].name === 'path') {
+                  if(!validPath(data.groups[index].params[g].value)) {
+                    Message({
+                      type: "warning",
+                      message:
+                      `${data.groups[index].params[g].display} ` +
+                        ":" +
+                        this.$t('formatWrong'),
+                    });
+                    return
+                  } else {
+                    querystr +=
+                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` + "&";
                   }
                 } else {
                   if (this.tagName == "mqtt") {

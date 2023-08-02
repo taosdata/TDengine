@@ -232,12 +232,20 @@ export default {
 
     async getCsvColumnsData() {
       try {
+        if(this.fileList.length==0){
+          Message.error(this.$t('datasource.uploadcsvtip'))
+          return
+        }
+
+          this.$refs.param.submit();
+        if(!this.$refs.param.ruleForm.dbName||!this.$refs.param.ruleForm.tableName){
+          return
+        }
         await this.getDBColumns();
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
         if (this.activeName == "first") {
-          this.$refs.param.submit();
           if (this.$refs.param.isValid && this.fileList.length > 0) {
             result = await getCSVColumns(
               this.fileList.map((item) => {
@@ -282,21 +290,15 @@ export default {
         this.showConfig = true;
       } catch (error) {
         console.log(error);
+        error&&error.message&&Message.error(error.message)
       }
       this.$refs.upload.submit();
     },
     async getDBColumns() {
       try {
-        console.log(
-          this.$refs,
-          this.$refs.param,
-          this.$refs.param.tableName,
-          "ppp"
-        );
         let result = await sendSQLReq(
           ` describe \`${this.$refs.param.ruleForm.dbName}\`.\`${this.$refs.param.ruleForm.tableName}\` ;`
         );
-        console.log(result, "结果");
         let res = result.data.map((db) => {
           return Object.fromEntries(
             result.column_meta.map((item, index) => {
@@ -310,7 +312,8 @@ export default {
           })
         );
       } catch (error) {
-        error&&error.desc&&Message.error(error.desc)
+        console.log('表不存在则创建');
+        // error&&error.desc&&Message.error(error.desc)
       }
     },
   },

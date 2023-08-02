@@ -1128,6 +1128,7 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    uploadcsvtip:'Please upload file or enter the file url',
     copytokentip:'Copy Token to Agent configuration file',
     uploadtip:'Please upload the csv file',
     uploadcsv:'Upload CSV file',
