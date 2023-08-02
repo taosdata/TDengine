@@ -1,46 +1,23 @@
-use crate::plugins::sink;
 use crate::utils::port_pool::PortPool;
-use crate::{Action, Parser, Transferred};
+use crate::{build_ipc, Action, Parser, Transferred};
 use arrow::array::{
     BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, MessageSet};
-use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
 use kafka::client::{KafkaClient, SecurityConfig};
+use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, MessageSet};
 use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
-use taos::{AsyncTBuilder, Dsn};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use taos::Dsn;
 use taosx_ipc::prelude::ArrowDataType;
 use tokio_util::sync::CancellationToken;
 
-pub async fn kafka_to_taos(
-    mut from: Dsn,
-    parser: Option<Parser>,
-    _: Vec<Action>,
-    to: Dsn,
-    _: usize,
-    port_pool: &PortPool,
-    cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<()> {
-    println!(
-        "{} kafka_to_taos started, from: {}, to: {}",
-        chrono::Utc::now().to_string(),
-        from.to_string(),
-        to.to_string()
-    );
-
-    let port = port_pool
-        .get()
-        .ok_or_else(|| anyhow::format_err!("No available port"))?;
+async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
-    let ipc = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
-
     let stream = std::net::TcpStream::connect(socket)?;
     let schema = build_schema();
 
@@ -93,7 +70,7 @@ pub async fn kafka_to_taos(
             ],
         )?;
         writer.write(&batch)?;
-        ipc.send(())?;
+        tokio::task::yield_now().await;
 
         consumer.commit_consumed().unwrap();
         start = chrono::Utc::now().timestamp_millis();
@@ -103,38 +80,73 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
-fn build_ipc(
-    socket: &str,
+pub async fn kafka_to_taos(
+    from: Dsn,
     parser: Option<Parser>,
-    to: &Dsn,
-    cancel: &CancellationToken,
+    _: Vec<Action>,
+    to: Dsn,
+    _: usize,
+    port_pool: &PortPool,
+    cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<Sender<()>> {
-    let (sender, receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = taos::TaosBuilder::from_dsn(to)?;
-        sink::listen_tcp_socket(
-            builder.pool()?,
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            parser,
-            Some("kafka"),
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
-    Ok(ipc)
+) -> anyhow::Result<()> {
+    println!(
+        "{} kafka_to_taos started, from: {}, to: {}",
+        chrono::Utc::now().to_string(),
+        from.to_string(),
+        to.to_string()
+    );
+    let port = port_pool
+        .get()
+        .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
+    let socket = format!("127.0.0.1:{}", port);
+    let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
+
+    let worker = tokio::spawn(kafka_worker(from, port));
+
+    let port_pool = port_pool.clone();
+
+    tokio::spawn(async move {
+        tokio::select! {
+            // application exit with error code
+            status = worker => {
+                match status? {
+                    Ok(_) => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        log::info!("Kafka worker done successfully");
+                        let _ = abort.send(());
+                    }
+                    Err(err) => {
+                        let _ = abort.send(());
+                        anyhow::bail!("Kafka exit with error: {:#}", err);
+                    }
+                }
+            },
+            err = closed.recv() => {
+                log::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    let _ = abort.send(());
+                    anyhow::bail!("Kafka writer error: {err:#}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("Kafka task cancelled");
+            }
+        };
+        // send an empty tuple
+        let _ = abort.send(());
+        // stop the connector
+        log::info!("Kafka task Done");
+        // put ipc port back to port pool.
+        port_pool.put(port);
+        // wait for completion
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        Ok(())
+    })
+    .await??;
+
+    Ok(())
 }
 
 fn build_schema() -> Schema {
@@ -240,8 +252,12 @@ fn build_ssl_builder(dsn: &mut Dsn) -> Result<kafka::consumer::Builder, KafkaCon
 
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_cipher_list("DEFAULT").unwrap();
-    builder.set_certificate_file(cert.unwrap(), SslFiletype::PEM).unwrap();
-    builder.set_private_key_file(cert_key.unwrap(), SslFiletype::PEM).unwrap();
+    builder
+        .set_certificate_file(cert.unwrap(), SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_private_key_file(cert_key.unwrap(), SslFiletype::PEM)
+        .unwrap();
     builder.check_private_key().unwrap();
     builder.set_default_verify_paths().unwrap();
     builder.set_verify(SslVerifyMode::PEER);
@@ -276,6 +292,7 @@ fn parse_bootstrap_servers(dsn: &Dsn) -> Vec<String> {
     bootstrap_servers
 }
 
+#[allow(dead_code)]
 fn print_message(ms: &MessageSet, m: &Message, ts: &i64) {
     println!(
         "topic: {}, partition: {}, offset: {},ts: {}, key: {}, values: {}",
@@ -371,13 +388,13 @@ mod tests {
     #[test]
     fn test_topics() {
         let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=tp2").unwrap();
-        let consumer = build_consumer(&mut dsn);
+        let consumer = build_consumer(&mut dsn).unwrap();
         assert_eq!("", consumer.group());
         let subscriptions = consumer.subscriptions();
         assert_eq!(1, subscriptions.len());
 
         let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=tp1,tp2").unwrap();
-        let consumer = build_consumer(&mut dsn);
+        let consumer = build_consumer(&mut dsn).unwrap();
         assert_eq!("", consumer.group());
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
@@ -393,14 +410,15 @@ mod tests {
     #[test]
     fn test_topic_partitions() {
         let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1,tp2").unwrap();
-        let consumer = build_consumer(&mut dsn);
+        let consumer = build_consumer(&mut dsn).unwrap();
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(5, subscriptions.get("tp1").unwrap().len());
         println!("{:?}", subscriptions);
 
-        let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:1,tp2").unwrap();
-        let consumer = build_consumer(&mut dsn);
+        let mut dsn =
+            Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:1,tp2").unwrap();
+        let consumer = build_consumer(&mut dsn).unwrap();
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(1, subscriptions.get("tp1").unwrap().len());
@@ -409,7 +427,7 @@ mod tests {
         let mut dsn =
             Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:0..2,tp2&group=test")
                 .unwrap();
-        let consumer = build_consumer(&mut dsn);
+        let consumer = build_consumer(&mut dsn).unwrap();
         assert_eq!("test", consumer.group());
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());

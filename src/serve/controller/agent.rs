@@ -1,12 +1,12 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{fmt::Display, str::FromStr, borrow::Cow};
+use std::{borrow::Cow, fmt::Display, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Deserializer, Serialize};
-use sqlx::{sqlite::SqliteArgumentValue, Decode, Encode, FromRow, Type, encode::IsNull};
+use serde::{Deserialize, Serialize};
+use sqlx::{encode::IsNull, sqlite::SqliteArgumentValue, Decode, Encode, FromRow, Type};
 use tracing::debug;
 use utoipa::{IntoParams, ToSchema};
 
@@ -114,7 +114,6 @@ impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Context {
     fn decode(
         value: <sqlx::Sqlite as sqlx::database::HasValueRef<'r>>::ValueRef,
     ) -> Result<Self, sqlx::error::BoxDynError> {
-        use sqlx::Decode;
         let value = String::decode(value)?;
 
         // now you can parse this into your type (assuming there is a `FromStr`)
@@ -136,15 +135,15 @@ impl<'q> Encode<'q, sqlx::Sqlite> for Context {
     }
 }
 
-fn deserialize_context<'de, D>(deserializer: D) -> Result<Option<Context>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value: Option<String> = Option::deserialize(deserializer)?;
-    Ok(value
-        .map(|s| serde_json::Value::from_str(&s).unwrap_or(serde_json::Value::String(s)))
-        .map(Context))
-}
+// fn deserialize_context<'de, D>(deserializer: D) -> Result<Option<Context>, D::Error>
+// where
+//     D: Deserializer<'de>,
+// {
+//     let value: Option<String> = Option::deserialize(deserializer)?;
+//     Ok(value
+//         .map(|s| serde_json::Value::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+//         .map(Context))
+// }
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AgentWithToken {

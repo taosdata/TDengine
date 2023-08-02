@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::utils::port_pool::PortPool;
-use crate::{utils, Parser, Transferred};
+use crate::{utils, Parser, Transferred, build_ipc};
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
@@ -81,44 +81,6 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
         columns: header.len(),
         headers: if has_header { header } else { vec![] },
     })
-}
-
-fn build_ipc(
-    socket: &str,
-    parser: Option<Parser>,
-    to: &Dsn,
-    cancel: &CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<(
-    std::sync::mpsc::Sender<()>,
-    tokio::sync::mpsc::Receiver<String>,
-)> {
-    use crate::plugins::sink;
-    let (sender, receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = taos::TaosBuilder::from_dsn(to)?;
-        sink::listen_tcp_socket(
-            builder.pool()?,
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            parser,
-            None,
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
-    Ok((ipc, receiver))
 }
 
 pub async fn csv_to_taos(

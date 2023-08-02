@@ -332,13 +332,17 @@ pub async fn influxdb_to_taos(
     );
 
     // get the version of jdk
-    let mut getJdkVersion = tokio::process::Command::new("java").arg("-version").output().await.unwrap();
-    let jdkVersion = String::from_utf8(getJdkVersion.stderr.clone())?;
+    let get_jdk_version = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .unwrap();
+    let jdk_version = String::from_utf8(get_jdk_version.stderr.clone())?;
 
     let mut command = tokio::process::Command::new("java");
     let child;
 
-    if jdkVersion.contains("build 1.") {
+    if jdk_version.contains("build 1.") {
         child = command
             .arg("-jar")
             .arg(&connector_path)
@@ -489,7 +493,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             101 => anyhow::bail!("Failed to connect, ip or port error"),
             102 => anyhow::bail!("Unauthorized access"),
             103 => anyhow::bail!("Organization not found"),
-            _ => anyhow::bail!("Failed to connect, ip or port error")
+            _ => anyhow::bail!("Failed to connect, ip or port error"),
         }
     }
     dbg!(&s);
