@@ -24,13 +24,11 @@ install.packages("RJDBC", repos='http://cran.us.r-project.org')
 ```
 
 :::note
-On Linux systems, installing the RJDBC package may require installing the necessary components for compilation. For example, on Ubuntu, you can execute the command apt install -y libbz2-dev libpcre2-dev libicu-dev to install the required components.
-On Windows systems, you need to set the JAVA_HOME environment variable.
+On Linux systems, installing the RJDBC package may require installing the necessary components for compilation. For example, on Ubuntu, you can execute the command ``apt install -y libbz2-dev libpcre2-dev libicu-dev`` to install the required components.
+On Windows systems, you need to set the **JAVA_HOME** environment variable.
 :::
 
-3. Download the TDengine JDBC driver: Visit the Maven website and download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar).
-
-4. Place the TDengine JDBC driver in the appropriate location: Choose a suitable location on your computer and save the TDengine JDBC driver file (taos-jdbcdriver-X.X.X-dist.jar) there.
+3. Download the TDengine JDBC driver: Visit the Maven website and download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar) to your local machine.
 
 ## Configuration Process
 
@@ -47,10 +45,10 @@ library(RJDBC)
 2. Set the JDBC driver and JDBC URL:
 
 ```r
-# Set the JDBC driver path (modify according to the actual location)
+# Set the JDBC driver path (specify the location on your local machine)
 driverPath <- "/path/to/taos-jdbcdriver-X.X.X-dist.jar"
 
-# Set the JDBC URL (modify according to your specific environment)
+# Set the JDBC URL (specify the FQDN and credentials of your TDengine cluster)
 url <- "jdbc:TAOS://localhost:6030/?user=root&password=taosdata"
 ```
 
@@ -68,7 +66,7 @@ drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
 conn <- dbConnect(drv, url)
 ```
 
-5. Once the connection is established, you can use the conn object for various database operations such as querying data, inserting data, etc.
+5. Once the connection is established, you can use the ``conn`` object for various database operations such as querying data and inserting data.
 
 6. Finally, don't forget to close the database connection after you are done:
 
