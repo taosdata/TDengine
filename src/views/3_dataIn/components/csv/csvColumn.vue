@@ -90,10 +90,6 @@
       </template>
     </li>
     <li class="primary">
-      <span style="color:red;font-size:24px;">{{(colData.parser.parse[csvColName].as&&
-          !colData.parser.parse[csvColName].as
-            .toUpperCase()
-            .includes('TIMESTAMP'))}}{{isEditable}}</span>
       <el-checkbox
         :disabled="
           !colData.parser.parse[csvColName].as
@@ -227,7 +223,7 @@ export default {
       let columns = oldparser.model.columns;
       let tags = oldparser.model?.tags;
       if (key == "primary") {
-        if (tags&&tags.includes(val)) {
+        if (tags.includes(val)) {
           tags.splice(columns.indexOf(val), 1);
         }
         if (columns.includes(val)) {
@@ -250,15 +246,15 @@ export default {
           columns.splice(columns.indexOf(val), 1);
         }
         if (this.tagChecked) {
-          if (tags&&!tags.includes(val)) {
+          if (!tags.includes(val)) {
             tags.push(val);
           }
         } else {
-          tags&&tags.splice(tags.indexOf(val), 1);
+          tags.splice(tags.indexOf(val), 1);
         }
       }
       if (type == "column" && key != "primary") {
-        if (tags&&tags.includes(val)) {
+        if (tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
         if (this.columnChecked) {
@@ -322,7 +318,6 @@ export default {
     changePrimary(val) {
       this.columnChecked = true;
       this.tagChecked = false;
-      console.log('选择主键',val);
       this.getPreveiousParser(val, "column", "primary");
     },
     watchFieldVal(val) {
@@ -342,7 +337,7 @@ export default {
       if (columns.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.columnChecked = true;
       }
-      if (tags&&tags.includes(this.colData.parser.parse[this.csvColName].alias)) {
+      if (tags.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.tagChecked = true;
       }
     },

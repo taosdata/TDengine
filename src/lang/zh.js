@@ -903,6 +903,9 @@ export default {
   },
 
   datasource: {
+    csvwholeinfo:'请填写完整的csv配置信息',
+    customcolname:'自定义列',
+    customcol:'请输入自定义列',
     uploadcsvtip:'请上传文件或输入文件地址',
     copytokentip:'拷贝Token到Agent配置文件',
     uploadtip:'请上传csv文件',

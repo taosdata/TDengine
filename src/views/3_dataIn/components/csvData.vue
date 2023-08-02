@@ -8,7 +8,7 @@
             <el-upload
               class="upload-demo"
               ref="upload"
-              accept='.csv'
+              accept=".csv"
               :data="uploadData"
               :action="uploadUrl"
               :on-success="handleSuccess"
@@ -232,14 +232,17 @@ export default {
 
     async getCsvColumnsData() {
       try {
-        if(this.fileList.length==0){
-          Message.error(this.$t('datasource.uploadcsvtip'))
-          return
+        if (this.fileList.length == 0) {
+          Message.error(this.$t("datasource.uploadcsvtip"));
+          return;
         }
 
-          this.$refs.param.submit();
-        if(!this.$refs.param.ruleForm.dbName||!this.$refs.param.ruleForm.tableName){
-          return
+        this.$refs.param.submit();
+        if (
+          !this.$refs.param.ruleForm.dbName ||
+          !this.$refs.param.ruleForm.tableName
+        ) {
+          return;
         }
         await this.getDBColumns();
         this.csvColumns = [];
@@ -247,13 +250,19 @@ export default {
         let result = null;
         if (this.activeName == "first") {
           if (this.$refs.param.isValid && this.fileList.length > 0) {
-            result = await getCSVColumns(
-              this.fileList.map((item) => {
-                return item.response[0];
-              }),
-              "csv",
-              this.$refs.param.ruleForm.hasHeader
-            );
+            if (this.$refs.param.ruleForm.hasHeader) {
+              result = await getCSVColumns(
+                this.fileList.map((item) => {
+                  return item.response[0];
+                }),
+                "csv",
+                this.$refs.param.ruleForm.hasHeader
+              );
+              this.csvColumns = result.file_header.column_names;
+            } else {
+              //无header需要自定义header
+              this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
+            }
           }
         } else {
           result = await getCSVColumns(
@@ -262,7 +271,7 @@ export default {
             this.$refs.param.ruleForm.hasHeader
           );
         }
-        if (result.message) {
+        if (result&&result.message) {
           Message.error(result.message);
           return;
         }
@@ -277,8 +286,7 @@ export default {
             },
           },
         };
-        this.csvColumns = result.file_header.column_names;
-        result.file_header.column_names.forEach((item) => {
+        this.csvColumns.forEach((item) => {
           this.csvParserConf.parser.parse[item] = {
             as: "",
             alias: item,
@@ -289,8 +297,7 @@ export default {
         this.initDbOptions();
         this.showConfig = true;
       } catch (error) {
-        console.log(error);
-        error&&error.message&&Message.error(error.message)
+        error && error.message && Message.error(error.message);
       }
       this.$refs.upload.submit();
     },
@@ -312,7 +319,7 @@ export default {
           })
         );
       } catch (error) {
-        console.log('表不存在则创建');
+        console.log("表不存在则创建");
         // error&&error.desc&&Message.error(error.desc)
       }
     },

@@ -720,7 +720,7 @@ import { Message } from "element-ui";
 import marked from "marked";
 import CsvData from "../components/csvData.vue";
 import { decrypt, debounce, deepClone } from "@/utils/index";
-import { validPath } from '@/utils/validate'
+import { validPath } from "@/utils/validate";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
@@ -914,7 +914,6 @@ export default {
         this.dbsource[0].groups[0].params[0].value == "true" ? true : false;
       let certitem = this.$store.state.app.opccertfiles[0];
       let privateitem = this.$store.state.app.opcprivatefiles[0];
-      console.log(this.opcConfig, "opc的回显");
       if (certitem && privateitem) {
         this.certfileList = [].concat({
           name: certitem?.substr(certitem.lastIndexOf("/") + 1),
@@ -952,6 +951,9 @@ export default {
       } else {
         this.opcPointavalible = true;
       }
+    }
+    if(this.tagName=='csv'){
+      this.dbsource[0].groups[0].params=this.dbsource[0].groups[0].params.splice(0,2)
     }
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
@@ -1060,9 +1062,6 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
-      if (this.tagName == "csv") {
-        console.log(this.$store.state.app.csvParser, "csv要保存的内容");
-      }
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -1213,19 +1212,20 @@ export default {
                     querystr +=
                       `${data.groups[index].params[g].name}=${value}` + "&";
                   }
-                } else if (data.groups[index].params[g].name === 'path') {
-                  if(!validPath(data.groups[index].params[g].value)) {
+                } else if (data.groups[index].params[g].name === "path") {
+                  if (!validPath(data.groups[index].params[g].value)) {
                     Message({
                       type: "warning",
                       message:
-                      `${data.groups[index].params[g].display} ` +
+                        `${data.groups[index].params[g].display} ` +
                         ":" +
-                        this.$t('formatWrong'),
+                        this.$t("formatWrong"),
                     });
-                    return
+                    return;
                   } else {
                     querystr +=
-                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` + "&";
+                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                      "&";
                   }
                 } else {
                   if (this.tagName == "mqtt") {
@@ -1473,26 +1473,20 @@ export default {
         if (this.tagName == "csv") {
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
-          let tags = model?.tags;
-          if (tags&&tags.length == 0) {
-            //tags为空则创建普通表
-            model.name = this.$refs.csvdata.$refs.param.ruleForm.tableName;
-            piParams["parser"] = {
-              parse,
-              model: {
-                name: model.name,
-                columns: model.columns,
-              },
-            };
-          } else {
-            model.using = this.$refs.csvdata.$refs.param.ruleForm.tableName;
-            piParams["parser"] = this.$store.state.app.csvParser;
-          }
-          let flag=Object.keys(parse).some(item=>parse[item].as=='')
-          console.log(model.columns,'model.columnsmodel.columns');
-          if(model.columns.length==0||model.columns[0]==undefined||flag){
-            Message.error('请填写完整的csv配置信息')
-            return
+          model.name = this.$refs.csvdata.$refs.param.ruleForm.subname
+
+          model.using = this.$refs.csvdata.$refs.param.ruleForm.tableName;
+          piParams["parser"] = this.$store.state.app.csvParser;
+
+          let flag = Object.keys(parse).some((item) => parse[item].as == "");
+          if (
+            model.columns.length == 0 ||
+            model.tags.length==0||
+            model.columns[0] == undefined ||
+            flag
+          ) {
+            Message.error(this.$t('datasource.csvwholeinfo'));
+            return;
           }
 
           piParams["from"] =
