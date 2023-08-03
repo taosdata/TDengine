@@ -847,7 +847,6 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
           : (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
   pWindow->node.resultDataOrder =
       pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : getRequireDataOrder(true, pSelect);
-
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);

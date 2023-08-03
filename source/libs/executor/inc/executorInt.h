@@ -25,6 +25,7 @@ extern "C" {
 #include "tsort.h"
 #include "ttszip.h"
 #include "tvariant.h"
+#include "theap.h"
 
 #include "dataSinkMgt.h"
 #include "executil.h"
@@ -418,6 +419,14 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  // for limit optimization
+  bool          limited;
+  int64_t       limit;
+  bool          slimited;
+  int64_t       slimit;
+  uint64_t      curGroupId; // initialize to UINT64_MAX
+  uint64_t      handledGroupNum;
+  BoundedQueue* pBQ;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
