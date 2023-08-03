@@ -864,7 +864,7 @@ async fn consume_flat_record(
                                                         ty,
                                                         length
                                                         );
-                                                        _taos.exec(&sql).await.unwrap();
+                                                        _taos.exec(&sql).await?;
                                                         max_lengths
                                                             .insert(name.to_string(), length);
                                                         continue;
@@ -881,7 +881,7 @@ async fn consume_flat_record(
                                                             .stables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    _taos.exec(&sql).await.unwrap();
+                                                    _taos.exec(&sql).await?;
                                                     let sql = records.table_sql();
 
                                                     loop {
@@ -968,7 +968,7 @@ async fn consume_flat_record(
                                                             .tables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    _taos.exec(&sql).await.unwrap();
+                                                    _taos.exec(&sql).await?;
                                                 }
                                             }
                                         }
@@ -981,7 +981,7 @@ async fn consume_flat_record(
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         dbg!(&sql);
-                                        _taos.exec(&sql).await.unwrap();
+                                        _taos.exec(&sql).await?;
                                         let sql = records.table_sql();
 
                                         loop {
@@ -999,7 +999,7 @@ async fn consume_flat_record(
                                                         f.ty(),
                                                         f.length() * 2
                                                         );
-                                                        _taos.exec(&sql).await.unwrap();
+                                                        _taos.exec(&sql).await?;
                                                         continue;
                                                     }
                                                 } else {
@@ -1017,7 +1017,7 @@ async fn consume_flat_record(
                                         if let Some(transferred) = transferred {
                                             transferred.tables.fetch_add(1, Ordering::SeqCst);
                                         }
-                                        _taos.exec(&sql).await.unwrap();
+                                        _taos.exec(&sql).await?;
                                     }
 
                                     continue;
@@ -1035,7 +1035,7 @@ async fn consume_flat_record(
                                             f.ty(),
                                             f.length() * 2
                                         );
-                                        _taos.exec(&sql).await.unwrap();
+                                        _taos.exec(&sql).await?;
                                     }
                                 } else if err_str.contains("[0x0118]") {
                                     // Code([0x0118] Unknown or common error)
@@ -1068,7 +1068,7 @@ async fn consume_flat_record(
                                                 ipc_data_type.unwrap(),
                                             );
                                             log::info!("alter table column sql: {}", sql);
-                                            _taos.exec(&sql).await.unwrap();
+                                            _taos.exec(&sql).await?;
                                         }
                                         index += 1;
                                     }

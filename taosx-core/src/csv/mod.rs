@@ -557,11 +557,17 @@ impl CsvSource {
             }
             let mut record = StringRecord::new();
             for _ in 0..MAX_VALIDATE_LINES {
-                reader
+                let ok = reader
                     .read_record(&mut record)
                     .with_context(|| format!("Reading file {path:?} record error"))?;
+                if !ok {
+                    break;
+                }
                 let len = record.len();
                 let line = reader.position().line();
+                if len == 0 {
+                    continue;
+                }
                 if cols != len {
                     bail!("CSV file {path:?} line {line} expect {cols} columns but has {len}");
                 }
