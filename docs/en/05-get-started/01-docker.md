@@ -128,4 +128,4 @@ In the query above you are selecting the first timestamp (ts) in the interval, a
 
 ## Additional Information
 
-For more information about deploying TDengine in a Docker environment, see [Using TDengine in Docker](../../reference/docker).
+For more information about deploying TDengine in a Docker environment, see [Deploying TDengine with Docker](../../deployment/docker).
