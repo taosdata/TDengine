@@ -176,10 +176,12 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let mut client2 = agent::Client::new(&args.endpoint, &args.token).await?;
     let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
 
+    let agent = client.agent();
+
     let (resp_tx, resp_rx) = flume::unbounded::<RespAction>();
 
     let (runner, tasks, sender, status) =
-        runner::spawn_runner(&args.endpoint, &args.token, resp_tx.clone());
+        runner::spawn_runner(agent.id, &args.endpoint, &args.token, resp_tx.clone());
 
     tokio::select! {
         _ = ctrl_c => {
