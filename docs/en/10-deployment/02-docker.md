@@ -437,11 +437,6 @@ services:
         >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
         nginx -g 'daemon off;'",
       ]
-volumes:
-  taosdata-td1:
-  taoslog-td1:
-  taosdata-td2:
-  taoslog-td2:
 ```
 
 ## Deploy with docker swarm
