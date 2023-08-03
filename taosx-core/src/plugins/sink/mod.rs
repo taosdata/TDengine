@@ -284,7 +284,7 @@ async fn consume_lush_record(
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                // log::info!("query_tags_sql: {query_tags_sql}");
+                log::debug!("query_tags_sql: {query_tags_sql}");
                 match taos.query(query_tags_sql).await {
                     Ok(mut rs) => {
                         let mut rows = rs.rows();
@@ -1337,59 +1337,8 @@ async fn ipc_process<R: Read, W: Write>(
 
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         let guard = lock.lock().await;
-        let max_retries = 10;
-        let mut i = 0;
-        loop {
-            // alter table
-            let init = metadata.init().unwrap();
-            let stable_name = init.name();
-            let desc = taos.describe(stable_name).await;
-            match desc {
-                Ok(desc) => {
-                    log::info!("table {stable_name} exists");
-                    let sql = generate_alter_sql_diff_desc(
-                        stable_name,
-                        &desc,
-                        init.columns().as_ref(),
-                        false,
-                    );
-                    if sql.is_some() {
-                        for sql in sql.unwrap() {
-                            log::info!("alter table sql: {}", sql.clone());
-                            taos.exec(sql).await?;
-                        }
-                    }
-                    let sql = generate_alter_sql_diff_desc(
-                        stable_name,
-                        &desc,
-                        init.tags().as_ref(),
-                        true,
-                    );
-                    if sql.is_some() {
-                        for sql in sql.unwrap() {
-                            log::info!("alter table sql: {}", sql.clone());
-                            taos.exec(sql).await?;
-                        }
-                    }
-                    break;
-                }
-                Err(err) => {
-                    log::warn!("describe failed: {}", err.to_string());
-                    // create table
-                    info!("[{client}] {sql}");
-                    let res: Result<usize, taos::Error> = taos.exec(&sql).await;
-                    if let Err(err) = res {
-                        tracing::error!("Query error with {sql}: {err:?}");
-                        i += 1;
-                        if i > max_retries {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
+        let init = metadata.init().unwrap();
+        handle_lush_message_init(init, &taos, &sql).await?;
         drop(guard)
     }
     match stream_type {
@@ -1425,6 +1374,62 @@ async fn ipc_process<R: Read, W: Write>(
                 transferred.as_deref(),
             )
             .await?
+        }
+    }
+    Ok(())
+}
+
+async fn handle_lush_message_init(init: &LushMessageInit, taos: &Taos, sql: &str) -> anyhow::Result<()> {
+    let max_retries = 10;
+    let mut i = 0;
+    let stable_name = init.name();
+    loop {
+        // alter table
+        let desc = taos.describe(stable_name).await;
+        match desc {
+            Ok(desc) => {
+                log::info!("table {stable_name} exists");
+                let sql = generate_alter_sql_diff_desc(
+                    stable_name,
+                    &desc,
+                    init.columns().as_ref(),
+                    false,
+                );
+                if sql.is_some() {
+                    for sql in sql.unwrap() {
+                        log::info!("alter table sql: {}", sql.clone());
+                        taos.exec(sql).await?;
+                    }
+                }
+                let sql = generate_alter_sql_diff_desc(
+                    stable_name,
+                    &desc,
+                    init.tags().as_ref(),
+                    true,
+                );
+                if sql.is_some() {
+                    for sql in sql.unwrap() {
+                        log::info!("alter table sql: {}", sql.clone());
+                        taos.exec(sql).await?;
+                    }
+                }
+                break;
+            }
+            Err(err) => {
+                log::warn!("describe failed: {}", err.to_string());
+                // create table
+                info!("create sql: {sql}");
+                let res: Result<usize, taos::Error> = taos.exec(&sql).await;
+                if let Err(err) = res {
+                    tracing::error!("Query error with {sql}: {err:?}");
+                    i += 1;
+                    if i > max_retries {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
         }
     }
     Ok(())
@@ -1490,21 +1495,23 @@ impl<'a> IpcStreamWorker<'a> {
     ) -> anyhow::Result<usize> {
         if let Some(sql) = self.parser.metadata().init_sql_string() {
             let guard = self.lock.lock().await;
-            let max_retries = 10;
-            let mut i = 0;
-            loop {
-                info!("metadata sql: {sql}");
-                let res = self.taos.exec(&sql).await;
-                if let Err(err) = res {
-                    tracing::error!("Query error with {sql}: {err:?}");
-                    i += 1;
-                    if i > max_retries {
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
+            let init = self.parser.metadata.init().unwrap();
+            handle_lush_message_init(init, self.taos, &sql).await?;
+            // let max_retries = 10;
+            // let mut i = 0;
+            // loop {
+            //     info!("metadata sql: {sql}");
+            //     let res = self.taos.exec(&sql).await;
+            //     if let Err(err) = res {
+            //         tracing::error!("Query error with {sql}: {err:?}");
+            //         i += 1;
+            //         if i > max_retries {
+            //             break;
+            //         }
+            //     } else {
+            //         break;
+            //     }
+            // }
             drop(guard);
         }
         // let stmt = unsafe { &mut *self.stmt.get() };
