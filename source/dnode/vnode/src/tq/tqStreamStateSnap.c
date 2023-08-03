@@ -162,6 +162,9 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
   taosMemoryFree(pWriter);
   return code;
 }
+int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, char* path, int64_t chkpId) {
+  return streamStateRebuild(pWriter->pTq->pStreamMeta, path, chkpId);
+}
 
 int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;

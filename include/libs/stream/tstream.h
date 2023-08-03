@@ -369,7 +369,7 @@ typedef struct SStreamMeta {
 
   int32_t chkptNotReadyTasks;
 
-  int64_t checkpointId;
+  int64_t  checkpointId;
   SArray*  checkpointSaved;
   SArray*  checkpointInUse;
   int32_t  checkpointCap;
@@ -601,6 +601,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, int32_t childId);
 void         streamMetaInit();
 void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
+
 void         streamMetaClose(SStreamMeta* streamMeta);
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
@@ -609,6 +610,8 @@ int32_t      streamMetaGetNumOfTasks(const SStreamMeta* pMeta);  // todo remove 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+
+int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
