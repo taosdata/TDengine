@@ -524,7 +524,7 @@
                       size="medium" type="primary" plain 
                       :disable="btnLoading"
                       :loading="btnLoading"
-                      @click="getSchema">{{$t('datasource.getschema')}}</el-button>
+                      @click="() => getSchema(true)">{{$t('datasource.getschema')}}</el-button>
                   </div>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
@@ -785,7 +785,7 @@ export default {
     if (this.isEditable) {
       this.dbname = this.dbName;
       this.handleEditData()
-      this.getSchema()
+      this.getSchema(false)
     }
   },
   mounted() {
@@ -1307,7 +1307,7 @@ export default {
         });
       }
     },
-    getSchema() {
+    getSchema(isNeedTip) {
       this.btnLoading = true
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -1330,6 +1330,7 @@ export default {
               type: "warning",
               message: `${enterTip} ${data.options[key].display} `,
             });
+            this.btnLoading = false
             return;
           }
         }
@@ -1366,6 +1367,7 @@ export default {
             this.changeHost(data.options.host.value);
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
+              this.btnLoading = false
               return;
             }
           }
@@ -1374,6 +1376,7 @@ export default {
 
         if (data.options.port) {
           if (!this.isPort && this.tagName == "influxdb") {
+            this.btnLoading = false
             Message.warning(this.$t("datasource.porttip"));
             return;
           }
@@ -1496,20 +1499,24 @@ export default {
                   let bucketVal = this.dbsource[0].groups[0].params[0].value
                   this.changeBucket(bucketVal,'bucket')
                 }
-                Message({
-                  type: "success",
-                  message: this.$t('operateSucc'),
-                }); 
+                if (isNeedTip) {
+                  Message({
+                    type: "success",
+                    message: this.$t('operateSucc'),
+                  });
+                }
               }
               this.btnLoading = false
             })
             .catch((err) => {
               console.log('err',err);
               this.btnLoading = false
-              Message({
-                type: "error",
-                message: err,
-              });
+              if (isNeedTip) {
+                Message({
+                  type: "error",
+                  message: err,
+                });
+              }
             });
         }
       } catch (err) {

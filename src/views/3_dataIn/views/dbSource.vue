@@ -115,7 +115,7 @@ export default {
         //新增
 
         let data = this.sourceList.filter((item) => item.id === type);
-        if (type == "mqtt") {
+        if (type == "mqtt" || type == 'kafka') {
           this.uidata = this.deepClone(data);
           this.parserobj = deepClone(this.staticParser);
           this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
