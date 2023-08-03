@@ -53,7 +53,15 @@
       </ul>
       <ul v-for="(item, index) in csvColumns" :key="item">
         <li class="csv-content">
-          <div class="csv-col">{{ item }}</div>
+          <div class="csv-col">
+            <el-tooltip effect="light" placement="right-end" :content="item">
+              <span
+                style="width: 120px; overflow: hidden; text-overflow: ellipsis"
+                >{{ item }}</span
+              ></el-tooltip
+            >
+          </div>
+
           <CsvColumn
             :csvColName="item"
             :key="index"
@@ -106,6 +114,7 @@ export default {
   filter: {},
   data() {
     return {
+      // language:window.navigator.language,
       showConfig: false,
       csvParserConf: {},
       uploadData: {
@@ -232,7 +241,11 @@ export default {
 
     async getCsvColumnsData() {
       try {
-        if (this.fileList.length == 0) {
+        if (this.activeName == "first" && this.fileList.length == 0) {
+          Message.error(this.$t("datasource.uploadcsvtip"));
+          return;
+        }
+        if (this.activeName == "second" && !this.fileurl) {
           Message.error(this.$t("datasource.uploadcsvtip"));
           return;
         }
@@ -244,6 +257,12 @@ export default {
         ) {
           return;
         }
+        if (this.isEditable) {
+          this.$parent.$parent.isEditable = false;
+          // this.isEditable=false
+          console.log(this.$parent, "编辑状态");
+        }
+        console.log("请求接口获取csv列", this.activeName);
         await this.getDBColumns();
         this.csvColumns = [];
         this.dbOptions = [];
@@ -270,8 +289,9 @@ export default {
             "csv",
             this.$refs.param.ruleForm.hasHeader
           );
+          this.csvColumns = result.file_header.column_names;
         }
-        if (result&&result.message) {
+        if (result && result.message) {
           Message.error(result.message);
           return;
         }
@@ -336,9 +356,9 @@ export default {
     margin-bottom: 18px;
     align-items: center;
     .label {
-      padding-right: 35px;
+      padding-right: 40px;
       color: #4d6992;
-      width: 125px;
+      width: 225px;
       font-weight: 500;
       font-size: 16px;
       text-align: right;
@@ -349,7 +369,7 @@ export default {
           color: red;
           font-size: 16px;
           line-height: 25px;
-          right: 100px;
+          right: 110px;
           position: absolute;
         }
       }
@@ -359,8 +379,8 @@ export default {
     }
   }
   .nextbtn {
-    width: 370px;
-    margin-left: 130px;
+    width: 573px;
+    margin-left: 230px;
   }
   .csv-config {
     margin-top: 30px;
@@ -390,6 +410,7 @@ export default {
         justify-content: center;
         &:first-child {
           border-top: 1px solid #ebeef5;
+          padding-left: 10px;
         }
       }
     }

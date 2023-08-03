@@ -3,7 +3,7 @@
     <el-form
       :model="ruleForm"
       ref="ruleForm"
-      label-width="100px"
+      label-width="200px"
       :rules="rules"
     >
       <el-form-item :label="$t('datasource.includeheader')" prop="hasHeader">
@@ -161,7 +161,6 @@ export default {
 </script>
 <style lang="scss" scoped>
 .csv-parameter {
-  width: 500px;
   ::v-deep {
     .el-form-item__label {
       margin-right: 20px;
