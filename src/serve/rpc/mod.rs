@@ -310,7 +310,7 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        dbg!(&activity);
+                                        // dbg!(&activity);
                                         let _ =
                                             controller_runner.push_agent_activity(&activity).await;
                                         info!(?activity, "agent activity");
@@ -323,7 +323,7 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        dbg!(&activity);
+                                        // dbg!(&activity);
                                         let _ =
                                             controller_runner.push_task_activity(&activity).await;
                                         info!(?activity, "task activity");
@@ -393,7 +393,7 @@ impl FlightService for FlightServiceImpl {
                 agent_id,
                 Utc::now(),
                 LevelFilter::Warn,
-                "disconnected",
+                "Disconnected",
                 "pending",
                 context,
             );

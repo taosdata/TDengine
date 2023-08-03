@@ -487,7 +487,7 @@ impl TaskController {
             if let Some(h) = self.tasks.read().await.get(&id) {
                 if !h.0.is_finished() {
                     log::info!("try start task {id} but it is running");
-                    let context = format!("try start task {id} but it is running");
+                    let context = format!("Trying to start task {id} but it is running");
                     let activity = Activity::new(
                         id,
                         now,
@@ -547,7 +547,7 @@ impl TaskController {
             id,
             now,
             LevelFilter::Info,
-            "start",
+            "Spawn task worker",
             "ok",
             serde_json::to_value(task).unwrap(),
         );
@@ -649,10 +649,10 @@ impl TaskController {
                     let activity;
                     if let Some((id, sender, _)) = agent_task_worker.as_ref() {
                         let _ = sender.send(AgentAction::Cancel(*id));
-                        activity = "send cancel signal to agent".to_string();
+                        activity = "Send cancel signal to agent".to_string();
                     } else {
                         opts.cancel();
-                        activity = "cancel task".to_string();
+                        activity = "Cancel task".to_string();
                     }
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
@@ -719,7 +719,7 @@ impl TaskController {
                                     id,
                                     at: now,
                                     level: LevelFilter::Info,
-                                    activity: "resume".to_string(),
+                                    activity: "Resume task".to_string(),
                                     status: "ok".to_string(),
                                     context: None,
                                 };
@@ -730,7 +730,7 @@ impl TaskController {
                                     id,
                                     at: now,
                                     level: LevelFilter::Info,
-                                    activity: "start worker".to_string(),
+                                    activity: "Start worker".to_string(),
                                     status: "ok".to_string(),
                                     context: None,
                                 };
@@ -738,7 +738,9 @@ impl TaskController {
 
                                 log::info!("start task {id}");
                             }
+                            let instant = std::time::Instant::now();
                             let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
+                            let timing = instant.elapsed();
                             match result {
                                 Ok(_) => {
                                     let now = Utc::now();
@@ -755,7 +757,7 @@ impl TaskController {
                                         id,
                                         at: now,
                                         level: LevelFilter::Info,
-                                        activity: "completed".to_string(),
+                                        activity: format!("Task is completed in {timing:?}"),
                                         status: "completed".to_string(),
                                         context: None,
                                     };
@@ -783,7 +785,7 @@ impl TaskController {
                                             .execute(&pool)
                                             .await?;
 
-                                            let activity = Activity::new(id,now, LevelFilter::Error, "authentication failure".to_string(), "failed".to_string(),json!({"message": err}));
+                                            let activity = Activity::new(id,now, LevelFilter::Error, "Authentication failure".to_string(), "failed".to_string(),json!({"message": err}));
                                             push_task_activity(&pool, &activity).await?;
 
                                             break;
@@ -808,7 +810,7 @@ impl TaskController {
                                                 "message": err,
                                             });
 
-                                            let activity = Activity::new(id, now, LevelFilter::Warn, "resume", "interrupted",serde_json::to_value(&context).unwrap());
+                                            let activity = Activity::new(id, now, LevelFilter::Warn, "Resume task", "interrupted",serde_json::to_value(&context).unwrap());
                                             push_task_activity(&pool, &activity).await?;
                                         }
                                         _ => {
@@ -829,7 +831,7 @@ impl TaskController {
                                                 "code": 0xFFFFi32,
                                                 "message": err,
                                             });
-                                            let activity = Activity::new(id, now, LevelFilter::Error, format!("failed with: {err:#}"), "failed", serde_json::to_value(&context).unwrap());
+                                            let activity = Activity::new(id, now, LevelFilter::Error, format!("Failed with: {err:#}"), "failed", serde_json::to_value(&context).unwrap());
                                             push_task_activity(&pool, &activity).await?;
                                             break;
                                         }
@@ -858,15 +860,15 @@ impl TaskController {
                         )
                         .execute(&pool)
                         .await?;
-                        let result = if let Some((id, sender, agent_id)) = &agent_task_worker {
-
+                        if let Some((id, sender, agent_id)) = &agent_task_worker {
                             let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
                             let _ = dbg!(send);
                             cloned_token2.cancelled().await;
-                            Ok(())
                         } else {
-                            opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await
-                        };
+                            let instant = std::time::Instant::now();
+                            let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
+                            let timing = instant.elapsed();
+
                         match result {
                             Ok(_) => {
                                 let now = Utc::now();
@@ -882,12 +884,12 @@ impl TaskController {
                                 .await?;
 
                                 let activity = Activity::new::<String>(
-                                    id, now, LevelFilter::Info, "complete".to_string(), "completed".to_string(), None
+                                    id, now, LevelFilter::Info, format!("Task {id} is completed in {timing:?}"), "completed".to_string(), None
                                 );
                                 push_task_activity(&pool, &activity).await?;
                             }
                             Err(err) => {
-                                log::error!("run task {id} failed: {err}");
+                                tracing::error!("run task {id} failed: {err:#}");
                                 let err = err.to_string();
                                 let now = Utc::now();
                                 let status = Status::Failed;
@@ -904,10 +906,10 @@ impl TaskController {
                                     "code": 0xFFFFi32,
                                     "message": err,
                                 });
-                                let activity = Activity::new::<String>(id, now, LevelFilter::Warn, "failed", "failed", serde_json::to_string(&context).unwrap());
+                                let activity = Activity::new::<String>(id, now, LevelFilter::Warn, format!("Task {id} failed with: {err:#}"), "failed", serde_json::to_string(&context).unwrap());
                                 push_task_activity(&pool, &activity).await?;
                             }
-                        }
+                        }};
                     }
                     return Ok::<(), anyhow::Error>(())
                 } => {
@@ -1568,7 +1570,7 @@ impl TaskController {
             id,
             Utc::now(),
             LevelFilter::Info,
-            "created",
+            format!("Agent {} is created successfully", agent.name),
             "created",
             None,
         );
@@ -1636,13 +1638,14 @@ impl TaskController {
     ) -> anyhow::Result<Agent> {
         let agent = self.get_agent_with_token(token).await?;
         if let Some(agent) = agent {
+            let client = client.map(ToString::to_string).unwrap_or_default();
             let activity = Activity::new(
                 agent.id,
                 Utc::now(),
                 LevelFilter::Info,
-                "connected",
+                "Agent is connected with client addr {client}",
                 "idle",
-                json!({"client": client.map(ToString::to_string).unwrap_or_default()}),
+                json!({ "client": client }),
             );
             push_agent_activity(&self.pool, &activity).await?;
             Ok(agent)
