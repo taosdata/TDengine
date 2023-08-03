@@ -10,7 +10,7 @@ description: This document describes the supported platforms for the TDengine se
 | X64          | ●/E                          | ●/E               | ●                | ●                | ●         |
 | ARM64        |                              |                   | ●                |                  | ●         |
 
-Note: 1) ● means officially tested and verified, ○ means unofficially tested and verified, E means only supported by enterprise edition. 2) The community edition only supports newer versions of mainstream operating systems, including Ubuntu 18+/CentOS 7+/RetHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS, etc. If you have requirements for other operating systems and editions, please contact support of the enterprise edition.
+Note: 1) ● means officially tested and verified, ○ means unofficially tested and verified, E means only supported by the enterprise edition. 2) The community edition only supports newer versions of mainstream operating systems, including Ubuntu 18+/CentOS 7+/RetHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS, etc. If you have requirements for other operating systems and editions, please contact support of the enterprise edition.
 
 ## List of supported platforms for TDengine clients and connectors
 
