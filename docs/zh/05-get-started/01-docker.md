@@ -122,4 +122,4 @@ SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(
 
 ## 其它
 
-更多关于在 Docker 环境下使用 TDengine 的细节，请参考 [在 Docker 下使用 TDengine](../../reference/docker)。
+更多关于在 Docker 环境下使用 TDengine 的细节，请参考 [用 Docker 部署 TDengine](../../deployment/docker)。
