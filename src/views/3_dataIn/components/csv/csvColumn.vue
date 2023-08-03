@@ -32,7 +32,7 @@
           :value="item.field"
           :disabled="item.disabled"
         >
-          <span >{{ item.field }}</span>
+          <span>{{ item.field }}</span>
           <span
             v-if="item.newByInpt"
             class="el-icon-close"
@@ -96,10 +96,7 @@
             .toUpperCase()
             .includes('TIMESTAMP') || isEditable
         "
-        :value="
-          colData.parser.parse[csvColName].alias ==
-          colData.parser.model.columns[0]
-        "
+        :value="primaryCheckedVal"
         @change="changePrimary(colData.parser.parse[csvColName].alias)"
         >&nbsp;</el-checkbox
       >
@@ -186,8 +183,6 @@ export default {
         (item) => item.value !== "NCHAR" && item.value != "VARCHAR"
       ),
       constcols: ["ts", "topic", "qos"],
-
-      
     };
   },
   computed: {
@@ -203,6 +198,10 @@ export default {
       }
       return false;
     },
+    primaryCheckedVal() {
+      return this.colData.parser.parse[this.csvColName].alias ==
+          this.colData.parser.model.columns[0]
+    }
   },
   methods: {
     handleClearItem(val) {
@@ -217,27 +216,40 @@ export default {
     handleClear(index) {
       this.$emit("handleClear", index);
     },
+    setPrimayColumnCheck(val) {
+      // if(val==this.colData[])
+    },
     //获取上次store中parser的值,并重新生成新的parser
-    getPreveiousParser(val, type, key) {
+    getPreveiousParser(val, type, key, needSkipColumnChecked) {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
       let tags = oldparser.model?.tags;
       if (key == "primary") {
+        this.columnChecked = false;
         if (tags.includes(val)) {
           tags.splice(columns.indexOf(val), 1);
         }
+
         if (columns.includes(val)) {
-          this.columnChecked = false;
-          if (columns[0] !== undefined) {
-            columns.splice(columns.indexOf(val), 1, undefined);
-          }else{
-            columns.splice(0,1);
-            this.columnChecked = true;
+          if (columns[0] == val) {
+            columns.splice(0, 1);
+            columns.unshift(undefined);
+          } else {
+            this.columnChecked = false;
+            columns.splice(columns.indexOf(val), 1);
+
+            columns.unshift(val);
+            this.columnChecked = false;
           }
         } else {
-          columns=columns.filter(item=>item!=undefined)
+          this.columnChecked = false;
+          columns = columns.filter((item) => item != undefined);
+          columns.splice(0, 1);
           columns.unshift(val);
-          oldparser.model.columns=columns
+          oldparser.model.columns = columns;
+          if (columns[0] == val && !needSkipColumnChecked) {
+            this.columnChecked = true;
+          }
         }
       }
 
@@ -265,9 +277,6 @@ export default {
             ) {
               columns.unshift(val);
             } else {
-              // if(this.colData.parser.parse[this.csvColName].as.toUpperCase().includes('TIMESTAMP')){
-              //   columns.unshift('undefined')
-              // }
               if (columns.length == 0) {
                 columns.unshift(undefined);
               }
@@ -369,6 +378,11 @@ export default {
         // }
       },
     },
+    primaryCheckedVal(val) {
+      if (!val) {
+        this.columnChecked = false;
+      }
+    }
   },
 };
 </script>

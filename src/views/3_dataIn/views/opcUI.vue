@@ -1488,7 +1488,6 @@ export default {
             Message.error(this.$t('datasource.csvwholeinfo'));
             return;
           }
-
           piParams["from"] =
             `csv:` +
             this.$refs.csvdata.fileList.map((item, index) => {
@@ -1496,7 +1495,7 @@ export default {
             }) +
             dns.substring(3) +
             `&has_header=` +
-            this.$refs.csvdata.$refs.param.ruleForm.hasHeader;
+            this.$refs.csvdata.$refs.param.ruleForm.hasHeader+(!this.$refs.csvdata.$refs.param.ruleForm.hasHeader?`&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`:'');
         }
 
         if (this.isEditable) {
