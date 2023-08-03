@@ -464,16 +464,16 @@ async fn sync_single_table_partial(
         .context(format!("query with {sql}"))?;
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();
-    // TODO RENAME TABLE HERE
     let new_table_name = transform_tbname_with_actions(table, actions, false)?;
     if target_is_v3 && !target_opts.force_stmt {
         while let Some(mut block) = blocks.try_next().await? {
             block.with_table_name(&new_table_name);
-;
+
             loop {
                 let ok = to.write_raw_block(&block).await;
                 if let Err(err) = ok {
                     let err_str = err.to_string();
+                    log::debug!("sync_single_table_partial write raw block error: {err:#}", );
                     if err_str.contains("0x2603") {
                         if let Some(stable) = stable {
                             sync_super_table_schema_with_subs_without_pool(
@@ -484,6 +484,7 @@ async fn sync_single_table_partial(
                                 1,
                                 &target_opts,
                                 true,
+                                actions,
                                 0,
                                 &metrics,
                             )
@@ -534,7 +535,7 @@ async fn sync_single_table_partial(
                             )
                         })?;
                     } else {
-                        Err(err).with_context(|| {
+                        return Err(err).with_context(|| {
                             format!(
                                 "[{}:{}]write raw block of table {table} ({} rows): {}",
                                 std::file!(),
@@ -715,6 +716,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
     tables: usize,
     target_opts: &TargetOpts,
     is_v3: bool,
+    actions: &Vec<Action>,
     _concurrency: usize,
     metrics: &LegacyMetrics,
 ) -> anyhow::Result<()> {
@@ -810,12 +812,12 @@ async fn sync_super_table_schema_with_subs_without_pool(
     let mut sql = format!("CREATE TABLE");
     for (child, row) in non_exists {
         let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        // TODO RENAME TABLE HERE
         let e = format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
         batch += 1;
         tables += 1;
 
         if sql.len() + e.len() > max_sql_length {
+            sql = transform_sql_with_actions(sql, &child, actions, false)?;
             to.exec(&sql).await?;
 
             if let Some(duration) = target_opts.interval {
@@ -862,7 +864,7 @@ async fn sync_super_table_schema_with_subs(
         .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    let sql = sql
+    let mut sql = sql
         .replace("VARCHAR", "BINARY")
         .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
@@ -870,6 +872,8 @@ async fn sync_super_table_schema_with_subs(
         .replace("create stable", "CREATE TABLE IF NOT EXISTS");
 
     loop {
+        sql = transform_sql_with_actions(sql, name, actions, true)?;
+        log::debug!("sync schema sql: {sql}");
         if let Err(err) = to.exec(&sql).await {
             let errstr = err.to_string();
             if errstr.contains("0x000B") {
@@ -962,14 +966,13 @@ async fn sync_super_table_schema_with_subs(
     let mut batch = 0;
     let mut sql = format!("CREATE TABLE");
     for (child, row) in non_exists {
+        let new_table_name = transform_tbname_with_actions(&child, actions, false)?;
         let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        // TODO RENAME TABLE
-        let e = format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
+        let e = format!("  IF NOT EXISTS `{new_table_name}` USING `{name}` TAGS({tags})");
         batch += 1;
         tables += 1;
 
         if sql.len() + e.len() > max_sql_length {
-            sql = transform_sql_with_actions(sql, name, actions, false)?;
             to.exec(&sql).await?;
 
             if let Some(duration) = target_opts.interval {
@@ -984,7 +987,6 @@ async fn sync_super_table_schema_with_subs(
     }
     if tables > 0 {
         log::debug!("Create child tables with sql length {}", sql.len());
-        sql = transform_sql_with_actions(sql, name, actions, false)?;
         to.exec(&sql).await?;
         log::info!("Created {} tables in stable {} in this chunk", tables, name);
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
@@ -1012,20 +1014,20 @@ fn transform_sql_with_actions(mut sql: String, table_name: &str, actions: &Vec<A
                     sql.push_str(&format!(", `{}` VARCHAR({}))", action.name, len));
                 }
                 Action::RenameTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name));
+                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
                     sql.clear();
                     sql.extend(new.chars());
                 }
                 Action::RenameSuperTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name));
+                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
                     sql.clear();
                     sql.extend(new.chars());
                 }
-                Action::RenameReplaceWithRegex(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name));
-                    sql.clear();
-                    sql.extend(new.chars());
-                }
+                // Action::RenameReplaceWithRegex(action) => {
+                //     let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
+                //     sql.clear();
+                //     sql.extend(new.chars());
+                // }
                 _ => (),
             }
         }
@@ -1036,20 +1038,20 @@ fn transform_sql_with_actions(mut sql: String, table_name: &str, actions: &Vec<A
                     bail!("unsupported transform action: {:?}", action)
                 }
                 Action::RenameTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name));
+                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
                     sql.clear();
                     sql.extend(new.chars());
                 }
                 Action::RenameChildTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name));
+                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
                     sql.clear();
                     sql.extend(new.chars());
                 }
-                Action::RenameReplaceWithRegex(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name));
-                    sql.clear();
-                    sql.extend(new.chars());
-                }
+                // Action::RenameReplaceWithRegex(action) => {
+                //     let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
+                //     sql.clear();
+                //     sql.extend(new.chars());
+                // }
                 _ => (),
             }
         }
@@ -1065,14 +1067,14 @@ fn transform_tbname_with_actions(table_name: &str, actions: &Vec<Action>, is_sta
         for action in actions {
             match action {
                 Action::RenameTable(action) => {
-                    new_table_name = action.apply(&new_table_name);
+                    new_table_name = action.apply(&new_table_name)?;
                 }
                 Action::RenameSuperTable(action) => {
-                    new_table_name = action.apply(&new_table_name);
+                    new_table_name = action.apply(&new_table_name)?;
                 }
-                Action::RenameReplaceWithRegex(action) => {
-                    new_table_name = action.apply(&new_table_name);
-                }
+                // Action::RenameReplaceWithRegex(action) => {
+                //     new_table_name = action.apply(&new_table_name)?;
+                // }
                 _ => (),
             }
         }
@@ -1080,11 +1082,11 @@ fn transform_tbname_with_actions(table_name: &str, actions: &Vec<Action>, is_sta
         for action in actions {
             match action {
                 Action::RenameTable(action) => {
-                    new_table_name = action.apply(&new_table_name);
+                    new_table_name = action.apply(&new_table_name)?;
                 }
-                Action::RenameReplaceWithRegex(action) => {
-                    new_table_name = action.apply(&new_table_name);
-                }
+                // Action::RenameReplaceWithRegex(action) => {
+                //     new_table_name = action.apply(&new_table_name)?;
+                // }
                 _ => (),
             }
         }

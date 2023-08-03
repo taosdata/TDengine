@@ -52,6 +52,7 @@ pub(super) struct Cli {
     /// - 'rename-super-table:suffix:_stb': rename all super tables as suffixed '_stb'
     ///
     /// - 'rename-child-table:template:prefix_{{ name }}_stb': rename all super tables with prefix 'prefix_' and suffix '_stb'
+    /// 
     /// - 'rename-replace-with-regex:replace_with_regex:prefix(?<old>)::newprefix_$old': replace all tables prefix with new prefix
     #[clap(short = 'T', long)]
     transform: Vec<Action>,
