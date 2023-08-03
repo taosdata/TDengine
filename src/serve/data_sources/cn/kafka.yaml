@@ -80,6 +80,10 @@ groups:
         required: false
         hint:
           type: str
+          choices:
+          - Earliest
+          - Latest
+          - ByTime
       - name: offset_storage
         display: Offset Storage
         description: >
@@ -90,6 +94,37 @@ groups:
 
           默认是 "Kafka"。
         placeholder: Kafka
+        value: Kafka
         required: false
         hint:
           type: str
+          choices:
+          - Zookeeper
+          - Kafka
+
+parser:
+  display: Payload 解析
+  description: |
+    Kafka 连接器会上传以下四列到服务端：<br>
+
+    - **ts**: 采集时间戳。<br>
+    - **topic**: 订阅主题名。<br>
+    - **partition**: 当前消息所在的分区 ID。<br>
+    - **offset**: 当前消息的偏移量。<br>
+    - **payload**: 采集数据。<br>
+
+    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>
+    包括，指定表名称和超级表名，设置普通列会标签列等。
+  fields:
+    - name: ts
+      description: 时间戳。
+    - name: topic
+      description: 主题名。
+    - name: partition
+      description: 分区 ID。
+    - name: offset
+      description: 偏移。
+    - name: payload
+      description: 消息体。
+  required: true
+

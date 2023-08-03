@@ -82,6 +82,10 @@ groups:
         required: false
         hint:
           type: str
+          choices:
+          - Earliest
+          - Latest
+          - ByTime
         value: Earliest
       - name: offset_storage
         display: Offset Storage
@@ -93,6 +97,38 @@ groups:
 
           default is Kafka.
         placeholder: Kafka
+        value: Kafka
         required: false
         hint:
           type: str
+          choices:
+          - Zookeeper
+          - Kafka
+
+parser:
+  display: Kafka Message Parser
+  description: |
+    Kafka will report exactly five fields of data for each data stream:<br>
+
+    - **ts**: the collect timestamp.<br>
+    - **topic**: the topic name to subscribe.<br>
+    - **partition**: the topic partition.<br>
+    - **offset**: the message offset in the topic.<br>
+    - **payload**: the data payload of the message.<br>
+
+    taosX could parse the payload with JSON extractor and let users to specify the<br>
+    data model in the database, for example, the table name pattern and stable name<br>
+    pattern, field names as tags or field names as columns.
+  fields:
+    - name: ts
+      description: Timestamp.
+    - name: topic
+      description: Topic name.
+    - name: partition
+      description: Topic partition.
+    - name: offset
+      description: Message offset.
+    - name: payload
+      description: Payload
+  required: true
+
