@@ -1431,4 +1431,4 @@ ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 **Applicable table types**: standard tables and supertables
 
 **Explanations**：
-- There is no point of B lies in the the boundary or exterior of A.
+- There is no point of B that lies on the boundary of A or in the exterior of A.
