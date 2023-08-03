@@ -161,12 +161,12 @@ export default {
       columnChecked: false,
       tagChecked: false,
       tagDisable: false,
-      nonEditableCols: ["ts", "qos", "topic"],
+      nonEditableCols: ["ts", "qos", "topic", "partition", "offset", "key", "value"],
       num: 1,
       mqttTypes: [...dataType, ...timestamps].filter(
         (item) => item.value !== "NCHAR" && item.value != "VARCHAR"
       ),
-      constcols: ["ts", "topic", "qos"],
+      constcols: ["ts", "topic", "qos", "partition", "offset", "key", "value"],
 
       params: {
         name: "",

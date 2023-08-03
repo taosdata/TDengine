@@ -655,7 +655,7 @@
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
-      <section v-if="tagName == 'mqtt'" class="mqtt-config">
+      <section v-if="tagName == 'mqtt' || tagName == 'kafka'" class="mqtt-config">
         <div class="header">
           <div class="block-title">
             <span>{{ dbsource[0].parser?.display }}</span>
@@ -867,7 +867,7 @@ export default {
     }
   },
   mounted() {
-    if (this.tagName == "mqtt") {
+    if (this.tagName == "mqtt" || this.tagName == 'kafka') {
       this.constmqttCols = this.dbsource[0].parser.fields;
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
@@ -1168,7 +1168,7 @@ export default {
                     return;
                   }
                 }
-                if (data.groups[index].params[g].name == "topics") {
+                if (data.groups[index].params[g].name == "topics" && this.tagName == 'mqtt') {
                   Message({
                     type: "warning",
                     message:
@@ -1367,7 +1367,7 @@ export default {
           });
           return;
         }
-        if (this.tagName == "mqtt") {
+        if (this.tagName == "mqtt" || this.tagName == 'kafka') {
           if (this.$refs.mqtt) {
             this.$refs.mqtt.submit();
             if (this.$refs.mqtt.showSuperTip) {
@@ -1452,6 +1452,8 @@ export default {
               ? "mqtt"
               : this.tagName == "csv"
               ? "csv"
+              : this.tagName == "kafka"
+              ? "kafka"
               : "opc" + this.protocol) + dns,
           name: this.sourceName,
           to:
@@ -1464,7 +1466,7 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        if (this.tagName == "mqtt") {
+        if (this.tagName == "mqtt" || this.tagName == 'kafka') {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
         if (this.$parent.agentID) {
