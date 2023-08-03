@@ -18,8 +18,8 @@ docker run -d --name tdengine \
 ```
 :::note
 
-* /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. you can modify ~/data/taos/dnode/data to your own data directory
-* /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. you can modify ~/data/taos/dnode/log to your own log directory
+* /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. And also you can modify ~/data/taos/dnode/data to your any other local emtpy data directory
+* /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. And also you can modify ~/data/taos/dnode/log to your any other local empty log directory
 
   :::
 
