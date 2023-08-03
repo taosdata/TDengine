@@ -196,7 +196,7 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
               ", no more log to return, reqId:0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId);
-      *fetchOffset = offset - 1;
+      *fetchOffset = offset;
       code = -1;
       goto END;
     }
@@ -302,13 +302,17 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
   return 0;
 }
 
-int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
+int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, const char* id) {
   int32_t code = walNextValidMsg(pReader);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   int64_t ver = pReader->pHead->head.version;
+  if (ver > maxVer) {
+    tqDebug("maxVer in WAL:%"PRId64" reached current:%"PRId64", do not scan wal anymore, %s", maxVer, ver, id);
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (pReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
     void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SSubmitReq2Msg));
@@ -336,6 +340,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
     int32_t len = pReader->pHead->head.bodyLen - sizeof(SMsgHead);
 
     extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+    tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
   } else {
     ASSERT(0);
   }

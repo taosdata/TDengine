@@ -256,12 +256,12 @@ class ClusterComCheck:
                 if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
                     if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
                         ready_time= (count + 1)
-                        tdLog.success(f"elections of {db_name} all vgroups are ready in {ready_time} s")
+                        tdLog.success(f"elections of {db_name}.vgroups are ready in {ready_time} s")
                         return True
                 count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.notice(f"elections of {db_name} all vgroups are failed in{count}s ")
+            tdLog.notice(f"elections of {db_name} all vgroups are failed in{count} s ")
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno)
             tdLog.exit("%s(%d) failed " % args)

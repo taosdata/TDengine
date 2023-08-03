@@ -112,7 +112,10 @@ static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t 
   p += titoa(TD_VID(pTsdb->pVnode), 10, p);
   *(p++) = 'f';
 
-  p += titoa(fid, 10, p);
+  if (fid < 0) {
+    *(p++) = '-';
+  }
+  p += titoa((fid < 0) ? -fid : fid, 10, p);
 
   memcpy(p, "ver", 3);
   p += 3;

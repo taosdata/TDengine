@@ -398,7 +398,7 @@ def finish(buf: bytes) -> output_type:
 3. 定义一个标量函数，输入一个时间戳，输出距离这个时间最近的下一个周日。完成这个函数要用到第三方库 moment。我们在这个示例中讲解使用第三方库的注意事项。
 4. 定义一个聚合函数，计算某一列最大值和最小值的差,  也就是实现 TDengien 内置的 spread 函数。
 同时也包含大量实用的 debug 技巧。
-本文假设你用的是 Linux 系统，且已安装好了 TDengine 3.0.4.0+ 和 Python 3.x。
+本文假设你用的是 Linux 系统，且已安装好了 TDengine 3.0.4.0+ 和 Python 3.7+。
 
 注意：**UDF 内无法通过 print 函数输出日志，需要自己写文件或用 python 内置的 logging 库写文件**。
 

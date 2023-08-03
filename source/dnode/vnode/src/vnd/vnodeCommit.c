@@ -16,6 +16,13 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 
+extern int32_t tsdbPreCommit(STsdb *pTsdb);
+extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
+extern int32_t tsdbCommitCommit(STsdb *pTsdb);
+extern int32_t tsdbCommitAbort(STsdb *pTsdb);
+
+#define VND_INFO_FNAME_TMP "vnode_tmp.json"
+
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int vnodeCommitImpl(SCommitInfo *pInfo);
 
@@ -298,7 +305,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tsdbPrepareCommit(pVnode->pTsdb);
+  tsdbPreCommit(pVnode->pTsdb);
 
   metaPrepareAsyncCommit(pVnode->pMeta);
 
@@ -432,8 +439,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
-  // commit each sub-system
-  code = tsdbCommit(pVnode->pTsdb, pInfo);
+  code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
@@ -457,7 +463,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbFinishCommit(pVnode->pTsdb);
+  code = tsdbCommitCommit(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_IS_RSMA(pVnode)) {

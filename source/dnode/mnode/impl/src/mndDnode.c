@@ -41,6 +41,7 @@ static const char *offlineReason[] = {
     "timezone not match",
     "locale not match",
     "charset not match",
+    "ttl change on write not match"
     "unknown",
 };
 
@@ -414,6 +415,12 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
+  if (pCfg->ttlChangeOnWrite != tsTtlChangeOnWrite) {
+    mError("dnode:%d, ttlChangeOnWrite:%d inconsistent with cluster:%d", pDnode->id, pCfg->ttlChangeOnWrite,
+           tsTtlChangeOnWrite);
+    return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
+  }
+
   return 0;
 }
 
@@ -525,13 +532,23 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
-    if (pObj->syncState != statusReq.mload.syncState || pObj->syncRestore != statusReq.mload.syncRestore) {
-      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d", pObj->id, syncStr(pObj->syncState),
-            syncStr(statusReq.mload.syncState), pObj->syncRestore, statusReq.mload.syncRestore);
+    bool roleChanged = pObj->syncState != statusReq.mload.syncState ||
+                       (statusReq.mload.syncTerm != -1 && pObj->syncTerm != statusReq.mload.syncTerm);
+    bool restoreChanged = pObj->syncRestore != statusReq.mload.syncRestore;
+    if (roleChanged || restoreChanged) {
+      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64
+            " to %" PRId64,
+            pObj->id, syncStr(pObj->syncState), syncStr(statusReq.mload.syncState), pObj->syncRestore,
+            statusReq.mload.syncRestore, pObj->syncTerm, statusReq.mload.syncTerm);
       pObj->syncState = statusReq.mload.syncState;
       pObj->syncRestore = statusReq.mload.syncRestore;
-      pObj->stateStartTime = taosGetTimestampMs();
+      pObj->syncTerm = statusReq.mload.syncTerm;
     }
+
+    if (roleChanged) {
+      pObj->roleTimeMs = (statusReq.mload.roleTimeMs != 0) ? statusReq.mload.roleTimeMs : taosGetTimestampMs();
+    }
+
     mndReleaseMnode(pMnode, pObj);
   }
 
@@ -656,6 +673,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   STrans    *pTrans = NULL;
   SDnodeObj *pDnode = NULL;
   bool       cfgAll = pCfgReq->dnodeId == -1;
+  int32_t    iter = 0;
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -663,7 +681,8 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     if (cfgAll) {
       pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
       if (pIter == NULL) break;
-    } else if(!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
+      ++iter;
+    } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
       goto _OVER;
     }
 
@@ -700,7 +719,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   }
 
   if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
+  tsGrantHBInterval = TMIN(TMAX(5, iter / 2), 30);
   terrno = 0;
 
 _OVER:
@@ -709,6 +728,7 @@ _OVER:
   } else {
     mndReleaseDnode(pMnode, pDnode);
   }
+  sdbCancelFetch(pSdb, pIter);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return terrno;
@@ -786,18 +806,22 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   strcpy(info.name, "statusInterval");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  strcpy(info.scope, "server");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "timezone");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "locale");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "charset");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
@@ -860,7 +884,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
+  tsGrantHBInterval = 5;
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());

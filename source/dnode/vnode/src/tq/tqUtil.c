@@ -20,21 +20,6 @@
 static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                  const SMqMetaRsp* pRsp, int32_t vgId);
 
-int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem) {
-  int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
-  if (code < 0) {
-    tqError("s-task:%s failed to put into queue, too many", pTask->id.idStr);
-    return -1;
-  }
-
-  if (streamSchedExec(pTask) < 0) {
-    tqError("stream task:%d failed to be launched, code:%s", pTask->id.taskId, tstrerror(terrno));
-    return -1;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq) {
   pRsp->reqOffset = pReq->reqOffset;
 
@@ -113,14 +98,14 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         }
       } else {
         walRefFirstVer(pTq->pVnode->pWal, pHandle->pRef);
-        tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer - 1);
+        tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer);
       }
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       walRefLastVer(pTq->pVnode->pWal, pHandle->pRef);
       SMqDataRsp dataRsp = {0};
       tqInitDataRsp(&dataRsp, pRequest);
 
-      tqOffsetResetToLog(&dataRsp.rspOffset, pHandle->pRef->refVer);
+      tqOffsetResetToLog(&dataRsp.rspOffset, pHandle->pRef->refVer + 1);
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, (latest) offset reset to %" PRId64, consumerId,
               pHandle->subKey, vgId, dataRsp.rspOffset.version);
       int32_t code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
@@ -140,18 +125,24 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
+static void setRequestVersion(STqOffsetVal* offset, int64_t ver){
+  if(offset->type == TMQ_OFFSET__LOG){
+    offset->version = ver + 1;
+  }
+}
+
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
   uint64_t consumerId = pRequest->consumerId;
   int32_t  vgId = TD_VID(pTq->pVnode);
-  int      code = 0;
   terrno        = 0;
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest);
+  dataRsp.reqOffset.type = pOffset->type; // stroe origin type for getting offset in tmq_get_vgroup_offset
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
-  code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
+  int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
   if (code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     goto end;
   }
@@ -166,11 +157,11 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
       goto end;
-    } else {
-      taosWUnLockLatch(&pTq->lock);
     }
+    taosWUnLockLatch(&pTq->lock);
   }
 
+  setRequestVersion(&dataRsp.reqOffset, pOffset->version);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
 
 end : {
@@ -192,6 +183,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   SMqMetaRsp  metaRsp = {0};
   STaosxRsp   taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, pRequest);
+  taosxRsp.reqOffset.type = offset->type;   // store origin type for getting offset in tmq_get_vgroup_offset
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
@@ -223,7 +215,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
   if (offset->type == TMQ_OFFSET__LOG) {
     walReaderVerifyOffset(pHandle->pWalReader, offset);
-    int64_t fetchVer = offset->version + 1;
+    int64_t fetchVer = offset->version;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -244,6 +236,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
+        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       }
@@ -255,13 +248,14 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       // process meta
       if (pHead->msgType != TDMT_VND_SUBMIT) {
         if (totalRows > 0) {
-          tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer - 1);
+          tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
+          setRequestVersion(&taosxRsp.reqOffset, offset->version);
           code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
           goto end;
         }
 
         tqDebug("fetch meta msg, ver:%" PRId64 ", type:%s", pHead->version, TMSG_INFO(pHead->msgType));
-        tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer);
+        tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer + 1);
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;
         metaRsp.metaRsp = pHead->body;
@@ -284,7 +278,8 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       }
 
       if (totalRows >= 4096 || taosxRsp.createTableNum > 0) {
-        tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
+        tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
+        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       } else {
@@ -318,9 +313,12 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
     if (blockReturned) {
       return 0;
     }
-  } else {  // use the consumer specified offset
+  } else if(reqOffset.type != 0){  // use the consumer specified offset
     // the offset value can not be monotonious increase??
     offset = reqOffset;
+  } else {
+    uError("req offset type is 0");
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   // this is a normal subscribe requirement

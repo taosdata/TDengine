@@ -900,7 +900,6 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
 
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pVgroup);
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -1240,6 +1239,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
       terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
       mError("topic:%s, create ast error", pTopic->name);
       sdbRelease(pSdb, pTopic);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -1260,6 +1260,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
         mError("topic:%s, check colId:%d conflicted", pTopic->name, pCol->colId);
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
+        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pTopic);
         return -1;
       }
@@ -1287,6 +1288,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
       terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
       mError("stream:%s, create ast error", pStream->name);
       sdbRelease(pSdb, pStream);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -1306,6 +1308,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
         sdbRelease(pSdb, pStream);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
       mInfo("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
@@ -1335,6 +1338,7 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
       terrno = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
              pSma->name, stbFullName, suid, colId);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -1355,6 +1359,7 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
         sdbRelease(pSdb, pSma);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
       mInfo("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);
@@ -2271,6 +2276,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
     if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
       if (pTopic->stbUid == suid) {
         sdbRelease(pSdb, pTopic);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }
@@ -2285,6 +2291,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
       terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
       mError("topic:%s, create ast error", pTopic->name);
       sdbRelease(pSdb, pTopic);
+      sdbCancelFetch(pSdb, pIter);
       return -1;
     }
 
@@ -2298,6 +2305,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
         sdbRelease(pSdb, pTopic);
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       } else {
         goto NEXT;
@@ -2325,6 +2333,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     }
 
     if (pStream->targetStbUid == suid) {
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pStream);
       return -1;
     }
@@ -2333,6 +2342,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
       terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
       mError("stream:%s, create ast error", pStream->name);
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pStream);
       return -1;
     }
@@ -2344,6 +2354,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
       SColumnNode *pCol = (SColumnNode *)pNode;
 
       if (pCol->tableId == suid) {
+        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pStream);
         nodesDestroyNode(pAst);
         nodesDestroyList(pNodeList);
@@ -2498,12 +2509,14 @@ static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (0 == strcmp(cfgReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
+  char dbName[TSDB_DB_NAME_LEN] = {0};
+  mndExtractShortDbNameFromDbFullName(cfgReq.dbFName, dbName);
+  if (0 == strcmp(dbName, TSDB_INFORMATION_SCHEMA_DB)) {
     mInfo("information_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
     if (mndBuildInsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
       goto _OVER;
     }
-  } else if (0 == strcmp(cfgReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
+  } else if (0 == strcmp(dbName, TSDB_PERFORMANCE_SCHEMA_DB)) {
     mInfo("performance_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
     if (mndBuildPerfsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
       goto _OVER;
@@ -2668,6 +2681,13 @@ void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
 void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst) {
   SName name = {0};
   tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetDbName(&name, dst);
+}
+
+void mndExtractShortDbNameFromDbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB);
 
   tNameGetDbName(&name, dst);
 }

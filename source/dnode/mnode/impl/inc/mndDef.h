@@ -133,16 +133,16 @@ typedef enum {
   DND_REASON_TIME_ZONE_NOT_MATCH,
   DND_REASON_LOCALE_NOT_MATCH,
   DND_REASON_CHARSET_NOT_MATCH,
+  DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH,
   DND_REASON_OTHERS
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE_REB_MODIFY_NOTOPIC = 1,   // topic do not need modified after rebalance
-  CONSUMER_UPDATE_REB_MODIFY_TOPIC,         // topic need modified after rebalance
-  CONSUMER_UPDATE_REB_MODIFY_REMOVE,        // topic need removed after rebalance
-//  CONSUMER_UPDATE_TIMER_LOST,
-  CONSUMER_UPDATE_RECOVER,
-  CONSUMER_UPDATE_SUB_MODIFY,      // modify after subscribe req
+  CONSUMER_UPDATE_REB = 1,  // update after rebalance
+  CONSUMER_ADD_REB,         // add    after rebalance
+  CONSUMER_REMOVE_REB,      // remove after rebalance
+  CONSUMER_UPDATE_REC,      // update after recover
+  CONSUMER_UPDATE_SUB,      // update after subscribe req
 } ECsmUpdateType;
 
 typedef struct {
@@ -216,8 +216,9 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   ESyncState syncState;
+  SyncTerm   syncTerm;
   bool       syncRestore;
-  int64_t    stateStartTime;
+  int64_t    roleTimeMs;
   SDnodeObj* pDnode;
   int32_t    role;
   SyncIndex  lastIndex;

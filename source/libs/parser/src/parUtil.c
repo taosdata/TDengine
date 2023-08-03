@@ -164,6 +164,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
       return "_WSTART, _WEND and _WDURATION can only be used in window query";
+    case TSDB_CODE_PAR_INVALID_TAGS_PC:
+      return "Tags can only applied to super table and child table";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
       return "%s function is not supported in time window query";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
@@ -1139,4 +1141,19 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   taosHashCleanup(pMetaCache->pUdf);
   taosHashCleanup(pMetaCache->pTableIndex);
   taosHashCleanup(pMetaCache->pTableCfg);
+}
+
+int64_t int64SafeSub(int64_t a, int64_t b) {
+  int64_t res = (uint64_t)a - (uint64_t)b;
+
+  if (a >= 0 && b < 0) {
+    if ((uint64_t)res > (uint64_t)INT64_MAX) {
+      // overflow
+      res = INT64_MAX;
+    }
+  } else if (a < 0 && b > 0 && res >= 0) {
+    // underflow
+    res = INT64_MIN;
+  }
+  return res;
 }

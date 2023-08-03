@@ -31,7 +31,8 @@ Websocket connections are supported on all platforms that can run Go.
 
 | connector-rust version |  TDengine version |                   major features                    |
 | :----------------: | :--------------: | :--------------------------------------------------: |
-|       v0.8.12       |      3.0.5.0 or later    | TMQ: Get consuming progress and seek offset to consume. |
+|       v0.9.2       |      3.0.7.0 or later    | STMT: Get tag_fields and col_fields under ws. |
+|       v0.8.12       |      3.0.5.0    | TMQ: Get consuming progress and seek offset to consume. |
 |       v0.8.0       |      3.0.4.0     | Support schemaless insert. |
 |       v0.7.6       |      3.0.3.0     | Support req_id in query. |
 |       v0.6.0       |      3.0.0.0     | Base features. |
@@ -648,12 +649,12 @@ stmt.execute()?;
 //stmt.execute()?;
 ```
 
-For a working example, see [GitHub](https://github.com/taosdata/taos-connector-rust/blob/main/examples/bind.rs).
+For a working example, see [GitHub](https://github.com/taosdata/taos-connector-rust/blob/main/taos/examples/bind.rs).
 
 
 For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
-[taos]: https://github.com/taosdata/rust-connector-taos
+[taos]: https://github.com/taosdata/taos-connector-rust
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
 [TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
