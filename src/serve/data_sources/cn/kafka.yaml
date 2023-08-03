@@ -132,7 +132,7 @@ parser:
     - name: key
       description: 消息 Key。
       type: binary
-    - name: payload
+    - name: value
       description: 消息体。
       type: binary
   required: true
