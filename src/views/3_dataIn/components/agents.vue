@@ -38,7 +38,7 @@
                   {{ scope.row.level }}
                 </span>
               </el-table-column>
-              <el-table-column prop="at" :label="$t('dataIn.at')">
+              <el-table-column prop="at" :label="$t('dataIn.at')" width="220">
                 <span slot-scope="scope">{{
                   parsinginZone(scope.row.at)
                 }}</span>
@@ -610,7 +610,7 @@ export default {
   }
 }
 .tabel-expand {
-   width: 60%;
+   width: 64%;
    margin-left: 40px;
    padding: 10px 5px;
    ::v-deep.el-table th.el-table__cell.is-leaf {
