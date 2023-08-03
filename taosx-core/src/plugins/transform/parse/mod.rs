@@ -97,9 +97,9 @@ pub trait Parse {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 enum FieldParser {
-    Alias { alias: String },
-    Cast(Cast),
     Regex(Regex),
+    Cast(Cast),
+    Alias { alias: String },
     Json(Json),
 }
 
