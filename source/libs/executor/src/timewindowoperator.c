@@ -1858,7 +1858,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   }
 
   int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
-  SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
+  SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey);
 
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
