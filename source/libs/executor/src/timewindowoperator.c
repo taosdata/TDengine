@@ -3574,6 +3574,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*                pBInfo = &pInfo->binfo;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  qDebug("===stream=== stream session agg");
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   } else if (pOperator->status == OP_RES_TO_RETURN) {
@@ -3736,6 +3737,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
     setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
     int32_t winNum = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
     if (winNum > 0) {
+      qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey, winInfo.sessionWin.groupId);
       if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
         saveResult(winInfo, pInfo->pStUpdated);
       } else if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -3754,7 +3756,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
-  } 
+  }
 }
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
@@ -3863,6 +3865,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   SExprSupp*                     pSup = &pOperator->exprSupp;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
 
+  qDebug("===stream=== stream session semi agg");
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
