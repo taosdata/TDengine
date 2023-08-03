@@ -1858,7 +1858,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   }
 
   int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
-  SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey);
+  SColumnNode* pColNode = (SColumnNode*)(pStateNode->pStateKey);
 
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
@@ -4453,7 +4453,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
                                                 SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
   SStreamStateWinodwPhysiNode* pStateNode = (SStreamStateWinodwPhysiNode*)pPhyNode;
   int32_t                      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
-  SColumnNode*                 pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
+  SColumnNode*                 pColNode = (SColumnNode*)(pStateNode->pStateKey);
   int32_t                      code = TSDB_CODE_SUCCESS;
 
   SStreamStateAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamStateAggOperatorInfo));
