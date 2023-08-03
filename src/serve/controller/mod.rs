@@ -1209,7 +1209,6 @@ impl TaskController {
         let res = query.execute(&self.pool).await?;
 
         let now = chrono::Utc::now();
-        let context = serde_json::to_string(&task).unwrap();
         sqlx::query!(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
@@ -1217,7 +1216,7 @@ impl TaskController {
             LevelFilter::Info,
             "Update task",
             "updated",
-            context
+            Option::<String>::None
         )
         .execute(&self.pool)
         .await?;
