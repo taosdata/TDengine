@@ -198,12 +198,13 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->name);
-  atomic_exchange_64(&pOldStream->updateTime, pNewStream->updateTime);
+
   atomic_exchange_32(&pOldStream->version, pNewStream->version);
 
   taosWLockLatch(&pOldStream->lock);
 
   pOldStream->status = pNewStream->status;
+  pOldStream->updateTime = pNewStream->updateTime;
 
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
@@ -520,7 +521,6 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -537,7 +537,6 @@ static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStream
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
@@ -1409,7 +1408,6 @@ static int32_t mndPersistStreamLog(STrans *pTrans, const SStreamObj *pStream, in
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
@@ -1431,7 +1429,6 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   if (pStream == NULL) {
     if (pauseReq.igNotExists) {
       mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
-      sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
@@ -1440,6 +1437,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   }
 
   if (pStream->status == STREAM_STATUS__PAUSE) {
+    sdbRelease(pMnode->pSdb, pStream);
     return 0;
   }
 
