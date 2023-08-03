@@ -1160,7 +1160,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &vload.compStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.numOfCachedTables) < 0) return -1;
-    if (tDecodeI32(&decoder, &vload.learnerProgress) < 0) return -1
+    if (tDecodeI32(&decoder, &vload.learnerProgress) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
