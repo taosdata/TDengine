@@ -100,9 +100,11 @@ async fn ipc_tcp_forward(
                     u.map(|mut v| {
                         if v.app_metadata.is_empty() {
                             v.app_metadata = Bytes::from("request");
-                            dbg!(v)
+                            // dbg!(v)
+                            v
                         } else {
-                            dbg!(v)
+                            // dbg!(v)
+                            v
                         }
                     })
                 })
@@ -112,7 +114,7 @@ async fn ipc_tcp_forward(
     let mut ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
 
     let schema = ipc_reader.schema.clone();
-    dbg!(&schema);
+    // dbg!(&schema);
     let (sender, receiver) = flume::bounded(5);
 
     tokio::spawn(async move {
@@ -173,17 +175,16 @@ async fn ipc_tcp_forward(
         .await
         .unwrap();
     let mut client = FlightClient::new(channel);
-    let res = client
+    let _ = client
         .handshake(Bytes::from(token.as_bytes().to_vec()))
         .await?;
-    dbg!(res);
+    // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
     let mut stream = client.do_put(data).await.unwrap();
 
     while let Some(res) = stream.next().await {
-        let res: PutResult = dbg!(res?);
-        dbg!(res.app_metadata);
+        let _: PutResult = res?;
         ipc_ack_writer.write_ok()?;
     }
 
@@ -826,7 +827,7 @@ async fn consume_flat_record(
 
                         let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
                         raw.with_field_names(&columns).with_table_name(table_name);
-                        debug!("{}", &raw.pretty_format());
+                        //debug!("{}", &raw.pretty_format());
 
                         loop {
                             let var_views = views
@@ -872,10 +873,10 @@ async fn consume_flat_record(
                                                 }
                                                 break;
                                             }
-                                            Err(err) => {
-                                                dbg!(&err);
+                                            Err(_) => {
+                                                // dbg!(&err);
                                                 if let Some(sql) = records.stable_sql() {
-                                                    dbg!(&sql);
+                                                    // dbg!(&sql);
                                                     if let Some(transferred) = transferred {
                                                         transferred
                                                             .stables
@@ -976,11 +977,11 @@ async fn consume_flat_record(
                                 }
                             }
                             if let Err(err) = _taos.write_raw_block(&raw).await {
-                                dbg!(&err);
+                                // dbg!(&err);
                                 let err_str = err.to_string();
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
-                                        dbg!(&sql);
+                                        // dbg!(&sql);
                                         _taos.exec(&sql).await?;
                                         let sql = records.table_sql();
 
@@ -1095,10 +1096,10 @@ async fn consume_flat_record(
                 }
             }
         } else {
-            let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(batch);
+            let _ = taosx_ipc::stream::reader::record_batch_to_column_view(batch);
             // let mut stmt = Stmt::init(&taos)?;
             // process id, ts, value
-            dbg!(&cv_vec);
+            // dbg!(&cv_vec);
             anyhow::bail!("Parser should be set with flat stream");
         }
     }
