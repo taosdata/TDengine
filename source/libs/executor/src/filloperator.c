@@ -178,16 +178,17 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
   blockDataCleanup(pResBlock);
 
-  int32_t order = TSDB_ORDER_ASC;
-  int32_t scanFlag = MAIN_SCAN;
-  getTableScanInfo(pOperator, &order, &scanFlag, false);
+  int32_t order = pInfo->pFillInfo->order;
 
   SOperatorInfo* pDownstream = pOperator->pDownstream[0];
-
+#if 0
   // the scan order may be different from the output result order for agg interval operator.
   if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL) {
     order = ((SIntervalAggOperatorInfo*) pDownstream->info)->resultTsOrder;
+  } else {
+    order = pInfo->pFillInfo->order;
   }
+#endif
 
   doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
   if (pResBlock->info.rows > 0) {
@@ -206,13 +207,14 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
+      pResBlock->info.scanFlag = pBlock->info.scanFlag;
       pBlock->info.dataLoad = 1;
       blockDataUpdateTsWindow(pBlock, pInfo->primarySrcSlotId);
 
       blockDataCleanup(pInfo->pRes);
       blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
       blockDataEnsureCapacity(pInfo->pFinalRes, pBlock->info.rows);
-      doApplyScalarCalculation(pOperator, pBlock, order, scanFlag);
+      doApplyScalarCalculation(pOperator, pBlock, order, pBlock->info.scanFlag);
 
       if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
         if (pInfo->curGroupId == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
@@ -405,7 +407,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
           ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
           : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
 
-  int32_t order = (pPhyFillNode->inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+  int32_t order = (pPhyFillNode->node.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   int32_t type = convertFillType(pPhyFillNode->mode);
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
@@ -500,9 +502,13 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
-  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal, &pFillSup->pAPI->stateStore);   //?????
-  pFillSup->cur.pRowVal = NULL;
   cleanupExprSupp(&pFillSup->notFillExprSup);
+  if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
+    taosMemoryFree(pFillSup->cur.pRowVal);
+  }
+  taosMemoryFree(pFillSup->prev.pRowVal);
+  taosMemoryFree(pFillSup->next.pRowVal);
+  taosMemoryFree(pFillSup->nextNext.pRowVal);
 
   taosMemoryFree(pFillSup);
   return NULL;
@@ -544,13 +550,17 @@ static void destroyStreamFillOperatorInfo(void* param) {
 
 static void resetFillWindow(SResultRowData* pRowData) {
   pRowData->key = INT64_MIN;
-  pRowData->pRowVal = NULL;
+  taosMemoryFreeClear(pRowData->pRowVal);
 }
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, void* pState, SStorageAPI* pAPI) {
+  if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
+    resetFillWindow(&pFillSup->cur);
+  } else {
+    pFillSup->cur.key = INT64_MIN;
+    pFillSup->cur.pRowVal = NULL;
+  }
   resetFillWindow(&pFillSup->prev);
-  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal, &pAPI->stateStore);   //???
-  resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
 }
@@ -1511,11 +1521,11 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
         float v = 0;
         GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
-      } else if (pCell->type == TSDB_DATA_TYPE_DOUBLE) {
+      } else if (IS_FLOAT_TYPE(pCell->type)) {
         double v = 0;
         GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
-      } else if (IS_SIGNED_NUMERIC_TYPE(pCell->type)) {
+      } else if (IS_INTEGER_TYPE(pCell->type)) {
         int64_t v = 0;
         GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
@@ -1560,6 +1570,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
                   pTaskInfo);
   pOperator->fpSet =
       createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL);
+  setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

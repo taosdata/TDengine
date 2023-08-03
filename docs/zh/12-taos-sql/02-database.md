@@ -36,13 +36,12 @@ database_option: {
   | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
-  | WAL_SEGMENT_SIZE value
 }
 ```
 
 ### 参数说明
 
-- BUFFER: 一个 VNODE 写入内存池大小，单位为 MB，默认为 96，最小为 3，最大为 16384。
+- BUFFER: 一个 VNODE 写入内存池大小，单位为 MB，默认为 256，最小为 3，最大为 16384。
 - CACHEMODEL：表示是否在内存中缓存子表的最近数据。默认为 none。
   - none：表示不缓存。
   - last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。
@@ -74,10 +73,8 @@ database_option: {
 - TABLE_PREFIX：当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的前缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的前缀；例如，假定表名为 "v30001"，当 TSDB_PREFIX = 2 时 使用 "0001" 来决定分配到哪个 vgroup ，当 TSDB_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup
 - TABLE_SUFFIX：当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的后缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；例如，假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时 使用 "v300" 来决定分配到哪个 vgroup ，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
 - TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
-- WAL_RETENTION_PERIOD: 为了数据订阅消费，需要WAL日志文件额外保留的最大时长策略。WAL日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 0，表示无需为订阅保留。新建订阅，应先设置恰当的时长策略。
+- WAL_RETENTION_PERIOD: 为了数据订阅消费，需要WAL日志文件额外保留的最大时长策略。WAL日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 3600，表示在 WAL 保留最近 3600 秒的数据，请根据数据订阅的需要修改这个参数为适当值。
 - WAL_RETENTION_SIZE：为了数据订阅消费，需要WAL日志文件额外保留的最大累计大小策略。单位为 KB。默认为 0，表示累计大小无上限。
-- WAL_ROLL_PERIOD：wal 文件切换时长，单位为 s。当WAL文件创建并写入后，经过该时间，会自动创建一个新的WAL文件。默认为 0，即仅在TSDB落盘时创建新文件。
-- WAL_SEGMENT_SIZE：wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的WAL文件。默认为 0，即仅在TSDB落盘时创建新文件。
 ### 创建数据库示例
 
 ```sql
@@ -85,7 +82,7 @@ create database if not exists db vgroups 10 buffer 10
 
 ```
 
-以上示例创建了一个有 10 个 vgroup 名为 db 的数据库， 其中每个 vnode 分配也 10MB 的写入缓存
+以上示例创建了一个有 10 个 vgroup 名为 db 的数据库， 其中每个 vnode 分配 10MB 的写入缓存
 
 ### 使用数据库
 

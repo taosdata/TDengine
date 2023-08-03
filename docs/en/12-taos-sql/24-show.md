@@ -36,7 +36,7 @@ Shows information about connections to the system.
 SHOW CONSUMERS;
 ```
 
-Shows information about all active consumers in the system.
+Shows information about all consumers in the system.
 
 ## SHOW CREATE DATABASE
 
@@ -101,6 +101,7 @@ Note: TDengine Enterprise Edition only.
 
 ```sql
 SHOW INDEXES FROM tbl_name [FROM db_name];
+SHOW INDEXES FROM [db_name.]tbl_name;
 ```
 
 Shows indices that have been created.
@@ -326,6 +327,7 @@ Note that only the information about the data blocks in the data file will be di
 
 ```sql
 SHOW TAGS FROM child_table_name [FROM db_name];
+SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 Shows all tag information in a subtable.

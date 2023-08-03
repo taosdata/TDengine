@@ -28,6 +28,8 @@ if platform.system().lower() == 'windows':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
 class TDTestCase:
+    updatecfgDict = {'clientCfg': {'smlDot2Underline': 0}}
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)

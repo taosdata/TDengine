@@ -52,6 +52,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
   bool      orderAlias;
   bool      asAlias;
+  bool      asParam;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -69,6 +70,7 @@ typedef struct SColumnNode {
   uint64_t    tableId;
   int8_t      tableType;
   col_id_t    colId;
+  uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
   bool        hasIndex;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -441,7 +443,9 @@ typedef struct SQuery {
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
   bool            haveResultSet;
+  SNode*          pPrevRoot;
   SNode*          pRoot;
+  SNode*          pPostRoot;
   int32_t         numOfResCols;
   SSchema*        pResSchema;
   int8_t          precision;

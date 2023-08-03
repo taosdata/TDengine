@@ -1,21 +1,18 @@
 # vnode
 add_library(vnode STATIC "")
-target_sources(
-    vnode
-    PRIVATE
-
-    # vnode
-    "src/vnd/vnodeOpen.c"
-    "src/vnd/vnodeBufPool.c"
-    "src/vnd/vnodeCfg.c"
-    "src/vnd/vnodeCommit.c"
-    "src/vnd/vnodeQuery.c"
-    "src/vnd/vnodeModule.c"
-    "src/vnd/vnodeSvr.c"
-    "src/vnd/vnodeSync.c"
-    "src/vnd/vnodeSnapshot.c"
-    "src/vnd/vnodeRetention.c"
-    "src/vnd/vnodeInitApi.c"
+set(
+  VNODE_SOURCE_FILES
+  "src/vnd/vnodeOpen.c"
+  "src/vnd/vnodeBufPool.c"
+  "src/vnd/vnodeCfg.c"
+  "src/vnd/vnodeCommit.c"
+  "src/vnd/vnodeQuery.c"
+  "src/vnd/vnodeModule.c"
+  "src/vnd/vnodeSvr.c"
+  "src/vnd/vnodeSync.c"
+  "src/vnd/vnodeSnapshot.c"
+  "src/vnd/vnodeRetention.c"
+  "src/vnd/vnodeInitApi.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -27,34 +24,34 @@ target_sources(
     "src/meta/metaEntry.c"
     "src/meta/metaSnapshot.c"
     "src/meta/metaCache.c"
+    "src/meta/metaTtl.c"
 
     # sma
     "src/sma/smaEnv.c"
     "src/sma/smaUtil.c"
-    "src/sma/smaFS.c"
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
     "src/sma/smaRollup.c"
     "src/sma/smaSnapshot.c"
     "src/sma/smaTimeRange.c"
 
-    # tsdb
-    "src/tsdb/tsdbCommit.c"
-    "src/tsdb/tsdbFile.c"
-    "src/tsdb/tsdbFS.c"
-    "src/tsdb/tsdbOpen.c"
-    "src/tsdb/tsdbMemTable.c"
-    "src/tsdb/tsdbRead.c"
-    "src/tsdb/tsdbCache.c"
-    "src/tsdb/tsdbWrite.c"
-    "src/tsdb/tsdbReaderWriter.c"
-    "src/tsdb/tsdbUtil.c"
-    "src/tsdb/tsdbSnapshot.c"
-    "src/tsdb/tsdbCacheRead.c"
-    "src/tsdb/tsdbRetention.c"
-    "src/tsdb/tsdbDiskData.c"
-    "src/tsdb/tsdbMergeTree.c"
-    "src/tsdb/tsdbDataIter.c"
+  # # tsdb
+  # "src/tsdb/tsdbCommit.c"
+  # "src/tsdb/tsdbFile.c"
+  # "src/tsdb/tsdbFS.c"
+  # "src/tsdb/tsdbOpen.c"
+  # "src/tsdb/tsdbMemTable.c"
+  # "src/tsdb/tsdbRead.c"
+  # "src/tsdb/tsdbCache.c"
+  # "src/tsdb/tsdbWrite.c"
+  # "src/tsdb/tsdbReaderWriter.c"
+  # "src/tsdb/tsdbUtil.c"
+  # "src/tsdb/tsdbSnapshot.c"
+  # "src/tsdb/tsdbCacheRead.c"
+  # "src/tsdb/tsdbRetention.c"
+  # "src/tsdb/tsdbDiskData.c"
+  # "src/tsdb/tsdbMergeTree.c"
+  # "src/tsdb/tsdbDataIter.c"
 
     # tq
     "src/tq/tq.c"
@@ -71,6 +68,19 @@ target_sources(
     "src/tq/tqOffsetSnapshot.c"
 )
 
+aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
+list(
+  APPEND
+  VNODE_SOURCE_FILES
+  ${TSDB_SOURCE_FILES}
+)
+
+target_sources(
+    vnode
+    PRIVATE
+    ${VNODE_SOURCE_FILES}
+)
+
 IF (TD_VNODE_PLUGINS)
   target_sources(
     vnode
@@ -80,35 +90,50 @@ IF (TD_VNODE_PLUGINS)
   )
 ENDIF ()
 
-target_include_directories(
-    vnode
-    PUBLIC "inc"
-    PUBLIC "src/inc"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
-)
-IF (TD_LINUX)
-target_link_libraries(
-    vnode
-    PUBLIC os
-    PUBLIC util
-    PUBLIC common
-    PUBLIC tfs
-    PUBLIC wal
-    PUBLIC qworker
-    PUBLIC sync
-    PUBLIC executor
-    PUBLIC scheduler
-    PUBLIC tdb
+# IF (NOT ${TD_LINUX})
+# target_include_directories(
+#     vnode
+#     PUBLIC "inc"
+#     PUBLIC "src/inc"
+#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+#     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+# )
+# ELSE()
+# target_include_directories(
+#     vnode
+#     PUBLIC "inc"
+#     PUBLIC "src/inc"
+#     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+# )
+#ENDIF(NOT ${TD_LINUX})
 
-    # PUBLIC bdb
-    # PUBLIC scalar
-    PUBLIC rocksdb-shared
-    PUBLIC transport
-    PUBLIC stream
-    PUBLIC index
-)
-ELSE()
+if (${BUILD_CONTRIB})
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+    )
+else()
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    )
+    if (${TD_LINUX})
+        target_include_directories(
+            vnode 
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+        target_link_directories(
+            vnode 
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+    endif()
+endif()
+
 target_link_libraries(
     vnode
     PUBLIC os
@@ -129,7 +154,6 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
-ENDIF()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)

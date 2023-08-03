@@ -62,10 +62,12 @@ typedef struct {
   SSchemaWrapper*      schema;
   char                 tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
   int8_t               recoverStep;
+//  bool                 recoverStep1Finished;
+//  bool                 recoverStep2Finished;
   int8_t               recoverScanFinished;
   SQueryTableDataCond  tableCond;
-  int64_t              fillHistoryVer1;
-  int64_t              fillHistoryVer2;
+  SVersionRange        fillHistoryVer;
+  STimeWindow          fillHistoryWindow;
   SStreamState*        pState;
   int64_t              dataVersion;
   int64_t              checkPointId;

@@ -966,20 +966,20 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
 
     // table name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
-    colDataAppend(pColInfoData, numOfRows, tName, false);
+    colDataSetVal(pColInfoData, numOfRows, tName, false);
 
     // database name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, dbname, false);
+    colDataSetVal(pColInfoData, numOfRows, dbname, false);
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
-    colDataAppend(pColInfoData, numOfRows, tableType, false);
+    colDataSetVal(pColInfoData, numOfRows, tableType, false);
 
     // col name
     char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(colName, schemaRow->pSchema[i].name);
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
-    colDataAppend(pColInfoData, numOfRows, colName, false);
+    colDataSetVal(pColInfoData, numOfRows, colName, false);
 
     // col type
     int8_t colType = schemaRow->pSchema[i].type;
@@ -994,10 +994,10 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
                             (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
     varDataSetLen(colTypeStr, colTypeLen);
-    colDataAppend(pColInfoData, numOfRows, (char*)colTypeStr, false);
+    colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-    colDataAppend(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
+    colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
 
     for (int32_t j = 6; j <= 8; ++j) {
       pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);
@@ -1154,7 +1154,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     int32_t tableType = mr.me.type;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
-      int64_t ts = mr.me.ctbEntry.ctime;
+      int64_t ts = mr.me.ctbEntry.btime;
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
@@ -1206,7 +1206,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
@@ -1338,7 +1338,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     int32_t tableType = pInfo->pCur->mr.me.type;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
-      int64_t ts = pInfo->pCur->mr.me.ctbEntry.ctime;
+      int64_t ts = pInfo->pCur->mr.me.ctbEntry.btime;
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
@@ -1392,7 +1392,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
@@ -1600,6 +1600,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
+
+  blockDataCleanup(pInfo->pRes);
 
   const char* name = tNameGetTableName(&pInfo->name);
   if (pInfo->showRewrite) {

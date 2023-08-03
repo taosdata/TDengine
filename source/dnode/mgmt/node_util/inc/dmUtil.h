@@ -105,6 +105,7 @@ typedef struct {
   SHashObj      *dnodeHash;
   TdThreadRwlock lock;
   SMsgCb         msgCb;
+  bool           validMnodeEps;
 } SDnodeData;
 
 typedef struct {

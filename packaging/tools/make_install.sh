@@ -241,10 +241,10 @@ function install_jemalloc() {
       ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
       ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so > /dev/null 2>&1
       ${csudo}/usr/bin/install -c -d /usr/local/lib
-      [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
-      [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
+      # [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
+      #   ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
+      # [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
+      #   ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
       if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
         ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
         ${csudo}/usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc \
@@ -432,12 +432,6 @@ function install_examples() {
   ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || :
 }
 
-function install_web() {
-  if [ -d "${binary_dir}/build/share" ]; then
-    ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || :
-  fi
-}
-
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
@@ -592,7 +586,6 @@ function update_TDengine() {
   install_lib
   #  install_connector
   install_examples
-  install_web
   install_bin
   install_app
 

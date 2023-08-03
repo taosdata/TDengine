@@ -17,7 +17,7 @@ When you create a user-defined function, you must implement standard interface f
 - For aggregate functions, implement the `aggfn_start`, `aggfn`, and `aggfn_finish` interface functions.
 - To initialize your function, implement the `udf_init` function. To terminate your function, implement the `udf_destroy` function.
 
-There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
+There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be `_start`, `_finish`, `_init`, and `_destroy`, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
 ### Implementing a Scalar Function in C
 The implementation of a scalar function is described as follows:
@@ -318,7 +318,7 @@ The implementation of a scalar UDF is described as follows:
 def process(input: datablock) -> tuple[output_type]:   
 ```
 
-Description: this function prcesses datablock, which is the input; you can use datablock.data(row, col) to access the python object at location(row,col); the output is a tuple object consisted of objects of type outputtype
+Description: this function processes datablock, which is the input; you can use datablock.data(row, col) to access the python object at location(row,col); the output is a tuple object consisted of objects of type outputtype
 
 #### Aggregate UDF Interface
 
@@ -356,7 +356,7 @@ def process(input: datablock) -> tuple[output_type]:
     # return tuple object consisted of object of type outputtype
 ```
 
-Note：process() must be implemeted, init() and destroy() must be defined too but they can do nothing.
+Note：process() must be implemented, init() and destroy() must be defined too but they can do nothing.
 
 #### Aggregate Template
 
@@ -377,7 +377,7 @@ def finish(buf: bytes) -> output_type:
     #return obj of type outputtype
 ```
 
-Note: aggregate UDF requires init(), destroy(), start(), reduce() and finish() to be impemented. start() generates the initial result in buffer, then the input data is divided into multiple row data blocks, reduce() is invoked for each data block `inputs` and intermediate `buf`, finally finish() is invoked to generate final result from the intermediate result `buf`.
+Note: aggregate UDF requires init(), destroy(), start(), reduce() and finish() to be implemented. start() generates the initial result in buffer, then the input data is divided into multiple row data blocks, reduce() is invoked for each data block `inputs` and intermediate `buf`, finally finish() is invoked to generate final result from the intermediate result `buf`.
 
 ### Data Mapping between TDengine SQL and Python UDF
 
@@ -403,7 +403,7 @@ In this section we will demonstrate 5 examples of developing UDF in Python langu
 
 In the guide, some debugging skills of using Python UDF will be explained too. 
 
-We assume you are using Linux system and already have TDengine 3.0.4.0+ and Python 3.x.
+We assume you are using Linux system and already have TDengine 3.0.4.0+ and Python 3.7+.
 
 Note:**You can't use print() function to output log inside a UDF, you have to write the log to a specific file or use logging module of Python.**
 
@@ -559,7 +559,7 @@ Note: Prior to TDengine 3.0.5.0 (excluding), updating a UDF requires to restart 
 
 #### Sample 3: UDF with n arguments 
 
-A UDF which accepts n intergers, likee (x1, x2, ..., xn) and output the sum of the product of each value and its sequence number: 1 *  x1 + 2 * x2 + ... + n * xn. If there is `null` in the input, then the result is `null`. The difference from sample 1 is that it can accept any number of columns as input and process each column. Assume the program is written in /root/udf/nsum.py:
+A UDF which accepts n integers, likee (x1, x2, ..., xn) and output the sum of the product of each value and its sequence number: 1 *  x1 + 2 * x2 + ... + n * xn. If there is `null` in the input, then the result is `null`. The difference from sample 1 is that it can accept any number of columns as input and process each column. Assume the program is written in /root/udf/nsum.py:
 
 ```python
 def init():
@@ -607,7 +607,7 @@ Query OK, 4 row(s) in set (0.010653s)
 
 #### Sample 4: Utilize 3rd party package
 
-A UDF which accepts a timestamp and output the next closed Sunday. This sample requires to use third party package `moment`, you need to install it firslty.
+A UDF which accepts a timestamp and output the next closed Sunday. This sample requires to use third party package `moment`, you need to install it firstly.
 
 ```shell
 pip3 install moment
@@ -701,7 +701,7 @@ Query OK, 4 row(s) in set (1.011474s)
 
 #### Sample 5: Aggregate Function
 
-An aggregate function which calculates the difference of the maximum and the minimum in a column. An aggregate funnction takes multiple rows as input and output only one data. The execution process of an aggregate UDF is like map-reduce, the framework divides the input into multiple parts, each mapper processes one block and the reducer aggregates the result of the mappers. The reduce() of Python UDF has the functionality of both map() and reduce(). The reduce() takes two arguments: the data to be processed; and the result of other tasks executing reduce(). For exmaple, assume the code is in `/root/udf/myspread.py`.
+An aggregate function which calculates the difference of the maximum and the minimum in a column. An aggregate funnction takes multiple rows as input and output only one data. The execution process of an aggregate UDF is like map-reduce, the framework divides the input into multiple parts, each mapper processes one block and the reducer aggregates the result of the mappers. The reduce() of Python UDF has the functionality of both map() and reduce(). The reduce() takes two arguments: the data to be processed; and the result of other tasks executing reduce(). For example, assume the code is in `/root/udf/myspread.py`.
 
 ```python
 import io
@@ -755,7 +755,7 @@ In this example, we implemented an aggregate function, and added some logging.
 2. log() is the function for logging, it converts the input object to string and output with an end of line
 3. destroy() closes the log file \
 4. start() returns the initial buffer for storing the intermediate result 
-5. reduce() processes each daa block and aggregates the result
+5. reduce() processes each data block and aggregates the result
 6. finish() converts the final buffer() to final result\ 
 
 Create the UDF.

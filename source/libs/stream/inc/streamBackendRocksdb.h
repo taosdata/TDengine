@@ -42,10 +42,11 @@ typedef struct {
   TdThreadMutex                      cfMutex;
   SHashObj*                          cfInst;
   int64_t                            defaultCfInit;
-} SBackendHandle;
+} SBackendWrapper;
 
 void*      streamBackendInit(const char* path);
 void       streamBackendCleanup(void* arg);
+void       streamBackendHandleCleanup(void* arg);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 
@@ -122,12 +123,17 @@ char*   streamDefaultIterKey_rocksdb(void* iter, int32_t* len);
 char*   streamDefaultIterVal_rocksdb(void* iter, int32_t* len);
 
 // batch func
+int     streamStateGetCfIdx(SStreamState* pState, const char* funcName);
 void*   streamStateCreateBatch();
 int32_t streamStateGetBatchSize(void* pBatch);
 void    streamStateClearBatch(void* pBatch);
 void    streamStateDestroyBatch(void* pBatch);
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_writebatch_t* pBatch, void* key,
                             void* val, int32_t vlen, int64_t ttl);
+
+int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb_writebatch_t* pBatch, void* key,
+                                    void* val, int32_t vlen, int64_t ttl, void* tmpBuf);
+
 int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif

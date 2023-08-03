@@ -80,7 +80,6 @@ enum {
   STREAM_RECOVER_STEP__PREPARE1,
   STREAM_RECOVER_STEP__PREPARE2,
   STREAM_RECOVER_STEP__SCAN1,
-  STREAM_RECOVER_STEP__SCAN2,
 };
 
 extern int32_t exchangeObjRefPool;
@@ -232,19 +231,20 @@ typedef struct STableMergeScanInfo {
   int32_t         tableEndIndex;
   bool            hasGroupId;
   uint64_t        groupId;
-  SArray*         queryConds;  // array of queryTableDataCond
   STableScanBase  base;
   int32_t         bufPageSize;
   uint32_t        sortBufSize;  // max buffer size for in-memory sort
   SArray*         pSortInfo;
   SSortHandle*    pSortHandle;
   SSDataBlock*    pSortInputBlock;
+  SSDataBlock*    pReaderBlock;
   int64_t         startTs;  // sort start time
   SArray*         sortSourceParams;
   SLimitInfo      limitInfo;
   int64_t         numOfRows;
   SScanInfo       scanInfo;
   int32_t         scanTimes;
+  int32_t         readIdx;
   SSDataBlock*    pResBlock;
   SSampleExecInfo sample;  // sample execution info
   SSortExecInfo   sortExecInfo;
@@ -285,6 +285,8 @@ typedef struct SStreamAggSupporter {
   int16_t         stateKeyType;
   SDiskbasedBuf*  pResultBuf;
   SStateStore     stateStore;
+  STimeWindow     winRange;
+  SStorageAPI*    pSessionAPI;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -364,7 +366,6 @@ typedef struct SStreamScanInfo {
   SNode*     pTagIndexCond;
 
   // recover
-  int32_t      blockRecoverContiCnt;
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
@@ -399,6 +400,8 @@ typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;
   bool           mergeResultBlock;
+  int32_t        inputTsOrder;
+  int32_t        outputTsOrder;
 } SOptrBasicInfo;
 
 typedef struct SIntervalAggOperatorInfo {
@@ -411,8 +414,6 @@ typedef struct SIntervalAggOperatorInfo {
   STimeWindow        win;                // query time range
   bool               timeWindowInterpo;  // interpolation needed or not
   SArray*            pInterpCols;        // interpolation columns
-  int32_t            resultTsOrder;      // result timestamp order
-  int32_t            inputOrder;         // input data ts order
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
@@ -503,6 +504,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
   int64_t             dataVersion;
+  SArray*             historyWins;
+  bool                isHistoryOp;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -522,6 +525,8 @@ typedef struct SStreamStateAggOperatorInfo {
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
   int64_t             dataVersion;
+  bool                isHistoryOp;
+  SArray*             historyWins;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -613,7 +618,7 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* de
 
 extern void doDestroyExchangeOperatorInfo(void* param);
 
-void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, const char* idStr, STableMetaCacheInfo* pCache);
 
@@ -678,6 +683,8 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
 void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 uint64_t calcGroupId(char* pData, int32_t len);
+void streamOpReleaseState(struct SOperatorInfo* pOperator);
+void streamOpReloadState(struct SOperatorInfo* pOperator);
 
 #ifdef __cplusplus
 }

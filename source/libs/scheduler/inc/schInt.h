@@ -57,7 +57,7 @@ typedef enum {
 #define SCHEDULE_DEFAULT_POLICY             SCH_LOAD_SEQ
 #define SCHEDULE_DEFAULT_MAX_NODE_NUM       20
 
-#define SCH_DEFAULT_TASK_TIMEOUT_USEC 60000000
+#define SCH_DEFAULT_TASK_TIMEOUT_USEC 5000000
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
 #define SCH_DEFAULT_MAX_RETRY_NUM     6
 #define SCH_MIN_AYSNC_EXEC_NUM        3
@@ -239,7 +239,7 @@ typedef struct SSchTask {
   int32_t         lastMsgType;     // last sent msg type
   int64_t         timeoutUsec;     // task timeout useconds before reschedule
   SQueryNodeAddr  succeedAddr;     // task executed success node address
-  int8_t          candidateIdx;    // current try condidation index
+  int32_t         candidateIdx;    // current try condidation index
   SArray         *candidateAddrs;  // condidate node addresses, element is SQueryNodeAddr
   SHashObj       *execNodes;       // all tried node for current task, element is SSchNodeInfo
   SSchTaskProfile profile;         // task execution profile

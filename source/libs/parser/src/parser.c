@@ -204,7 +204,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
     code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -219,6 +219,21 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery) {
   return parseInsertSql(pCxt, &pQuery, pCatalogReq, pMetaData);
+}
+
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pResRow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      code = translatePostCreateStream(pCxt, pQuery, pResRow);
+      break;
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      code = translatePostCreateSmaIndex(pCxt, pQuery, pResRow);
+    default:
+      break;
+  }
+
+  return code;
 }
 
 void qDestroyParseContext(SParseContext* pCxt) {

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInc.h"
+#include "streamInt.h"
 
 SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen);
@@ -27,6 +27,7 @@ SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq
   int32_t blockNum = pReq->blockNum;
   SArray* pArray = taosArrayInit_s(sizeof(SSDataBlock), blockNum);
   if (pArray == NULL) {
+    taosFreeQitem(pData);
     return NULL;
   }
 
@@ -64,11 +65,11 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
+    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pSubmit->ver;
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
+    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pMerged->ver;
   }
 
@@ -164,27 +165,9 @@ int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubm
   return 0;
 }
 
-static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  atomic_add_fetch_32(pDataSubmit->dataRef, 1);
-}
-
-SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit) {
-  int32_t len = 0;
-  if (pSubmit->type == STREAM_INPUT__DATA_SUBMIT) {
-    len = pSubmit->submit.msgLen;
-  }
-
-  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, len);
-  if (pSubmitClone == NULL) {
-    return NULL;
-  }
-
-  streamDataSubmitRefInc(pSubmit);
-  memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
-  return pSubmitClone;
-}
-
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem) {
+  terrno = 0;
+  
   if (dst->type == STREAM_INPUT__DATA_BLOCK && pElem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
     SStreamDataBlock* pBlockSrc = (SStreamDataBlock*)pElem;
@@ -200,7 +183,10 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     return dst;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = streamMergedSubmitNew();
-    // todo handle error
+    if (pMerged == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
 
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)dst);
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)pElem);
@@ -208,6 +194,7 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     taosFreeQitem(pElem);
     return (SStreamQueueItem*)pMerged;
   } else {
+    qDebug("block type:%d not merged with existed blocks list, type:%d", pElem->type, dst->type);
     return NULL;
   }
 }

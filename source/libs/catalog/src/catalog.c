@@ -341,13 +341,10 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
   SCtgAuthReq req = {0};
   req.pRawReq = pReq;
   req.pConn = pConn;
-  req.onlyCache = exists ? true : false;
+  req.onlyCache = false;
   CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pReq->user, &req.authInfo, NULL));
 
   CTG_ERR_JRET(ctgChkSetAuthRes(pCtg, &req, &rsp));
-  if (rsp.metaNotExists && exists) {
-    *exists = false;
-  }
 
 _return:
 
@@ -568,7 +565,7 @@ int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
     return TSDB_CODE_SUCCESS;
   }
   
-  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, vgInfo ? vgInfo : dbCache->vgCache.vgInfo, pTableName, pVgroup));
+  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, pConn ? &pConn->mgmtEps : NULL, vgInfo ? vgInfo : dbCache->vgCache.vgInfo, pTableName, pVgroup));
 
 _return:
 
@@ -629,7 +626,7 @@ int32_t ctgGetCachedTbVgMeta(SCatalog* pCtg, const SName* pTableName, SVgroupInf
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, pTableName, pVgroup));
+  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, NULL, dbCache->vgCache.vgInfo, pTableName, pVgroup));
 
   ctgRUnlockVgInfo(dbCache);
 

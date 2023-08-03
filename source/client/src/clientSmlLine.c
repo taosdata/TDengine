@@ -157,6 +157,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+          smlStrReplace(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
         if (currElement->measureEscaped) {
@@ -202,7 +203,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     bool        keyEscaped = false;
     size_t      keyLenEscaped = 0;
     while (*sql < sqlEnd) {
-      if (unlikely(IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
@@ -365,6 +366,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+          smlStrReplace(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
         if (currElement->measureEscaped) {
@@ -410,7 +412,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     bool        keyEscaped = false;
     size_t      keyLenEscaped = 0;
     while (*sql < sqlEnd) {
-      if (unlikely(IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
@@ -436,19 +438,20 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     size_t      valueLen = 0;
     bool        valueEscaped = false;
     size_t      valueLenEscaped = 0;
-    bool        isInQuote = false;
+    int         quoteNum = 0;
     const char *escapeChar = NULL;
     while (*sql < sqlEnd) {
       // parse value
       if (unlikely(*(*sql) == QUOTE && (*(*sql - 1) != SLASH || (*sql - 1) == escapeChar))) {
-        isInQuote = !isInQuote;
+        quoteNum++;
         (*sql)++;
-        continue;
-      }
-      if (!isInQuote) {
-        if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
+        if(quoteNum > 2){
           break;
         }
+        continue;
+      }
+      if (quoteNum % 2 == 0 && (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql)))) {
+        break;
       }
       if (IS_SLASH_LETTER_IN_FIELD_VALUE(*sql) && (*sql - 1) != escapeChar) {
         escapeChar = *sql;
@@ -460,8 +463,8 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     }
     valueLen = *sql - value;
 
-    if (unlikely(isInQuote)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "only one quote", value);
+    if (unlikely(quoteNum != 0 && quoteNum != 2)) {
+      smlBuildInvalidDataMsg(&info->msgBuf, "unbalanced quotes", value);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (unlikely(valueLen == 0)) {
@@ -650,8 +653,8 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   // add ts to
-  SSmlKv kv = {.key = TS,
-               .keyLen = TS_LEN,
+  SSmlKv kv = {.key = tsSmlTsDefaultName,
+               .keyLen = strlen(tsSmlTsDefaultName),
                .type = TSDB_DATA_TYPE_TIMESTAMP,
                .i = ts,
                .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,

@@ -256,6 +256,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_READY:
+    case SDB_STATUS_UPDATE:
     case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
       break;

@@ -46,9 +46,10 @@ enum {
   RES_TYPE__TMQ_METADATA,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS       2
+#define SHOW_VARIABLES_RESULT_COLS       3
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)        (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)          (*(int8_t*)res == RES_TYPE__TMQ)
@@ -63,7 +64,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
-  int32_t passKeyCnt;   // with passVer call back
+  int8_t  connHbFlag;   // 0 init, 1 send req, 2 get resp
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -83,8 +84,9 @@ typedef struct {
   int8_t        threadStop;
   int8_t        quitByKill;
   TdThread      thread;
-  TdThreadMutex lock;  // used when app init and cleanup
+  TdThreadMutex lock;       // used when app init and cleanup
   SHashObj*     appSummary;
+  SHashObj*     appHbHash;  // key: clusterId
   SArray*       appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle  reqHandle[CONN_TYPE__MAX];
   FHbRspHandle  rspHandle[CONN_TYPE__MAX];
@@ -146,6 +148,7 @@ typedef struct STscObj {
   int64_t       id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
+  int32_t       authVer;
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
   SPassInfo     passInfo;
@@ -227,6 +230,12 @@ typedef struct {
   STaosxRsp      rsp;
 } SMqTaosxRspObj;
 
+typedef struct SReqRelInfo {
+  uint64_t userRefId;
+  uint64_t prevRefId;
+  uint64_t nextRefId;
+} SReqRelInfo;
+
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
   uint64_t             requestId;
@@ -250,10 +259,14 @@ typedef struct SRequestObj {
   bool                 validateOnly;  // todo refactor
   bool                 killed;
   bool                 inRetry;
+  bool                 isSubReq;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
   SQuery*              pQuery;
+  void*                pPostPlan;
+  SReqRelInfo          relation;
+  void*                pWrapper;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -279,6 +292,7 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
+void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
@@ -368,6 +382,7 @@ typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;
   SCatalogReq*   pCatalogReq;
   SRequestObj*   pRequest;
+  void*          pPlanInfo;
 } SSqlCallbackWrapper;
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
@@ -382,6 +397,12 @@ int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool    qnodeRequired(SRequestObj* pRequest);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
+void    handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code);
+void    restartAsyncQuery(SRequestObj *pRequest, int32_t code);
+int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj** pNewRequest);
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
+void    returnToUser(SRequestObj* pRequest);
+void    stopAllQueries(SRequestObj *pRequest);
 
 #ifdef __cplusplus
 }

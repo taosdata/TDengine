@@ -67,7 +67,6 @@ class TDTestCase:
 
         tdLog.info("flush db to let data falls into the disk")
         tdSql.query("flush database %s"%(paraDict['dbName']))
-        tdSql.execute("alter database %s wal_retention_period 3600"%(paraDict['dbName']))
         return
 
     def tmqCase1(self):

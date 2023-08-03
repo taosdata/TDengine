@@ -17,6 +17,7 @@
 #include "mndSync.h"
 #include "mndCluster.h"
 #include "mndTrans.h"
+#include "mndVgroup.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -73,76 +74,200 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  SMnode    *pMnode = pFsm->data;
+static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  SSdbRow *pRow = NULL;
+  int32_t  code = -1;
+
+  if (pAction->msgType == TDMT_MND_CREATE_VG) {
+    pRow = mndVgroupActionDecode(pAction->pRaw);
+    if (pRow == NULL) goto _OUT;
+
+    SVgObj *pVgroup = sdbGetRowObj(pRow);
+    if (pVgroup == NULL) goto _OUT;
+
+    int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+    if (maxVgId > pVgroup->vgId) {
+      mError("trans:%d, failed to satisfy vgroup id %d of prepare action. maxVgId:%d", pTrans->id, pVgroup->vgId,
+             maxVgId);
+      goto _OUT;
+    }
+  }
+
+  code = 0;
+_OUT:
+  taosMemoryFreeClear(pRow);
+  return code;
+}
+
+static int32_t mndTransValidatePrepareStage(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = -1;
+  int32_t action = 0;
+
+  int32_t numOfActions = taosArrayGetSize(pTrans->prepareActions);
+  if (numOfActions == 0) {
+    code = 0;
+    goto _OUT;
+  }
+
+  mInfo("trans:%d, validate %d prepare actions.", pTrans->id, numOfActions);
+
+  for (action = 0; action < numOfActions; ++action) {
+    STransAction *pAction = taosArrayGet(pTrans->prepareActions, action);
+
+    if (pAction->actionType != TRANS_ACTION_RAW) {
+      mError("trans:%d, prepare action:%d of unexpected type:%d", pTrans->id, action, pAction->actionType);
+      goto _OUT;
+    }
+
+    code = mndTransValidatePrepareAction(pMnode, pTrans, pAction);
+    if (code != 0) {
+      mError("trans:%d, failed to validate prepare action: %d, numOfActions:%d", pTrans->id, action, numOfActions);
+      goto _OUT;
+    }
+  }
+
+  code = 0;
+_OUT:
+  return code;
+}
+
+static int32_t mndTransValidateImp(SMnode *pMnode, STrans *pTrans) {
+  if (pTrans->stage == TRN_STAGE_PREPARE) {
+    if (mndTransCheckConflict(pMnode, pTrans) < 0) {
+      mError("trans:%d, failed to validate trans conflicts.", pTrans->id);
+      return -1;
+    }
+
+    return mndTransValidatePrepareStage(pMnode, pTrans);
+  }
+  return 0;
+}
+
+static int32_t mndTransValidate(SMnode *pMnode, SSdbRaw *pRaw) {
+  STrans *pTrans = NULL;
+  int32_t code = -1;
+
+  SSdbRow *pRow = mndTransDecode(pRaw);
+  if (pRow == NULL) goto _OUT;
+
+  pTrans = sdbGetRowObj(pRow);
+  if (pTrans == NULL) goto _OUT;
+
+  code = mndTransValidateImp(pMnode, pTrans);
+
+_OUT:
+  if (pTrans) mndTransDropData(pTrans);
+  if (pRow) taosMemoryFreeClear(pRow);
+  if (code) terrno = (terrno ? terrno : TSDB_CODE_MND_TRANS_CONFLICT);
+  return code;
+}
+
+int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
+  terrno = TSDB_CODE_SUCCESS;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
-
+  STrans    *pTrans = NULL;
+  int32_t    code = -1;
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
+
+  if (transId <= 0) {
+    mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OUT;
+  }
+
   mInfo("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
         " role:%s raw:%p sec:%d seq:%" PRId64,
         transId, pMgmt->transId, pMeta->code, pMeta->index, pMeta->term, pMeta->lastConfigIndex, syncStr(pMeta->state),
         pRaw, pMgmt->transSec, pMgmt->transSeq);
 
-  if (pMeta->code == 0) {
-    int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
-    if (code != 0) {
-      mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
-      return 0;
-    }
-    sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
+  code = mndTransValidate(pMnode, pRaw);
+  if (code != 0) {
+    mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
+    code = 0;
+    pMeta->code = terrno;
+    goto _OUT;
   }
 
-  taosThreadMutexLock(&pMgmt->lock);
-  pMgmt->errCode = pMeta->code;
-
-  if (transId <= 0) {
-    taosThreadMutexUnlock(&pMgmt->lock);
-    mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
-  } else if (transId == pMgmt->transId) {
-    if (pMgmt->errCode != 0) {
-      mError("trans:%d, failed to propose since %s, post sem", transId, tstrerror(pMgmt->errCode));
-    } else {
-      mInfo("trans:%d, is proposed and post sem, seq:%" PRId64, transId, pMgmt->transSeq);
-    }
-    pMgmt->transId = 0;
-    pMgmt->transSec = 0;
-    pMgmt->transSeq = 0;
-    tsem_post(&pMgmt->syncSem);
-    taosThreadMutexUnlock(&pMgmt->lock);
-  } else {
-    taosThreadMutexUnlock(&pMgmt->lock);
-    STrans *pTrans = mndAcquireTrans(pMnode, transId);
-    if (pTrans != NULL) {
-      mInfo("trans:%d, execute in mnode which not leader or sync timeout, createTime:%" PRId64 " saved trans:%d",
-            transId, pTrans->createdTime, pMgmt->transId);
-      mndTransExecute(pMnode, pTrans, false);
-      mndReleaseTrans(pMnode, pTrans);
-    } else {
-      mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
-    }
+  code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+  if (code != 0) {
+    mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
+    code = 0;
+    pMeta->code = terrno;
+    goto _OUT;
   }
 
+  pTrans = mndAcquireTrans(pMnode, transId);
+  if (pTrans == NULL) {
+    mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
+    goto _OUT;
+  }
+
+  if (pTrans->stage == TRN_STAGE_PREPARE) {
+    bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans);
+    if (!continueExec) goto _OUT;
+  }
+
+  if (pTrans->id != pMgmt->transId) {
+    mInfo("trans:%d, execute in mnode which not leader or sync timeout, createTime:%" PRId64 " saved trans:%d",
+          pTrans->id, pTrans->createdTime, pMgmt->transId);
+    mndTransRefresh(pMnode, pTrans);
+  }
+
+  sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
   sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
+  code = 0;
+
+_OUT:
+  if (pTrans) mndReleaseTrans(pMnode, pTrans);
+  return code;
+}
+
+static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  taosThreadMutexLock(&pMgmt->lock);
+  if (pMgmt->transId == 0) {
+    goto _OUT;
+  }
+
+  pMgmt->transId = 0;
+  pMgmt->transSec = 0;
+  pMgmt->transSeq = 0;
+  pMgmt->errCode = code;
+  tsem_post(&pMgmt->syncSem);
+
+  if (pMgmt->errCode != 0) {
+    mError("trans:%d, failed to propose since %s, post sem", pMgmt->transId, tstrerror(pMgmt->errCode));
+  } else {
+    mInfo("trans:%d, is proposed and post sem, seq:%" PRId64, pMgmt->transId, pMgmt->transSeq);
+  }
+
+_OUT:
+  taosThreadMutexUnlock(&pMgmt->lock);
   return 0;
 }
 
-int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  int32_t code = 0;
+int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
+  SMnode *pMnode = pFsm->data;
+  int32_t code = pMsg->code;
+  if (code != 0) {
+    goto _OUT;
+  }
+
   pMsg->info.conn.applyIndex = pMeta->index;
   pMsg->info.conn.applyTerm = pMeta->term;
+  pMeta->code = 0;
 
-  if (pMsg->code == 0) {
-    SMnode *pMnode = pFsm->data;
-    atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
-  }
+  atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
 
   if (!syncUtilUserCommit(pMsg->msgType)) {
-    goto _out;
+    goto _OUT;
   }
-  code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
 
-_out:
+  code = mndProcessWriteMsg(pMnode, pMsg, pMeta);
+
+_OUT:
+  mndPostMgmtCode(pMnode, code ? code : pMeta->code);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return code;

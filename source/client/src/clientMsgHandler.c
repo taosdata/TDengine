@@ -77,6 +77,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
+    tscError("version not compatible. client version: %s, server version: %s", version, connectRsp.sVer);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     goto End;
@@ -98,13 +99,20 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
+  int updateEpSet = 1;
   if (connectRsp.dnodeNum == 1) {
     SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
     SEpSet dstEpSet = connectRsp.epSet;
-    rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
-                      dstEpSet.eps[dstEpSet.inUse].fqdn);
-  } else if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
-    SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+    if (srcEpSet.numOfEps == 1) {
+      rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
+                        dstEpSet.eps[dstEpSet.inUse].fqdn);
+      updateEpSet = 0;
+    }
+  }
+  if (updateEpSet == 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+    SEpSet corEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+    SEpSet* pOrig = &corEpSet;
     SEp*    pOrigEp = &pOrig->eps[pOrig->inUse];
     SEp*    pNewEp = &connectRsp.epSet.eps[connectRsp.epSet.inUse];
     tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in connRsp", pOrig->inUse, pOrig->numOfEps,
@@ -130,6 +138,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connType = connectRsp.connType;
   pTscObj->passInfo.ver = connectRsp.passVer;
+  pTscObj->authVer = connectRsp.authVer;
 
   hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
 
@@ -426,11 +435,14 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD1_LEN;
-
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD2_LEN;
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD3_LEN;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   int32_t numOfCfg = taosArrayGetSize(pVars);
@@ -448,6 +460,11 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataSetVal(pColInfo, i, value, false);
+
+    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(scope, pInfo->scope, TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataSetVal(pColInfo, i, scope, false);
   }
 
   pBlock->info.rows = numOfCfg;

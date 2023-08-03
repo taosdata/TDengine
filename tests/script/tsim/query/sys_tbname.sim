@@ -131,4 +131,8 @@ print $rows
 if $rows != 9 then
   return -1
 endi
+
+print =========================== td-24781
+sql select DISTINCT (`precision`) from `information_schema`.`ins_databases` PARTITION BY `precision`
+
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

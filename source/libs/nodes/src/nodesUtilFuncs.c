@@ -907,6 +907,10 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyList(pStmt->pCols);
+      if (pStmt->pReq) {
+        tFreeSMCreateSmaReq(pStmt->pReq);
+        taosMemoryFreeClear(pStmt->pReq);
+      }
       break;
     }
     case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
@@ -953,6 +957,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode(pStmt->pSubtable);
+      tFreeSCMCreateStreamReq(pStmt->pReq);
+      taosMemoryFreeClear(pStmt->pReq);
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:            // no pointer field
@@ -1051,7 +1057,9 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_QUERY: {
       SQuery* pQuery = (SQuery*)pNode;
+      nodesDestroyNode(pQuery->pPrevRoot);
       nodesDestroyNode(pQuery->pRoot);
+      nodesDestroyNode(pQuery->pPostRoot);
       taosMemoryFreeClear(pQuery->pResSchema);
       if (NULL != pQuery->pCmdMsg) {
         taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
@@ -1953,9 +1961,9 @@ static uint32_t funcNodeHash(const char* pKey, uint32_t len) {
 }
 
 static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) {
-  if (0 != strcmp((*(const SExprNode**)pLeft)->aliasName, (*(const SExprNode**)pRight)->aliasName)) {
-    return 1;
-  }
+  // if (0 != strcmp((*(const SExprNode**)pLeft)->aliasName, (*(const SExprNode**)pRight)->aliasName)) {
+  //   return 1;
+  // }
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 

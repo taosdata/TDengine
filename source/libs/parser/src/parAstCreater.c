@@ -210,6 +210,15 @@ static bool checkTopicName(SAstCreateContext* pCxt, SToken* pTopicName) {
   return true;
 }
 
+static bool checkCGroupName(SAstCreateContext* pCxt, SToken* pCGroup) {
+  trimEscape(pCGroup);
+  if (pCGroup->n >= TSDB_CGROUP_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pCGroup->z);
+    return false;
+  }
+  return true;
+}
+
 static bool checkStreamName(SAstCreateContext* pCxt, SToken* pStreamName) {
   trimEscape(pStreamName);
   if (pStreamName->n >= TSDB_STREAM_NAME_LEN) {
@@ -1706,7 +1715,7 @@ SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists,
 }
 
 SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SToken* pSubDbName,
-                                  bool withMeta) {
+                                  int8_t withMeta) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName) || !checkDbName(pCxt, pSubDbName, true)) {
     return NULL;
@@ -1721,7 +1730,7 @@ SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, ST
 }
 
 SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pRealTable,
-                                     bool withMeta, SNode* pWhere) {
+                                     int8_t withMeta, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
     return NULL;
@@ -1751,10 +1760,13 @@ SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   return (SNode*)pStmt;
 }
 
-SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pCGroupId,
+SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pCGroupId,
                             SToken* pTopicName) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
+    return NULL;
+  }
+  if (!checkCGroupName(pCxt, pCGroupId)) {
     return NULL;
   }
   SDropCGroupStmt* pStmt = (SDropCGroupStmt*)nodesMakeNode(QUERY_NODE_DROP_CGROUP_STMT);

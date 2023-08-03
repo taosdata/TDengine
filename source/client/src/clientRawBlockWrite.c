@@ -1286,6 +1286,10 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosArrayPush(pArray, &pVgData);
 
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  if (NULL == pQuery) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;
@@ -1323,6 +1327,9 @@ end:
 
 int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
                                      int numFields) {
+  if (!taos || !pData || !tbname) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
@@ -1409,6 +1416,9 @@ end:
 }
 
 int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
+  if (!taos || !pData || !tbname) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
@@ -1808,6 +1818,7 @@ end:
 }
 
 char* tmq_get_json_meta(TAOS_RES* res) {
+  if (res == NULL) return NULL;
   uDebug("tmq_get_json_meta called");
   if (!TD_RES_TMQ_META(res) && !TD_RES_TMQ_METADATA(res)) {
     return NULL;

@@ -39,7 +39,7 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 构建
 
-TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
+TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
 用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubernetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
   
@@ -68,14 +68,14 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 ### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
+sudo dnf install -y gcc gcc-c++ gflags make cmake epel-release git openssl-devel
 ```
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
@@ -117,7 +117,7 @@ scl enable devtoolset-9 -- bash
 ### macOS
 
 ```
-brew install argp-standalone pkgconfig
+brew install argp-standalone gflags pkgconfig
 ```
 
 ### 设置 golang 开发环境
@@ -352,4 +352,4 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 
 # 加入技术交流群
 
-TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine1"，加小 T 为好友，即可入群。
+TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。

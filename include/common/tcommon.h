@@ -54,6 +54,11 @@ typedef struct SSessionKey {
   uint64_t    groupId;
 } SSessionKey;
 
+typedef struct SVersionRange {
+  uint64_t minVer;
+  uint64_t maxVer;
+} SVersionRange;
+
 static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
   SWinKey* pWin1 = (SWinKey*)pKey1;
   SWinKey* pWin2 = (SWinKey*)pKey2;
@@ -131,10 +136,10 @@ static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2,
 
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
-  TMQ_MSG_TYPE__POLL_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_RSP,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
-  TMQ_MSG_TYPE__TAOSX_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };
@@ -198,6 +203,7 @@ typedef struct SDataBlockInfo {
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
+  uint8_t     scanFlag;
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization

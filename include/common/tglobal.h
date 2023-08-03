@@ -34,6 +34,7 @@ extern char     tsFirst[];
 extern char     tsSecond[];
 extern char     tsLocalFqdn[];
 extern char     tsLocalEp[];
+extern char     tsVersionName[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
@@ -48,6 +49,7 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
+extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
@@ -56,6 +58,7 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsTimeToGetAvailableConn;
+extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
@@ -82,7 +85,14 @@ extern int64_t tsVndCommitMaxIntervalMs;
 // mnode
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
+extern int8_t  tsGrant;
+extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
+
+// dnode
+extern int64_t tsDndStart;
+extern int64_t tsDndStartOsUptime;
+extern int64_t tsDndUpTime;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -119,6 +129,7 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsTtlChangeOnWrite;
 extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
@@ -159,8 +170,12 @@ extern char tsUdfdLdLibPath[];
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
+extern bool tsSmlDot2Underline;
+extern char tsSmlTsDefaultName[];
 // extern bool    tsSmlDataFormat;
 // extern int32_t tsSmlBatchSize;
+
+extern int32_t tmqMaxTopicNum;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
@@ -181,7 +196,9 @@ extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
+extern int32_t tsKeepTimeOffset;
 extern int32_t tsMaxStreamBackendCache;
+extern int32_t tsPQSortMemThreshold;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
@@ -198,6 +215,7 @@ void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
 int32_t taosApplyLocalCfg(SConfig *pCfg, char *name);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
+int8_t  taosGranted();
 
 #ifdef __cplusplus
 }

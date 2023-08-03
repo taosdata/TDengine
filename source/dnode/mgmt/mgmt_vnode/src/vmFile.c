@@ -71,6 +71,10 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
     if (code < 0) goto _OVER;
     tjsonGetInt32ValueFromDouble(vnode, "vgVersion", pCfg->vgVersion, code);
     if (code < 0) goto _OVER;
+    tjsonGetInt32ValueFromDouble(vnode, "diskPrimary", pCfg->diskPrimary, code);
+    if (code < 0) goto _OVER;
+    tjsonGetInt32ValueFromDouble(vnode, "toVgId", pCfg->toVgId, code);
+    if (code < 0) goto _OVER;
 
     snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCfg->vgId);
   }
@@ -165,6 +169,8 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
     if (tjsonAddDoubleToObject(vnode, "vgId", pVnode->vgId) < 0) return -1;
     if (tjsonAddDoubleToObject(vnode, "dropped", pVnode->dropped) < 0) return -1;
     if (tjsonAddDoubleToObject(vnode, "vgVersion", pVnode->vgVersion) < 0) return -1;
+    if (tjsonAddDoubleToObject(vnode, "diskPrimary", pVnode->diskPrimary) < 0) return -1;
+    if (pVnode->toVgId && tjsonAddDoubleToObject(vnode, "toVgId", pVnode->toVgId) < 0) return -1;
     if (tjsonAddItemToArray(vnodes, vnode) < 0) return -1;
   }
 
@@ -179,7 +185,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   SVnodeObj **ppVnodes = NULL;
   char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
   int32_t numOfVnodes = 0;

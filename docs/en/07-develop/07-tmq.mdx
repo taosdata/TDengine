@@ -81,10 +81,6 @@ Set<String> subscription() throws SQLException;
 
 ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 
-void commitAsync();
-
-void commitAsync(OffsetCommitCallback callback);
-
 void commitSync() throws SQLException;
 
 void close() throws SQLException;
@@ -100,6 +96,12 @@ class Consumer:
         pass
 
     def unsubscribe(self):
+        pass
+
+    def poll(self, timeout: float = 1.0):
+        pass
+
+    def assignment(self):
         pass
 
     def poll(self, timeout: float = 1.0):
@@ -238,6 +240,8 @@ The following SQL statement creates a topic in TDengine:
 CREATE TOPIC topic_name AS SELECT ts, c1, c2, c3 FROM tmqdb.stb WHERE c1 > 1;
 ```
 
+- There is an upper limit to the number of topics created, controlled by the parameter tmqMaxTopicNum, with a default of 20
+
 Multiple subscription types are supported.
 
 #### Subscribe to a Column
@@ -259,14 +263,15 @@ You can subscribe to a topic through a SELECT statement. Statements that specify
 Syntax:
 
 ```sql
-CREATE TOPIC topic_name AS STABLE stb_name
+CREATE TOPIC topic_name [with meta] AS STABLE stb_name [where_condition]
 ```
 
 Creating a topic in this manner differs from a `SELECT * from stbName` statement as follows:
 
 - The table schema can be modified.
 - Unstructured data is returned. The format of the data returned changes based on the supertable schema.
-- A different table schema may exist for every data block to be processed.
+- The 'with meta' parameter is optional. When selected, statements such as creating super tables and sub tables will be returned, mainly used for Taosx to perform super table migration
+- The 'where_condition' parameter is optional and will be used to filter and subscribe to sub tables that meet the criteria. Where conditions cannot have ordinary columns, only tags or tbnames. Functions can be used in where conditions to filter tags, but cannot be aggregate functions because sub table tag values cannot be aggregated. It can also be a constant expression, such as 2>1 (subscribing to all child tables), Or false (subscribe to 0 sub tables)
 - The data returned does not include tags.
 
 ### Subscribe to a Database
@@ -274,10 +279,12 @@ Creating a topic in this manner differs from a `SELECT * from stbName` statement
 Syntax:
 
 ```sql
-CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
+CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 ```
 
-This SQL statement creates a subscription to all tables in the database. You can add the `WITH META` parameter to include schema changes in the subscription, including creating and deleting supertables; adding, deleting, and modifying columns; and creating, deleting, and modifying the tags of subtables. Consumers can determine the message type from the API. Note that this differs from Kafka.
+This SQL statement creates a subscription to all tables in the database.
+
+- The 'with meta' parameter is optional. When selected, it will return statements for creating all super tables and sub tables in the database, mainly used for Taosx database migration
 
 ## Create a Consumer
 
@@ -289,9 +296,9 @@ You configure the following parameters when creating a consumer:
 |        `td.connect.user`         | string  | User Name                          |  |
 |        `td.connect.pass`         | string  | Password                        |   |
 |        `td.connect.port`         | string  | Port of the server side            |   |
-|           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
+|           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192. Each topic can create up to 100 consumer groups.                 |
 |          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
+|      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | `earliest`: subscribe from the earliest data, this is the default behavior; `latest`: subscribe from the latest data; or `none`: can't subscribe without committed offset|
 |      `enable.auto.commit`      | boolean | Commit automatically; true: user application doesn't need to explicitly commit; false: user application need to handle commit by itself                                           | Default value is true                  |
 |   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
 |     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 | default value: false

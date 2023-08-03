@@ -111,11 +111,9 @@ fi
 if [ "$osType" == "Darwin" ]; then
     lib_files="${build_dir}/lib/libtaos.${version}.dylib"
     wslib_files="${build_dir}/lib/libtaosws.dylib"
-    rocksdb_lib_files="${build_dir}/lib/librocksdb.dylib.8.1.1"
 else
     lib_files="${build_dir}/lib/libtaos.so.${version}"
     wslib_files="${build_dir}/lib/libtaosws.so"
-    rocksdb_lib_files="${build_dir}/lib/librocksdb.so.8.1.1"
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
 
@@ -128,7 +126,6 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -219,12 +216,12 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
     cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
     ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
   fi
-  if [ -f ${build_dir}/lib/libjemalloc.a ]; then
-    cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
-  fi
-  if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
-    cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
-  fi
+  # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+  # fi
+  # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+  # fi
   if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
     cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
   fi
@@ -322,23 +319,11 @@ if [[ $dbName == "taos" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  # Add web files
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
-    if [ -d "${web_dir}/admin" ] ; then
-      mkdir -p ${install_dir}/share/
-      cp -Rfap ${web_dir}/admin ${install_dir}/share/
-      cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
-      cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
-    else
-      echo "directory not found for enterprise release: ${web_dir}/admin"
-    fi
-  fi
 fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
-[ -f ${rocksdb_lib_files} ] && cp ${rocksdb_lib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then

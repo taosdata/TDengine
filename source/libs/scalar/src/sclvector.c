@@ -26,6 +26,7 @@
 #include "tdataformat.h"
 #include "ttime.h"
 #include "ttypes.h"
+#include "geosWrapper.h"
 
 #define LEFT_COL  ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pRightCol : pRightCol->pData))
@@ -239,15 +240,20 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
 }
 
 static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   int64_t value = 0;
   if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
     value = 0;
+    terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
 
   colDataSetInt64(pOut->columnData, rowIndex, &value);
 }
 
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   if (overflow) {
     int64_t minValue = tDataTypes[pOut->columnData->info.type].minValue;
     int64_t maxValue = tDataTypes[pOut->columnData->info.type].maxValue;
@@ -289,6 +295,8 @@ static FORCE_INLINE void varToSigned(char *buf, SScalarParam *pOut, int32_t rowI
 }
 
 static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   if (overflow) {
     uint64_t minValue = (uint64_t)tDataTypes[pOut->columnData->info.type].minValue;
     uint64_t maxValue = (uint64_t)tDataTypes[pOut->columnData->info.type].maxValue;
@@ -329,6 +337,8 @@ static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam *pOut, int32_t ro
 }
 
 static FORCE_INLINE void varToFloat(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   if (TSDB_DATA_TYPE_FLOAT == pOut->columnData->info.type) {
     float value = taosStr2Float(buf, NULL);
     colDataSetFloat(pOut->columnData, rowIndex, &value);
@@ -340,6 +350,8 @@ static FORCE_INLINE void varToFloat(char *buf, SScalarParam *pOut, int32_t rowIn
 }
 
 static FORCE_INLINE void varToBool(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   int64_t value = taosStr2Int64(buf, NULL, 10);
   bool    v = (value != 0) ? true : false;
   colDataSetInt8(pOut->columnData, rowIndex, (int8_t *)&v);
@@ -347,6 +359,8 @@ static FORCE_INLINE void varToBool(char *buf, SScalarParam *pOut, int32_t rowInd
 
 // todo remove this malloc
 static FORCE_INLINE void varToNchar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   int32_t len = 0;
   int32_t inputLen = varDataLen(buf);
   int32_t outputMaxLen = (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -356,6 +370,7 @@ static FORCE_INLINE void varToNchar(char *buf, SScalarParam *pOut, int32_t rowIn
       taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
   if (!ret) {
     sclError("failed to convert to NCHAR");
+    terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
   varDataSetLen(t, len);
 
@@ -364,11 +379,14 @@ static FORCE_INLINE void varToNchar(char *buf, SScalarParam *pOut, int32_t rowIn
 }
 
 static FORCE_INLINE void ncharToVar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   int32_t inputLen = varDataLen(buf);
 
   char   *t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
   if (len < 0) {
+    terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
     taosMemoryFree(t);
     return;
   }
@@ -378,8 +396,46 @@ static FORCE_INLINE void ncharToVar(char *buf, SScalarParam *pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
+static FORCE_INLINE void varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  //[ToDo] support to parse WKB as well as WKT
+  terrno = TSDB_CODE_SUCCESS;
+
+  size_t         len = 0;
+  unsigned char *t = NULL;
+  char          *output = NULL;
+
+  if (initCtxGeomFromText()) {
+    sclError("failed to init geometry ctx, %s", getThreadLocalGeosCtx()->errMsg);
+    terrno = TSDB_CODE_APP_ERROR;
+    goto _err;
+  }
+  if (doGeomFromText(buf, &t, &len)) {
+    sclInfo("failed to convert text to geometry, %s", getThreadLocalGeosCtx()->errMsg);
+    terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
+    goto _err;
+  }
+
+  output = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+  memcpy(output + VARSTR_HEADER_SIZE, t, len);
+  varDataSetLen(output, len);
+
+  colDataSetVal(pOut->columnData, rowIndex, output, false);
+
+  taosMemoryFree(output);
+  geosFreeBuffer(t);
+
+  return;
+
+_err:
+  ASSERT(t == NULL && len == 0);
+  VarDataLenT dummyHeader = 0;
+  colDataSetVal(pOut->columnData, rowIndex, (const char *)&dummyHeader, false);
+}
+
 // TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
+  terrno = TSDB_CODE_SUCCESS;
+
   bool vton = false;
 
   _bufConverteFunc func = NULL;
@@ -401,9 +457,12 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     vton = true;
   } else if (TSDB_DATA_TYPE_TIMESTAMP == pCtx->outType) {
     func = varToTimestamp;
+  } else if (TSDB_DATA_TYPE_GEOMETRY == pCtx->outType) {
+    func = varToGeometry;
   } else {
     sclError("invalid convert outType:%d, inType:%d", pCtx->outType, pCtx->inType);
-    return TSDB_CODE_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
+    return terrno;
   }
 
   pCtx->pOut->numOfRows = pCtx->pIn->numOfRows;
@@ -423,7 +482,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
         convertType = TSDB_DATA_TYPE_NCHAR;
       } else if (tTagIsJson(data) || *data == TSDB_DATA_TYPE_NULL) {
         terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
-        return terrno;
+        goto _err;
       } else {
         convertNumberToNumber(data + CHAR_BYTES, colDataGetNumData(pCtx->pOut->columnData, i), *data, pCtx->outType);
         continue;
@@ -435,7 +494,8 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
       tmp = taosMemoryMalloc(bufSize);
       if (tmp == NULL) {
         sclError("out of memory in vectorConvertFromVarData");
-        return TSDB_CODE_OUT_OF_MEMORY;
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
       }
     }
 
@@ -449,15 +509,15 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
         // we need to convert it to native char string, and then perform the string to numeric data
         if (varDataLen(data) > bufSize) {
           sclError("castConvert convert buffer size too small");
-          taosMemoryFreeClear(tmp);
-          return TSDB_CODE_APP_ERROR;
+          terrno = TSDB_CODE_APP_ERROR;
+          goto _err;
         }
 
         int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
         if (len < 0) {
           sclError("castConvert taosUcs4ToMbs error 1");
-          taosMemoryFreeClear(tmp);
-          return TSDB_CODE_APP_ERROR;
+          terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          goto _err;
         }
 
         tmp[len] = 0;
@@ -465,12 +525,16 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     }
 
     (*func)(tmp, pCtx->pOut, i, overflow);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      goto _err;
+    }
   }
 
+_err:
   if (tmp != NULL) {
     taosMemoryFreeClear(tmp);
   }
-  return TSDB_CODE_SUCCESS;
+  return terrno;
 }
 
 double getVectorDoubleValue_JSON(void *src, int32_t index) {
@@ -881,27 +945,27 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-    /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON GEOM VARB DECI BLOB MEDB*/
+    /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
     /*NULL*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*BOOL*/ 0, 0, 2, 3, 4, 5, 6, 7, 5, 9, 7, 11, 12, 13, 14, 0, 7, 0, 0, 0, 0,
-    /*TINY*/ 0, 0, 0, 3, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0, 0, 0,
-    /*SMAL*/ 0, 0, 0, 0, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0, 0, 0,
-    /*INT */ 0, 0, 0, 0, 0, 5, 6, 7, 5, 9, 7, 4,  4,  5,  7,  0, 7, 0, 0, 0, 0,
-    /*BIGI*/ 0, 0, 0, 0, 0, 0, 6, 7, 5, 9, 7, 5,  5,  5,  7,  0, 7, 0, 0, 0, 0,
-    /*FLOA*/ 0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, 7, 0, 0, 0, 0,
-    /*DOUB*/ 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, 7, 0, 0, 0, 0,
-    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 0, 0, 0, 0, 0,
-    /*TIME*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, 7, 0, 0, 0, 0,
-    /*NCHA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 0, 0, 0, 0, 0,
-    /*UTIN*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, 7, 0, 0, 0, 0,
-    /*USMA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  13, 14, 0, 7, 0, 0, 0, 0,
-    /*UINT*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  14, 0, 7, 0, 0, 0, 0,
-    /*UBIG*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 7, 0, 0, 0, 0,
-    /*JSON*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*VARB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*DECI*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*MEDB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
+    /*BOOL*/ 0, 0, 2, 3, 4, 5, 6, 7, 5, 9, 7, 11, 12, 13, 14, 0, 7, 0, 0, 0, -1,
+    /*TINY*/ 0, 0, 0, 3, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0, 0, -1,
+    /*SMAL*/ 0, 0, 0, 0, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0, 0, -1,
+    /*INT */ 0, 0, 0, 0, 0, 5, 6, 7, 5, 9, 7, 4,  4,  5,  7,  0, 7, 0, 0, 0, -1,
+    /*BIGI*/ 0, 0, 0, 0, 0, 0, 6, 7, 5, 9, 7, 5,  5,  5,  7,  0, 7, 0, 0, 0, -1,
+    /*FLOA*/ 0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, 7, 0, 0, 0, -1,
+    /*DOUB*/ 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, 7, 0, 0, 0, -1,
+    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 0, 0, 0, 0, 20,
+    /*TIME*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, 7, 0, 0, 0, -1,
+    /*NCHA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 0, 0, 0, 0, -1,
+    /*UTIN*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, 7, 0, 0, 0, -1,
+    /*USMA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  13, 14, 0, 7, 0, 0, 0, -1,
+    /*UINT*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  14, 0, 7, 0, 0, 0, -1,
+    /*UBIG*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 7, 0, 0, 0, -1,
+    /*JSON*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, -1,
+    /*VARB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, -1,
+    /*DECI*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, -1,
+    /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, -1,
+    /*MEDB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, -1,
     /*GEOM*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0};
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
@@ -981,6 +1045,11 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
     type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
     if (0 == type) {
       return TSDB_CODE_SUCCESS;
+    }
+    if (-1 == type) {
+      sclError("invalid convert type1:%d, type2:%d", GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
+      terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
+      return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
   }
 
@@ -1725,7 +1794,9 @@ void vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *
     param1 = pLeft;
     param2 = pRight;
   } else {
-    vectorConvertCols(pLeft, pRight, &pLeftOut, &pRightOut, startIndex, numOfRows);
+    if (vectorConvertCols(pLeft, pRight, &pLeftOut, &pRightOut, startIndex, numOfRows)) {
+      return;
+    }
     param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
     param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
   }

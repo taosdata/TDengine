@@ -16,6 +16,7 @@
 #include "sut.h"
 #include "tdatablock.h"
 #include "tmisce.h"
+#include "tversion.h"
 
 static void processClientRsp(void* parent, SRpcMsg* pRsp, SEpSet* pEpSet) {
   TestClient* client = (TestClient*)parent;
@@ -53,6 +54,7 @@ void TestClient::DoInit() {
   rpcInit.parent = this;
   // rpcInit.secret = (char*)secretEncrypt;
   // rpcInit.spi = 1;
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   clientRpc = rpcOpen(&rpcInit);
   ASSERT(clientRpc);

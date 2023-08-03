@@ -319,7 +319,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
   return 0;
 }
 
-static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, 
+static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans,
                     SDAlterMnodeTypeReq *pAlterMnodeTypeReq, SEpSet *pAlterMnodeTypeEpSet) {
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterMnodeTypeReq);
   void   *pReq = taosMemoryMalloc(contLen);
@@ -578,7 +578,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = pDnode->id;
@@ -732,7 +732,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -803,9 +803,17 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SMnodeObj *pObj = NULL;
+  SMnodeObj *pSelfObj = NULL;
   ESdbStatus objStatus = 0;
   char      *pWrite;
   int64_t    curMs = taosGetTimestampMs();
+  int64_t    dummyTimeMs = 0;
+
+  pSelfObj = sdbAcquire(pSdb, SDB_MNODE, &pMnode->selfDnodeId);
+  if (pSelfObj == NULL) {
+    mError("mnode:%d, failed to acquire self %s", pMnode->selfDnodeId, terrstr());
+    goto _out;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_MNODE, pShow->pIter, (void **)&pObj, &objStatus, true);
@@ -825,7 +833,8 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pObj->id == pMnode->selfDnodeId) {
       snprintf(role, sizeof(role), "%s%s", syncStr(TAOS_SYNC_STATE_LEADER), pMnode->restored ? "" : "*");
     }
-    if (mndIsDnodeOnline(pObj->pDnode, curMs)) {
+    bool isDnodeOnline = mndIsDnodeOnline(pObj->pDnode, curMs);
+    if (isDnodeOnline) {
       tstrncpy(role, syncStr(pObj->syncState), sizeof(role));
       if (pObj->syncState == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
         tstrncpy(role, syncStr(TAOS_SYNC_STATE_ERROR), sizeof(role));
@@ -840,7 +849,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
     if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
-    if (!mndIsDnodeOnline(pObj->pDnode, curMs)) status = "offline";
+    if (!isDnodeOnline) status = "offline";
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -850,7 +859,15 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->stateStartTime, false);
+    if (pObj->syncTerm != pSelfObj->syncTerm || !isDnodeOnline) {
+      // state of old term / no status report => use dummyTimeMs
+      if (pObj->syncTerm > pSelfObj->syncTerm) {
+        mError("mnode:%d has a newer term:%" PRId64 " than me:%" PRId64, pObj->id, pObj->syncTerm, pSelfObj->syncTerm);
+      }
+      colDataSetVal(pColInfo, numOfRows, (const char *)&dummyTimeMs, false);
+    } else {
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->roleTimeMs, false);
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -858,6 +875,8 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
   pShow->numOfRows += numOfRows;
 
+_out:
+  sdbRelease(pSdb, pSelfObj);
   return numOfRows;
 }
 
@@ -999,12 +1018,12 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   }
 
   if (pMnode->syncMgmt.sync > 0) {
-    mInfo("vgId:1, mnode sync reconfig, totalReplica:%d replica:%d myIndex:%d", 
+    mInfo("vgId:1, mnode sync reconfig, totalReplica:%d replica:%d myIndex:%d",
                                         cfg.totalReplicaNum, cfg.replicaNum, cfg.myIndex);
 
     for (int32_t i = 0; i < cfg.totalReplicaNum; ++i) {
       SNodeInfo *pNode = &cfg.nodeInfo[i];
-      mInfo("vgId:1, index:%d, ep:%s:%u dnode:%d cluster:%" PRId64 " role:%d", i, pNode->nodeFqdn, pNode->nodePort, 
+      mInfo("vgId:1, index:%d, ep:%s:%u dnode:%d cluster:%" PRId64 " role:%d", i, pNode->nodeFqdn, pNode->nodePort,
             pNode->nodeId, pNode->clusterId, pNode->nodeRole);
     }
 

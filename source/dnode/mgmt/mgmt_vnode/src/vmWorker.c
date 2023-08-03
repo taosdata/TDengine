@@ -92,7 +92,7 @@ static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
 
   dGTrace("vgId:%d, msg:%p get from vnode-stream queue", pVnode->vgId, pMsg);
-  int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
+  int32_t code = vnodeProcessStreamMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
     if (terrno != 0) code = terrno;
     dGError("vgId:%d, msg:%p failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
@@ -218,6 +218,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && pVnode->disable) {
         dDebug("vgId:%d, msg:%p put into vnode-write queue failed since its disable", pVnode->vgId, pMsg);
         terrno = TSDB_CODE_VND_STOPPED;
+        code = terrno;
         break;
       }
       dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);

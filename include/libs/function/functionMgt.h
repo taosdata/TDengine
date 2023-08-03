@@ -216,7 +216,7 @@ bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
 bool fmIsForbidStreamFunc(int32_t funcId);
-bool fmIsForbidSuperTableFunc(int32_t funcId);
+bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
@@ -233,6 +233,7 @@ bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
