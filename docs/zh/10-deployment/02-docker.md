@@ -18,9 +18,10 @@ docker run -d --name tdengine \
 ```
 :::note
 
-* /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/data为你自己的数据目录
-* /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/log为你自己的日志目录
-  :::
+- /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/data为你自己的数据目录
+- /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/log为你自己的日志目录
+
+:::
 
 以上命令启动了一个名为“tdengine”的容器，并把其中的 HTTP 服务的端 6041 映射到了主机端口 6041。使用如下命令可以验证该容器中提供的 HTTP 服务是否可用：
 
@@ -330,6 +331,7 @@ services:
 
 * `VERSION` 环境变量被用来设置 tdengine image tag
 * 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
+
 :::
 
 2. 启动集群
