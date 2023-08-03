@@ -770,8 +770,8 @@ impl TaskController {
                                             // todo(@huolinhe): we got 401 Authentication failure with HTTPS, but this error with HTTP.
                                             //   Maybe you should check the websocket implementations for the low-level reason.
                                             let err = "Authentication failure";
-                                            log::error!("run task {id} failed with: {err}, please check the instance status or token");
-                                            let err = err.to_string();
+                                            log::error!("run task {id} failed with: {err:#}, please check the instance status or token");
+                                            let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
                                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
@@ -790,7 +790,7 @@ impl TaskController {
                                         }
                                         e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") => {
                                             log::warn!("run task {id} failed: {err}, wait for resume...");
-                                            let err = err.to_string();
+                                            let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
                                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE AND status != ?",
@@ -813,7 +813,7 @@ impl TaskController {
                                         }
                                         _ => {
                                             log::error!("run task {id} failed with: {err}, please check the task information");
-                                            let err = err.to_string();
+                                            let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
                                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",

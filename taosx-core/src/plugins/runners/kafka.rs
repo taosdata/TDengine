@@ -72,7 +72,7 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         writer.write(&batch)?;
         tokio::task::yield_now().await;
 
-        consumer.commit_consumed().unwrap();
+        consumer.commit_consumed()?;
         start = chrono::Utc::now().timestamp_millis();
     }
 
@@ -164,7 +164,7 @@ fn build_schema() -> Schema {
         Field::new("partition", ArrowDataType::Int32, false),
         Field::new("offset", ArrowDataType::Int64, false),
         Field::new("key", ArrowDataType::Binary, true),
-        Field::new("payload", ArrowDataType::Binary, false),
+        Field::new("value", ArrowDataType::Binary, false),
     ];
     let schema = Schema::new(flat_columns).with_metadata(metadata);
     schema
@@ -224,7 +224,7 @@ fn build_consumer(dsn: &mut Dsn) -> Result<Consumer, KafkaConfigError> {
     let offset_storage = parse_offset_storage(dsn.params.get("offset_storage"));
     builder = builder.with_offset_storage(offset_storage);
 
-    let consumer = builder.create().unwrap();
+    let consumer = builder.create()?;
     Ok(consumer)
 }
 
@@ -238,6 +238,8 @@ fn build_builder(dsn: &Dsn) -> kafka::consumer::Builder {
 enum KafkaConfigError {
     #[error("Kafka source CA config read error, cause: {0}")]
     CAConfigReadError(String),
+    #[error(transparent)]
+    KafkaConsumerError(#[from] kafka::Error),
     // #[error("Kafka source config parse error, cause: {0}")]
     // KafkaSourceConfigParseError(String),
 }
