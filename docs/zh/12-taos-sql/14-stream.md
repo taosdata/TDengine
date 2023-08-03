@@ -249,3 +249,11 @@ T = 最新事件时间 - DELETE_MARK
 - [unique](../function/#unique)
 - [mode](../function/#mode)
 
+## 暂停、恢复流计算
+1.流计算暂停计算任务
+PAUSE STREAM [IF EXISTS] stream_name;
+没有指定IF EXISTS，如果该stream不存在，则报错；如果存在，则暂停流计算。指定了IF EXISTS，如果该stream不存在，则返回成功；如果存在，则暂停流计算
+
+2.流计算恢复计算任务
+RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
+没有指定IF EXISTS，如果该stream不存在，则报错，如果存在，则恢复流计算；指定了IF EXISTS，如果stream不存在，则返回成功；如果存在，则恢复流计算。如果指定IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
