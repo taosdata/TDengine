@@ -113,7 +113,7 @@ pub fn spawn_runner(
                                 agent,
                                 Utc::now(),
                                 LevelFilter::Info,
-                                "start task",
+                                format!("Start task {}", task.id),
                                 "busy",
                                 json!({
                                     "agent": agent,
@@ -173,7 +173,7 @@ pub fn spawn_runner(
                                         agent,
                                         Utc::now(),
                                         LevelFilter::Error,
-                                        "Running task {id} error: {error:#}",
+                                        format!("Running task {id} error: {err:#}"),
                                         "error",
                                         json!({
                                             "task": task.id,
