@@ -1,6 +1,7 @@
 use std::{hash::Hash, str::FromStr};
 
 use linked_hash_map::LinkedHashMap as HashMap;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use taos::{Field, JsonMeta, MetaCreate, MetaDrop, TagWithValue, Ty};
 
@@ -54,7 +55,6 @@ impl FromStr for AddTag {
             return Err(AddTagParseError::Empty);
         }
         use lazy_static::lazy_static;
-        use regex::Regex;
 
         lazy_static! {
             static ref RE: Regex =
@@ -144,6 +144,8 @@ pub enum RenameOpts {
     Prefix { prefix: String },
     Suffix { suffix: String },
     Template { template: String },
+    // ReplaceWithRegex { regex: String, replace_with: String, }
+    ReplaceWithRegex { config: String, }
 }
 
 impl RenameOpts {
@@ -163,6 +165,10 @@ impl RenameOpts {
         }
     }
 
+    pub fn replace_with_regex(input: impl Into<String>) -> Self {
+        Self::ReplaceWithRegex { config: input.into() }
+    }
+
     pub fn apply(&self, name: &str) -> String {
         match self {
             RenameOpts::Prefix { prefix } => format!("{prefix}{name}"),
@@ -171,6 +177,14 @@ impl RenameOpts {
                 .replace("{ ", "{")
                 .replace(" }", "}")
                 .replace("{name}", name),
+            RenameOpts::ReplaceWithRegex { config } => {
+                // TODO should return result
+                let split: Vec<&str> = config.split("::").collect();
+                // size should be 2
+                // TODO escape
+                let regex = Regex::new(split.get(0).unwrap()).unwrap();
+                regex.replace_all(name, split.get(1).unwrap().to_string()).to_string()
+            }
         }
     }
 
@@ -224,6 +238,13 @@ impl FromStr for RenameOpts {
                     Err(EmptyOptionForVariant("template"))
                 } else {
                     Ok(RenameOpts::template(option))
+                }
+            }
+            "replace_with_regex" => {
+                if option.is_empty() {
+                    Err(EmptyOptionForVariant("replace_with_regex"))
+                } else {
+                    Ok(RenameOpts::replace_with_regex(option))
                 }
             }
             variant => Err(InvalidVariant(variant.to_string(), s.to_string())),
@@ -402,6 +423,8 @@ pub enum Action {
     RenameTable(RenameOpts),
     RenameChildTable(RenameOpts),
     RenameSuperTable(RenameOpts),
+    // regex will apply to all tables include super table and child table
+    RenameReplaceWithRegex(RenameOpts),
 }
 
 impl Action {
@@ -412,6 +435,7 @@ impl Action {
             Action::RenameTable(_) => ActionType::RenameTable,
             Action::RenameChildTable(_) => ActionType::RenameChildTable,
             Action::RenameSuperTable(_) => ActionType::RenameSuperTable,
+            Action::RenameReplaceWithRegex(_) => ActionType::RenameReplaceWithRegex,
         }
     }
 
@@ -541,57 +565,63 @@ impl Action {
                     todo!()
                 }
             },
-            Action::RenameSuperTable(action) => match meta {
-                JsonMeta::Create(create) => match create {
-                    MetaCreate::Super {
-                        table_name,
-                        columns: _,
-                        tags: _,
-                    } => {
-                        let s = action.apply(table_name);
-                        table_name.clear();
-                        table_name.extend(s.chars());
-                    }
-                    MetaCreate::Child {
-                        table_name: _,
-                        using,
-                        tags: _,
-                        tag_num: _,
-                    } => {
-                        let s = action.apply(&using);
-                        using.clear();
-                        using.extend(s.chars());
-                    }
-                    _ => (),
-                },
-                JsonMeta::Alter(alter) => match alter.alter_type {
-                    taos::AlterType::AddTag => action.apply_in_place(&mut alter.table_name),
-                    taos::AlterType::DropTag => action.apply_in_place(&mut alter.table_name),
-                    taos::AlterType::RenameTag => action.apply_in_place(&mut alter.table_name),
-                    taos::AlterType::SetTagValue => action.apply_in_place(&mut alter.table_name),
-                    taos::AlterType::AddColumn => (),
-                    taos::AlterType::DropColumn => (),
-                    taos::AlterType::ModifyColumnLength => (),
-                    taos::AlterType::ModifyTagLength => {
-                        action.apply_in_place(&mut alter.table_name)
-                    }
-                    taos::AlterType::ModifyTableOption => (),
-                    taos::AlterType::RenameColumn => (),
-                },
-                JsonMeta::Drop(drop) => match drop {
-                    MetaDrop::Super { table_name } => {
-                        // todo(@zitsen): normal or child?
-                        action.apply_in_place(table_name)
-                    }
-                    _ => (),
-                },
-                JsonMeta::Delete(_) => {
-                    todo!()
-                }
-            },
+            Action::RenameSuperTable(action) => Action::rename_super_meta(action, meta),
+            Action::RenameReplaceWithRegex(action) => Action::rename_super_meta(action, meta),
         }
         Ok(())
     }
+
+    fn rename_super_meta(action: &RenameOpts, meta: &mut JsonMeta) {
+        match meta {
+            JsonMeta::Create(create) => match create {
+                MetaCreate::Super {
+                    table_name,
+                    columns: _,
+                    tags: _,
+                } => {
+                    let s = action.apply(table_name);
+                    table_name.clear();
+                    table_name.extend(s.chars());
+                }
+                MetaCreate::Child {
+                    table_name: _,
+                    using,
+                    tags: _,
+                    tag_num: _,
+                } => {
+                    let s = action.apply(&using);
+                    using.clear();
+                    using.extend(s.chars());
+                }
+                _ => (),
+            },
+            JsonMeta::Alter(alter) => match alter.alter_type {
+                taos::AlterType::AddTag => action.apply_in_place(&mut alter.table_name),
+                taos::AlterType::DropTag => action.apply_in_place(&mut alter.table_name),
+                taos::AlterType::RenameTag => action.apply_in_place(&mut alter.table_name),
+                taos::AlterType::SetTagValue => action.apply_in_place(&mut alter.table_name),
+                taos::AlterType::AddColumn => (),
+                taos::AlterType::DropColumn => (),
+                taos::AlterType::ModifyColumnLength => (),
+                taos::AlterType::ModifyTagLength => {
+                    action.apply_in_place(&mut alter.table_name)
+                }
+                taos::AlterType::ModifyTableOption => (),
+                taos::AlterType::RenameColumn => (),
+            },
+            JsonMeta::Drop(drop) => match drop {
+                MetaDrop::Super { table_name } => {
+                    // todo(@zitsen): normal or child?
+                    action.apply_in_place(table_name)
+                }
+                _ => (),
+            },
+            JsonMeta::Delete(_) => {
+                todo!()
+            }
+        }
+    }
+
 }
 
 #[derive(Hash)]
@@ -601,6 +631,7 @@ enum ActionType {
     RenameTable,
     RenameChildTable,
     RenameSuperTable,
+    RenameReplaceWithRegex,
 }
 
 impl Hash for Action {
@@ -641,6 +672,7 @@ impl FromStr for Action {
             "RenameTable" => Ok(Action::RenameTable(RenameOpts::from_str(option)?)),
             "RenameSuperTable" => Ok(Action::RenameSuperTable(RenameOpts::from_str(option)?)),
             "RenameChildTable" => Ok(Action::RenameChildTable(RenameOpts::from_str(option)?)),
+            "RenameReplaceWithRegex" => Ok(Action::RenameReplaceWithRegex(RenameOpts::from_str(option)?)),
             _ => Err(Unsupported(action.to_string())),
         }
     }

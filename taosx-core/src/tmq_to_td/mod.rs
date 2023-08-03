@@ -470,6 +470,12 @@ pub async fn tmq_to_td(
                             sql.clear();
                             sql.extend(new.chars());
                         }
+                        Action::RenameReplaceWithRegex(action) => {
+                            let name = table.stable.as_deref().unwrap();
+                            let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                            sql.clear();
+                            sql.extend(new.chars());
+                        }
                         _ => (),
                     }
                 }
