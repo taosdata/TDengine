@@ -355,9 +355,9 @@ def build_and_install_taosx(mode):
     print("buildAndInstallTaosX start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'cargo build --release --no-default-features --features optin --features rustls')
+        os.system(f'cargo build --release')
     else:
-        os.system(f'cargo build --no-default-features --features optin --features rustls')
+        os.system(f'cargo build')
     taox_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taox_install_path)
     taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
