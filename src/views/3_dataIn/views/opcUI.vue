@@ -1474,7 +1474,10 @@ export default {
           piParams["parser"] = {
             ...this.$store.state.app.mqttParser,
             parse: {
-              value
+              value: {
+                ...value,
+                keep: false
+              }
             }
           };
         }
