@@ -140,7 +140,11 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   void       *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto STREAM_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
+    mError("stream read invalid data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream manually",
+           tsDataDir);
+    goto STREAM_DECODE_OVER;
+  }
 
   if (sver != MND_STREAM_VER_NUMBER) {
     terrno = 0;
@@ -429,9 +433,11 @@ FAIL:
   return 0;
 }
 
-int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
+int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
+
+  pTask->ver = SSTREAM_TASK_VER;
   tEncodeStreamTask(&encoder, pTask);
 
   int32_t size = encoder.pos;
