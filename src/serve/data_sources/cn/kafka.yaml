@@ -35,6 +35,15 @@ groups:
     description: 配置数据采集任务
     required: false
     params:
+      - name: timeout
+        display: Timeout
+        description: >
+          指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。
+          当 timeout 设置为 `never` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。
+        placeholder: 500
+        required: false
+        hint:
+          type: int
       - name: group
         display: Group
         description: >
@@ -81,9 +90,9 @@ groups:
         hint:
           type: str
           choices:
-          - Earliest
-          - Latest
-          - ByTime
+            - Earliest
+            - Latest
+            - ByTime
       - name: offset_storage
         display: Offset Storage
         description: >
@@ -99,9 +108,8 @@ groups:
         hint:
           type: str
           choices:
-          - Zookeeper
-          - Kafka
-
+            - Zookeeper
+            - Kafka
 parser:
   display: Payload 解析
   description: |
@@ -136,4 +144,3 @@ parser:
       description: 消息体。
       type: binary
   required: true
-
