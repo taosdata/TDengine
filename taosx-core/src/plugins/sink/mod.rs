@@ -211,10 +211,10 @@ async fn ipc_tcp_read(
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
     let client = client.to_string();
     tokio::select! {
-        _ = cancel.cancelled() => {
-            log::debug!("cancel IPC worker");
-            Ok(())
-        },
+        // _ = cancel.cancelled() => {
+        //     log::debug!("cancel IPC worker");
+        //     Ok(())
+        // },
         done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser, connector, transferred) => {
             log::info!("IPC stopped");
             done
@@ -1808,7 +1808,7 @@ pub fn listen_tcp_socket(
         .enable_all()
         .worker_threads(16)
         .build()?;
-    // info!("listen on socket address: {tcp_addr}");
+    info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
     let socket = Arc::new(socket);
     let closer_socket = socket.clone();
@@ -1817,15 +1817,7 @@ pub fn listen_tcp_socket(
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
-    std::thread::spawn(move || {
-        let _ = receiver.recv();
-        tracing::debug!("shutdown socket");
-        closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = closer_socket.shutdown(std::net::Shutdown::Write);
-        // runtime.shutdown_background();
-    });
-
-    std::thread::spawn(move || {
+    let thread = std::thread::spawn(move || {
         let mut handlers = vec![];
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1879,6 +1871,7 @@ pub fn listen_tcp_socket(
                 Err(e) => {
                     /* connection failed */
                     tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                    break;
                 }
             }
         }
@@ -1889,7 +1882,16 @@ pub fn listen_tcp_socket(
             }
         }
         log::info!("IPC all workers done");
-        runtime.shutdown_background();
+        let _ = socket.shutdown(std::net::Shutdown::Both);
+        // runtime.shutdown_background();
+    });
+    std::thread::spawn(move || {
+        let _ = receiver.recv();
+        tracing::debug!("shutdown socket");
+        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+        thread.join().unwrap();
+        // let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+        // runtime.shutdown_background();
     });
 
     Ok(closer)

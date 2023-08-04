@@ -104,6 +104,7 @@ pub async fn kafka_to_taos(
     let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
 
     let worker = tokio::spawn(kafka_worker(from, port));
+    let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
 
@@ -133,13 +134,16 @@ pub async fn kafka_to_taos(
             },
             err = closed.recv() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
+                abort_handle.abort();
                 if let Some(err) = err {
                     let _ = abort.send(());
+                    abort_handle.abort();
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
                 tracing::info!("Kafka task cancelled");
+                abort_handle.abort();
             }
         };
         // send an empty tuple

@@ -74,7 +74,8 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
         let addr = req.remote_addr();
-        let (meta, _extensions, mut req) = req.into_parts();
+        let (_, _extensions, mut req) = req.into_parts();
+        tracing::info!("handshake with client {:?}", addr);
 
         let req = req.message().await?;
 
@@ -548,7 +549,7 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    log::warn!("Task listener closed");
+                                    tracing::warn!("Task listener closed: {err:#}");
                                     break;
                                 }
                             } else {
@@ -571,8 +572,8 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    dbg!(&err);
-                                    log::warn!("Task listener closed");
+                                    // dbg!(&err);
+                                    tracing::warn!("Task listener closed: {err:#}");
                                     break;
                                 }
                             } else {
@@ -595,7 +596,7 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    log::warn!("Task listener closed");
+                                    log::warn!("Task listener closed: {err:#}");
                                     break;
                                 }
                             } else {
@@ -618,7 +619,7 @@ impl FlightService for FlightServiceImpl {
                             .unwrap();
 
                             if let Err(err) = tx.send_async(Ok(batch)).await {
-                                log::warn!("Task listener closed");
+                                log::warn!("Task listener closed: {err:#}");
                                 break;
                             }
                         }
@@ -643,7 +644,7 @@ impl FlightService for FlightServiceImpl {
         &self,
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
-        let (meta, part, action) = request.into_parts();
+        let (_meta, _part, action) = request.into_parts();
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
