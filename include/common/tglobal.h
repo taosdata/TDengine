@@ -129,6 +129,7 @@ extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
 extern bool    tsTtlChangeOnWrite;
+extern int32_t tsTtlFlushThreshold; // max dirty entry number in memory. if -1, flush will not be triggered by write-ops
 extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;

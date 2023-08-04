@@ -21,6 +21,7 @@ static int  metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME);
+static int  metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs);
 static int  metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -927,6 +928,8 @@ end:
 }
 
 int metaTtlDropTable(SMeta *pMeta, int64_t timePointMs, SArray *tbUids) {
+  int64_t startNs = taosGetTimestampNs();
+
   int ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
   if (ret != 0) {
     metaError("ttl failed to flush, ret:%d", ret);
@@ -944,7 +947,16 @@ int metaTtlDropTable(SMeta *pMeta, int64_t timePointMs, SArray *tbUids) {
 
   metaInfo("ttl find expired table count: %zu", TARRAY_SIZE(tbUids));
 
-  metaDropTables(pMeta, tbUids);
+  for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
+    metaWLock(pMeta);
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
+    metaDropTableByUid(pMeta, uid, NULL);
+    metaULock(pMeta);
+  }
+
+  int64_t endNs = taosGetTimestampNs();
+  metaInfo("ttl drop table finished, time consumed: %" PRId64 " ns", endNs - startNs);
+
   return 0;
 }
 
@@ -1325,9 +1337,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   metaSaveToSkmDb(pMeta, &entry);
 
-  metaULock(pMeta);
-
   metaUpdateChangeTime(pMeta, entry.uid, pAlterTbReq->ctimeMs);
+
+  metaULock(pMeta);
 
   metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp);
 
@@ -1514,9 +1526,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   metaUidCacheClear(pMeta, ctbEntry.ctbEntry.suid);
   metaTbGroupCacheClear(pMeta, ctbEntry.ctbEntry.suid);
 
-  metaULock(pMeta);
-
   metaUpdateChangeTime(pMeta, ctbEntry.uid, pAlterTbReq->ctimeMs);
+
+  metaULock(pMeta);
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
@@ -1629,9 +1641,9 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
   metaUpdateUidIdx(pMeta, &entry);
-  metaULock(pMeta);
-
   metaUpdateChangeTime(pMeta, entry.uid, pAlterTbReq->ctimeMs);
+
+  metaULock(pMeta);
 
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
@@ -1980,7 +1992,7 @@ static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
 static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
 
-  STtlUpdTtlCtx ctx = {.uid = pME->uid};
+  STtlUpdTtlCtx ctx = {.uid = pME->uid, .pTxn = pMeta->txn};
   if (pME->type == TSDB_CHILD_TABLE) {
     ctx.ttlDays = pME->ctbEntry.ttlDays;
     ctx.changeTimeMs = pME->ctbEntry.btime;
@@ -1992,7 +2004,7 @@ static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return ttlMgrInsertTtl(pMeta->pTtlMgr, &ctx);
 }
 
-int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
+static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
   if (!tsTtlChangeOnWrite) return 0;
 
   if (changeTimeMs <= 0) {
@@ -2000,9 +2012,16 @@ int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
     return TSDB_CODE_VERSION_NOT_COMPATIBLE;
   }
 
-  STtlUpdCtimeCtx ctx = {.uid = uid, .changeTimeMs = changeTimeMs};
+  STtlUpdCtimeCtx ctx = {.uid = uid, .changeTimeMs = changeTimeMs, .pTxn = pMeta->txn};
 
   return ttlMgrUpdateChangeTime(pMeta->pTtlMgr, &ctx);
+}
+
+int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
+  metaWLock(pMeta);
+  int ret =  metaUpdateChangeTime(pMeta,  uid,  changeTimeMs);
+  metaULock(pMeta);
+  return ret;
 }
 
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {

@@ -1465,7 +1465,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     code = tsdbInsertTableData(pVnode->pTsdb, ver, pSubmitTbData, &affectedRows);
     if (code) goto _exit;
 
-    code = metaUpdateChangeTime(pVnode->pMeta, pSubmitTbData->uid, pSubmitTbData->ctimeMs);
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, pSubmitTbData->uid, pSubmitTbData->ctimeMs);
     if (code) goto _exit;
 
     pSubmitRsp->affectedRows += affectedRows;
@@ -1722,7 +1722,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
              TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     }
 
-    code = metaUpdateChangeTime(pVnode->pMeta, uid, deleteReq.ctimeMs);
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, deleteReq.ctimeMs);
     if (code < 0) {
       terrno = code;
       vError("vgId:%d, update change time error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64
@@ -1761,7 +1761,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
     uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
     code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey);
     if (code) goto _err;
-    code = metaUpdateChangeTime(pVnode->pMeta, uid, pRes->ctimeMs);
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
     if (code) goto _err;
   }
 
