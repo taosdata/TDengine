@@ -1303,9 +1303,9 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pStateKey, &pState->pStateKey);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlot(pCxt, &pState->pStateKey, pState->window.node.pOutputDataBlockDesc);
-    }
+    // if (TSDB_CODE_SUCCESS == code) {
+    //   code = addDataBlockSlot(pCxt, &pState->pStateKey, pState->window.node.pOutputDataBlockDesc);
+    // }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
