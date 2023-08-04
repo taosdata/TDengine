@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
 use actix_cors::Cors;
+use actix_multipart::form::MultipartFormConfig;
 use anyhow::Result;
 
 use clap::Parser;
 
 use actix_web::{
     middleware::Logger,
-    web::{Data, ServiceConfig},
+    web::{Data, ServiceConfig, PayloadConfig},
     App, HttpServer,
 };
 use serde::Deserialize;
@@ -243,6 +244,10 @@ impl Cli {
                 .wrap(cors)
                 .wrap(Logger::default())
                 .app_data(recorder.clone())
+                .app_data(PayloadConfig::new(1024 * 1024 * 1024))
+                .app_data(MultipartFormConfig::default()
+                .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
+                .total_limit(1024 * 1024 * 1024 * 2)) // payload set to 2G
                 .configure(configure(store.clone()))
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
