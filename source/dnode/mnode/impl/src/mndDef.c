@@ -70,6 +70,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pArray, j);
+      pTask->ver = SSTREAM_TASK_VER;
       if (tEncodeStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
@@ -154,7 +155,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   return 0;
 }
 
-static void* freeStreamTasks(SArray* pTaskLevel) {
+static void *freeStreamTasks(SArray *pTaskLevel) {
   int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
   for (int32_t i = 0; i < numOfLevel; i++) {
     SArray *pLevel = taosArrayGetP(pTaskLevel, i);
@@ -192,14 +193,14 @@ SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
   if (pVgEpNew == NULL) return NULL;
   pVgEpNew->vgId = pVgEp->vgId;
-//  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
+  //  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
   pVgEpNew->epSet = pVgEp->epSet;
   return pVgEpNew;
 }
 
 void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
   if (pVgEp) {
-//    taosMemoryFreeClear(pVgEp->qmsg);
+    //    taosMemoryFreeClear(pVgEp->qmsg);
     taosMemoryFree(pVgEp);
   }
 }
@@ -207,14 +208,14 @@ void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
-//  tlen += taosEncodeString(buf, pVgEp->qmsg);
+  //  tlen += taosEncodeString(buf, pVgEp->qmsg);
   tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
   return tlen;
 }
 
 void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
-  if(sver == 1){
+  if (sver == 1) {
     uint64_t size = 0;
     buf = taosDecodeVariantU64(buf, &size);
     buf = POINTER_SHIFT(buf, size);
@@ -223,7 +224,7 @@ void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   return (void *)buf;
 }
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char* cgroup) {
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup) {
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -260,12 +261,12 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char* cgroup) {
 }
 
 void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer, bool delete) {
-  if(pConsumer == NULL) return;
+  if (pConsumer == NULL) return;
   taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
-  if(delete){
+  if (delete) {
     taosMemoryFree(pConsumer);
   }
 }
@@ -392,7 +393,7 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
     taosArrayPush(pConsumer->assignedTopics, &topic);
   }
 
-  if(sver > 1){
+  if (sver > 1) {
     buf = taosDecodeFixedI8(buf, &pConsumer->withTbName);
     buf = taosDecodeFixedI8(buf, &pConsumer->autoCommit);
     buf = taosDecodeFixedI32(buf, &pConsumer->autoCommitInterval);
@@ -401,18 +402,18 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   return (void *)buf;
 }
 
-//SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
-//  SMqConsumerEp *pConsumerEpNew = taosMemoryMalloc(sizeof(SMqConsumerEp));
-//  if (pConsumerEpNew == NULL) return NULL;
-//  pConsumerEpNew->consumerId = pConsumerEpOld->consumerId;
-//  pConsumerEpNew->vgs = taosArrayDup(pConsumerEpOld->vgs, NULL);
-//  return pConsumerEpNew;
-//}
+// SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
+//   SMqConsumerEp *pConsumerEpNew = taosMemoryMalloc(sizeof(SMqConsumerEp));
+//   if (pConsumerEpNew == NULL) return NULL;
+//   pConsumerEpNew->consumerId = pConsumerEpOld->consumerId;
+//   pConsumerEpNew->vgs = taosArrayDup(pConsumerEpOld->vgs, NULL);
+//   return pConsumerEpNew;
+// }
 //
-//void tDeleteSMqConsumerEp(void *data) {
-//  SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
-//  taosArrayDestroy(pConsumerEp->vgs);
-//}
+// void tDeleteSMqConsumerEp(void *data) {
+//   SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
+//   taosArrayDestroy(pConsumerEp->vgs);
+// }
 
 int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
   int32_t tlen = 0;
@@ -420,7 +421,7 @@ int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
   tlen += taosEncodeArray(buf, pConsumerEp->vgs, (FEncode)tEncodeSMqVgEp);
   int32_t szVgs = taosArrayGetSize(pConsumerEp->offsetRows);
   tlen += taosEncodeFixedI32(buf, szVgs);
-  for (int32_t j= 0; j < szVgs; ++j) {
+  for (int32_t j = 0; j < szVgs; ++j) {
     OffsetRows *offRows = taosArrayGet(pConsumerEp->offsetRows, j);
     tlen += taosEncodeFixedI32(buf, offRows->vgId);
     tlen += taosEncodeFixedI64(buf, offRows->rows);
@@ -434,28 +435,28 @@ int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
       // do nothing
     }
   }
-//#if 0
-//  int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
-//  tlen += taosEncodeFixedI32(buf, sz);
-//  for (int32_t i = 0; i < sz; i++) {
-//    SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, i);
-//    tlen += tEncodeSMqVgEp(buf, pVgEp);
-//  }
-//#endif
+  // #if 0
+  //   int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
+  //   tlen += taosEncodeFixedI32(buf, sz);
+  //   for (int32_t i = 0; i < sz; i++) {
+  //     SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, i);
+  //     tlen += tEncodeSMqVgEp(buf, pVgEp);
+  //   }
+  // #endif
   return tlen;
 }
 
 void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t sver) {
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
   buf = taosDecodeArray(buf, &pConsumerEp->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
-  if (sver > 1){
+  if (sver > 1) {
     int32_t szVgs = 0;
     buf = taosDecodeFixedI32(buf, &szVgs);
-    if(szVgs > 0){
+    if (szVgs > 0) {
       pConsumerEp->offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
       if (NULL == pConsumerEp->offsetRows) return NULL;
-      for (int32_t j= 0; j < szVgs; ++j) {
-        OffsetRows* offRows = taosArrayReserve(pConsumerEp->offsetRows, 1);
+      for (int32_t j = 0; j < szVgs; ++j) {
+        OffsetRows *offRows = taosArrayReserve(pConsumerEp->offsetRows, 1);
         buf = taosDecodeFixedI32(buf, &offRows->vgId);
         buf = taosDecodeFixedI64(buf, &offRows->rows);
         buf = taosDecodeFixedI8(buf, &offRows->offset.type);
@@ -470,21 +471,21 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t s
       }
     }
   }
-//#if 0
-//  int32_t sz;
-//  buf = taosDecodeFixedI32(buf, &sz);
-//  pConsumerEp->vgs = taosArrayInit(sz, sizeof(void *));
-//  for (int32_t i = 0; i < sz; i++) {
-//    SMqVgEp *pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
-//    buf = tDecodeSMqVgEp(buf, pVgEp);
-//    taosArrayPush(pConsumerEp->vgs, &pVgEp);
-//  }
-//#endif
+  // #if 0
+  //   int32_t sz;
+  //   buf = taosDecodeFixedI32(buf, &sz);
+  //   pConsumerEp->vgs = taosArrayInit(sz, sizeof(void *));
+  //   for (int32_t i = 0; i < sz; i++) {
+  //     SMqVgEp *pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
+  //     buf = tDecodeSMqVgEp(buf, pVgEp);
+  //     taosArrayPush(pConsumerEp->vgs, &pVgEp);
+  //   }
+  // #endif
 
   return (void *)buf;
 }
 
-SMqSubscribeObj *tNewSubscribeObj(const char* key) {
+SMqSubscribeObj *tNewSubscribeObj(const char *key) {
   SMqSubscribeObj *pSubObj = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
   if (pSubObj == NULL) {
     return NULL;
@@ -577,7 +578,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
 
   int32_t szVgs = taosArrayGetSize(pSub->offsetRows);
   tlen += taosEncodeFixedI32(buf, szVgs);
-  for (int32_t j= 0; j < szVgs; ++j) {
+  for (int32_t j = 0; j < szVgs; ++j) {
     OffsetRows *offRows = taosArrayGet(pSub->offsetRows, j);
     tlen += taosEncodeFixedI32(buf, offRows->vgId);
     tlen += taosEncodeFixedI64(buf, offRows->rows);
@@ -617,14 +618,14 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
   buf = taosDecodeStringTo(buf, pSub->dbName);
 
-  if (sver > 1){
+  if (sver > 1) {
     int32_t szVgs = 0;
     buf = taosDecodeFixedI32(buf, &szVgs);
-    if(szVgs > 0){
+    if (szVgs > 0) {
       pSub->offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
       if (NULL == pSub->offsetRows) return NULL;
-      for (int32_t j= 0; j < szVgs; ++j) {
-        OffsetRows* offRows = taosArrayReserve(pSub->offsetRows, 1);
+      for (int32_t j = 0; j < szVgs; ++j) {
+        OffsetRows *offRows = taosArrayReserve(pSub->offsetRows, 1);
         buf = taosDecodeFixedI32(buf, &offRows->vgId);
         buf = taosDecodeFixedI64(buf, &offRows->rows);
         buf = taosDecodeFixedI8(buf, &offRows->offset.type);
@@ -639,71 +640,71 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
       }
     }
     buf = taosDecodeString(buf, &pSub->qmsg);
-  }else{
+  } else {
     pSub->qmsg = taosStrdup("");
   }
   return (void *)buf;
 }
 
-//SMqSubActionLogEntry *tCloneSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {
-//  SMqSubActionLogEntry *pEntryNew = taosMemoryMalloc(sizeof(SMqSubActionLogEntry));
-//  if (pEntryNew == NULL) return NULL;
-//  pEntryNew->epoch = pEntry->epoch;
-//  pEntryNew->consumers = taosArrayDup(pEntry->consumers, (__array_item_dup_fn_t)tCloneSMqConsumerEp);
-//  return pEntryNew;
-//}
+// SMqSubActionLogEntry *tCloneSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {
+//   SMqSubActionLogEntry *pEntryNew = taosMemoryMalloc(sizeof(SMqSubActionLogEntry));
+//   if (pEntryNew == NULL) return NULL;
+//   pEntryNew->epoch = pEntry->epoch;
+//   pEntryNew->consumers = taosArrayDup(pEntry->consumers, (__array_item_dup_fn_t)tCloneSMqConsumerEp);
+//   return pEntryNew;
+// }
 //
-//void tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {
-//  taosArrayDestroyEx(pEntry->consumers, (FDelete)tDeleteSMqConsumerEp);
-//}
+// void tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry *pEntry) {
+//   taosArrayDestroyEx(pEntry->consumers, (FDelete)tDeleteSMqConsumerEp);
+// }
 
-//int32_t tEncodeSMqSubActionLogEntry(void **buf, const SMqSubActionLogEntry *pEntry) {
-//  int32_t tlen = 0;
-//  tlen += taosEncodeFixedI32(buf, pEntry->epoch);
-//  tlen += taosEncodeArray(buf, pEntry->consumers, (FEncode)tEncodeSMqSubActionLogEntry);
-//  return tlen;
-//}
+// int32_t tEncodeSMqSubActionLogEntry(void **buf, const SMqSubActionLogEntry *pEntry) {
+//   int32_t tlen = 0;
+//   tlen += taosEncodeFixedI32(buf, pEntry->epoch);
+//   tlen += taosEncodeArray(buf, pEntry->consumers, (FEncode)tEncodeSMqSubActionLogEntry);
+//   return tlen;
+// }
 //
-//void *tDecodeSMqSubActionLogEntry(const void *buf, SMqSubActionLogEntry *pEntry) {
-//  buf = taosDecodeFixedI32(buf, &pEntry->epoch);
-//  buf = taosDecodeArray(buf, &pEntry->consumers, (FDecode)tDecodeSMqSubActionLogEntry, sizeof(SMqSubActionLogEntry));
-//  return (void *)buf;
-//}
+// void *tDecodeSMqSubActionLogEntry(const void *buf, SMqSubActionLogEntry *pEntry) {
+//   buf = taosDecodeFixedI32(buf, &pEntry->epoch);
+//   buf = taosDecodeArray(buf, &pEntry->consumers, (FDecode)tDecodeSMqSubActionLogEntry, sizeof(SMqSubActionLogEntry));
+//   return (void *)buf;
+// }
 
-//SMqSubActionLogObj *tCloneSMqSubActionLogObj(SMqSubActionLogObj *pLog) {
-//  SMqSubActionLogObj *pLogNew = taosMemoryMalloc(sizeof(SMqSubActionLogObj));
-//  if (pLogNew == NULL) return pLogNew;
-//  memcpy(pLogNew->key, pLog->key, TSDB_SUBSCRIBE_KEY_LEN);
-//  pLogNew->logs = taosArrayDup(pLog->logs, (__array_item_dup_fn_t)tCloneSMqConsumerEp);
-//  return pLogNew;
-//}
+// SMqSubActionLogObj *tCloneSMqSubActionLogObj(SMqSubActionLogObj *pLog) {
+//   SMqSubActionLogObj *pLogNew = taosMemoryMalloc(sizeof(SMqSubActionLogObj));
+//   if (pLogNew == NULL) return pLogNew;
+//   memcpy(pLogNew->key, pLog->key, TSDB_SUBSCRIBE_KEY_LEN);
+//   pLogNew->logs = taosArrayDup(pLog->logs, (__array_item_dup_fn_t)tCloneSMqConsumerEp);
+//   return pLogNew;
+// }
 //
-//void tDeleteSMqSubActionLogObj(SMqSubActionLogObj *pLog) {
-//  taosArrayDestroyEx(pLog->logs, (FDelete)tDeleteSMqConsumerEp);
-//}
+// void tDeleteSMqSubActionLogObj(SMqSubActionLogObj *pLog) {
+//   taosArrayDestroyEx(pLog->logs, (FDelete)tDeleteSMqConsumerEp);
+// }
 
-//int32_t tEncodeSMqSubActionLogObj(void **buf, const SMqSubActionLogObj *pLog) {
-//  int32_t tlen = 0;
-//  tlen += taosEncodeString(buf, pLog->key);
-//  tlen += taosEncodeArray(buf, pLog->logs, (FEncode)tEncodeSMqSubActionLogEntry);
-//  return tlen;
-//}
+// int32_t tEncodeSMqSubActionLogObj(void **buf, const SMqSubActionLogObj *pLog) {
+//   int32_t tlen = 0;
+//   tlen += taosEncodeString(buf, pLog->key);
+//   tlen += taosEncodeArray(buf, pLog->logs, (FEncode)tEncodeSMqSubActionLogEntry);
+//   return tlen;
+// }
 //
-//void *tDecodeSMqSubActionLogObj(const void *buf, SMqSubActionLogObj *pLog) {
-//  buf = taosDecodeStringTo(buf, pLog->key);
-//  buf = taosDecodeArray(buf, &pLog->logs, (FDecode)tDecodeSMqSubActionLogEntry, sizeof(SMqSubActionLogEntry));
-//  return (void *)buf;
-//}
+// void *tDecodeSMqSubActionLogObj(const void *buf, SMqSubActionLogObj *pLog) {
+//   buf = taosDecodeStringTo(buf, pLog->key);
+//   buf = taosDecodeArray(buf, &pLog->logs, (FDecode)tDecodeSMqSubActionLogEntry, sizeof(SMqSubActionLogEntry));
+//   return (void *)buf;
+// }
 //
-//int32_t tEncodeSMqOffsetObj(void **buf, const SMqOffsetObj *pOffset) {
-//  int32_t tlen = 0;
-//  tlen += taosEncodeString(buf, pOffset->key);
-//  tlen += taosEncodeFixedI64(buf, pOffset->offset);
-//  return tlen;
-//}
+// int32_t tEncodeSMqOffsetObj(void **buf, const SMqOffsetObj *pOffset) {
+//   int32_t tlen = 0;
+//   tlen += taosEncodeString(buf, pOffset->key);
+//   tlen += taosEncodeFixedI64(buf, pOffset->offset);
+//   return tlen;
+// }
 //
-//void *tDecodeSMqOffsetObj(void *buf, SMqOffsetObj *pOffset) {
-//  buf = taosDecodeStringTo(buf, pOffset->key);
-//  buf = taosDecodeFixedI64(buf, &pOffset->offset);
-//  return buf;
-//}
+// void *tDecodeSMqOffsetObj(void *buf, SMqOffsetObj *pOffset) {
+//   buf = taosDecodeStringTo(buf, pOffset->key);
+//   buf = taosDecodeFixedI64(buf, &pOffset->offset);
+//   return buf;
+// }
