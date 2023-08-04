@@ -26,15 +26,7 @@ groups:
         hint:
           type: integer
           min: 0
-      - name: has_header
-        display: Has Headers?
-        value: true
-        hint:
-          type: boolean
-      - name: header
-        display: Custom Headers
-        hint:
-          type: boolean
+      
   - name: Write Options
     display_order: 2
     description: Writing options
