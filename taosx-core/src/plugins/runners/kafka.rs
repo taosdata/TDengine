@@ -114,8 +114,16 @@ pub async fn kafka_to_taos(
                 match status? {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
-                        log::info!("Kafka worker done successfully");
-                        let _ = abort.send(());
+                        match closed.try_recv() {
+                            Ok(res) => {
+                                tracing::error!("IPC Error: {res}");
+                                anyhow::bail!("Kafka worker exit with IPC error: {res}");
+                            }
+                            Err(_) => {
+                                tracing::info!("Kafka worker done successfully");
+                                let _ = abort.send(());
+                            }
+                        }
                     }
                     Err(err) => {
                         let _ = abort.send(());
@@ -124,20 +132,20 @@ pub async fn kafka_to_taos(
                 }
             },
             err = closed.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
+                tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
                     let _ = abort.send(());
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("Kafka task cancelled");
+                tracing::info!("Kafka task cancelled");
             }
         };
         // send an empty tuple
         let _ = abort.send(());
         // stop the connector
-        log::info!("Kafka task Done");
+        tracing::info!("Kafka task Done");
         // put ipc port back to port pool.
         port_pool.put(port);
         // wait for completion
