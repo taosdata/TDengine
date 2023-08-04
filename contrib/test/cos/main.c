@@ -3011,10 +3011,6 @@ int main(int argc, char *argv[]) {
   // 通过环境变量获取 SECRETID 和 SECRETKEY
   // TEST_ACCESS_KEY_ID = getenv("COS_SECRETID");
   // TEST_ACCESS_KEY_SECRET = getenv("COS_SECRETKEY");
-  // TEST_ACCESS_KEY_ID = "LTAI5tQXBguGaxRRhBG1EX74";
-  // TEST_ACCESS_KEY_SECRET = "lDtN0AzLYlm8Y7hFd1H6uz1HR1nhWn";
-  TEST_ACCESS_KEY_ID = "AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ";
-  TEST_ACCESS_KEY_SECRET = "lIdoy99ygEacU7iHfogaN2Xq0yumSm1E";
 
   if (cos_http_io_initialize(NULL, 0) != COSE_OK) {
     exit(1);
