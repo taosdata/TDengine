@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vndCos.h"
 
 // =============== PAGE-WISE FILE ===============
 int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
@@ -34,9 +35,23 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
   pFD->flag = flag;
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosMemoryFree(pFD);
-    goto _exit;
+    const char *object_name = taosDirEntryBaseName((char *)path);
+    if (!strncmp(path + strlen(path) - 5, ".data", 5) && s3Exists(object_name)) {
+      s3EvictCache();
+      s3Get(object_name, path);
+
+      pFD->pFD = taosOpenFile(path, flag);
+
+      if (pFD->pFD == NULL) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        taosMemoryFree(pFD);
+        goto _exit;
+      }
+    } else {
+      code = TAOS_SYSTEM_ERROR(errno);
+      taosMemoryFree(pFD);
+      goto _exit;
+    }
   }
   pFD->szPage = szPage;
   pFD->pgno = 0;
