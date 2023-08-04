@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::utils::port_pool::PortPool;
-use crate::{utils, Parser, Transferred, build_ipc};
+use crate::{build_ipc, utils, Parser, Transferred};
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
@@ -118,8 +118,17 @@ pub async fn csv_to_taos(
                 match status? {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
-                        log::info!("CSV worker done successfully");
-                        let _ = abort.send(());
+                        match closed.try_recv() {
+                            Ok(res) => {
+                                tracing::error!("IPC Error: {res}");
+                                anyhow::bail!("CSV exit with IPC error: {res}");
+
+                            }
+                            Err(_) => {
+                                log::info!("CSV worker done successfully");
+                                let _ = abort.send(());
+                            }
+                        }
                     }
                     Err(err) => {
                         let _ = abort.send(());
