@@ -710,29 +710,23 @@ _exit:
 }
 
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
-  if (tbUids == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
+  int32_t           code = 0;
   SVDropTtlTableReq ttlReq = {0};
+
+  // decode
   if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto end;
   }
 
   vDebug("vgId:%d, drop ttl table req will be processed, time:%" PRId32, pVnode->config.vgId, ttlReq.timestampSec);
-  int32_t ret = metaTtlDropTable(pVnode->pMeta, (int64_t)ttlReq.timestampSec * 1000, tbUids);
-  if (ret != 0) {
-    goto end;
-  }
-  if (taosArrayGetSize(tbUids) > 0) {
-    tqUpdateTbUidList(pVnode->pTq, tbUids, false);
-  }
+  code = metaTtlSetExpireTime(pVnode->pMeta, (int64_t)ttlReq.timestampSec * 1000);
+  if (code) goto end;
 
-  vnodeDoRetention(pVnode, ttlReq.timestampSec);
+  code = vnodeAsyncTtlDropTable(pVnode);
 
 end:
-  taosArrayDestroy(tbUids);
-  return ret;
+  return code;
 }
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {

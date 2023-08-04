@@ -353,6 +353,59 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
 
   taosThreadMutexUnlock(&pVnode->mutex);
 }
+
+static int32_t vnodeTtlTask(void *arg) {
+  int32_t code = 0;
+
+  STtlInfo *pInfo = (STtlInfo *)arg;
+  SVnode   *pVnode = pInfo->pVnode;
+  SArray   *tbUids = taosArrayInit(8, sizeof(int64_t));
+
+  code = metaTtlDropTable(pVnode->pMeta, tbUids);
+  if (code) {
+    vFatal("vgId:%d, meta failed to drop table by ttl since %s", TD_VID(pVnode), terrstr());
+    goto _exit;
+  }
+
+  // if (taosArrayGetSize(tbUids) > 0) {
+  //   tqUpdateTbUidList(pVnode->pTq, tbUids, false);
+  // }
+
+  // TODO(LSG)
+  //vnodeAsyncRentention(pVnode, ttlReq.timestampSec);
+
+_exit:
+  // end commit
+  taosMemoryFree(pInfo);
+  return code;
+}
+
+int vnodeAsyncTtlDropTable(SVnode *pVnode) {
+  int32_t code = 0;
+
+  STtlInfo *pInfo = (STtlInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
+  if (NULL == pInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // schedule the task
+  code = vnodeScheduleTask(vnodeTtlTask, pInfo);
+
+_exit:
+  if (code) {
+    if (NULL != pInfo) {
+      taosMemoryFree(pInfo);
+    }
+    vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
+           pVnode->state.commitID);
+  } else {
+    vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
+          pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied);
+  }
+  return code;
+}
+
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 

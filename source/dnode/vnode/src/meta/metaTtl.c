@@ -59,6 +59,7 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
   strcpy(logBuffer, logPrefix);
   pTtlMgr->logPrefix = logBuffer;
   pTtlMgr->flushThreshold = flushThreshold;
+  pTtlMgr->expireTimeMs = 0; // TODO(LSG)
 
   ret = tdbTbOpen(ttlV1Tbname, TDB_VARIANT_LEN, TDB_VARIANT_LEN, ttlIdxKeyV1Cmpr, pEnv, &pTtlMgr->pTtlIdx, rollback);
   if (ret < 0) {
@@ -358,8 +359,13 @@ _out:
   return ret;
 }
 
-int ttlMgrFindExpired(STtlManger *pTtlMgr, int64_t timePointMs, SArray *pTbUids) {
+int ttlMgrFindExpired(STtlManger *pTtlMgr, SArray *pTbUids) {
   ttlMgrRLock(pTtlMgr);
+
+  if (pTtlMgr->expireTimeMs == 0) {
+    metaError("%s, ttl expireTimeMs uninitialized, skip find expired", pTtlMgr->logPrefix);
+    return 0;
+  }
 
   TBC *pCur;
   int  ret = tdbTbcOpen(pTtlMgr->pTtlIdx, &pCur, NULL);
@@ -368,7 +374,7 @@ int ttlMgrFindExpired(STtlManger *pTtlMgr, int64_t timePointMs, SArray *pTbUids)
   }
 
   STtlIdxKeyV1 ttlKey = {0};
-  ttlKey.deleteTimeMs = timePointMs;
+  ttlKey.deleteTimeMs = pTtlMgr->expireTimeMs;
   ttlKey.uid = INT64_MAX;
   int c = 0;
   tdbTbcMoveTo(pCur, &ttlKey, sizeof(ttlKey), &c);
@@ -473,6 +479,20 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
   ttlMgrULock(pTtlMgr);
 
   return ret;
+}
+
+int ttlMgrSetExpireTime(STtlManger *pTtlMgr, int64_t timePointMs) {
+  ttlMgrWLock(pTtlMgr);
+
+  if (pTtlMgr->expireTimeMs > timePointMs) {
+    metaWarn("%s, ttl mgr new expireTimeMs:%" PRId64 " is smaller than old:%" PRId64 ". maybe restoring?",
+             pTtlMgr->logPrefix, timePointMs, pTtlMgr->expireTimeMs);
+  } else {
+    pTtlMgr->expireTimeMs = timePointMs;
+  }
+
+  ttlMgrULock(pTtlMgr);
+  return 0;
 }
 
 static int32_t ttlMgrRLock(STtlManger *pTtlMgr) {

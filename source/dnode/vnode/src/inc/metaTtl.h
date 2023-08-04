@@ -39,6 +39,8 @@ typedef struct STtlManger {
   SHashObj* pDirtyUids;  // hash<dirtyTuid, entryType>
   TTB*      pTtlIdx;     // btree<{deleteTime, tuid}, ttl>
 
+  int64_t expireTimeMs; // ttl table expiration time
+
   char*   logPrefix;
   int32_t flushThreshold;  // max dirty entry number in memory. if -1, flush will not be triggered by write-ops
 } STtlManger;
@@ -96,7 +98,9 @@ int ttlMgrDeleteTtl(STtlManger* pTtlMgr, const STtlDelTtlCtx* pDelCtx);
 int ttlMgrUpdateChangeTime(STtlManger* pTtlMgr, const STtlUpdCtimeCtx* pUpdCtimeCtx);
 
 int ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
-int ttlMgrFindExpired(STtlManger* pTtlMgr, int64_t timePointMs, SArray* pTbUids);
+int ttlMgrFindExpired(STtlManger* pTtlMgr, SArray* pTbUids);
+
+int ttlMgrSetExpireTime(STtlManger* pTtlMgr, int64_t timePointMs);
 
 #ifdef __cplusplus
 }
