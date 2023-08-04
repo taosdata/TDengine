@@ -296,12 +296,14 @@ _EXIT:
 }
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
-  RocksdbCfInst**  pIter = (RocksdbCfInst**)taosHashIterate(pHandle->cfInst, NULL);
+
+  void* pIter = taosHashIterate(pHandle->cfInst, NULL);
   while (pIter != NULL) {
-    RocksdbCfInst* inst = *pIter;
+    RocksdbCfInst* inst = *(RocksdbCfInst**)pIter;
     destroyRocksdbCfInst(inst);
-    taosHashIterate(pHandle->cfInst, pIter);
+    pIter = taosHashIterate(pHandle->cfInst, pIter);
   }
+
   taosHashCleanup(pHandle->cfInst);
 
   if (pHandle->db) {
@@ -1133,9 +1135,9 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
       inst->pHandle[idx] = cfHandle[i];
     }
   }
-  void** pIter = taosHashIterate(handle->cfInst, NULL);
+  void* pIter = taosHashIterate(handle->cfInst, NULL);
   while (pIter) {
-    RocksdbCfInst* inst = *pIter;
+    RocksdbCfInst* inst = *(RocksdbCfInst**)pIter;
 
     for (int i = 0; i < cfLen; i++) {
       if (inst->cfOpt[i] == NULL) {
