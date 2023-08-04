@@ -38,6 +38,15 @@ groups:
     description: Configure the data migration task
     required: false
     params:
+      - name: timeout
+        display: Timeout
+        description: >
+          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. 
+          The default value is 500 ms. When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
+        placeholder: 500
+        required: false
+        hint:
+          type: int
       - name: group
         display: Group
         description: >
