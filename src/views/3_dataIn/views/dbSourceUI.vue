@@ -987,7 +987,7 @@ export default {
               });
               return;
             } else {
-              if (data.groups[index].params[g].value) {
+              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 querystr +=
                   `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                   "&";

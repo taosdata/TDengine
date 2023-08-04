@@ -970,6 +970,15 @@ export default {
     },
   },
   methods: {
+    //处理空值和‘undefined’字符值
+    handleEmptyValue(val) {
+      return (
+        !Object.is(val, null) &&
+        !Object.is(val, undefined) &&
+        !Object.is(val, "") &&
+        !Object.is(val, "undefined")
+      );
+    },
     getThreeBoxNum(val, item) {
       if (item.name == "use_csv_config") {
         if (val == 1) {
@@ -1205,7 +1214,7 @@ export default {
                 }
               }
             } else {
-              if (data.groups[index].params[g].value) {
+              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 if (data.groups[index].params[g].name === "use_received_time") {
                   if (data.groups[index].params[g].value !== 0) {
                     let value = data.groups[index].params[g].value === 1;
