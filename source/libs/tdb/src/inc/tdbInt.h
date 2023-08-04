@@ -131,13 +131,14 @@ typedef struct SBtInfo {
 #define TDB_CELLDECODER_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV & TDB_CELLD_F_VAL)
 
 typedef struct {
-  int   kLen;
-  u8   *pKey;
-  int   vLen;
-  u8   *pVal;
-  SPgno pgno;
-  u8   *pBuf;
-  u8    freeKV;
+  int     kLen;
+  u8     *pKey;
+  int     vLen;
+  u8     *pVal;
+  SPgno   pgno;
+  u8     *pBuf;
+  u8      freeKV;
+  SArray *ofps;
 } SCellDecoder;
 
 struct SBTC {
@@ -198,9 +199,10 @@ int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
-int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-int  tdbPagerRestoreJournals(SPager *pPager);
-int  tdbPagerRollback(SPager *pPager);
+int  tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn);
+// int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
+int tdbPagerRestoreJournals(SPager *pPager);
+int tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
@@ -373,6 +375,7 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
 
 #ifdef USE_MAINDB
 #define TDB_MAINDB_NAME "main.tdb"
+#define TDB_FREEDB_NAME "_free.db"
 #endif
 
 struct STDB {
@@ -386,6 +389,7 @@ struct STDB {
   SPager **pgrHash;
 #ifdef USE_MAINDB
   TTB *pMainDb;
+  TTB *pFreeDb;
 #endif
   int64_t txnId;
 };
@@ -403,6 +407,8 @@ struct SPager {
   SRBTree rbt;
   // u8        inTran;
   TXN    *pActiveTxn;
+  SArray *ofps;
+  SArray *frps;
   SPager *pNext;      // used by TDB
   SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB

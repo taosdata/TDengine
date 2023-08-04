@@ -560,20 +560,20 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.version = 1;
   streamObj.sql = taosStrdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
-  streamObj.watermark = pCreate->watermark;
+  streamObj.conf.watermark = pCreate->watermark;
   streamObj.deleteMark = pCreate->deleteMark;
-  streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
-  streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
-  streamObj.triggerParam = pCreate->maxDelay;
+  streamObj.conf.fillHistory = STREAM_FILL_HISTORY_ON;
+  streamObj.conf.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
+  streamObj.conf.triggerParam = pCreate->maxDelay;
   streamObj.ast = taosStrdup(smaObj.ast);
 
   // check the maxDelay
-  if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
+  if (streamObj.conf.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
     int64_t msInterval = convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND);
-    streamObj.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
+    streamObj.conf.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
   }
-  if (streamObj.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
-    streamObj.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
+  if (streamObj.conf.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
+    streamObj.conf.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
   }
 
   if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
@@ -602,8 +602,8 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
       .pAstRoot = pAst,
       .topicQuery = false,
       .streamQuery = true,
-      .triggerType = streamObj.trigger,
-      .watermark = streamObj.watermark,
+      .triggerType = streamObj.conf.trigger,
+      .watermark = streamObj.conf.watermark,
       .deleteMark = streamObj.deleteMark,
   };
 
@@ -638,7 +638,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndSetCreateSmaVgroupCommitLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetUpdateSmaStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg, &smaObj) != 0) goto _OVER;
-  if (mndScheduleStream(pMnode, &streamObj) != 0) goto _OVER;
+  if (mndScheduleStream(pMnode, &streamObj, 1685959190000) != 0) goto _OVER;
   if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -894,11 +894,11 @@ _OVER:
 }
 
 int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
-  SSdb    *pSdb = pMnode->pSdb;
-  SSmaObj *pSma = NULL;
-  void    *pIter = NULL;
-  SVgObj  *pVgroup = NULL;
-  int32_t  code = -1;
+  SSdb       *pSdb = pMnode->pSdb;
+  SSmaObj    *pSma = NULL;
+  void       *pIter = NULL;
+  SVgObj     *pVgroup = NULL;
+  int32_t     code = -1;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
@@ -916,12 +916,18 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
       if (pStream != NULL && pStream->smaId == pSma->uid) {
         if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
           mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+          mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
+
         if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+          mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
+
+        mndReleaseStream(pMnode, pStream);
       }
+
       if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
       if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
       if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
@@ -1283,13 +1289,13 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     STR_TO_VARSTR(col, (char *)"");
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)col, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
     char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tag, (char *)"sma_index");
-    colDataAppend(pColInfo, numOfRows, (const char *)tag, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);

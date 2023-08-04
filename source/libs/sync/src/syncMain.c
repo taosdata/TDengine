@@ -508,12 +508,14 @@ SSyncState syncGetState(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
     state.state = pSyncNode->state;
+    state.roleTimeMs = pSyncNode->roleTimeMs;
     state.restored = pSyncNode->restoreFinish;
     if (pSyncNode->vgId != 1) {
       state.canRead = syncNodeIsReadyForRead(pSyncNode);
     } else {
       state.canRead = state.restored;
     }
+    state.term = raftStoreGetTerm(pSyncNode);
     syncNodeRelease(pSyncNode);
   }
 
@@ -898,6 +900,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  pSyncNode->roleTimeMs = taosGetTimestampMs();
   if (raftStoreOpen(pSyncNode) != 0) {
     sError("vgId:%d, failed to open raft store at path %s", pSyncNode->vgId, pSyncNode->raftStorePath);
     goto _error;
@@ -1035,7 +1038,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   int64_t timeNow = taosGetTimestampMs();
   pSyncNode->startTime = timeNow;
-  pSyncNode->leaderTime = timeNow;
   pSyncNode->lastReplicateTime = timeNow;
 
   // snapshotting
@@ -1131,6 +1133,7 @@ int32_t syncNodeStart(SSyncNode* pSyncNode) {
 int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  pSyncNode->roleTimeMs = taosGetTimestampMs();
   syncNodeStopHeartbeatTimer(pSyncNode);
 
   // reset elect timer, long enough
@@ -1667,6 +1670,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  pSyncNode->roleTimeMs = taosGetTimestampMs();
   syncNodeStopHeartbeatTimer(pSyncNode);
 
   // trace log
@@ -1695,6 +1699,7 @@ void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr) {
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEARNER;
+  pSyncNode->roleTimeMs = taosGetTimestampMs();
 
   // trace log
   sNTrace(pSyncNode, "become learner %s", debugStr);
@@ -1730,8 +1735,6 @@ void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr) {
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
-  pSyncNode->leaderTime = taosGetTimestampMs();
-
   pSyncNode->becomeLeaderNum++;
   pSyncNode->hbrSlowNum = 0;
 
@@ -1740,6 +1743,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
+  pSyncNode->roleTimeMs = taosGetTimestampMs();
 
   // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
@@ -1839,6 +1843,7 @@ int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
+  pSyncNode->roleTimeMs = taosGetTimestampMs();
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   sInfo("vgId:%d, become candidate from follower. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64,
         pSyncNode->vgId, raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);

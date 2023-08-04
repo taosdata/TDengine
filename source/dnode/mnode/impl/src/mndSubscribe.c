@@ -692,6 +692,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       taosArrayDestroy(rebOutput.modifyConsumers);
       taosArrayDestroy(rebOutput.rebVgs);
 
+      taosHashCancelIterate(pReq->rebSubHash, pIter);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       mInfo("mq re-balance failed, due to out of memory");
       taosHashCleanup(pReq->rebSubHash);
@@ -1168,7 +1169,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t cons
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, *numOfRows, (const char *)consumerIdHex, consumerId == -1);
     
-    mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
+    mInfo("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
            consumerId, varDataVal(cgroup), pVgEp->vgId);
 
     // offset
@@ -1207,7 +1208,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
 
-  mDebug("mnd show subscriptions begin");
+  mInfo("mnd show subscriptions begin");
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
@@ -1247,7 +1248,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     sdbRelease(pSdb, pSub);
   }
 
-  mDebug("mnd end show subscriptions");
+  mInfo("mnd end show subscriptions");
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

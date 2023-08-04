@@ -78,6 +78,8 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoIsUpdated = updateInfoIsUpdated;
   pStore->updateInfoIsTableInserted = updateInfoIsTableInserted;
   pStore->updateInfoDestroy = updateInfoDestroy;
+  pStore->windowSBfDelete = windowSBfDelete;
+  pStore->windowSBfAdd = windowSBfAdd;
 
   pStore->updateInfoInitP = updateInfoInitP;
   pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;
@@ -101,6 +103,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCommit = streamStateCommit;
   pStore->streamStateDestroy= streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
+  pStore->streamStateReloadInfo = streamStateReloadInfo;
 }
 
 void initFunctionStateStore(SFunctionStateStore* pStore) {

@@ -562,7 +562,8 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
       code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+    code = tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+    TSDB_CHECK_CODE(code, lino, _exit);
     wSet.diskId = did;
     wSet.nSttF = 1;
   }

@@ -166,7 +166,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report service usage information |
 | Value Range   | 0: Not allowed; 1: Allowed                                                   |
 | Default Value | 1                                                                            |
@@ -174,7 +174,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report crash related information |
 | Value Range   | 0,1   0: Not allowed; 1: allowed                                             |
 | Default Value | 1                                                                            |
@@ -670,6 +670,15 @@ The charset that takes effect is UTF-8.
 | Value Range | 0: not consistent; 1: consistent.                                                   |
 | Default     | 0                                                                                   |
 
+### smlTsDefaultName
+
+| Attribute     | Description                                                     |
+| --------      | --------------------------------------------------------        |
+| Applicable    | Client only                                                     |
+| Meaning       | The name of the time column for schemaless automatic table creation is set through this configuration |
+| Type          | String                                                          |
+| Default Value | _ts                                                             |
+
 ## Compress Parameters
 
 ### compressMsgSize
@@ -721,6 +730,16 @@ The charset that takes effect is UTF-8.
 | Meaning       | Whether the ttl expiration time changes with the table modification operation |
 | Value Range   | 0: not change; 1: change by modification                                      |
 | Default Value | 0                                                                             |
+
+### keepTimeOffset
+
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server Only               |
+| Meaning       | Latency of data migration |
+| Unit          | hour                      |
+| Value Range   | 0-23                      |
+| Default Value | 0                         |
 
 ### tmqMaxTopicNum
 
@@ -788,3 +807,4 @@ The charset that takes effect is UTF-8.
 | 53  |          udf           | Yes                    | Yes                          |                         |
 | 54  |     enableCoreFile     | Yes                    | Yes                          |                         |
 | 55  |    ttlChangeOnWrite    | No                     | Yes                          |                         |
+| 56  |     keepTimeOffset     | Yes                    | Yes                          |                         |

@@ -36,9 +36,10 @@ extern "C" {
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
 
-#define SHOW_LOCAL_VARIABLES_RESULT_COLS       2
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       3
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
@@ -319,19 +320,22 @@ typedef struct SIndexOptions {
   SNode*     pInterval;
   SNode*     pOffset;
   SNode*     pSliding;
+  int8_t     tsPrecision;
   SNode*     pStreamOptions;
 } SIndexOptions;
 
 typedef struct SCreateIndexStmt {
-  ENodeType      type;
-  EIndexType     indexType;
-  bool           ignoreExists;
-  char           indexDbName[TSDB_DB_NAME_LEN];
-  char           indexName[TSDB_INDEX_NAME_LEN];
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList*     pCols;
-  SIndexOptions* pOptions;
+  ENodeType       type;
+  EIndexType      indexType;
+  bool            ignoreExists;
+  char            indexDbName[TSDB_DB_NAME_LEN];
+  char            indexName[TSDB_INDEX_NAME_LEN];
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*      pCols;
+  SIndexOptions*  pOptions;
+  SNode*          pPrevQuery;
+  SMCreateSmaReq* pReq;
 } SCreateIndexStmt;
 
 typedef struct SDropIndexStmt {
@@ -362,7 +366,7 @@ typedef struct SCreateTopicStmt {
   char      subDbName[TSDB_DB_NAME_LEN];
   char      subSTbName[TSDB_TABLE_NAME_LEN];
   bool      ignoreExists;
-  bool      withMeta;
+  int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
 } SCreateTopicStmt;
