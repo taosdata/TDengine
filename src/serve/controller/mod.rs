@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::env;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -120,6 +120,7 @@ type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
 #[derive(Debug, Clone)]
 pub enum AgentAction {
     Run(i64),
+    Stop(i64),
     Cancel(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
@@ -155,22 +156,28 @@ impl AgentTasks {
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
-                    Ok(action) => match action {
-                        AgentAction::Run(task) => {
-                            current.insert(task);
-                        }
-                        AgentAction::Cancel(task) => {
-                            current.remove(&task);
-                        }
-                        AgentAction::ListDataSets(req, sender) => {
-                            datasets.insert(req, sender);
-                        }
-                        AgentAction::RetrieveDataSets(req, sets) => {
-                            if let Some(sender) = datasets.remove(&req) {
-                                let _ = sender.1.send(Ok(sets));
+                    Ok(action) => {
+                        tracing::info!("agent action: {action:?}");
+                        match action {
+                            AgentAction::Run(task) => {
+                                current.insert(task);
+                            }
+                            AgentAction::Stop(task) => {
+                                current.remove(&task);
+                            }
+                            AgentAction::Cancel(task) => {
+                                current.remove(&task);
+                            }
+                            AgentAction::ListDataSets(req, sender) => {
+                                datasets.insert(req, sender);
+                            }
+                            AgentAction::RetrieveDataSets(req, sets) => {
+                                if let Some(sender) = datasets.remove(&req) {
+                                    let _ = sender.1.send(Ok(sets));
+                                }
                             }
                         }
-                    },
+                    }
                     Err(err) => {
                         log::error!("err: {err}");
                         break;
@@ -290,17 +297,16 @@ impl TaskControllerRef {
                 )
                 .execute(&self.pool)
                 .await?;
-                sqlx::query!(
-                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
+
+                let activity = Activity::new(
                     id,
                     now,
                     LevelFilter::Error,
-                    "start task {id}",
+                    format!("Start task {id}"),
                     "failed",
-                    err
-                )
-                .execute(&self.pool)
-                .await?;
+                    err,
+                );
+                self.push_task_activity(&activity).await?;
             }
         }
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
@@ -480,15 +486,15 @@ impl TaskController {
             if let Some(h) = self.tasks.read().await.get(&id) {
                 if !h.0.is_finished() {
                     log::info!("try start task {id} but it is running");
-                    let context = format!("try start task {id} but it is running");
-                    let activity = Activity {
+                    let context = format!("Trying to start task {id} but it is running");
+                    let activity = Activity::new(
                         id,
-                        at: now,
-                        level: LevelFilter::Info,
-                        activity: "Trying to start task but already running".to_string(),
-                        status: "running".to_string(),
-                        context: Some(json!({ "message": context })),
-                    };
+                        now,
+                        LevelFilter::Info,
+                        "Trying to start task but already running".to_string(),
+                        "running".to_string(),
+                        json!({ "message": context }),
+                    );
                     return push_task_activity(&self.pool, &activity).await;
                 } else {
                     remove_finished_task = true;
@@ -536,14 +542,14 @@ impl TaskController {
             None
         };
 
-        let activity = Activity {
+        let activity = Activity::new(
             id,
-            at: now,
-            level: LevelFilter::Info,
-            activity: "start".to_string(),
-            status: "ok".to_string(),
-            context: Some(serde_json::to_value(task).unwrap()),
-        };
+            now,
+            LevelFilter::Info,
+            "Spawn task worker",
+            "started",
+            serde_json::to_value(task).unwrap(),
+        );
         push_task_activity(&self.pool, &activity).await?;
         let pool = self.pool.clone();
 
@@ -642,10 +648,10 @@ impl TaskController {
                     let activity;
                     if let Some((id, sender, _)) = agent_task_worker.as_ref() {
                         let _ = sender.send(AgentAction::Cancel(*id));
-                        activity = "send cancel signal to agent".to_string();
+                        activity = "Send cancel signal to agent".to_string();
                     } else {
                         opts.cancel();
-                        activity = "cancel task".to_string();
+                        activity = "Cancel task".to_string();
                     }
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
@@ -712,7 +718,7 @@ impl TaskController {
                                     id,
                                     at: now,
                                     level: LevelFilter::Info,
-                                    activity: "resume".to_string(),
+                                    activity: "Resume task".to_string(),
                                     status: "ok".to_string(),
                                     context: None,
                                 };
@@ -723,7 +729,7 @@ impl TaskController {
                                     id,
                                     at: now,
                                     level: LevelFilter::Info,
-                                    activity: "start worker".to_string(),
+                                    activity: "Start worker".to_string(),
                                     status: "ok".to_string(),
                                     context: None,
                                 };
@@ -731,7 +737,9 @@ impl TaskController {
 
                                 log::info!("start task {id}");
                             }
+                            let instant = std::time::Instant::now();
                             let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
+                            let timing = instant.elapsed();
                             match result {
                                 Ok(_) => {
                                     let now = Utc::now();
@@ -748,7 +756,7 @@ impl TaskController {
                                         id,
                                         at: now,
                                         level: LevelFilter::Info,
-                                        activity: "completed".to_string(),
+                                        activity: format!("Task is completed in {timing:?}"),
                                         status: "completed".to_string(),
                                         context: None,
                                     };
@@ -763,8 +771,8 @@ impl TaskController {
                                             // todo(@huolinhe): we got 401 Authentication failure with HTTPS, but this error with HTTP.
                                             //   Maybe you should check the websocket implementations for the low-level reason.
                                             let err = "Authentication failure";
-                                            log::error!("run task {id} failed with: {err}, please check the instance status or token");
-                                            let err = err.to_string();
+                                            log::error!("run task {id} failed with: {err:#}, please check the instance status or token");
+                                            let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
                                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
@@ -776,21 +784,14 @@ impl TaskController {
                                             .execute(&pool)
                                             .await?;
 
-                                            let activity = Activity {
-                                                id,
-                                                at: now,
-                                                level: LevelFilter::Error,
-                                                activity: "authentication failure".to_string(),
-                                                status: "failed".to_string(),
-                                                context: Some(json!({"message": err})),
-                                            };
+                                            let activity = Activity::new(id,now, LevelFilter::Error, "Authentication failure".to_string(), "failed".to_string(),json!({"message": err}));
                                             push_task_activity(&pool, &activity).await?;
 
                                             break;
                                         }
                                         e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") => {
                                             log::warn!("run task {id} failed: {err}, wait for resume...");
-                                            let err = err.to_string();
+                                            let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
                                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE AND status != ?",
@@ -808,19 +809,12 @@ impl TaskController {
                                                 "message": err,
                                             });
 
-                                            let activity = Activity {
-                                                id,
-                                                at: now,
-                                                level: LevelFilter::Warn,
-                                                activity: "resume".to_string(),
-                                                status: "interrupted".to_string(),
-                                                context: Some(serde_json::to_value(&context).unwrap()),
-                                            };
+                                            let activity = Activity::new(id, now, LevelFilter::Warn, "Resume task", "interrupted",serde_json::to_value(&context).unwrap());
                                             push_task_activity(&pool, &activity).await?;
                                         }
                                         _ => {
                                             log::error!("run task {id} failed with: {err}, please check the task information");
-                                            let err = err.to_string();
+                                            let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
                                                 "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
@@ -836,14 +830,7 @@ impl TaskController {
                                                 "code": 0xFFFFi32,
                                                 "message": err,
                                             });
-                                            let activity = Activity {
-                                                id,
-                                                at: now,
-                                                level: LevelFilter::Error,
-                                                activity: format!("failed with: {err:#}"),
-                                                status: "failed".to_string(),
-                                                context: Some(serde_json::to_value(&context).unwrap()),
-                                            };
+                                            let activity = Activity::new(id, now, LevelFilter::Error, format!("Failed with: {err:#}"), "failed", serde_json::to_value(&context).unwrap());
                                             push_task_activity(&pool, &activity).await?;
                                             break;
                                         }
@@ -872,15 +859,15 @@ impl TaskController {
                         )
                         .execute(&pool)
                         .await?;
-                        let result = if let Some((id, sender, agent_id)) = &agent_task_worker {
-
+                        if let Some((id, sender, agent_id)) = &agent_task_worker {
                             let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
                             let _ = dbg!(send);
                             cloned_token2.cancelled().await;
-                            Ok(())
                         } else {
-                            opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await
-                        };
+                            let instant = std::time::Instant::now();
+                            let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
+                            let timing = instant.elapsed();
+
                         match result {
                             Ok(_) => {
                                 let now = Utc::now();
@@ -895,18 +882,13 @@ impl TaskController {
                                 .execute(&pool)
                                 .await?;
 
-                                let activity = Activity {
-                                    id,
-                                    at: now,
-                                    level: LevelFilter::Info,
-                                    activity: "complete".to_string(),
-                                    status: "completed".to_string(),
-                                    context: None,
-                                };
+                                let activity = Activity::new::<String>(
+                                    id, now, LevelFilter::Info, format!("Task {id} is completed in {timing:?}"), "completed".to_string(), None
+                                );
                                 push_task_activity(&pool, &activity).await?;
                             }
                             Err(err) => {
-                                log::error!("run task {id} failed: {err}");
+                                tracing::error!("run task {id} failed: {err:#}");
                                 let err = err.to_string();
                                 let now = Utc::now();
                                 let status = Status::Failed;
@@ -923,10 +905,10 @@ impl TaskController {
                                     "code": 0xFFFFi32,
                                     "message": err,
                                 });
-                                let activity = Activity::new::<String>(id, now, LevelFilter::Warn, "failed", "failed", serde_json::to_string(&context).unwrap());
+                                let activity = Activity::new::<String>(id, now, LevelFilter::Warn, format!("Task {id} failed with: {err:#}"), "failed", serde_json::to_string(&context).unwrap());
                                 push_task_activity(&pool, &activity).await?;
                             }
-                        }
+                        }};
                     }
                     return Ok::<(), anyhow::Error>(())
                 } => {
@@ -1226,7 +1208,6 @@ impl TaskController {
         let res = query.execute(&self.pool).await?;
 
         let now = chrono::Utc::now();
-        let context = serde_json::to_string(&task).unwrap();
         sqlx::query!(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
             id,
@@ -1234,7 +1215,7 @@ impl TaskController {
             LevelFilter::Info,
             "Update task",
             "updated",
-            context
+            Option::<String>::None
         )
         .execute(&self.pool)
         .await?;
@@ -1338,44 +1319,73 @@ impl TaskController {
         Ok(Some(task.into()))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
-        if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-            log::error!("Cancel task by id {id}");
+        if let Some((handle, token)) = { self.tasks.write().await.remove(&id) } {
+            tracing::info_span!("stop_task", task = id);
+            tracing::info!("Stop task by id {id}");
+            let now = Utc::now();
+
+            let agent: Option<(Option<i64>, Status)> = sqlx::query_as::<_, (Option<i64>, Status)>(
+                "select via, status from tasks where id = ?",
+            )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+            let (agent, status) = agent.ok_or_else(|| anyhow::anyhow!(""))?;
+
+            if !matches!(
+                status,
+                Status::Running | Status::Created | Status::Interrupted
+            ) {
+                tracing::warn!("Trying to stop task {id} but it's not in running state");
+                return Ok(Some(()));
+            }
+            if let Some(agent_id) = agent {
+                if let Some(worker) = self.agent_tasks.read().await.get(&agent_id) {
+                    let res = worker.send(AgentAction::Stop(id));
+                    if let Err(err) = res {
+                        tracing::error!(
+                            agent = agent_id,
+                            backtrace = ?err,
+                            "trying to stop task via agent:{agent_id} but failed: {err:#}"
+                        );
+                    }
+                } else {
+                    tracing::warn!("trying to stop task via agent:{agent_id} but not found");
+                }
+            }
+
+            let res = sqlx::query_as_unchecked!(
+                Task,
+                "UPDATE tasks SET `last_modified_at` = ?, `status` = ? where id = ?",
+                now,
+                Status::Stopped,
+                id
+            )
+            .execute(&self.pool)
+            .await?;
+            // dbg!(res);
+            if res.rows_affected() == 1 {
+                log::info!("successfully stop task by id {id}");
+            }
+
+            sqlx::query!(
+                "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
+                id,
+                now,
+                LevelFilter::Info,
+                "stop",
+                "stopped",
+                None::<String>
+            )
+            .execute(&self.pool)
+            .await?;
+
             token.cancel();
             let _ = handle.await?;
-            // handle.abort();
-            // if !handle.is_finished() {
-            //     // token.cancel();
-            //     log::error!("Cancel task by id {id}");
-            //     let _ = handle.await;
-            // }
+            Ok(Some(()))
+        } else {
+            Ok(None)
         }
-        let now = Utc::now();
-        let res = sqlx::query_as_unchecked!(
-            Task,
-            "UPDATE tasks SET `last_modified_at` = ?, `status` = ? where id = ?",
-            now,
-            Status::Stopped,
-            id
-        )
-        .execute(&self.pool)
-        .await?;
-        // dbg!(res);
-        if res.rows_affected() == 1 {
-            log::info!("successfully stop task by id {id}");
-        }
-
-        sqlx::query!(
-            "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-            id,
-            now,
-            LevelFilter::Info,
-            "stop",
-            "ok",
-            None::<String>
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(Some(()))
     }
 
     pub async fn task_activities(
@@ -1470,7 +1480,7 @@ impl TaskController {
             .execute(&self.pool)
             .await?;
 
-            let activity = format!("cancel-task {id}");
+            let activity = format!("Stopping all tasks.., now {id}");
 
             sqlx::query!(
                 "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
@@ -1569,7 +1579,7 @@ impl TaskController {
             id,
             Utc::now(),
             LevelFilter::Info,
-            "created",
+            format!("Agent {} is created successfully", agent.name),
             "created",
             None,
         );
@@ -1637,13 +1647,14 @@ impl TaskController {
     ) -> anyhow::Result<Agent> {
         let agent = self.get_agent_with_token(token).await?;
         if let Some(agent) = agent {
+            let client = client.map(ToString::to_string).unwrap_or_default();
             let activity = Activity::new(
                 agent.id,
                 Utc::now(),
                 LevelFilter::Info,
-                "connected",
+                format!("Agent is connected with client addr {client}"),
                 "idle",
-                json!({"client": client.map(ToString::to_string).unwrap_or_default()}),
+                json!({ "client": client }),
             );
             push_agent_activity(&self.pool, &activity).await?;
             Ok(agent)
@@ -1814,7 +1825,7 @@ impl AgentFilter {
 /// Running -> Stopped
 /// Running -> Cancelled
 /// ```
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 #[sqlx(rename_all = "snake_case")]
@@ -1837,6 +1848,22 @@ pub(super) enum Status {
     Interrupted,
     /// Manually stopped by API.
     Stopped,
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Status::Created => f.write_str("created"),
+            Status::Cleared => f.write_str("cleared"),
+            Status::Started => f.write_str("started"),
+            Status::Running => f.write_str("running"),
+            Status::Cancelled => f.write_str("cancelled"),
+            Status::Completed => f.write_str("completed"),
+            Status::Failed => f.write_str("failed"),
+            Status::Interrupted => f.write_str("interrupted"),
+            Status::Stopped => f.write_str("stopped"),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -2136,6 +2163,10 @@ impl TaskDetail {
             to_detail: None,
             agent: None,
         }
+    }
+
+    pub(super) fn status(&self) -> Status {
+        self.task.status
     }
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {

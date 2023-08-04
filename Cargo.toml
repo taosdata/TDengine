@@ -9,16 +9,16 @@ parquet = "38.0.0"
 
 tonic = "0.9"
 
-taos = { version = "0.9.2", default-features = false, features = [
+taos = { version = "0.9.3", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.9.2", default-features = false, features = [
+taos-query = { version = "0.9.3", default-features = false, features = [
   "deadpool",
 ] }
 
 [workspace.package]
-version = "1.0.1"
+version = "1.0.4"
 
 [package]
 name = "taosx"

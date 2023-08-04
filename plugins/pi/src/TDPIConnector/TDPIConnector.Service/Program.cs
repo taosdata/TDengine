@@ -133,28 +133,27 @@ namespace TDPIConnector.Service
             else if (Environment.UserInteractive)
             {
                 logger.Info("Running in console mode");
-
-                service.Start();
-
-                while (true) {
-                    var str = Console.ReadLine();
-                    if (str == "quit")
-                    {
-                        logger.Info("TD PI Connector quit...");
-                        break;
-                    }
-                    else {
-                        Thread.Sleep(5000);
-                    }
-                }
-                logger.Info("TD PI Connector quit.");
-                service.Stop();
             }
             else
             {
                 logger.Info("Running in service mode");
-                ServiceBase.Run(servicesToRun);
             }
+            service.Start();
+            while (true)
+            {
+                var str = Console.ReadLine();
+                if (str == "quit")
+                {
+                    logger.Info("TD PI Connector quit...");
+                    break;
+                }
+                else
+                {
+                    Thread.Sleep(5000);
+                }
+            }
+            logger.Info("TD PI Connector quit.");
+            service.Stop();
         }
     }
 }

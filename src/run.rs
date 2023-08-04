@@ -94,9 +94,10 @@ impl Cli {
         }
         let port_pool = PortPool::default();
         let parser = args.parser.as_ref().map(|p| {
-            utils::get_string_content_from_file_path(p)
-                .map(|p| serde_json::from_str(&p).unwrap())
-                .unwrap()
+            let content = utils::get_string_content_from_file_path(p);
+            let content = content.is_none().then(|| p.clone()).or(content);
+            let content = content.map(|p| serde_json::from_str(&p).unwrap()).unwrap();
+            content
         });
 
         match (args.from.driver.as_str(), args.to.driver.as_str()) {

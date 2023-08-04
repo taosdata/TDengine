@@ -35,6 +35,15 @@ groups:
     description: 配置数据采集任务
     required: false
     params:
+      - name: timeout
+        display: Timeout
+        description: >
+          指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。
+          当 timeout 设置为 `never` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。
+        placeholder: 500
+        required: false
+        hint:
+          type: str
       - name: group
         display: Group
         description: >
@@ -80,6 +89,10 @@ groups:
         required: false
         hint:
           type: str
+          choices:
+            - Earliest
+            - Latest
+            - ByTime
       - name: offset_storage
         display: Offset Storage
         description: >
@@ -90,6 +103,44 @@ groups:
 
           默认是 "Kafka"。
         placeholder: Kafka
+        value: Kafka
         required: false
         hint:
           type: str
+          choices:
+            - Zookeeper
+            - Kafka
+parser:
+  display: Payload 解析
+  description: |
+    Kafka 连接器会上传以下六列到服务端：<br>
+
+    - **ts**: 采集时间戳。<br>
+    - **topic**: 订阅主题名。<br>
+    - **partition**: 当前消息所在的分区 ID。<br>
+    - **offset**: 当前消息的偏移量。<br>
+    - **key**: 当前消息的 Key。<br>
+    - **value**: 当前消息的数据内容。<br>
+
+    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>
+    包括，指定表名称和超级表名，设置普通列会标签列等。
+  fields:
+    - name: ts
+      description: 时间戳。
+      type: timestamp
+    - name: topic
+      description: 主题名。
+      type: nchar
+    - name: partition
+      description: 分区 ID。
+      type: int
+    - name: offset
+      description: 偏移。
+      type: bigint
+    - name: key
+      description: 消息 Key。
+      type: binary
+    - name: value
+      description: 消息体。
+      type: binary
+  required: true

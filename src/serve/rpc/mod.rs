@@ -73,12 +73,8 @@ impl FlightService for FlightServiceImpl {
         &self,
         req: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
-        dbg!(&req);
         let addr = req.remote_addr();
-        dbg!(&addr);
         let (meta, _extensions, mut req) = req.into_parts();
-
-        dbg!(&meta);
 
         let req = req.message().await?;
 
@@ -140,14 +136,12 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
         let (meta, _extension, req) = req.into_parts();
-        dbg!(&meta);
 
         let task_id = meta
             .get("x-task-id")
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
-        // dbg!(task_id);
 
         // let message = req.try_next().await?;
 
@@ -160,8 +154,6 @@ impl FlightService for FlightServiceImpl {
         // impl futures::Stream for ResultStream {
         //     type Item = Result<PutResult, Status>;
         // }
-
-        // dbg!(&message);
 
         Ok(Response::new(Box::pin(
             put_stream
@@ -183,10 +175,7 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
         let remote = req.remote_addr();
         let (meta, extension, req) = req.into_parts();
-        dbg!(&meta);
-        // let client
 
-        dbg!(&extension);
         let token = meta
             .get("x-token")
             .unwrap()
@@ -237,7 +226,6 @@ impl FlightService for FlightServiceImpl {
                         arrow_flight::decode::DecodedPayload::None => (),
                         arrow_flight::decode::DecodedPayload::Schema(_) => (),
                         arrow_flight::decode::DecodedPayload::RecordBatch(res) => {
-                            // dbg!(&res);
                             let rows = res.num_rows();
                             debug_assert!(rows == 1);
 
@@ -288,7 +276,6 @@ impl FlightService for FlightServiceImpl {
                                     "list" => {
                                         let req: ListResponse =
                                             serde_json::from_str(&context).unwrap();
-                                        dbg!(&req);
 
                                         if let Some((_, sender)) = controller_runner
                                             .agent_tasks
@@ -310,7 +297,7 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        dbg!(&activity);
+                                        // dbg!(&activity);
                                         let _ =
                                             controller_runner.push_agent_activity(&activity).await;
                                         info!(?activity, "agent activity");
@@ -323,7 +310,7 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        dbg!(&activity);
+                                        // dbg!(&activity);
                                         let _ =
                                             controller_runner.push_task_activity(&activity).await;
                                         info!(?activity, "task activity");
@@ -393,7 +380,7 @@ impl FlightService for FlightServiceImpl {
                 agent_id,
                 Utc::now(),
                 LevelFilter::Warn,
-                "disconnected",
+                "Disconnected",
                 "pending",
                 context,
             );
@@ -445,7 +432,7 @@ impl FlightService for FlightServiceImpl {
                 let c = self
                     .marker
                     .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                log::info!("polled: {c} {cx:?}");
+                tracing::trace!("polled: {c} {cx:?}");
 
                 if c % 2 == 0 {
                     // todo: why this is require?
@@ -470,6 +457,8 @@ impl FlightService for FlightServiceImpl {
                 // let current = { listener.current.lock().await.clone() };
 
                 for task in listener.current.iter() {
+                    let id = task.key();
+                    tracing::info!(task = id, "Start task {id}");
                     if let Some(task) = controller.get(*task.key()).await? {
                         let action: ArrayRef =
                             Arc::new(StringArray::from_iter_values(["run".to_string()]));
@@ -478,6 +467,16 @@ impl FlightService for FlightServiceImpl {
                                 &task,
                             )
                             .unwrap()]));
+                        let status = task.status();
+                        if matches!(
+                            status,
+                            super::controller::Status::Completed
+                                | super::controller::Status::Failed
+                                | super::controller::Status::Stopped
+                        ) {
+                            tracing::warn!("Trying to start task {id} but status now {status}");
+                            continue;
+                        }
                         let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
                             chrono::Utc::now().timestamp_millis(),
                         ]));
@@ -489,8 +488,7 @@ impl FlightService for FlightServiceImpl {
                         .unwrap();
 
                         if let Err(err) = tx.send_async(Ok(batch)).await {
-                            dbg!(&err);
-                            log::warn!("Task listener closed");
+                            log::warn!("Task listener closed: {err:#}");
                             break;
                         }
                     }
@@ -550,6 +548,29 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
+                                    log::warn!("Task listener closed");
+                                    break;
+                                }
+                            } else {
+                                // todo!()
+                            }
+                        }
+                        AgentAction::Stop(id) => {
+                            let task = controller.get(id).await?;
+                            if let Some(task) = task {
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&task).unwrap(),
+                                ]));
+                                let action: ArrayRef =
+                                    Arc::new(StringArray::from_iter_values(["stop".to_string()]));
+                                let batch = RecordBatch::try_from_iter(vec![
+                                    ("ts", ts),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .unwrap();
+
+                                if let Err(err) = tx.send_async(Ok(batch)).await {
                                     dbg!(&err);
                                     log::warn!("Task listener closed");
                                     break;
@@ -574,7 +595,6 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    dbg!(&err);
                                     log::warn!("Task listener closed");
                                     break;
                                 }
@@ -598,7 +618,6 @@ impl FlightService for FlightServiceImpl {
                             .unwrap();
 
                             if let Err(err) = tx.send_async(Ok(batch)).await {
-                                dbg!(&err);
                                 log::warn!("Task listener closed");
                                 break;
                             }
@@ -625,7 +644,6 @@ impl FlightService for FlightServiceImpl {
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
         let (meta, part, action) = request.into_parts();
-        dbg!(&meta, &part);
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
@@ -913,9 +931,9 @@ mod tests {
                             u.map(|mut v| {
                                 if v.app_metadata.is_empty() {
                                     v.app_metadata = Bytes::from("request");
-                                    dbg!(v)
+                                    v
                                 } else {
-                                    dbg!(v)
+                                    v
                                 }
                             })
                         })
@@ -959,8 +977,6 @@ mod tests {
             stream
                 .try_for_each(|res| async move {
                     // dbg!(res.app_metadata);
-                    dbg!(&res);
-
                     Ok(())
                 })
                 .await

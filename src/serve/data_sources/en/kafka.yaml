@@ -38,6 +38,15 @@ groups:
     description: Configure the data migration task
     required: false
     params:
+      - name: timeout
+        display: Timeout
+        description: >
+          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. 
+          The default value is 500 ms. When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
+        placeholder: 500
+        required: false
+        hint:
+          type: str
       - name: group
         display: Group
         description: >
@@ -82,6 +91,10 @@ groups:
         required: false
         hint:
           type: str
+          choices:
+            - Earliest
+            - Latest
+            - ByTime
         value: Earliest
       - name: offset_storage
         display: Offset Storage
@@ -93,6 +106,46 @@ groups:
 
           default is Kafka.
         placeholder: Kafka
+        value: Kafka
         required: false
         hint:
           type: str
+          choices:
+            - Zookeeper
+            - Kafka
+
+parser:
+  display: Kafka Message Parser
+  description: |
+    Kafka will report exactly five fields of data for each data stream:<br>
+
+    - **ts**: the collect timestamp.<br>
+    - **topic**: the topic name to subscribe.<br>
+    - **partition**: the topic partition.<br>
+    - **offset**: the message offset in the topic.<br>
+    - **key**: the message offset in the topic.<br>
+    - **value**: the data payload of the message.<br>
+
+    taosX could parse the payload with JSON extractor and let users to specify the<br>
+    data model in the database, for example, the table name pattern and stable name<br>
+    pattern, field names as tags or field names as columns.
+  fields:
+    - name: ts
+      description: Timestamp.
+      type: timestamp
+    - name: topic
+      description: Topic name.
+      type: binary
+    - name: partition
+      description: Topic partition.
+      type: int
+    - name: offset
+      description: Message offset.
+      type: bigint
+    - name: key
+      description: Message key.
+      type: binary
+    - name: value
+      description: Value
+      type: binary
+  required: true

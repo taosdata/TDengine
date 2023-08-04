@@ -87,6 +87,23 @@ impl Parse for Cast {
     ) -> Result<(Field, arrow::array::ArrayRef), super::ParseError> {
         let mut m = HashMap::new();
         m.insert("name".to_string(), field.name().to_string());
+        m.insert("cast_from".to_string(), field.data_type().to_string());
+        match self.r#as {
+            IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                m.insert("length".to_string(), len.to_string());
+                m.insert(
+                    "cast_to".to_string(),
+                    self.r#as.ty().name().to_string(),
+                );
+            }
+            IpcDataType::Json => {
+                m.insert(
+                    "cast_to".to_string(),
+                    self.r#as.ty().name().to_string(),
+                );
+            }
+            _ => (),
+        }
 
         let name = self
             .alias

@@ -4,7 +4,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use anyhow::Result;
@@ -21,6 +21,7 @@ use crate::agent::Task;
 
 pub enum Action {
     Run(Task),
+    Stop(i64),
     Cancel(i64),
 }
 
@@ -68,6 +69,7 @@ impl Worker {
     }
 }
 pub fn spawn_runner(
+    agent_id: i64,
     endpoint: impl Display,
     token: impl Display,
     sender: flume::Sender<RespAction>,
@@ -86,14 +88,15 @@ pub fn spawn_runner(
     let tasks_origin: Arc<DashMap<i64, Worker>> = Arc::new(tasks_map);
     let tasks = tasks_origin.clone();
     (
-        tokio::task::spawn_blocking(move || {
+        tokio::task::spawn(async move {
+            tracing::info_span!("agent_runner", id = agent_id);
             let port_pool = taosx_core::utils::port_pool::PortPool::default();
 
             let working_tasks = Arc::new(AtomicUsize::new(0));
             // let stop_notify = tokio::sync::Notify::new();
             // let scheduler = Arc::new()
             loop {
-                if let Ok(action) = rx.recv() {
+                if let Ok(action) = rx.recv_async().await {
                     match action {
                         Action::Run(task) => {
                             if let Some(running) = tasks.get(&task.id) {
@@ -110,7 +113,7 @@ pub fn spawn_runner(
                                 agent,
                                 Utc::now(),
                                 LevelFilter::Info,
-                                "start task",
+                                format!("Start task {}", task.id),
                                 "busy",
                                 json!({
                                     "agent": agent,
@@ -151,8 +154,10 @@ pub fn spawn_runner(
                                 let instant = Instant::now();
                                 let res = opts.run(&pool).await;
                                 let timing = format!("{:?}", instant.elapsed());
-                                working_tasks.fetch_sub(1, order);
-                                let _ = tasks2.remove(&id);
+                                let worker = tasks2.remove(&id);
+                                if worker.is_some() {
+                                    working_tasks.fetch_sub(1, order);
+                                }
                                 if let Err(err) = res {
                                     use itertools::Itertools;
                                     let status = TaskStatus {
@@ -168,7 +173,7 @@ pub fn spawn_runner(
                                         agent,
                                         Utc::now(),
                                         LevelFilter::Error,
-                                        "waiting for task to be finished",
+                                        format!("Running task {id} error: {err:#}"),
                                         "error",
                                         json!({
                                             "task": task.id,
@@ -185,7 +190,9 @@ pub fn spawn_runner(
                                         task.id,
                                         Utc::now(),
                                         LevelFilter::Info,
-                                        "complete",
+                                        format!(
+                                            "Running task {id} error via agent {agent_id}: {err:#}"
+                                        ),
                                         "failed",
                                         json!({
                                             "task": task.id,
@@ -196,41 +203,48 @@ pub fn spawn_runner(
                                         sender.send_async(RespAction::TaskActivity(activity)).await;
                                     Err(err)
                                 } else {
-                                    let status = if working_tasks.load(order) > 0 {
-                                        "busy"
+                                    if worker.is_some() {
+                                        let status = if working_tasks.load(order) > 0 {
+                                            "busy"
+                                        } else {
+                                            "idle"
+                                        };
+                                        let activity = Activity::new(
+                                            agent,
+                                            Utc::now(),
+                                            LevelFilter::Info,
+                                            format!("Task {} is completed in {}", task.id, timing),
+                                            status,
+                                            json!({
+                                                "task": task.id,
+                                                "timing": timing,
+                                            }),
+                                        );
+                                        let _ = sender
+                                            .send_async(RespAction::AgentActivity(activity))
+                                            .await;
+
+                                        // update task activity
+
+                                        let activity = Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Info,
+                                            format!(
+                                                "Task {id} is completed via agent {agent_id} in {timing}"
+                                            ),
+                                            "completed",
+                                            json!({
+                                                "task": task.id,
+                                                "timing": timing,
+                                            }),
+                                        );
+                                        let _ = sender
+                                            .send_async(RespAction::TaskActivity(activity))
+                                            .await;
                                     } else {
-                                        "idle"
-                                    };
-                                    let activity = Activity::new(
-                                        agent,
-                                        Utc::now(),
-                                        LevelFilter::Info,
-                                        "complete",
-                                        status,
-                                        json!({
-                                            "task": task.id,
-                                            "timing": timing,
-                                        }),
-                                    );
-                                    let _ = sender
-                                        .send_async(RespAction::AgentActivity(activity))
-                                        .await;
-
-                                    // update task activity
-
-                                    let activity = Activity::new(
-                                        task.id,
-                                        Utc::now(),
-                                        LevelFilter::Info,
-                                        "complete",
-                                        "completed",
-                                        json!({
-                                            "task": task.id,
-                                            "timing": timing,
-                                        }),
-                                    );
-                                    let _ =
-                                        sender.send_async(RespAction::TaskActivity(activity)).await;
+                                        info!("Worker {} has been already removed", task.id)
+                                    }
                                     Ok(())
                                 }
                             });
@@ -242,22 +256,163 @@ pub fn spawn_runner(
                                 },
                             );
                         }
-                        Action::Cancel(id) => {
-                            if let Some(cancellation) = tasks.get(&id) {
-                                cancellation.cancel();
-                                drop(cancellation);
-                                if let Some((id, worker)) = tasks.remove(&id) {
-                                    info!(
-                                        id = id,
-                                        "[{id}] Remove runner for task {id}, wait for finished"
-                                    );
-                                    worker.handle.abort();
-                                    // if let Err(err) =  {
-                                    //     warn!(id = id, "[{id}] Task error: {err}");
-                                    // }
+                        Action::Stop(id) => {
+                            let order = Ordering::Relaxed;
+
+                            if let Some((id, worker)) = tasks.remove(&id) {
+                                info!(
+                                    id = id,
+                                    "[{id}] Remove runner for task {id}, wait for finished"
+                                );
+                                worker.cancel();
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                worker.handle.abort();
+
+                                // work tasks - 1
+                                working_tasks.fetch_sub(1, order);
+
+                                // rebuild status.
+                                let status = if working_tasks.load(order) > 0 {
+                                    "busy"
                                 } else {
-                                    warn!("[{id}] Runner not found");
-                                }
+                                    "idle"
+                                };
+
+                                // update agent activity.
+                                let activity = Activity::new(
+                                    agent_id,
+                                    Utc::now(),
+                                    LevelFilter::Info,
+                                    format!("Stop task {id}"),
+                                    status,
+                                    json!({
+                                        "task": id,
+                                    }),
+                                );
+                                let _ =
+                                    sender.send_async(RespAction::AgentActivity(activity)).await;
+
+                                // update task activity
+                                let activity = Activity::new(
+                                    id,
+                                    Utc::now(),
+                                    LevelFilter::Info,
+                                    format!("Stop task via agent {agent_id}"),
+                                    "stopped",
+                                    json!({
+                                        "via": agent_id,
+                                    }),
+                                );
+                                let _ = sender.send_async(RespAction::TaskActivity(activity)).await;
+                            } else {
+                                warn!(task = id, action = "stop", "Task runner {id} not found");
+
+                                // rebuild status.
+                                let status = if working_tasks.load(order) > 0 {
+                                    "busy"
+                                } else {
+                                    "idle"
+                                };
+                                // update agent activity.
+                                let activity = Activity::new(
+                                    agent_id,
+                                    Utc::now(),
+                                    LevelFilter::Warn,
+                                    format!("Trying to stop task {id}, but it has been already completed or stopped"),
+                                    status,
+                                    json!({
+                                        "code": 0xFFFFi32,
+                                        "message": format!("Task {id} not in running status"),
+                                        "task": id,
+                                    }),
+                                );
+                                let _ =
+                                    sender.send_async(RespAction::AgentActivity(activity)).await;
+                            }
+                        }
+
+                        Action::Cancel(id) => {
+                            let order = Ordering::SeqCst;
+
+                            if let Some((id, worker)) = tasks.remove(&id) {
+                                info!(
+                                    task = id,
+                                    action = "cancel",
+                                    "[{id}] Remove runner for task {id}, wait for task to be finished"
+                                );
+                                worker.cancel();
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                worker.handle.abort();
+
+                                // work tasks - 1
+                                working_tasks.fetch_sub(1, order);
+
+                                let working_tasks_count = working_tasks.load(order);
+                                // rebuild status.
+                                let status = if working_tasks_count > 0 {
+                                    "busy"
+                                } else {
+                                    "idle"
+                                };
+                                info!(
+                                    task = id,
+                                    action = "cancel",
+                                    "Task {id} finished, agent now is in {status}(runners: {working_tasks_count})",
+                                );
+
+                                // update agent activity.
+                                let activity = Activity::new(
+                                    agent_id,
+                                    Utc::now(),
+                                    LevelFilter::Info,
+                                    format!("Cancel task {id}"),
+                                    status,
+                                    json!({
+                                        "task": id,
+                                        "action": "cancel"
+                                    }),
+                                );
+                                let _ =
+                                    sender.send_async(RespAction::AgentActivity(activity)).await;
+
+                                // update task activity
+                                let activity = Activity::new(
+                                    id,
+                                    Utc::now(),
+                                    LevelFilter::Info,
+                                    format!("Cancel task {id} via agent {agent_id}"),
+                                    "cancelled",
+                                    json!({
+                                        "via": agent_id,
+                                        "action": "cancel"
+                                    }),
+                                );
+                                let _ = sender.send_async(RespAction::TaskActivity(activity)).await;
+                            } else {
+                                warn!(task = id, action = "cancel", "Task runner {id} not found");
+
+                                // rebuild status.
+                                let status = if working_tasks.load(order) > 0 {
+                                    "busy"
+                                } else {
+                                    "idle"
+                                };
+                                // update agent activity.
+                                let activity = Activity::new(
+                                    agent_id,
+                                    Utc::now(),
+                                    LevelFilter::Warn,
+                                    format!("Trying to stop task {id}, but it has been already completed or stopped"),
+                                    status,
+                                    json!({
+                                        "code": 0xFFFFi32,
+                                        "message": format!("Task {id} not in running status"),
+                                        "task": id,
+                                        "action": "cancel"
+                                    }),
+                                );
+                                let _ =
+                                    sender.send_async(RespAction::AgentActivity(activity)).await;
                             }
                         }
                     }

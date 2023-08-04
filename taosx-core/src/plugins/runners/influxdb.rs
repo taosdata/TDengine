@@ -332,13 +332,17 @@ pub async fn influxdb_to_taos(
     );
 
     // get the version of jdk
-    let mut getJdkVersion = tokio::process::Command::new("java").arg("-version").output().await.unwrap();
-    let jdkVersion = String::from_utf8(getJdkVersion.stderr.clone())?;
+    let get_jdk_version = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
+    let jdk_version = String::from_utf8(get_jdk_version.stderr.clone())?;
 
     let mut command = tokio::process::Command::new("java");
     let child;
 
-    if jdkVersion.contains("build 1.") {
+    if jdk_version.contains("build 1.") {
         child = command
             .arg("-jar")
             .arg(&connector_path)
@@ -365,12 +369,12 @@ pub async fn influxdb_to_taos(
             let mut line = String::new();
             loop {
                 // Read a line from stderr
-                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                let bytes_read = reader.read_line(&mut line).await?;
                 if bytes_read == 0 {
                     break; // End of stream, exit the loop
                 }
                 // Write the line to log_rotation
-                write!(log_rotation, "{}", line).unwrap();
+                write!(log_rotation, "{}", line)?;
                 line.clear();
             }
             Ok::<(), std::io::Error>(())
@@ -406,7 +410,7 @@ pub async fn influxdb_to_taos(
             let _ = child.kill().await;
             log::info!("InfluxDB task Done");
             // delete the temporary file
-            temp_path.close().unwrap();
+            let _ = temp_path.close();
             // put ipc port back to port pool.
             port_pool.put(ipc_port);
             // wait for completion
@@ -483,24 +487,30 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .await
             .with_context(|| "Start InfluxDB collector error")?;
     }
-    let s = String::from_utf8(output.stdout.clone())?;
-    if s == "" {
-        match output.status.code().unwrap() {
-            101 => anyhow::bail!("Failed to connect, ip or port error"),
-            102 => anyhow::bail!("Unauthorized access"),
-            103 => anyhow::bail!("Organization not found"),
-            _ => anyhow::bail!("Failed to connect, ip or port error")
+    if output.status.success() {
+        let s = String::from_utf8(output.stdout.clone())?;
+        if s == "" {
+            anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
+        }
+        let mut vec = Vec::new();
+        vec.push(DataSet {
+            id: s,
+            name: None,
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        });
+        Ok(vec)
+    } else {
+        match output.status.code() {
+            Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
+            Some(102) => anyhow::bail!("Unauthorized access"),
+            Some(103) => anyhow::bail!("Organization not found"),
+            None => anyhow::bail!("InfluxDB connector closed by signal"),
+            Some(exit) => {
+                anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
+            }
         }
     }
-    dbg!(&s);
-    let mut vec = Vec::new();
-    vec.push(DataSet {
-        id: s,
-        name: None,
-        category: None,
-        r#type: None,
-        options: None,
-        format: None,
-    });
-    Ok(vec)
 }

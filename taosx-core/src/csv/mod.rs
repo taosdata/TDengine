@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::net::TcpStream;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -23,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::utils::port_pool::PortPool;
-use crate::{utils, Parser, Transferred};
+use crate::{build_ipc, utils, Parser, Transferred};
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
@@ -83,44 +84,6 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
     })
 }
 
-fn build_ipc(
-    socket: &str,
-    parser: Option<Parser>,
-    to: &Dsn,
-    cancel: &CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<(
-    std::sync::mpsc::Sender<()>,
-    tokio::sync::mpsc::Receiver<String>,
-)> {
-    use crate::plugins::sink;
-    let (sender, receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = taos::TaosBuilder::from_dsn(to)?;
-        sink::listen_tcp_socket(
-            builder.pool()?,
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            parser,
-            None,
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
-    Ok((ipc, receiver))
-}
-
 pub async fn csv_to_taos(
     mut from: Dsn,
     parser: Option<Parser>,
@@ -156,8 +119,17 @@ pub async fn csv_to_taos(
                 match status? {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
-                        log::info!("CSV worker done successfully");
-                        let _ = abort.send(());
+                        match closed.try_recv() {
+                            Ok(res) => {
+                                tracing::error!("IPC Error: {res}");
+                                anyhow::bail!("CSV exit with IPC error: {res}");
+
+                            }
+                            Err(_) => {
+                                log::info!("CSV worker done successfully");
+                                let _ = abort.send(());
+                            }
+                        }
                     }
                     Err(err) => {
                         let _ = abort.send(());
@@ -557,11 +529,17 @@ impl CsvSource {
             }
             let mut record = StringRecord::new();
             for _ in 0..MAX_VALIDATE_LINES {
-                reader
+                let ok = reader
                     .read_record(&mut record)
                     .with_context(|| format!("Reading file {path:?} record error"))?;
+                if !ok {
+                    break;
+                }
                 let len = record.len();
                 let line = reader.position().line();
+                if len == 0 {
+                    continue;
+                }
                 if cols != len {
                     bail!("CSV file {path:?} line {line} expect {cols} columns but has {len}");
                 }
@@ -569,4 +547,42 @@ impl CsvSource {
         }
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn test_csv_source() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+    csv_to_taos(
+        Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
+        Some(
+            Parser::from_str(
+                r#"{
+  "parse": {
+    "time": { "as": "timestamp(ns)", "alias": "time" },
+    "field0": { "as": "int" },
+    "field7": { "as": "int" }
+  },
+  "model": {
+    "name": "f_{field0}",
+    "using": "stb1",
+    "tags": ["field0"],
+    "columns": ["time", "field7"]
+  }
+}"#,
+            )
+            .unwrap(),
+        ),
+        Dsn::from_str("taos:///testns").unwrap(),
+        &Default::default(),
+        Default::default(),
+        None,
+        None,
+    )
+    .await?;
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    let taos = TaosBuilder::from_dsn("taos:///testns")?.build().await?;
+    let u: usize = taos.query_one("select count(*) from stb1").await?.unwrap();
+    assert_eq!(u, 200);
+    Ok(())
 }

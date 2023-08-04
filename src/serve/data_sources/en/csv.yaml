@@ -16,26 +16,17 @@ groups:
     display_order: 1
     description: CSV reading options
     params:
-      - name: sep
-        display: Separator
-        description: The field separator in a CSV record. Use `,` if not set.
-        # value: \,
-        hint: str
+      # - name: sep
+      #   display: Separator
+      #   description: The field separator in a CSV record. Use `,` if not set.
+      #   hint: str
       - name: skip
         display: Skip Records
         description: Skip number of records for each CSV file.
         hint:
           type: integer
           min: 0
-      - name: has_header
-        display: Has Headers?
-        value: true
-        hint:
-          type: boolean
-      - name: header
-        display: Custom Headers
-        hint:
-          type: boolean
+      
   - name: Write Options
     display_order: 2
     description: Writing options

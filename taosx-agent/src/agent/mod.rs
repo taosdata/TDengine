@@ -168,6 +168,10 @@ impl Client {
             agent,
         })
     }
+
+    pub fn agent(&self) -> &Agent {
+        &self.agent
+    }
     pub async fn push_status(&mut self, status: &TaskStatus) -> Result<()> {
         tracing::info!("Push status {status:?} to server");
         let status_bytes = serde_json::to_vec(status)?;
@@ -435,9 +439,15 @@ impl Client {
                         info!("Start task {}", task.id);
                         sender.send(Action::Run(task)).unwrap();
                     }
-                    "cancel" => {
+                    "stop" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Stop task {}", task.id);
+                        sender.send(Action::Stop(task.id)).unwrap();
+                        // let task:
+                    }
+                    "cancel" => {
+                        let task: Task = serde_json::from_str(&context).unwrap();
+                        info!("Cancel task {}", task.id);
                         sender.send(Action::Cancel(task.id)).unwrap();
                         // let task:
                     }
@@ -456,9 +466,14 @@ impl Client {
                     "heartbeat-ok" => {
                         let resp: HeartbeatResponse = serde_json::from_str(&context).unwrap();
                         // let delay = resp.duration().to_std().unwrap();
-                        info!("Server is alive, delay: {}ms", resp.duration().num_milliseconds());
+                        info!(
+                            "Server is alive, delay: {}ms",
+                            resp.duration().num_milliseconds()
+                        );
                     }
-                    _ => unreachable!(),
+                    action => {
+                        tracing::error!("Unknown action {action}");
+                    }
                 }
             }
         }
