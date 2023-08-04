@@ -76,7 +76,8 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64, pReader->pWal->cfg.vgId, appliedVer, committedVer);
   }
 
-  int64_t endVer = TMIN(appliedVer, committedVer);
+  int64_t endVer = committedVer;
+//  int64_t endVer = TMIN(appliedVer, committedVer);
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
          ", applied index:%" PRId64", end index:%" PRId64,

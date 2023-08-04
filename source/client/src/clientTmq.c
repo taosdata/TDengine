@@ -2119,7 +2119,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {
-      tscDebug("consumer:0x%" PRIx64 " return rsp %p", tmq->consumerId, rspObj);
+      tscInfo("consumer:0x%" PRIx64 " return rsp %p", tmq->consumerId, rspObj);
       return (TAOS_RES*)rspObj;
     } else if (terrno == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       tscInfo("consumer:0x%" PRIx64 " return null since no committed offset", tmq->consumerId);
@@ -2878,7 +2878,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   sendInfo->msgType = TDMT_VND_TMQ_SEEK;
 
   int64_t transporterId = 0;
-  tscInfo("consumer:0x%" PRIx64 " %s send seek info vgId:%d, epoch %d" PRIx64,
+  tscInfo("consumer:0x%" PRIx64 " %s send seek info vgId:%d, epoch %d",
           tmq->consumerId, pTopic->topicName, vgId, tmq->epoch);
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
   taosWUnLockLatch(&tmq->lock);

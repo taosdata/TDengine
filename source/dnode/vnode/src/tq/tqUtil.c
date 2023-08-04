@@ -157,9 +157,12 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
-static void setRequestVersion(STqOffsetVal* offset, int64_t ver){
+static void setRequestVersion(STqOffsetVal* offset, int64_t verStart, int64_t verEnd){
   if(offset->type == TMQ_OFFSET__LOG){
-    offset->version = ver + 1;
+    offset->version = verStart + 1;
+  }
+  if(offset->version > verEnd){
+    offset->version = verEnd;
   }
 }
 
@@ -192,7 +195,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     }
     taosWUnLockLatch(&pTq->lock);
   }
-  setRequestVersion(&dataRsp.reqOffset, pOffset->version);
+  setRequestVersion(&dataRsp.reqOffset, pOffset->version, dataRsp.rspOffset.version);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
 
 end : {
@@ -267,7 +270,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-        setRequestVersion(&taosxRsp.reqOffset, offset->version);
+        setRequestVersion(&taosxRsp.reqOffset, offset->version, taosxRsp.rspOffset.version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
         goto end;
       }
@@ -280,7 +283,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (pHead->msgType != TDMT_VND_SUBMIT) {
         if (totalRows > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer - 1);
-          setRequestVersion(&taosxRsp.reqOffset, offset->version);
+          setRequestVersion(&taosxRsp.reqOffset, offset->version, taosxRsp.rspOffset.version);
           code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
           goto end;
         }
@@ -310,7 +313,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       if (totalRows >= 4096 || taosxRsp.createTableNum > 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-        setRequestVersion(&taosxRsp.reqOffset, offset->version);
+        setRequestVersion(&taosxRsp.reqOffset, offset->version, taosxRsp.rspOffset.version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
         goto end;
       } else {

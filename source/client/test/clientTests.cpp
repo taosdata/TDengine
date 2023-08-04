@@ -1088,8 +1088,8 @@ TEST(clientCase, td_25129) {
   tmq_conf_set(conf, "group.id", "group_id_2");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set(conf, "auto.offset.reset", "latest");
+  tmq_conf_set(conf, "msg.with.table.name", "false");
 
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   tmq_conf_destroy(conf);
@@ -1107,7 +1107,7 @@ TEST(clientCase, td_25129) {
   int32_t     precision = 0;
   int32_t     totalRows = 0;
   int32_t     msgCnt = 0;
-  int32_t     timeout = 2000;
+  int32_t     timeout = 200;
 
   int32_t count = 0;
 
@@ -1177,7 +1177,10 @@ TEST(clientCase, td_25129) {
 
       printSubResults(pRes, &totalRows);
 
-      code = tmq_get_topic_assignment(tmq, "tp", &pAssign, &numOfAssign);
+      tmq_topic_assignment* pAssignTmp = NULL;
+      int32_t numOfAssignTmp = 0;
+
+      code = tmq_get_topic_assignment(tmq, "tp", &pAssignTmp, &numOfAssignTmp);
       if (code != 0) {
         printf("error occurs:%s\n", tmq_err2str(code));
         tmq_free_assignment(pAssign);
@@ -1188,12 +1191,28 @@ TEST(clientCase, td_25129) {
       }
 
       for(int i = 0; i < numOfAssign; i++){
-        printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+        printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssignTmp[i].vgId, pAssignTmp[i].currentOffset, pAssignTmp[i].begin, pAssignTmp[i].end);
       }
+      if(numOfAssign != 0){
+        int i = 0;
+        for(; i < numOfAssign; i++){
+          if(pAssign[i].currentOffset != pAssignTmp[i].currentOffset){
+            break;
+          }
+        }
+        if(i == numOfAssign){
+          printf("all position is same\n");
+          break;
+        }
+        tmq_free_assignment(pAssign);
+      }
+      numOfAssign = numOfAssignTmp;
+      pAssign = pAssignTmp;
+
     } else {
-      tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].currentOffset);
-      tmq_offset_seek(tmq, "tp", pAssign[1].vgId, pAssign[1].currentOffset);
-      tmq_commit_sync(tmq, pRes);
+//      tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].currentOffset);
+//      tmq_offset_seek(tmq, "tp", pAssign[1].vgId, pAssign[1].currentOffset);
+//      tmq_commit_sync(tmq, pRes);
       continue;
     }
 
@@ -1204,7 +1223,7 @@ TEST(clientCase, td_25129) {
       //        break;
       //      }
     } else {
-      break;
+//      break;
     }
 
 //    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
