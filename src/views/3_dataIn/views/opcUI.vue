@@ -1486,9 +1486,9 @@ export default {
           }
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
-          model.name = this.$refs.csvdata.$refs.param.ruleForm.subname
+          model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname
 
-          model.using = this.$refs.csvdata.$refs.param.ruleForm.tableName;
+          model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
           piParams["parser"] = this.$store.state.app.csvParser;
 
           let flag = Object.keys(parse).some((item) => parse[item].as == "");
