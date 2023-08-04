@@ -1,7 +1,7 @@
-﻿using System.Linq;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.PI;
+using TDPIConnector.TDEngine.Helper;
 
 namespace TDPIConnector.Core.Conversions
 {
@@ -22,12 +22,33 @@ namespace TDPIConnector.Core.Conversions
         internal static TDTable Convert(AFElementWrapper element, string sTableName, IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
+            Dictionary<string, string> tags = new Dictionary<string, string>();
+            var elementColumns = new List<TDColumn>();
+            foreach (var c in columns)
+            {
+                elementColumns.Add(new TDColumn(c));
+            }
+
+            foreach (var attr in element.Attributes)
+            {
+                if (string.IsNullOrEmpty(attr.DataReference))
+                {
+                    var value = attr.ToStringWithUOM();
+                    tags.Add(attr.Name.ToTDEngineNamingPattern(), value);
+                }
+            }
+            foreach (var column in elementColumns)
+            {
+                if (tags.ContainsKey(column.Name))
+                {
+                    column.TagValue = tags[column.Name];
+                }
+            }
             var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
             {
-                Columns = columns,
+                Columns = elementColumns,
                 Location = location
             };
- 
             return table;
         }
         static string getLocation(string path)

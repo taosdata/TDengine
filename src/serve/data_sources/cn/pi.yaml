@@ -45,6 +45,7 @@ groups:
       type: integer
       min: 1
       max: 10000
+    value: 1000
   - name: UpdateInterval
     display: 采集间隔（单位：毫秒）
     hint:
@@ -53,12 +54,14 @@ groups:
       max: 60000
     description: 每隔该 ms 数从 PI 拉取数据。
     placeholder: 10000
+    value: 10000
   - name: MaxBackfillRangeDays
     display: 重启补偿时间
     hint:
       type: integer
     description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
     placeholder: 1
+    value: 1
 
 datasets:
   name: 监测点集

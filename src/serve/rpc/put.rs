@@ -1,17 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Context;
-use arrow::ipc::RecordBatch;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder, TaosPool};
+use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
 
-use crate::serve::controller::{
-    transferred::{ConnectorTransferred, Transferred},
-    Task, TaskControllerRef, TaskDetail,
-};
+use crate::serve::controller::{transferred::ConnectorTransferred, TaskControllerRef, TaskDetail};
 
 #[derive(Debug)]
 pub struct PutStream {
@@ -166,15 +162,18 @@ impl PutStream {
                     .as_ref()
                     .map(|v| serde_json::from_value(v.clone()).unwrap());
                 loop {
-                    if let Ok(a) = rx.recv() {
-                        log::info!("Start writing records: {a:?}");
-                        if let Err(err) = worker.process_record(&mut stmt, a, parser.as_ref()).await
-                        {
-                            log::warn!("Write stream error: {err}");
+                    match rx.recv() {
+                        Ok(record) => {
+                            log::info!("Start writing records: {record:?}");
+                            if let Err(err) = worker.process_record(&mut stmt, record, parser.as_ref()).await
+                            {
+                                log::warn!("Write stream error: {err}");
+                            }
                         }
-                    } else {
-                        log::warn!("IPC stream worker stopped");
-                        break Ok(());
+                        Err(err) => {
+                            log::warn!("IPC stream worker stopped, err:{}", err.to_string());
+                            break Ok(());
+                        }
                     }
                 }
             }
@@ -193,7 +192,7 @@ impl PutStream {
                         dbg!(schema);
                     }
                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                        dbg!(&batch);
+                        // dbg!(&batch);
                         if let Err(err) = tx.send(batch) {
                             log::warn!(
                                 "into_flight_put_result channel send err: {}",

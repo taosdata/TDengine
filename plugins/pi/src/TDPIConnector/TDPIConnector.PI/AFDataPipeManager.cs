@@ -32,12 +32,12 @@ namespace TDPIConnector.PI
                 afDataPipes[i].Subscribe(observer);
             }
         }
-
         public void AddSignups(List<AFElementWrapper> elements)
         {
             for (int i = 0; i < elements.Count; i++)
             {
                 int k = i % afDataPipes.Count;
+                if (elements[i].HasInvalidAttr()) continue;
                 attributeSetLists[k].AddRange(elements[i].AFSDKObject.Attributes);
             }
 

@@ -11,11 +11,6 @@ pub(crate) mod constants {
     pub const __ATTRS__: &'static str = "__attrs__";
     pub const __RECORDS__: &'static str = "__records__";
     pub const __TABLE_NAME__: &'static str = "__table_name__";
-
-    /// --- point ---
-    pub const POINT_KEY_ID: &'static str = "id";
-    pub const POINT_KEY_TS: &'static str = "ts";
-    pub const POINT_KEY_VALUE: &'static str = "value";
 }
 
 pub mod prelude {

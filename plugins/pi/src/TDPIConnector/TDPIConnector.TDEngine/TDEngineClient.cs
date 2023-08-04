@@ -1,4 +1,5 @@
 ﻿#define CLOUD_LICENSE_ONLY
+#define UNUSE_ADAPTER
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -11,7 +12,6 @@ using System.Threading;
 using TDPIConnector.TDEngine.Exceptions;
 using TDPIConnector.TDEngine.Helper;
 using TDPIConnector.TDEngine.Models;
-using TDPIConnector.TDEngine.TaosxClient;
 
 namespace TDPIConnector.TDEngine
 {
@@ -79,7 +79,11 @@ namespace TDPIConnector.TDEngine
             string sqlCommand = "show tables;";
             return await MakeHttpRequest(sqlCommand, database);
         }
-
+        public override async Task<TDEngineResponse> GetSTables(string database, string stable)
+        {
+            string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable.ToTDEngineNamingPattern()};";
+            return await MakeHttpRequest(sqlCommand);
+        }
         public override void VerifyLicenseCompability()
         {
             if (!baseUrl.Contains("cloud.tdengine.com"))
@@ -164,17 +168,13 @@ namespace TDPIConnector.TDEngine
             string tags = string.Empty;
             foreach (TDColumn column in sTable.Columns)
             {
-                if (string.IsNullOrEmpty(column.ConfigurationItem))
+                if (column.IsTag())
                 {
-                    sqlCommand += $", {column.Name}_val {column.Type}, {column.Name}_status INT";
+                    tags += $", {column.Name} NCHAR(100)";
                 }
                 else
                 {
-                    tags += $", {column.Name}_val {column.Type}";
-                }
-                if (!string.IsNullOrEmpty(column.Uom))
-                {
-                    tags += $", {column.Name}_uom NCHAR(100)";
+                    sqlCommand += $", {column.Name}_val {column.Type}, {column.Name}_status INT";
                 }
             }
             tags += $", {StaticConfig.Default.AFTreeTagName} NCHAR(100)";
@@ -200,14 +200,9 @@ namespace TDPIConnector.TDEngine
                 Dictionary<string, string> tags = new Dictionary<string, string>();
                 foreach (TDColumn column in element.Columns)
                 {
-                    if (!string.IsNullOrEmpty(column.ConfigurationItem))
+                    if (column.IsTag())
                     {
-                        tags.Add($"{column.Name}_val", column.ConfigurationItem);
-                    }
-
-                    if (!string.IsNullOrEmpty(column.Uom))
-                    {
-                        tags.Add($"{column.Name}_uom", column.Uom);
+                        tags.Add($"{column.Name}", column.TagValue);
                     }
                 }
 
@@ -537,6 +532,7 @@ namespace TDPIConnector.TDEngine
                 catch (Exception e) {
                     Thread.Sleep(500);
                     if (++retryTimes >= StaticConfig.Default.HttpMaxRetryTime) {
+                        log.Error($"sql exec retry {StaticConfig.Default.HttpMaxRetryTime} times failed.{sqlCommand}");
                         throw e;
                     }
                 }
@@ -549,7 +545,11 @@ namespace TDPIConnector.TDEngine
                 string url = this.baseUrl + "/rest/sql";
                 if (forTaosX)
                 {
+#if USE_ADAPTER
+                    url = this.baseUrl + "/rest/sql";
+#else
                     url = this.baseUrl + "/sql";
+#endif
                 }
                 if (!string.IsNullOrEmpty(dbName))
                 {
@@ -632,6 +632,18 @@ namespace TDPIConnector.TDEngine
             }
             sqlCommand.Append(";");
             return sqlCommand.ToString();
+        }
+        public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
+        {
+            try {
+                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                    $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
+                return await MakeHttpRequest(sqlCommand);
+            }
+            catch (Exception e) {
+                log.Error($"ChangeTagValueForAFElements failed. {e}");
+                return null;
+            }
         }
     }
 }

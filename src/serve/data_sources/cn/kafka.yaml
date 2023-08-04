@@ -1,0 +1,146 @@
+---
+id: kafka
+name: Kafka
+type: uri
+description: |
+  Apache Kafka是一个开源的分布式事件流平台，被成千上万的公司用于高性能数据管道、流分析、数据集成和关键任务应用程序。
+
+  TaosX 可以高效地读取 Kafka 中的数据，并通过 taosx-kafka 连接器将其写入 TDengine 来实现历史数据迁移或实时数据同步。
+strict: false
+options:
+  endpoint:
+    display: bootstrap-servers
+    description: Kafka Server 地址
+    placeholder: 127.0.0.1:9092
+    required: true
+groups:
+  - name: SSL 证书
+    description: 使用证书和私钥建立连接以启用 SSL。
+    collapsible: true
+    params:
+      - name: cert
+        display: 客户端证书
+        description: .cert 文件
+        required: true
+        hint:
+          type: file
+      - name: cert_key
+        display: 客户端私钥
+        description: 私钥文件
+        required: true
+        hint:
+          type: file
+  - name: Consumer
+    display_order: 1
+    description: 配置数据采集任务
+    required: false
+    params:
+      - name: timeout
+        display: Timeout
+        description: >
+          指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。
+          当 timeout 设置为 `never` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。
+        placeholder: 500
+        required: false
+        hint:
+          type: str
+      - name: group
+        display: Group
+        description: >
+          指定 Kafka Consumer 的消费者组 ID。当配置 group 参数为一个空字符串`""`时，Consumer 为无组的。
+
+          示例：`my_group`。
+        placeholder: "my_group"
+        required: false
+        hint:
+          type: str
+      - name: topics
+        display: Topics
+        description: >
+          指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。
+
+          "Topics" 参数不是必需的，当配置了 “Topics Partitions” 参数时，可以不配置该参数。
+        placeholder: "Topics 参数和 Topic Partitions 参数两者至少需要配置一个。"
+        required: false
+        hint:
+          type: str
+      - name: topic_partitions
+        display: Topic Partitions
+        description: >
+          指定要消费的 Topic 和 Partition。可以指定多个 Topic 和 Partition，例如： `tp1,tp2:2,tp3:0..9`。
+
+          Topic Partitions 参数不是必需的，当配置了 Topics 参数时，可以不配置该参数。
+        placeholder: "Topics 参数和 Topic Partitions 参数两者至少需要配置一个。"
+        required: false
+        hint:
+          type: str
+      - name: fallback_offset
+        display: Fallback Offset
+        value: Earliest
+        description: >
+          Fallback Offset 参数可以指定以下值：
+
+          * `Earliest`：用于请求最早的 offset.
+          * `Latest`：用于请求最晚的 offset.
+          * `ByTime`：用于请求在特定时间（毫秒）之前的所有消息; 时间戳为毫秒精度。
+
+          默认值为Earliest。。
+        placeholder: Earliest
+        required: false
+        hint:
+          type: str
+          choices:
+            - Earliest
+            - Latest
+            - ByTime
+      - name: offset_storage
+        display: Offset Storage
+        description: >
+          定义在获取或提交组偏移量时要使用的可用存储类型。
+
+          * Zookeeper: 基于 Zookeeper 的存储（从 kafka 0.8.1 开始可用）。
+          * Kafka: 基于 Kafka 的存储（从Kafka 0.8.2开始可用），推荐使用 Kafka 作为 Offset Storage 的值。
+
+          默认是 "Kafka"。
+        placeholder: Kafka
+        value: Kafka
+        required: false
+        hint:
+          type: str
+          choices:
+            - Zookeeper
+            - Kafka
+parser:
+  display: Payload 解析
+  description: |
+    Kafka 连接器会上传以下六列到服务端：<br>
+
+    - **ts**: 采集时间戳。<br>
+    - **topic**: 订阅主题名。<br>
+    - **partition**: 当前消息所在的分区 ID。<br>
+    - **offset**: 当前消息的偏移量。<br>
+    - **key**: 当前消息的 Key。<br>
+    - **value**: 当前消息的数据内容。<br>
+
+    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>
+    包括，指定表名称和超级表名，设置普通列会标签列等。
+  fields:
+    - name: ts
+      description: 时间戳。
+      type: timestamp
+    - name: topic
+      description: 主题名。
+      type: nchar
+    - name: partition
+      description: 分区 ID。
+      type: int
+    - name: offset
+      description: 偏移。
+      type: bigint
+    - name: key
+      description: 消息 Key。
+      type: binary
+    - name: value
+      description: 消息体。
+      type: binary
+  required: true

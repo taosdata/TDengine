@@ -62,7 +62,7 @@ async fn write_data(
                 for action in actions {
                     match action {
                         Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
-                            rename.apply_in_place(&mut name)
+                            rename.apply_in_place(&mut name)?
                         }
                         _ => (),
                     }
@@ -81,7 +81,7 @@ async fn write_data(
                 for action in actions {
                     match action {
                         Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
-                            rename.apply_in_place(&mut name)
+                            rename.apply_in_place(&mut name)?
                         }
                         _ => (),
                     }
@@ -194,8 +194,6 @@ async fn write_meta(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<()> {
-    let order = std::sync::atomic::Ordering::SeqCst;
-
     let cur = metrics
         .messages_of_meta
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -472,16 +470,22 @@ pub async fn tmq_to_td(
                         }
                         Action::RenameTable(action) => {
                             let name = table.stable.as_deref().unwrap();
-                            let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                            let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                             sql.clear();
                             sql.extend(new.chars());
                         }
                         Action::RenameSuperTable(action) => {
                             let name = table.stable.as_deref().unwrap();
-                            let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                            let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                             sql.clear();
                             sql.extend(new.chars());
                         }
+                        // Action::RenameReplaceWithRegex(action) => {
+                        //     let name = table.stable.as_deref().unwrap();
+                        //     let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                        //     sql.clear();
+                        //     sql.extend(new.chars());
+                        // }
                         _ => (),
                     }
                 }
@@ -498,12 +502,12 @@ pub async fn tmq_to_td(
                     }
                     Action::RenameTable(action) => {
                         if let Some(name) = table.stable.as_deref() {
-                            let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                            let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                             sql.clear();
                             sql.extend(new.chars());
                         }
                         let name = &table.table;
-                        let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                        let new = sql.replace(&format!("`{name}`",), &action.apply(name)?);
                         sql.clear();
                         sql.extend(new.chars());
                     }

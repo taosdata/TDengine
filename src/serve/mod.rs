@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
 use actix_cors::Cors;
+use actix_multipart::form::MultipartFormConfig;
 use anyhow::Result;
 
 use clap::Parser;
 
 use actix_web::{
     middleware::Logger,
-    web::{Data, ServiceConfig},
+    web::{Data, ServiceConfig, PayloadConfig},
     App, HttpServer,
 };
 use serde::Deserialize;
@@ -28,11 +29,11 @@ use controller::*;
 use data_sources::*;
 
 use crate::serve::controller::agent::{
-    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
+    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken, AgentActivityFilter, Activity, LevelFilter, ActivityOrder,
 };
 
 use self::{
-    agent::{create_agent, delete_agent, get_agents, update_agent},
+    agent::{create_agent, delete_agent, get_agents, update_agent, get_agent_activities},
     routes::cluster::get_cluster_connector_transferred,
 };
 
@@ -98,15 +99,19 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(update_agent)
             .service(delete_agent)
             .service(get_agents)
+            .service(get_agent_activities)
             .service(get_cluster_connector_transferred)
-            .service(get_task_activities_by_id);
+            .service(get_task_activities_by_id)
+            .service(download_files)
+            .service(upload_files)
+            .service(filemeta);
     }
 }
 impl Cli {
     pub(super) async fn run_with(
         self,
         _opts: super::GlobalOpts,
-        rt: impl Into<Option<tokio::runtime::Runtime>>,
+        _rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
@@ -149,8 +154,12 @@ impl Cli {
                     DatasetsDefinition,
                     LangQuery,
                     Lang,
-                    // DataSet,
-
+                    UploadForm,
+                    FileMetaRequest,
+                    AgentActivityFilter,
+                    Activity,
+                    LevelFilter,
+                    ActivityOrder,
                 ),
                 responses(
                 )
@@ -166,6 +175,9 @@ impl Cli {
                 task::get_task_by_id,
                 task::get_task_offsets_by_id,
                 task::get_task_activities_by_id,
+                task::upload_files,
+                task::filemeta,
+                task::download_files,
 
                 metrics::metrics_exporter,
 
@@ -177,6 +189,7 @@ impl Cli {
                 agent::update_agent,
                 agent::delete_agent,
                 agent::get_agents,
+                agent::get_agent_activities,
 
                 routes::cluster::get_cluster_connector_transferred,
 
@@ -231,6 +244,10 @@ impl Cli {
                 .wrap(cors)
                 .wrap(Logger::default())
                 .app_data(recorder.clone())
+                .app_data(PayloadConfig::new(std::usize::MAX))
+                .app_data(MultipartFormConfig::default()
+                .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
+                .total_limit(std::usize::MAX)) // payload set to 2G
                 .configure(configure(store.clone()))
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
@@ -241,7 +258,7 @@ impl Cli {
         .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
         .run();
 
-        let mut flight = rpc::RpcConfig::default();
+        let flight = rpc::RpcConfig::default();
 
         tokio::select! {
             _ = server => {

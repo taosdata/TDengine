@@ -1,0 +1,39 @@
+---
+id: csv
+name: CSV
+description: |
+  导入一个或多个 CSV 文件数据到 TDengine。
+type: path
+options:
+  path:
+    required: true
+    display: Path
+    description: CSV 文件名或文件路径（处理该路径下的所有 CSV 文件）。
+    placeholder: "示例: a.csv,b.csv"
+strict: true
+groups:
+  - name: CSV 选项
+    display_order: 1
+    description: CSV 读取选项
+    params:
+      # - name: sep
+      #   display: 分隔符
+      #   hint: str
+      - name: skip
+        display: 忽略前 N 行
+        hint:
+          type: integer
+          min: 0
+      
+  - name: CSV 写入配置
+    display_order: 2
+    description: CSV 写入参数设置
+    params:
+      - name: batch_size
+        display: 批次写入量
+        value: 1000
+        short_description: 批次写入量。
+        description: 批次写入量。
+        hint:
+          type: integer
+          min: 1

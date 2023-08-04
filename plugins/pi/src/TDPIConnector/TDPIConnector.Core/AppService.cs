@@ -61,8 +61,8 @@ namespace TDPIConnector.Core
             }
             catch (Exception e)
             {
-                log.Fatal("Error starting the application.Connect PI System failed!", e);
-                throw e;
+                log.Error("Error starting the application.Connect PI System failed!", e);
+                throw new Exception($"PI System connect faied, please check config.");
             }
         }
 
@@ -201,6 +201,7 @@ namespace TDPIConnector.Core
             {
                 StartBackfill();
                 StartDataPipe();
+                StartTemplateObserve();
                 this.standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
                 this.standByModeTask.Start();
                 log.Info("Started");
@@ -210,7 +211,26 @@ namespace TDPIConnector.Core
                 log.Info("No PI Points or AF Elements found.");
             }
         }
+        private void StartTemplateObserve()
+        {
+            if (AppSettings.tomlConfig.TemplateForAFElement == null)
+            {
+                log.Info("No ElementTemplates to watch.");
+                return;
+            }
 
+            var afElementTemplateObserver = new AFElementTemplateObserver(this.piSystemManager,
+               AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement);
+            afElementTemplateObserver.Observe(elementTemplateEventHandle);
+        }
+        public async void elementTemplateEventHandle(AFElementTemplateWrapper template)
+        {
+            var hasNewAttribute = await tablesCreator.CreateOrUpdateSuperTables(AppSettings.tomlConfig.TDDataBase, template);
+            if (hasNewAttribute)
+            {
+                ReStartDataPipe();
+            }
+        }
         private void startWebService() {
             try
             {
@@ -292,7 +312,6 @@ namespace TDPIConnector.Core
                 elementModeTask = null;
             }
         }
-
         public void Stop()
         {
             if (standByModeTask != null)
@@ -311,17 +330,45 @@ namespace TDPIConnector.Core
             tdEngineProxy.Dispose();
             webApp.Dispose();
         }
-
+        public void ReStartDataPipe()
+        {
+            log.Debug("PI Connection error detected: Stopping data pipes");
+            StopDataPipe();
+            piServerManager.Dispose();
+            log.Debug("PI Connection error detected: Connecting to PI");
+            piServerManager.Connect();
+            log.Debug("PI Connection error detected: Starting data pipes");
+            StartDataPipe();
+            log.Debug("PI Connection error detected: Starting backfilling");
+            StartBackfill();
+            log.Debug("Checking PI Data Archive connection: SUCCESS");
+        }
         public void PrintPIInfo(string pointFilter) {
             //startWebService();
             //InitMonitoring();
-            InitializePIConnections();
-            var scanner = new PIInfoScanner(piServerManager, piSystemManager);
-            string info = scanner.GetInfo(pointFilter);
-            Console.OutputEncoding = Encoding.UTF8;
-            Console.WriteLine(info);
-            log.Info(info);
+            try {
+                InitializePIConnections();
+                var scanner = new PIInfoScanner(piServerManager, piSystemManager);
+                string info = scanner.GetInfo(pointFilter);
+                Console.OutputEncoding = Encoding.UTF8;
+                Console.WriteLine(info);
+                log.Info(info);
+            } catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                log.Error(e.Message);
+            }
             log.Info("Print PI Info finished!");
+        }
+        public static void GetPISDKInfo()
+        {
+            try
+            {
+                Console.WriteLine("Client SDK Version " + PISystemManager.GetPISDKInfo());
+            }
+            catch(Exception) {
+                Console.WriteLine("PI Client SDK Not Found!");
+            }
         }
     }
 }

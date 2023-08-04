@@ -1,7 +1,6 @@
 use bitvec::prelude::*;
 // use port_selector::Port;
 use std::{
-    default,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs},
     ops::Range,
     sync::{Arc, Mutex},

@@ -1,5 +1,6 @@
 package com.taosdata.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -15,12 +16,35 @@ import java.util.List;
 public interface InfluxdbService {
 
     /**
-     * 获取influxdb中所有bucket
+     * 单次连接，查询指定influxdb中schema信息
      *
+     * @param url
+     * @param token
+     * @param orgId
      * @return
      * @throws ArtificialException
      */
-    List<InfluxdbBucketEntity> selectAllBuckets() throws ArtificialException;
+    JSONObject fetchSchemaInfo(String url, String token, String orgId) throws ArtificialException;
+
+    /**
+     * 单次连接，查询指定influxdb中schema信息，适用于v1.7/1.8
+     *
+     * @param url
+     * @param username
+     * @param password
+     * @return
+     * @throws ArtificialException
+     */
+    JSONObject fetchSchemaInfoV1(String url, String username, String password) throws ArtificialException;
+
+    /**
+     * 获取influxdb中所有bucket
+     *
+     * @param orgId
+     * @return
+     * @throws ArtificialException
+     */
+    List<InfluxdbBucketEntity> selectAllBuckets(String orgId) throws ArtificialException;
 
     /**
      * 获取指定bucket中所有measurement

@@ -376,6 +376,16 @@ taosx run \
 
 We strongly recommend to use Parquet for time-series data sharing and storing purpose, which has better reading performance and much smaller size.
 
+#### 6. **kafka**: import from Kafka and export to kafka
+
+Import data from kafka：
+
+```bash
+taosx run \
+  -f 'kafka://localhost:9092/?topic=test' \
+  -t 'taos://root:taosdata@localhost:6030/test?'
+```
+
 ### Transformation
 
 taosX support two kind of transformation actions in data replication:

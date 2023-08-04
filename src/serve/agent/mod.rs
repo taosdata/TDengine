@@ -7,7 +7,7 @@ use taos::Code;
 
 use crate::serve::{
     controller::{
-        agent::{AgentProps, AgentUpdates},
+        agent::{AgentActivityFilter, AgentProps, AgentUpdates},
         AgentFilter, TaskControllerRef,
     },
     task::Failed,
@@ -29,8 +29,8 @@ pub(super) async fn create_agent(
     match task_store.create_agent(agent.into_inner()).await {
         Ok(agent) => HttpResponse::Ok().json(&agent),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -51,8 +51,8 @@ pub(super) async fn delete_agent(
     match task_store.delete_agent(agent_id.into_inner()).await {
         Ok(_) => HttpResponse::Ok().json(serde_json::Value::Null),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err)
         }),
     }
 }
@@ -78,7 +78,85 @@ pub(super) async fn get_agents(
             .append_header(("Count", agents.len()))
             .json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
+            message: format!("{:#}", err)
+        }),
+    }
+}
+
+/// Get agent by id.
+///
+#[utoipa::path(
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = Agent)
+    )
+)]
+#[get("/agents/{agent_id}")]
+pub(super) async fn get_agent_by_id(
+    task_store: Data<TaskControllerRef>,
+    agent_id: Path<i64>,
+) -> impl Responder {
+    match task_store.get_agent_by_id(agent_id.into_inner()).await {
+        Ok(agents) => HttpResponse::Ok().json(&agents),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: err.to_string(),
+        }),
+    }
+}
+
+/// List agents with specified `cluster_id` and `user_id`
+///
+#[utoipa::path(
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [TaskDetail])
+    ),
+    params(
+        AgentFilter,
+    )
+)]
+#[get("/agents/{agent_id}/tasks")]
+pub(super) async fn get_agent_tasks(
+    task_store: Data<TaskControllerRef>,
+    agent_id: Path<i64>,
+) -> impl Responder {
+    match task_store.get_tasks_of_agent(agent_id.into_inner()).await {
+        Ok(agents) => HttpResponse::Ok()
+            .append_header(("Count", agents.len()))
+            .json(&agents),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: format!("{:#}", err)
+        }),
+    }
+}
+
+/// Get agent activities by id
+///
+#[utoipa::path(
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [Activity])
+    ),
+    params(AgentActivityFilter)
+)]
+#[get("/agents/{agent_id}/activities")]
+pub(super) async fn get_agent_activities(
+    task_store: Data<TaskControllerRef>,
+    agent_id: Path<i64>,
+    filter: Query<AgentActivityFilter>,
+) -> impl Responder {
+    match task_store
+        .agent_activities(agent_id.into_inner(), &filter)
+        .await
+    {
+        Ok(agents) => HttpResponse::Ok()
+            .append_header(("Count", agents.len()))
+            .json(&agents),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
             message: err.to_string(),
         }),
     }
@@ -105,8 +183,8 @@ pub(super) async fn update_agent(
     {
         Ok(agents) => HttpResponse::Ok().json(&agents),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err)
         }),
     }
 }

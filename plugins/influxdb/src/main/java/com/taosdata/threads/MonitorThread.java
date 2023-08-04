@@ -56,7 +56,7 @@ public class MonitorThread implements Runnable {
                 if (StringUtils.isEmpty(this.name)) {
                     this.name = "MonitorThread";
                 }
-                logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 /* 更新内存队列信息 */
                 StatusCache.noteQueue("Bucket", -1, BucketCache.bucketMap.size());
                 StatusCache.noteQueue("Measurement", -1, BucketCache.measurementMap.size());
@@ -99,7 +99,7 @@ public class MonitorThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
                 }
             }
         }
@@ -117,7 +117,7 @@ public class MonitorThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.debug(this.name + "#Thread finished (Take time " + (end - start) + " ms)#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -133,7 +133,7 @@ public class MonitorThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        logger.error(this.name + "#Thread exception (Take time " + (end - start) + " ms)#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -143,7 +143,7 @@ public class MonitorThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }

@@ -15,7 +15,7 @@ use tokio::{
     task::{JoinError, JoinHandle},
 };
 
-use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange};
+use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange, Action};
 
 use super::{sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs};
 
@@ -68,6 +68,7 @@ async fn worker(
     query: Arc<QueryOpts>,
     opts: Arc<TargetOpts>,
     metrics: Arc<LegacyMetrics>,
+    actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
@@ -98,6 +99,7 @@ async fn worker(
                                 &opts,
                                 source_is_v3,
                                 target_is_v3,
+                                &actions,
                                 0,
                                 &metrics,
                             )
@@ -110,6 +112,7 @@ async fn worker(
                                     break;
                                 }
                                 Err(err) => {
+                                    tracing::error!("sync_super_table_schema_with_subs {stable} err: {err:#}");
                                     let table_count = tables.len();
                                     let err_string = err.to_string();
                                     if (err_string.contains("0xE00")
@@ -150,7 +153,7 @@ async fn worker(
                         //normal
                         let mut errors = String::new();
                         for table in &tables {
-                            if let Err(err) = sync_normal_table_schema(&from, &table, &to).await {
+                            if let Err(err) = sync_normal_table_schema(&from, &table, &actions, &to).await {
                                 log::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
                                     path.lock().unwrap().write_fmt(format_args!(
@@ -193,6 +196,7 @@ async fn worker(
                         stable.as_ref().map(|s| s.as_str()),
                         &table,
                         &to,
+                        &actions,
                         &query,
                         &opts,
                         target_is_v3,
@@ -250,6 +254,7 @@ impl Scheduler {
         query: Arc<QueryOpts>,
         opts: Arc<TargetOpts>,
         workers: u32,
+        actions: &Vec<Action>,
         metrics: Arc<LegacyMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
@@ -266,6 +271,7 @@ impl Scheduler {
                     query.clone(),
                     opts.clone(),
                     metrics.clone(),
+                    actions.clone(),
                     source_is_v3,
                     target_is_v3,
                 ))

@@ -1,14 +1,12 @@
 use std::{
     sync::{
-        atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU32, AtomicU64, Ordering},
         Arc,
     },
     time::Duration,
 };
 
 use dashmap::DashMap;
-use flume::Sender;
-use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use tokio_util::sync::CancellationToken;
 
@@ -25,6 +23,7 @@ struct TransferredCache {
 
 type CacheMap = DashMap<(i64, String), TransferredCache>;
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Transferred {
     cache: Cache,
     persist: SqlitePool,
@@ -83,7 +82,7 @@ async fn tracking_transferred(
             }
         }
         Ok::<_, sqlx::Error>(())
-    };
+    }
     async fn init_persist(cache: &Cache, persist: &SqlitePool) -> Result<CacheMap, sqlx::Error> {
         let cache_last = CacheMap::default();
         if cache.is_empty() {
@@ -99,7 +98,7 @@ async fn tracking_transferred(
             cache_last.insert((*cluster_id, connector.clone()), cache_value);
         }
         Ok::<_, sqlx::Error>(cache_last)
-    };
+    }
     // init persist
     let mut last = init_persist(&cache, &persist).await?;
 

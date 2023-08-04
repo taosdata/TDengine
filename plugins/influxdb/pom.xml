@@ -74,7 +74,13 @@
             <artifactId>taos-jdbcdriver</artifactId>
             <version>3.0.2</version>
         </dependency>
-        <!-- influxdb client -->
+        <!-- influxdb client for v1.x -->
+        <dependency>
+            <groupId>org.influxdb</groupId>
+            <artifactId>influxdb-java</artifactId>
+            <version>2.18</version>
+        </dependency>
+        <!-- influxdb client for v2.x -->
         <dependency>
             <groupId>com.influxdb</groupId>
             <artifactId>influxdb-client-java</artifactId>

@@ -1,9 +1,13 @@
+use std::{fs, path::PathBuf};
+
+use actix_files::NamedFile;
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query},
-    HttpResponse, Responder,
+    HttpRequest, HttpResponse, Responder,
 };
 
+use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +17,7 @@ use tokio_cron_scheduler::Job;
 
 use utoipa::*;
 
-use crate::serve::{
-    controller::TaskControllerRef, NewTask, TaskController, TaskDecorator, TaskFilter, UpdateTask,
-};
+use crate::serve::{controller::TaskControllerRef, NewTask, TaskDecorator, TaskFilter, UpdateTask};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -60,8 +62,8 @@ pub(super) async fn get_tasks(
                     .collect_vec(),
             ),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -90,8 +92,8 @@ pub(super) async fn get_tasks_count(
     match task_store.tasks_count(filter.into_inner()).await {
         Ok(tasks) => HttpResponse::Ok().body(format!("{tasks}")),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -127,7 +129,7 @@ pub(super) async fn create_task(
     if let Some(trigger) = task.trigger.as_deref() {
         if !trigger.starts_with("schedule:") {
             return HttpResponse::InternalServerError().json(Failed {
-                code: Code::Failed,
+                code: Code::FAILED,
                 message: format!(
                     "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
                 ),
@@ -160,7 +162,7 @@ pub(super) async fn create_task(
                         log::info!("add job for task: {task:?}");
                         if let Err(_err) = sched.add(job).await {
                             return HttpResponse::InternalServerError().json(Failed {
-                                code: Code::Failed,
+                                code: Code::FAILED,
                                 message: format!(
                     "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
                 ),
@@ -176,8 +178,8 @@ pub(super) async fn create_task(
             HttpResponse::Created().json(task.decorate(&decorator))
         }
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -247,8 +249,8 @@ pub(super) async fn update_task(
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -283,8 +285,8 @@ pub(super) async fn delete_task(
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -316,8 +318,8 @@ pub(super) async fn get_task_by_id(
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -346,12 +348,12 @@ pub(super) async fn start_task(
     match task_store.start(id).await {
         Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: format!("Task {id} not found"),
         }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -380,12 +382,12 @@ pub(super) async fn stop_task(
     match task_store.stop(id).await {
         Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
-            code: Code::Failed,
+            code: Code::FAILED,
             message: format!("Task {id} not found"),
         }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -414,8 +416,8 @@ pub(super) async fn get_task_offsets_by_id(
         Ok(Some(offsets)) => HttpResponse::Ok().body(format!("{:?}", offsets)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
 }
@@ -428,20 +430,228 @@ pub(super) async fn get_task_offsets_by_id(
         (status = 200, description = "Task activities of the task", body = Vec<TaskActivity>),
     ),
     params(
-        ("id", description = "Unique storage id of Task")
+        ("id", description = "Unique storage id of Task"),
+        AgentActivityFilter
     ),
 )]
 #[get("/tasks/{id}/activities")]
 pub(super) async fn get_task_activities_by_id(
-    id: Path<i64>,
     task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+    filter: Query<AgentActivityFilter>,
 ) -> impl Responder {
     let id = id.into_inner();
-    match task_store.task_activities(id).await {
+    match task_store.task_activities(id, &filter.into_inner()).await {
         Ok(acts) => HttpResponse::Ok().json(acts),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
+            code: Code::FAILED,
+            message: format!("{:#}", err),
         }),
     }
+}
+
+use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+
+use super::controller::agent::AgentActivityFilter;
+#[derive(Debug, MultipartForm, ToSchema)]
+pub struct UploadForm {
+    #[multipart(rename = "file")]
+    files: Vec<TempFile>,
+    req_id: Text<String>,
+}
+#[utoipa::path(
+    tag = "tasks",
+    request_body(content = UploadForm, content_type = "multipart/form-data"),
+    responses(
+        (status = 201, description = "file uploaded", body = Vec<String>),
+        (status = 500, description = "file upload error", body = Failed)
+    ),
+)]
+#[post("/upload")]
+pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
+    match save_files(MultipartForm(form)).await {
+        Ok(file_saved) => HttpResponse::Created().json(file_saved),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::Result<Vec<String>> {
+    let upload_file_save_path = get_file_save_home_dir();
+    let mut file_save_paths = Vec::new();
+    if form.files.is_empty() {
+        anyhow::bail!("upload file is empty");
+    }
+    let req_id = form.req_id.to_string();
+    for f in form.files {
+        // let uuid = uuid::Uuid::new_v4();
+        let path = std::path::Path::new(&format!(
+            "{}/{req_id}",
+            upload_file_save_path.as_os_str().to_str().unwrap()
+        ))
+        .to_path_buf();
+        fs::create_dir_all(&path).with_context(|| "create file path failed")?;
+        let file_name = f.file_name.unwrap();
+        let releative_path = format!("{req_id}/{file_name}");
+        log::info!(
+            "saving to {}, {releative_path}",
+            upload_file_save_path.as_os_str().to_str().unwrap()
+        );
+        let path = std::path::Path::new(&format!(
+            "{}/{req_id}/{file_name}",
+            upload_file_save_path.as_os_str().to_str().unwrap()
+        ))
+        .to_path_buf();
+        f.file.persist(path)?;
+        file_save_paths.push(format!("./files/{req_id}/{file_name}"));
+    }
+    Ok(file_save_paths)
+}
+
+// const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
+pub(crate) const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
+    cfg_if::cfg_if! {
+        if #[cfg(windows)] {
+            "C:\\Program Files\\taosX\\files"
+        } else {
+            "/usr/local/taosx/files"
+        }
+    }
+};
+#[inline]
+pub fn get_file_save_home_dir() -> PathBuf {
+    // let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
+    // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
+    std::path::Path::new(&ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT).to_path_buf()
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+pub struct FileMeta {
+    filename: Option<String>,
+    /// releative
+    filepath: Option<String>,
+    filesize: Option<u64>,
+    file_header: Option<FileMetaHeader>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, IntoParams, ToSchema)]
+#[serde(default)]
+pub struct FileMetaRequest {
+    file_path: String,
+    file_type: String,
+    has_header: bool,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+pub struct FileMetaHeader {
+    columns_length: usize,
+    column_names: Option<Vec<String>>,
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "filemeta access success", body = Vec<String>),
+        (status = 500, description = "metadata achive occur error", body = Failed)
+    ),
+    params (
+        FileMetaRequest
+    )
+)]
+#[get("/filemeta")]
+pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
+    match get_filemeta(filemeta_request.into_inner()).await {
+        Ok(filemeta) => HttpResponse::Ok().json(filemeta),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
+    let (filepath_or_filedir, file_type, has_header) = (
+        filemeta_request.file_path,
+        filemeta_request.file_type,
+        filemeta_request.has_header,
+    );
+    // set current path
+    let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT
+        .clone()
+        .replace("files", "");
+    let root = std::path::Path::new(path.as_str());
+    assert!(std::env::set_current_dir(&root).is_ok());
+    match file_type.as_str() {
+        "csv" => {
+            let filepath_or_filedir = filepath_or_filedir.split(",").into_iter().collect_vec();
+            let csv_header = taosx_core::csv_header(filepath_or_filedir, has_header).await?;
+            if csv_header.columns == 0 {
+                anyhow::bail!("CSV file headers are empty");
+            }
+            let column_names = if csv_header.headers.is_empty() {
+                let mut columns_temp = vec![];
+                for n in 0..(csv_header.columns) {
+                    columns_temp.push(format!("c{n}"));
+                }
+                Some(columns_temp)
+            } else {
+                Some(csv_header.headers)
+            };
+            Ok(FileMeta {
+                filename: None,
+                filepath: None,
+                filesize: None,
+                file_header: Some(FileMetaHeader {
+                    columns_length: csv_header.columns,
+                    column_names,
+                }),
+            })
+        }
+        _ => {
+            anyhow::bail!("file type not support now");
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DownloadParams {
+    file_path: String,
+}
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "file download error", body = Failed)
+    ),
+)]
+#[get("/download")]
+pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
+    match download(params).await {
+        Ok(named_file) => named_file.into_response(&req),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::FAILED,
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
+    let file_path = file_path.into_inner().file_path;
+    let file_home_dir = format!(
+        "{}",
+        get_file_save_home_dir()
+            .to_str()
+            .unwrap()
+            .replace("files", "")
+    );
+    let file_path = format!("{}{}", file_home_dir, file_path);
+    let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
+    if meta.is_dir() {
+        anyhow::bail!("not support path");
+    }
+    Ok(NamedFile::open(file_path)?)
 }

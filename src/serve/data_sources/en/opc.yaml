@@ -2,20 +2,13 @@
 id: opc
 name: OPC-UA/DA
 description: |
-  OPC is one of interoperability standard for the secure and reliable exchange of data
-  in the industrial automation space and in other industries.
+  OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space and in other industries.
 
-  OPC DA (Data Access) is a classic COM-based specification that works only on Windows.
-  OPC DA is widely used even though it isn’t the newest and most efficient data communication
-  specification out there. This is mainly because of older devices that only support the OPC DA.
+  OPC DA (Data Access) is a classic COM-based specification that works only on Windows. OPC DA is widely used even though it isn’t the newest and most efficient data communication specification out there. This is mainly because of older devices that only support the OPC DA.
 
-  OPC UA is the next generation beyond the classic OPC specification, a platform-independent,
-  service-oriented architecture specification that
-  integrates all functionality from the existing OPC Classic specifications,
-  providing a migration path to a more secure and scalable solution.
+  OPC UA is the next generation beyond the classic OPC specification, a platform-independent, service-oriented architecture specification that integrates all functionality from the existing OPC Classic specifications, providing a migration path to a more secure and scalable solution.
 
-  For more about OPC UA/DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/),
-  and some useful blogs, such as
+  For more about OPC UA/DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC DA](https://plcynergy.com/opc-da/),
@@ -80,12 +73,12 @@ authentication:
         - name: certificate
           display: Certificate
           description: Path to cert.pem. Required when security mode or policy isn't "None".
-          hint: 
+          hint:
             type: file
         - name: private_key
           display: Private key
           description: Path to private key.pem. Required when security mode or policy isn't "None"
-          hint: 
+          hint:
             type: file
         - name: security_mode
           display: Security Mode
@@ -122,14 +115,14 @@ groups:
         display: Nodes
         description: Node id list separated by a ','.
         placeholder: ns=2;i=2, ns=2;i=3
-        hint: 
+        hint:
           type: str
         if: protocol.ua
 
       - name: nodes
         display: DA Nodes
         description: A OPC DA node list separated by ','.
-        hint: 
+        hint:
           type: str
         placeholder: localhost
         if: protocol.da

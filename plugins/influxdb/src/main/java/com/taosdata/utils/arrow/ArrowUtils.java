@@ -61,7 +61,7 @@ public class ArrowUtils {
         this.schema = new Schema(fieldList, metaData);
         // 判断数据完整性
         if (arrowInitDto == null || metaData.size() == 0 || fieldList.size() == 0) {
-            throw new Exception("数据异常，生成schema错误，Measurement=" + influxdbMeasurementEntity.toString());
+            throw new Exception("Illegal data, generating schema error, Measurement=" + influxdbMeasurementEntity.toString());
         }
     }
 

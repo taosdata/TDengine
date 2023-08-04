@@ -7,15 +7,19 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
+import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
+import com.taosdata.service.InfluxdbService;
+import com.taosdata.service.impl.InfluxdbServiceImpl;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.exception.ArtificialException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
-import java.util.TimeZone;
+import java.util.List;
 
 /**
  * Bucket数据读取任务创建线程
@@ -57,6 +61,11 @@ public class BucketThread implements Runnable {
     private PerformanceConfig performanceConfig = ApplicationContextProvider.getBean(PerformanceConfig.class);
 
     /**
+     * influxdb数据库操作
+     */
+    private InfluxdbService influxdbService = ApplicationContextProvider.getBean(InfluxdbServiceImpl.class);
+
+    /**
      * 当前已经处理完第几个，结合beginTime与readWindow确定读取时间
      */
     private int index = 0;
@@ -65,6 +74,11 @@ public class BucketThread implements Runnable {
      * 上次结束时间，当上次窗口不完整时依此进行调整
      */
     private long lastEnd = 0L;
+
+    /**
+     * 任务结束时间，用于判断进程退出
+     */
+    private Date endTime = null;
 
     @Override
     public void run() {
@@ -75,17 +89,29 @@ public class BucketThread implements Runnable {
                 if (StringUtils.isEmpty(this.name)) {
                     this.name = "BucketThread";
                 }
-                logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                logger.debug(this.name + "#Thread start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中bucket子线程队列大小
                 if (BucketCache.getBucketDataThreadQueueSize(this.bucket) >= this.performanceConfig.getQueueSizeT()) {
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getCreateBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
                 }
+                // 处理新增的measurement
+                additionalMeasurement();
                 // 下一个时间段，英文逗号分割
                 String timeRange = getTimeRange(this.index);
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
                 if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
+                    // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
+                    if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.endTime.before(new Date())) {
+                        // 判断是否可以退出进程
+                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
+                            Thread.sleep(5000L);
+                            logger.info("Task execution completed, normal exit.");
+                            logger.info(StatusCache.toPrintString());
+                            System.exit(0);
+                        }
+                    }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getCreateBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
@@ -94,6 +120,10 @@ public class BucketThread implements Runnable {
                 String[] timeRangeArr = timeRange.split(",");
                 // 生成bucket子线程并放入队列中
                 BucketCache.measurementMap.forEach((k, v) -> {
+                    // 如果任务中指定了measurement则过滤
+                    if (taskConfig.getMeasurements().size() > 0 && !taskConfig.getMeasurements().contains(v.getMeasurement())) {
+                        return;
+                    }
                     if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
                         BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
                         // 读取数据任务计数
@@ -112,7 +142,7 @@ public class BucketThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
                 }
             }
         }
@@ -130,7 +160,7 @@ public class BucketThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.debug(this.name + "#Thread finished (Take time " + (end - start) + " ms)#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -146,7 +176,7 @@ public class BucketThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        logger.error(this.name + "#Thread exception (Take time " + (end - start) + " ms)#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -156,9 +186,54 @@ public class BucketThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
+    }
+
+    /**
+     * 处理新增的measurement
+     *
+     * @return
+     */
+    private void additionalMeasurement() throws ArtificialException {
+        // 查询bucket中所有measurement信息
+        List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(this.bucket);
+        // 判断结果空
+        if (influxdbMeasurementEntityList == null || influxdbMeasurementEntityList.size() == 0) {
+            return;
+        }
+        // 遍历判断是否有新增
+        influxdbMeasurementEntityList.forEach(influxdbMeasurementEntity -> {
+            if (influxdbMeasurementEntity == null || StringUtils.isEmpty(influxdbMeasurementEntity.getMeasurement())) {
+                return;
+            }
+            String measurement = influxdbMeasurementEntity.getMeasurement();
+            // 如果不在缓存中
+            if (!BucketCache.measurementMap.containsKey(this.bucket + ":" + measurement)) {
+                // 添加从0到index-1的所有时间段
+                for (int i = 0; i < this.index; i++) {
+                    try {
+                        // 获取时间段
+                        String timeRange = getTimeRange(i);
+                        // 字符串格式不正确则继续
+                        if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
+                            continue;
+                        }
+                        // 拆分时间段
+                        String[] timeRangeArr = timeRange.split(",");
+                        // 生成bucket子线程并放入队列中
+                        BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]));
+                        // 读取数据任务计数
+                        StatisticCache.noteCreatedTask(this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]);
+                    } catch (Exception e) {
+                        logger.error(this.name + "#Thread exception#" + e.getMessage(), e);
+                    }
+                }
+                // 添加到缓存中
+                BucketCache.measurementMap.put(this.bucket + ":" + measurement, influxdbMeasurementEntity);
+            }
+        });
     }
 
     /**
@@ -176,21 +251,18 @@ public class BucketThread implements Runnable {
         // 判断开始时间与结束时间
         if (StringUtils.isEmpty(beginTime)) {
             throw new Exception("parameter beginTime configuration error.");
-        } else if (beginTime.matches(DateUtils.PATTERN_YMD)) {
-            beginTime += " 00:00:00";
-        } else if (!beginTime.matches(DateUtils.PATTERN_YMDHMS)) {
+        } else if (!beginTime.matches(DateUtils.PATTERN_YMDHMS_TZ)) {
             throw new Exception("parameter beginTime configuration error.");
         }
         if (StringUtils.isEmpty(endTime)) {
-            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
-        } else if (endTime.matches(DateUtils.PATTERN_YMD)) {
-            endTime += " 23:59:59";
-        } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS)) {
+            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_21);
+        } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS_TZ)) {
             throw new Exception("parameter endTime configuration error.");
         }
         // 转换格式
-        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
-        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
+        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_21);
+        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_21);
+        this.endTime = end;
         // 默认按天拆分
         if (StringUtils.isEmpty(readWindow)) {
             readWindow = "D";
@@ -219,6 +291,12 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
         long end = begin + 24 * 60 * 60 * 1000;
+        // 当前时间
+        long now = new Date().getTime();
+        // 如果begin晚于now，返回空
+        if (begin >= now) {
+            return null;
+        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
@@ -229,7 +307,11 @@ public class BucketThread implements Runnable {
         }
         // 调整结束时间
         if (end > endTime.getTime()) {
+            // end晚于endTime，改为endTime
             end = endTime.getTime();
+        } else if (end > now) {
+            // end晚于now，改为now（设置了一个晚于now的endTime）
+            end = now;
         }
         // 更新lastEnd
         this.lastEnd = end;
@@ -249,6 +331,12 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 60 * 1000;
         long end = begin + 60 * 60 * 1000;
+        // 当前时间
+        long now = new Date().getTime();
+        // 如果begin晚于now，返回空
+        if (begin >= now) {
+            return null;
+        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
@@ -259,7 +347,11 @@ public class BucketThread implements Runnable {
         }
         // 调整结束时间
         if (end > endTime.getTime()) {
+            // end晚于endTime，改为endTime
             end = endTime.getTime();
+        } else if (end > now) {
+            // end晚于now，改为now（设置了一个晚于now的endTime）
+            end = now;
         }
         // 更新lastEnd
         this.lastEnd = end;
@@ -279,6 +371,12 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 1000;
         long end = begin + 60 * 1000;
+        // 当前时间
+        long now = new Date().getTime();
+        // 如果begin晚于now，返回空
+        if (begin >= now) {
+            return null;
+        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
@@ -289,7 +387,11 @@ public class BucketThread implements Runnable {
         }
         // 调整结束时间
         if (end > endTime.getTime()) {
+            // end晚于endTime，改为endTime
             end = endTime.getTime();
+        } else if (end > now) {
+            // end晚于now，改为now（设置了一个晚于now的endTime）
+            end = now;
         }
         // 更新lastEnd
         this.lastEnd = end;

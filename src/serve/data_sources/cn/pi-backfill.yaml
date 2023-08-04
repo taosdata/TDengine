@@ -53,14 +53,14 @@ groups:
     hint:
       type: time
     description: |
-      从该时间开始导入历史数据
+      从该时间开始导入历史数据，默认为当前时间 10 天之前。
     placeholder: "YYYY-MM-DD HH:mm:ss"
   - name: BackfillEndTime
     display: Backfill 结束时间
     hint:
       type: time
     description: |
-      导入历史数据以该时间结束
+      导入历史数据以该时间结束，默认是当前时间。
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
 - name: Data Queue
@@ -75,12 +75,14 @@ groups:
       type: integer
       min: 1
       max: 10000
+    value: 1000
   - name: MaxBackfillRangeDays
     display: 重启补偿时间
     hint:
       type: integer
     description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
     placeholder: 1
+    value: 1
 
 datasets:
   name: Data Sets

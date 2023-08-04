@@ -15,6 +15,9 @@ import org.springframework.stereotype.Component;
 public class InfluxdbConfig {
 
     private String url;
+    private String version;
+    private String username;
+    private String password;
     private String token;
     private String orgId;
     private int maxTotal = 20;

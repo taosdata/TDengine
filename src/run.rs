@@ -1,16 +1,13 @@
-use std::time::Duration;
-
 use anyhow::{bail, Context, Result};
+use clap::Parser;
+use std::{time::Duration};
 use taos::*;
-
 use taosx_core::{
-    influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
-    query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td,
+    csv_to_taos, influxdb_to_taos, kafka_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos,
+    opc_to_taos, pi_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td,
     utils::{self, port_pool::PortPool},
     Action,
 };
-
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -55,6 +52,8 @@ pub(super) struct Cli {
     /// - 'rename-super-table:suffix:_stb': rename all super tables as suffixed '_stb'
     ///
     /// - 'rename-child-table:template:prefix_{{ name }}_stb': rename all super tables with prefix 'prefix_' and suffix '_stb'
+    /// 
+    /// - 'rename-replace-with-regex:replace_with_regex:prefix(?<old>)::newprefix_$old': replace all tables prefix with new prefix
     #[clap(short = 'T', long)]
     transform: Vec<Action>,
 
@@ -93,6 +92,13 @@ impl Cli {
                 args.to.protocol = Some("ws".to_string());
             }
         }
+        let port_pool = PortPool::default();
+        let parser = args.parser.as_ref().map(|p| {
+            let content = utils::get_string_content_from_file_path(p);
+            let content = content.is_none().then(|| p.clone()).or(content);
+            let content = content.map(|p| serde_json::from_str(&p).unwrap()).unwrap();
+            content
+        });
 
         match (args.from.driver.as_str(), args.to.driver.as_str()) {
             ("tmq", "taos") => {
@@ -172,6 +178,7 @@ impl Cli {
                     None,
                 )
                 .await?;
+
                 log::debug!("main scheduler done");
             }
             ("influxdb", "taos") => {
@@ -205,7 +212,6 @@ impl Cli {
                 log::debug!("opc main scheduler done");
             }
             ("mqtt", "taos") => {
-                let port_pool = PortPool::default();
                 let parser = if args.parser.is_some() {
                     let file_content =
                         utils::get_string_content_from_file_path(args.parser.unwrap().as_str());
@@ -236,6 +242,33 @@ impl Cli {
                 )
                 .await?;
                 log::debug!("opc main scheduler done");
+            }
+            ("kafka", "taos") => {
+                kafka_to_taos(
+                    args.from,
+                    parser,
+                    args.transform,
+                    args.to,
+                    args.jobs,
+                    &PortPool::default(),
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .await?;
+                log::debug!("kafka main scheduler done");
+            }
+            ("csv", "taos") => {
+                csv_to_taos(
+                    args.from,
+                    parser,
+                    args.to,
+                    &port_pool,
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .await?;
             }
             (_, _) => bail!(
                 "unsupported source or dest: from `{}` to `{}`",

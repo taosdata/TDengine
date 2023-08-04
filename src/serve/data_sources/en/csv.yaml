@@ -1,0 +1,40 @@
+---
+id: csv
+name: CSV
+description: |
+  Import a file or a collection of files in CSV format to TDengine.
+type: path
+options:
+  path:
+    required: true
+    display: Path
+    description: CSV file path or directory
+    placeholder: "Example: a.csv,b.csv"
+strict: true
+groups:
+  - name: CSV Options
+    display_order: 1
+    description: CSV reading options
+    params:
+      # - name: sep
+      #   display: Separator
+      #   description: The field separator in a CSV record. Use `,` if not set.
+      #   hint: str
+      - name: skip
+        display: Skip Records
+        description: Skip number of records for each CSV file.
+        hint:
+          type: integer
+          min: 0
+      
+  - name: Write Options
+    display_order: 2
+    description: Writing options
+    params:
+      - name: batch_size
+        display: Batch Size
+        value: 1000
+        description: Batch size of records.
+        hint:
+          type: integer
+          min: 1

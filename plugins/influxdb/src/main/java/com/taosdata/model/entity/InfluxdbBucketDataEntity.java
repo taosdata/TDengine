@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -12,7 +13,7 @@ import java.util.Map;
  * @author ZYP
  */
 @Data
-public class InfluxdbBucketDataEntity {
+public class InfluxdbBucketDataEntity implements Cloneable {
 
     private InfluxdbMeasurementEntity influxdbMeasurementEntity;
 
@@ -27,5 +28,13 @@ public class InfluxdbBucketDataEntity {
     public String toString() {
         Object json = JSONObject.toJSON(this);
         return json.toString();
+    }
+
+    @Override
+    public InfluxdbBucketDataEntity clone() throws CloneNotSupportedException {
+        InfluxdbBucketDataEntity clone = (InfluxdbBucketDataEntity) super.clone();
+        clone.tags = new HashMap<>();
+        clone.tags.putAll(this.tags);
+        return clone;
     }
 }

@@ -1,11 +1,13 @@
 package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
+import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
+import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.consts.NettyConsts;
 import com.taosdata.netty.model.dto.MessageDto;
@@ -19,7 +21,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 推送数据线程
@@ -61,6 +65,11 @@ public class PushThread implements Runnable {
     private boolean first = true;
 
     /**
+     * 首条schema
+     */
+    private Map<String, String> fieldMap = new HashMap<>();
+
+    /**
      * 当前线程/schema的arrow工具类
      */
     private ArrowUtils arrowUtils = null;
@@ -74,7 +83,7 @@ public class PushThread implements Runnable {
                 if (StringUtils.isEmpty(this.name)) {
                     this.name = "PushThread";
                 }
-                logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 读取内存中的数据
                 List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(this.dataSourceKey, this.performanceConfig.getLimitBatch());
                 // 判断是否读到数据
@@ -97,7 +106,7 @@ public class PushThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    this.logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    this.logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
                 }
             }
         }
@@ -115,7 +124,7 @@ public class PushThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        this.logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        this.logger.debug(this.name + "#Thread finished (Take time " + (end - start) + " ms)#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -131,7 +140,7 @@ public class PushThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        this.logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        this.logger.error(this.name + "#Thread exception (Take time" + (end - start) + " ms)#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -141,7 +150,7 @@ public class PushThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        this.logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        this.logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
@@ -154,14 +163,33 @@ public class PushThread implements Runnable {
     private void push(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
         // TODO 获取并判断响应
         try {
-            // 根据Measurement获取arrow初始化信息
-            if (this.first || this.arrowUtils == null) {
-                // 判断数据非空且首条数据包含Measurement信息
-                if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0 && influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity() != null) {
-                    this.arrowUtils = new ArrowUtils(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity());
-                } else {
+            // 判断列表不为空
+            if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
+                // 获取内存中最新的measurement信息
+                InfluxdbMeasurementEntity latestMeasurementEntity = BucketCache.measurementMap.get(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity().getBucket() + ":" + influxdbBucketDataEntityList.get(0).getMeasurement());
+                // 全局变量本地化
+                Map<String, String> latestFieldMap = new HashMap<>();
+                latestFieldMap.putAll(latestMeasurementEntity.getFieldMap());
+                // 对比内存中数据与最新数据是否有差异
+                if (this.fieldMap.isEmpty()) {
+                    // 使用最新缓存
+                    this.fieldMap.putAll(latestFieldMap);
+                } else if (!this.fieldMap.equals(latestFieldMap)) {
+                    // 需要更新
+                    influxdbBucketDataEntityList.forEach(influxdbBucketDataEntity -> influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getFieldMap().putAll(latestFieldMap));
+                    // 数据写回
+                    BucketDataCache.addBucketData(influxdbBucketDataEntityList);
+                    // 断开连接
+                    this.channel.close();
+                    // 中止操作
                     return;
                 }
+            } else {
+                return;
+            }
+            // 根据Measurement获取arrow初始化信息
+            if (this.first || this.arrowUtils == null) {
+                this.arrowUtils = new ArrowUtils(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity());
             }
             MessageDto messageDto = new MessageDto();
             messageDto.setVersion(NettyConsts.VERSION);
@@ -173,7 +201,7 @@ public class PushThread implements Runnable {
             // 记录统计信息
             StatisticCache.totalPush.addAndGet(influxdbBucketDataEntityList.size());
         } catch (Exception e) {
-            this.logger.error("推送数据失败，重新写回内存队列", e);
+            this.logger.error("Push data failed, write back to queue.", e);
             // 写回
             BucketDataCache.addBucketData(influxdbBucketDataEntityList);
         }

@@ -8,7 +8,7 @@ use arrow::{
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
-    datatypes::{Field, Fields, Schema},
+    datatypes::{DataType, Field, Schema},
     error::ArrowError,
     ipc::FixedSizeBinary,
     record_batch::RecordBatch,
@@ -20,9 +20,9 @@ use taosx_ipc::prelude::IpcDataType;
 use thiserror::Error;
 use tinytemplate::TinyTemplate;
 
-use crate::{plugins::transform::MessageTableMeta, };
+use crate::plugins::transform::MessageTableMeta;
 
-use super::{Message, MessageArrowRecords, TransformExt, Select};
+use super::{Message, MessageArrowRecords, Select, TransformExt};
 
 mod json;
 
@@ -41,6 +41,8 @@ pub enum ParseError {
     JsonPathError(#[from] serde_json_path::ParseError),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
+    #[error(transparent)]
+    RegexError(#[from] regex::RegexError),
 }
 
 /// Parse will be applied to one filed of data with [ArrayRef].
@@ -95,10 +97,10 @@ pub trait Parse {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 enum FieldParser {
-    Json(Json),
-    Cast(Cast),
     Regex(Regex),
+    Cast(Cast),
     Alias { alias: String },
+    Json(Json),
 }
 
 impl Parse for FieldParser {
@@ -123,6 +125,7 @@ impl Parse for FieldParser {
         field: &Field,
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), ParseError> {
+        // dbg!(&self, &field, array);
         match self {
             FieldParser::Json(json) => json.parse_array(field, array),
             FieldParser::Cast(cast) => cast.parse_array(field, array),
@@ -188,13 +191,13 @@ mod model_serde {
 ///   "parse": { "payload": {
 ///      "json": ["metric", "location::nchar", "value::double"]
 ///   } },
-///   "model": {
-///     "table": "{topic}-{location}",
+///   "model": [{
+///     "name": "{topic}-{location}",
 ///     "using": "{metric}",
 ///     "tags": ["topic", "location"],
 ///     "columns": ["ts", "value", "qos"]
 ///   }
-/// }
+/// }]
 /// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {
@@ -435,7 +438,6 @@ fn test_indices_to_ranges() {
     assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
 }
 impl Parser {
-
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
         let payload = self.parse.get("payload");
         if payload.is_none() {
@@ -451,8 +453,9 @@ impl Parser {
                     match select {
                         Select::Include(incl) => {
                             for item in incl.iter() {
-                                if (item.alias().is_some() && item.alias().unwrap() == column_name) || 
-                                    item.name() == column_name {
+                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
+                                    || item.name() == column_name
+                                {
                                     return item.cast();
                                 }
                             }
@@ -462,15 +465,19 @@ impl Parser {
                     }
                 }
             }
-            _ => None
+            _ => None,
         }
     }
 
     pub fn parse_schema(&self, schema: &Arc<Schema>) -> Arc<Schema> {
+        let _ = schema;
         todo!()
     }
 
-    fn get_shcema_column_with_name<'a>(schema: &'a Arc<Schema>, name: &str) -> Option<(usize, &'a Field)> {
+    fn get_schema_column_with_name<'a>(
+        schema: &'a Arc<Schema>,
+        name: &str,
+    ) -> Option<(usize, &'a Field)> {
         let (idx, field) = schema.fields().into_iter().enumerate().find(|(_, b)| {
             let meta_name = b.metadata().get("name");
             (meta_name.is_some() && name == meta_name.unwrap()) || b.name() == name
@@ -486,7 +493,34 @@ impl Parser {
         let schema = batch.schema();
         let batches = vec![batch];
         let batch = &batches[0];
-        let json = arrow::json::writer::record_batches_to_json_rows(&batches)?;
+        tracing::info!("Parse message {:?}", batch);
+
+        fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
+            batches
+                .iter()
+                .map(|batch| {
+                    let schema = batch.schema();
+                    let fields = schema.fields();
+
+                    RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
+                        |(idx, data)| {
+                            let dt = fields[idx].data_type();
+                            if matches!(dt, DataType::Binary | DataType::LargeBinary) {
+                                arrow::compute::cast(data, &DataType::Utf8)
+                                    .ok()
+                                    .map(|data| (fields[idx].name(), data))
+                            } else {
+                                Some((fields[idx].name(), data.clone()))
+                            }
+                        },
+                    ))
+                    .unwrap()
+                })
+                .collect()
+        }
+        let json_batches = to_json_valid_batches(&batches);
+
+        let json = arrow::json::writer::record_batches_to_json_rows(&json_batches)?;
 
         let mut data = vec![];
         for table in &self.model {
@@ -502,7 +536,9 @@ impl Parser {
                 let mut indices = Vec::new();
                 for name in cols {
                     // if let Some((index, _)) = schema.column_with_name(name) {
-                    if let Some((index, _)) = Self::get_shcema_column_with_name(&schema, name.as_str()) {
+                    if let Some((index, _)) =
+                        Self::get_schema_column_with_name(&schema, name.as_str())
+                    {
                         indices.push(index);
                     } else {
                         log::warn!("Selected column {} not found in stream message", name);
@@ -515,11 +551,11 @@ impl Parser {
             let (tags, columns) = if let Some(tags) = &table.tags {
                 let mut indices = vec![];
                 for name in tags {
-                    let (i, _) = Self::get_shcema_column_with_name(&schema, name.as_str())
+                    let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
                         .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
                     // let (i, _) = schema
-                        // .column_with_name(&name)
-                        // .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
+                    // .column_with_name(&name)
+                    // .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
 
                     indices.push(i);
                     columns_indices[i] = usize::MAX;
@@ -573,6 +609,7 @@ impl Parser {
         Ok(Message::Records(data))
     }
     pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
+        self.self_check()?;
         let schema = records.schema();
         let metadata = schema.metadata().clone();
 
@@ -590,6 +627,7 @@ impl Parser {
                         error,
                     }
                 })?;
+                // dbg!(&batch);
                 debug_assert!(indices.is_none(), "Indices not supported currently");
                 for field in batch.schema().fields() {
                     new_fields.push(field.as_ref().clone());
@@ -602,8 +640,46 @@ impl Parser {
             }
         }
         let schema = Schema::new_with_metadata(new_fields, metadata);
+        tracing::info!("parsed schema: {schema:?}");
         let batch = RecordBatch::try_new(Arc::new(schema), new_data)?;
+        tracing::info!("parsed records: {batch:?}");
         Ok(batch)
+    }
+
+    fn self_check(&self) -> Result<(), super::Error> {
+        for table in &self.model {
+            if table.name.is_empty() {
+                return Err(super::Error::EmptyTableName);
+            } else if table.name.contains('.') {
+                return Err(super::Error::TableNameContainsDot(table.name.clone()));
+            }
+
+            if let Some(columns) = table.columns.as_ref() {
+                if columns.is_empty() {
+                    return Err(super::Error::EmptyTableColumns(table.name.clone()));
+                }
+                for dup in columns.iter().duplicates() {
+                    return Err(super::Error::DuplicatedColumns(dup.clone()));
+                }
+            }
+
+            if let Some(tags) = table.tags.as_ref() {
+                if table.using.as_ref().is_none() {
+                    return Err(super::Error::STableNameRequired);
+                }
+                for dup in tags.iter().duplicates() {
+                    return Err(super::Error::DuplicatedTags(dup.clone()));
+                }
+            }
+            if let Some(stable) = table.using.as_ref() {
+                if stable.is_empty() {
+                    return Err(super::Error::EmptySTableName);
+                } else if stable.contains('.') {
+                    return Err(super::Error::STableNameContainsDot(stable.clone()));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -687,4 +763,16 @@ impl TransformExt for Parser {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
         self.parse(records)
     }
+}
+
+#[test]
+fn test_regex() {
+    let parse = r#"
+    {
+      "regex": "current (?<current>\\S+) with voltage (?<voltage>\\S+) and phase (?<phase>\\S+)",
+      "select": ["current::float", "voltage::int", "phase::float"]
+    }"#;
+    let parse: FieldParser = serde_json::from_str(parse).unwrap();
+    dbg!(&parse);
+    assert!(matches!(parse, FieldParser::Regex(_)));
 }

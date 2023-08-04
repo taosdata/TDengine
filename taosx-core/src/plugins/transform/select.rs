@@ -6,12 +6,11 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use taosx_ipc::prelude::{IpcDataType, IpcField};
+use taosx_ipc::prelude::IpcDataType;
 
 use super::{MessageArrowRecords, TransformExt};
 
@@ -88,13 +87,15 @@ impl FromStr for SelectItem {
 pub struct IncludeItem(SelectItem);
 
 impl IncludeItem {
-    fn new(name: impl Display) -> Self {
+    pub fn new(name: impl Display) -> Self {
         Self(SelectItem::new(name))
     }
+    #[cfg(test)]
     fn with_alias(mut self, alias: impl Display) -> Self {
         self.0.alias.replace(alias.to_string());
         self
     }
+    #[cfg(test)]
     fn with_cast(mut self, cast: IpcDataType) -> Self {
         self.0.cast.replace(cast);
         self
@@ -112,7 +113,8 @@ impl IncludeItem {
         self.0.cast.as_ref()
     }
 
-    fn has_cast(&self) -> bool {
+    #[allow(dead_code)]
+    pub fn has_cast(&self) -> bool {
         self.0.cast.is_some()
     }
 }
@@ -126,12 +128,6 @@ impl std::ops::Deref for Include {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl Include {
-    fn with_schema_change(&self) -> bool {
-        self.iter().any(|item| item.has_cast())
     }
 }
 
@@ -196,13 +192,17 @@ pub fn query(fields: &Fields, path: &str) -> Option<(usize, FieldRef)> {
     fields.find(path).map(|(i, f)| (i, f.clone()))
 }
 impl Select {
+    #[allow(dead_code)]
     pub fn pattern(pattern: Regex) -> Self {
         Self::Pattern(pattern)
     }
+
+    #[allow(dead_code)]
     pub fn include(names: &[impl Display]) -> Self {
         Self::Include(Include(names.iter().map(IncludeItem::new).collect()))
     }
 
+    #[allow(dead_code)]
     pub fn exclude(names: &[impl Display]) -> Self {
         Self::Exclude(Exclude {
             exclude: names.iter().map(ToString::to_string).collect_vec(),
@@ -220,7 +220,7 @@ impl Select {
                     .fields()
                     .iter()
                     .enumerate()
-                    .filter(|(i, f)| regex.is_match(f.name()))
+                    .filter(|(_, f)| regex.is_match(f.name()))
                     .map(|(i, _)| i)
                     .collect_vec();
                 schema.project(&indices).unwrap()
@@ -256,13 +256,19 @@ impl Select {
                                 m.insert("index".to_string(), i.to_string());
                                 m.insert("cast_from".to_string(), f.data_type().to_string());
                                 match cast {
-                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => { 
-                                        m.insert("length".to_string(), len.to_string()); 
-                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
-                                    },
+                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                                        m.insert("length".to_string(), len.to_string());
+                                        m.insert(
+                                            "cast_to".to_string(),
+                                            cast.ty().name().to_string(),
+                                        );
+                                    }
                                     IpcDataType::Json => {
-                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
-                                    },
+                                        m.insert(
+                                            "cast_to".to_string(),
+                                            cast.ty().name().to_string(),
+                                        );
+                                    }
                                     _ => (),
                                 }
                                 Field::new(f.name(), cast.arrow_data_type(), f.is_nullable())
@@ -275,12 +281,18 @@ impl Select {
                                 m.insert("index".to_string(), i.to_string());
                                 m.insert("cast_from".to_string(), f.data_type().to_string());
                                 match cast {
-                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => { 
-                                        m.insert("length".to_string(), len.to_string()); 
-                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
-                                    },
+                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                                        m.insert("length".to_string(), len.to_string());
+                                        m.insert(
+                                            "cast_to".to_string(),
+                                            cast.ty().name().to_string(),
+                                        );
+                                    }
                                     IpcDataType::Json => {
-                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
+                                        m.insert(
+                                            "cast_to".to_string(),
+                                            cast.ty().name().to_string(),
+                                        );
                                     }
                                     _ => (),
                                 }
@@ -384,7 +396,9 @@ mod tests {
         assert_eq!(
             select,
             Select::Include(Include(vec![
-                IncludeItem::new("a").with_cast(IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
+                IncludeItem::new("a").with_cast(IpcDataType::Timestamp(
+                    arrow::datatypes::TimeUnit::Millisecond
+                )),
                 IncludeItem::new("b")
             ]))
         );
@@ -396,7 +410,9 @@ mod tests {
             Select::Include(Include(vec![
                 IncludeItem::new("a")
                     .with_alias("c")
-                    .with_cast(IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
+                    .with_cast(IpcDataType::Timestamp(
+                        arrow::datatypes::TimeUnit::Millisecond
+                    )),
                 IncludeItem::new("b")
             ]))
         );
@@ -418,7 +434,9 @@ mod tests {
             Select::Include(Include(vec![
                 IncludeItem::new("a")
                     .with_alias("c")
-                    .with_cast(IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
+                    .with_cast(IpcDataType::Timestamp(
+                        arrow::datatypes::TimeUnit::Millisecond
+                    )),
                 IncludeItem::new("b")
             ]))
         );

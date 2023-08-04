@@ -1,0 +1,170 @@
+---
+id: taos
+name: Legacy TDengine
+description: |
+  Migrate from earlier versions of TDengine.
+
+  ## Protocols
+
+  - **ws**: websocket protocol with plain HTTP connection.
+  - **wss**: websocket protocol with TLS http connection.
+
+  Without protocol settings, we will use native connection.
+
+type: uri
+protocol:
+  display: Protocol
+  description: Choose a protocol scheme for websocket connection.
+  choices:
+    - name: ws
+      display: WS
+      description: Use WebSocket with HTTP connection.
+    - name: wss
+      display: WSS
+      description: Use WebSocket with HTTPS connection.
+options:
+  host:
+    display: Host
+    description: Remote server REST API (taosAdapter) address. If you prefer to use multiple nodes, please consider to use a load-balancer.
+    placeholder: taos-adapter-addr
+    required: true
+  port:
+    display: Port
+    required: true
+    description: Remote server REST API (taosAdapter) port.
+    placeholder: "6041"
+  subject:
+    required: true
+    display: Database
+    description: Database name
+    placeholder: "Example: db1"
+authentication:
+  display: Authentication
+  description: Use username/password plain authentication.
+  value: plain
+  alternatives:
+    - name: plain
+      display: Plain
+      description: Use username and password.
+      username:
+        display: Username
+        description: TDengine username. The default is root.
+        placeholder: root
+        value: root
+      password:
+        display: Password
+        description: TDengine password. The default is taosdata.
+        placeholder: taosdata
+        value: taosdata
+strict: false
+groups:
+  - name: Migrate Options
+    display_order: 1
+    description: How to migrate.
+    params:
+      - name: mode
+        display: Mode
+        description: |-
+          Migrate history data or realtime or both.
+        value: history
+        hint:
+          type: str
+          choices:
+            - history
+            - realtime
+            - all
+      - name: schema
+        display: Schema
+        value: always
+        hint:
+          type: str
+          choices:
+            - always
+            - none
+            - only
+        description: |
+          Which kind of data to be migrated.
+
+          - `only`: means only migrate schema into target.
+          - `none`: means not migrate schema, but only data into target.
+          - `always`: means migrate all stuff.
+        placeholder: always
+
+  - name: What to migrate
+    display_order: 2
+    description: Choose to migrate from stable or tables.
+    params:
+      - name: stables
+        display: STables
+        description: |-
+          Select some of stables from the database. Separated by `,`.
+        hint:
+          type: str
+      - name: tables
+        display: Tables
+        hint:
+          type: str
+        description: |
+          Select table names to be migrated.
+        placeholder: d0001
+
+  - name: Range
+    display_order: 3
+    description: Migration time range.
+    params:
+      - name: start
+        display: Start
+        description: |-
+          Time range start.
+        hint:
+          type: time
+      - name: end
+        display: End
+        hint:
+          type: time
+        description: Time range end.
+        placeholder:
+      - name: unit
+        display: Unit
+        hint:
+          type: duration
+        value: 0s
+        description: |-
+          Time duration unit for query.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
+        placeholder: 1d
+
+  - name: Realtime Settings
+    display_order: 4
+    description: Only available in `realtime` mode.
+    params:
+      - name: retro
+        display: Retrospection
+        description: |-
+          Retrospect data from some time ago into target before realtime data migrating.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
+        value: 0s
+        hint:
+          type: duration
+      - name: interval
+        display: Interval
+        hint:
+          type: duration
+        description: |-
+          Polling interval to query realtime data.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
+        value: 1s
+        placeholder:
+      - name: excursion
+        display: Excursion
+        hint:
+          type: duration
+        value: 500ms
+        description: |-
+          Wait for some period to querying random-order data.<br>
+          Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
+          Only numbers default to seconds as unit.<br>
+        placeholder: 5m

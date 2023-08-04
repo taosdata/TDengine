@@ -4,6 +4,7 @@ pub mod influxdb;
 pub mod mqtt;
 pub mod opc;
 pub mod pi;
+pub mod kafka;
 
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_PLUGINS_HOME_DEFAULT: &'static str = {

@@ -55,6 +55,7 @@ pub struct Transferred {
     pub records: AtomicU64,
     pub points: AtomicU64,
 }
+
 #[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct ConnectorLicense {
@@ -71,6 +72,7 @@ impl ConnectorLicense {
             > self.expire as i64
     }
 }
+
 #[derive(Debug, Default, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
@@ -203,6 +205,31 @@ impl TaskOpts {
                         transferred.clone(),
                     )
                     .await?;
+                }
+                ("csv", "taos") => {
+                    csv_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        to.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                    )
+                    .await?;
+                }
+                ("kafka", "taos") => {
+                    kafka_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                    ).await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

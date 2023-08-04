@@ -235,12 +235,12 @@ public class StatusCache {
     public static String toPrintString() {
         StringBuffer sb = new StringBuffer();
         sb.append("{");
-        sb.append("\"系统启动时间\":\"" + startTime + "\",");
-        sb.append("\"系统状态\":\"" + status + ", " + description + "\",");
-        sb.append("\"线程信息\":" + JSONObject.toJSON(threadInfoMap) + ",");
-        sb.append("\"队列信息\":" + JSONObject.toJSON(queueInfoMap) + ",");
-        sb.append("\"InfluxDB信息\":" + JSONObject.toJSON(influxdbInfo) + ",");
-        sb.append("\"Netty信息\":" + JSONObject.toJSON(nettyInfo) + ",");
+        sb.append("\"System Startup Time\":\"" + startTime + "\",");
+        sb.append("\"System Status\":\"" + status + ", " + description + "\",");
+        sb.append("\"Thread Information\":" + JSONObject.toJSON(threadInfoMap) + ",");
+        sb.append("\"Queue Information\":" + JSONObject.toJSON(queueInfoMap) + ",");
+        sb.append("\"InfluxDB Information\":" + JSONObject.toJSON(influxdbInfo) + ",");
+        sb.append("\"Netty Information\":" + JSONObject.toJSON(nettyInfo) + ",");
         sb.append("\"Read Speed\":" + FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed() + ",");
         sb.append("\"Push Speed\":" + FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed() + ",");
         sb.append("\"Total Read\":" + StatisticCache.totalRead.get() + ",");

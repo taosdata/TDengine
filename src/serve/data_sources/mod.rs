@@ -7,6 +7,7 @@ use actix_web::{
     web::{self, Data, Json, Query},
     HttpResponse, Responder,
 };
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
@@ -128,9 +129,9 @@ pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
     HttpResponse::Ok()
         .content_type(ContentType::json())
         .json(if lang.is_cn() {
-            super::controller::DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice()
+            super::controller::DATA_SOURCE_DEFINITIONS_CN.values().collect_vec()
         } else {
-            super::controller::DATA_SOURCE_DEFINITIONS_VEC.as_slice()
+            super::controller::DATA_SOURCE_DEFINITIONS.values().collect_vec()
         })
 }
 
@@ -184,6 +185,7 @@ pub(super) struct DataSets {
     request_body = DataSetsReq,
     responses(
         (status = 200, description = "Available data sources", body = Vec<DataSets>),
+        (status = 500, description = "List data sets error", body = Failed),
     ),
 )]
 #[post("/ds/in/sets")]
@@ -201,15 +203,9 @@ pub(super) async fn data_source_collection(
             .content_type(ContentType::json())
             .json(&data),
         Err(err) => {
-            dbg!(&err);
-            dbg!(&err.root_cause());
             HttpResponse::InternalServerError().json(Failed {
                 code: 0xFFFF.into(),
-                message: format!(
-                    "err: {}, cause: {}",
-                    err.to_string(),
-                    err.root_cause().to_string()
-                ),
+                message: format!("{:#}", err)
             })
         }
     }

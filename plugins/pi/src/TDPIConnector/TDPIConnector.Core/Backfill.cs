@@ -147,24 +147,47 @@ namespace TDPIConnector.Core
             AFAttributeListWrapper attributes = new AFAttributeListWrapper();
             attributes.AddRange(element.Attributes);
 
-            IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, startTime, endTime, 5000);
-            log.Debug($"Backfill AFElement {element.Name}, values retrieved in {stopwatch.ElapsedMilliseconds} ms");
-            stopwatch.Reset();
-            stopwatch.Start();
-            foreach (AFValuesWrapper values in valuesList)
+            var currentStart = startTime;
+            do
             {
-                if (values.Count > 0)
+                stopwatch.Reset();
+                stopwatch.Start();
+                IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, 10000);
+                bool found = false;
+                DateTime smallLastAttributeTime = endTime;
+                foreach (AFValuesWrapper values in valuesList)
                 {
-                    AFAttributeWrapper attribute = values[0].Attribute;
-                    var superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
-                    ConvertAFAttibutesAndValuesToTDTables(attribute, values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames);
-                    var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
-                    stables.Add(superTableName, tables);
-                    this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
-                    log.Info($"Backfill TDEngine attribute {element.Name}\\{attribute.Name}, {values.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                    if (values.Count > 0)
+                    {
+                        found = true;
+                        AFAttributeWrapper attribute = values[0].Attribute;
+                        if (string.IsNullOrEmpty(attribute.DataReference))
+                        {
+                            var valuestring = attribute.ToStringWithUOM();
+                            log.Info($"element tag {element.Name}: {attribute.Name}:{valuestring}");
+                            continue;
+                        }
+
+                        var superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
+                        ConvertAFAttibutesAndValuesToTDTables(attribute, values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames);
+                        var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
+                        stables.Add(superTableName, tables);
+                        this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
+                        log.Info($"Backfill TDEngine attribute {element.Name}\\{attribute.Name}, {values.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                 
+                        if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime)
+                        {
+                            smallLastAttributeTime = values[values.Count - 1].Timestamp.LocalTime;
+                        }
+                    }
                 }
-            }
-            stopwatch.Reset();
+                log.Info($"Backfill TDEngine attribute {element.Name}, written in {stopwatch.ElapsedMilliseconds} ms");
+                if (!found) break;
+                // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
+                currentStart = smallLastAttributeTime.AddMilliseconds(1);
+                stopwatch.Reset();
+            } while (currentStart < endTime);
+            log.Info($"Backfill TDEngine attribute {element.Name} values written finished.");
         }
 
         private void ConvertAFAttibutesAndValuesToTDTables(AFAttributeWrapper attribute, AFValuesWrapper values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames)

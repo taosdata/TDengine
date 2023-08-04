@@ -1,19 +1,24 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
+use anyhow::Context;
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
-
-use anyhow::Context;
+use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
-use crate::{get_log_keep_days, plugins::sink, utils::port_pool::PortPool, Action, Transferred};
+use crate::{
+    get_log_keep_days, plugins::sink, utils::port_pool::PortPool, Action, DataSet, Transferred,
+};
 
 use super::get_plugin_dir;
+
+const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
+const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
 
 #[derive(Debug, serde::Serialize)]
 struct InfluxdbConfig {
@@ -23,6 +28,8 @@ struct InfluxdbConfig {
     taosx: TaosxConfig,
     // the task config
     task: TaskConfig,
+    // the performance config
+    performance: PerformanceConfig,
 
     // others
     #[serde(skip)]
@@ -36,6 +43,12 @@ struct InfluxdbConfig {
 struct InfluxConfig {
     #[serde(rename = "url")]
     influx_url: String,
+    #[serde(rename = "version")]
+    influx_version: String,
+    #[serde(rename = "username")]
+    influx_username: String,
+    #[serde(rename = "password")]
+    influx_password: String,
     #[serde(rename = "token")]
     influx_token: String,
     #[serde(rename = "orgId")]
@@ -56,16 +69,30 @@ struct TaskConfig {
     task_mode: String,
     #[serde(rename = "bucket")]
     task_bucket: String,
+    #[serde(rename = "measurements")]
+    task_measurements: Vec<String>,
     #[serde(rename = "beginTime")]
     task_begin_time: String,
     #[serde(rename = "endTime")]
     task_end_time: Option<String>,
 }
 
+#[derive(Debug, serde::Serialize)]
+struct PerformanceConfig {
+    #[serde(rename = "readWindow")]
+    performance_read_window: Option<String>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum InfluxdbError {
     #[error("The access address of InfluxDB is required: {0}")]
     InfluxUrlIsRequired(Dsn),
+    #[error("The version of InfluxDB is required: {0}")]
+    InfluxVersionIsRequired(Dsn),
+    #[error("The username is required: {0}")]
+    InfluxUsernameIsRequired(Dsn),
+    #[error("The password is required: {0}")]
+    InfluxPasswordIsRequired(Dsn),
     #[error("The access token is required: {0}")]
     InfluxTokenIsRequired(Dsn),
     #[error("The organization id is required: {0}")]
@@ -93,12 +120,24 @@ impl InfluxdbConfig {
             .and_then(|addr| addr.port.clone())
             .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
         let influx_url = format!("http://{}:{}/", host, port);
-        let influx_token = dsn
-            .remove("token")
-            .ok_or_else(|| InfluxdbError::InfluxTokenIsRequired(dsn.clone()))?;
-        let influx_org_id = dsn
-            .remove("orgId")
-            .ok_or_else(|| InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()))?;
+        let influx_version = dsn
+            .remove("version")
+            .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+        // On version 1.x, only username/password mode can be used
+        // On version 2.x, only access token mode can be used.
+        let influx_org_id = dsn.remove("orgId").unwrap_or("".to_string());
+        let influx_username = dsn.remove("username").unwrap_or("".to_string());
+        let influx_password = dsn.remove("password").unwrap_or("".to_string());
+        let influx_token = dsn.remove("token").unwrap_or("".to_string());
+        if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+            return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()));
+        } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+            return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()));
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_org_id == "" {
+            return Err(InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()));
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+            return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()));
+        }
 
         // the addr for connector to agent
         let taosx_host = String::from("127.0.0.1");
@@ -109,16 +148,30 @@ impl InfluxdbConfig {
         let task_bucket = dsn
             .remove("bucket")
             .ok_or_else(|| InfluxdbError::TaskBucketIsRequired(dsn.clone()))?;
+        let task_measurements = dsn
+            .remove("measurements")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
         let task_begin_time = dsn
             .remove("beginTime")
             .ok_or_else(|| InfluxdbError::TaskBeginTimeIsRequired(dsn.clone()))?;
         let task_end_ime = dsn.remove("endTime");
+
+        // the performance config
+        let performance_read_window = dsn.remove("readWindow");
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
 
         let influx = InfluxConfig {
             influx_url,
+            influx_version,
+            influx_username,
+            influx_password,
             influx_token,
             influx_org_id,
         };
@@ -131,14 +184,20 @@ impl InfluxdbConfig {
         let task = TaskConfig {
             task_mode,
             task_bucket,
+            task_measurements,
             task_begin_time,
             task_end_time: task_end_ime,
+        };
+
+        let performance = PerformanceConfig {
+            performance_read_window,
         };
 
         Ok(Self {
             influx,
             taosx,
             task,
+            performance,
             td_database,
             ipc_stream,
         })
@@ -246,8 +305,6 @@ pub async fn influxdb_to_taos(
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
-    // startup the connector
-    let mut command = tokio::process::Command::new("java");
 
     let mut log_path = log_path();
 
@@ -274,12 +331,33 @@ pub async fn influxdb_to_taos(
         None,
     );
 
-    let child = command
-        .arg("-jar")
-        .arg(&connector_path)
-        .arg(&config_path)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::piped());
+    // get the version of jdk
+    let get_jdk_version = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
+    let jdk_version = String::from_utf8(get_jdk_version.stderr.clone())?;
+
+    let mut command = tokio::process::Command::new("java");
+    let child;
+
+    if jdk_version.contains("build 1.") {
+        child = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg(&config_path)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped());
+    } else {
+        child = command
+            .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg(&config_path)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped());
+    }
 
     let port_pool = port_pool.clone();
     {
@@ -291,12 +369,12 @@ pub async fn influxdb_to_taos(
             let mut line = String::new();
             loop {
                 // Read a line from stderr
-                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                let bytes_read = reader.read_line(&mut line).await?;
                 if bytes_read == 0 {
                     break; // End of stream, exit the loop
                 }
                 // Write the line to log_rotation
-                write!(log_rotation, "{}", line).unwrap();
+                write!(log_rotation, "{}", line)?;
                 line.clear();
             }
             Ok::<(), std::io::Error>(())
@@ -332,7 +410,7 @@ pub async fn influxdb_to_taos(
             let _ = child.kill().await;
             log::info!("InfluxDB task Done");
             // delete the temporary file
-            temp_path.close().unwrap();
+            let _ = temp_path.close();
             // put ipc port back to port pool.
             port_pool.put(ipc_port);
             // wait for completion
@@ -341,4 +419,98 @@ pub async fn influxdb_to_taos(
         }).await??;
     }
     Ok(())
+}
+
+pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let host = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.host.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let port = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.port.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let influx_url = format!("http://{}:{}/", host, port);
+    let influx_version = dsn.remove("version").unwrap_or("".to_string());
+    if influx_version == "" {
+        anyhow::bail!("The version is required");
+    }
+    // On version 1.x, only username/password mode can be used
+    // On version 2.x, only access token mode can be used.
+    let influx_username = dsn.remove("username").unwrap_or("".to_string());
+    let influx_password = dsn.remove("password").unwrap_or("".to_string());
+    let influx_token = dsn.remove("token").unwrap_or("".to_string());
+    let influx_org_id = dsn.remove("orgId").unwrap_or("".to_string());
+    if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+        anyhow::bail!("The username is required");
+    } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+        anyhow::bail!("The password is required");
+    } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+        anyhow::bail!("The access token is required");
+    }
+    // 连接器路径
+    let connector_path = influxdb_jar_path();
+    // startup the connector
+    let mut command = tokio::process::Command::new("java");
+    // 查询命令
+    let output;
+    // 不同版本不同参数
+    if INFLUXDB_V1.contains(&influx_version.as_str()) {
+        // 查询命令
+        output = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg("-fetch")
+            .arg(&influx_version)
+            .arg(&influx_url)
+            .arg(&influx_username)
+            .arg(&influx_password)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+            .with_context(|| "Start InfluxDB collector error")?;
+    } else {
+        output = command
+            .arg("-jar")
+            .arg(&connector_path)
+            .arg("-fetch")
+            .arg(&influx_version)
+            .arg(&influx_url)
+            .arg(&influx_token)
+            .arg(&influx_org_id)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+            .with_context(|| "Start InfluxDB collector error")?;
+    }
+    if output.status.success() {
+        let s = String::from_utf8(output.stdout.clone())?;
+        if s == "" {
+            anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
+        }
+        let mut vec = Vec::new();
+        vec.push(DataSet {
+            id: s,
+            name: None,
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        });
+        Ok(vec)
+    } else {
+        match output.status.code() {
+            Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
+            Some(102) => anyhow::bail!("Unauthorized access"),
+            Some(103) => anyhow::bail!("Organization not found"),
+            None => anyhow::bail!("InfluxDB connector closed by signal"),
+            Some(exit) => {
+                anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
+            }
+        }
+    }
 }

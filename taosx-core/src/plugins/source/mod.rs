@@ -1,32 +1,32 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
-use taos::Dsn;
+// use taos::Dsn;
 
-use serde_json::Value as JsonValue;
+// use serde_json::Value as JsonValue;
 
-mod plugins;
+// mod plugins;
 
-pub struct DataSet {
-    id: String,
-    parser: Option<JsonValue>,
-}
-pub struct DataSourceConfig {
-    /// Connection url.
-    connection: Dsn,
-    /// A list of data set.
-    sets: Vec<DataSet>,
-    options: HashMap<String, Option<String>>,
-}
+// pub struct DataSet {
+//     id: String,
+//     parser: Option<JsonValue>,
+// }
+// pub struct DataSourceConfig {
+//     /// Connection url.
+//     connection: Dsn,
+//     /// A list of data set.
+//     sets: Vec<DataSet>,
+//     options: HashMap<String, Option<String>>,
+// }
 
-#[cfg(test)]
+// #[cfg(test)]
 
-mod tests {
-    use super::*;
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn config() {
-        let config_str = r#"
-		{ id: }
-		"#;
-    }
-}
+//     #[test]
+//     fn config() {
+//         let config_str = r#"
+// 		{ id: }
+// 		"#;
+//     }
+// }

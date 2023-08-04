@@ -76,9 +76,17 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.IsConfigurationItem ? (string)this.AFSDKObject.GetValue(null) : string.Empty;
             }
         }
-
-        
-
+        public string DataReference
+        {
+            get
+            {
+                if (this.AFSDKObject.DataReference == null)
+                {
+                    return "";
+                }
+                return this.AFSDKObject.DataReference.Name;
+            }
+        }
         public virtual string GetPath()
         {
             return this.AFSDKObject.GetPath();

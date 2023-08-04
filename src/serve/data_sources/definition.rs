@@ -100,6 +100,10 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiple: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub placeholder: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -479,20 +483,41 @@ impl DataSourceDefinition {
                 }
             }
         }
-        for (name, auth) in self
-            .authentication
-            .alternatives
-            .iter_mut()
-            .filter(|item| item.name != "plain")
-            .flat_map(|auth| auth.params.iter_mut().map(|param| (&auth.name, param)))
-        {
-            if let Some(value) = dsn.remove(&auth.name) {
-                self.authentication.value.replace(name.to_string());
-                if !value.is_empty() {
-                    auth.value.replace(value);
+
+        for auth_item in self.authentication.alternatives.iter_mut().filter(|item| item.name != "plain") {
+            let mut is_current_auth = true;
+            for param in &auth_item.params {
+                if !dsn.params.contains_key(&(param.name.clone())) {
+                    is_current_auth = false;
+                    break;
+                }
+            }
+            if is_current_auth {
+                self.authentication.value.replace(auth_item.name.clone());
+                for param in auth_item.params.iter_mut() {
+                    if let Some(value) = dsn.remove(param.name.clone()) {
+                        if !value.is_empty() {
+                            param.value.replace(value);
+                        }
+                    }
                 }
             }
         }
+
+        // for (name, auth) in self
+        //     .authentication
+        //     .alternatives
+        //     .iter_mut()
+        //     .filter(|item| item.name != "plain")
+        //     .flat_map(|auth| auth.params.iter_mut().map(|param| (&auth.name, param)))
+        // {
+        //     if let Some(value) = dsn.remove(&auth.name) {
+        //         self.authentication.value.replace(name.to_string());
+        //         if !value.is_empty() {
+        //             auth.value.replace(value);
+        //         }
+        //     }
+        // }
         for group in self.groups.as_mut_slice() {
             // TD-25111
             match (&group.short_description, &group.description) {
@@ -567,6 +592,8 @@ impl DataSourceDefinition {
                 short_description: None,
                 description: None,
                 required: Some(false),
+                multiple: Some(false),
+                editable: Some(false),
                 placeholder: None,
                 value: Some(value),
                 display: None,
@@ -641,6 +668,56 @@ fn test_mqtt() {
     let ds = def.values_from(dsn);
     assert_eq!(ds.groups[0].collapsed, Some(true));
     dbg!(&ds);
+}
+#[test]
+fn test_csv() {
+    use std::str::FromStr;
+    let json = include_str!("en/csv.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "csv:abc.csv?quote=\"";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    // assert_eq!(ds.groups[0].collapsed, Some(true));
+    let options = ds.options.as_ref().unwrap();
+    matches!(options, DataSourceOptions::Path { path: _ });
+    dbg!(&ds);
+}
+#[test]
+fn test_kafka() {
+    use std::str::FromStr;
+    let json = include_str!("en/kafka.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "kafka://a.k/?topics=a,b";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+}
+#[test]
+fn test_legacy() {
+    use std::str::FromStr;
+    let json = include_str!("en/taos.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "taos:///test?libraryPath=a.so";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    dbg!(ds);
 }
 #[test]
 fn test_values() {

@@ -90,7 +90,6 @@
     <Compile Include="TaosxClient\TDEngineFormat.cs" />
     <Compile Include="TaosxClient\MessageBuilder.cs" />
     <Compile Include="TaosxClient\TDEngineTaosSocket.cs" />
-    <Compile Include="TaosxClient\TDEngineTaosxCommonClient.cs" />
     <Compile Include="TaosxClient\TDEngineTaosxClient.cs" />
     <Compile Include="TDEngineClient.cs" />
     <Compile Include="Exceptions\TDEngineInvalidOnPremiseLicenseException.cs" />

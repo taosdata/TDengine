@@ -320,5 +320,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public PIDataMode WorkMode() {
             return builder.mode;
         }
+
+        internal void Stop()
+        {
+            send();
+            stopTaosxSend = true;
+            return;
+        }
     }
 }
