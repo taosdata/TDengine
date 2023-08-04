@@ -115,7 +115,7 @@ datasets:
 groups:
   - name: 点位配置文件
     display_order: 0
-    description: | 
+    description: |
       CSV 点位及表信息配置文件设置。
     params:
       - name: use_csv_config
@@ -187,7 +187,7 @@ groups:
             - observe
             - subscribe
         value: observe
-  
+
   - name: 原始数据保存
     display_order: 3
     description: OPC 连接器采集到的原始数据保存配置。
@@ -206,7 +206,7 @@ groups:
           type: str
         description: 原始数据的保存路径，若启用保存原始数据需配置。
         placeholder: /data/
-      
+
       - name: keep
         display: 保留天数
         hint:

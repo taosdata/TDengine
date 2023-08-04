@@ -8,8 +8,8 @@ description: |
 
   For more about OPC UA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
-  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
-  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
+  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/){:target=”_blank”}
+  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/){:target=”_blank”}.
 
   taosX could pull data from OPC server by a OPC connector plugin.
 
@@ -110,7 +110,7 @@ datasets:
 groups:
   - name: DataSet CSV config file
     display_order: 0
-    description: | 
+    description: |
       CSV dataset and table config file.
     params:
       - name: use_csv_config
@@ -201,7 +201,7 @@ groups:
           type: str
         description: Data save path, should config if enable save data.
         placeholder: /data/
-      
+
       - name: keep
         display: Data Keep Days
         hint:
