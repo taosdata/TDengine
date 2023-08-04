@@ -282,7 +282,8 @@ namespace TDPIConnector.PI
 
             try
             {
-                IEnumerable<AFValues> afValuesList = attributeList.Data.RecordedValues(new AFTimeRange(currentDateTime, endTime), AFBoundaryType.Inside, null, false, config);
+                // IEnumerable<AFValues> afValuesList = attributeList.Data.RecordedValues(new AFTimeRange(currentDateTime, endTime), AFBoundaryType.Inside, null, false, config);
+                IEnumerable<AFValues> afValuesList = attributeList.Data.RecordedValuesByCount(startTime, count, true, AFBoundaryType.Inside, null, false, config);
                 return afValuesList.Select(v => new AFValuesWrapper(v));
             }
             catch (OperationCanceledException)
