@@ -47,7 +47,7 @@ void printSubResults(void* pRes, int32_t* totalRows) {
     int32_t precision = taos_result_precision(pRes);
     taos_print_row(buf, row, fields, numOfFields);
     *totalRows += 1;
-    printf("vgId: %d, offset: %"PRId64", precision: %d, row content: %s\n", vgId, offset, precision, buf);
+    printf("vgId: %d, offset: %lld, precision: %d, row content: %s\n", vgId, offset, precision, buf);
   }
 
 //  taos_free_result(pRes);
