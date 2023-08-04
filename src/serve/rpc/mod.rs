@@ -756,7 +756,7 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
     ) -> Result<(), anyhow::Error> {
-        let max_frame_size = Some(std::u32::MAX);
+        let max_frame_size = Some((1 << 24) - 1 as u32);
         if let Some(tcp) = self.tcp {
             let service = FlightServiceImpl {
                 controller: controller.clone(),
