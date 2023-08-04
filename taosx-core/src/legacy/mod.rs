@@ -810,9 +810,10 @@ async fn sync_super_table_schema_with_subs_without_pool(
     let mut tables = 0;
     let mut batch = 0;
     let mut sql = format!("CREATE TABLE");
+    let new_stable_name = transform_tbname_with_actions(name, &actions, true)?;
     for (child, row) in non_exists {
         let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        let e = format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
+        let e = format!("  IF NOT EXISTS `{child}` USING `{new_stable_name}` TAGS({tags})");
         batch += 1;
         tables += 1;
 
@@ -831,9 +832,9 @@ async fn sync_super_table_schema_with_subs_without_pool(
         sql.extend(e.chars());
     }
     if tables > 0 {
-        log::debug!("Create child tables with sql length {}", sql.len());
+        log::debug!("Create child tables with sql: {sql}");
         to.exec(&sql).await?;
-        log::info!("Created {} tables in stable {} in this chunk", tables, name);
+        log::info!("Created {} tables in stable {} in this chunk", tables, new_stable_name);
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
     }
 
@@ -870,7 +871,6 @@ async fn sync_super_table_schema_with_subs(
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
         .replace("create table", "CREATE TABLE IF NOT EXISTS")
         .replace("create stable", "CREATE TABLE IF NOT EXISTS");
-
     loop {
         sql = transform_sql_with_actions(sql, name, actions, true)?;
         log::debug!("sync schema sql: {sql}");
@@ -933,7 +933,8 @@ async fn sync_super_table_schema_with_subs(
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .partition(|v| res_to.contains_key(&v.0));
-    
+    dbg!(&exists);
+    dbg!(&non_exists);
     if target_opts.update_tags {
         let mut updated_tags = 0;
         for (n, l) in &exists {
@@ -965,10 +966,11 @@ async fn sync_super_table_schema_with_subs(
     let mut tables = 0;
     let mut batch = 0;
     let mut sql = format!("CREATE TABLE");
+    let new_stable_name = transform_tbname_with_actions(name, actions, true)?;
     for (child, row) in non_exists {
         let new_table_name = transform_tbname_with_actions(&child, actions, false)?;
         let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        let e = format!("  IF NOT EXISTS `{new_table_name}` USING `{name}` TAGS({tags})");
+        let e = format!("  IF NOT EXISTS `{new_table_name}` USING `{new_stable_name}` TAGS({tags})");
         batch += 1;
         tables += 1;
 
@@ -986,9 +988,9 @@ async fn sync_super_table_schema_with_subs(
         sql.extend(e.chars());
     }
     if tables > 0 {
-        log::debug!("Create child tables with sql length {}", sql.len());
+        tracing::debug!("Create child tables with sql: {sql}");
         to.exec(&sql).await?;
-        log::info!("Created {} tables in stable {} in this chunk", tables, name);
+        log::info!("Created {} tables in stable {} in this chunk", tables, new_stable_name);
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
     }
 
@@ -997,7 +999,7 @@ async fn sync_super_table_schema_with_subs(
 
 // transfrom create sql based on actions
 fn transform_sql_with_actions(mut sql: String, table_name: &str, actions: &Vec<Action>, is_stable: bool) -> anyhow::Result<String> {
-    log::debug!("sql transform before: {sql}");
+    // log::debug!("sql transform before: {sql}");
     if is_stable {
         for action in actions {
             match action {
@@ -1056,7 +1058,7 @@ fn transform_sql_with_actions(mut sql: String, table_name: &str, actions: &Vec<A
             }
         }
     }
-    log::debug!("sql transform after: {sql}");
+    // log::debug!("sql transform after: {sql}");
     Ok(sql)
 }
 
