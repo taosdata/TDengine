@@ -336,7 +336,7 @@ pub async fn influxdb_to_taos(
         .arg("-version")
         .output()
         .await
-        .unwrap();
+        .context("Get JDK version error")?;
     let jdk_version = String::from_utf8(get_jdk_version.stderr.clone())?;
 
     let mut command = tokio::process::Command::new("java");
@@ -369,12 +369,12 @@ pub async fn influxdb_to_taos(
             let mut line = String::new();
             loop {
                 // Read a line from stderr
-                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                let bytes_read = reader.read_line(&mut line).await?;
                 if bytes_read == 0 {
                     break; // End of stream, exit the loop
                 }
                 // Write the line to log_rotation
-                write!(log_rotation, "{}", line).unwrap();
+                write!(log_rotation, "{}", line)?;
                 line.clear();
             }
             Ok::<(), std::io::Error>(())
@@ -410,7 +410,7 @@ pub async fn influxdb_to_taos(
             let _ = child.kill().await;
             log::info!("InfluxDB task Done");
             // delete the temporary file
-            temp_path.close().unwrap();
+            let _ = temp_path.close();
             // put ipc port back to port pool.
             port_pool.put(ipc_port);
             // wait for completion
@@ -489,10 +489,10 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
     let s = String::from_utf8(output.stdout.clone())?;
     if s == "" {
-        match output.status.code().unwrap() {
-            101 => anyhow::bail!("Failed to connect, ip or port error"),
-            102 => anyhow::bail!("Unauthorized access"),
-            103 => anyhow::bail!("Organization not found"),
+        match output.status.code() {
+            Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
+            Some(102) => anyhow::bail!("Unauthorized access"),
+            Some(103) => anyhow::bail!("Organization not found"),
             _ => anyhow::bail!("Failed to connect, ip or port error"),
         }
     }
