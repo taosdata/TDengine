@@ -218,10 +218,12 @@ Type: files; Name: "{app}\xplugins\pi\*.*"
 Type: files; Name: "{app}\xplugins\opc\*.*"
 Type: files; Name: "{app}\xplugins\mqtt\*.*"
 Type: files; Name: "{app}\xplugins\influxdb\*.*"
+Type: files; Name: "{app}\files\*.*"
 Type: dirifempty; Name: "{app}\xplugins\pi";
 Type: dirifempty; Name: "{app}\xplugins\opc";
 Type: dirifempty; Name: "{app}\xplugins\mqtt";
 Type: dirifempty; Name: "{app}\xplugins\influxdb";
+Type: dirifempty; Name: "{app}\files";
 
 [UninstallRun]
 Filename: "{app}\uninstall_{#AppName}.exe"; Parameters: "/SILENT"; Check: fileexists('{app}\uninstall_{#AppName}.exe')

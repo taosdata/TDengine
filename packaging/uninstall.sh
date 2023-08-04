@@ -124,6 +124,7 @@ remove_taosx() {
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+    ${csudo}rm -rf /usr/local/taosx/files
 }
 
 
