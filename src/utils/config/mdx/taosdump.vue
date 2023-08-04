@@ -132,13 +132,21 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data() {
     return {};
   },
   computed: {
     DSN() {
-      return this.url + "?token=" + this.token;
+      return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "")}`;
     },
     urlPart() {
       return navigator.language.includes('en') ?"tdengine": "taosdata";

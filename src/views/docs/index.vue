@@ -11,14 +11,14 @@
       </section>
     </section>
     <section id="view-content" class="markdown-body">
-      <component :url="url" :token="token" :is="component"></component>
+      <component :url="url" :token="token" :is="component" :user="username" :password="decryptPwd"></component>
     </section>
   </div>
 </template>
 
 <script>
   import * as config from "@/utils/config";
-  import { debounce } from "@/utils";
+  import { debounce, decrypt } from "@/utils";
   import "github-markdown-css/github-markdown-light.css";
   export default {
     props: {
@@ -59,6 +59,14 @@
         // return this.$store.state.app.current_cluster?.token?.token || "";
         return localStorage.getItem('TDengine-Token')?localStorage.getItem('TDengine-Token'):''
       },
+      username() {
+        return localStorage.getItem("username")
+          ? localStorage.getItem("username")
+          : "";
+      },
+      decryptPwd() {
+        return decrypt(localStorage.getItem("pwd")) || '';
+      }
     },
     data() {
       return {
@@ -207,7 +215,7 @@
   }
   .right {
     flex: 1;
-    margin-left: -40px;
+    // margin-left: -40px;
     overflow: hidden;
   }
 </style>

@@ -50,6 +50,8 @@ export default {
     display: inline-block;
     font-size: 24px;
     margin-top: 15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 </style>

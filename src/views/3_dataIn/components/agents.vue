@@ -6,19 +6,49 @@
     <div class="flexEnd">
       <el-button
         plain
-        @click="add"
+        @click="refresh"
         size="small"
-        icon="el-icon-plus"
-        >{{ $t("taosagents.createnewagent") }}</el-button
+        icon="el-icon-refresh"
+        :disabled="requestIng"
+        >{{ $t("refresh") }}</el-button
       >
+      <!-- <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+        $t("taosagents.createnewagent")
+      }}</el-button> -->
     </div>
     <el-table
       v-if="agentList?.length > 0"
       style="margin-top: 20px"
       :data="agentList"
       size="mini"
+      row-key="id"
       max-height="250"
+      :expand-row-keys="expandRowKeys"
+      @expand-change="expandChange"
     >
+      <el-table-column type="expand">
+        <template >
+          <div>
+            <el-table :data="agentActivities" size="mini" class="tabel-expand">
+              <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
+                <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
+                  <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
+                  <i class="el-icon-error" v-if="scope.row.level == 'error'"></i>
+                  <i class="el-icon-info" v-if="scope.row.level == 'info'"></i>
+                  {{ scope.row.level }}
+                </span>
+              </el-table-column>
+              <el-table-column prop="at" :label="$t('dataIn.at')" width="220">
+                <span slot-scope="scope">{{
+                  parsinginZone(scope.row.at)
+                }}</span>
+              </el-table-column>
+              <el-table-column prop="activity" :label="$t('dataIn.activity')"></el-table-column>
+              <el-table-column prop="context" :label="$t('dataIn.context')"></el-table-column>
+            </el-table>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column label="ID" prop="id"></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.cluster_id')"
@@ -30,12 +60,15 @@
         prop="name"
       ></el-table-column>
 
-      <el-table-column
-        :label="$t('taosagents.created_at')"
-        prop="created_at"
-      >
-        <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
+      <el-table-column :label="$t('taosagents.created_at')" prop="created_at">
+        <span slot-scope="scope">{{
+          parsinginZone(scope.row.created_at)
+        }}</span>
       </el-table-column>
+      <el-table-column
+        :label="$t('taosagents.status')"
+        prop="status"
+      ></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.dsn')"
         prop="dsn"
@@ -170,18 +203,26 @@
       class="copy-agent"
       align="center"
       :title="$t('copyagent')"
-      width="600px"
+      width="1000px"
       :visible.sync="copyDialog"
       :destroy-on-close="true"
+      :before-close="beforeClose"
       :close-on-click-modal="false"
     >
+      <AgentDoc :token="agenttoken" ></AgentDoc>
+      <!-- <el-alert
+        :title="$t('copyagentWaring')"
+        type="warning"
+        :closable="false"
+        show-icon>
+      </el-alert>
       <div style="display: flex" class="agentcopy">
         <span class="agent-token">{{ agenttoken }}</span>
         <span class="copy-icon" @click="copyToken(agenttoken)">
           <i class="el-icon-copy-document"></i>
           {{ $t("copy") }}
         </span>
-      </div>
+      </div> -->
     </el-dialog>
   </div>
 </template>
@@ -193,11 +234,13 @@ import {
   editAgent,
 } from "@/api/explorer/agent";
 import { copy } from "@/utils/index";
-import { getUIData } from "@/api/explorer/datain";
+import { getUIData, getAgentActivities } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import { parsinginZone } from '@/utils';
+import { parsinginZone } from "@/utils";
+import AgentDoc from "./agentDoc.vue";
 export default {
   name: "Agent",
+  components: { AgentDoc },
   data() {
     return {
       expireTimeOPtion: {
@@ -235,7 +278,9 @@ export default {
       agentList: [],
 
       connectorList: [],
-      parsinginZone
+      parsinginZone,
+      agentActivities: [],
+      expandRowKeys:[]
     };
   },
   computed: {
@@ -247,6 +292,19 @@ export default {
     },
   },
   methods: {
+    beforeClose(){
+      this.$confirm(this.$t('datasource.copytokentip'),this.$t('tips'),{
+        confirmButtonText:this.$t('datasource.ok'),
+        cancelButtonText:this.$t('datasource.cancel'),
+        type:'warning',
+        center:true
+      }).then(()=>{
+        this.copyToken(this.agenttoken)
+        this.copyDialog=false
+      }).catch(()=>{
+        this.copyDialog=true
+      })
+    },
     handlePageChange() {},
     closeDialog() {
       this.$refs.ruleForm.resetFields();
@@ -353,9 +411,9 @@ export default {
         }
         this.getAgents();
         Message({
-          type: 'success',
-          message: this.$t('operateSucc')
-        })
+          type: "success",
+          message: this.$t("operateSucc"),
+        });
       } catch (error) {
         Message({
           type: "error",
@@ -366,6 +424,7 @@ export default {
     },
     async getAgents() {
       try {
+        this.requestIng = true
         this.agentList = (
           await getAgentsData(
             localStorage.getItem("local_clusterID"),
@@ -377,7 +436,9 @@ export default {
             : "";
           return item;
         });
+        this.requestIng = false
       } catch (err) {
+        this.requestIng = false
         err.response.data.message && Message.error(err.response.data.message);
       }
     },
@@ -413,7 +474,24 @@ export default {
           Message.error(result.message);
           return;
         }
-        this.getAgents();
+        await this.getAgents();
+
+        this.$parent.$refs.agentdialog.agentList = this.agentList.map(
+          (agent) => {
+            return {
+              value: agent.id,
+              label:
+                agent.id +
+                "." +
+                agent.name +
+                (new Date(agent.expire_date) < Date.now()
+                  ? "（" + this.$t("datasource.expired") + "）"
+                  : ""),
+              disabled: new Date(agent.expire_date) < Date.now(),
+              ...agent,
+            };
+          }
+        );
         if (result.token) {
           this.agenttoken = result.token;
           this.copyDialog = true;
@@ -422,6 +500,44 @@ export default {
         err.response.data.message && Message.error(err.response.data.message);
       }
     },
+    async expandChange(row,expandedRows) {
+      if (row.id == this.expandRowKeys[0]) {
+        this.expandRowKeys = []
+        return 
+      } 
+      let res =  await getAgentActivities(row.id)
+      this.expandRowKeys = [row.id]
+      if (res && res.code && res.code != 0) {
+        Message({
+          type: "error",
+          message: res && res.message,
+        }); 
+        return
+      }
+      this.refresh()
+      let activitList = res.map(item => {
+        if (item.status == 'failed') {
+          item.context = item.context.message
+        }
+        if (typeof item.context == 'object') {
+          item.context = null
+        }
+        return item
+      })
+      this.agentActivities = activitList
+    },
+    getLevelStyle(level) {
+      let style = ''
+      switch (level) {
+        case 'info': style = 'color: #67c23a'
+        break;
+        case 'warn': style = 'color: #e6a23c'
+        break;
+        case 'error': style = 'color: #fe6c6c'
+        break;
+      }
+      return style
+    }
   },
   created() {
     this.getAgents();
@@ -441,6 +557,7 @@ export default {
   text-overflow: ellipsis;
   overflow: hidden;
   display: inline-block;
+  padding-left: 16px;
 }
 .copy-icon {
   visibility: hidden;
@@ -451,6 +568,7 @@ export default {
   color: #4259ce;
 }
 .agentcopy {
+  margin: 16px 0;
   display: flex;
   &:hover {
     .copy-icon {
@@ -462,6 +580,8 @@ export default {
   .el-dialog__wrapper.copy-agent {
     .el-dialog__header {
       display: flex;
+      padding-top: 50px;
+      justify-content: center;
     }
   }
 }
@@ -487,6 +607,25 @@ export default {
   .el-button {
     border: none;
     background: transparent;
+  }
+}
+.tabel-expand {
+   width: 64%;
+   margin-left: 40px;
+   padding: 10px 5px;
+   ::v-deep.el-table th.el-table__cell.is-leaf {
+    border: none !important;
+   }
+   ::v-deep.el-table td.el-table__cell {
+    border: none !important;
+   }
+  }
+
+</style>
+<style lang="scss">
+.el-message-box__btns{
+  .el-button{
+    width:80px;
   }
 }
 </style>

@@ -151,13 +151,23 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data() {
     return {};
   },
   computed: {
     DSN() {
-      return this.url + "?token=" + this.token;
+      // "ws://root:taosdata@127.0.0.1:6041/test";
+      const uri = this.url.replace(/https?:\/\//, "");
+      return `ws://${this.user}:${this.password}@${uri}`;
     },
     urlPart() {
       return navigator.language.includes('en') ?"tdengine": "taosdata";

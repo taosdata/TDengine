@@ -14,6 +14,9 @@
       </el-tab-pane>
       <el-tab-pane class="topic-python" name="python" :label="'Python'">
         <docs :category="'topic'" :lang="'Python'" :topic="topicTitle"></docs>
+      </el-tab-pane> 
+      <el-tab-pane class="topic-java" name="java" :label="'Java'">
+        <docs :category="'topic'" :lang="'Java'" :topic="topicTitle"></docs>
       </el-tab-pane>
     </el-tabs>
     <!-- <el-form inline class="topic-example-select">
@@ -72,15 +75,19 @@ export default {
           fixed: false,
           scrollTop: 0,
         },
+        java: {
+          fixed: false,
+          scrollTop: 0,
+        },
       },
     };
   },
   computed: {
     topicTitle() {
       const foundItem = this.topicList.find((item) => {
-        return item.topicId === this.currentTopic;
+        return item === this.currentTopic;
       });
-      return foundItem ? foundItem.topicName : "";
+      return foundItem ? foundItem : "";
     },
   },
   created() {
@@ -189,7 +196,7 @@ export default {
       ) {
         viewEl.style.position = "relative";
         viewEl.style.top = "0";
-        viewEl.style.width = "83%";
+        viewEl.style.width = "100%";
         viewEl.style["z-index"] = "0";
         this.langFixed[acLang].fixed = false;
       }
@@ -230,13 +237,14 @@ export default {
     }
     ::v-deep(#tab-python.is-active),
     ::v-deep(#tab-go.is-active),
-    ::v-deep(#tab-rust.is-active) {
+    ::v-deep(#tab-rust.is-active),
+    ::v-deep(#tab-java.is-active) {
       background-color: #4259ce;
       font-weight: 600;
       color: white;
     }
     ::v-deep(.view-header) {
-      width: 85%;
+      width: 100%;
     }
   }
   .topic-title {

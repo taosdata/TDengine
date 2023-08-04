@@ -25,6 +25,8 @@
         :token="token"
         :topic="topic"
         :is="component"
+        :user="username"
+        :password="decryptPwd"
       ></component>
     </section>
   </div>
@@ -32,7 +34,7 @@
 
 <script>
 import * as config from "@/utils/config";
-import { debounce } from "@/utils";
+import { debounce, decrypt } from "@/utils";
 import "github-markdown-css/github-markdown-light.css";
 export default {
   name: "Docs",
@@ -89,6 +91,14 @@ export default {
         ? localStorage.getItem("TDengine-Token")
         : "";
     },
+    username() {
+      return localStorage.getItem("username")
+        ? localStorage.getItem("username")
+        : "";
+    },
+    decryptPwd() {
+      return decrypt(localStorage.getItem("pwd")) || '';
+    }
   },
   data() {
     return {
@@ -246,7 +256,7 @@ export default {
 }
 .right {
   flex: 1;
-  margin-left: -40px;
+  // margin-left: -40px;
   overflow: hidden;
 }
 ::v-deep {

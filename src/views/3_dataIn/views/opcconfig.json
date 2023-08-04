@@ -20,7 +20,7 @@
             "is_primary_key": false
         },
         {
-            "column_name": "status",
+            "column_name": "quality",
             "column_type": "int",
             "column_alias": null,
             "is_primary_key": false

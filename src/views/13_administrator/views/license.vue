@@ -71,17 +71,20 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('taosuser.activationLicense')"
       width="600px"
       :visible.sync="dialog"
       :destroy-on-close='true'
     >
+      <div slot="title">
+        <div class="activate-title">{{ $t('taosuser.activationLicense') }}</div>
+        <span class="activate-tip">{{ $t('taosuser.activeTip') }}</span>
+      </div>
       <el-form
         :model="ruleForm"
         :rules="rules"
         ref="ruleForm"
         size="mini"
-        label-width="120px"
+        :label-width="getlabelWidth"
         class="demo-ruleForm"
       >
         <el-form-item
@@ -122,7 +125,7 @@
 import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
 import { activeLicence } from '@/api/explorer/licence';
-import { parsinginZone } from '@/utils';
+import { parsinginZone, getBrowserLang } from '@/utils';
 export default {
   data() {
     return {
@@ -157,7 +160,10 @@ export default {
     style(){
       return {
         'font-size':'14px',
-        'color':'#4d6992'
+        'color':'#4d6992',
+        'min-width': '78px',
+        'display': 'inline-block',
+        'text-align': 'right'
       }
     },
     confirmStatus() {
@@ -166,6 +172,13 @@ export default {
       }
       return false;
     },
+    getlabelWidth() {
+      let lang = getBrowserLang()
+      if (lang === 'zh') {
+        return '120px'
+      }
+      return '240px'
+    }
   },
   created() {
     this.getData();
@@ -278,6 +291,15 @@ td.el-descriptions-item__cell.el-descriptions-item__content{
     font-size: 16px;
     margin: 30px 0 10px 0;
     padding: 8px 16px;
+}
+.activate-title {
+  line-height: 26px;
+  font-weight: 500;
+  font-size: 20px;
+  color: #4d6992;
+}
+.activate-tip {
+  color:#909399;
 }
 }
 </style>

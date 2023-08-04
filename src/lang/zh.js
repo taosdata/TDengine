@@ -28,7 +28,8 @@ export default {
   change: "修改",
   copySucc: "复制成功",
   nickname: "昵称",
-  copyagent:'拷贝token到Agent配置文件',
+  copyagent:'Agent使用介绍',
+  copyagentWaring:'确保现在复制您的代理 token。不能进行再次查看',
   back: "返回",
   date: "日期",
   time: "时间",
@@ -140,6 +141,7 @@ export default {
   revoke: "收回",
   read: "读",
   write: "写",
+  subscribe: "订阅",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -170,7 +172,11 @@ export default {
     dsepPlaceholder: "TDengine主机URL，比如: http://localhost:6041",
     theDatasource: "数据源{0}",
     dsurlError: "数据源URL格式不正确，比如: http://localhost:6041",
-    enterTip: "请输入"
+    enterTip: "请输入",
+    level: '活动级别',
+    activity: '当前活动',
+    context: '活动内容',
+    at: '时间'
   },
   replication: {
     theTaskWithId: "任务 {id}",
@@ -207,7 +213,7 @@ export default {
     replication: "数据复制",
   },
   login: {
-    versiontip:'仅支持企业版本!',
+    versiontip:'仅支持企业版本，当前用户无权限查看系统信息，登录失败!',
     signin:'登录',
     taosxtip:`请先在 /etc/${taosname}/explorer.toml 中配置Taosx`,
     username:'用户名',
@@ -257,7 +263,9 @@ export default {
     rememberMe: "记住我",
     usernameTips: '请输入用户名',
     passwordTips: '请输入密码',
-    errorTip: '用户名或者密码错误'
+    errorTip: '用户名或者密码错误',
+    servExceptionTip: '您的 taosadapter 服务处于异常，请尝试重启 taosadapter 服务并保证服务可用',
+    servTaosdTip: '您的 taosd 服务处于异常，请尝试重启 taosd 服务并保证服务可用',
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
@@ -895,6 +903,31 @@ export default {
   },
 
   datasource: {
+    csvwholeinfo:'请填写完整的csv配置信息',
+    customcolname:'自定义列',
+    customcol:'请输入自定义列',
+    uploadcsvtip:'请上传文件或输入文件地址',
+    copytokentip:'拷贝Token到Agent配置文件',
+    uploadtip:'请上传csv文件',
+    uploadcsv:'上传CSV文件',
+    configcsv:'配置CSV地址',
+    upfile:'上传文件',
+    selectfile:'选取文件',
+    fileurl:"文件地址",
+    csvcol:'CSV列',
+    dbcol:'DB列',
+    percisiontip:'请选择精度',
+    tabletip:'请输入表名',
+    includeheader:'包含Header',
+    percision:'精度',
+    csvtable:'表名',
+    csvNext:'下一步',
+    ms:'毫秒',
+    μs:'微秒',
+    ns:'纳秒',
+    getschema:'获取Schema',
+    refreshsuccess:'刷新成功',
+    influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
     taskid:'任务ID',
     opcconfig:'库表配置',
     tmqprotocol:'原生连接',
@@ -979,6 +1012,9 @@ export default {
     password: '密码',
     anonymous: '匿名',
     plain: '普通用户',
+    select: '选择',
+    add: '添加',
+    regexPlaceholder: '输入正则表达式'
   },
   explorer: {
     databases: '数据库',
@@ -989,7 +1025,13 @@ export default {
     connectorTip: "使用您选择的编程语言<a target='_blank' href='https://docs.taosdata.com/taos-sql/select/'>使用SQL</a>查询数据。",
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
-    subscriptions:'数据订阅'
+    subscriptions:'数据订阅',
+    startTime: '开始时间',
+    endTime: '结束时间',
+    cols: '列',
+    tags: '标签',
+    kafka: 'Kafka',
+    kafkaTopic: 'Kafka Topic'
   },
   docs: {
     connector: {
@@ -1320,7 +1362,7 @@ export default {
         step33: "示例配置文件",
         step34: "配置文件示例",
         step35: "插入场景 JSON 配置文件示例",
-        step4: "配置文件参数详解",
+        step4: "配置文件参数",
         step41: "通用配置参数",
         step41desc: "本节所列参数适用于所有功能模式。",
         step41desc1: "：要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。",
@@ -1446,6 +1488,9 @@ export default {
         step1desc: "您按照下面命令可以创建 Rust 项目：",
         step1desc1: "然后把依赖包加到 `Cargo.toml` 文件中：",
       },
+      createProject: '创建项目',
+      step1desc: '您按照下面命令可以创建 {0} 项目：',
+      step1desc1: '然后把依赖包加到 `{0}` 文件中：',
       step2: "配置",
       step3: "创建消费者",
       step3desc: "您可以按照下面的代码来创建消费者：",
@@ -1459,9 +1504,10 @@ export default {
       enddesc1: "。",
     },
     dashboard:{
+      monitortip:'请遵循以下步骤用Grafana去监控TDengine的运行状态',
       dashboarddesc:`我们建议在此处使用最新的<a href='https://grafana.com/'>Grafana</a> 8 或 9 版本。您可以在任何<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'>支持的操作系统</a>中，按照 <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>Grafana官方文档安装说明</a>  安装 <a href='https://grafana.com/'>Grafana</a>。`,
       step1:'安装 Grafana',
-      step2:'安装 TDengine 数据源插件',
+      step2:'安装 TDengine 插件',
       step3:'启动 Grafana 服务',
       step4:'登录到 Grafana',
       step5:'添加 TDengine 数据源',
@@ -1469,10 +1515,10 @@ export default {
       tab1:'基于 Debian 或 Ubuntu 系统',
       tab2:'基于 CentOS / RHEL 系统',
       tab2sub:'或者用 RPM 安装',
-      pluginname1:'手动设置 TDinsight',
-      pluginname2:'自动部署 TDinsight',
+      pluginname2:'手动设置 TDinsight',
+      pluginname1:'自动部署 TDinsight',
       plugin1:'从 GitHub 安装 TDengine 最新版数据源插件。',
-      plugin2:`我们提供了一个自动化安装脚本 TDinsight.sh 脚本以便用户快速进行安装配置。<br/>
+      plugin2:`我们提供了一个自动化安装脚本 <code>TDinsight.sh</code> 脚本以便用户快速进行安装配置。<br/>
 
       您可以通过 wget 或其他工具下载该脚本：`,
       pluginsub2:`这个脚本会自动下载最新的<a href='https://github.com/taosdata/grafanaplugin/releases/tag/v3.3.2'>Grafana TDengine 数据源插件</a> 和 <a href='https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json'>TDinsight 仪表盘</a> ，将命令行选项中的可配置参数转为 <a href='https://grafana.com/docs/grafana/latest/administration/provisioning/'>Grafana Provisioning</a> 配置文件，以进行自动化部署及更新等操作。利用该脚本提供的告警设置选项，你还可以获得内置的阿里云短信告警通知支持。`,
@@ -1481,7 +1527,7 @@ export default {
      
       nav:`指向 <strong>Configurations -> Data Sources</strong> 菜单，然后点击 <strong>Add data source</strong> 按钮。`,
       subsearch:'搜索并选择<strong>TDengine</strong>。',
-      settingtd:'配置 TDengine 数据源。',
+      settingtd:`配置 TDengine 数据源。例如：<code>http://localhost:6041</code>`,
       savetest:"保存并测试，正常情况下会报告 'TDengine Data source is working'。",
       
       import:`在配置 TDengine 数据源界面，点击 <strong>Dashboards</strong> tab。`,
@@ -1550,12 +1596,56 @@ export default {
     fromsourceRequired: '请选择来源',
     targetdsnRequired: '请输入目标DSN',
     directoryRequired: '请输入目录',
-    activationLicense: '激活',
+    activationLicense: '激活许可证',
     activeCode: '激活码',
     cActiveCode: '连接器激活码',
-    dataRestoration: '数据恢复'
+    dataRestoration: '数据恢复',
+    activeTip: '联系TDengine客户成功团队获取激活码'
   },
   taosagents:{
+    step1:'安装',
+    step2:'配置',
+    step3:'启动',
+    step4:'状态',
+    step1linux:'Linux',
+    linuxdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> 下载代理程序安装包，并进行安装。`,
+    linuxcode:`cd $TMPDIR
+    mkdir agent-installer
+    cd agent-installer
+    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    tar xvf taosx-agent-latest-linux-x64.tar.gz
+    cd taosx-agent-*
+    ./install.sh
+    # remove files
+    #cd ../../; rm -rf agent-installer`,
+  step1window:'Windows',
+  windowdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a> 下载代理安装程序，并运行安装程序以安装代理服务。`,
+  step2sub1:'配置文件路径：',
+  step2sub2linux:`配置文件路径： <code>/etc/taos/agent.toml</code> 。`,
+  step2sub2window:`配置文件路径： <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub3:'TOML中的配置文件格式，如下：',
+  step2sub4:'复制内容到配置文件。',
+  step3sub1:'启动代理服务：',
+  step3sub2linux:`在Linux上，使用以下命令启动代理服务：
+
+  <code>systemctl start taosx-agent</code>，
+  使用以下命令检查代理服务状态：
+  
+  <code>systemctl status taosx-agent</code>`,
+  step3sub2window:`在Windows上，使用以下命令启动代理服务：
+  
+  <code>sc.exe start taosx-agent</code>，
+  使用以下命令检查代理服务状态：
+  
+  <code>sc.exe query taosx-agent</code>。`,
+  step3sub3linux:`如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
+
+  <code>journalctl -u taosx-agent</code>`,
+  step3sub3window:`在Windows上，您可以在以下位置检查日志文件：
+  
+  <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
+  step4sub1:'在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Alive"。',
+    addagenttip:'如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。',
     edittitle:'编辑代理',
     deletetip:`确定删除代理 {id} ?`,
     eidtagent:'编辑代理',

@@ -1,18 +1,35 @@
 import i18n from "@/lang";
-import { getToken, setToken, removeToken, getAppID, setAppId, removeAppID, setRedirect } from "@/utils/token";
+import {
+  getToken,
+  setToken,
+  removeToken,
+  getAppID,
+  setAppId,
+  removeAppID,
+  setRedirect,
+} from "@/utils/token";
 import { objToLine } from "@/utils";
-import { getClusterListReq, getClusterStatus, getPlan } from "@/api/gateway/app";
+import {
+  getClusterListReq,
+  getClusterStatus,
+  getPlan,
+} from "@/api/gateway/app";
 import { getUserInfoReq, logout } from "@/api/auth";
 import { getClusterInfo } from "@/api/dashboard";
 import { getAlertList } from "@/api/gateway/alert";
 import { setLang } from "@/lang";
 import { getCloudRegion } from "@/api/register";
-import { BaseRoute, ServerLevel, NeedRefreshStatus, InitClusterStatus } from "@/const";
+import {
+  BaseRoute,
+  ServerLevel,
+  NeedRefreshStatus,
+  InitClusterStatus,
+} from "@/const";
 import router from "@/router";
 import { Message } from "element-ui";
 import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
-import { getLocalTimezone } from '@/utils'
+import { getLocalTimezone } from "@/utils";
 
 const state = {
   token: getToken(),
@@ -35,8 +52,17 @@ const state = {
   currentServerLevel: 0, //当前服务的服务等级
   currentPricePlan: null, //当前账号的计费方案
   currentPricePlanList: [], //当前region的计费方案列表
-  mqttParser:null,//专供mqtt parser使用
-  opcConfig:null,//opc的单例泪痣
+  mqttParser: null, //专供mqtt parser使用
+  opcConfig: null, //opc的单例配置
+  csvParser: null,
+  csvfiles: [],
+  opcnodesfiles: [],
+  opccertfiles: [],
+  opcprivatefiles: [],
+  hasheader: false,
+  mqttcafile: [],
+  mqttcertfile: [],
+  mqttcertkeyfile: [],
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -48,7 +74,7 @@ const defaultUserInfo = {
   company_name: "",
   industry_type: "",
   position: "",
-  cluster_url: ""
+  cluster_url: "",
 };
 // const currentHost = new RegExp("^(https?://)?" + window.location.host + "$");
 const currentHost = {
@@ -63,17 +89,53 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
-  SET_OPC_CONFIG:(state,data)=>{
-    state.opcConfig=data
+  //所有数据源上传的文件类型置空
+  SET_FILE_EMPTY:(state,data)=>{
+    state.csvfiles=data
+    state.opcnodesfiles=data
+    state.opccertfiles=data
+    state.mqttcafile=data
+    state.mqttcertfile=data
+    state.mqttcertkeyfile=data
   },
-  SET_MQTT_PARSER:(state,data)=>{
-    state.mqttParser=data
+  SET_MQTT_CAFILE: (state, data) => {
+    state.mqttcafile = data;
+  },
+  SET_MQTT_CERTFILE: (state, data) => {
+    state.mqttcertfile = data;
+  },
+  SET_MQTT_CERTKEYFILE: (state, data) => {
+    state.mqttcertkeyfile = data;
+  },
+  SET_OPC_PRIVATEFILES: (state, data) => {
+    state.opcprivatefiles = data;
+  },
+  SET_OPC_CERTFILES: (state, data) => {
+    state.opccertfiles = data;
+  },
+  SET_OPC_UANODES: (state, data) => {
+    state.opcnodesfiles = data;
+  },
+  SET_CSV_HASHEADER: (state, data) => {
+    state.hasheader = data;
+  },
+  SET_CSV_FILES: (state, data) => {
+    state.csvfiles = data;
+  },
+  SET_CSV_PARSER: (state, data) => {
+    state.csvParser = data;
+  },
+  SET_OPC_CONFIG: (state, data) => {
+    state.opcConfig = data;
+  },
+  SET_MQTT_PARSER: (state, data) => {
+    state.mqttParser = data;
   },
   SET_CLUSTER_URL(state, url) {
-    state.cluster_url = url
+    state.cluster_url = url;
   },
   SAVE_LOGIN_INFO(state, info) {
-    state.loginInfo = info
+    state.loginInfo = info;
   },
   SET_TIME_ZONE(state, timeZone) {
     state.timeZone = timeZone;
@@ -110,13 +172,26 @@ const mutations = {
       const url = state.regionUrlMap[urlKey];
       const completeUrl = window.location.origin.replace(currentHost.host, url);
       completeUrl && setRedirect(completeUrl);
-      setAppId(current_cluster.id, process.env.NODE_ENV != "development" ? url : undefined);
+      setAppId(
+        current_cluster.id,
+        process.env.NODE_ENV != "development" ? url : undefined
+      );
 
-      if (process.env.NODE_ENV != "development" && url && !currentHost.test(url)) {
+      if (
+        process.env.NODE_ENV != "development" &&
+        url &&
+        !currentHost.test(url)
+      ) {
         if (InitClusterStatus.includes(current_cluster.cluster_status)) {
-          window.location.href = completeUrl + "/instanceStatus" + (isFirstCreate ? "?isFirstCreate=true" : "");
+          window.location.href =
+            completeUrl +
+            "/instanceStatus" +
+            (isFirstCreate ? "?isFirstCreate=true" : "");
         } else {
-          window.location.href = window.location.href.replace(currentHost.host, url);
+          window.location.href = window.location.href.replace(
+            currentHost.host,
+            url
+          );
         }
         return;
       }
@@ -143,7 +218,9 @@ const actions = {
   async getUserInfo({ commit, dispatch }) {
     if (!state.userInfo) {
       let userName = localStorage.getItem("username");
-      await sendSQLReq(`select * from information_schema.ins_users where name='${userName}'`)
+      await sendSQLReq(
+        `select * from information_schema.ins_users where name='${userName}'`
+      )
         .then((res) => {
           let user = res.data.map((data) => {
             return Object.fromEntries(
@@ -169,7 +246,7 @@ const actions = {
   },
   getCloud({ state }) {
     return getCloudRegion()
-      .then(res => {
+      .then((res) => {
         state.cloudList = res;
         /**
          * 根据当前url的hostname获取对应的cloud和region
@@ -186,8 +263,8 @@ const actions = {
             regionId: region.value,
           };
         }
-        res.forEach(item => {
-          item.regions.forEach(region => {
+        res.forEach((item) => {
+          item.regions.forEach((region) => {
             let url = region.url?.replace(/https?:\/\/([^/]+).*/, "$1");
             state.regionUrlMap[item.value + "_" + region.value] = url;
             if (currentHost.test(url)) {
@@ -215,7 +292,7 @@ const actions = {
       regionId: state.currentCloudAndRegion.regionId,
       planType: "BASE",
     })
-      .then(data => {
+      .then((data) => {
         state.currentPricePlanList = data;
       })
       .catch(() => {
@@ -229,15 +306,17 @@ const actions = {
     commit("SET_CURRENT_SERVER_LEVEL", Number(ServerLevel[currentPriceLevel]));
     commit(
       "SET_CURRENT_PRICE_PLAN",
-      state.currentPricePlanList.find(item => item.priceLevel == currentPriceLevel)
+      state.currentPricePlanList.find(
+        (item) => item.priceLevel == currentPriceLevel
+      )
     );
   },
   getClusterList({ state, commit, dispatch }, isRefresh = true) {
     commit("CLEAR_TIMEOUT");
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       let fn = () => {
         getClusterListReq()
-          .then(cluster_list => {
+          .then((cluster_list) => {
             commit("SET_CLUSTER_LIST", cluster_list);
             // 无集群列表处理
             if (!cluster_list.length || !state.currentCloudAndRegion.cloud) {
@@ -250,7 +329,9 @@ const actions = {
             commit("SET_CURRENT_CLUSTER", cluster);
             resolve();
             // 刷新时需要判断集群列表中是否有除了Running、Suspened的状态的集群
-            let refresh = cluster_list.some(item => NeedRefreshStatus.includes(item.cluster_status));
+            let refresh = cluster_list.some((item) =>
+              NeedRefreshStatus.includes(item.cluster_status)
+            );
             if (refresh && isRefresh) {
               refreshCount++;
               // 超过20次刷新，则不再刷新
@@ -273,7 +354,9 @@ const actions = {
     });
   },
   getClusterInfo({ commit }) {
-    return getClusterInfo({ from: moment.utc().format("YYYY-MM") + "-01" }).then(res => {
+    return getClusterInfo({
+      from: moment.utc().format("YYYY-MM") + "-01",
+    }).then((res) => {
       commit("SET_CLUSTER_INFO", res);
     });
   },
@@ -304,7 +387,7 @@ const actions = {
         },
         true
       )
-        .then(res => {
+        .then((res) => {
           state.newAlert = res.content;
           autoRefresh && setTimeout(fn, refresTime);
         })
@@ -321,7 +404,7 @@ const actions = {
       let fn = () => {
         if (state.current_cluster.id != app_id) return;
         getClusterStatus(app_id)
-          .then(res => {
+          .then((res) => {
             state.clusterStatus = res;
             if (res == "Running") {
               setTimeout(async () => {
@@ -343,7 +426,7 @@ const actions = {
               }
             }
           })
-          .catch(err => {
+          .catch((err) => {
             reject(err);
           });
       };
@@ -371,10 +454,12 @@ function handleClusterStatus(cluster, isFirstCreate = false) {
   let clusterStatus = cluster.cluster_status;
   if (clusterStatus == "Running") return;
   if (InitClusterStatus.includes(clusterStatus) && path != "/instanceStatus") {
-    return routerReplace("/instanceStatus" + (isFirstCreate ? "?isFirstCreate=true" : ""));
+    return routerReplace(
+      "/instanceStatus" + (isFirstCreate ? "?isFirstCreate=true" : "")
+    );
   }
   // 其他状态暂时统一处理
-  if (!BaseRoute.some(item => path.includes(item))) {
+  if (!BaseRoute.some((item) => path.includes(item))) {
     routerReplace("/instances");
   }
 }
@@ -404,22 +489,29 @@ function handleCluster() {
     state.current_cluster.id = getAppID() || getAppFromSessionStorage();
   }
   return (
-    state.currentRegionClusterList.find(item => item.id == state.current_cluster.id) ||
-    state.currentRegionClusterList.find(item => item.cluster_status == "Running") ||
+    state.currentRegionClusterList.find(
+      (item) => item.id == state.current_cluster.id
+    ) ||
+    state.currentRegionClusterList.find(
+      (item) => item.cluster_status == "Running"
+    ) ||
     state.currentRegionClusterList[0]
   );
 }
 function getCurentRegionCluster() {
   let cloud = state.currentCloudAndRegion.cloudId;
   let region = state.currentCloudAndRegion.regionId;
-  state.currentRegionClusterList = state.clusters.filter(item => item.cloud_id == cloud && item.region_id == region);
+  state.currentRegionClusterList = state.clusters.filter(
+    (item) => item.cloud_id == cloud && item.region_id == region
+  );
 }
 
 function getCurrentPricePlan() {
   let priceServel = 0; //FREE
-  state.clusters.forEach(cluster => {
+  state.clusters.forEach((cluster) => {
     if (cluster.service_level) {
-      let currentClusterPriceServel = ServerLevel[cluster.service_level?.toUpperCase()];
+      let currentClusterPriceServel =
+        ServerLevel[cluster.service_level?.toUpperCase()];
       if (currentClusterPriceServel > priceServel) {
         priceServel = currentClusterPriceServel;
       }

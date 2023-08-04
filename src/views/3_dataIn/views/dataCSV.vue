@@ -7,6 +7,7 @@
 
 <script>
 import InputCSVFile from "../components/inputCSVFile.vue";
+
 import { dataInConnector, party } from "@/utils/config";
 export default {
   components: { InputCSVFile },

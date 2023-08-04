@@ -6,7 +6,15 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <link rel="icon" href="<%= BASE_URL %>static/favicon.ico" type="image/x-icon">
+ 
+  <% if(process.env.VUE_APP_CUS_NAME &&process.env.VUE_APP_CUS_NAME !== "TDengine"){ %>
+    <link rel="icon"  type="image/x-icon">
+    <% }
+  else { %>
+    <link rel="icon" href="<%= BASE_URL %>static/favicon.ico" type="image/x-icon">
+    <% }
+  %>
+  
   <!-- <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css"> -->
   <!-- 3. 引入组件库 -->
   <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.2.0/styles/atom-one-dark.css">
@@ -171,7 +179,14 @@
       }
     </style>
     <div id="loader-wrapper">
-      <div id="loader"><img src="/static/logo.svg"></div>
+      <% if(process.env.VUE_APP_CUS_NAME &&process.env.VUE_APP_CUS_NAME !== "TDengine"){ %>
+        <div id="loader"></div>
+        <% }
+      else { %>
+        <div id="loader"><img src="/static/logo.svg"></div>
+        <% }
+      %>
+      
     </div>
   </div>
   <!-- built files will be auto injected -->

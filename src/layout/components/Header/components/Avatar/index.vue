@@ -21,8 +21,9 @@
         <el-dropdown-item>
           <div @click="logout" class="drop-block">
             <!-- 图标有问题，需特殊处理 -->
-            <Icon name="signout" class="dropdown_icon" style="width: 18px; height: 18px; margin-left: 2px"></Icon>
-            {{ $t("signOut") }}
+            <Icon name="signout" class="dropdown_icon" style="width: 20px; height: 20px;"></Icon>
+            <span style="color:#4259ce">{{ $t("signOut") }}</span>
+            
           </div>
         </el-dropdown-item>
       </el-dropdown-menu>

@@ -2,7 +2,7 @@
   <el-dialog
     align="center"
     :title="$t('datasource.addsource')"
-    width="400px"
+    width="500px"
     :visible.sync="visible"
     :destroy-on-close="true"
     @closed="closeDialog"
@@ -20,18 +20,20 @@
         :label="$t('datasource.agent')"
         prop="agent"
         v-model="ruleForm.agent"
+        :rules="{
+          required: checked,
+          message: $t('datasource.agenttip'),
+          trigger: 'blur',
+        }"
       >
         <span slot="label">
           <el-checkbox v-model="checked">
-            {{ $t('datasource.agent') }} 
+            {{ $t("datasource.agent") }}
           </el-checkbox>
-          <el-tooltip
-            effect="light"
-            placement="top"
-          >
+          <el-tooltip effect="light" placement="top">
             <span slot="content" v-html="$t('datasource.agentInfo')"></span>
             <i class="el-icon-info"></i>
-        </el-tooltip>
+          </el-tooltip>
         </span>
         <!-- <el-cascader
           v-model="ruleForm.agent"
@@ -41,20 +43,39 @@
           :disabled="disabledAgent"
           >
         </el-cascader> -->
-        <el-select 
+        <el-select
           v-model="ruleForm.agent"
-          :placeholder="checked ? $t('datasource.agenttip') : this.$t('disbleagent')"
-          :disabled="disabledAgent"
+          :placeholder="
+            checked ? $t('datasource.agenttip') : this.$t('disbleagent')
+          "
+          :disabled="!checked"
         >
           <el-option
             v-for="item in this.agentList"
             :key="item.value"
             :label="item.label"
-            :value="item.value">
+            :value="item.value"
+          >
           </el-option>
         </el-select>
+        <el-tooltip
+          :content="$t('taosagents.addagenttip')"
+          effect="light"
+          placement="top"
+        >
+          <el-button
+            type="primary"
+            style="margin-left: 10px"
+            @click="openAddAgentDialog"
+            >{{ $t("taosagents.createnewagent") }}</el-button
+          >
+        </el-tooltip>
       </el-form-item>
-      <el-form-item :label="$t('datasource.sourcetype')" prop="type">
+      <el-form-item
+        :label="$t('datasource.sourcetype')"
+        prop="type"
+        class="sourcetype"
+      >
         <el-select
           v-model="ruleForm.type"
           :placeholder="$t('datasource.typetip')"
@@ -66,12 +87,17 @@
             :key="item.id"
           ></el-option>
         </el-select>
+        <span
+          style="color: red; font-size: 12px; display: flex; margin-top: 4px"
+          v-if="ruleForm.type == 'influxdb'"
+          >{{ $t("datasource.influxdbtip") }}</span
+        >
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcename')" prop="name">
         <el-input
           v-model="ruleForm.name"
           :placeholder="$t('datasource.nametip')"
-          :maxlength=20
+          :maxlength="20"
         ></el-input>
       </el-form-item>
     </el-form>
@@ -111,7 +137,7 @@ export default {
   computed: {
     confirmStatus() {
       if (!this.ruleForm.agent && this.checked) {
-        return true
+        return true;
       }
       if (!this.ruleForm.type) {
         return true;
@@ -124,24 +150,24 @@ export default {
     options() {
       return [
         {
-          value: 'disableAgent',
-          label: this.$t('disbleagent'),
+          value: "disableAgent",
+          label: this.$t("disbleagent"),
         },
         {
-          value: 'start',
-          label: this.$t('enableagent'),
-          children: this.agentList
-        }
-      ]
+          value: "start",
+          label: this.$t("enableagent"),
+          children: this.agentList,
+        },
+      ];
     },
     rules() {
       return {
-        agent: [
-          {
-            required: this.checked,
-            message: this.$t("datasource.agenttip"),
-          },
-        ],
+        // agent: [
+        //   {
+        //     required: this.checked,
+        //     message: this.$t("datasource.agenttip"),
+        //   },
+        // ],
         type: [
           {
             required: true,
@@ -149,7 +175,7 @@ export default {
           },
         ],
         name: [{ required: true, message: this.$t("datasource.nametip") }],
-      }
+      };
     },
   },
   data() {
@@ -168,7 +194,7 @@ export default {
         ["opcda", "OPC-DA"],
         ["opcua", "OPC-UA"],
       ]),
-      checked: true,
+      checked: false,
       disabledAgent: false,
       rules1: {
         agent: [
@@ -193,7 +219,11 @@ export default {
     this.originalTypes = deepClone(this.typeList);
   },
   methods: {
+    openAddAgentDialog() {
+      this.$parent.$refs.agents.add();
+    },
     handleAdd() {
+      this.$store.commit('app/SET_FILE_EMPTY',[])
       localStorage.setItem("datainName", this.ruleForm.name);
       this.$parent.$parent.agentID = this.ruleForm.agent;
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
@@ -201,11 +231,11 @@ export default {
 
     selectAgenttype() {
       this.ruleForm.type = "";
-      if(this.ruleForm.agent[0] === 'add') {
-        this.$emit('addAgent')
+      if (this.ruleForm.agent[0] === "add") {
+        this.$emit("addAgent");
         this.$nextTick(() => {
-          this.closeDialog()
-        })
+          this.closeDialog();
+        });
       }
     },
 
@@ -221,14 +251,20 @@ export default {
           localStorage.getItem("local_clusterID"),
           localStorage.getItem("username")
         );
-        this.agentList = this.agentList.map(agent => {
+        this.agentList = this.agentList.map((agent) => {
           return {
             value: agent.id,
-            label: agent.id + '.' + agent.name + ((new Date(agent.expire_date)<Date.now())?'（'+this.$t('datasource.expired')+'）':''),
-            disabled:new Date(agent.expire_date)<Date.now(),
-            ...agent
-          }
-        })
+            label:
+              agent.id +
+              "." +
+              agent.name +
+              (new Date(agent.expire_date) < Date.now()
+                ? "（" + this.$t("datasource.expired") + "）"
+                : ""),
+            disabled: new Date(agent.expire_date) < Date.now(),
+            ...agent,
+          };
+        });
       } catch (error) {
         console.log(error);
       }
@@ -239,15 +275,14 @@ export default {
       deep: true,
       handler(val) {
         if (val == "mqtt") {
-        //   this.$emit("showMqttDialog");
+          //   this.$emit("showMqttDialog");
         }
       },
     },
     checked(val) {
-        console.log('now trigger checked')
-      this.disabledAgent = !val
-      this.ruleForm.agent = ''
-    }
+      this.disabledAgent = !val;
+      this.ruleForm.agent = "";
+    },
   },
 };
 </script>
@@ -277,5 +312,15 @@ export default {
 .el-select {
   display: flex;
   flex: 1;
+}
+::v-deep {
+  .el-form-item__content {
+    display: flex;
+  }
+  .el-form-item.sourcetype {
+    .el-form-item__content {
+      display: inherit;
+    }
+  }
 }
 </style>

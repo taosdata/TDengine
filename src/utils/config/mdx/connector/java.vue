@@ -101,6 +101,14 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data() {
     return {};
@@ -112,8 +120,10 @@ export default {
         this.url.replace(/https?:\/\//, "") +
         "?useSSL=" +
         this.url.startsWith("https") +
-        "&token=" +
-        this.token
+        "&user=" + this.user +
+        "&password=" + this.password
+        // "&token=" +
+        // this.token
       );
     },
     urlPart() {

@@ -30,6 +30,8 @@ consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
   "ws.message.channelLen": uint(0),
   "ws.message.timeout":    common.DefaultMessageTimeout,
   "ws.message.writeWait":  common.DefaultWriteWait,
+  "td.connect.user":       "{{ user }}",
+  "td.connect.pass":       "{{ password }}",
   "group.id":              "test_group",
   "client.id":             "test_consumer_ws",
   "auto.offset.reset":     "earliest",
@@ -93,6 +95,8 @@ func main() {
     &quot;ws.message.channelLen&quot;: uint(0),
     &quot;ws.message.timeout&quot;:    common.DefaultMessageTimeout,
     &quot;ws.message.writeWait&quot;:  common.DefaultWriteWait,
+    &quot;td.connect.user&quot;:       &quot;${user}&quot;,
+    &quot;td.connect.pass&quot;:       &quot;${password}&quot;,
     &quot;group.id&quot;:              &quot;test_group&quot;,
     &quot;client.id&quot;:             &quot;test_consumer_ws&quot;,
     &quot;auto.offset.reset&quot;:     &quot;earliest&quot;,
@@ -154,6 +158,14 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data(){
     return {
@@ -164,10 +176,11 @@ export default {
   },
   computed: {
     tmq() {
+      // root:taosdata@ws(localhost:6041)
       const wsPrefix = this.url.startsWith("https") ? "wss" : "ws";
-      const uri = this.url.replace(/https?:\/\//, "");
-      const tokenStr = this.token;
-      return `${wsPrefix}://${uri}/rest/tmq?token=${tokenStr}`;
+      let uri = this.url.replace(/https?:\/\//, "");
+      // const tokenStr = this.token;
+      return `${wsPrefix}://${uri}/rest/tmq`;
     },
     org() {
       return this.$store.state.currentOrganization?.orgName || "";

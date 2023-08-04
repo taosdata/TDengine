@@ -1,11 +1,28 @@
 <template>
   <div class="source-ui">
-    <div class="left-ui">
+    <div
+      :class="[
+        'left-ui',
+        this.$parent.currentTaskStatus == 'running' ? 'readable' : '',
+      ]"
+    >
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
-
-      <section class="basics">
+      <div class="source-name" v-if="isEditable">
+        <div class="block-title">
+          <span>{{ $t("datasource.sourcename") }}</span>
+        </div>
+        <div class="name">
+          <span class="label">{{ $t("name") }}</span>
+          <el-input
+            v-model="sourceName"
+            placeholder="请输入数据源名称"
+            style="width: 200px"
+          ></el-input>
+        </div>
+      </div>
+      <section class="basics" v-if="tagName !== 'csv'">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
@@ -131,66 +148,124 @@
                     </div>
                   </div>
                 </template>
-                <div
-                  v-else
-                  v-for="(p, index) in at.params"
-                  :key="index"
-                  :style="textareas.includes(p.name) ? styleareaobj : styleobj"
-                >
-                  <span
-                    :class="['label', p.required ? 'required' : '']"
+                <template v-else>
+                  <div
+                    v-for="(p, index) in at.params"
+                    :key="index"
                     :style="
-                      textareas.includes(p.name)
-                        ? { 'padding-top': '10px!important' }
-                        : {}
+                      textareas.includes(p.name) ? styleareaobj : styleobj
                     "
-                    >{{ p.display }}</span
                   >
-
-                  <div style="flex: 1">
-                    <template v-if="p.hint && p.hint.choices">
-                      <el-select
-                        v-model="p.value"
-                        placeholder=""
-                        style="
-                          margin-left: 0px;
-                          width: 100%;
-                          margin-bottom: 8px;
+                    <span
+                      :class="['label', p.required ? 'required' : '']"
+                      :style="
+                        textareas.includes(p.name)
+                          ? { 'padding-top': '10px!important' }
+                          : {}
+                      "
+                    >
+                      {{ p.display }}
+                      <el-tooltip
+                        class="item"
+                        effect="light"
+                        placement="top"
+                        v-if="
+                          ['security_mode', 'security_policy'].includes(p.name)
                         "
                       >
-                        <el-option
-                          v-for="c in p.hint.choices"
-                          :key="c"
-                          :label="c"
-                          :value="c"
-                        ></el-option>
-                      </el-select>
-                    </template>
-                    <el-input
-                      v-else
-                      v-model="p.value"
-                      :type="
-                        p.name == 'password' || p.name == 'token'
-                          ? 'password'
-                          : textareas.includes(p.name)
-                          ? 'textarea'
-                          : 'text'
-                      "
-                      style="margin-bottom: 8px"
-                    ></el-input>
-                    <div
-                      class="description"
-                      v-html="transforHtml(p.description)"
-                    ></div>
+                        <div
+                          v-html="transforHtml(p.description)"
+                          slot="content"
+                        ></div>
+                        <i class="el-icon-info"></i>
+                      </el-tooltip>
+                    </span>
+
+                    <div style="flex: 1">
+                      <template v-if="p.hint && p.hint.choices">
+                        <el-select
+                          v-model="p.value"
+                          placeholder=""
+                          style="
+                            margin-left: 0px;
+                            width: 100%;
+                            margin-bottom: 8px;
+                          "
+                          :disabled="
+                            p.name === 'security_policy' && policyDisabled
+                          "
+                          @change="handleAuthentication(p)"
+                        >
+                          <el-option
+                            v-for="c in p.hint.choices"
+                            :key="c"
+                            :label="c"
+                            :value="c"
+                          ></el-option>
+                        </el-select>
+                      </template>
+                      <template v-if="p.hint && p.hint.type == 'file'">
+                        <el-upload
+                          class="upload-demo"
+                          ref="upload"
+                          accept=".csv"
+                          :limit="limit"
+                          :data="uploadData"
+                          :action="uploadUrl"
+                          :on-success="
+                            p.name == 'certificate'
+                              ? handleCertSuccess
+                              : handlePrivateSuccess
+                          "
+                          :file-list="
+                            p.name == 'certificate'
+                              ? certfileList
+                              : privatefileList
+                          "
+                          :auto-upload="true"
+                        >
+                          <el-button
+                            slot="trigger"
+                            size="small"
+                            type="primary"
+                            >{{ $t("datasource.selectfile") }}</el-button
+                          >
+                        </el-upload>
+                      </template>
+                      <el-input
+                        v-if="
+                          p.hint && !p.hint.choices && p.hint.type !== 'file'
+                        "
+                        v-model="p.value"
+                        :type="
+                          p.name == 'password' || p.name == 'token'
+                            ? 'password'
+                            : textareas.includes(p.name)
+                            ? 'textarea'
+                            : 'text'
+                        "
+                        style="margin-bottom: 8px"
+                      ></el-input>
+                      <div
+                        class="description"
+                        v-if="
+                          !['security_mode', 'security_policy'].includes(p.name)
+                        "
+                        v-html="transforHtml(p.description)"
+                      ></div>
+                    </div>
                   </div>
-                </div>
+                </template>
               </el-tab-pane>
             </template>
           </el-tabs>
         </div>
       </section>
       <section
-        :class="['groups-dataset', dbsource[0].datasets?.name]"
+        :class="[
+          'groups-dataset',
+          opcPointavalible ? 'avalible' : 'notallowed',
+        ]"
         v-if="dbsource[0]?.datasets"
       >
         <div style="flex-direction: column; align-items: baseline">
@@ -246,30 +321,33 @@
                     size="medium"
                     @click="handleSelBtn"
                     style="height: 42px"
-                    >Select</el-button
+                    >{{ $t("datasource.select") }}</el-button
                   >
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
-                    placeholder="Regex Pattern Input"
+                    :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     :disable="p.target.selectable"
                     @keydown.enter.native="searchDatas"
                   ></el-input>
                   <div>
-                    <div
-                      class="searchList"
-                      v-loading="loading"
-                      v-if="configurationdata.length > 0"
-                    >
-                      <div
-                        v-for="c in configurationdata"
-                        :key="c.id"
-                        :class="[activeDataSet.id == c.id ? 'actived' : '']"
-                        @click="handelDataSet(c)"
-                      >
-                        {{ c.id }}
-                      </div>
+                    <div class="searchList" v-loading="loading">
+                      <el-empty
+                        :image-size="80"
+                        v-if="configurationdata.length <= 0"
+                      ></el-empty>
+                      <template v-else>
+                        <div
+                          class="searchListItem"
+                          v-for="c in configurationdata"
+                          :key="c.id"
+                          :class="[activeDataSet.id == c.id ? 'actived' : '']"
+                          @click="handelDataSet(c)"
+                        >
+                          {{ c.id }}
+                        </div>
+                      </template>
                     </div>
                     <template
                       v-if="
@@ -286,7 +364,7 @@
                             <span
                               :class="['label', o.required ? 'required' : '']"
                             >
-                              {{ o.name }}
+                              {{ o.display }}
                             </span>
                             <el-input placeholder="" v-model="o.value" />
                           </div>
@@ -297,7 +375,7 @@
                             type="primary"
                             plain
                             @click="addOption"
-                            >Add</el-button
+                            >{{ $t("datasource.add") }}</el-button
                           >
                         </div>
                       </div>
@@ -310,7 +388,16 @@
         </template>
       </section>
       <template v-for="(item, gind) in dbsource[0].groups">
-        <section :class="['groups', item.name]" :key="gind">
+        <section
+          :class="[
+            'groups',
+            ['库表配置', 'Table Config'].includes(item.name)
+              ? 'tableconfig'
+              : item.name,
+            opcPointavalible ? 'avalible' : 'notallowed',
+          ]"
+          :key="gind"
+        >
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
               <span>{{ item.name }}</span>
@@ -330,9 +417,6 @@
               style="display: flex; align-items: flex-start"
             >
               <span style="color: #4259ce; margin-right: 10px">SSL/TLS</span>
-              <!-- <template v-if="item.hasOwnProperty('collapsed')">
-                <el-switch v-model="item.collapsed"> </el-switch>
-              </template> -->
               <el-switch v-model="item.collapsed"> </el-switch>
             </div>
           </template>
@@ -351,20 +435,47 @@
                     v-if="
                       p.hint === 'str' ||
                       p.hint === 'timeout' ||
-                      p.hint.type == 'file'
+                      (p.hint && p.hint.type == 'file')
                     "
                   >
-                    <el-input
-                      v-model="p.value"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
-                      :type="
-                        p.hint.type && p.hint.type == 'file'
-                          ? 'textarea'
-                          : 'text'
-                      "
-                    ></el-input>
+                    <template v-if="p.hint && p.hint.type == 'file'">
+                      <el-upload
+                        class="upload-demo"
+                        ref="upload"
+                        accept=".csv"
+                        :limit="limit"
+                        :data="uploadData"
+                        :action="uploadUrl"
+                        :on-success="
+                          p.name == 'ca'
+                            ? handleMqttCaSuccess
+                            : p.name == 'cert'
+                            ? handleMqttCertSuccess
+                            : handleMqttCertKeySuccess
+                        "
+                        :file-list="
+                          p.name == 'ca'
+                            ? mqttcafile
+                            : p.name == 'cert'
+                            ? mqttcertfile
+                            : mqttcertkeyfile
+                        "
+                        :auto-upload="true"
+                      >
+                        <el-button slot="trigger" size="small" type="primary">{{
+                          $t("datasource.selectfile")
+                        }}</el-button>
+                      </el-upload>
+                    </template>
+                    <template v-else>
+                      <el-input
+                        v-model="p.value"
+                        :placeholder="p.placeholder ? p.placeholder : ''"
+                        :type="text"
+                      ></el-input>
+                    </template>
                   </template>
-                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                  <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select v-model="p.value" placeholder="">
                         <el-option
@@ -383,7 +494,8 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      (p.hint === 'bool' ||
+                        (p.hint && p.hint.type === 'bool')) &&
                       p.name == 'clean_session'
                     "
                   >
@@ -400,12 +512,12 @@
                       ></el-checkbox>
                     </template>
                   </template>
-                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
+                  <template v-else-if="p.hint && p.hint.type === 'bool'">
                     <p-three-checkbox :data="checkboxData" v-model="p.value" />
                   </template>
                   <template
                     v-if="
-                      (p.hint.type && p.hint.type === 'integer') ||
+                      (p.hint && p.hint.type === 'integer') ||
                       p.hint === 'integer'
                     "
                   >
@@ -431,13 +543,30 @@
                   {{ p.display ? p.display : p.name }}
                 </span>
                 <div class="label-value">
+                  <template v-if="p.hint && p.hint.type == 'file'">
+                    <el-upload
+                      class="upload-demo"
+                      ref="upload"
+                      accept=".csv"
+                      :limit="limit"
+                      :data="uploadData"
+                      :action="uploadUrl"
+                      :on-success="handleSuccess"
+                      :file-list="fileList"
+                      :auto-upload="true"
+                    >
+                      <el-button slot="trigger" size="small" type="primary">{{
+                        $t("datasource.selectfile")
+                      }}</el-button>
+                    </el-upload>
+                  </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
                     <el-input
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input>
                   </template>
-                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                  <template v-if="p.hint?.type && p.hint?.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select
                         v-model="p.value"
@@ -459,7 +588,7 @@
                   </template>
                   <template
                     v-if="
-                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      (p.hint === 'bool' || p.hint?.type === 'bool') &&
                       p.name == 'clean_session'
                     "
                   >
@@ -476,12 +605,16 @@
                       ></el-checkbox>
                     </template>
                   </template>
-                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
-                    <p-three-checkbox :data="checkboxData" v-model="p.value" />
+                  <template v-else-if="p.hint?.type && p.hint?.type === 'bool'">
+                    <p-three-checkbox
+                      :data="checkboxData"
+                      v-model="p.value"
+                      @changeThreeCheckbox="getThreeBoxNum($event, p)"
+                    />
                   </template>
                   <template
                     v-if="
-                      (p.hint.type && p.hint.type === 'integer') ||
+                      (p.hint && p.hint.type === 'integer') ||
                       p.hint === 'integer'
                     "
                   >
@@ -499,7 +632,13 @@
                 </div>
               </div>
               <template v-if="p.name == 'opc_table_config'">
-                <div :key="pind">
+                <div
+                  :key="pind"
+                  :class="[
+                    'opcconf',
+                    opcPointavalible ? 'avalible' : 'notallowed',
+                  ]"
+                >
                   <opcConnector
                     :opcConfig="opcConfig"
                     :isEditable="isEditable"
@@ -515,8 +654,8 @@
       </template>
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <section class="ungrounded" v-if="dbsource[0].params"></section>
-      <section v-if="tagName == 'mqtt'" class="mqtt-config">
+      <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
+      <section v-if="tagName == 'mqtt' || tagName == 'kafka'" class="mqtt-config">
         <div class="header">
           <div class="block-title">
             <span>{{ dbsource[0].parser?.display }}</span>
@@ -536,7 +675,15 @@
           ></MqttConnector>
         </div>
       </section>
-      <section class="choose-db">
+      <section v-if="tagName == 'csv'">
+        <CsvData
+          :isEditable="isEditable"
+          :echoData="echoData"
+          ref="csvdata"
+          :dbName="dbName"
+        ></CsvData>
+      </section>
+      <section class="choose-db" v-else>
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
@@ -548,9 +695,12 @@
         </el-select>
       </section>
       <section class="bottom">
-        <el-button type="primary" @click="submit" :disabled="disable"
-          >Submit</el-button
-        >
+        <el-button @click="cancel" class="cancel-btn">{{
+          $t("cancel")
+        }}</el-button>
+        <el-button type="primary" @click="submit" :disabled="disable">{{
+          $t("submit")
+        }}</el-button>
       </section>
     </div>
     <div class="right-ui">
@@ -566,11 +716,14 @@
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import marked from "marked";
+import CsvData from "../components/csvData.vue";
 import { decrypt, debounce, deepClone } from "@/utils/index";
+import { validPath } from "@/utils/validate";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
-import MqttConnector from "../components/mqttConnector.vue";
+import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 export default {
   name: "DbSourceUI",
@@ -578,6 +731,7 @@ export default {
     "p-three-checkbox": PThreeCheckbox,
     MqttConnector,
     opcConnector,
+    CsvData,
   },
   props: {
     echoData: {
@@ -633,9 +787,22 @@ export default {
   },
   data() {
     return {
+      limit: 1,
+      opcPointavalible: true,
+      mqttcafile: [],
+      mqttcertfile: [],
+      mqttcertkeyfile: [],
+      fileList: [],
+      certfileList: [],
+      privatefileList: [],
+      uploadData: {
+        req_id: new Date().getTime(),
+      },
+      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
+      sourceName: localStorage.getItem("datainName"),
       openSSL: false,
       constmqttCols: [],
-      textareas: ["ca", "cert", "cert_key", "certificate"],
+      textareas: ["ca", "cert", "cert_key"],
       styleobj: {
         width: "100%",
         display: "flex",
@@ -660,6 +827,7 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
+      dbprecision: '',
       isShowConfiguration: false,
       loading: false,
       configurationdata: [],
@@ -669,6 +837,7 @@ export default {
         label: "",
         disabled: false,
       },
+      policyDisabled: true,
       // dbsource: [],
     };
   },
@@ -679,12 +848,113 @@ export default {
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
+      if (this.dbsource[0].authentication) {
+        this.dbsource[0].authentication.alternatives =
+          this.dbsource[0].authentication.alternatives.map((item) => {
+            if (item.name === "certificates") {
+              item.params.map((par, index) => {
+                if (par.name === "security_mode") {
+                  this.policyDisabled = par.value && par.value === "None";
+                  if (par.value && par.value !== "None") {
+                    item.params[2].required = true;
+                    item.params[3].required = true;
+                  }
+                }
+                return par;
+              });
+            }
+            return item;
+          });
+      }
     }
   },
   mounted() {
-    if (this.tagName == "mqtt") {
+    if (this.tagName == "mqtt" || this.tagName == 'kafka') {
       this.constmqttCols = this.dbsource[0].parser.fields;
+      let caitem = this.$store.state.app.mqttcafile[0];
+      let certitem = this.$store.state.app.mqttcertfile[0];
+      let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
+      if (
+        caitem &&
+        certitem &&
+        certkeyitem &&
+        caitem.length > 0 &&
+        certitem.length > 0 &&
+        certkeyitem.length > 0
+      ) {
+        this.mqttcafile = [].concat({
+          name: caitem?.substr(caitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(caitem),
+          size: 87,
+          status: "success",
+          uid: 3,
+        });
+        this.mqttcertfile = [].concat({
+          name: certitem?.substr(certitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(certitem),
+          size: 87,
+          status: "success",
+          uid: 4,
+        });
+        this.mqttcertkeyfile = [].concat({
+          name: certkeyitem?.substr(certkeyitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(certkeyitem),
+          size: 87,
+          status: "success",
+          uid: 5,
+        });
+      }
     }
+    if (this.tagName.includes("opc")) {
+      let flag =
+        this.dbsource[0].groups[0].params[0].value == "true" ? true : false;
+      let certitem = this.$store.state.app.opccertfiles[0];
+      let privateitem = this.$store.state.app.opcprivatefiles[0];
+      if (certitem && privateitem) {
+        this.certfileList = [].concat({
+          name: certitem?.substr(certitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(certitem),
+          size: 87,
+          status: "success",
+          uid: 2,
+        });
+        this.privatefileList = [].concat({
+          name: privateitem?.substr(privateitem.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(privateitem),
+          size: 87,
+          status: "success",
+          uid: 2,
+        });
+      }
+
+      if (flag) {
+        this.opcPointavalible = false;
+        let item = this.$store.state.app.opcnodesfiles[0];
+
+        this.fileList = [].concat({
+          name: item?.substr(item.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(item),
+          size: 87,
+          status: "success",
+          uid: 1,
+        });
+      } else {
+        this.opcPointavalible = true;
+      }
+    }
+    
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
@@ -698,8 +968,52 @@ export default {
         }
       },
     },
+    dbname: {
+      handler() {
+        if ( this.tagName == "kafka") {
+          this.getdbprecision()
+        }
+      }
+    }
   },
   methods: {
+    //处理空值和‘undefined’字符值
+    handleEmptyValue(val) {
+      return (
+        !Object.is(val, null) &&
+        !Object.is(val, undefined) &&
+        !Object.is(val, "") &&
+        !Object.is(val, "undefined")
+      );
+    },
+    getThreeBoxNum(val, item) {
+      if (item.name == "use_csv_config") {
+        if (val == 1) {
+          this.opcPointavalible = false;
+        } else {
+          this.opcPointavalible = true;
+        }
+      }
+    },
+    handleCertSuccess(response, file, fileList) {
+      this.certfileList = fileList;
+    },
+    handlePrivateSuccess(response, file, fileList) {
+      this.privatefileList = fileList;
+    },
+    handleSuccess(response, file, fileList) {
+      this.fileList = fileList;
+    },
+    handleMqttCaSuccess(response, file, fileList) {
+      this.mqttcafile = fileList;
+    },
+    handleMqttCertSuccess(response, file, fileList) {
+      this.mqttcertfile = fileList;
+    },
+    handleMqttCertKeySuccess(response, file, fileList) {
+      this.mqttcertkeyfile = fileList;
+    },
+
     //opc需要存入库的字段
     changeEchoData(arr) {
       this.$parent.echoData = deepClone(arr);
@@ -736,6 +1050,36 @@ export default {
       }
     },
 
+    handleAuthentication(p) {
+      if (p.name === "security_mode") {
+        this.dbsource[0].authentication.alternatives =
+          this.dbsource[0].authentication.alternatives.map((item) => {
+            if (item.name === "certificates") {
+              item.params.map((par) => {
+                if (["certificate", "private_key"].includes(par.name)) {
+                  par.required = p.value === "None" ? false : true;
+                }
+                if (par.name === "security_policy") {
+                  this.policyDisabled = p.value === "None";
+                  if (p.value === "None") {
+                    par.value = "";
+                  }
+                }
+                return par;
+              });
+            }
+            return item;
+          });
+      }
+    },
+
+    async getdbprecision() {
+      let res = await sendSQLReq(`select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`)
+      if (res && res.code == 0) {
+        this.dbprecision = res.data[0][0]
+      }
+    },
+
     async submit() {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -747,22 +1091,25 @@ export default {
             ? ""
             : data.protocol.value;
         }
-        for (let key of Object.keys(data.options)) {
-          if (
-            Object.hasOwnProperty.call(data.options[key], "required") &&
-            (data.options[key]["value"] == "" ||
-              data.options[key]["value"] == undefined)
-          ) {
-            Message({
-              type: "warning",
-              message:
-                this.$t("datasource.msg") +
-                ":" +
-                `${data.options[key].display} `,
-            });
-            return;
+        if (this.tagName != "csv") {
+          for (let key of Object.keys(data.options)) {
+            if (
+              Object.hasOwnProperty.call(data.options[key], "required") &&
+              (data.options[key]["value"] == "" ||
+                data.options[key]["value"] == undefined)
+            ) {
+              Message({
+                type: "warning",
+                message:
+                  this.$t("datasource.msg") +
+                  ":" +
+                  `${data.options[key].display} `,
+              });
+              return;
+            }
           }
         }
+
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (data.authentication && data.authentication.value == "plain") {
           if (
@@ -816,19 +1163,35 @@ export default {
               (data.groups[index].params[g]["value"] == undefined ||
                 data.groups[index].params[g]["value"] == "")
             ) {
-              if (this.tagName == "mqtt") {
-
+              if (this.tagName == "mqtt" || this.tagName == "kafka") {
                 if (data.groups[index].collapsed) {
-                  Message({
-                    type: "warning",
-                    message:
-                      this.$t("datasource.msg") +
-                      ":" +
-                      `${data.groups[index].params[g].display} `,
-                  });
-                  return;
+                  if (
+                    this.tagName == "mqtt" &&
+                    this.mqttcafile.length > 0 &&
+                    this.mqttcertfile.length > 0 &&
+                    this.mqttcertkeyfile.length > 0
+                  ) {
+                    if (data.groups[index].params[g].name == "ca") {
+                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcafile[0].response[0]}`;
+                    }
+                    if (data.groups[index].params[g].name == "cert") {
+                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertfile[0].response[0]}`;
+                    }
+                    if (data.groups[index].params[g].name == "cert_key") {
+                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertkeyfile[0].response[0]}&`;
+                    }
+                  } else {
+                    Message({
+                      type: "warning",
+                      message:
+                        this.$t("datasource.msg") +
+                        ":" +
+                        `${data.groups[index].params[g].display} `,
+                    });
+                    return;
+                  }
                 }
-                if (data.groups[index].params[g].name == "topics") {
+                if (data.groups[index].params[g].name == "topics" && this.tagName == 'mqtt') {
                   Message({
                     type: "warning",
                     message:
@@ -840,16 +1203,18 @@ export default {
                 }
               } else {
                 if (this.tagName.includes("opc")) {
-                  this.$refs.opcsingleton[0].submit();
-                  if (this.$refs.opcsingleton[0].isReject) {
-                    Message({
-                      type: "warning",
-                      message:
-                        this.$t("datasource.msg") +
-                        ":" +
-                        `${data.groups[index].params[g].display} `,
-                    });
-                    return;
+                  if (this.opcPointavalible) {
+                    this.$refs.opcsingleton[0].submit();
+                    if (this.$refs.opcsingleton[0].isReject) {
+                      Message({
+                        type: "warning",
+                        message:
+                          this.$t("datasource.msg") +
+                          ":" +
+                          `${data.groups[index].params[g].display} `,
+                      });
+                      return;
+                    }
                   }
                 } else {
                   Message({
@@ -863,12 +1228,27 @@ export default {
                 }
               }
             } else {
-              if (data.groups[index].params[g].value) {
+              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 if (data.groups[index].params[g].name === "use_received_time") {
                   if (data.groups[index].params[g].value !== 0) {
                     let value = data.groups[index].params[g].value === 1;
                     querystr +=
                       `${data.groups[index].params[g].name}=${value}` + "&";
+                  }
+                } else if (data.groups[index].params[g].name === "path") {
+                  if (!validPath(data.groups[index].params[g].value)) {
+                    Message({
+                      type: "warning",
+                      message:
+                        `${data.groups[index].params[g].display} ` +
+                        ":" +
+                        this.$t("formatWrong"),
+                    });
+                    return;
+                  } else {
+                    querystr +=
+                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                      "&";
                   }
                 } else {
                   if (this.tagName == "mqtt") {
@@ -887,7 +1267,11 @@ export default {
                     if (
                       data.groups[index].params[g].name != "opc_table_config"
                     ) {
-                      if (data.groups[index].params[g].name == "debug") {
+                      if (
+                        data.groups[index].params[g].name == "debug" ||
+                        data.groups[index].params[g].name == "use_csv_config" ||
+                        data.groups[index].params[g].name == "enable"
+                      ) {
                         querystr +=
                           `${data.groups[index].params[g].name}=${
                             data.groups[index].params[g].value == 1
@@ -908,11 +1292,42 @@ export default {
             }
           }
         }
-        console.log(querystr, "querystr");
-        if (data.authentication && data.authentication.value == "certificates") {
-          data.authentication.alternatives[2].params.forEach((val) => {
-            querystr += val.value ? `${val.name}=${val.value}&` : "";
-          });
+        if (
+          data.authentication &&
+          data.authentication.value == "certificates"
+        ) {
+          for (
+            let i = 0;
+            i < data.authentication.alternatives[2].params.length;
+            i++
+          ) {
+            let type = data.authentication.alternatives[2].params[i].hint.type;
+            let authName = data.authentication.alternatives[2].params[i].name;
+
+            let authValue =
+              type == "file"
+                ? authName == "certificate"
+                  ? this.certfileList.length > 0
+                    ? "@" + this.certfileList[0].response[0]
+                    : ""
+                  : this.privatefileList.length > 0
+                  ? "@" + this.privatefileList[0].response[0]
+                  : ""
+                : data.authentication.alternatives[2].params[i].value;
+            let authDisplay =
+              data.authentication.alternatives[2].params[i].display;
+            let authRequired =
+              data.authentication.alternatives[2].params[i].required;
+            if (authRequired && !authValue) {
+              Message({
+                type: "warning",
+                message: this.$t("datasource.msg") + ":" + `${authDisplay} `,
+              });
+              return;
+            } else {
+              querystr += authValue ? `${authName}=${authValue}&` : "";
+            }
+          }
         }
         if (data.datasets) {
           for (
@@ -929,12 +1344,25 @@ export default {
                 target.value == undefined ||
                 target.value?.length == 0)
             ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${target.name} `,
-              });
-              return;
+              if (this.tagName.includes("opc") && !this.opcPointavalible) {
+                console.log("无提示");
+              } else {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${target.name} `,
+                });
+                return;
+              }
             } else {
+              //opc测点手动上传
+              let dnsarr = querystr.split("&");
+              let idx = dnsarr.findIndex((item) =>
+                item.includes("csv_config_file=")
+              );
+              if (idx > -1) {
+                dnsarr.splice(idx, 1);
+                querystr = dnsarr.join("&");
+              }
               if (Array.isArray(target.value)) {
                 if (target.value?.length > 0) {
                   let str = "";
@@ -952,7 +1380,9 @@ export default {
         if (querystr) {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
-
+        if (this.tagName == "csv") {
+          this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
+        }
         if (!this.dbname) {
           Message({
             type: "warning",
@@ -960,10 +1390,9 @@ export default {
           });
           return;
         }
-        if (this.tagName == "mqtt") {
-          this.$refs.mqtt.submit();
-          console.log(this.$refs.mqtt, "mqtt");
+        if (this.tagName == "mqtt" || this.tagName == 'kafka') {
           if (this.$refs.mqtt) {
+            this.$refs.mqtt.submit();
             if (this.$refs.mqtt.showSuperTip) {
               Message({
                 type: "warning",
@@ -992,31 +1421,64 @@ export default {
         }
 
         if (this.tagName.includes("opc")) {
-          let oldData = this.$store.state.app.opcConfig;
-          let columnCons = oldData.column_configs.filter((item) =>
-            this.$parent.echoData.includes(item.column_name)
-          );
-          this.$store.commit("app/SET_OPC_CONFIG", {
-            column_configs: columnCons,
-            stable_prefix: oldData.stable_prefix,
-          });
-          let saveConf = {
-            column_configs: columnCons,
-            stable_prefix: oldData.stable_prefix,
-          };
-          dns += "&opc_table_config=" + JSON.stringify(saveConf);
+          if (this.opcPointavalible) {
+            let oldData = this.$store.state.app.opcConfig;
+            let columnCons = oldData.column_configs.filter((item) =>
+              this.$parent.echoData.includes(item.column_name)
+            );
+            this.$store.commit("app/SET_OPC_CONFIG", {
+              column_configs: columnCons,
+              stable_prefix: oldData.stable_prefix,
+            });
+            let saveConf = {
+              column_configs: columnCons,
+              stable_prefix: oldData.stable_prefix,
+            };
+            let prefix = dns.split("?")[0];
+            let dnsarr = dns.split("?")[1].split("&");
+            let indx = dnsarr.findIndex((item) =>
+              item.includes("opc_table_config=")
+            );
+            if (indx > -1) {
+              dnsarr.splice(indx, 1);
+              dns = prefix + "?" + dnsarr.join("&");
+            }
+            dns += "&opc_table_config=" + JSON.stringify(saveConf);
+          } else {
+            if (this.fileList.length == 0) {
+              Message({
+                type: "warning",
+                message: this.$t("datasource.uploadtip"),
+              });
+              return;
+            }
+            let prefix = dns.split("?")[0];
+            let dnsarr = dns.split("?")[1].split("&");
+            let ind = dnsarr.findIndex((item) =>
+              item.includes("csv_config_file")
+            );
+            if (ind > -1) {
+              dnsarr.splice(
+                ind,
+                1,
+                `&csv_config_file=@` + this.fileList[0].response[0]
+              );
+              dns = prefix + "?" + dnsarr.join("&");
+            } else {
+              dns += `&csv_config_file=@` + this.fileList[0].response[0];
+            }
+          }
         }
-        console.log(dns, querystr, "mqtt调用接口前的参数拼接");
         let piParams = {
           from:
-            (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
-            // (data.protocol
-            //   ? Object.is(data.protocol.value, "--")
-            //     ? ""
-            //     : "+"
-            //   : "") +
-            dns,
-          name: localStorage.getItem("datainName"),
+            (this.tagName == "mqtt"
+              ? "mqtt"
+              : this.tagName == "csv"
+              ? "csv"
+              : this.tagName == "kafka"
+              ? "kafka"
+              : "opc" + this.protocol) + dns,
+          name: this.sourceName,
           to:
             "taos+" +
             localStorage.getItem("base_url") +
@@ -1030,9 +1492,56 @@ export default {
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
+        if (this.tagName == 'kafka') {
+          let value = this.$store.state.app.mqttParser.parse.payload;
+          piParams["parser"] = {
+            ...this.$store.state.app.mqttParser,
+            parse: {
+              value: {
+                ...value,
+                keep: false
+              },
+              ts: {
+                as: `timestamp(${this.dbprecision})`
+              } 
+            }
+          };
+        }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
         }
+        if (this.tagName == "csv") {
+          this.$refs.csvdata.$refs.param.submit2()
+          if(!this.$refs.csvdata.$refs.param.isAllValid){
+            return
+          }
+          let model = this.$store.state.app.csvParser.model;
+          let parse = this.$store.state.app.csvParser.parse;
+          model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname
+
+          model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
+          piParams["parser"] = this.$store.state.app.csvParser;
+
+          let flag = Object.keys(parse).some((item) => parse[item].as == "");
+          if (
+            model.columns.length == 0 ||
+            model.tags.length==0||
+            model.columns[0] == undefined ||
+            flag
+          ) {
+            Message.error(this.$t('datasource.csvwholeinfo'));
+            return;
+          }
+          piParams["from"] =
+            `csv:` +
+            this.$refs.csvdata.fileList.map((item, index) => {
+              return item.response[0];
+            }) +
+            dns.substring(3) +
+            `&has_header=` +
+            this.$refs.csvdata.$refs.param.ruleForm.hasHeader+(!this.$refs.csvdata.$refs.param.ruleForm.hasHeader?`&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`:'');
+        }
+
         if (this.isEditable) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
@@ -1058,6 +1567,11 @@ export default {
           Message.error(err.response.data.message);
       }
     },
+
+    cancel() {
+      this.$parent.currentName = "dbsource";
+    },
+
     handleClick(tab, event) {
       this.isShowConfiguration = false;
       this.configurationdata = [];
@@ -1073,17 +1587,22 @@ export default {
         (item) => item.id === this.activeDataSet.id
       );
       let enterTip = this.$t("dataIn.enterTip");
-      let format = curData[0].id;
+      // let format = curData[0].id;
+      let format = curData[0].format;
+      format = format.replace("{id}", curData[0].id);
       let options = curData[0].options;
       for (let i = 0; i < options.length; i++) {
         if (options[i].required && !options[i].value) {
           Message({
             type: "warning",
-            message: `${enterTip} ${options[i].name}`,
+            message: `${enterTip} ${options[i].display}`,
           });
           return;
         }
-        format += `::${options[i].value}`;
+        // format += `::${options[i].value}`;
+        if (format.indexOf(options[i].name) !== -1) {
+          format = format.replace(`{${options[i].name}}`, options[i].value);
+        }
       }
       let categories = [];
       categories = this.dbsource[0].datasets.categories.map((cate) => {
@@ -1117,7 +1636,6 @@ export default {
       }
     },
     searchDatas: debounce(function (e) {
-      console.log('搜索');
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
@@ -1132,7 +1650,10 @@ export default {
 
         let dns = "";
         let querystr = "";
-        if (data.authentication && data.authentication.value == "certificates") {
+        if (
+          data.authentication &&
+          data.authentication.value == "certificates"
+        ) {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
           });
@@ -1178,8 +1699,19 @@ export default {
         this.loading = true;
         getUaAndDaData(params)
           .then((res) => {
+            if (res && res.code && res.code != 0) {
+              Message({
+                type: "error",
+                message: res && res.message,
+              });
+            } else {
+              this.configurationdata = res;
+              Message({
+                type: "success",
+                message: this.$t("operateSucc"),
+              });
+            }
             this.loading = false;
-            this.configurationdata = res;
           })
           .catch((err) => {
             Message({
@@ -1196,7 +1728,6 @@ export default {
 </script>
 <style>
 .el-select-dropdown__item {
-  font-family: "element-icons" !important;
   font-weight: 500;
 }
 </style>
@@ -1223,12 +1754,40 @@ export default {
     color: #acaab2;
     white-space: pre-wrap;
   }
+  .left-ui.readable {
+    position: relative;
+    &::before {
+      content: "";
+      background: #f2f6fc40;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+    }
+  }
   .left-ui {
+    position: relative;
     overflow: auto;
     min-width: 800px;
+
     .description {
-      max-width: 500px;
+      max-width: 568px;
       overflow: auto;
+    }
+    .source-name {
+      border: 1px solid #e3e4e6;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      .name {
+        display: flex;
+        align-items: center;
+        ::v-deep .el-input {
+          flex: 1;
+        }
+      }
     }
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
@@ -1255,7 +1814,8 @@ export default {
       align-items: center;
       width: 8px;
     }
-    .label.required, .no-label.required {
+    .label.required,
+    .no-label.required {
       position: relative;
       &::before {
         content: "*";
@@ -1266,7 +1826,7 @@ export default {
         left: -10px;
       }
     }
-  
+
     .header {
       margin-bottom: 20px;
       h1 {
@@ -1365,6 +1925,7 @@ export default {
   .right-ui {
     margin-left: 20px;
     padding-top: 50px;
+    width: 500px;
     :deep {
       .v-note-panel {
         border-radius: 12px;
@@ -1375,6 +1936,7 @@ export default {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 0px !important;
+    white-space: normal !important;
   }
   :deep {
     .el-input-number__increase,
@@ -1413,9 +1975,11 @@ export default {
       height: 210px;
       border: 1px solid #dcdfe6;
       overflow-y: auto;
-      > div {
+      position: relative;
+      .searchListItem {
         border-bottom: 1px solid #dcdfe6;
         line-height: 30px;
+        padding-left: 5px;
       }
       .actived {
         color: #4259ce;
@@ -1479,6 +2043,31 @@ export default {
         }
       }
     }
+  }
+  .opcconf {
+    &.notallowed {
+      position: relative;
+      display: none;
+      // &::after {
+      //   content:'';
+      //   position: absolute;
+      //   top: 0;
+      //   bottom: 0;
+      //   left: 0;
+      //   right: 0;
+      //   background: #f2f6fc40;
+      //   z-index:9999;
+      // }
+    }
+  }
+  .groups-dataset.notallowed {
+    display: none;
+  }
+  .groups.tableconfig.notallowed {
+    display: none;
+  }
+  .cancel-btn {
+    z-index: 101;
   }
 }
 </style>

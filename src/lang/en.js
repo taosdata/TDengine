@@ -13,7 +13,7 @@ export default {
   warning: 'Warning',
   ok: 'OK',
   changepwdtip: 'Password is successfully changed, please log in again',
-  systemTitle: "TDengine Management system",
+  systemTitle: "TDengine Management System",
   copyright: 'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
@@ -56,7 +56,8 @@ export default {
   save: "Save",
   error: "Error",
   copy: "Copy",
-  copyagent: "Copy the token to Agent's configuration file",
+  copyagent: "Introduction to Agent Usage",
+  copyagentWaring:"Make sure to copy your agent token now. You won't be able see it again",
   share: "Share",
   shareSucc: "Share success",
   shareFail: "Failed to share",
@@ -154,6 +155,7 @@ export default {
   revoke: "revoke",
   read: "read",
   write: "write",
+  subscribe: 'Subscribe',
   plan: {
     pricePlan: "Price Plan",
     planTitle: "TDengine  Price Plan",
@@ -256,11 +258,11 @@ export default {
     programming: "Programming",
     healthreport: 'Health Report',
     backup: "Backup",
-    admin: "System management",
+    admin: "Management",
     cluster: 'Cluster'
   },
   login: {
-    versiontip: 'Only enterprise edition is supported!',
+    versiontip: 'Only enterprise edition is supported.The current user does not have permission to view system information, login failed!',
     signin: 'Sign In',
     taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: 'Log in Explorer',
@@ -318,7 +320,9 @@ export default {
     rememberMe: "Remember me",
     usernameTips: 'Please enter the Username',
     passwordTips: 'Please enter the Password',
-    errorTip: 'The user name or password is incorrect'
+    errorTip: 'The user name or password is incorrect',
+    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.',
+    servTaosdTip: 'Your taosd service is abnormal. Restart the taosd service and ensure that the service is available.',
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
@@ -515,7 +519,11 @@ export default {
       "Control how code samples in the documentation are populated with system resources. Not all code samples make use of system resources.",
     createToken: "Create TOKEN",
     generateTokenTip: "There are not any API tokens, you have to generate one to connect to TDengine .",
-    enterTip: "Please enter"
+    enterTip: "Please enter",
+    level: 'Level',
+    activity: 'Activity',
+    context: 'Context',
+    at: 'Time'
   },
   replication: {
     theTaskWithId: "the task with id {id}",
@@ -749,7 +757,13 @@ export default {
     connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
     subscriptionTitle: `Subscribe to data updates using`,
-    subscriptions: 'data subscriptions'
+    subscriptions: 'data subscriptions',
+    startTime: 'Start time',
+    endTime: 'End time',
+    cols: 'Cols',
+    tags: 'Tags',
+    kafka: 'Kafka',
+    kafkaTopic: 'Kafka Topic'
   },
   dataout: {
     dump: {
@@ -1114,6 +1128,31 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    csvwholeinfo:'Please fill in the complete csv information',
+    customcolname:'Custom Columns',
+    customcol:'Please enter custom columns',
+    uploadcsvtip:'Please upload file or enter the file url',
+    copytokentip:'Copy Token to Agent configuration file',
+    uploadtip:'Please upload the csv file',
+    uploadcsv:'Upload CSV file',
+    configcsv:'Configuration CSV URL',
+    upfile:'Upload',
+    selectfile:'Select File',
+    fileurl:"File URL",
+    csvcol:'CSV Column',
+    dbcol:'DB Column',
+    tabletip:'Please enter the table name',
+    percisiontip:'Please select the percision',
+    includeheader:'Include Header',
+    percision:'Percison',
+    csvtable:'Table Name',
+    csvNext:'Next',
+    ms:'ms',
+    μs:'μs',
+    ns:'ns',
+    getschema:'Get Schema',
+    refreshsuccess:'Refreshed Scucessfully',
+    influxdbtip:'Choose or create a TDengine database with precision of ns',
     taskid:'Task ID',
     opcconfig:'Table Config',
     tmqprotocol:'Native',
@@ -1187,8 +1226,9 @@ export default {
       <br /> 
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, proxies are used to provide cross-network access to the data source.
     `,
-
-
+    select: 'Select',
+    add: 'Add',
+    regexPlaceholder: 'Regex Pattern Input'
   },
   explorer: {
     databases: 'Databases',
@@ -1522,7 +1562,7 @@ export default {
         step1desc:
           "taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDengine products. taosBenchmark can test the performance of TDengine&#39;s insert, query, and subscription functions and simulate large amounts of data generated by many devices. taosBenchmark can be configured to generate user defined databases, supertables, subtables, and the time series data to populate these for performance benchmarking. taosBenchmark is highly configurable and some of the configurations include the time interval for inserting data, the number of working threads and the capability to insert disordered data. The installer provides taosdemo as a soft link to taosBenchmark for compatibility with past users.",
         step1desc1:
-          "Please be noted that in the context of TDengine  service, non privileged user can&#39;t create database using any tool, including taosBenchmark. The database needs to be firstly created in the data explorer in TDengine  service console. For any content about creating database in this document, the user needs to ignore and create the database manually inside TDengine  service.",
+          "Please be noted that in the context of TDengine  service, non privileged user can't create database using any tool, including taosBenchmark. The database needs to be firstly created in the data explorer in TDengine  service console. For any content about creating database in this document, the user needs to ignore and create the database manually inside TDengine  service.",
         step2: "Installation",
         step2desc: "To use taosBenchmark, you need to download and install",
         step2desc1: " or downlaod and install ",
@@ -1531,7 +1571,7 @@ export default {
         step3: "Run",
         step31: "Configuration and running methods",
         step31desc: "Run this command in your Linux terminal to save  DSN as variable:",
-        step31desc1: "Users can use `-f &lt;json file&gt;` to specify a configuration file.",
+        step31desc1: "Users can use `-f json-file` to specify a configuration file.",
         step31desc2:
           "taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.",
         step31desc3: "Make sure that the TDengine cluster is running correctly before running taosBenchmark.",
@@ -1541,7 +1581,7 @@ export default {
         step33: "Sample configuration files",
         step34: "Configuration file examples",
         step35: "Query Scenario JSON Profile Example",
-        step4: "Configuration file parameters in detailed",
+        step4: "Configuration file parameters",
         step41: "General configuration parameters",
         step41desc: "The parameters listed in this section apply to all function modes.",
         step41desc1:
@@ -1684,6 +1724,9 @@ export default {
         step1desc: "You can create the Rust project:",
         step1desc1: "Then add the dependency to the `Cargo.toml` file:",
       },
+      createProject: 'Create Project',
+      step1desc: 'You can create the {0} project:',
+      step1desc1: 'Then add the dependency to the `{0}` file:',
       step2: "Configuration",
       step3: "Create Consumer",
       step3desc: "You can create a consumer as the following code:",
@@ -1697,18 +1740,19 @@ export default {
       enddesc1: ".",
     },
     dashboard: {
-      dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here。You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>  to install <a href='https://grafana.com/'>Grafana</a>。`,
-      step1: 'Installing Grafana',
-      step2: 'Install the TDengine data source plugin',
-      step3: 'Start the Grafana service',
-      step4: 'Logging into Grafana',
-      step5: 'Adding a TDengine Data Source',
-      step6: 'Importing dashboards',
-      tab1: 'Installing Grafana on Debian or Ubuntu',
-      tab2: 'Install Grafana on CentOS / RHEL',
+      monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
+      dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here.You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>.`,
+      step1: 'Install Grafana',
+      step2: 'Install TDengine Plugin',
+      step3: 'Start Grafana',
+      step4: 'Login Grafana',
+      step5: 'Add Data Source',
+      step6: 'Import Dashboard',
+      tab2: 'Installing Grafana on Debian or Ubuntu',
+      tab1: 'Install Grafana on CentOS / RHEL',
       tab2sub: 'Or install it with RPM package.',
-      pluginname1: 'Set up TDinsight manually',
-      pluginname2: 'Automated deployment of TDinsight',
+      pluginname2: 'Set up TDinsight manually',
+      pluginname1: 'Set up TDinsight automatically',
       plugin1: 'Install the latest version of the TDengine Data Source plugin from GitHub.',
       plugin2: `We provide an installation script <code>TDinsight.sh</code> to allow users to configure the installation automatically and quickly.<br/>
 
@@ -1719,7 +1763,7 @@ export default {
 
       nav: `Point to the <strong>Configurations -> Data Sources</strong> menu, and click the <strong>Add data source</strong> button.`,
       subsearch: 'Search for and select<strong> TDengine</strong>。',
-      settingtd: 'Configure the TDengine datasource.',
+      settingtd:  `Configure the TDengine datasource. For e.g.<code>http://localhost:6041</code>.`,
       savetest: "Save and test. It will report 'TDengine Data source is working' under normal circumstances.",
 
       import: `In the page of configuring data source, click<strong> Dashboards</strong> tab.`,
@@ -1778,12 +1822,42 @@ export default {
     fromsourceRequired: 'Please select the source',
     targetdsnRequired: 'Please input the target dsn',
     directoryRequired: 'Please input the directory',
-    activationLicense: 'Activate',
+    activationLicense: 'Activate License',
     activeCode: 'Activation code',
     cActiveCode: 'Activation Code for Connectors',
-    dataRestoration: 'Restore'
+    dataRestoration: 'Restore',
+    activeTip: 'Contact the TDengine customer success team to get the activation code'
   },
   taosagents: {
+    step1:'Install',
+    step2:'Configure',
+    step3:'Start',
+    step4:'Status',
+    step1linux:'Linux',
+    linuxdesc:`Download agent installer package from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
+    linuxcode:`cd $TMPDIR
+    mkdir agent-installer
+    cd agent-installer
+    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    tar xvf taosx-agent-latest-linux-x64.tar.gz
+    cd taosx-agent-*
+    ./install.sh
+    # remove files
+    #cd ../../; rm -rf agent-installer`,
+  step1window:'Windows',
+  windowdesc:`Download agent installer from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
+  step2sub1:'Configuration file path:',
+  step2sub2linux:`Configuration file path: <code>/etc/taos/agent.toml</code>`, 
+  step2sub2window:`Configuration file path: <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub3:'The configuration file is in TOML format, like bellow:',
+  step2sub4:'Copy the content to configuration file.',
+  step3sub1:'Start agent service with:',
+  step3sub2linux:`Start agent service with: <code>systemctl start taosx-agent</code> and use <code> systemctl status taosx-agent</code> to check the service status. `,
+  step3sub2window:`Start agent service with: <code>sc.exe start taosx-agent</code> and use <code>sc.exe query taosx-agent</code> to check the service status.`,
+  step3sub3linux:`If the agent token is error, the service will exit directly, you can check the logs with: <code>journalctl -u taosx-agent</code> on Linux`,
+  step3sub3window:`If the agent token is error, the service will exit directly, you can check the logs with or check the log file in <code>C:\\Program Files\\taosX\\log\\agent\\ </code>on Windows.`,
+  step4sub1:'Refresh agent status in the explorer to check if the agent connected correctly. The status of an Agent will be Alive when it has been connected.',
+    addagenttip:'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.',
     edittitle: 'Edit Agent',
     deletetip: `Are you sure to delete agent {id} ?`,
     eidtagent: 'Edit Agent',

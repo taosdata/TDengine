@@ -67,13 +67,16 @@ async fn main() -> anyhow::Result<()> {
         .log_level
         .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
         .unwrap_or(log::LevelFilter::Info);
-    let subscriber = tracing_subscriber::fmt()
+
+    let mut subscriber = tracing_subscriber::fmt()
         .with_level(true)
         .with_thread_ids(true)
         .with_thread_names(true)
-        .with_span_events(FmtSpan::ACTIVE)
         .with_max_level(log_level_to_tracing_level(log_level))
         .compact();
+    if log_level > log::LevelFilter::Info {
+        subscriber = subscriber.with_span_events(FmtSpan::ACTIVE);
+    }
     if atty::is(atty::Stream::Stdout) {
         subscriber.pretty().init();
     } else {
@@ -83,11 +86,13 @@ async fn main() -> anyhow::Result<()> {
     const EXPLORER_PORT: u16 = 6060;
     const EXPLORER_CLUSTER: &str = "http://localhost:6041";
     const EXPLORER_X_PAI: &str = "http://localhost:6050";
+    const EXPLORER_GRPC: &str = "http://localhost:6055";
     args.port.get_or_insert(EXPLORER_PORT);
     args.profile
         .cluster
         .get_or_insert(EXPLORER_CLUSTER.to_string());
     args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
+    args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
 
     let port = args.port.unwrap();
     let args = web::Data::new(args);
@@ -254,14 +259,10 @@ async fn x_api(
     // req_id: RequestId,
     api: web::Path<String>,
     args: web::Data<Args>,
-    mut body: web::Payload,
+    body: web::Payload,
 ) -> Result<HttpResponse, Error> {
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
-    }
-    let mut bytes = web::BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item?);
     }
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
@@ -270,7 +271,8 @@ async fn x_api(
         .wrap(Tracing)
         .finish();
     let method = req.method();
-    let mut client = client.request(method.clone(), url);
+    let client = client.request(method.clone(), url);
+    let mut client = client.timeout(Duration::from_secs(std::u64::MAX));
     *client.headers_mut() = req.headers().clone();
     let info = req.connection_info();
     if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
@@ -278,21 +280,15 @@ async fn x_api(
             .insert_header(("X-Forward-For", addr))
             .insert_header(("X-Real-IP", addr));
     }
-    let mut resp = client
-        .content_type(req.content_type())
-        .send_body(bytes)
-        .await?;
 
-    let mut builder = HttpResponse::Ok();
+    let resp = client.send_stream(body).await?;
+    let status = resp.status();
+    let mut builder = HttpResponse::build(status);
 
     for e in resp.headers() {
         builder.insert_header(e);
     }
-
-    Ok(builder
-        .content_type(resp.content_type())
-        // .streaming(resp); // streaming is also ok.
-        .body(resp.body().limit(std::usize::MAX).await?))
+    Ok(builder.content_type(resp.content_type()).streaming(resp))
 }
 
 async fn x_api_doc(
@@ -345,6 +341,10 @@ struct Profile {
     /// API end point for data streaming task management.
     #[clap(short, long, env = "EXPLORER_X_API")]
     x_api: Option<String>,
+
+    /// GRPC endpoint of taosX for agents.
+    #[clap(short, long, env = "EXPLORER_GRPC")]
+    grpc: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]

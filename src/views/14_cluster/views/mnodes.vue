@@ -12,6 +12,8 @@
         width="400"
       ></el-table-column>
       <el-table-column :label="$t('taoscluster.role')" prop="role"></el-table-column>
+      <!-- 占位 -->
+      <el-table-column />
       <el-table-column
         :label="$t('taoscluster.status')"
         prop="status"
@@ -19,7 +21,7 @@
       <el-table-column
         :label="$t('taoscluster.createtime')"
         prop="create_time"
-        width="200"
+        width="240"
       ></el-table-column>
 
       <el-table-column :label="$t('taoscluster.action')" width="65">

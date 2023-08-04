@@ -148,6 +148,14 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data(){
     return {
@@ -161,7 +169,7 @@ export default {
       const wsPrefix = this.url.startsWith("https") ? "wss" : "ws";
       const uri = this.url.replace(/https?:\/\//, "");
       const tokenStr = this.token;
-      return `${wsPrefix}://${uri}/rest/tmq?token=${tokenStr}`;
+      return `taos+${wsPrefix}://${this.user}:${this.password}@${uri}`;
     },
     org() {
       return this.$store.state.currentOrganization?.orgName || "";

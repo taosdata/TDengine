@@ -37,5 +37,17 @@ export default [
       { title: i18n.t("docs.topic.step5"), dom: "rust-close-consumer" },
       { title: i18n.t("docs.topic.step6"), dom: "rust-fullexample" },
     ],
+  },
+  {
+    name: 'Java',
+    docs: mdx.topicJavaDoc,
+    steps: [
+      { title: i18n.t('docs.topic.createProject'), dom: 'init' },
+      { title: i18n.t('docs.topic.step2'), dom: 'config' },
+      { title: i18n.t('docs.topic.step3'), dom: 'create-consumer' },
+      { title: i18n.t('docs.topic.step4'), dom: 'subscribe-consume' },
+      { title: i18n.t('docs.topic.step5'), dom: 'close-consumer' },
+      { title: i18n.t('docs.topic.step6'), dom: 'full-example' }
+    ]
   }
 ];
