@@ -46,7 +46,7 @@ groups:
         placeholder: 500
         required: false
         hint:
-          type: int
+          type: str
       - name: group
         display: Group
         description: >
