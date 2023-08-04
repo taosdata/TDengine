@@ -757,13 +757,15 @@ impl RpcConfig {
         controller: TaskControllerRef,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size = Some((1 << 24) - 1 as u32);
+        let service = FlightServiceImpl {
+            controller: controller.clone(),
+        };
+        let flight_service = FlightServiceServer::new(service);
+        let flight_service = flight_service.max_decoding_message_size(std::usize::MAX).max_encoding_message_size(std::usize::MAX);
         if let Some(tcp) = self.tcp {
-            let service = FlightServiceImpl {
-                controller: controller.clone(),
-            };
             Server::builder()
                 .max_frame_size(max_frame_size)
-                .add_service(FlightServiceServer::new(service))
+                .add_service(flight_service.clone())
                 .serve_with_shutdown(tcp, async {
                     let _ = tokio::signal::ctrl_c().await;
                     tracing::info!("Ctrl+C invoked, shutdown RPC service")
@@ -774,10 +776,10 @@ impl RpcConfig {
         if let Some(path) = self.unix {
             let uds = UnixListener::bind(path).unwrap();
             let stream = UnixListenerStream::new(uds);
-            let service = FlightServiceImpl { controller };
+            // let service = FlightServiceImpl { controller };
             Server::builder()
                 .max_frame_size(max_frame_size)
-                .add_service(FlightServiceServer::new(service))
+                .add_service(flight_service)
                 .serve_with_incoming_shutdown(stream, async {
                     let _ = tokio::signal::ctrl_c().await;
                     tracing::info!("Ctrl+C invoked, shutdown RPC service")
