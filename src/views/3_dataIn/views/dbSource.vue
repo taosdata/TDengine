@@ -241,6 +241,17 @@ export default {
           case "kafka":
             this.currentName = "opcui";
             this.tagName = "kafka";
+
+            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
+              (item) => {
+                if (item.name == "value") {
+                  item["value"] = "json";
+                  item["name"] = "payload"
+                }
+                return item;
+              }
+            );
+
           break;
         }
         this.isEditable = true;

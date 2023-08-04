@@ -1475,8 +1475,17 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        if (this.tagName == "mqtt" || this.tagName == 'kafka') {
+        if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
+        }
+        if (this.tagName == 'kafka') {
+          let value = this.$store.state.app.mqttParser.parse.payload;
+          piParams["parser"] = {
+            ...this.$store.state.app.mqttParser,
+            parse: {
+              value
+            }
+          };
         }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
