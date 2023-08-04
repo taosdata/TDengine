@@ -116,6 +116,8 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
     if (code != 0) {
+      dGError("vnodeProcessFetchMsg vgId:%d, msg:%p failed code:%s", pVnode->vgId, pMsg, tstrerror(code));
+
       if (terrno != 0) {
         code = terrno;
       }
