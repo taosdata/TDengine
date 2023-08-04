@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::net::TcpStream;
 use std::path::Path;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -109,6 +108,7 @@ pub async fn csv_to_taos(
         }
         Ok::<_, anyhow::Error>(())
     });
+    let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
 
@@ -139,6 +139,7 @@ pub async fn csv_to_taos(
             },
             err = closed.recv() => {
                 log::info!("have received worker thread panicked message, terminate child process");
+                abort_handle.abort();
                 if let Some(err) = err {
                     let _ = abort.send(());
                     anyhow::bail!("CSV writer error: {err:#}");
@@ -146,6 +147,7 @@ pub async fn csv_to_taos(
             },
             _ = cancel.cancelled() => {
                 log::info!("CSV task cancelled");
+                abort_handle.abort();
             }
         };
         // send an empty tuple
@@ -553,6 +555,7 @@ impl CsvSource {
 async fn test_csv_source() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
+    use std::str::FromStr;
     csv_to_taos(
         Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
         Some(
