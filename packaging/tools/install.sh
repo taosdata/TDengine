@@ -912,10 +912,10 @@ function updateProduct() {
     else
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName2}${NC}"
       [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter ${NC}"
     fi
     
-    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper &${NC}"
+    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper ${NC}"
 
     if [ ${openresty_work} = 'true' ]; then
       echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
@@ -996,10 +996,10 @@ function installProduct() {
     else
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${serverName2}${NC}"
       [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter ${NC}"
     fi
 
-    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper &${NC}"
+    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper ${NC}"
 
     if [ ! -z "$firstEp" ]; then
       tmpFqdn=${firstEp%%:*}
