@@ -122,6 +122,12 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
+# cos
+if(${BUILD_WITH_COS})
+    cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    add_definitions(-DUSE_COS)
+endif(${BUILD_WITH_COS})
+
 # lucene
 if(${BUILD_WITH_LUCENE})
     cat("${TD_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -346,6 +352,23 @@ if (${BUILD_WITH_ROCKSDB})
       
     endif()
 endif()
+
+# cos
+if(${BUILD_WITH_COS})
+    option(ENABLE_TEST "Enable the tests" OFF)
+
+    set(CMAKE_BUILD_TYPE debug)
+    set(ORIG_CMAKE_PROJECT_NAME ${CMAKE_PROJECT_NAME})
+    set(CMAKE_PROJECT_NAME cos_c_sdk)
+
+    add_subdirectory(cos-c-sdk-v5 EXCLUDE_FROM_ALL)
+    target_include_directories(
+	cos_c_sdk
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cos-c-sdk-v5/cos_c_sdk>
+    )
+
+    set(CMAKE_PROJECT_NAME ${ORIG_CMAKE_PROJECT_NAME})
+endif(${BUILD_WITH_COS})
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
