@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::env;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -297,17 +297,16 @@ impl TaskControllerRef {
                 )
                 .execute(&self.pool)
                 .await?;
-                sqlx::query!(
-                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
+
+                let activity = Activity::new(
                     id,
                     now,
                     LevelFilter::Error,
-                    "start task {id}",
+                    format!("Start task {id}"),
                     "failed",
-                    err
-                )
-                .execute(&self.pool)
-                .await?;
+                    err,
+                );
+                self.push_task_activity(&activity).await?;
             }
         }
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
@@ -548,7 +547,7 @@ impl TaskController {
             now,
             LevelFilter::Info,
             "Spawn task worker",
-            "ok",
+            "started",
             serde_json::to_value(task).unwrap(),
         );
         push_task_activity(&self.pool, &activity).await?;
@@ -1325,10 +1324,21 @@ impl TaskController {
             tracing::info!("Stop task by id {id}");
             let now = Utc::now();
 
-            let agent: Option<i64> = sqlx::query_scalar("select via from tasks where id = ?")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
+            let agent: Option<(Option<i64>, Status)> = sqlx::query_as::<_, (Option<i64>, Status)>(
+                "select via, status from tasks where id = ?",
+            )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+            let (agent, status) = agent.ok_or_else(|| anyhow::anyhow!(""))?;
+
+            if !matches!(
+                status,
+                Status::Running | Status::Created | Status::Interrupted
+            ) {
+                tracing::warn!("Trying to stop task {id} but it's not in running state");
+                return Ok(Some(()));
+            }
             if let Some(agent_id) = agent {
                 if let Some(worker) = self.agent_tasks.read().await.get(&agent_id) {
                     let res = worker.send(AgentAction::Stop(id));
@@ -1470,7 +1480,7 @@ impl TaskController {
             .execute(&self.pool)
             .await?;
 
-            let activity = format!("cancel-task {id}");
+            let activity = format!("Stopping all tasks.., now {id}");
 
             sqlx::query!(
                 "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
@@ -1642,7 +1652,7 @@ impl TaskController {
                 agent.id,
                 Utc::now(),
                 LevelFilter::Info,
-                "Agent is connected with client addr {client}",
+                format!("Agent is connected with client addr {client}"),
                 "idle",
                 json!({ "client": client }),
             );
@@ -1815,7 +1825,7 @@ impl AgentFilter {
 /// Running -> Stopped
 /// Running -> Cancelled
 /// ```
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 #[sqlx(rename_all = "snake_case")]
@@ -1838,6 +1848,22 @@ pub(super) enum Status {
     Interrupted,
     /// Manually stopped by API.
     Stopped,
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Status::Created => f.write_str("created"),
+            Status::Cleared => f.write_str("cleared"),
+            Status::Started => f.write_str("started"),
+            Status::Running => f.write_str("running"),
+            Status::Cancelled => f.write_str("cancelled"),
+            Status::Completed => f.write_str("completed"),
+            Status::Failed => f.write_str("failed"),
+            Status::Interrupted => f.write_str("interrupted"),
+            Status::Stopped => f.write_str("stopped"),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -2137,6 +2163,10 @@ impl TaskDetail {
             to_detail: None,
             agent: None,
         }
+    }
+
+    pub(super) fn status(&self) -> Status {
+        self.task.status
     }
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {

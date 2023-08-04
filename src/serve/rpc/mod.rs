@@ -470,6 +470,8 @@ impl FlightService for FlightServiceImpl {
                 // let current = { listener.current.lock().await.clone() };
 
                 for task in listener.current.iter() {
+                    let id = task.key();
+                    tracing::info!(task = id, "Start task {id}");
                     if let Some(task) = controller.get(*task.key()).await? {
                         let action: ArrayRef =
                             Arc::new(StringArray::from_iter_values(["run".to_string()]));
@@ -478,6 +480,16 @@ impl FlightService for FlightServiceImpl {
                                 &task,
                             )
                             .unwrap()]));
+                        let status = task.status();
+                        if matches!(
+                            status,
+                            super::controller::Status::Completed
+                                | super::controller::Status::Failed
+                                | super::controller::Status::Stopped
+                        ) {
+                            tracing::warn!("Trying to start task {id} but status now {status}");
+                            continue;
+                        }
                         let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
                             chrono::Utc::now().timestamp_millis(),
                         ]));
