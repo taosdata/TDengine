@@ -133,7 +133,7 @@ shadow-rs = "0.21.0"
 tower = "0.4"
 
 [features]
-default = ["optin", "rustls"]
+default = ["optin", "native-tls"]
 optin = ["taos/optin", "taosx-core/optin"]
 sys = ["taos/native", "taosx-core/sys"]
 jemallocator = ["tikv-jemallocator"]
