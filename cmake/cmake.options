@@ -126,6 +126,12 @@ option(
 )
 
 option(
+    BUILD_WITH_COS
+    "If build with cos"
+    ON
+)
+
+option(
     BUILD_WITH_SQLITE
     "If build with sqlite" 
     OFF

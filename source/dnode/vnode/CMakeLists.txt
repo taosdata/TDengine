@@ -8,6 +8,7 @@ set(
   "src/vnd/vnodeCommit.c"
   "src/vnd/vnodeQuery.c"
   "src/vnd/vnodeModule.c"
+  "src/vnd/vnodeCos.c"
   "src/vnd/vnodeSvr.c"
   "src/vnd/vnodeSync.c"
   "src/vnd/vnodeSnapshot.c"
@@ -134,6 +135,11 @@ else()
     endif()
 endif()
 
+find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
+find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
+find_library(MINIXML_LIBRARY mxml)
+find_library(CURL_LIBRARY curl)
+
 target_link_libraries(
     vnode
     PUBLIC os
@@ -153,6 +159,13 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
+
+    # s3
+    cos_c_sdk
+    ${APR_UTIL_LIBRARY}
+    ${APR_LIBRARY}
+    ${MINIXML_LIBRARY}
+    ${CURL_LIBRARY}
 )
 
 IF (TD_GRANT)
@@ -169,7 +182,20 @@ if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
-
+# s3
+FIND_PROGRAM(APR_CONFIG_BIN NAMES apr-config apr-1-config PATHS /usr/bin /usr/local/bin /usr/local/apr/bin/)
+IF (APR_CONFIG_BIN)
+  EXECUTE_PROCESS(
+    COMMAND ${APR_CONFIG_BIN} --includedir
+    OUTPUT_VARIABLE APR_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+ENDIF()
+include_directories (${APR_INCLUDE_DIR})
+target_include_directories(
+  vnode
+  PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
+  )
 
 if(${BUILD_TEST})
     add_subdirectory(test)
