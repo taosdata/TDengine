@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::net::TcpStream;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -546,4 +547,42 @@ impl CsvSource {
         }
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn test_csv_source() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+    csv_to_taos(
+        Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
+        Some(
+            Parser::from_str(
+                r#"{
+  "parse": {
+    "time": { "as": "timestamp(ns)", "alias": "time" },
+    "field0": { "as": "int" },
+    "field7": { "as": "int" }
+  },
+  "model": {
+    "name": "f_{field0}",
+    "using": "stb1",
+    "tags": ["field0"],
+    "columns": ["time", "field7"]
+  }
+}"#,
+            )
+            .unwrap(),
+        ),
+        Dsn::from_str("taos:///testns").unwrap(),
+        &Default::default(),
+        Default::default(),
+        None,
+        None,
+    )
+    .await?;
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    let taos = TaosBuilder::from_dsn("taos:///testns")?.build().await?;
+    let u: usize = taos.query_one("select count(*) from stb1").await?.unwrap();
+    assert_eq!(u, 200);
+    Ok(())
 }

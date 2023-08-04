@@ -816,6 +816,7 @@ async fn consume_flat_record(
                             continue;
                         }
                         // dbg!(&records);
+                        tracing::debug!("Write records with rows {}", records.records.num_rows());
                         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
                             &records.records,
                         );
@@ -875,7 +876,9 @@ async fn consume_flat_record(
                                             Err(_) => {
                                                 // dbg!(&err);
                                                 if let Some(sql) = records.stable_sql() {
-                                                    tracing::debug!("flat message stable sql : {sql}");
+                                                    tracing::debug!(
+                                                        "flat message stable sql : {sql}"
+                                                    );
                                                     if let Some(transferred) = transferred {
                                                         transferred
                                                             .stables
@@ -1379,7 +1382,11 @@ async fn ipc_process<R: Read, W: Write>(
     Ok(())
 }
 
-async fn handle_lush_message_init(init: &LushMessageInit, taos: &Taos, sql: &str) -> anyhow::Result<()> {
+async fn handle_lush_message_init(
+    init: &LushMessageInit,
+    taos: &Taos,
+    sql: &str,
+) -> anyhow::Result<()> {
     let max_retries = 10;
     let mut i = 0;
     let stable_name = init.name();
@@ -1401,12 +1408,8 @@ async fn handle_lush_message_init(init: &LushMessageInit, taos: &Taos, sql: &str
                         taos.exec(sql).await?;
                     }
                 }
-                let sql = generate_alter_sql_diff_desc(
-                    stable_name,
-                    &desc,
-                    init.tags().as_ref(),
-                    true,
-                );
+                let sql =
+                    generate_alter_sql_diff_desc(stable_name, &desc, init.tags().as_ref(), true);
                 if sql.is_some() {
                     for sql in sql.unwrap() {
                         log::info!("alter table sql: {}", sql.clone());
@@ -1726,12 +1729,13 @@ pub fn listen_tcp_socket_with_agent(
         let _ = receiver.recv();
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+        let _ = closer_socket.shutdown(std::net::Shutdown::Write);
 
         // runtime.shutdown_background();
     });
 
     std::thread::spawn(move || {
+        let mut handlers = vec![];
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
                 tracing::debug!("IPC stopped");
@@ -1745,7 +1749,7 @@ pub fn listen_tcp_socket_with_agent(
                     let cancel = cancel.clone();
                     let (id, remote, token) = with_agent.clone();
 
-                    runtime.spawn(async move {
+                    let h = runtime.spawn(async move {
                         let client = addr.as_socket_ipv4().unwrap().to_string();
                         let res =
                             ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
@@ -1759,6 +1763,7 @@ pub fn listen_tcp_socket_with_agent(
                             log::info!("IPC reader stopped for client {client}",);
                         }
                     });
+                    handlers.push(h);
                 }
                 Err(e) => {
                     /* connection failed */
@@ -1768,6 +1773,12 @@ pub fn listen_tcp_socket_with_agent(
             }
         }
         log::info!("IPC stream listener stopped");
+        for h in handlers {
+            if let Err(err) = runtime.block_on(h) {
+                log::warn!("IPC stream reader error: {err}");
+            }
+        }
+        runtime.shutdown_timeout(Duration::from_secs(1));
     });
 
     Ok(closer)
@@ -1810,11 +1821,12 @@ pub fn listen_tcp_socket(
         let _ = receiver.recv();
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+        let _ = closer_socket.shutdown(std::net::Shutdown::Write);
         // runtime.shutdown_background();
     });
 
     std::thread::spawn(move || {
+        let mut handlers = vec![];
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
                 break;
@@ -1827,7 +1839,7 @@ pub fn listen_tcp_socket(
                     let cancel = cancel.clone();
 
                     if let Some((id, server, token)) = with_agent.clone() {
-                        runtime.spawn(async move {
+                        handlers.push(runtime.spawn(async move {
                             let res =
                                 ipc_tcp_forward(client, stream, cancel, server, token, id).await;
                             if let Err(err) = res {
@@ -1835,7 +1847,7 @@ pub fn listen_tcp_socket(
                                 log::error!("ipc read err: {}", err);
                                 let _ = se.send(err.to_string()).await;
                             }
-                        });
+                        }));
                     } else {
                         let pool = target.clone();
                         let lock = sql_lock.clone();
@@ -1843,7 +1855,7 @@ pub fn listen_tcp_socket(
                         let parser = parser.clone();
                         let connector = connector.clone();
                         let transferred = transferred.clone();
-                        runtime.spawn(async move {
+                        handlers.push(runtime.spawn(async move {
                             let res = ipc_tcp_read(
                                 client,
                                 pool,
@@ -1861,7 +1873,7 @@ pub fn listen_tcp_socket(
                                 log::error!("ipc read err: {}", err);
                                 let _ = se.send(err.to_string()).await;
                             }
-                        });
+                        }));
                     }
                 }
                 Err(e) => {
@@ -1870,6 +1882,14 @@ pub fn listen_tcp_socket(
                 }
             }
         }
+        log::info!("IPC stream listener stopped");
+        for h in handlers {
+            if let Err(err) = runtime.block_on(h) {
+                log::warn!("IPC stream reader error: {err}");
+            }
+        }
+        log::info!("IPC all workers done");
+        runtime.shutdown_background();
     });
 
     Ok(closer)
