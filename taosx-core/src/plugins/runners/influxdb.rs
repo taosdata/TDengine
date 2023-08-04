@@ -487,24 +487,30 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .await
             .with_context(|| "Start InfluxDB collector error")?;
     }
-    let s = String::from_utf8(output.stdout.clone())?;
-    if s == "" {
+    if output.status.success() {
+        let s = String::from_utf8(output.stdout.clone())?;
+        if s == "" {
+            anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
+        }
+        let mut vec = Vec::new();
+        vec.push(DataSet {
+            id: s,
+            name: None,
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        });
+        Ok(vec)
+    } else {
         match output.status.code() {
             Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
             Some(102) => anyhow::bail!("Unauthorized access"),
             Some(103) => anyhow::bail!("Organization not found"),
-            _ => anyhow::bail!("Failed to connect, ip or port error"),
+            None => anyhow::bail!("InfluxDB connector closed by signal"),
+            Some(exit) => {
+                anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
+            }
         }
     }
-    dbg!(&s);
-    let mut vec = Vec::new();
-    vec.push(DataSet {
-        id: s,
-        name: None,
-        category: None,
-        r#type: None,
-        options: None,
-        format: None,
-    });
-    Ok(vec)
 }
