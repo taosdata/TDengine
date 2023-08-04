@@ -244,10 +244,10 @@ impl Cli {
                 .wrap(cors)
                 .wrap(Logger::default())
                 .app_data(recorder.clone())
-                .app_data(PayloadConfig::new(1024 * 1024 * 1024))
+                .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(MultipartFormConfig::default()
                 .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
-                .total_limit(1024 * 1024 * 1024 * 2)) // payload set to 2G
+                .total_limit(std::usize::MAX)) // payload set to 2G
                 .configure(configure(store.clone()))
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
