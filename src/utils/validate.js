@@ -119,6 +119,11 @@ export function validDir(arg) {
   return /^[A-Za-z0-9_\/]*$/g.test(arg)
 }
 
+//linux文件路径校验
 export function validPath(arg) {
-  return /^\/[A-Za-z0-9_\/]*$/g.test(arg)
+  if((String.raw`${arg}`).includes('\\')){
+    arg=(String.raw`${arg}`).replace(/\\/g,'\\\\')
+  }
+  console.log(arg,'文件路径',(String.raw`${arg}`).replace(/\\/g,'\\\\'));
+  return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
 }
