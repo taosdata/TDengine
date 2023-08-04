@@ -458,6 +458,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
           tsDataDir);
       return -1;
     }
+    tDecoderClear(&decoder);
 
     if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
       int32_t taskId = pTask->id.taskId;
