@@ -1,5 +1,6 @@
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
+use anyhow::Context;
 use arrow::array::{
     BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
 };
@@ -28,8 +29,10 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let timeout = parse_timeout(&from);
     let mut start = chrono::Utc::now().timestamp_millis();
     loop {
-        let message_sets = consumer.poll().unwrap();
+        let message_sets = consumer.poll().context("Kafka polling error")?;
         if message_sets.is_empty() {
+            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             let now = chrono::Utc::now().timestamp_millis();
             if timeout >= 0 && now - &start > timeout {
                 break;
