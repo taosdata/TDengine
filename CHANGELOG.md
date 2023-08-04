@@ -5,9 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2023-07-28
+
+**Full Changelog**: [v1.0.3...v1.0.4](https://github.com/taosdata/taosx/compare/v1.0.3...v1.0.4)
+
+### Bug Fixes
+
+- *serve*: Assert task.force is true ([c1869e2](c1869e22360ed37dde335c79b752f76647171b4a))
+
+- Fix [TS-3723](https://jira.taosdata.com:18080/browse/TS-3723) version parse error ([22a65f2](22a65f2507c8f2897e0e5a2a824b13d95315ba69))
+
+
+### Enhancements
+
+
+- Config log keep days in agent.toml ([2852328](285232818d146bb1416a0a3cb92f871b3c2dd363))
+
+
+## [1.0.3] - 2023-07-21
+
+**Full Changelog**: [v1.0.2...v1.0.3](https://github.com/taosdata/taosx/compare/v1.0.2...v1.0.3)
+
+### Bug Fixes
+
+- *legacy*: Fix unexpected error in legacy sync ([4652132](465213251a9f6761668d93ad8f889c74a8980f46))
+- *legacy*: Fix memory increasing problem in syncing ([4eff0fb](4eff0fb4d105c530fe57b576dd12c8fb910b1fa3))
+
+- Influxdb log typo ([96d4b3f](96d4b3f92d58d8498a62afb7ffc102e18a73f2a9))
+- Pi log typo ([ee7b0bb](ee7b0bb3472d023ae66db7d5492c37e007996b0c))
+- Opc log typo ([e1aded1](e1aded1d2878be0272af3583387fe149ed8c27bd))
+- Ignore when session not valid ([1368845](13688453128ce8542a138fbeabaaa19a0a5a4572))
+
+
+### Enhancements
+
+
+- Set log keep days by env ([05e4c5a](05e4c5a15983845629cdf664414f394a60a8979a))
+- Dump opc data to log file ([6f59ee3](6f59ee358173a01d0a7afb2551cc2d4a344c89f5))
+
+
+## [1.0.2] - 2023-07-10
+
+**Full Changelog**: [v1.0.1...v1.0.2](https://github.com/taosdata/taosx/compare/v1.0.1...v1.0.2)
+
+### Bug Fixes
+
+
+- Piconnector parse big toml file failed ([aaf0115](aaf01159275f63ba82c83c23ddfc8012543c9168))
+- Local time ([d68f744](d68f744572bcb84a9cab83265745fd6fc22b2916))
+- Use timer clone ([bc84f81](bc84f81a93a2b1a0bd1383e0cd7830f7737d43eb))
+- Timer utc offset ([c3c9f57](c3c9f579fa38d3430a774e35b3fd1a0a37017a30))
+- Time local offset ([9d56a51](9d56a51c3aab4ad60735359bd48faf98ecba89fe))
+- Use chrono timezone offset ([c97038e](c97038e79dc62501af3344f7a2001e5ff8439ebe))
+- Remove time feature ([34d690a](34d690abce072f714097893c619ca976edab2722))
+- Remove unused import ([1a39ee5](1a39ee5468c497feb324fc1b6724ed9ffe4c196c))
+- Fix configDir and libraryPath verify fail ([34d949c](34d949ce9c4a0ea5347b9a3763672b64154df6c0))
+
+
+### Enhancements
+
+- *serve*: Improve data source parameters ([3c61a7c](3c61a7cad5743292ac5431ec65843a5a52aaaebd))
+- *serve*: Add short_description field in params/groups ([35168ff](35168ff08e3c58528d1f3b9b33950df2c45b3e67))
+
+
+
+### Features
+
+
+- Verify taos dsn in legacy mode strictly ([33d8a3d](33d8a3decfa15f4a1b2fc72c6cc6de250d21e9b8))
+
+
 ## [1.0.1] - 2023-07-05
 
-**Full Changelog**: [v1.0.0...1.0.1](https://github.com/taosdata/taosx/compare/v1.0.0...1.0.1)
+**Full Changelog**: [v1.0.0...v1.0.1](https://github.com/taosdata/taosx/compare/v1.0.0...v1.0.1)
 
 ### Bug Fixes
 
