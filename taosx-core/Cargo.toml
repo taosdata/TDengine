@@ -100,7 +100,7 @@ winapi = { version = "0.3", features = ["processthreadsapi"] }
 libc = "0.2"
 
 [features]
-default = ["optin", "rustls"]
+default = ["optin", "native-tls"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
 rustls = ["taos/ws-rustls"]
