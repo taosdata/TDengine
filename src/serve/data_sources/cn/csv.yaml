@@ -24,15 +24,7 @@ groups:
         hint:
           type: integer
           min: 0
-      - name: has_header
-        display: 是否包含表头
-        value: true
-        hint:
-          type: boolean
-      - name: header
-        display: 自定义表头
-        hint:
-          type: boolean
+      
   - name: CSV 写入配置
     display_order: 2
     description: CSV 写入参数设置
