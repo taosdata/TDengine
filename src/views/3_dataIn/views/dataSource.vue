@@ -324,6 +324,17 @@ export default {
           console.log('mqtt的编辑',this.$store.state.app);
           this.$parent.parserobj = deepClone(data.parser);
         }
+        if (data.from_expand && data.from_expand.id == "kafka") {
+          let payload = deepClone(data.parser.parse.value)
+          let parser = {
+            ...data.parser,
+            parse:{
+              payload
+            }
+          }
+          this.$store.commit("app/SET_MQTT_PARSER", parser);
+          this.$parent.parserobj = deepClone(parser);
+        }
         if (data.from_expand && data.from_expand.id == "opcua") {
           let dnsarr = data.from.split("?")[1].split("&");
           let fileindex = dnsarr.findIndex((item) =>
