@@ -589,6 +589,9 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         "csv" => {
             let filepath_or_filedir = filepath_or_filedir.split(",").into_iter().collect_vec();
             let csv_header = taosx_core::csv_header(filepath_or_filedir, has_header).await?;
+            if csv_header.columns == 0 {
+                anyhow::bail!("CSV file headers are empty");
+            }
             let column_names = if csv_header.headers.is_empty() {
                 let mut columns_temp = vec![];
                 for n in 0..(csv_header.columns) {
