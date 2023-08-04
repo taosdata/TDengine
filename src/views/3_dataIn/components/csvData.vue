@@ -32,7 +32,9 @@
           :targetName="dbName"
           :echoData="echoData"
           :isEditable="isEditable"
-        ></CsvParameter>
+        >
+        
+        </CsvParameter>
       </el-tabs>
       <el-button
         type="primary"
@@ -263,7 +265,7 @@ export default {
           console.log(this.$parent, "编辑状态");
         }
         console.log("请求接口获取csv列", this.activeName);
-        await this.getDBColumns();
+        // await this.getDBColumns();
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
@@ -291,6 +293,12 @@ export default {
           );
           this.csvColumns = result.file_header.column_names;
         }
+        // this.dbOptions = this.dbOptions.concat(
+        //   this.csvColumns.map((item) => {
+        //     return Object.assign(item, { disabled: true });
+        //   })
+        // );
+        console.log(this.dbOptions,'有头无头的db列');
         if (result && result.message) {
           Message.error(result.message);
           return;

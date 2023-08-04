@@ -21,6 +21,7 @@
       >
         <el-input v-model="ruleForm.customcol"></el-input>
       </el-form-item>
+      <slot name="next"></slot>
       <el-form-item :label="$t('datasource.target')" prop="dbName">
         <el-select v-model="ruleForm.dbName" placeholder="">
           <el-option

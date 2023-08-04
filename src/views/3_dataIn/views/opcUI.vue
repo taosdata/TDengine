@@ -952,9 +952,7 @@ export default {
         this.opcPointavalible = true;
       }
     }
-    if(this.tagName=='csv'){
-      this.dbsource[0].groups[0].params=this.dbsource[0].groups[0].params.splice(0,2)
-    }
+    
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
