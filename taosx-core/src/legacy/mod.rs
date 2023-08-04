@@ -725,15 +725,12 @@ async fn sync_super_table_schema_with_subs_without_pool(
         .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    if let Err(err) = to
-        .exec(
-            sql.replace("VARCHAR", "BINARY")
-                .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-                .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
-                .replace("create table", "CREATE TABLE IF NOT EXISTS")
-                .replace("create stable", "CREATE TABLE IF NOT EXISTS"),
-        )
-        .await
+    let create_sql = transform_sql_with_actions(sql.replace("VARCHAR", "BINARY")
+        .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+        .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
+        .replace("create table", "CREATE TABLE IF NOT EXISTS")
+        .replace("create stable", "CREATE TABLE IF NOT EXISTS"), name, actions, true)?;
+    if let Err(err) = to.exec(create_sql).await
     {
         if err.to_string().contains("0x000B") {
             from.exec(format!("desc `{name}`")).await?;
@@ -753,12 +750,14 @@ async fn sync_super_table_schema_with_subs_without_pool(
     let tag_name_vec = desc.tag_names().collect_vec();
     let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
 
+    let cond_for_to = subs.iter().map(|n| format!("'{}'", transform_tbname_with_actions(n.as_ref(), actions, false).unwrap())).join(",");
     let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
 
+    let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
     let sql = if is_v3 {
-        format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
+        format!("SELECT distinct tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
     } else {
-        format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
+        format!("SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
     };
 
     let res_to: LinkedHashMap<_, _> = to
@@ -769,7 +768,11 @@ async fn sync_super_table_schema_with_subs_without_pool(
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .collect();
-
+    let sql = if is_v3 {
+        format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
+    } else {
+        format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
+    };
     let (exists, non_exists): (Vec<_>, Vec<_>) = from
         .query(&sql)
         .await?
@@ -778,7 +781,6 @@ async fn sync_super_table_schema_with_subs_without_pool(
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .partition(|v| res_to.contains_key(&v.0));
-
     if target_opts.update_tags {
         let mut updated_tags = 0;
         for (n, l) in &exists {
@@ -901,26 +903,25 @@ async fn sync_super_table_schema_with_subs(
     let tag_name_vec = desc.tag_names().collect_vec();
     let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
 
+    let cond_for_to = subs.iter().map(|n| format!("'{}'", transform_tbname_with_actions(n.as_ref(), actions, false).unwrap())).join(",");
     let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
 
-    // let sql = if is_v3 {
-    //     format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-    // } else {
-    //     format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-    // };
+    let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
+    let sql = if is_v3 {
+        format!("SELECT distinct tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
+    } else {
+        format!("SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
+    };
 
     let res_to: HashMap<_, _> = to
-        .query(if to_is_v3 {
-            format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-        } else {
-            format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-        })
+        .query(sql)
         .await?
         .to_records()
         .await?
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .collect();
+
     let (exists, non_exists): (Vec<_>, Vec<_>) = from
         .query(if is_v3 {
             format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
@@ -933,8 +934,6 @@ async fn sync_super_table_schema_with_subs(
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .partition(|v| res_to.contains_key(&v.0));
-    dbg!(&exists);
-    dbg!(&non_exists);
     if target_opts.update_tags {
         let mut updated_tags = 0;
         for (n, l) in &exists {
@@ -1074,9 +1073,6 @@ fn transform_tbname_with_actions(table_name: &str, actions: &Vec<Action>, is_sta
                 Action::RenameSuperTable(action) => {
                     new_table_name = action.apply(&new_table_name)?;
                 }
-                // Action::RenameReplaceWithRegex(action) => {
-                //     new_table_name = action.apply(&new_table_name)?;
-                // }
                 _ => (),
             }
         }
@@ -1086,9 +1082,9 @@ fn transform_tbname_with_actions(table_name: &str, actions: &Vec<Action>, is_sta
                 Action::RenameTable(action) => {
                     new_table_name = action.apply(&new_table_name)?;
                 }
-                // Action::RenameReplaceWithRegex(action) => {
-                //     new_table_name = action.apply(&new_table_name)?;
-                // }
+                Action::RenameChildTable(action) => {
+                    new_table_name = action.apply(&new_table_name)?;
+                }
                 _ => (),
             }
         }
@@ -1169,13 +1165,13 @@ async fn sync_schema(
     // let is_v3 = if v1.starts_with("2") { false } else { true };
 
     let mut readers = Vec::new();
-    for stable in &todo.stables {
-        let (sender, reader) = oneshot::channel();
-        scheduler
-            .send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))
-            .await?;
-        readers.push((vec![], reader));
-    }
+    // for stable in &todo.stables {
+    //     let (sender, reader) = oneshot::channel();
+    //     scheduler
+    //         .send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))
+    //         .await?;
+    //     readers.push((vec![], reader));
+    // }
 
     // if opts.query.select_from_stable {
     let chunk_size = 400;
@@ -1628,7 +1624,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
     info!(version = version.as_ref(), "Retrieving table list...");
-
+    dbg!(&opts.stables);
     if let Some(stables) = opts.stables.as_ref() {
         const MAX_DISPLAY_STABLES: usize = 5;
         let list = if stables.len() > MAX_DISPLAY_STABLES {
@@ -1736,7 +1732,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
                 .query("SHOW STABLES")
                 .await
                 .context("Get stable list from source")?;
-            let mut stables: Vec<Arc<String>> = res
+            let stables: Vec<Arc<String>> = res
                 .deserialize()
                 .map_ok(|stable: STableRecord| Arc::new(stable.name))
                 .try_collect()
@@ -1761,7 +1757,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
                                 (Some(stable.clone()), table_name)
                             } else {
                                 let stable = Arc::new(stable_name.clone());
-                                stables.push(stable.clone());
+                                // stables.push(stable.clone());
                                 stable_set.insert(stable_name, stable.clone());
                                 (Some(stable), table_name)
                             }
@@ -1942,7 +1938,6 @@ pub async fn legacy_to_taos(
     let metrics = Arc::new(LegacyMetrics::default());
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
-
     verify::verify_dsn(&from)
         .map_err(|err| anyhow::format_err!("Cannot parse source DSN params: {err}"))?;
 
@@ -2061,6 +2056,7 @@ pub async fn legacy_to_taos(
     metrics.workers.store(concurrent as _, Ordering::SeqCst);
 
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
+    dbg!(&todo.stables);
     let todo = Arc::new(todo);
 
     metrics

@@ -112,7 +112,7 @@ async fn worker(
                                     break;
                                 }
                                 Err(err) => {
-                                    tracing::error!("sync_super_table_schema_with_subs err: {err:#}");
+                                    tracing::error!("sync_super_table_schema_with_subs {stable} err: {err:#}");
                                     let table_count = tables.len();
                                     let err_string = err.to_string();
                                     if (err_string.contains("0xE00")
