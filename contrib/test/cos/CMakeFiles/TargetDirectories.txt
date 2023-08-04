@@ -1,3 +1,0 @@
-/home/stephenkgu/lab/tde/TDinternal/community/contrib/test/cos/CMakeFiles/rebuild_cache.dir
-/home/stephenkgu/lab/tde/TDinternal/community/contrib/test/cos/CMakeFiles/edit_cache.dir
-/home/stephenkgu/lab/tde/TDinternal/community/contrib/test/cos/CMakeFiles/cosTest.dir
