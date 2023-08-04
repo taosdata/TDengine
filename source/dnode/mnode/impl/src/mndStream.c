@@ -141,8 +141,6 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
-    mError("stream read invalid data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream manually",
-           tsDataDir);
     goto STREAM_DECODE_OVER;
   }
 
