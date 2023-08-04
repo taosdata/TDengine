@@ -1,12 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
-    Action, utils::get_main_version_from_server_version,
+    utils::get_main_version_from_server_version,
+    Action,
 };
 use dashmap::DashMap;
 use taos::taos_query::tmq::Assignment;
@@ -202,8 +203,11 @@ async fn write_meta(
     // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
-            let jm = meta.as_json_meta().await?;
-            log::debug!("meta: {}", jm);
+            let jm = meta.as_json_meta().await.context("Fetch json meta error");
+            match jm {
+                Ok(meta) => log::debug!("meta: {:?}", meta),
+                Err(err) => log::warn!("meta: {:?}", err),
+            };
             if let Err(err) = taos.write_raw_meta(&meta.as_raw_meta().await?).await {
                 let errstr = err.to_string();
                 if errstr.contains("[0x032C]")
@@ -217,11 +221,17 @@ async fn write_meta(
                 }
             }
         } else {
-            let meta = meta.as_json_meta().await?;
+            let meta = meta
+                .as_json_meta()
+                .await
+                .context("Fetch json meta error for v2 target")?;
             taos.exec(meta.to_string()).await?;
         }
     } else {
-        let mut meta = meta.as_json_meta().await?;
+        let mut meta = meta
+            .as_json_meta()
+            .await
+            .context("Fetch json meta error for transform")?;
         // dbg!(&meta);
 
         for action in actions {
@@ -280,7 +290,7 @@ async fn sync(
                 } else {
                     vec![]
                 };
-                
+
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     if assignment.is_empty() {
