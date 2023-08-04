@@ -1,5 +1,6 @@
 ---
 title: Deploying TDengine with Docker
+sidebar_label: Docker
 description: This chapter describes how to start and access TDengine in a Docker container.
 ---
 
@@ -10,8 +11,17 @@ This chapter describes how to start the TDengine service in a container and acce
 The TDengine image starts with the HTTP service activated by default, using the following command:
 
 ```shell
-docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
+docker run -d --name tdengine \
+-v ~/data/taos/dnode/data:/var/lib/taos \
+-v ~/data/taos/dnode/log:/var/log/taos \
+-p 6041:6041 tdengine/tdengine
 ```
+:::note
+
+* /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. And also you can modify ~/data/taos/dnode/data to your any other local emtpy data directory
+* /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. And also you can modify ~/data/taos/dnode/log to your any other local empty log directory
+  
+:::
 
 The above command starts a container named "tdengine" and maps the HTTP service port 6041 to the host port 6041. You can verify that the HTTP service provided in this container is available using the following command.
 
@@ -283,39 +293,38 @@ services:
     environment:
       TAOS_FQDN: "td-1"
       TAOS_FIRST_EP: "td-1"
+    ports:
+      - 6041:6041
+      - 6030:6030
     volumes:
-      - taosdata-td1:/var/lib/taos/
-      - taoslog-td1:/var/log/taos/
+      # /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. you can modify ~/data/taos/dnode1/data to your own data directory
+      - ~/data/taos/dnode1/data:/var/lib/taos
+      # /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. you can modify ~/data/taos/dnode1/log to your own log directory
+      - ~/data/taos/dnode1/log:/var/log/taos
   td-2:
     image: tdengine/tdengine:$VERSION
     environment:
       TAOS_FQDN: "td-2"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td2:/var/lib/taos/
-      - taoslog-td2:/var/log/taos/
+      - ~/data/taos/dnode2/data:/var/lib/taos
+      - ~/data/taos/dnode2/log:/var/log/taos
   td-3:
     image: tdengine/tdengine:$VERSION
     environment:
       TAOS_FQDN: "td-3"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td3:/var/lib/taos/
-      - taoslog-td3:/var/log/taos/
-volumes:
-  taosdata-td1:
-  taoslog-td1:
-  taosdata-td2:
-  taoslog-td2:
-  taosdata-td3:
-  taoslog-td3:
+      - ~/data/taos/dnode3/data:/var/lib/taos
+      - ~/data/taos/dnode3/log:/var/log/taos
 ```
 
 :::note
 
 - The `VERSION` environment variable is used to set the tdengine image tag
 - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
-  :::
+  
+:::
 
 2. Start the cluster
 
@@ -382,24 +391,22 @@ networks:
 services:
   td-1:
     image: tdengine/tdengine:$VERSION
-    networks:
-      - inter
     environment:
       TAOS_FQDN: "td-1"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td1:/var/lib/taos/
-      - taoslog-td1:/var/log/taos/
+      # /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. you can modify ~/data/taos/dnode1/data to your own data directory
+      - ~/data/taos/dnode1/data:/var/lib/taos
+      # /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. you can modify ~/data/taos/dnode1/log to your own log directory
+      - ~/data/taos/dnode1/log:/var/log/taos
   td-2:
     image: tdengine/tdengine:$VERSION
-    networks:
-      - inter
     environment:
       TAOS_FQDN: "td-2"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td2:/var/lib/taos/
-      - taoslog-td2:/var/log/taos/
+      - ~/data/taos/dnode2/data:/var/lib/taos
+      - ~/data/taos/dnode2/log:/var/log/taos
   adapter:
     image: tdengine/tdengine:$VERSION
     entrypoint: "taosadapter"
@@ -431,11 +438,6 @@ services:
         >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
         nginx -g 'daemon off;'",
       ]
-volumes:
-  taosdata-td1:
-  taoslog-td1:
-  taosdata-td2:
-  taoslog-td2:
 ```
 
 ## Deploy with docker swarm
