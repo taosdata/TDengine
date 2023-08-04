@@ -806,7 +806,6 @@ async fn consume_flat_record(
         let batch = message.record();
         if let Some(parser) = parser {
             let batch = parser.parse_message_from_records(batch)?;
-            // dbg!(&batch);
             match batch {
                 crate::plugins::transform::Message::Raw(_) => todo!(),
                 crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -876,7 +875,7 @@ async fn consume_flat_record(
                                             Err(_) => {
                                                 // dbg!(&err);
                                                 if let Some(sql) = records.stable_sql() {
-                                                    // dbg!(&sql);
+                                                    tracing::debug!("flat message stable sql : {sql}");
                                                     if let Some(transferred) = transferred {
                                                         transferred
                                                             .stables
