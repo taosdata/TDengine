@@ -36,7 +36,8 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
     const char *object_name = taosDirEntryBaseName((char *)path);
-    if (!strncmp(path + strlen(path) - 5, ".data", 5) && s3Exists(object_name)) {
+    long        s3_size = s3Size(object_name);
+    if (!strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
       s3EvictCache();
       s3Get(object_name, path);
 

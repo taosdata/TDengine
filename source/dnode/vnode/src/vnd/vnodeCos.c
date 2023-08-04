@@ -147,7 +147,8 @@ bool s3Exists(const char *object_name) {
   return ret;
 }
 
-void s3Get(const char *object_name, const char *path) {
+bool s3Get(const char *object_name, const char *path) {
+  bool                   ret = false;
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
   cos_status_t          *s = NULL;
@@ -177,6 +178,7 @@ void s3Get(const char *object_name, const char *path) {
   cos_str_set(&object, object_name);
   s = cos_get_object_to_file(options, &bucket, &object, headers, NULL, &file, &resp_headers);
   if (cos_status_is_ok(s)) {
+    ret = true;
     cos_warn_log("get object succeeded\n");
   } else {
     cos_warn_log("get object failed\n");
@@ -184,6 +186,47 @@ void s3Get(const char *object_name, const char *path) {
 
   //销毁内存池
   cos_pool_destroy(p);
+
+  return ret;
 }
 
 void s3EvictCache() {}
+
+long s3Size(const char *object_name) {
+  long size = 0;
+
+  cos_pool_t            *p = NULL;
+  int                    is_cname = 0;
+  cos_status_t          *s = NULL;
+  cos_request_options_t *options = NULL;
+  cos_string_t           bucket;
+  cos_string_t           object;
+  cos_table_t           *resp_headers = NULL;
+
+  //创建内存池
+  cos_pool_create(&p, NULL);
+
+  //初始化请求选项
+  options = cos_request_options_create(p);
+  s3InitRequestOptions(options, is_cname);
+  cos_str_set(&bucket, tsS3BucketName);
+
+  //获取对象元数据
+  cos_str_set(&object, object_name);
+  s = cos_head_object(options, &bucket, &object, NULL, &resp_headers);
+  // print_headers(resp_headers);
+  if (cos_status_is_ok(s)) {
+    char *content_length_str = (char *)apr_table_get(resp_headers, COS_CONTENT_LENGTH);
+    if (content_length_str != NULL) {
+      size = atol(content_length_str);
+    }
+    cos_warn_log("head object succeeded: %ld\n", size);
+  } else {
+    cos_warn_log("head object failed\n");
+  }
+
+  //销毁内存池
+  cos_pool_destroy(p);
+
+  return size;
+}
