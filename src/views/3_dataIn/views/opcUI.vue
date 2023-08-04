@@ -716,6 +716,7 @@
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import marked from "marked";
 import CsvData from "../components/csvData.vue";
@@ -826,6 +827,7 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
+      dbprecision: '',
       isShowConfiguration: false,
       loading: false,
       configurationdata: [],
@@ -968,6 +970,13 @@ export default {
         }
       },
     },
+    dbname: {
+      handler() {
+        if ( this.tagName == "kafka") {
+          this.getdbprecision()
+        }
+      }
+    }
   },
   methods: {
     getThreeBoxNum(val, item) {
@@ -1054,6 +1063,13 @@ export default {
             }
             return item;
           });
+      }
+    },
+
+    async getdbprecision() {
+      let res = await sendSQLReq(`select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`)
+      if (res && res.code == 0) {
+        this.dbprecision = res.data[0][0]
       }
     },
 
@@ -1477,7 +1493,10 @@ export default {
               value: {
                 ...value,
                 keep: false
-              }
+              },
+              ts: {
+                as: `timestamp(${this.dbprecision})`
+              } 
             }
           };
         }
