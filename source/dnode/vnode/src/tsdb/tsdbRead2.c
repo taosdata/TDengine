@@ -439,7 +439,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   return code;
 
 _end:
-  tsdbReaderClose(pReader);
+  tsdbReaderClose2(pReader);
   *ppReader = NULL;
   return code;
 }
