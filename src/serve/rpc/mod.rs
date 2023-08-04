@@ -8,7 +8,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll,
+    task::Poll, time::Duration,
 };
 
 use arrow::{
@@ -756,11 +756,13 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
     ) -> Result<(), anyhow::Error> {
+        let max_frame_size = Some(std::u32::MAX);
         if let Some(tcp) = self.tcp {
             let service = FlightServiceImpl {
                 controller: controller.clone(),
             };
             Server::builder()
+                .max_frame_size(max_frame_size)
                 .add_service(FlightServiceServer::new(service))
                 .serve_with_shutdown(tcp, async {
                     let _ = tokio::signal::ctrl_c().await;
@@ -774,6 +776,7 @@ impl RpcConfig {
             let stream = UnixListenerStream::new(uds);
             let service = FlightServiceImpl { controller };
             Server::builder()
+                .max_frame_size(max_frame_size)
                 .add_service(FlightServiceServer::new(service))
                 .serve_with_incoming_shutdown(stream, async {
                     let _ = tokio::signal::ctrl_c().await;
