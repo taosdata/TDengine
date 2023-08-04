@@ -404,6 +404,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
     - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like INTERP,DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
     - If the result set returned by the inner query are not sorted in order by timestamp, then functions relying on data ordered by timestamp can't be used in the outer query, like LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE. 
     - Functions that need to scan the data twice can't be used in the outer query, like PERCENTILE.
+- If time window query is used in outer query, the returned result of inner query need to be sorted according to primary timestamp column. 
 
 :::
 

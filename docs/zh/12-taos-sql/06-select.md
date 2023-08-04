@@ -403,6 +403,10 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
     - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE。
     - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE。
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
+- 如果在外层查询中使用时间窗口查询，内层查询返回结果应按照主键时间戳列排序。例如:
+```
+SELECT count(*) FROM (SELECT * FROM tb ORDER BY ts) interval(1d);
+```
 
 :::
 
