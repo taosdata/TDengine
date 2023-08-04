@@ -452,6 +452,10 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       tdbTbcClose(pCur);
       taosArrayDestroy(pRecycleList);
       tFreeStreamTask(pTask);
+      qError(
+          "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
+          "manually",
+          tsDataDir);
       return -1;
     }
 
