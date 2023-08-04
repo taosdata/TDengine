@@ -952,9 +952,7 @@ export default {
         this.opcPointavalible = true;
       }
     }
-    if(this.tagName=='csv'){
-      this.dbsource[0].groups[0].params=this.dbsource[0].groups[0].params.splice(0,2)
-    }
+    
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
@@ -1367,7 +1365,7 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if (this.tagName == "csv") {
-          this.dbname = this.$refs.csvdata.$refs.param.ruleForm.dbName;
+          this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
         }
         if (!this.dbname) {
           Message({
@@ -1494,6 +1492,10 @@ export default {
           piParams["via"] = this.$parent.agentID;
         }
         if (this.tagName == "csv") {
+          this.$refs.csvdata.$refs.param.submit2()
+          if(!this.$refs.csvdata.$refs.param.isAllValid){
+            return
+          }
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
           model.name = this.$refs.csvdata.$refs.param.ruleForm.subname

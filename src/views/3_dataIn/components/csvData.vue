@@ -4,11 +4,12 @@
       <el-tabs v-model="activeName" @tab-click="handleClick">
         <el-tab-pane :label="$t('datasource.uploadcsv')" name="first">
           <div class="upload-file">
-            <span class="label required">{{ $t("datasource.upfile") }}</span>
+            <span :class="['label required',language.includes('en')?'en':'zh']">{{ $t("datasource.upfile") }}</span>
             <el-upload
               class="upload-demo"
               ref="upload"
               accept=".csv"
+              :on-remove="handleRemove"
               :data="uploadData"
               :action="uploadUrl"
               :on-success="handleSuccess"
@@ -32,51 +33,63 @@
           :targetName="dbName"
           :echoData="echoData"
           :isEditable="isEditable"
-        ></CsvParameter>
-      </el-tabs>
-      <el-button
-        type="primary"
-        @click="getCsvColumnsData"
-        size="medium"
-        class="nextbtn"
-        >{{ $t("datasource.csvNext") }}</el-button
-      >
-    </div>
-    <div class="csv-config" v-if="showConfig">
-      <ul class="csv-tableheader">
-        <li>{{ $t("datasource.csvcol") }}</li>
-        <li>{{ $t("datasource.dbcol") }}</li>
-        <li>{{ $t("datasource.coltype") }}</li>
-        <li>{{ $t("datasource.primarykey") }}</li>
-        <li>{{ $t("datasource.ascolumn") }}</li>
-        <li>{{ $t("datasource.astag") }}</li>
-      </ul>
-      <ul v-for="(item, index) in csvColumns" :key="item">
-        <li class="csv-content">
-          <div class="csv-col">
-            <el-tooltip effect="light" placement="right-end" :content="item">
-              <span
-                style="width: 120px; overflow: hidden; text-overflow: ellipsis"
-                >{{ item }}</span
-              ></el-tooltip
+        >
+          <template v-slot:next>
+            <!-- <span style="color:red;font-size:24px;">这是个插槽</span> -->
+            <el-button
+              type="primary"
+              @click="getCsvColumnsData"
+              size="medium"
+              class="nextbtn"
+              >{{ $t("datasource.csvNext") }}</el-button
             >
-          </div>
+            <div class="csv-config" v-if="showConfig">
+              <ul class="csv-tableheader">
+                <li>{{ $t("datasource.csvcol") }}</li>
+                <li>{{ $t("datasource.dbcol") }}</li>
+                <li>{{ $t("datasource.coltype") }}</li>
+                <li>{{ $t("datasource.primarykey") }}</li>
+                <li>{{ $t("datasource.ascolumn") }}</li>
+                <li>{{ $t("datasource.astag") }}</li>
+              </ul>
+              <ul v-for="(item, index) in csvColumns" :key="item">
+                <li class="csv-content">
+                  <div class="csv-col">
+                    <el-tooltip
+                      effect="light"
+                      placement="right-end"
+                      :content="item"
+                    >
+                      <span
+                        style="
+                          width: 120px;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                        "
+                        >{{ item }}</span
+                      ></el-tooltip
+                    >
+                  </div>
 
-          <CsvColumn
-            :csvColName="item"
-            :key="index"
-            :index="index"
-            :colData="localcsv"
-            :dbOptions="dbOptions"
-            :isEditable="isEditable"
-            @handleVisble="handleVisble"
-            @handledbChange="handledbChange"
-            @handleFilter="handleFilter"
-            @handleClear="handleClear"
-            ref="mqtt"
-          ></CsvColumn>
-        </li>
-      </ul>
+                  <CsvColumn
+                    :csvColName="item"
+                    :key="index"
+                    :index="index"
+                    :colData="localcsv"
+                    :dbOptions="dbOptions"
+                    :isEditable="isEditable"
+                    @handleVisble="handleVisble"
+                    @handledbChange="handledbChange"
+                    @handleFilter="handleFilter"
+                    @handleClear="handleClear"
+                    ref="mqtt"
+                  ></CsvColumn>
+                </li>
+              </ul>
+            </div>
+          </template>
+        </CsvParameter>
+      </el-tabs>
     </div>
   </div>
 </template>
@@ -114,7 +127,7 @@ export default {
   filter: {},
   data() {
     return {
-      // language:window.navigator.language,
+      language:window.navigator.language,
       showConfig: false,
       csvParserConf: {},
       uploadData: {
@@ -161,6 +174,9 @@ export default {
     }
   },
   methods: {
+    handleRemove(file,filelist){
+      this.fileList=filelist
+    },
     //编辑状态的回显
     echoEditData() {
       this.csvColumns = Object.keys(this.echoData[0].parse);
@@ -249,21 +265,16 @@ export default {
           Message.error(this.$t("datasource.uploadcsvtip"));
           return;
         }
-
+console.log('下一步',this.activeName,this.fileList);
         this.$refs.param.submit();
-        if (
-          !this.$refs.param.ruleForm.dbName ||
-          !this.$refs.param.ruleForm.tableName
-        ) {
-          return;
-        }
+        
         if (this.isEditable) {
           this.$parent.$parent.isEditable = false;
           // this.isEditable=false
           console.log(this.$parent, "编辑状态");
         }
         console.log("请求接口获取csv列", this.activeName);
-        await this.getDBColumns();
+        // await this.getDBColumns();
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
@@ -291,6 +302,12 @@ export default {
           );
           this.csvColumns = result.file_header.column_names;
         }
+        // this.dbOptions = this.dbOptions.concat(
+        //   this.csvColumns.map((item) => {
+        //     return Object.assign(item, { disabled: true });
+        //   })
+        // );
+        console.log(this.dbOptions, "有头无头的db列");
         if (result && result.message) {
           Message.error(result.message);
           return;
@@ -379,17 +396,18 @@ export default {
     }
   }
   .nextbtn {
-    width: 573px;
-    margin-left: 230px;
+    width:100%;
+    margin-top:20px;
+    margin-bottom:20px;
   }
   .csv-config {
-    margin-top: 30px;
+    margin-bottom:20px;
     .csv-tableheader {
       display: grid;
       grid-template-columns: 1fr 1.5fr 1.5fr 1fr 1fr 1fr;
       column-gap: 10px;
       background-color: #f5f7fa;
-      border: 1px solid #ebeef5;
+      // border: 1px solid #ebeef5;
       border-bottom: none;
       padding-top: 5px;
       padding-bottom: 5px;
@@ -403,13 +421,14 @@ export default {
     .csv-content {
       display: grid;
       grid-template-columns: 1fr auto;
+      border-bottom: 1px solid #ebeef5;
       .csv-col {
-        width: 120px;
+        width: 123px;
         display: flex;
         align-items: center;
         justify-content: center;
         &:first-child {
-          border-top: 1px solid #ebeef5;
+          // border-top: 1px solid #ebeef5;
           padding-left: 10px;
         }
       }

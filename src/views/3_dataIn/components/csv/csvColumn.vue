@@ -412,7 +412,7 @@ export default {
   display: grid;
   grid-template-columns: 1.5fr 1.5fr 1fr 1fr 1fr;
   column-gap: 10px;
-  border-top: 1px solid #ebeef5;
+  // border-top: 1px solid #ebeef5;
   padding-top: 8px;
   padding-bottom: 8px;
   position: relative;

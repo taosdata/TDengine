@@ -3,7 +3,7 @@
     <el-form
       :model="ruleForm"
       ref="ruleForm"
-      label-width="200px"
+      :label-width="language.includes('en') ? '200px' : '120px'"
       :rules="rules"
     >
       <el-form-item :label="$t('datasource.includeheader')" prop="hasHeader">
@@ -21,8 +21,16 @@
       >
         <el-input v-model="ruleForm.customcol"></el-input>
       </el-form-item>
+    </el-form>
+    <slot name="next"></slot>
+    <el-form
+      :model="ruleForm2"
+      ref="ruleForm2"
+      :label-width="language.includes('en') ? '200px' : '120px'"
+      :rules="rules"
+    >
       <el-form-item :label="$t('datasource.target')" prop="dbName">
-        <el-select v-model="ruleForm.dbName" placeholder="">
+        <el-select v-model="ruleForm2.dbName" placeholder="">
           <el-option
             v-for="item in dblist"
             :key="item.name"
@@ -32,10 +40,10 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="$t('datasource.name')" prop="subname">
-        <el-input v-model="ruleForm.subname"></el-input>
+        <el-input v-model="ruleForm2.subname"></el-input>
       </el-form-item>
       <el-form-item :label="$t('datasource.using')" prop="tableName">
-        <el-input v-model="ruleForm.tableName"></el-input>
+        <el-input v-model="ruleForm2.tableName"></el-input>
       </el-form-item>
     </el-form>
   </div>
@@ -62,14 +70,18 @@ export default {
   },
   data() {
     return {
+      language: window.navigator.language,
       showcustom: true,
+      isAllValid:true,
       ruleForm: {
         hasHeader: false,
+        customcol: "",
+        isValid: false,
+      },
+      ruleForm2: {
         dbName: "",
         subname: "",
-        customcol: "",
         tableName: "",
-        isValid: false,
       },
       customcolrule: [
         {
@@ -78,6 +90,7 @@ export default {
           message: this.$t("datasource.customcol"),
         },
       ],
+
       rules: {
         dbName: [
           {
@@ -121,14 +134,14 @@ export default {
   },
   mounted() {
     if (this.isEditable) {
-      this.ruleForm.dbName = this.targetName;
-      this.ruleForm.subname=this.echoData[0].model.name
-      this.ruleForm.tableName = this.echoData[0].model.using
-      this.ruleForm.customcol= Object.keys(this.echoData[0].parse).join(',')
+      this.ruleForm2.dbName = this.targetName;
+      this.ruleForm2.subname = this.echoData[0].model.name;
+      this.ruleForm2.tableName = this.echoData[0].model.using;
+      this.ruleForm.customcol = Object.keys(this.echoData[0].parse).join(",");
       this.ruleForm.hasHeader =
         this.$store.state.app.hasheader == "true" ? true : false;
 
-      this.showcustom=!this.ruleForm.hasHeader
+      this.showcustom = !this.ruleForm.hasHeader;
     }
     this.getDatabases();
   },
@@ -144,14 +157,21 @@ export default {
       }
     },
     submit() {
-      if (this.ruleForm.hasHeader) {
-        this.rules;
-      }
       this.$refs.ruleForm.validate((valid) => {
         if (valid) {
           this.isValid = true;
         } else {
           this.isValid = false;
+          return false;
+        }
+      });
+    },
+    submit2() {
+      this.$refs.ruleForm2.validate((valid) => {
+        if (valid) {
+          this.isAllValid = true;
+        } else {
+          this.isAllValid = false;
           return false;
         }
       });
