@@ -5,21 +5,131 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2023-08-04
+
+**Full Changelog**: [v1.0.4...v1.1.0](https://github.com/taosdata/taosx/compare/v1.0.4...v1.1.0)
+
+### Bug Fixes
+
+- *agent*: Fix negative duration delay from server ([3678841](3678841ef606db23f72bc9219c9684ec7cb97616))
+- *agent*: Update activities when task cancelled/stopped ([319215a](319215a37c3fc87ba19959ee6b020b05707de6af))
+- *core*: Fix regex parser error ([4db3535](4db3535d1b877a762605b9e6361517a2a715adeb))
+- *core*: Improve error for multiple csv files with inconsist columns ([4e3aaf1](4e3aaf1e714f598b06335d1b21bf1923d2998f0e))
+- *core*: Fix in-compatible for early version of local.toml ([d936317](d9363179ad554cda204018d7f0d5035bce8b4f96))
+- *core*: Fix in-compatible for early version of local.toml ([5d3d0eb](5d3d0eb39814add687fe4eddaed1fe2d1a6ca4b4))
+- *opc*: Report opc data sets error when failed ([4c2bb2a](4c2bb2a660dcf600fd40722247ee16dbae4e1fb8))
+- *serve*: Fix filemeta api error message for csv ([d526ae3](d526ae3e58f5207cda5f51f57332bdb0c7af846b))
+- *serve*: Improve error message in filemeta api ([46fdbe9](46fdbe9445999add078132ab776e1ceebaf76311))
+- *serve*: Raise error when csv header is empty ([1f364eb](1f364eb5a2ffc9fccd209a7f1bf224d0d81555f8))
+
+- Support unix timestamp in csv parsing ([f0b0790](f0b07905533783f3a58b9d075daa69f5a7897f08))
+- Expect status updated to completed when task done ([d58a291](d58a2913f0d1fd0ed373fe6749623b1eb636024d))
+- Csv data source localization ([19a443e](19a443e52b23e7a3bd15546c744b4d180847622a))
+- Distinguish jdk versions. #[TD-25502](https://jira.taosdata.com:18080/browse/TD-25502) ([b7bc6aa](b7bc6aabd4d91c6f61ca2c6b635d84367ecc24e7))
+- Update frequecy daily ([0be0866](0be086643ad429be5f5fdf71b9f1152a372f0869))
+- Update frequecy daily ([5aff57a](5aff57a684d1bad86dbb82cdd22638b26ec8bfcf))
+- Fix sql too long ([6069644](6069644bdcfeaa0190c8cb4bbf257c2fe08d43c9))
+- Fix lush add tag error when use agent ([08447fb](08447fbb024ab1c86eaea753f15d57dbefb21226))
+- CSV ns to ns, us to ns panic ([ed63c08](ed63c08e440dcbb35948a3ea70d0471ac8f6944f))
+- Support kafka source to tdengine ([cebf0cd](cebf0cd66351a09012facae6527d4108f2082a5e))
+- Fix varchar lenth not work ([23bb679](23bb679eba66a98b3a622793cb7a96179002b562))
+- Add timeout parameter in kafka source configuration#[TD-25559](https://jira.taosdata.com:18080/browse/TD-25559) ([7c17875](7c17875d32e4f169f8f087d4fac2f1af7eb0a1f9))
+- Timeout parameter should be str ([2ae6a09](2ae6a094b6ccc37ca080e7d41eefb270849e7bcf))
+- Fix json meta deserialization error in tmq to td ([194e82c](194e82c7a78ec5429beee3ab47a87bcc742ca49f))
+- Fix json meta deserialization error in tmq to td ([c1cf3fb](c1cf3fb37882dbcb5470113466f418d3d064339f))
+- Influxdb jdk error cause panic ([ebc2e78](ebc2e78562d64baee8808a45c522acdcb9f7b772))
+- Report IPC stream error to runners ([0d0ddff](0d0ddff3e8ccba0e3c5b54b163f46638b11cb9b7))
+- Fix csv lost data ([939dfed](939dfed3b01fc7b38d3e176257062488137732f6))
+- Fix rename table error ([53fe2ba](53fe2ba47f8e3ec0a1ebc78204927bf837c0a5ae))
+- Fix max_frame_size too large ([a4b58e5](a4b58e547fc11adf0ea6542309013e9a446d0c91))
+- Stop kafka task causes pending ([9114878](91148787a6093dd1f8f3b7d33fc636d5cb9bb0f4))
+- Fix child table sync fail ([96c8119](96c81191185d7e7dea1a8656bc57af0262d3d94b))
+
+
+### Enhancements
+
+
+- Check duplicated column or tag ([3d57bdb](3d57bdb5c35e82e18d9a93f987f00dce4643c9e7))
+- Support rename table with regex ([2a0992c](2a0992cc60335f1d419b2edeba3011438b5b0c01))
+
+
+### Features
+
+
+- Kafka source add ssl#[TD-25437](https://jira.taosdata.com:18080/browse/TD-25437) ([62f2776](62f2776f2d10ace55d30b459559fce90bf13fde1))
+
+
+### Refactor
+
+
+- [TD-25455](https://jira.taosdata.com:18080/browse/TD-25455) add min value for keep ([66257bf](66257bf530c783fd2cacc880507f9811af6522a3))
+- Remove csv seq config temporary ([056b2a5](056b2a5dc11667b0065f2523b85022510db558f4))
+- Fix replace not work ([15a6165](15a616507f8b701375cd78b06f1c02f2a59d5b77))
+- Set Payload size to 100m, MultipartForm size to 2G ([de3bfb3](de3bfb3ba14bf5a07e6d2143a3e7dac94660f722))
+- Size set to max ([9634ccc](9634cccc215bd52c60dbbb27c90180652fdaa608))
+- Remove reduntant config ([0e29495](0e2949547f1f949f82a85729e70d9e602b93fe5c))
+- Set max_frame_size ([9d76fb1](9d76fb18be607501e5b296ccda79151254e18e49))
+- Set max_decoding_message_size and max_encoding_message_size ([69d8fba](69d8fbaa9bfd5b7bea946287a0854857f97ba8e5))
+
+
 ## [1.0.4] - 2023-07-28
 
 **Full Changelog**: [v1.0.3...v1.0.4](https://github.com/taosdata/taosx/compare/v1.0.3...v1.0.4)
 
 ### Bug Fixes
 
+- *csv*: Csv header/has_header/skip behaviors ([f878b80](f878b8000113c5ab74b8ad498498b3e92b89fa63))
+- *serve*: Default use ws in explorer ([7ecd96e](7ecd96ea6abc66455bf2f51813fd4c0ffe28de51))
+- *serve*: Fix legacy options in explorer ([c48ede5](c48ede5fbc107694cf5c45d600aa494dba74e744))
 - *serve*: Assert task.force is true ([c1869e2](c1869e22360ed37dde335c79b752f76647171b4a))
+- *serve*: Assert task.force is true ([ea1dc38](ea1dc386a8789e8c15197edfb2487453cf3ad2db))
 
+- Add query parameter. #[TD-25314](https://jira.taosdata.com:18080/browse/TD-25314) ([113aba9](113aba97290f3d1434399edd881b1fd6e20d47a8))
 - Fix [TS-3723](https://jira.taosdata.com:18080/browse/TS-3723) version parse error ([22a65f2](22a65f2507c8f2897e0e5a2a824b13d95315ba69))
+- Fix [TS-3723](https://jira.taosdata.com:18080/browse/TS-3723) version parse error ([bc2dc2f](bc2dc2f718d2f85b675d739542af1c8479f700ec))
+- Modify the format of the placeholder of time ([acd5d2b](acd5d2bcf60b7afbb468573e5df9cd10e6821fe4))
+- Optimize error response. #[TD-25240](https://jira.taosdata.com:18080/browse/TD-25240) ([df0e585](df0e5856799705f264f2e0ab51684ac8c37e8c45))
+- Modify to unified error. #[TD-25240](https://jira.taosdata.com:18080/browse/TD-25240) ([7a381cd](7a381cdc5eea338f8facd50c163a302364856c0b))
+- Fix CSV stream writer error ([9fd0ebf](9fd0ebfa45095827cd9b8ef90e45855e49007717))
+- Fix config check error when get dataset ([66f6a58](66f6a581e9d83341baf9c81aa9e0a5da4a797b4f))
+- Fix for csv connector parse error when no header ([d10a58c](d10a58c54d0c0fafcf82d6a1a893070c18102420))
+- Optimize error response. #[TD-25240](https://jira.taosdata.com:18080/browse/TD-25240) ([aaa5770](aaa5770e2b9d55a4248fa996978d0f7ec54e161a))
+- Kafka source option should be an endpoint ([211eb27](211eb27a619b0c93ade00e7dc9138111776ebf7b))
+- Fix for batch size in csv ([1593689](1593689c4be2034022976fede28635d5e0d9f7f7))
+- Should'n use same key in datasource config, cause empty value when edit ([baf2737](baf2737f50f5b73dc571efdeadc10966ead69969))
 
 
 ### Enhancements
 
 
+- Opc add dump config ([398af02](398af02e0e0d4c83993c3235ae0d1a6aa3443f23))
 - Config log keep days in agent.toml ([2852328](285232818d146bb1416a0a3cb92f871b3c2dd363))
+- Config log keep days in agent.toml ([84ab9a2](84ab9a2d4a70814b084988b6c135e5e5b15e0251))
+
+
+### Features
+
+
+- Github actions test. #[TD-24480](https://jira.taosdata.com:18080/browse/TD-24480) ([d4a73ff](d4a73ffa606ddca7a7471ca9f8fe1f0d5ca7eea8))
+- Github actions test. #[TD-24480](https://jira.taosdata.com:18080/browse/TD-24480) ([d4c9f1c](d4c9f1c2e756a3c38c5ebe7ae38108dcfb500da9))
+- Github actions test. #[TD-24480](https://jira.taosdata.com:18080/browse/TD-24480) ([4917ea9](4917ea99c0a3ef33aed1baf4e4429c4af831998f))
+- Github actions test. #[TD-24480](https://jira.taosdata.com:18080/browse/TD-24480) ([37d31eb](37d31ebfdb59f34c27e3faddb51f351b9a00b9c0))
+- Github actions test. #[TD-24480](https://jira.taosdata.com:18080/browse/TD-24480) ([849c60a](849c60a275387fb51ecfc2d27783dfe3ad0c306f))
+- Change the beginTime and endTime to the format with timezone. #[TD-25355](https://jira.taosdata.com:18080/browse/TD-25355) ([6ab93dd](6ab93dd84b11e22e5639bf4aae82f0c97922fe63))
+- Kafka source use SSL authentication ([dd0c24c](dd0c24c7d839f75608607b39523f368b393d58a5))
+- Kafka source use SSL authentication ([d112ee8](d112ee8e93f387eda1454ddcdc1f533489b6b506))
+- Improve agent activities awareness ([156bbd1](156bbd1ea6a5823b3ca634443d718e11fb873fd9))
+
+
+### Refactor
+
+
+- Modify param type ([ee30315](ee30315264983d0224dd6304141fdca123b4cbf9))
+- Add opc csv config param ([8d2811f](8d2811fb66579a78caddcda2ccb7acaebc93594f))
+- Modify error format ([861c314](861c314c889eadf7fe52b8045e19e7b727271185))
+- Add desc for duration type in datasource ([8e586e4](8e586e4c1bfc36fdd205d7e8271974f3a7ad0a62))
+- Desc and value modify ([4d5226a](4d5226af381a120a05b04e0701c3c9e8c877e712))
+- Restore param use_csv_config ([dfcd8ae](dfcd8aea5cfbe806cc7c3d8ee5cc4db09aa58648))
 
 
 ## [1.0.3] - 2023-07-21
@@ -28,20 +138,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- *api*: Fix GET /agents api error ([29175f8](29175f83a84046b762bc518d584de3984fa5d618))
+- *core*: Fix parser deserialization error ([84056bf](84056bf72b87fae9c6599eb9f88a47c3a817d523))
 - *legacy*: Fix unexpected error in legacy sync ([4652132](465213251a9f6761668d93ad8f889c74a8980f46))
+- *legacy*: Fix unexpected error in legacy sync ([acf177b](acf177b33d6dd59b2d200bbef25150c81fc7d03c))
 - *legacy*: Fix memory increasing problem in syncing ([4eff0fb](4eff0fb4d105c530fe57b576dd12c8fb910b1fa3))
+- *legacy*: Fix memory increasing problem in syncing ([91b53c3](91b53c335c0397c6b370d02a1b327af252007092))
+- *serve*: Plugin definition should not use line-breaks for md str ([ac361b4](ac361b418bff7d5d580eaf0129685e0f58b81876))
 
+- Fix for csv connector ([533ae46](533ae461b137fb253622bb4c312e6f96a34fada2))
+- Read configuration with default value. #[TD-25144](https://jira.taosdata.com:18080/browse/TD-25144) ([c7e29b9](c7e29b9e30d4246a14d28d733dafc9f38e485efa))
+- Fix tag add ([85a2187](85a2187d5d9f5c9a3bc20a5693704df52c8de660))
+- Fix configDir and libraryPath verify fail ([af9df18](af9df180c3e5f9f275c5abbbfce55df2c1ce7ff4))
+- Fix tag add ([656d8ad](656d8ad04b296f012ed2d3e8607f4af6e9d3ee78))
+- Change the log to English. #[TD-25153](https://jira.taosdata.com:18080/browse/TD-25153) ([fe69201](fe692017551f6ac983796ec533d5a4da7f38dcd2))
+- Fix authication param value set error when different AuthItem have same param ([21cdf59](21cdf59e58b0967c83df9ebbbf4ac683634d2202))
+- Push updated schema information. #[TD-25216](https://jira.taosdata.com:18080/browse/TD-25216) ([c7135c2](c7135c2def1c8ab442408786edac44b1d18338eb))
+- Add startup parameters to support jdk16+. #[TD-25189](https://jira.taosdata.com:18080/browse/TD-25189) ([0317b5a](0317b5a6b4b99f9ac1a1754e74bd3f16afd1927f))
+- Fix opc message insert when use csv config ([3269de9](3269de96c63eb67f20372d40199c763aa7fc2a48))
+- Remove print message ([356c513](356c513e9dd96fa7274de7c615d39df1b05df092))
 - Influxdb log typo ([96d4b3f](96d4b3f92d58d8498a62afb7ffc102e18a73f2a9))
 - Pi log typo ([ee7b0bb](ee7b0bb3472d023ae66db7d5492c37e007996b0c))
 - Opc log typo ([e1aded1](e1aded1d2878be0272af3583387fe149ed8c27bd))
+- Influxdb log typo ([33a047c](33a047c472acd02c7e910711a7f8855a7612aef5))
+- Pi log typo ([3fd88b4](3fd88b475e2ec482acec21a72e5a3e25031213b9))
+- Opc log typo ([a2314c8](a2314c8dbca0f1ce1435c9d325aa3968a255149d))
+- Fix opc runtime error ([961041a](961041a8ae589c315aa82e8151ab3bb1075dd534))
+- Fix test compile error ([f8a108d](f8a108de9bfc84741d42618dbda7c2ca9fbef679))
+- Fix test compile error ([2123ad5](2123ad5be9eb559de90327fa58c83b1e9d097a47))
+- Sort the data returned by getSchema. #[TD-25249](https://jira.taosdata.com:18080/browse/TD-25249) ([50f0e24](50f0e241e5e47ee13afdea24fbcbc84bf2b2fabb))
+- Modify location. #[TD-25273](https://jira.taosdata.com:18080/browse/TD-25273) ([f09fda7](f09fda7e7c77fda49c472d592093d42cbd9f8d73))
+- Delete the orgid of version 1.x . #[TD-25266](https://jira.taosdata.com:18080/browse/TD-25266) ([19dc18a](19dc18a02ad11fa7595b60ff2462776de8a10517))
+- Delete the orgid of version 1.x . #[TD-25266](https://jira.taosdata.com:18080/browse/TD-25266) ([46ab724](46ab724c2ae2e1b336466971a25b62b4f46cafa9))
+- Modify the description of the readWindow. #[TD-25257](https://jira.taosdata.com:18080/browse/TD-25257) ([55ec04f](55ec04fe856a2e30348b43486bb0256d88124cbc))
+- Fix tag value match error ([305c79b](305c79b29f77d925f81a33ddbaeea4de2edef1f7))
+- Fix decode invalid padding ([b30f4ee](b30f4eefc258820e3e9bed87a1691c614b459438))
+- Fix enabled not word ([d2d3113](d2d31137145d176f77a83e393b50e90e78a8572a))
+- Optimize error response. #[TD-25240](https://jira.taosdata.com:18080/browse/TD-25240) ([9e3ed73](9e3ed73c8f430c41a9e5b325c714569c8589dca5))
+- Fix csv options hint ([b922804](b9228046d562f69e1961a8e0b7db91d2c3e52af1))
+- Optimize query buckets. #[TD-25295](https://jira.taosdata.com:18080/browse/TD-25295) ([9bb66e6](9bb66e65d4ae24447054e3d7587eff0f4419d330))
+- Optimize query buckets. #[TD-25295](https://jira.taosdata.com:18080/browse/TD-25295) ([ae7ed21](ae7ed218a2422e4bef79442e1eb9f69965b30ee7))
+- Ignore when session not valid ([56478ed](56478ed81b1d641a7f46378be77907141feec57a))
 - Ignore when session not valid ([1368845](13688453128ce8542a138fbeabaaa19a0a5a4572))
 
 
 ### Enhancements
 
 
+- Support insert for csv config file ([823a987](823a9872ac3c498dac546f647621666b3fed1486))
 - Set log keep days by env ([05e4c5a](05e4c5a15983845629cdf664414f394a60a8979a))
+- Set log keep days by env ([bc8583e](bc8583edf25f8400e7e4ea4d3a4e65e2eebd73de))
+- Dump opc data to log file ([a888414](a8884146c280527ddb794bb39070730c4982b6a5))
 - Dump opc data to log file ([6f59ee3](6f59ee358173a01d0a7afb2551cc2d4a344c89f5))
+
+
+### Features
+
+- *data source*: Add legacy data source ([4d826cb](4d826cb2f508582b7063a187be81199fb3009342))
+
+- Support set tag value after add tag for lush message ([2ec4b6f](2ec4b6fdf9ed85c45b855e1ec0a00ea615b5f21e))
+- Taosx kafka source#[TD-22294](https://jira.taosdata.com:18080/browse/TD-22294) ([3f87596](3f87596b1dee089c1d39a741ad41d98ef1396941))
+- Optimize ds/in for explorer. #[TD-25208](https://jira.taosdata.com:18080/browse/TD-25208) ([330ede0](330ede0a81f8b65c12420e948761b95b4f39d1de))
+- Supoort download file ([622deea](622deea823dc502473423b24aa93cd0b55cfd345))
+- Support replace param with file content when use agent start task ([de59cbc](de59cbcb0dec10d84c5cf55480c992c57bc098df))
+- Add kafka data source ([b2682b9](b2682b98c9ae8839ebd10d27dde84669c70e11a9))
+
+
+### Refactor
+
+
+- Refactor file upload response and filemeta request ([5a72d3b](5a72d3b3a37adfd0ae9700f9df060f4249e13de4))
+- Ref get_string_vec_from_param_or_file to async ([a7eb870](a7eb8708ed4dd1c825694d18724a62a4da631220))
+- Support get opc table config from csv file ([7b1ac32](7b1ac324390ed6c35978d27d75a96c3e70404e22))
+- Set default value ([62d717d](62d717d9718521ba24ba214cf1cc7f5f02ba63b4))
+- Fix create stable and insert ([c06cfa0](c06cfa002f43af704facc97f568237d3f11019b9))
+- Return file path with file name after upload ([a0d7926](a0d7926064aeef89b42a54d4722109c01f950c93))
+- Modify print ([99e6b88](99e6b881c356ba2ed548bfff66110ce6664d895c))
+- Remove redundant code ([0317a1e](0317a1e6dc5de9c59dc4a51b4688aa1581874836))
+- Use table name config in csv config file ([341dbe7](341dbe7b4f9c557026252a2439e68c94db2d1f2b))
 
 
 ## [1.0.2] - 2023-07-10
@@ -52,6 +226,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 - Piconnector parse big toml file failed ([aaf0115](aaf01159275f63ba82c83c23ddfc8012543c9168))
+- Piconnector parse big toml file failed ([70c22f9](70c22f9902c9687da1d3abbff4c3cc5d057bf89c))
 - Local time ([d68f744](d68f744572bcb84a9cab83265745fd6fc22b2916))
 - Use timer clone ([bc84f81](bc84f81a93a2b1a0bd1383e0cd7830f7737d43eb))
 - Timer utc offset ([c3c9f57](c3c9f579fa38d3430a774e35b3fd1a0a37017a30))
@@ -59,20 +234,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use chrono timezone offset ([c97038e](c97038e79dc62501af3344f7a2001e5ff8439ebe))
 - Remove time feature ([34d690a](34d690abce072f714097893c619ca976edab2722))
 - Remove unused import ([1a39ee5](1a39ee5468c497feb324fc1b6724ed9ffe4c196c))
+- Local time ([8eaa42a](8eaa42a163d9cc407cff92c589a743a52dee4b25))
+- Use timer clone ([3083263](3083263f6699fa226bf1a10729754da2a985be4e))
+- Timer utc offset ([bd2c7de](bd2c7de9c2dd0c2c58fdd3dda65a830eacffff1b))
+- Time local offset ([cea01ce](cea01ce9a9e6604fce53f6f5c7e5664676e4afb6))
+- Use chrono timezone offset ([190a68d](190a68d821efe3f06e3dde12af791cdc99fb73e7))
+- Remove time feature ([b84574c](b84574c6fbf00d8814428c3c9d109d2a5560b535))
+- Remove unused import ([8a427bf](8a427bf2c2862b02a7b84737306c5f87ee66ef6e))
+- Modify the parameters of the query schema. #[TD-25157](https://jira.taosdata.com:18080/browse/TD-25157) ([fda613d](fda613d6dae322bfd296d6d8358de5eafc4791e6))
 - Fix configDir and libraryPath verify fail ([34d949c](34d949ce9c4a0ea5347b9a3763672b64154df6c0))
 
 
 ### Enhancements
 
 - *serve*: Improve data source parameters ([3c61a7c](3c61a7cad5743292ac5431ec65843a5a52aaaebd))
+- *serve*: Improve data source parameters ([8c7552c](8c7552c4fff2039edb9454e9c135a3238a419526))
 - *serve*: Add short_description field in params/groups ([35168ff](35168ff08e3c58528d1f3b9b33950df2c45b3e67))
+- *serve*: Add short_description field in params/groups ([99714c8](99714c81b557bbe230533b37ba998e94af3bdba8))
 
+- Support csv ([b4c6c22](b4c6c22d046981d8b0cebba1cb337df3986c6077))
+- Support alter table from lush message ([b5b7f5f](b5b7f5f821207992f8f12d76cf8874696bb07acb))
 
 
 ### Features
 
+- *serve*: Add csv data source ([7f24d11](7f24d11a1e4625056ea0f5575ea4f8b212a54069))
 
+- Add get filemeat api ([aef45ae](aef45ae4a7c5fb9fc00a409e59b88205e0789210))
+- Add parameters for influxdb. #[TD-25032](https://jira.taosdata.com:18080/browse/TD-25032) ([00daf37](00daf373499bb912f9e090aee7cc24a2955a1e9c))
 - Verify taos dsn in legacy mode strictly ([33d8a3d](33d8a3decfa15f4a1b2fc72c6cc6de250d21e9b8))
+- Verify taos dsn in legacy mode strictly ([db9ac98](db9ac986c771b98dc4770a712ce371dd6b134363))
+- Add dataset api for influxdb. #[TD-25032](https://jira.taosdata.com:18080/browse/TD-25032) ([a62263f](a62263fff4ee5110209763fbd438c1bf5214ffeb))
+
+
+### Refactor
+
+
+- Support read certificate/private_key from file ([0d306f7](0d306f74c442c9e39f7fe08581683a6ea56f5e00))
 
 
 ## [1.0.1] - 2023-07-05
@@ -89,24 +287,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace config path to "taosX" ([094fdd5](094fdd5e325d3794aa6263ff17663e1d4865cf58))
 - Redo ([6693560](66935608ab10cab4ace22997d9831624c086158a))
 - Update path ([e345617](e3456172fb24d432beb2ac9a714961b703ce13c1))
+- Fix build script in opc makefile ([7849e9a](7849e9ad67099d8b9e7b4f90216772d69e17b621))
 - Uninstall taosx from control panel ([c285831](c28583108f60c93c6ece949bba1b0391597a0ad6))
 - Fix [TD-24903](https://jira.taosdata.com:18080/browse/TD-24903) opcua regex not work ([280e40c](280e40c95fd3b9441fc49b76c0607c085d2291cd))
 - Fix [TD-24918](https://jira.taosdata.com:18080/browse/TD-24918) and [TD-24919](https://jira.taosdata.com:18080/browse/TD-24919) ([c947f53](c947f5355ca849c75abdc46f5bbea99c5afd98ff))
+- Cluster-id not required in cloud ([4a61688](4a616881c9365098dc993bd1d750350b854c9fd7))
 - Git config safe.directory after checkout ([15b20dd](15b20dd3c604839f98418a1438ab992c81dc4d57))
 - Install git before exec checkout ([000a9ac](000a9aca7305f513df68b79118fce6837ebbd263))
 - Update taos to v0.8.13 ([97cf14b](97cf14b0778586ff45e140e1720a4e27e138a47e))
+- Update taos to v0.8.13 ([e2ccd48](e2ccd485f43dbfcbbb161cacf7cf22b2ae01a03e))
 - Fix bug in calculating offset. #[TD-24990](https://jira.taosdata.com:18080/browse/TD-24990) ([7d11459](7d1145986bdf8c6e29eb6caced96bf73ec707881))
+- Fix bug in calculating offset. #[TD-24990](https://jira.taosdata.com:18080/browse/TD-24990) ([6b2b80b](6b2b80bd83d571b3bdd83e3785381b76d77c9b1f))
 - Do not track transfer metrics if cluster id not valid ([6e175af](6e175af78dd950adf87c93150a48c5c3a797aa2b))
+- Do not track transfer metrics if cluster id not valid ([98f0727](98f0727a2e792ad583a1bd8c748a5d4976f1bf21))
+- Endtime is later than now. ([f48c1ad](f48c1ad700ea55a4c253a60c9595786365871473))
 - Specifiy tag name when use insert into using ([092cdb8](092cdb8fd2c91c5edeb7b3b1070d8f6d072b40c4))
+- Exit after completing the endTime. #[TD-25038](https://jira.taosdata.com:18080/browse/TD-25038) ([2ca1a8e](2ca1a8ed176ea395c5f6b1572800c5d1b4ba2bf9))
 - [TD-25061](https://jira.taosdata.com:18080/browse/TD-25061)/[TD-25040](https://jira.taosdata.com:18080/browse/TD-25040) fix index error ([05bb6a7](05bb6a7cef13b4a5f8afc841d0545d693010c8a0))
+- [TD-25061](https://jira.taosdata.com:18080/browse/TD-25061)/[TD-25040](https://jira.taosdata.com:18080/browse/TD-25040) fix index error ([96a5327](96a532786967af194e051079f054c45ed663c336))
+- Specifiy tag name when use insert into using ([aa5619e](aa5619e1c923213a30b30a40cb7d4d0d1d2a4d2d))
 
 
 ### Enhancements
 
 - *mqtt*: Reduce CPU usage ([c08fa4c](c08fa4c7323bb416fb1393c14c314e0f53166894))
+- *mqtt*: Reduce CPU usage ([4470d59](4470d59fca0b9fc6ee710dc9de62b6110a8b736f))
 
+- Regex in getting points supports matching id ([5d4ad07](5d4ad078eec89ce5c3d41ba59e91fdc5a99e3b74))
 - [TD-24921](https://jira.taosdata.com:18080/browse/TD-24921) "code" desc ([89500bf](89500bf29e7d96826db9cc42d9105e6a846b49a2))
+- Regex extractor ([55c926a](55c926a4f38ec26a71ed4c6ee6b448df9a3b33ed))
 - Refactor lush message batch insert ([a781dd1](a781dd16303f8c1c0d0269320dd6c3f0a9b2eb65))
+- [TD-24875](https://jira.taosdata.com:18080/browse/TD-24875) support update task name ([8e112b2](8e112b27acdc919b7f0131f89fd43ef7f1dcaa0f))
+- Refactor lush message batch insert ([8083254](80832545b7be094f7c308882b0ff2edcb54a78f3))
+
+
+### Features
+
+
+- Process new added measurements. #[TD-24399](https://jira.taosdata.com:18080/browse/TD-24399) ([63e587a](63e587a3be02d0d5216a53f42e5139c26d039d59))
+- Support configuration of fixed measurements. #[TD-24398](https://jira.taosdata.com:18080/browse/TD-24398) ([8b86937](8b869370ce951cfe412992c0a7f70c071bc20ca0))
+- Support upload files ([9878342](9878342ec880fd7f6324e2c8284fd4a9dcb78589))
+- Exit after completing the endTime. #[TD-25038](https://jira.taosdata.com:18080/browse/TD-25038) ([676d989](676d989f25533a2da325eb27eb801c07d02c96cb))
+- Support for multiple versions of Influxdb. #[TD-24318](https://jira.taosdata.com:18080/browse/TD-24318) ([83ac428](83ac42837a61b6fd4f0ba9ab6a92aa258f635447))
 
 
 ### Refactor
@@ -117,6 +339,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add print ([ae15ea2](ae15ea239a8d479bd15eac4d3439226723935958))
 - Modify git config exec location ([c0d2402](c0d2402f68c95faed98032a100d95c6865742f7c))
 - Modify safe.directory set ([b306542](b306542dde4f6672f293710ea62058637a23d823))
+- Return releative path after uploaded ([2be3ce5](2be3ce5f9c194001dbb1a3a9c3b7fc9df1934a51))
 - Modfiy lush message insert ([c6ab372](c6ab3725bb21b86fba982c626251d805da814239))
 - Disable git safe.directory ([09cf1ab](09cf1ab7c69c7e4103970b48b4e1a2958b62e789))
 - Add print ([313838b](313838b6b1fda2ebe8a2973ca11094604de63d2f))
@@ -129,6 +352,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set safe.directory $PWD ([47b2d3a](47b2d3a61d33af4bbbeb379e343631e9265d17ab))
 - Use $PWD instead of /__w/taosx/taosx ([1b68ca5](1b68ca515106280721d864bd5d07bd4fa34bdbf6))
 - Modify log print ([43e647a](43e647ad1ad8245df5cee1fcf1663821badf7e2d))
+- Modfiy lush message insert ([950fa55](950fa5594d4c95295a7109487067b4b9ed8f879a))
+- Modfiy log level ([a15643e](a15643ea2b9c394bc8a1fd48a137ec7676b956bd))
+- Modify log print ([cdf1aa1](cdf1aa1b7eb44a4e17be3a0a4c3d78a99e15943c))
 
 
 ## [1.0.0] - 2023-06-21
