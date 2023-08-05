@@ -760,7 +760,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  transSetConnOption((uv_tcp_t*)pConn->pTcp);
+  // transSetConnOption((uv_tcp_t*)pConn->pTcp);
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
     uv_os_fd_t fd;

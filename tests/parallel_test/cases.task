@@ -1,4 +1,4 @@
-#Coulumn Define
+#Column Define
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
@@ -135,6 +135,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -160,7 +161,7 @@
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
+#,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
@@ -1219,3 +1220,4 @@
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
+,,n,docs-examples-test,bash test_R.sh

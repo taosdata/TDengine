@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "tglobal.h"
+#include "os.h"
 #include "tconfig.h"
 #include "tgrant.h"
 #include "tlog.h"
@@ -49,6 +49,8 @@ bool    tsPrintAuth = false;
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 10000;
 int32_t tsTimeToGetAvailableConn = 500000;
+int32_t tsKeepAliveIdle = 60;
+
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
@@ -63,7 +65,7 @@ int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsMaxStreamBackendCache = 128;  // M
-int32_t tsPQSortMemThreshold = 16; // M
+int32_t tsPQSortMemThreshold = 16;      // M
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
@@ -121,8 +123,8 @@ int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
-bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
-bool    tsTtlChangeOnWrite = false; // ttl delete time changes on last write if true
+bool    tsEnableScience = false;     // on taos-cli show float and doulbe with scientific notation if true
+bool    tsTtlChangeOnWrite = false;  // ttl delete time changes on last write if true
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -376,7 +378,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX,
+                  CFG_SCOPE_CLIENT) != 0)
+    return -1;
   if (cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "slowLogScope", "", CFG_SCOPE_CLIENT) != 0) return -1;
@@ -389,7 +393,11 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
-  if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, CFG_SCOPE_BOTH) != 0)
+    return -1;
+
+  tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
+  if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -449,7 +457,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, CFG_SCOPE_CLIENT) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000,
+                  CFG_SCOPE_SERVER) != 0)
+    return -1;
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, CFG_SCOPE_SERVER) != 0) return -1;
@@ -465,6 +475,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
   if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsNumOfRpcSessions, 20, 1000000, CFG_SCOPE_BOTH) != 0) return -1;
 
+  tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
+  if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH) != 0) return -1;
+
   tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER) != 0) return -1;
@@ -477,7 +490,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 100, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 100, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
   tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
@@ -497,7 +511,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsNumOfSnodeStreamThreads = tsNumOfCores / 4;
   tsNumOfSnodeStreamThreads = TRANGE(tsNumOfSnodeStreamThreads, 2, 4);
-  if (cfgAddInt32(pCfg, "numOfSnodeSharedThreads", tsNumOfSnodeStreamThreads, 2, 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfSnodeSharedThreads", tsNumOfSnodeStreamThreads, 2, 1024, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   tsNumOfSnodeWriteThreads = tsNumOfCores / 4;
   tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
@@ -505,14 +520,18 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
   tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
-  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_BOTH) != 0)
+  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX,
+                  CFG_SCOPE_BOTH) != 0)
     return -1;
 
   if (cfgAddInt32(pCfg, "syncElectInterval", tsElectInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0)
+    return -1;
+  if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
-  if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER) != 0) return -1;
@@ -542,7 +561,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX, CFG_SCOPE_SERVER) != 0)
+  if (cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX,
+                  CFG_SCOPE_SERVER) != 0)
     return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, CFG_SCOPE_SERVER) != 0) return -1;
@@ -553,7 +573,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "keepTimeOffset", tsKeepTimeOffset, 0, 23, CFG_SCOPE_SERVER) != 0) return -1;
@@ -605,6 +626,13 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
     pItem->i32 = tsTimeToGetAvailableConn;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "keepAliveIdle");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 720000);
+    pItem->i32 = tsKeepAliveIdle;
     pItem->stype = stype;
   }
 
@@ -839,6 +867,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
 
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
+
+  tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
   return 0;
 }
 
@@ -878,6 +908,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
 
+  tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
+
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
@@ -908,7 +940,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
-  tmqMaxTopicNum= cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
+  tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
@@ -1020,7 +1052,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         taosSetCoreDump(enableCore);
       } else if (strcasecmp("enableQueryHb", name) == 0) {
         tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
-      }  else if (strcasecmp("ttlChangeOnWrite", name) == 0) {
+      } else if (strcasecmp("ttlChangeOnWrite", name) == 0) {
         tsTtlChangeOnWrite = cfgGetItem(pCfg, "ttlChangeOnWrite")->bval;
       }
       break;

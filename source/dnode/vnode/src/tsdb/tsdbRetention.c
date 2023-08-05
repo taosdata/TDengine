@@ -100,7 +100,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
               .type = fobj->f->type,
               .did = did[0],
               .fid = fobj->f->fid,
-              .cid = rtner->cid,
+              .cid = fobj->f->cid,
               .size = fobj->f->size,
               .stt[0] =
                   {
