@@ -138,9 +138,9 @@ def build_and_install_taosx_on_linux(mode='release'):
     os.chdir(top_dir)
     
     if mode.lower() == 'release':
-        os.system(f'cargo build --release --no-default-features --features optin --features rustls')
+        os.system(f'cargo build --release')
     else:
-        os.system(f'cargo build --no-default-features --features optin --features rustls')
+        os.system(f'cargo build')
     logging.info("taox built successfully")
     
     shutil.copy(binary_file,dst_dir)
