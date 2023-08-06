@@ -368,7 +368,7 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
 time_t taosTime(time_t *t) { return time(t); }
 
 time_t taosMktime(struct tm *timep) {
-#ifdef WINDOWS
+#ifdef WINDOWS_STASH
   struct tm     tm1 = {0};
   LARGE_INTEGER t;
   FILETIME      f;
