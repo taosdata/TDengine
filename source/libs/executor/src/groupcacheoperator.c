@@ -676,10 +676,6 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
   SGcOperatorParam* pGcParam = pParam->value;  
   SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
   SGroupCacheData grpData = {0};
-
-  initNewGroupData(pCtx, &grpData, pParam->downstreamIdx, vgId, pGCache->batchFetch, pGcParam->needCache);
-
-  qError("new group %" PRIu64 " initialized, downstreamIdx:%d, vgId:%d, needCache:%d", uid, pParam->downstreamIdx, vgId, pGcParam->needCache);
   
   while (true) {
     if (0 != taosHashPut(pGrpHash, &uid, sizeof(uid), &grpData, sizeof(grpData))) {
@@ -693,23 +689,27 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
       }
     }
 
-    *ppGrp = taosHashGet(pGrpHash, &uid, sizeof(uid));
-    if (*ppGrp && pParam->pChildren) {
-      SGcNewGroupInfo newGroup;
-      newGroup.pGroup = *ppGrp;
-      newGroup.vgId = vgId;
-      newGroup.uid = uid;
-      newGroup.pParam = taosArrayGetP(pParam->pChildren, 0);
-      
-      taosWLockLatch(&pCtx->grpLock);
-      if (NULL == taosArrayPush(pCtx->pNewGrpList, &newGroup)) {
-        taosWUnLockLatch(&pCtx->grpLock);
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
+    break;
+  }
+
+  *ppGrp = taosHashGet(pGrpHash, &uid, sizeof(uid));
+  initNewGroupData(pCtx, *ppGrp, pParam->downstreamIdx, vgId, pGCache->batchFetch, pGcParam->needCache);
+
+  qError("new group %" PRIu64 " initialized, downstreamIdx:%d, vgId:%d, needCache:%d", uid, pParam->downstreamIdx, vgId, pGcParam->needCache);
+
+  if (pParam->pChildren) {
+    SGcNewGroupInfo newGroup;
+    newGroup.pGroup = *ppGrp;
+    newGroup.vgId = vgId;
+    newGroup.uid = uid;
+    newGroup.pParam = taosArrayGetP(pParam->pChildren, 0);
+    
+    taosWLockLatch(&pCtx->grpLock);
+    if (NULL == taosArrayPush(pCtx->pNewGrpList, &newGroup)) {
       taosWUnLockLatch(&pCtx->grpLock);
-      
-      break;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
+    taosWUnLockLatch(&pCtx->grpLock);
   }
 
   return TSDB_CODE_SUCCESS;
