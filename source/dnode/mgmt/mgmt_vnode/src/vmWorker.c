@@ -114,7 +114,7 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     const STraceId *trace = &pMsg->info.traceId;
     dGTrace("vgId:%d, msg:%p get from vnode-fetch queue", pVnode->vgId, pMsg);
 
-    terrno = 0;
+//    terrno = 0;
     int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
     if (code != 0) {
       dGError("vnodeProcessFetchMsg vgId:%d, msg:%p failed code:%s", pVnode->vgId, pMsg, tstrerror(code));
