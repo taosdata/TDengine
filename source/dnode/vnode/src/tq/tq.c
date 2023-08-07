@@ -677,9 +677,6 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tmsgSendRsp(&rsp);
 
-//  if(terrno == TSDB_CODE_REF_NOT_EXIST){
-//    ASSERT(0);
-//  }
   return 0;
 }
 
@@ -761,9 +758,6 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tqDoSendDataRsp(&pMsg->info, &dataRsp, req.epoch, req.consumerId, TMQ_MSG_TYPE__WALINFO_RSP, sver, ever);
   tDeleteMqDataRsp(&dataRsp);
-//  if(terrno == TSDB_CODE_REF_NOT_EXIST){
-//    ASSERT(0);
-//  }
   return 0;
 }
 
