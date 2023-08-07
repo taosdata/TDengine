@@ -218,11 +218,11 @@ _EXIT:
 }
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
-  RocksdbCfInst**  pIter = (RocksdbCfInst**)taosHashIterate(pHandle->cfInst, NULL);
+  void*            pIter = taosHashIterate(pHandle->cfInst, NULL);
   while (pIter != NULL) {
-    RocksdbCfInst* inst = *pIter;
+    RocksdbCfInst* inst = *(RocksdbCfInst**)pIter;
     destroyRocksdbCfInst(inst);
-    taosHashIterate(pHandle->cfInst, pIter);
+    pIter = taosHashIterate(pHandle->cfInst, pIter);
   }
   taosHashCleanup(pHandle->cfInst);
 
