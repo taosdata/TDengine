@@ -794,11 +794,16 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  qError("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64, 
-      pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList));
+  qError("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d", 
+      pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList), pOperator->status);
 
   if (pParam->tableSeq) {
     pListInfo->oneTableForEachGroup = true;
+    if (taosArrayGetSize(pListInfo->pTableList) > 0) {
+      taosHashClear(pListInfo->map);
+      taosArrayClear(pListInfo->pTableList);
+      pOperator->status = OP_EXEC_DONE;
+    }
   } else {
     pListInfo->oneTableForEachGroup = false;
     pListInfo->numOfOuputGroups = 1;

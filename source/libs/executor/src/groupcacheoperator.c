@@ -213,7 +213,7 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
     releaseFdToFileCtx(pFd);
 
     qTrace("FileId:%d-%d-%d blk %" PRIu64 " in group %" PRIu64 " size %" PRIu64 " written to offset %" PRIu64, 
-        pCtx->id, pGroup->vgId, pHead->basic.fileId, pHead->basic.blkId, pHead->groupId, pHead->basic.bufSize, pHead->basic.offset);
+        pCtx->id, pGroup ? pGroup->vgId : GROUP_CACHE_DEFAULT_VGID, pHead->basic.fileId, pHead->basic.blkId, pHead->groupId, pHead->basic.bufSize, pHead->basic.offset);
     
     int64_t blkId = pHead->basic.blkId;
     pHead = pHead->next;
@@ -741,7 +741,7 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
       fakeGcParam.needCache = true;
       fakeParam.downstreamIdx = pSession->downstreamIdx;
       fakeParam.value = &fakeGcParam;
-      code = addNewGroupData(pOperator, &fakeParam, &pGroup, -1, pBlock->info.id.groupId);
+      code = addNewGroupData(pOperator, &fakeParam, &pGroup, GROUP_CACHE_DEFAULT_VGID, pBlock->info.id.groupId);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -1026,7 +1026,7 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SOperatorP
 
   SGroupCacheData* pGroup = taosHashGet(pGrpHash, &pGcParam->tbUid, sizeof(pGcParam->tbUid));
   if (NULL == pGroup) {
-    code = addNewGroupData(pOperator, pParam, &pGroup, pGCache->batchFetch ? -1 : pGcParam->vgId, pGcParam->tbUid);
+    code = addNewGroupData(pOperator, pParam, &pGroup, pGCache->batchFetch ? GROUP_CACHE_DEFAULT_VGID : pGcParam->vgId, pGcParam->tbUid);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }

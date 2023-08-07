@@ -284,7 +284,7 @@ static void updatePostJoinCurrTableInfo(SStbJoinDynCtrlInfo*          pStbJoin) 
 
   while (true) {
     if (readIdx < pNode->uidNum) {
-      pPost->rightNextUid = *(rightUid + readIdx);
+      pPost->rightNextUid = *(pNode->pRightUid + readIdx);
       break;
     }
     
@@ -518,7 +518,7 @@ static void freeStbJoinTableList(SStbJoinTableList* pList) {
   taosMemoryFree(pList);
 }
 
-static int32_t appendStbJoinTableList(SStbJoinTableList** ppHead, int64_t rows, int32_t* pLeftVg, int64_t* pLeftUid, int32_t* pRightVg, int64_t* pRightUid) {
+static int32_t appendStbJoinTableList(SStbJoinPrevJoinCtx* pCtx, int64_t rows, int32_t* pLeftVg, int64_t* pLeftUid, int32_t* pRightVg, int64_t* pRightUid) {
   SStbJoinTableList* pNew = taosMemoryMalloc(sizeof(SStbJoinTableList));
   if (NULL == pNew) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -539,14 +539,15 @@ static int32_t appendStbJoinTableList(SStbJoinTableList** ppHead, int64_t rows, 
 
   pNew->readIdx = 0;
   pNew->uidNum = rows;
+  pNew->pNext = NULL;
   
-  if (*ppHead) {
-    pNew->pNext = *ppHead;
+  if (pCtx->pListTail) {
+    pCtx->pListTail->pNext = pNew;
+    pCtx->pListTail = pNew;
   } else {
-    pNew->pNext = NULL;
+    pCtx->pListHead = pNew;
+    pCtx->pListTail= pNew;
   }
-
-  *ppHead = pNew;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -588,7 +589,7 @@ static void doBuildStbJoinTableHash(SOperatorInfo* pOperator, SSDataBlock* pBloc
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = appendStbJoinTableList(&pStbJoin->ctx.prev.pListHead, pBlock->info.rows, (int32_t*)pVg0->pData, (int64_t*)pUid0->pData, (int32_t*)pVg1->pData, (int64_t*)pUid1->pData);
+    code = appendStbJoinTableList(&pStbJoin->ctx.prev, pBlock->info.rows, (int32_t*)pVg0->pData, (int64_t*)pUid0->pData, (int32_t*)pVg1->pData, (int64_t*)pUid1->pData);
     if (TSDB_CODE_SUCCESS == code) {
       pStbJoin->ctx.prev.tableNum += pBlock->info.rows;
     }

@@ -47,6 +47,7 @@ typedef struct SStbJoinPrevJoinCtx {
   SSHashObj*         onceTable;
   int64_t            tableNum;
   SStbJoinTableList* pListHead;
+  SStbJoinTableList* pListTail;
 } SStbJoinPrevJoinCtx;
 
 typedef struct SStbJoinPostJoinCtx {

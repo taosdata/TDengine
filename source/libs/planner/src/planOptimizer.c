@@ -3262,7 +3262,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
   pGrpCache->node.dynamicOp = true;
   pGrpCache->grpColsMayBeNull = false;
   pGrpCache->grpByUid = true;
-  pGrpCache->batchFetch = false;
+  pGrpCache->batchFetch = true;
   pGrpCache->node.pChildren = pChildren;
   pGrpCache->node.pTargets = nodesMakeList();
   if (NULL == pGrpCache->node.pTargets) {
@@ -3368,7 +3368,7 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
   }
 
   pDynCtrl->qType = DYN_QTYPE_STB_HASH;
-  pDynCtrl->stbJoin.batchFetch = false;
+  pDynCtrl->stbJoin.batchFetch = true;
   
   if (TSDB_CODE_SUCCESS == code) {  
     pDynCtrl->node.pChildren = nodesMakeList();
