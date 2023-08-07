@@ -13,6 +13,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_que
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_delete.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_2.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_orderby_3.py --keep --containers
+
 #放集群
 #taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/meters/meters_limit_common.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/meters/limit/count_limit.py --keep --containers

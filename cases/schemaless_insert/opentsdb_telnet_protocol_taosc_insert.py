@@ -748,8 +748,12 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             stb_name = f'`{input_sql.split(" ")[1]}`'
         else:
             stb_name = f'`{input_sql.split(" ")[0]}`'
+        stb_name = stb_name.replace(".", "_")
+        if "smlDot2Underline" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlDot2Underline"] == 0:
+                stb_name = stb_name.replace("_", ".")
         self.tdCom.check_res(input_sql, stb_name)
-        self.tdSql.execute("drop table `.point.trans.test`")
+        self.tdSql.execute(f"drop table {stb_name}")
 
     def defaultType_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
@@ -767,27 +771,35 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     def tbname_tags_cols_name_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
+        stbname, tbname = "rFa$.sta", "rFas$.ta_1"
+        expeted_stbname = "rFa$_sta"
+        if "smlDot2Underline" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlDot2Underline"] == 0:
+                expeted_stbname = "rFa$.sta"
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.tdCom.smlChildTableName_value.upper() == "ID":
-                input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+                smlTsDefaultName = "_ts"
+                if "smlTsDefaultName" in self.taospy_setting["spec"]["config"]:
+                    smlTsDefaultName = self.taospy_setting["spec"]["config"]["smlTsDefaultName"]
+                input_sql = f'{stbname} 1626006834 9223372036854775807 id={tbname} Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-                query_sql = 'select * from `rFa$sta`'
+                query_sql = f'select * from `{expeted_stbname}`'
                 self.tdSql.query(query_sql)
                 self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
-                query_sql = 'describe `rFa$sta`'
+                query_sql = f'describe `{expeted_stbname}`'
                 self.tdSql.query(query_sql)
-                self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', '_value', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-                self.tdSql.execute('drop table `rFa$sta`')
+                self.tdSql.checkEqual(self.tdSql.getColNameList(), [smlTsDefaultName, '_value', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+                self.tdSql.execute(f'drop table `{expeted_stbname}`')
         else:
-            input_sql = 'rFa$sta 1626006834 9223372036854775807 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+            input_sql = f'{stbname} 1626006834 9223372036854775807 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-            query_sql = 'select * from `rFa$sta`'
+            query_sql = f'select * from `{expeted_stbname}`'
             self.tdSql.query(query_sql)
             self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
-            query_sql = 'describe `rFa$sta`'
+            query_sql = f'describe `{expeted_stbname}`'
             self.tdSql.query(query_sql)
             self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', '_value', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-            self.tdSql.execute('drop table `rFa$sta`')
+            self.tdSql.execute(f'drop table `{expeted_stbname}`')
 
     def stb_insert_multi_thread_check(self):
         """
