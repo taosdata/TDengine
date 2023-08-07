@@ -732,8 +732,8 @@ int stateSessionKeyDBComp(void* state, const char* aBuf, size_t aLen, const char
 
   return stateSessionKeyCmpr(&w1, sizeof(w1), &w2, sizeof(w2));
 }
-int stateSessionKeyEncode(void* ses, char* buf) {
-  SStateSessionKey* sess = ses;
+int stateSessionKeyEncode(void* k, char* buf) {
+  SStateSessionKey* sess = k;
   int               len = 0;
   len += taosEncodeFixedI64((void**)&buf, sess->key.win.skey);
   len += taosEncodeFixedI64((void**)&buf, sess->key.win.ekey);
@@ -741,8 +741,8 @@ int stateSessionKeyEncode(void* ses, char* buf) {
   len += taosEncodeFixedI64((void**)&buf, sess->opNum);
   return len;
 }
-int stateSessionKeyDecode(void* ses, char* buf) {
-  SStateSessionKey* sess = ses;
+int stateSessionKeyDecode(void* k, char* buf) {
+  SStateSessionKey* sess = k;
   int               len = 0;
 
   char* p = buf;
