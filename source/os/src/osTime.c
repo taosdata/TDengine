@@ -399,13 +399,12 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
 
   // int64_t _res = (((((int64_t) (_year/4 - _year/100 + _year/400 + 367*_mon/12 + day) +
   //                _year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
-  int64_t _res;
-  _res = 367 * ((int64_t)_mon) / 12;
+  int64_t _res = 367 * ((int64_t)_mon) / 12;
   _res += _year / 4 - _year / 100 + _year / 400 + day + ((int64_t)_year) * 365 - 719499;
-  _res = _res * 24;
+  _res *= 24;
   _res = ((_res + hour) * 60 + min) * 60 + sec;
 
-  return (_res + time_zone);
+  return _res + time_zone;
 }
 
 time_t taosMktime(struct tm *timep) {
