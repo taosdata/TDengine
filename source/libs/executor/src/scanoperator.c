@@ -1650,10 +1650,99 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   }
 }
 
-static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, bool filter) {
+static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id) {
+  if (pWindow->skey != INT64_MIN || pWindow->ekey != INT64_MAX) {
+    bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+    bool  hasUnqualified = false;
+
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, tsIndex);
+
+    if (pWindow->skey != INT64_MIN) {
+      qDebug("%s filter for additional history window, skey:%" PRId64, id, pWindow->skey);
+
+      ASSERT(pCol->pData != NULL);
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
+        p[i] = (*ts >= pWindow->skey);
+
+        if (!p[i]) {
+          hasUnqualified = true;
+        }
+      }
+    } else if (pWindow->ekey != INT64_MAX) {
+      qDebug("%s filter for additional history window, ekey:%" PRId64, id, pWindow->ekey);
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
+        p[i] = (*ts <= pWindow->ekey);
+
+        if (!p[i]) {
+          hasUnqualified = true;
+        }
+      }
+    }
+
+    if (hasUnqualified) {
+      trimDataBlock(pBlock, pBlock->info.rows, p);
+    }
+
+    taosMemoryFree(p);
+  }
+}
+
+// re-build the delete block, ONLY according to the split timestamp
+static void rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
+  int32_t numOfRows = pBlock->info.rows;
+  bool*   p = taosMemoryCalloc(numOfRows, sizeof(bool));
+  bool    hasUnqualified = false;
+  int64_t skey = pWindow->skey;
+  int64_t ekey = pWindow->ekey;
+
+  SColumnInfoData* pSrcStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  uint64_t*        tsStartCol = (uint64_t*)pSrcStartCol->pData;
+  SColumnInfoData* pSrcEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  uint64_t*        tsEndCol = (uint64_t*)pSrcEndCol->pData;
+
+  if (pWindow->skey != INT64_MIN) {
+    for (int32_t i = 0; i < numOfRows; i++) {
+      if (tsStartCol[i] < skey) {
+        tsStartCol[i] = skey;
+      }
+
+      if (tsEndCol[i] >= skey) {
+        p[i] = true;
+      } else {  // this row should be removed, since it is not in this query time window, which is [skey, INT64_MAX]
+        hasUnqualified = true;
+      }
+    }
+  } else if (pWindow->ekey != INT64_MAX) {
+    for(int32_t i = 0; i < numOfRows; ++i) {
+      if (tsEndCol[i] > ekey) {
+        tsEndCol[i] = ekey;
+      }
+
+      if (tsStartCol[i] <= ekey) {
+        p[i] = true;
+      } else {
+        hasUnqualified = true;
+      }
+    }
+  }
+
+  if (hasUnqualified) {
+    trimDataBlock(pBlock, pBlock->info.rows, p);
+    qDebug("%s re-build delete datablock, start key revised to:%"PRId64", rows:%"PRId64, id, skey, pBlock->info.rows);
+  } else {
+    qDebug("%s not update the delete block", id);
+  }
+
+  taosMemoryFree(p);
+}
+
+static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow, bool filter) {
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  const char*     id = GET_TASKID(pTaskInfo);
 
   blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
 
@@ -1693,7 +1782,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                          pBlockInfo->rows, GET_TASKID(pTaskInfo), &pTableScanInfo->base.metaCache);
+                                          pBlockInfo->rows, id, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       blockDataFreeRes((SSDataBlock*)pBlock);
@@ -1708,8 +1797,14 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
   }
 
+  // filter the block extracted from WAL files, according to the time window apply additional time window filter
+  doBlockDataWindowFilter(pInfo->pRes, pInfo->primaryTsIndex, pTimeWindow, id);
   pInfo->pRes->info.dataLoad = 1;
+
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+  if (pInfo->pRes->info.rows == 0) {
+    return 0;
+  }
 
   calBlockTbName(pInfo, pInfo->pRes);
   return 0;
@@ -1766,7 +1861,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
-        setBlockIntoRes(pInfo, pRes, true);
+        STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         }
@@ -1873,80 +1969,6 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->pUpdateInfo = pUpInfo;
   }
-}
-
-static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeWindow* pWindow, const char* id) {
-  if (pWindow->skey != INT64_MIN || pWindow->ekey != INT64_MAX) {
-    bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
-    bool  hasUnqualified = false;
-
-    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, tsIndex);
-
-    if (pWindow->skey != INT64_MIN) {
-      qDebug("%s filter for additional history window, skey:%" PRId64, id, pWindow->skey);
-
-      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
-        p[i] = (*ts >= pWindow->skey);
-
-        if (!p[i]) {
-          hasUnqualified = true;
-        }
-      }
-    } else if (pWindow->ekey != INT64_MAX) {
-      qDebug("%s filter for additional history window, ekey:%" PRId64, id, pWindow->ekey);
-      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        int64_t* ts = (int64_t*)colDataGetData(pCol, i);
-        p[i] = (*ts <= pWindow->ekey);
-
-        if (!p[i]) {
-          hasUnqualified = true;
-        }
-      }
-    }
-
-    if (hasUnqualified) {
-      trimDataBlock(pBlock, pBlock->info.rows, p);
-    }
-
-    taosMemoryFree(p);
-  }
-}
-
-// re-build the delete block, ONLY according to the split timestamp
-static void rebuildDeleteBlockData(SSDataBlock* pBlock, int64_t skey, const char* id) {
-  if (skey == INT64_MIN) {
-    return;
-  }
-
-  int32_t numOfRows = pBlock->info.rows;
-
-  bool* p = taosMemoryCalloc(numOfRows, sizeof(bool));
-  bool  hasUnqualified = false;
-
-  SColumnInfoData* pSrcStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
-  uint64_t*        tsStartCol = (uint64_t*)pSrcStartCol->pData;
-  SColumnInfoData* pSrcEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
-  uint64_t*        tsEndCol = (uint64_t*)pSrcEndCol->pData;
-
-  for (int32_t i = 0; i < numOfRows; i++) {
-    if (tsStartCol[i] < skey) {
-      tsStartCol[i] = skey;
-    }
-
-    if (tsEndCol[i] >= skey) {
-      p[i] = true;
-    } else { // this row should be removed, since it is not in this query time window, which is [skey, INT64_MAX]
-      hasUnqualified = true;
-    }
-  }
-
-  if (hasUnqualified) {
-    trimDataBlock(pBlock, pBlock->info.rows, p);
-  }
-
-  qDebug("%s re-build delete datablock, start key revised to:%"PRId64", rows:%"PRId64, id, skey, pBlock->info.rows);
-  taosMemoryFree(p);
 }
 
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
@@ -2121,7 +2143,7 @@ FETCH_NEXT_BLOCK:
         }
 
         setBlockGroupIdByUid(pInfo, pDelBlock);
-        rebuildDeleteBlockData(pDelBlock, pStreamInfo->fillHistoryWindow.skey, id);
+        rebuildDeleteBlockData(pDelBlock, &pStreamInfo->fillHistoryWindow, id);
         printDataBlock(pDelBlock, "stream scan delete recv filtered");
         if (pDelBlock->info.rows == 0) {
           if (pInfo->tqReader) {
@@ -2221,8 +2243,7 @@ FETCH_NEXT_BLOCK:
       return pInfo->pUpdateRes;
     }
 
-    SSDataBlock*    pBlock = pInfo->pRes;
-    SDataBlockInfo* pBlockInfo = &pBlock->info;
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
     int32_t         totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
 
   NEXT_SUBMIT_BLK:
@@ -2246,21 +2267,23 @@ FETCH_NEXT_BLOCK:
         }
       }
 
-      blockDataCleanup(pBlock);
+      blockDataCleanup(pInfo->pRes);
 
       while (pAPI->tqReaderFn.tqNextBlockImpl(pInfo->tqReader, id)) {
         SSDataBlock* pRes = NULL;
 
         int32_t code = pAPI->tqReaderFn.tqRetrieveBlock(pInfo->tqReader, &pRes, id);
-        qDebug("retrieve data from submit completed code:%s, rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows,
-               id);
+        qDebug("retrieve data from submit completed code:%s rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows, id);
 
         if (code != TSDB_CODE_SUCCESS || pRes->info.rows == 0) {
           qDebug("retrieve data failed, try next block in submit block, %s", id);
           continue;
         }
 
-        setBlockIntoRes(pInfo, pRes, false);
+        setBlockIntoRes(pInfo, pRes, &pStreamInfo->fillHistoryWindow, false);
+        if (pInfo->pRes->info.rows == 0) {
+          continue;
+        }
 
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
@@ -2268,13 +2291,8 @@ FETCH_NEXT_BLOCK:
           return pInfo->pCreateTbRes;
         }
 
-        // apply additional time window filter
-        doBlockDataWindowFilter(pBlock, pInfo->primaryTsIndex, &pStreamInfo->fillHistoryWindow, id);
-        pBlock->info.dataLoad = 1;
-        blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
-
-        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
-        doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
+        doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
         int64_t numOfUpdateRes = pInfo->pUpdateDataRes->info.rows;
         qDebug("%s %" PRId64 " rows in datablock, update res:%" PRId64, id, pBlockInfo->rows, numOfUpdateRes);
@@ -2296,7 +2314,7 @@ FETCH_NEXT_BLOCK:
 
     qDebug("stream scan completed, and return source rows:%" PRId64", %s", pBlockInfo->rows, id);
     if (pBlockInfo->rows > 0) {
-      return pBlock;
+      return pInfo->pRes;
     }
 
     if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -2506,7 +2524,9 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
       pInfo->pUpdateInfo = pUpInfo;
     } else {
-      pInfo->pUpdateInfo->minTS = TMAX(pInfo->pUpdateInfo->minTS, pUpInfo->minTS);
+      pInfo->stateStore.windowSBfDelete(pInfo->pUpdateInfo, 1);
+      pInfo->stateStore.windowSBfAdd(pInfo->pUpdateInfo, 1);
+      ASSERT(pInfo->pUpdateInfo->minTS > pUpInfo->minTS);
       pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
       SHashObj* curMap = pInfo->pUpdateInfo->pMap;
       void *pIte = taosHashIterate(curMap, NULL);
@@ -2687,7 +2707,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
-  pInfo->pState = NULL;
+  pInfo->pState = pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
 

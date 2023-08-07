@@ -180,6 +180,8 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoIsUpdated = updateInfoIsUpdated;
   pStore->updateInfoIsTableInserted = updateInfoIsTableInserted;
   pStore->updateInfoDestroy = updateInfoDestroy;
+  pStore->windowSBfDelete = windowSBfDelete;
+  pStore->windowSBfAdd = windowSBfAdd;
 
   pStore->updateInfoInitP = updateInfoInitP;
   pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;
