@@ -25,46 +25,6 @@
 
 #include "tlog.h"
 
-/*
- * mktime64 - Converts date to seconds.
- * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
- * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
- * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
- *
- * [For the Julian calendar (which was used in Russia before 1917,
- * Britain & colonies before 1752, anywhere else before 1582,
- * and is still in use by some communities) leave out the
- * -year/100+year/400 terms, and add 10.]
- *
- * This algorithm was first published by Gauss (I think).
- *
- * A leap second can be indicated by calling this function with sec as
- * 60 (allowable under ISO 8601).  The leap second is treated the same
- * as the following second since they don't exist in UNIX time.
- *
- * An encoding of midnight at the end of the day as 24:00:00 - ie. midnight
- * tomorrow - (allowable under ISO 8601) is supported.
- */
-static int64_t user_mktime64(const uint32_t year0, const uint32_t mon0, const uint32_t day, const uint32_t hour,
-                             const uint32_t min, const uint32_t sec, int64_t time_zone) {
-  uint32_t mon = mon0, year = year0;
-
-  /* 1..12 -> 11,12,1..10 */
-  if (0 >= (int32_t)(mon -= 2)) {
-    mon += 12; /* Puts Feb last since it has leap day */
-    year -= 1;
-  }
-
-  // int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + 367*mon/12 + day) +
-  //                year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
-  int64_t res;
-  res = 367 * ((int64_t)mon) / 12;
-  res += year / 4 - year / 100 + year / 400 + day + ((int64_t)year) * 365 - 719499;
-  res = res * 24;
-  res = ((res + hour) * 60 + min) * 60 + sec;
-
-  return (res + time_zone);
-}
 
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
