@@ -77,6 +77,8 @@ int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int
 struct SMeta {
   TdThreadRwlock lock;
 
+  tsem_t canWrite;
+
   char*   path;
   SVnode* pVnode;
   TDB*    pEnv;

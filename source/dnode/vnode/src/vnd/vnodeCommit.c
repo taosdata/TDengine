@@ -384,6 +384,7 @@ int vnodeAsyncTtlDropTable(SVnode *pVnode) {
   int32_t code = 0;
 
   STtlInfo *pInfo = (STtlInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
+  pInfo->pVnode = pVnode;
   if (NULL == pInfo) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -400,7 +401,7 @@ _exit:
     vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
-    vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
+    vInfo("vgId:%d, vnode async ttl drop table done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
           pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied);
   }
   return code;

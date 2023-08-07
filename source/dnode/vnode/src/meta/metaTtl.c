@@ -409,10 +409,10 @@ static bool ttlMgrNeedFlush(STtlManger *pTtlMgr) {
 }
 
 static int ttlMgrFlushUnlocked(STtlManger *pTtlMgr, TXN *pTxn) {
-  int64_t startNs = taosGetTimestampNs();
-  int64_t endNs = startNs;
+  int64_t startMs = taosGetTimestampMs();
+  int64_t endMs = startMs;
 
-  metaError("%s, ttl mgr flush start. dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
+  metaTrace("%s, ttl mgr flush start. dirty uids:%d", pTtlMgr->logPrefix, taosHashGetSize(pTtlMgr->pDirtyUids));
 
   int ret = -1;
 
@@ -465,8 +465,8 @@ static int ttlMgrFlushUnlocked(STtlManger *pTtlMgr, TXN *pTxn) {
   ret = 0;
 
 _out:
-  endNs = taosGetTimestampNs();
-  metaError("%s, ttl mgr flush end, time consumed: %" PRId64 " ns", pTtlMgr->logPrefix, endNs - startNs);
+  endMs = taosGetTimestampMs();
+  metaTrace("%s, ttl mgr flush end, time consumed:%" PRId64 "ms", pTtlMgr->logPrefix, endMs - startMs);
 
   return ret;
 }

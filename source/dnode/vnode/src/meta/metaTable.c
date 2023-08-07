@@ -933,19 +933,14 @@ int metaTtlSetExpireTime(SMeta *pMeta, int64_t timePointMs) {
 }
 
 int metaTtlDropTable(SMeta *pMeta, SArray *tbUids) {
-  int64_t startNs = taosGetTimestampNs();
+  int64_t startMs = taosGetTimestampMs();
 
-  int ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
-  if (ret != 0) {
-    metaError("ttl failed to flush, ret:%d", ret);
-    return ret;
-  }
-
-  ret = ttlMgrFindExpired(pMeta->pTtlMgr, tbUids);
+  int ret = ttlMgrFindExpired(pMeta->pTtlMgr, tbUids);
   if (ret != 0) {
     metaError("ttl failed to find expired table, ret:%d", ret);
     return ret;
   }
+
   if (TARRAY_SIZE(tbUids) == 0) {
     return 0;
   }
@@ -953,14 +948,16 @@ int metaTtlDropTable(SMeta *pMeta, SArray *tbUids) {
   metaInfo("ttl find expired table count: %zu", TARRAY_SIZE(tbUids));
 
   for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
+    tsem_wait(&pMeta->canWrite);
     metaWLock(pMeta);
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
     metaDropTableByUid(pMeta, uid, NULL);
     metaULock(pMeta);
+    tsem_post(&pMeta->canWrite);
   }
 
-  int64_t endNs = taosGetTimestampNs();
-  metaInfo("ttl drop table finished, time consumed: %" PRId64 " ns", endNs - startNs);
+  int64_t endMs = taosGetTimestampMs();
+  metaInfo("ttl drop table finished, time consumed:%" PRId64 "ms", endMs - startMs);
 
   return 0;
 }
