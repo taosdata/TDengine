@@ -487,15 +487,15 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
   int32_t      code = 0;
 
   int32_t len = strlen(pMeta->path) + 30;
-  char*   checkpointPath = taosMemoryCalloc(1, len);
-  sprintf(checkpointPath, "%s%s%s", pMeta->path, TD_DIRSEP, "checkpoints");
+  char*   chkpPath = taosMemoryCalloc(1, len);
+  sprintf(chkpPath, "%s%s%s", pMeta->path, TD_DIRSEP, "checkpoints");
 
-  if (!taosDirExist(checkpointPath)) {
+  if (!taosDirExist(chkpPath)) {
     // no checkpoint, nothing to load
     return 0;
   }
 
-  TdDirPtr pDir = taosOpenDir(checkpointPath);
+  TdDirPtr pDir = taosOpenDir(chkpPath);
   if (pDir == NULL) return 0;
 
   TdDirEntryPtr de = NULL;
@@ -525,7 +525,7 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
 
   taosArrayDestroy(suffix);
   taosCloseDir(&pDir);
-  taosMemoryFree(checkpointPath);
+  taosMemoryFree(chkpPath);
   return 0;
 }
 int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
