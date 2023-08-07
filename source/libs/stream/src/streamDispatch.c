@@ -356,6 +356,32 @@ static int32_t doDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* p
   return code;
 }
 
+static void doRetryDispatchData(void* param, void* tmrId) {
+  SStreamTask* pTask = param;
+
+  if (streamTaskShouldStop(&pTask->status)) {
+    atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+    qDebug("s-task:%s should stop, abort from timer", pTask->id.idStr);
+    return;
+  }
+
+  ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
+
+  int32_t code = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (!streamTaskShouldStop(&pTask->status)) {
+      qDebug("s-task:%s reset the waitRspCnt to be 0 before launch retry dispatch", pTask->id.idStr);
+      atomic_store_32(&pTask->shuffleDispatcher.waitingRspCnt, 0);
+      streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
+    } else {
+      atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+      qDebug("s-task:%s should stop, abort from timer", pTask->id.idStr);
+    }
+  } else {
+    atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+  }
+}
+
 void streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration) {
   qError("s-task:%s dispatch data in %" PRId64 "ms", pTask->id.idStr, waitDuration);
   taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->launchTaskTimer);
@@ -687,18 +713,6 @@ FAIL:
   }
 
   return code;
-}
-
-static void doRetryDispatchData(void* param, void* tmrId) {
-  SStreamTask* pTask = param;
-  ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
-
-  int32_t code = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
-  if (code != TSDB_CODE_SUCCESS) {
-    qDebug("s-task:%s reset the waitRspCnt to be 0 before launch retry dispatch", pTask->id.idStr);
-    atomic_store_32(&pTask->shuffleDispatcher.waitingRspCnt, 0);
-    streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
-  }
 }
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,

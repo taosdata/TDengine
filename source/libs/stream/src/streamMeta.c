@@ -149,19 +149,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
     if (pIter == NULL) {
       break;
     }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->schedTimer) {
-      taosTmrStop(pTask->schedTimer);
-      pTask->schedTimer = NULL;
-    }
-
-    if (pTask->launchTaskTimer) {
-      taosTmrStop(pTask->launchTaskTimer);
-      pTask->launchTaskTimer = NULL;
-    }
-
-    tFreeStreamTask(pTask);
+    tFreeStreamTask(*(SStreamTask**)pIter);
   }
 
   taosHashCleanup(pMeta->pTasks);
@@ -376,11 +364,6 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
 
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
     doRemoveIdFromList(pMeta, num, pTask->id.taskId);
-
-    // remove the ref by timer
-    if (pTask->triggerParam != 0) {
-      taosTmrStop(pTask->schedTimer);
-    }
 
     streamMetaRemoveTask(pMeta, taskId);
     streamMetaReleaseTask(pMeta, pTask);

@@ -17,6 +17,7 @@
 #include "executor.h"
 #include "tstream.h"
 #include "wal.h"
+#include "ttimer.h"
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -246,6 +247,22 @@ static void freeUpstreamItem(void* p) {
 
 void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:%s, %p", pTask->id.idStr, pTask);
+
+  // remove the ref by timer
+  while(pTask->status.timerActive > 0) {
+    qDebug("s-task:%s wait for task stop timer activities", pTask->id.idStr);
+    taosMsleep(10);
+  }
+
+  if (pTask->schedTimer != NULL) {
+    taosTmrStop(pTask->schedTimer);
+    pTask->schedTimer = NULL;
+  }
+
+  if (pTask->launchTaskTimer != NULL) {
+    taosTmrStop(pTask->launchTaskTimer);
+    pTask->launchTaskTimer = NULL;
+  }
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {

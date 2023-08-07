@@ -509,14 +509,14 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   taosWLockLatch(&pMeta->lock);
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &pInfo->taskId, sizeof(int32_t));
   if (ppTask) {
-    ASSERT((*ppTask)->status.timerActive == 1);
+    ASSERT((*ppTask)->status.timerActive >= 1);
 
     if (streamTaskShouldStop(&(*ppTask)->status)) {
       const char* pStatus = streamGetTaskStatusStr((*ppTask)->status.taskStatus);
       qDebug("s-task:%s status:%s quit timer task", (*ppTask)->id.idStr, pStatus);
 
       taosMemoryFree(pInfo);
-      (*ppTask)->status.timerActive = 0;
+      atomic_sub_fetch_8(&(*ppTask)->status.timerActive, 1);
       taosWUnLockLatch(&pMeta->lock);
       return;
     }
@@ -525,7 +525,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->taskId);
   if (pTask != NULL) {
-    ASSERT(pTask->status.timerActive == 1);
+    ASSERT(pTask->status.timerActive >= 1);
 
     // abort the timer if intend to stop task
     SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
@@ -547,7 +547,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
     }
 
     // not in timer anymore
-    pTask->status.timerActive = 0;
+    atomic_sub_fetch_8(&pTask->status.timerActive, 1);
     streamMetaReleaseTask(pMeta, pTask);
   } else {
     qError("s-task:0x%x failed to load task, it may have been destroyed", pInfo->taskId);
@@ -578,11 +578,11 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         // todo failed to create timer
         taosMemoryFree(pInfo);
       } else {
-        pTask->status.timerActive = 1;  // timer is active
+        atomic_add_fetch_8(&pTask->status.timerActive, 1);// timer is active
         qDebug("s-task:%s set timer active flag", pTask->id.idStr);
       }
     } else {  // timer exists
-      pTask->status.timerActive = 1;
+      ASSERT(pTask->status.timerActive > 0);
       qDebug("s-task:%s set timer active flag, task timer not null", pTask->id.idStr);
       taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
     }
