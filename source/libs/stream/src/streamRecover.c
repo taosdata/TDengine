@@ -193,8 +193,8 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
   return 0;
 }
 
-int32_t streamTaskCheckStatus(SStreamTask* pTask) {
-  return (pTask->status.downstreamReady == 1)? 1:0;
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t stage) {
+  return ((pTask->status.downstreamReady == 1) && (pTask->status.stage == stage))? 1:0;
 }
 
 static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
@@ -261,10 +261,9 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       doProcessDownstreamReadyRsp(pTask, 1);
     }
   } else {  // not ready, wait for 100ms and retry
-    qDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, wait for 100ms and retry", id, pRsp->downstreamTaskId,
-           pRsp->downstreamNodeId);
+    qDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, wait for 100ms and retry", id,
+           pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->stage);
     taosMsleep(100);
-
     streamRecheckDownstream(pTask, pRsp);
   }
 
@@ -655,6 +654,7 @@ int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq*
   if (tEncodeI32(pEncoder, pReq->downstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->stage) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -668,6 +668,7 @@ int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq)
   if (tDecodeI32(pDecoder, &pReq->downstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->downstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->stage) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -681,6 +682,7 @@ int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp*
   if (tEncodeI32(pEncoder, pRsp->downstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->downstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->childId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->stage) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->status) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -695,6 +697,7 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   if (tDecodeI32(pDecoder, &pRsp->downstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->downstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->childId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->stage) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->status) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
@@ -839,7 +842,7 @@ void streamTaskPause(SStreamTask* pTask) {
   }
 
   int64_t el = taosGetTimestampMs() - st;
-  qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,
+  qDebug("vgId:%d s-task:%s set pause flag, prev:%s, pause elapsed time:%dms", pMeta->vgId, pTask->id.idStr,
          streamGetTaskStatusStr(pTask->status.keepTaskStatus), (int32_t)el);
 }
 

@@ -193,40 +193,35 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
 
 void tqNotifyClose(STQ* pTq) {
   if (pTq != NULL) {
-    taosWLockLatch(&pTq->pStreamMeta->lock);
+    SStreamMeta* pMeta = pTq->pStreamMeta;
+    taosWLockLatch(&pMeta->lock);
 
     void* pIter = NULL;
     while (1) {
-      pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
+      pIter = taosHashIterate(pMeta->pTasks, pIter);
       if (pIter == NULL) {
         break;
       }
 
       SStreamTask* pTask = *(SStreamTask**)pIter;
-      tqDebug("vgId:%d s-task:%s set closing flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
-      pTask->status.taskStatus = TASK_STATUS__STOP;
-
-      int64_t st = taosGetTimestampMs();
-      qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
-
-      int64_t el = taosGetTimestampMs() - st;
-      tqDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
+      tqDebug("vgId:%d s-task:%s set closing flag", pMeta->vgId, pTask->id.idStr);
+      streamTaskStop(pTask);
     }
 
-    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    taosWUnLockLatch(&pMeta->lock);
 
-    tqDebug("vgId:%d start to check all tasks", pTq->pStreamMeta->vgId);
+    tqDebug("vgId:%d start to check all tasks", pMeta->vgId);
 
     int64_t st = taosGetTimestampMs();
 
-    while (hasStreamTaskInTimer(pTq->pStreamMeta)) {
-      tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pTq->pStreamMeta->vgId);
+    while (hasStreamTaskInTimer(pMeta)) {
+      tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
       taosMsleep(100);
     }
 
     int64_t el = taosGetTimestampMs() - st;
     tqDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms",
-            pTq->pStreamMeta->vgId, el);
+            pMeta->vgId, el);
   }
 }
 
@@ -913,38 +908,21 @@ void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
-  pTask->refCnt = 1;
-  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->inputQueue = streamQueueOpen(512 << 10);
-  pTask->outputInfo.queue = streamQueueOpen(512 << 10);
-
-  if (pTask->inputQueue == NULL || pTask->outputInfo.queue == NULL) {
-    tqError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
-    return -1;
+  int32_t code = streamTaskInit(pTask, pTq->pStreamMeta, &pTq->pVnode->msgCb, ver);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  pTask->tsInfo.init = taosGetTimestampMs();
-  pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
-  pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
-  pTask->pMsgCb = &pTq->pVnode->msgCb;
-  pTask->pMeta = pTq->pStreamMeta;
-
-  // backup the initial status, and set it to be TASK_STATUS__INIT
-  pTask->chkInfo.currentVer = ver;
-  pTask->dataRange.range.maxVer = ver;
-  pTask->dataRange.range.minVer = ver;
-
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    SStreamTask* pSateTask = pTask;
+    SStreamTask* pStateTask = pTask;
     SStreamTask  task = {0};
     if (pTask->info.fillHistory) {
       task.id = pTask->streamTaskId;
       task.pMeta = pTask->pMeta;
-      pSateTask = &task;
+      pStateTask = &task;
     }
 
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pStateTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
     }
@@ -1008,7 +986,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
     int32_t   ver1 = 1;
     SMetaInfo info = {0};
-    int32_t   code = metaGetInfo(pTq->pVnode->pMeta, pTask->tbSink.stbUid, &info, NULL);
+    code = metaGetInfo(pTq->pVnode->pMeta, pTask->tbSink.stbUid, &info, NULL);
     if (code == TSDB_CODE_SUCCESS) {
       ver1 = info.skmVer;
     }
@@ -1034,8 +1012,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->status.taskStatus = TASK_STATUS__NORMAL;
   }
 
-  taosThreadMutexInit(&pTask->lock, NULL);
-  streamTaskOpenAllUpstreamInput(pTask);
   streamSetupScheduleTrigger(pTask);
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
 
@@ -1080,14 +1056,16 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask != NULL) {
-    rsp.status = streamTaskCheckStatus(pTask);
+    rsp.status = streamTaskCheckStatus(pTask, req.stage);
+    rsp.stage = pTask->status.stage;
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
     const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-    tqDebug("s-task:%s status:%s, recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
-            pTask->id.idStr, pStatus, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+            pTask->id.idStr, pStatus, rsp.stage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
+    rsp.stage = 0;
     tqDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64
             ") from task:0x%x (vgId:%d), rsp status %d",
             taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
@@ -1882,10 +1860,13 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 //    streamTaskUpdateEpInfo(pHistoryTask);
   }
 
-  streamMetaReleaseTask(pMeta, pTask);
   if (pHistoryTask != NULL) {
+    streamTaskRestart(pHistoryTask, NULL);
     streamMetaReleaseTask(pMeta, pHistoryTask);
   }
+
+  streamTaskRestart(pTask, NULL);
+  streamMetaReleaseTask(pMeta, pTask);
 
   return TSDB_CODE_SUCCESS;
 }

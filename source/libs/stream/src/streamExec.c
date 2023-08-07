@@ -242,20 +242,20 @@ int32_t streamTaskGetInputQItems(const SStreamTask* pTask) {
   return numOfItems1 + numOfItems2;
 }
 
+// wait for the stream task to be idle
 static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
-  // wait for the stream task to be idle
-  int64_t st = taosGetTimestampMs();
+  const char* id = pTask->id.idStr;
 
+  int64_t st = taosGetTimestampMs();
   while (!streamTaskIsIdle(pStreamTask)) {
-    qDebug("s-task:%s level:%d wait for stream task:%s to be idle, check again in 100ms", pTask->id.idStr,
-           pTask->info.taskLevel, pStreamTask->id.idStr);
+    qDebug("s-task:%s level:%d wait for stream task:%s to be idle, check again in 100ms", id, pTask->info.taskLevel,
+           pStreamTask->id.idStr);
     taosMsleep(100);
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   if (el > 0) {
-    qDebug("s-task:%s wait for stream task:%s for %.2fs to be idle", pTask->id.idStr,
-           pStreamTask->id.idStr, el);
+    qDebug("s-task:%s wait for stream task:%s for %.2fs to be idle", id, pStreamTask->id.idStr, el);
   }
 }
 

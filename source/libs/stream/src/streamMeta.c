@@ -255,8 +255,6 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
 // add to the ready tasks hash map, not the restored tasks hash map
 int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded) {
   *pAdded = false;
-  int64_t checkpointId = 0;
-
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {

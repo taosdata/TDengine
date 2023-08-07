@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <libs/transport/trpc.h>
-#include <streamInt.h>
+#include "streamInt.h"
 #include "executor.h"
 #include "tstream.h"
 #include "wal.h"
@@ -308,6 +307,34 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask);
 }
 
+int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver) {
+  pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
+  pTask->refCnt = 1;
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  pTask->inputQueue = streamQueueOpen(512 << 10);
+  pTask->outputInfo.queue = streamQueueOpen(512 << 10);
+
+  if (pTask->inputQueue == NULL || pTask->outputInfo.queue == NULL) {
+    qError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
+    return -1;
+  }
+
+  pTask->tsInfo.init = taosGetTimestampMs();
+  pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
+  pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
+  pTask->pMeta = pMeta;
+
+  pTask->chkInfo.currentVer = ver;
+  pTask->dataRange.range.maxVer = ver;
+  pTask->dataRange.range.minVer = ver;
+  pTask->pMsgCb = pMsgCb;
+
+  taosThreadMutexInit(&pTask->lock, NULL);
+  streamTaskOpenAllUpstreamInput(pTask);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     return 0;
@@ -397,3 +424,43 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
     // do nothing
   }
 }
+
+int32_t streamTaskStop(SStreamTask* pTask) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  int64_t      st = taosGetTimestampMs();
+  const char*  id = pTask->id.idStr;
+
+  pTask->status.taskStatus = TASK_STATUS__STOP;
+  qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+
+  while (!streamTaskIsIdle(pTask)) {
+    qDebug("s-task:%s level:%d wait for task to be idle, check again in 100ms", id, pTask->info.taskLevel);
+    taosMsleep(100);
+  }
+
+  int64_t el = taosGetTimestampMs() - st;
+  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pMeta->vgId, pTask->id.idStr, el);
+  return 0;
+}
+
+int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir) {
+  // 1. stop task
+  streamTaskStop(pTask);
+
+  // 2. clear state info
+  streamQueueCleanup(pTask->inputQueue);
+  streamQueueCleanup(pTask->outputInfo.queue);
+  taosArrayClear(pTask->checkReqIds);
+  taosArrayClear(pTask->pRspMsgList);
+
+  pTask->status.downstreamReady = 0;
+  pTask->status.stage += 1;
+
+  qDebug("s-task:%s reset downstream status and stage:%d, start to check downstream", pTask->id.idStr,
+         pTask->status.stage);
+
+  // 3. start to check the downstream status
+  streamTaskCheckDownstreamTasks(pTask);
+  return 0;
+}
+
