@@ -368,6 +368,8 @@ typedef struct SStateStore {
   bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
+  void (*windowSBfDelete)(SUpdateInfo *pInfo, uint64_t count);
+  void (*windowSBfAdd)(SUpdateInfo *pInfo, uint64_t count);
 
   SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);

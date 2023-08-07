@@ -1229,10 +1229,15 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
 
       int32_t c = tTombRecordCompare(record, record1);
       if (c < 0) {
-        break;
+        goto _write;
       } else if (c > 0) {
         code = tTombBlockPut(writer->tombBlock, record1);
         TSDB_CHECK_CODE(code, lino, _exit);
+
+        tsdbTrace("vgId:%d write tomb record to tomb file:%s, cid:%" PRId64 ", suid:%" PRId64 ", uid:%" PRId64
+                  ", version:%" PRId64,
+                  TD_VID(writer->config->tsdb->pVnode), writer->fd[TSDB_FTYPE_TOMB]->path, writer->config->cid,
+                  record1->suid, record1->uid, record1->version);
 
         if (TOMB_BLOCK_SIZE(writer->tombBlock) >= writer->config->maxRow) {
           code = tsdbDataFileDoWriteTombBlock(writer);
@@ -1265,6 +1270,11 @@ _write:
 
   code = tTombBlockPut(writer->tombBlock, record);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  tsdbTrace("vgId:%d write tomb record to tomb file:%s, cid:%" PRId64 ", suid:%" PRId64 ", uid:%" PRId64
+            ", version:%" PRId64,
+            TD_VID(writer->config->tsdb->pVnode), writer->fd[TSDB_FTYPE_TOMB]->path, writer->config->cid, record->suid,
+            record->uid, record->version);
 
   if (TOMB_BLOCK_SIZE(writer->tombBlock) >= writer->config->maxRow) {
     code = tsdbDataFileDoWriteTombBlock(writer);

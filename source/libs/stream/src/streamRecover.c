@@ -18,23 +18,30 @@
 #include "wal.h"
 #include "trpc.h"
 
-static void launchFillHistoryTask(SStreamTask* pTask);
-static void streamTaskSetRangeStreamCalc(SStreamTask* pTask);
+typedef struct SStreamTaskRetryInfo {
+  SStreamMeta* pMeta;
+  int32_t taskId;
+} SStreamTaskRetryInfo;
 
-static void streamTaskSetForReady(SStreamTask* pTask, int32_t numOfReqs) {
+static int32_t streamSetParamForScanHistory(SStreamTask* pTask);
+static void    launchFillHistoryTask(SStreamTask* pTask);
+static void    streamTaskSetRangeStreamCalc(SStreamTask* pTask);
+static int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
+
+static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
-  int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
 
+  int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
   qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%dms, task status:%s",
          pTask->id.idStr, numOfReqs, (int32_t) el, streamGetTaskStatusStr(pTask->status.taskStatus));
 }
 
-int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated) {
+int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   SStreamScanHistoryReq req;
-  streamBuildSourceRecover1Req(pTask, &req, igUntreated);
-  int32_t len = sizeof(SStreamScanHistoryReq);
+  initScanHistoryReq(pTask, &req, igUntreated);
 
+  int32_t len = sizeof(SStreamScanHistoryReq);
   void* serializedReq = rpcMallocCont(len);
   if (serializedReq == NULL) {
     return -1;
@@ -68,9 +75,9 @@ static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
   if (pTask->info.fillHistory) {
     streamSetParamForScanHistory(pTask);
   }
-  streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
 
-  int32_t code = streamStartRecoverTask(pTask, 0);
+  streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
+  int32_t code = streamStartScanHistoryAsync(pTask, 0);
   return code;
 }
 
@@ -145,7 +152,7 @@ int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask) {
   } else {
     qDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
 
-    streamTaskSetForReady(pTask, 0);
+    streamTaskSetReady(pTask, 0);
     streamTaskSetRangeStreamCalc(pTask);
     streamTaskLaunchScanHistory(pTask);
 
@@ -191,7 +198,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask) {
 }
 
 static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
-  streamTaskSetForReady(pTask, numOfReqs);
+  streamTaskSetReady(pTask, numOfReqs);
   const char* id = pTask->id.idStr;
 
   int8_t      status = pTask->status.taskStatus;
@@ -322,7 +329,7 @@ int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange *p
   return qStreamSourceScanParamForHistoryScanStep2(pTask->exec.pExecutor, pVerRange, pWindow);
 }
 
-int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated) {
+int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated) {
   pReq->msgHead.vgId = pTask->info.nodeId;
   pReq->streamId = pTask->id.streamId;
   pReq->taskId = pTask->id.taskId;
@@ -494,11 +501,6 @@ static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   streamTaskDoCheckDownstreamTasks(pHTask);
 }
 
-typedef struct SStreamTaskRetryInfo {
-  SStreamMeta* pMeta;
-  int32_t taskId;
-} SStreamTaskRetryInfo;
-
 static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SStreamTaskRetryInfo* pInfo = param;
   SStreamMeta*          pMeta = pInfo->pMeta;
@@ -608,7 +610,7 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
     }
   }
 
-  // dispatch recover finish req to all related downstream task
+  // dispatch scan-history finish req to all related downstream task
   code = streamDispatchScanHistoryFinishMsg(pTask);
   if (code < 0) {
     return -1;
@@ -617,19 +619,9 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   return 0;
 }
 
-bool streamTaskRecoverScanStep1Finished(SStreamTask* pTask) {
+int32_t streamTaskFillHistoryFinished(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
-  return qStreamRecoverScanStep1Finished(exec);
-}
-
-bool streamTaskRecoverScanStep2Finished(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamRecoverScanStep2Finished(exec);
-}
-
-int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamRecoverSetAllStepFinished(exec);
+  return qStreamInfoResetTimewindowFilter(exec);
 }
 
 bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
@@ -639,7 +631,7 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
   int64_t nextStartVer = pRange->maxVer + 1;
   if (nextStartVer > latestVer - 1) {
     // no input data yet. no need to execute the secondardy scan while stream task halt
-    streamTaskRecoverSetAllStepFinished(pTask);
+    streamTaskFillHistoryFinished(pTask);
     qDebug(
         "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during step1 scan, "
         "related stream task currentVer:%" PRId64,
@@ -653,7 +645,6 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
     return false;
   }
 }
-
 
 int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -827,7 +818,7 @@ void streamTaskPause(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
-  // todo: use the lock of the task.
+  // todo: use the task lock, stead of meta lock
   taosWLockLatch(&pMeta->lock);
 
   status = pTask->status.taskStatus;
@@ -840,6 +831,12 @@ void streamTaskPause(SStreamTask* pTask) {
   atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
   atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
   taosWUnLockLatch(&pMeta->lock);
+
+  // in case of fill-history task, stop the tsdb file scan operation.
+  if (pTask->info.fillHistory == 1) {
+    void* pExecutor = pTask->exec.pExecutor;
+    qKillTask(pExecutor, TSDB_CODE_SUCCESS);
+  }
 
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d s-task:%s set pause flag, prev:%s, elapsed time:%dms", pMeta->vgId, pTask->id.idStr,

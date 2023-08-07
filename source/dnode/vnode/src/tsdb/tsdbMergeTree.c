@@ -413,6 +413,13 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
   pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
+  if (pIter->pReader == NULL) {
+    tsdbError("stt file reader is null, %s", idStr);
+    pIter->pSttBlk = NULL;
+    pIter->iSttBlk = -1;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!pBlockLoadInfo->sttBlockLoaded) {
     int64_t st = taosGetTimestampUs();
 
@@ -759,7 +766,6 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
   pMTree->ignoreEarlierTs = false;
 
-  // todo handle other level of stt files, here only deal with the first level stt
   int32_t size = ((STFileSet *)pConf->pCurrentFileset)->lvlArr->size;
   if (size == 0) {
     goto _end;
@@ -784,6 +790,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
         SLDataIter *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
         taosArrayPush(pList, &pIter);
       }
+    } else if (numOfIter > TARRAY2_SIZE(pSttLevel->fobjArr)){
+        int32_t inc = numOfIter - TARRAY2_SIZE(pSttLevel->fobjArr);
+        for (int i = 0; i < inc; ++i) {
+            SLDataIter *pIter = taosArrayPop(pList);
+            destroyLDataIter(pIter);
+        }
     }
 
     for (int32_t i = 0; i < TARRAY2_SIZE(pSttLevel->fobjArr); ++i) {  // open all last file
@@ -799,7 +811,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
         code = tsdbSttFileReaderOpen(pSttLevel->fobjArr->data[i]->fname, &conf, &pSttFileReader);
         if (code != TSDB_CODE_SUCCESS) {
-          return code;
+          tsdbError("open stt file reader error. file name %s, code %s, %s", pSttLevel->fobjArr->data[i]->fname,
+                    tstrerror(code), pMTree->idStr);
         }
       }
 
@@ -814,7 +827,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
-
+      
       bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);

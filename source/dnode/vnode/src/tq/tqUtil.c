@@ -317,6 +317,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
     // the offset value can not be monotonious increase??
     offset = reqOffset;
   } else {
+    uError("req offset type is 0");
     return TSDB_CODE_TMQ_INVALID_MSG;
   }
 

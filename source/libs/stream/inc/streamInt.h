@@ -69,6 +69,7 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
 
 int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
+int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;

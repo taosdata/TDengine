@@ -338,7 +338,7 @@ Remark:
 Equivalent function: sum
 
 ```sql
-Select max(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s)
+Select sum(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s)
 ```
 
 Note: This function has no interpolation requirements, so it can be directly calculated.

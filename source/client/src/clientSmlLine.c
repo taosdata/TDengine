@@ -157,6 +157,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+          smlStrReplace(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
         if (currElement->measureEscaped) {
@@ -365,6 +366,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+          smlStrReplace(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
         if (currElement->measureEscaped) {
@@ -651,8 +653,8 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   // add ts to
-  SSmlKv kv = {.key = TS,
-               .keyLen = TS_LEN,
+  SSmlKv kv = {.key = tsSmlTsDefaultName,
+               .keyLen = strlen(tsSmlTsDefaultName),
                .type = TSDB_DATA_TYPE_TIMESTAMP,
                .i = ts,
                .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,

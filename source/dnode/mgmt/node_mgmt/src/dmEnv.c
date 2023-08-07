@@ -42,7 +42,7 @@
 
 static SDnode      globalDnode = {0};
 static const char *dmOS[10] = {"Ubuntu",  "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",
-                               "FreeBSD", "openSUSE",     "SLES",    "Fedora",     "MacOS"};
+                               "FreeBSD", "openSUSE",     "SLES",    "Fedora",     "macOS"};
 
 SDnode *dmInstance() { return &globalDnode; }
 
