@@ -439,7 +439,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   return code;
 
 _end:
-  tsdbReaderClose(pReader);
+  tsdbReaderClose2(pReader);
   *ppReader = NULL;
   return code;
 }
@@ -4110,7 +4110,10 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
     }
 
     tsdbDataFileReaderClose(&pReader->pFileReader);
-
+    int64_t loadBlocks = 0;
+    double  elapse = 0;
+    pReader->status.pLDataIterArray = destroySttBlockReader(pReader->status.pLDataIterArray, &loadBlocks, &elapse);
+    pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
     // resetDataBlockScanInfo excluding lastKey
     STableBlockScanInfo** p = NULL;
     int32_t               iter = 0;
@@ -4181,7 +4184,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
     }
   }
 
-  tsdbUntakeReadSnap(pReader, pReader->pReadSnap, false);
+  tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, false);
   pReader->pReadSnap = NULL;
   pReader->flag = READER_STATUS_SUSPEND;
 
