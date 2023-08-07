@@ -24,8 +24,9 @@ install.packages("RJDBC", repos='http://cran.us.r-project.org')
 ```
 
 :::note
-On Linux systems, installing the RJDBC package may require installing the necessary components for compilation. For example, on Ubuntu, you can execute the command ``apt install -y libbz2-dev libpcre2-dev libicu-dev`` to install the required components.
-On Windows systems, you need to set the **JAVA_HOME** environment variable.
+1. The default R language package version 4.2 which shipped with Ubuntu might lead unresponsive bug. Please install latest version of R language package from the [official website](https://www.r-project.org/).
+2. On Linux systems, installing the RJDBC package may require installing the necessary components for compilation. For example, on Ubuntu, you can execute the command ``apt install -y libbz2-dev libpcre2-dev libicu-dev`` to install the required components.
+3. On Windows systems, you need to set the **JAVA_HOME** environment variable.
 :::
 
 3. Download the TDengine JDBC driver: Visit the Maven website and download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar) to your local machine.
