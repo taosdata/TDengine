@@ -447,6 +447,10 @@ time_t taosMktime(struct tm *timep) {
   t.QuadPart -= offset.QuadPart;
   return (time_t)(t.QuadPart / 10000000);
 #else
+  time_t result = mktime(timep);
+  if (result != -1) {
+    return result;
+  }
 #ifdef _MSC_VER
 #if _MSC_VER >= 1900
   int64_t tz = _timezone;
