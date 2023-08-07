@@ -157,20 +157,23 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
   pMeta->streamBackendRid = -1;
   pMeta->streamBackend = NULL;
 
-  char* path1 = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
-  sprintf(path1, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
-  taosRemoveDir(path1);
+  char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
+  sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+  taosRemoveDir(defaultPath);
 
-  char* path2 = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
-  sprintf(path2, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
+  char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
+  sprintf(newPath, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
 
-  if (taosRenameFile(path2, path1) < 0) {
-    taosMemoryFree(path1);
-    taosMemoryFree(path2);
+  if (taosRenameFile(newPath, defaultPath) < 0) {
+    taosMemoryFree(defaultPath);
+    taosMemoryFree(newPath);
     return -1;
   }
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, 0);
+  if (pMeta->streamBackend == NULL) {
+    return -1;
+  }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   taosHashClear(pMeta->pTasks);
