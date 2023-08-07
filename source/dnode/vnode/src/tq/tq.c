@@ -646,7 +646,8 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)data, len);
   if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   tDecoderClear(&decoder);
@@ -654,19 +655,22 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   STqOffset* pOffset = &vgOffset.offset;
   STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
   if (pSavedOffset == NULL) {
-    return TSDB_CODE_TMQ_NO_COMMITTED;
+    terrno = TSDB_CODE_TMQ_NO_COMMITTED;
+    return terrno;
   }
   vgOffset.offset = *pSavedOffset;
 
   int32_t code = 0;
   tEncodeSize(tEncodeMqVgOffset, &vgOffset, len, code);
   if (code < 0) {
-    return TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   void* buf = rpcMallocCont(len);
   if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SEncoder encoder;
   tEncoderInit(&encoder, buf, len);
