@@ -204,9 +204,9 @@ def repack_tar(args, pkg, output_dir):
     if os.path.exists(examples_dir):
         shutil.rmtree(examples_dir)
 
-    connector_dir =  extract_dir + "/connector"
-    if os.path.exists(connector_dir):
-        shutil.rmtree(connector_dir)
+    # connector_dir =  extract_dir + "/connector"
+    # if os.path.exists(connector_dir):
+    #     shutil.rmtree(connector_dir)
 
     package_file = extract_dir + "/package.tar.gz"
     package_tar = tarfile.open(package_file)
