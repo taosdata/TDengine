@@ -190,7 +190,71 @@ bool s3Get(const char *object_name, const char *path) {
   return ret;
 }
 
-void s3EvictCache() {}
+typedef struct {
+  int64_t size;
+  int32_t atime;
+  char    name[TSDB_FILENAME_LEN];
+} SEvictFile;
+
+static int32_t evictFileCompareAsce(const void *pLeft, const void *pRight) {
+  SEvictFile *lhs = (SEvictFile *)pLeft;
+  SEvictFile *rhs = (SEvictFile *)pRight;
+  return lhs->atime < rhs->atime ? -1 : 1;
+}
+
+void s3EvictCache(const char *path, long object_size) {
+  SDiskSize disk_size = {0};
+  if (taosGetDiskSize((char *)path, &disk_size) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    vError("failed to get disk:%s size since %s", path, terrstr());
+    return;
+  }
+
+  if (object_size >= disk_size.avail + 1 << 30) {
+    // evict too old files
+    // 1, list data files' atime under dir(path)
+    char dir_name[TSDB_FILENAME_LEN] = "\0";
+    tstrncpy(dir_name, path, TSDB_FILENAME_LEN);
+    taosDirName(dir_name);
+
+    tdbDirPtr pDir = taosOpenDir(dir_name);
+    if (pDir == NULL) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      vError("failed to open %s since %s", dir_name, terrstr());
+    }
+    SArray        *evict_files = taosArrayInit(16, sizeof(SEvictFile));
+    tdbDirEntryPtr pDirEntry;
+    while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+      char *name = taosGetDirEntryName(pDirEntry);
+      if (!strncmp(name + strlen(name) - 5, ".data", 5)) {
+        SEvictFile e_file = {0};
+
+        tstrncpy(e_file.name, name, TSDB_FILENAME_LEN);
+        taosStatFile(name, &e_file.size, NULL, &e_file.atime);
+
+        taosArrayPush(evict_files, &e_file);
+      }
+    }
+    taosCloseDir(&pDir);
+
+    // 2, sort by atime
+    taosArraySort(evict_files, evictFileCompareAsce);
+
+    // 3, remove files ascendingly until we get enough object_size space
+    long   evict_size = 0;
+    size_t ef_size = TARRAY_SIZE(evict_files);
+    for (size_t i = 0; i < ef_size; ++i) {
+      SEvictFile *evict_file = taosArrayGet(evict_files, i);
+      taosRemoveFile(evict_file->name);
+      evict_size += evict_file->size;
+      if (evict_size >= object_size) {
+        break;
+      }
+    }
+
+    taosArrayDestroy(evict_files);
+  }
+}
 
 long s3Size(const char *object_name) {
   long size = 0;

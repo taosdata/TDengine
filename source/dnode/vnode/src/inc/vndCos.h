@@ -30,8 +30,9 @@ void    s3PutObjectFromFile(const char *file, const char *object);
 void    s3DeleteObjects(const char *object_name[], int nobject);
 bool    s3Exists(const char *object_name);
 bool    s3Get(const char *object_name, const char *path);
-void    s3EvictCache();
+void    s3EvictCache(const char *path, long object_size);
 long    s3Size(const char *object_name);
+
 #ifdef __cplusplus
 }
 #endif
