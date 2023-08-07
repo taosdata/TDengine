@@ -183,7 +183,7 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->status.timerActive == 1) {
+    if (pTask->status.timerActive >= 1) {
       inTimer = true;
     }
   }
