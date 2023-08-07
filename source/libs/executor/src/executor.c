@@ -15,8 +15,8 @@
 
 #include "executor.h"
 #include "executorInt.h"
-#include "libs/transport/trpc.h"
-#include "libs/wal/wal.h"
+#include "trpc.h"
+#include "wal.h"
 #include "operator.h"
 #include "planner.h"
 #include "querytask.h"
