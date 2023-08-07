@@ -530,7 +530,12 @@ void test_head_object() {
   s = cos_head_object(options, &bucket, &object, NULL, &resp_headers);
   print_headers(resp_headers);
   if (cos_status_is_ok(s)) {
-    printf("head object succeeded\n");
+    long  size = 0;
+    char *content_length_str = (char *)apr_table_get(resp_headers, COS_CONTENT_LENGTH);
+    if (content_length_str != NULL) {
+      size = atol(content_length_str);
+    }
+    printf("head object succeeded: %ld\n", size);
   } else {
     printf("head object failed\n");
   }
@@ -3045,7 +3050,7 @@ int main(int argc, char *argv[]) {
   // test_object();
   // test_put_object_with_limit();
   // test_get_object_with_limit();
-  // test_head_object();
+  test_head_object();
   // test_gen_object_url();
   // test_list_objects();
   // test_list_directory();
