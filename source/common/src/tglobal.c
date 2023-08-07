@@ -236,8 +236,9 @@ bool    tsFilterScalarMode = false;
 int32_t tsKeepTimeOffset = 0;  // latency of data migration
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
-char   tsS3AcessKeyId[TSDB_FQDN_LEN] = "<accesskeyid>";
-char   tsS3AcessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
+char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
+char   tsS3AccessKeyId[TSDB_FQDN_LEN] = "<accesskeyid>";
+char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
@@ -262,6 +263,35 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 #else
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
+
+int32_t taosSetS3Cfg(SConfig *pCfg) {
+  tstrncpy(tsS3AccessKey, cfgGetItem(pCfg, "s3Accesskey")->str, TSDB_FQDN_LEN);
+  char *colon = strchr(tsS3AccessKey, ':');
+  if (!colon) {
+    uError("invalid access key:%s", tsS3AccessKey);
+    return -1;
+  }
+  *colon = '\0';
+  tstrncpy(tsS3AccessKeyId, tsS3AccessKey, TSDB_FQDN_LEN);
+  tstrncpy(tsS3AccessKeySecret, colon + 1, TSDB_FQDN_LEN);
+  tstrncpy(tsS3Endpoint, cfgGetItem(pCfg, "s3Endpoint")->str, TSDB_FQDN_LEN);
+  tstrncpy(tsS3BucketName, cfgGetItem(pCfg, "s3BucketName")->str, TSDB_FQDN_LEN);
+  char *cos = strstr(tsS3Endpoint, "cos.");
+  if (cos) {
+    char *appid = strrchr(tsS3BucketName, '-');
+    if (!appid) {
+      uError("failed to locate appid in bucket:%s", tsS3BucketName);
+      return -1;
+    } else {
+      tstrncpy(tsS3AppId, appid + 1, TSDB_FQDN_LEN);
+    }
+  }
+  if (tsS3BucketName[0] != '<' && tsDiskCfgNum > 1) {
+    tsS3Enabled = true;
+  }
+
+  return 0;
+}
 
 struct SConfig *taosGetCfg() {
   return tsCfg;
@@ -582,6 +612,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, CFG_SCOPE_SERVER) != 0) return -1;
 
+  if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
 
   GRANT_CFG_ADD;
@@ -972,8 +1004,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
 
-  tstrncpy(tsS3BucketName, cfgGetItem(pCfg, "s3BucketName")->str, TSDB_FQDN_LEN);
-
   GRANT_CFG_GET;
   return 0;
 }
@@ -1298,8 +1328,6 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
         cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
-      } else if (strcasecmp("s3BucketName", name) == 0) {
-        tstrncpy(tsS3BucketName, cfgGetItem(pCfg, "s3BucketName")->str, TSDB_FQDN_LEN);
       } else if (strcasecmp("sDebugFlag", name) == 0) {
         sDebugFlag = cfgGetItem(pCfg, "sDebugFlag")->i32;
       } else if (strcasecmp("smaDebugFlag", name) == 0) {
@@ -1498,6 +1526,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetServerCfg(tsCfg)) return -1;
     if (taosSetReleaseCfg(tsCfg)) return -1;
     if (taosSetTfsCfg(tsCfg) != 0) return -1;
+    if (taosSetS3Cfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
 

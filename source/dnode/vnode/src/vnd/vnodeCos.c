@@ -7,8 +7,8 @@
 #include "cos_log.h"
 
 extern char tsS3Endpoint[];
-extern char tsS3AcessKeyId[];
-extern char tsS3AcessKeySecret[];
+extern char tsS3AccessKeyId[];
+extern char tsS3AccessKeySecret[];
 extern char tsS3BucketName[];
 extern char tsS3AppId[];
 
@@ -41,8 +41,8 @@ static void s3InitRequestOptions(cos_request_options_t *options, int is_cname) {
   cos_config_t *config = options->config;
 
   cos_str_set(&config->endpoint, tsS3Endpoint);
-  cos_str_set(&config->access_key_id, tsS3AcessKeyId);
-  cos_str_set(&config->access_key_secret, tsS3AcessKeySecret);
+  cos_str_set(&config->access_key_id, tsS3AccessKeyId);
+  cos_str_set(&config->access_key_secret, tsS3AccessKeySecret);
   cos_str_set(&config->appid, tsS3AppId);
 
   config->is_cname = is_cname;
