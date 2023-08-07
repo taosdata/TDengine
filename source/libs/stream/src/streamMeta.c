@@ -36,14 +36,14 @@ void streamMetaCleanup() {
   taosCloseRef(streamBackendCfWrapperId);
 }
 
-int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId) {
-  int32_t code = 0;
+// int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId) {
+//   int32_t code = 0;
 
-  int32_t nTask = taosHashGetSize(pMeta->pTasks);
-  assert(nTask == 0);
+//   int32_t nTask = taosHashGetSize(pMeta->pTasks);
+//   assert(nTask == 0);
 
-  return code;
-}
+//   return code;
+// }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -128,7 +128,7 @@ _err:
   return NULL;
 }
 
-void streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
+int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
   // stop all running tasking and reopen later
   void* pIter = NULL;
   while (1) {
@@ -172,7 +172,7 @@ void streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
 
   // if (streamLoadTasks(pMeta,int64_t ver))
 
-  return;
+  return 0;
 }
 void streamMetaClose(SStreamMeta* pMeta) {
   tdbAbort(pMeta->db, pMeta->txn);

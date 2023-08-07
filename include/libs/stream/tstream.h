@@ -611,8 +611,8 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
-int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId);
-int32_t streamStateReopen(SStreamMeta *pMeta, int64_t chkpId);
+// int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId);
+int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

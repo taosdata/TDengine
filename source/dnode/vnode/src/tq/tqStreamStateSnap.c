@@ -163,7 +163,11 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
   return code;
 }
 int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, char* path, int64_t chkpId) {
-  return streamStateReopen(pWriter->pTq->pStreamMeta, chkpId);
+  int32_t code = streamMetaReopen(pWriter->pTq->pStreamMeta, chkpId);
+  if (code == 0) {
+    code = streamStateLoadTasks(pWriter);
+  }
+  return code;
 }
 
 int32_t streamStateLoadTasksImpl(SStreamMeta* pMeta, int64_t ver) {
