@@ -9,7 +9,7 @@
       class="demo-ruleForm"
     >
       <el-form-item :label="$t('taosuser.username')" prop="user" required>
-        <el-input v-model.trim="ruleForm.user"></el-input>
+        <el-input v-model.trim="ruleForm.user" autocomplete="off"></el-input>
       </el-form-item>
       <el-form-item :label="$t('taosuser.password')" prop="pwd" required>
         <el-popover trigger="click" placement="right-end">
@@ -18,6 +18,7 @@
           v-html="$t('passwordTip')"
         ></ol>
         <el-input
+          autocomplete="new-password" 
           slot="reference"
           clear
           v-model.trim="ruleForm.pwd"
@@ -32,9 +33,11 @@
       <el-form-item
         :label="$t('taosuser.database')"
         v-if="this.databaseList.length > 0"
+        class="database-item"
       >
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
+            <label class="db-label">{{ item }}</label>
             <el-checkbox-group
               v-model="selectedDatabasePrivileges[item]"
               class="db-pri"
@@ -44,7 +47,6 @@
               <el-checkbox label="Write">{{ $t('write') }}</el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
             </el-checkbox-group>
-            <label class="db-label">{{ item }}</label>
           </li>
         </ul>
       </el-form-item>
@@ -52,16 +54,17 @@
       <el-form-item
         :label="$t('taosuser.subscription')"
         v-if="this.topicList.length > 0"
+        class="database-item"
       >
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
+            <label class="db-label">{{ item }}</label>
             <el-checkbox-group
               v-model="selectedTopicPrivileges[item]"
-              class="topic-pri nowrap"
+              class="db-pri"
             >
-              <el-checkbox label="Subscribe">{{ item }}</el-checkbox>
+              <el-checkbox label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
             </el-checkbox-group>
-            <!-- <label class="db-label">{{ item }}</label> -->
           </li>
         </ul>
       </el-form-item>
@@ -175,7 +178,7 @@ export default {
                 ) < 0
               ) {
                 this.databaseList.push(item.name);
-                this.$set(this.selectedDatabasePrivileges, item.name, []);
+                this.$set(this.selectedDatabasePrivileges, item.name, ["Read"]);
               }
             });
           })
@@ -304,10 +307,13 @@ export default {
   width: 215px;
   text-align: left;
 }
-.topic-pri {
-  display: inline-block;
-  width: 455px;
-  text-align: left;
-  margin-right: 30px;
+.database-item {
+  li {
+    text-align: left;
+    padding-left: 2px;
+  }
+  ::v-deep .el-form-item__content {
+    padding-top: 5px;
+  }
 }
 </style>
