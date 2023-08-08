@@ -27,7 +27,7 @@ import threading
 import time
 import json
 
-BASEVERSION = "3.0.7.0"
+BASEVERSION = "3.1.0.0"
 
 class TDTestCase:
 
@@ -245,6 +245,9 @@ class TDTestCase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
         # self.buildTaosd(bPath)
 
+        # add deleted  data
+        os.system("LD_LIBRARY_PATH=/usr/lib taos -f  0-others/deletedData.sql")
+
         threads=[]
         threads.append(threading.Thread(target=self.insertAllData, args=(cPath_temp,dbname,tableNumbers1,recordNumbers1)))
         for tr in threads:
@@ -284,6 +287,11 @@ class TDTestCase:
         tdsql1.checkData(0,0,tableNumbers1*recordNumbers1)
         tdsql1.query(f"select count(*) from db4096.stb0")
         tdsql1.checkData(0,0,50000)
+
+        # checkout deleted data
+        tdsql.execute("insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );")
+        tdsql.query("flush database deldata;select avg(c1) from deldata.ct1;")
+
 
         # tdsql1.query("show streams;")
         # tdsql1.checkRows(2)

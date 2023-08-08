@@ -198,7 +198,8 @@ class TDTestCase:
         
         # checkout deleted data
         tdsql.execute("insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );")
-        tdsql.query("flush database deldata;select avg(c1) from deldata.ct1;")
+        tdsql.execute("flush database deldata;")
+        tdsql.query("select avg(c1) from deldata.ct1;")
 
 
         tdsql=tdCom.newTdSql()
