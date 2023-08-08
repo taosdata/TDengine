@@ -58,6 +58,7 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsTimeToGetAvailableConn;
+extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
@@ -169,6 +170,8 @@ extern char tsUdfdLdLibPath[];
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
+extern bool tsSmlDot2Underline;
+extern char tsSmlTsDefaultName[];
 // extern bool    tsSmlDataFormat;
 // extern int32_t tsSmlBatchSize;
 

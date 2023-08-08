@@ -94,7 +94,7 @@ void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId){
 
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
-  mInfo("tq timer, rebalance counter old val:%d", old);
+  mDebug("tq timer, rebalance counter old val:%d", old);
   return old == 0;
 }
 
@@ -116,7 +116,7 @@ void mndRebCntDec() {
     int32_t newVal = val - 1;
     int32_t oldVal = atomic_val_compare_exchange_32(&mqRebInExecCnt, val, newVal);
     if (oldVal == val) {
-      mInfo("rebalance trans end, rebalance counter:%d", newVal);
+      mDebug("rebalance trans end, rebalance counter:%d", newVal);
       break;
     }
   }
@@ -420,6 +420,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     if(pSub == NULL){
+      ASSERT(0);
       continue;
     }
     taosWLockLatch(&pSub->lock);
@@ -515,7 +516,10 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
       // txn guarantees pSub is created
-      if(pSub == NULL) continue;
+      if(pSub == NULL) {
+        ASSERT(0);
+        continue;
+      }
       taosRLockLatch(&pSub->lock);
 
       SMqSubTopicEp topicEp = {0};
@@ -524,6 +528,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       if(pTopic == NULL) {
+        ASSERT(0);
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         continue;
@@ -898,7 +903,7 @@ static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer) {
   mInfo("consumer:0x%" PRIx64 " sub insert, cgroup:%s status:%d(%s) epoch:%d",
          pConsumer->consumerId, pConsumer->cgroup, pConsumer->status, mndConsumerStatusName(pConsumer->status),
          pConsumer->epoch);
-  pConsumer->subscribeTime = taosGetTimestampMs();
+  pConsumer->subscribeTime = pConsumer->createTime;
   return 0;
 }
 

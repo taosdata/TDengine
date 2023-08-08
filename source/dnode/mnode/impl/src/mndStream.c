@@ -28,7 +28,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_STREAM_VER_NUMBER   2
+#define MND_STREAM_VER_NUMBER   3
 #define MND_STREAM_RESERVE_SIZE 64
 
 #define MND_STREAM_MAX_NUM 60
@@ -140,10 +140,12 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   void       *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto STREAM_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
+    goto STREAM_DECODE_OVER;
+  }
 
-  if (sver != 1 && sver != 2) {
-    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+  if (sver != MND_STREAM_VER_NUMBER) {
+    terrno = 0;
     goto STREAM_DECODE_OVER;
   }
 
@@ -198,12 +200,13 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->name);
-  atomic_exchange_64(&pOldStream->updateTime, pNewStream->updateTime);
+
   atomic_exchange_32(&pOldStream->version, pNewStream->version);
 
   taosWLockLatch(&pOldStream->lock);
 
   pOldStream->status = pNewStream->status;
+  pOldStream->updateTime = pNewStream->updateTime;
 
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
@@ -429,9 +432,11 @@ FAIL:
   return 0;
 }
 
-int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
+int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
+
+  pTask->ver = SSTREAM_TASK_VER;
   tEncodeStreamTask(&encoder, pTask);
 
   int32_t size = encoder.pos;
@@ -520,7 +525,6 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -537,7 +541,6 @@ static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStream
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
@@ -1264,7 +1267,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         // task id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-        char idstr[128] = {0};
+        char    idstr[128] = {0};
         int32_t len = tintToHex(pTask->id.taskId, &idstr[4]);
         idstr[2] = '0';
         idstr[3] = 'x';
@@ -1304,7 +1307,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
 
         // status
-        char status[20 + VARSTR_HEADER_SIZE] = {0};
+        char   status[20 + VARSTR_HEADER_SIZE] = {0};
         int8_t taskStatus = atomic_load_8(&pTask->status.taskStatus);
         if (taskStatus == TASK_STATUS__NORMAL) {
           memcpy(varDataVal(status), "normal", 6);
@@ -1370,7 +1373,7 @@ static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-int32_t mndPauseAllStreamTaskImpl(STrans *pTrans, SArray* tasks) {
+int32_t mndPauseAllStreamTaskImpl(STrans *pTrans, SArray *tasks) {
   int32_t size = taosArrayGetSize(tasks);
   for (int32_t i = 0; i < size; i++) {
     SArray *pTasks = taosArrayGetP(tasks, i);
@@ -1409,7 +1412,6 @@ static int32_t mndPersistStreamLog(STrans *pTrans, const SStreamObj *pStream, in
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
@@ -1431,7 +1433,6 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   if (pStream == NULL) {
     if (pauseReq.igNotExists) {
       mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
-      sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
@@ -1440,6 +1441,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   }
 
   if (pStream->status == STREAM_STATUS__PAUSE) {
+    sdbRelease(pMnode->pSdb, pStream);
     return 0;
   }
 
@@ -1490,7 +1492,6 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
-
 
 static int32_t mndResumeStreamTask(STrans *pTrans, SStreamTask *pTask, int8_t igUntreated) {
   SVResumeStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResumeStreamTaskReq));

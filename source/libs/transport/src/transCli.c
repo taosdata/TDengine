@@ -1202,7 +1202,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
       cliHandleFastFail(conn, -1);
       return;
     }
-    ret = transSetConnOption((uv_tcp_t*)conn->stream);
+    ret = transSetConnOption((uv_tcp_t*)conn->stream, 20);
     if (ret != 0) {
       tError("%s conn %p failed to set socket opt, reason:%s", transLabel(pTransInst), conn, uv_err_name(ret));
       cliHandleFastFail(conn, -1);
@@ -1610,7 +1610,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     tGTrace("%s conn %p try to connect to %s", pTransInst->label, conn, conn->dstAddr);
     pThrd->newConnCount++;
-    int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
+    int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
               tstrerror(TAOS_SYSTEM_ERROR(errno)));
@@ -1624,7 +1624,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       cliHandleExcept(conn);
       return;
     }
-    ret = transSetConnOption((uv_tcp_t*)conn->stream);
+    ret = transSetConnOption((uv_tcp_t*)conn->stream, tsKeepAliveIdle);
     if (ret != 0) {
       tGError("%s conn %p failed to set socket opt, reason:%s", transLabel(pTransInst), conn, uv_err_name(ret));
       cliHandleExcept(conn);

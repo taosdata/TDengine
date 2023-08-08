@@ -365,6 +365,16 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 7. pause allowed.
   streamTaskEnablePause(pStreamTask);
+  if (taosQueueEmpty(pStreamTask->inputQueue->queue)) {
+    SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);;
+    SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+    pDelBlock->info.rows = 0;
+    pDelBlock->info.version = 0;
+    pItem->type = STREAM_INPUT__REF_DATA_BLOCK;
+    pItem->pBlock = pDelBlock;
+    int32_t code = tAppendDataToInputQueue(pStreamTask, (SStreamQueueItem*)pItem);
+    qDebug("s-task:%s append dummy delete block,res:%d", pStreamTask->id.idStr, code);
+  }
 
   streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pMeta, pStreamTask);
@@ -583,6 +593,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
+        streamSchedExec(pTask);
       } else {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),

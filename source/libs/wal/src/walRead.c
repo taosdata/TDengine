@@ -371,9 +371,9 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
          pRead->pWal->vers.appliedVer);
 
   // TODO: valid ver
-//  if (ver > pRead->pWal->vers.appliedVer) {
-//    return -1;
-//  }
+  if (ver > pRead->pWal->vers.commitVer) {
+    return -1;
+  }
 
   if (pRead->curVersion != ver) {
     code = walReaderSeekVer(pRead, ver);

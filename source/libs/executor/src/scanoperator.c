@@ -1642,6 +1642,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  const char*     id = GET_TASKID(pTaskInfo);
 
   blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
 
@@ -1681,7 +1682,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                          pBlockInfo->rows, GET_TASKID(pTaskInfo), &pTableScanInfo->base.metaCache);
+                                          pBlockInfo->rows, id, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       blockDataFreeRes((SSDataBlock*)pBlock);
@@ -1696,8 +1697,14 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
   }
 
+  // filter the block extracted from WAL files, according to the time window apply additional time window filter
+  doBlockDataWindowFilter(pInfo->pRes, pInfo->primaryTsIndex, pTimeWindow, id);
   pInfo->pRes->info.dataLoad = 1;
+
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+  if (pInfo->pRes->info.rows == 0) {
+    return 0;
+  }
 
   calBlockTbName(pInfo, pInfo->pRes);
   return 0;
@@ -2421,7 +2428,9 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
       pInfo->pUpdateInfo = pUpInfo;
     } else {
-      pInfo->pUpdateInfo->minTS = TMAX(pInfo->pUpdateInfo->minTS, pUpInfo->minTS);
+      pInfo->stateStore.windowSBfDelete(pInfo->pUpdateInfo, 1);
+      pInfo->stateStore.windowSBfAdd(pInfo->pUpdateInfo, 1);
+      ASSERT(pInfo->pUpdateInfo->minTS > pUpInfo->minTS);
       pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
       SHashObj* curMap = pInfo->pUpdateInfo->pMap;
       void *pIte = taosHashIterate(curMap, NULL);
@@ -2602,7 +2611,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
-  pInfo->pState = NULL;
+  pInfo->pState = pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
 

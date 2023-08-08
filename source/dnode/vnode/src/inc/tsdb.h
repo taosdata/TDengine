@@ -841,48 +841,6 @@ typedef enum {
   READ_MODE_ALL,
 } EReadMode;
 
-typedef struct STsdbReaderInfo {
-  uint64_t      suid;
-  STSchema     *pSchema;
-  EReadMode     readMode;
-  uint64_t      rowsNum;
-  STimeWindow   window;
-  SVersionRange verRange;
-  int16_t       order;
-} STsdbReaderInfo;
-
-typedef struct {
-  SArray *pTombData;
-} STableLoadInfo;
-
-struct SDataFileReader;
-
-typedef struct SCacheRowsReader {
-  STsdb                  *pTsdb;
-  STsdbReaderInfo         info;
-  TdThreadMutex           readerMutex;
-  SVnode                 *pVnode;
-  STSchema               *pSchema;
-  STSchema               *pCurrSchema;
-  uint64_t                uid;
-  char                  **transferBuf;  // todo remove it soon
-  int32_t                 numOfCols;
-  SArray                 *pCidList;
-  int32_t                *pSlotIds;
-  int32_t                 type;
-  int32_t                 tableIndex;  // currently returned result tables
-  STableKeyInfo          *pTableList;  // table id list
-  int32_t                 numOfTables;
-  uint64_t               *uidList;
-  SSHashObj              *pTableMap;
-  SArray                 *pLDataIterArray;
-  struct SDataFileReader *pFileReader;
-  STFileSet              *pCurFileSet;
-  STsdbReadSnap          *pReadSnap;
-  char                   *idstr;
-  int64_t                 lastTs;
-} SCacheRowsReader;
-
 typedef struct {
   TSKEY   ts;
   int8_t  dirty;
@@ -892,14 +850,10 @@ typedef struct {
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
 int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *row);
-int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype);
-int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype);
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TSDBROW *row, bool dup);
-int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
-int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
@@ -908,8 +862,6 @@ int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
-
-// int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

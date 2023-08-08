@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 #include "tsdbFSet2.h"
+#include "tsdbMerge.h"
 #include "tsdbReadUtil.h"
 #include "tsdbSttFileRW.h"
 
@@ -352,10 +353,14 @@ static int32_t extractSttBlockInfo(SLDataIter *pIter, const TSttBlkArray *pArray
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t uidComparFn(const void *p1, const void *p2) {
-  const uint64_t *uid1 = p1;
+static int32_t suidComparFn(const void *target, const void *p2) {
+  const uint64_t *targetUid = target;
   const uint64_t *uid2 = p2;
-  return (*uid1) - (*uid2);
+  if (*uid2 == (*targetUid)) {
+    return 0;
+  } else {
+    return (*targetUid) < (*uid2) ? -1 : 1;
+  }
 }
 
 static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint64_t suid, uint64_t uid,
@@ -372,29 +377,55 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
     }
   }
 
-  //  for (; i < TARRAY2_SIZE(pStatisBlkArray); ++i) {
-  //    SStatisBlk *p = &pStatisBlkArray->data[i];
-  //    if (p->minTbid.uid <= uid && p->maxTbid.uid >= uid) {
-  //      break;
-  //    }
-  //
-  //    if (p->maxTbid.uid < uid) {
-  //      break;
-  //    }
-  //  }
-
   if (i >= TARRAY2_SIZE(pStatisBlkArray)) {
     return false;
   }
 
-  SStatisBlk    *p = &pStatisBlkArray->data[i];
-  STbStatisBlock block = {0};
-  tsdbSttFileReadStatisBlock(pReader, p, &block);
+  while (i < TARRAY2_SIZE(pStatisBlkArray)) {
+    SStatisBlk *p = &pStatisBlkArray->data[i];
+    if (p->minTbid.suid > suid) {
+      return false;
+    }
 
-  int32_t index = tarray2SearchIdx(block.uid, &uid, sizeof(int64_t), uidComparFn, TD_EQ);
-  tStatisBlockDestroy(&block);
+    STbStatisBlock block = {0};
+    tsdbSttFileReadStatisBlock(pReader, p, &block);
 
-  return (index != -1);
+    int32_t index = tarray2SearchIdx(block.suid, &suid, sizeof(int64_t), suidComparFn, TD_EQ);
+    if (index == -1) {
+      tStatisBlockDestroy(&block);
+      return false;
+    }
+
+    int32_t j = index;
+    if (block.uid->data[j] == uid) {
+      tStatisBlockDestroy(&block);
+      return true;
+    } else if (block.uid->data[j] > uid) {
+      while (j >= 0 && block.suid->data[j] == suid) {
+        if (block.uid->data[j] == uid) {
+          tStatisBlockDestroy(&block);
+          return true;
+        } else {
+          j -= 1;
+        }
+      }
+    } else {
+      j = index + 1;
+      while (j < block.suid->size && block.suid->data[j] == suid) {
+        if (block.uid->data[j] == uid) {
+          tStatisBlockDestroy(&block);
+          return true;
+        } else {
+          j += 1;
+        }
+      }
+    }
+
+    tStatisBlockDestroy(&block);
+    i += 1;
+  }
+
+  return false;
 }
 
 int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader, int32_t iStt, int8_t backward,
@@ -412,6 +443,13 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
   pIter->timeWindow.ekey = pTimeWindow->ekey;
   pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
+
+  if (pIter->pReader == NULL) {
+    tsdbError("stt file reader is null, %s", idStr);
+    pIter->pSttBlk = NULL;
+    pIter->iSttBlk = -1;
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (!pBlockLoadInfo->sttBlockLoaded) {
     int64_t st = taosGetTimestampUs();
@@ -445,12 +483,12 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
     tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
 
-  //  bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
-  //  if (!exists) {
-  //    pIter->iSttBlk = -1;
-  //    pIter->pSttBlk = NULL;
-  //    return TSDB_CODE_SUCCESS;
-  //  }
+  // bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
+  // if (!exists) {
+  //   pIter->iSttBlk = -1;
+  //   pIter->pSttBlk = NULL;
+  //   return TSDB_CODE_SUCCESS;
+  // }
 
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.
@@ -759,7 +797,6 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
   pMTree->ignoreEarlierTs = false;
 
-  // todo handle other level of stt files, here only deal with the first level stt
   int32_t size = ((STFileSet *)pConf->pCurrentFileset)->lvlArr->size;
   if (size == 0) {
     goto _end;
@@ -784,6 +821,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
         SLDataIter *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
         taosArrayPush(pList, &pIter);
       }
+    } else if (numOfIter > TARRAY2_SIZE(pSttLevel->fobjArr)){
+        int32_t inc = numOfIter - TARRAY2_SIZE(pSttLevel->fobjArr);
+        for (int i = 0; i < inc; ++i) {
+            SLDataIter *pIter = taosArrayPop(pList);
+            destroyLDataIter(pIter);
+        }
     }
 
     for (int32_t i = 0; i < TARRAY2_SIZE(pSttLevel->fobjArr); ++i) {  // open all last file
@@ -799,7 +842,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
         code = tsdbSttFileReaderOpen(pSttLevel->fobjArr->data[i]->fname, &conf, &pSttFileReader);
         if (code != TSDB_CODE_SUCCESS) {
-          return code;
+          tsdbError("open stt file reader error. file name %s, code %s, %s", pSttLevel->fobjArr->data[i]->fname,
+                    tstrerror(code), pMTree->idStr);
         }
       }
 
@@ -814,7 +858,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
-
+      
       bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);
