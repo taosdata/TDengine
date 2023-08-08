@@ -957,7 +957,7 @@ export default {
     stable: "Super Table",
     type: 'Type',
     number: 'Number',
-    dnodes: 'Number of DNodes',
+    dnodes: 'DNodes',
     connectors:'Connectors',
     //admin-user
     title: 'Topic',
@@ -1808,7 +1808,8 @@ export default {
     edituser: 'Edit User',
     username: 'User Name',
     password: 'Password',
-    subscription: 'Subscription topic',
+    subscription: 'Topic',
+    subscribe: 'Subscribe',
     createbackup: 'Create New Backup',
     backupcycle: 'Backup Cycle',
     directory: 'Directory',
