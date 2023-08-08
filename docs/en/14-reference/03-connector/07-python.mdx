@@ -373,7 +373,7 @@ conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (locat
 <TabItem value="websocket" label="WebSocket connection">
 
 ```python
-conn = taosws.connect(url="ws://localhost:6041")
+conn = taosws.connect("taosws://localhost:6041")
 # Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
 conn.execute("DROP DATABASE IF EXISTS test")
 conn.execute("CREATE DATABASE test")
