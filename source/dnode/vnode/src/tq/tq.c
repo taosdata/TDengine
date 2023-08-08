@@ -1277,7 +1277,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (done) {
       pTask->tsInfo.step2Start = taosGetTimestampMs();
       streamTaskEndScanWAL(pTask);
-      streamMetaReleaseTask(pMeta, pTask);
     } else {
       STimeWindow* pWindow = &pTask->dataRange.window;
       tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
@@ -1303,13 +1302,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         streamSetStatusNormal(pTask);
       }
 
-      // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
-      // 5. resume the related stream task.
-      streamMetaReleaseTask(pMeta, pTask);
-      streamMetaReleaseTask(pMeta, pStreamTask);
-
       tqStartStreamTasks(pTq);
     }
+
+    streamMetaReleaseTask(pMeta, pTask);
+    streamMetaReleaseTask(pMeta, pStreamTask);
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of
@@ -1515,7 +1512,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask != NULL) {
     // even in halt status, the data in inputQ must be processed
     int8_t st = pTask->status.taskStatus;
-    if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY/* || st == TASK_STATUS__SCAN_HISTORY_WAL*/) {
+    if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.version);
       streamProcessRunReq(pTask);
@@ -1528,8 +1525,9 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     tqStartStreamTasks(pTq);
     return 0;
-  } else {
-    tqError("vgId:%d failed to found s-task, taskId:%d", vgId, taskId);
+  } else { // NOTE: pTask->status.schedStatus is not updated since it is not be handled by the run exec.
+    // todo add one function to handle this
+    tqError("vgId:%d failed to found s-task, taskId:0x%x may have been dropped", vgId, taskId);
     return -1;
   }
 }

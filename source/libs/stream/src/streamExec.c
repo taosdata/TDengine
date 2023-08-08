@@ -545,8 +545,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   return 0;
 }
 
+// the task may be set dropping/stopping, while it is still in the task queue, therefore, the sched-status can not
+// be updated by tryExec function, therefore, the schedStatus will always be the TASK_SCHED_STATUS__WAITING.
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE || pTask->status.taskStatus == TASK_STATUS__STOP ||
+          pTask->status.taskStatus == TASK_STATUS__DROPPING);
 }
 
 int32_t streamTaskEndScanWAL(SStreamTask* pTask) {
@@ -584,7 +587,6 @@ int32_t streamTryExec(SStreamTask* pTask) {
       return -1;
     }
 
-    // todo the task should be commit here
     // todo the task should be commit here
     if (taosQueueEmpty(pTask->inputQueue->queue)) {
       // fill-history WAL scan has completed

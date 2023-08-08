@@ -330,7 +330,8 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
   }
   taosWUnLockLatch(&pMeta->lock);
 
-  qDebug("s-task:0x%x set task status:%s", taskId, streamGetTaskStatusStr(TASK_STATUS__DROPPING));
+  qDebug("s-task:0x%x set task status:%s and start to unregister it", taskId,
+         streamGetTaskStatusStr(TASK_STATUS__DROPPING));
 
   while (1) {
     taosRLockLatch(&pMeta->lock);
