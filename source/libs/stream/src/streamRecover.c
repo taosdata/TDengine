@@ -502,11 +502,13 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 
   taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);
+  streamMetaCommit(pMeta);
   taosWUnLockLatch(&pMeta->lock);
 
   // history data scan in the stream time window finished, now let's enable the pause
   streamTaskEnablePause(pTask);
 
+  // for source tasks, let's continue execute.
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     streamSchedExec(pTask);
   }
