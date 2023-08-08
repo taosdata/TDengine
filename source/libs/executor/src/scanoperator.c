@@ -848,30 +848,29 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       return result;
     }
 
-    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
-      setOperatorCompleted(pOperator);
-      return NULL;
+    while (1) {
+      if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+        setOperatorCompleted(pOperator);
+        return NULL;
+      }
+
+      // reset value for the next group data output
+      pOperator->status = OP_OPENED;
+      resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
+
+      int32_t        num = 0;
+      STableKeyInfo* pList = NULL;
+      tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
+
+      pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
+      pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      pInfo->scanTimes = 0;
+
+      result = doGroupedTableScan(pOperator);
+      if (result != NULL) {
+        return result;
+      }
     }
-
-    // reset value for the next group data output
-    pOperator->status = OP_OPENED;
-    resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
-
-    int32_t        num = 0;
-    STableKeyInfo* pList = NULL;
-    tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
-
-    pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
-    pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-    pInfo->scanTimes = 0;
-
-    result = doGroupedTableScan(pOperator);
-    if (result != NULL) {
-      return result;
-    }
-
-    setOperatorCompleted(pOperator);
-    return NULL;
   }
 }
 
