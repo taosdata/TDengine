@@ -109,7 +109,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
         return code;
       }
       char* tmp = taosMemoryCalloc(pVal->length, 1);
-      memcmp(tmp, pVal->value + 2, pVal->length - 3);
+      memcpy(tmp, pVal->value + 2, pVal->length - 3);
       code = doGeomFromText(tmp, (unsigned char **)&pVal->value, &pVal->length);
       taosMemoryFree(tmp);
       if (code != TSDB_CODE_SUCCESS) {
