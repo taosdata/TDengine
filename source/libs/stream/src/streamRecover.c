@@ -492,12 +492,6 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   return 0;
 }
 
-int32_t streamTaskFillHistoryFinished(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  qResetStreamInfoTimeWindow(exec);
-  return 0;
-}
-
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY);
   SStreamMeta* pMeta = pTask->pMeta;
