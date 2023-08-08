@@ -69,7 +69,13 @@ struct SSortHandle {
   _sort_fetch_block_fn_t  fetchfp;
   _sort_merge_compar_fn_t comparFn;
   SMultiwayMergeTreeInfo* pMergeTree;
+
+  bool singleTableMerge;
 };
+
+void setSingleTableMerge(SSortHandle* pHandle) {
+  pHandle->singleTableMerge = true;
+}
 
 static int32_t msortComparFn(const void* pLeft, const void* pRight, void* param);
 
@@ -1453,6 +1459,26 @@ static STupleHandle* tsortPQSortNextTuple(SSortHandle* pHandle) {
   return &pHandle->tupleHandle;
 }
 
+static STupleHandle* tsortSingleTableMergeNextTuple(SSortHandle* pHandle) {
+  if (1 == pHandle->numOfCompletedSources) return NULL;
+  if (pHandle->tupleHandle.pBlock && pHandle->tupleHandle.rowIndex + 1 < pHandle->tupleHandle.pBlock->info.rows) {
+    pHandle->tupleHandle.rowIndex++;
+  } else {
+    if (pHandle->tupleHandle.rowIndex == -1) return NULL;
+    SSortSource** pSource = taosArrayGet(pHandle->pOrderedSource, 0);
+    SSortSource*  source = *pSource;
+    SSDataBlock*  pBlock = pHandle->fetchfp(source->param);
+    if (!pBlock || pBlock->info.rows == 0) {
+      setCurrentSourceDone(source, pHandle);
+      pHandle->tupleHandle.pBlock = NULL;
+      return NULL;
+    }
+    pHandle->tupleHandle.pBlock = pBlock;
+    pHandle->tupleHandle.rowIndex = 0;
+  }
+  return &pHandle->tupleHandle;
+}
+
 int32_t tsortOpen(SSortHandle* pHandle) {
   if (pHandle->opened) {
     return 0;
@@ -1470,7 +1496,9 @@ int32_t tsortOpen(SSortHandle* pHandle) {
 }
 
 STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
-  if (pHandle->pBoundedQueue)
+  if (pHandle->singleTableMerge)
+    return tsortSingleTableMergeNextTuple(pHandle);
+  else if (pHandle->pBoundedQueue)
     return tsortPQSortNextTuple(pHandle);
   else
     return tsortBufMergeSortNextTuple(pHandle);
