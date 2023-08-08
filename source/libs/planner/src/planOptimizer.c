@@ -368,7 +368,7 @@ static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
 
   if (pScan->node.pParent && nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) {
     SAggLogicNode* pAgg = (SAggLogicNode*)pScan->node.pParent;
-    bool withSlimit = pAgg->node.pSlimit != NULL || (pAgg->node.pParent && pAgg->node.pParent->pSlimit);
+    bool           withSlimit = pAgg->node.pSlimit != NULL || (pAgg->node.pParent && pAgg->node.pParent->pSlimit);
     if (withSlimit && isPartTableAgg(pAgg)) {
       pScan->groupOrderScan = pAgg->node.forceCreateNonBlockingOptr = true;
     }
@@ -1562,11 +1562,33 @@ static bool planOptNodeListHasTbname(SNodeList* pKeys) {
 }
 
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
-  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) ||
-           (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && NULL != ((SAggLogicNode*)pNode)->pGroupKeys &&
-            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)) &&
-          1 == LIST_LENGTH(pNode->pChildren) &&
-          QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)));
+  bool ret = 1 == LIST_LENGTH(pNode->pChildren) &&
+             QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0));
+  if (!ret) return ret;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      if (pNode->pParent && nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+        SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode->pParent;
+        if (pWindow->winType == WINDOW_TYPE_INTERVAL) {
+          // if interval has slimit, we push down partition node to scan, and scan will set groupOrderScan to true
+          //   we want to skip groups of blocks after slimit satisfied
+          // if interval only has limit, we do not push down partition node to scan
+          //   we want to get grouped output from partition node and make use of limit
+          // if no slimit and no limit, we push down partition node and groupOrderScan is false, cause we do not need
+          //   group ordered output
+          if (!pWindow->node.pSlimit && pWindow->node.pLimit) ret = false;
+        }
+      }
+    } break;
+    case QUERY_NODE_LOGIC_PLAN_AGG: {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      ret = pAgg->pGroupKeys && pAgg->pAggFuncs;
+    } break;
+    default:
+      ret = false;
+      break;
+  }
+  return ret;
 }
 
 static SNodeList* partTagsGetPartKeys(SLogicNode* pNode) {
@@ -1707,6 +1729,8 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
         scanPathOptSetGroupOrderScan(pScan);
         pParent->hasGroupKeyOptimized = true;
       }
+      if (pNode->pParent->pSlimit)
+        pScan->groupOrderScan = true;
 
       NODES_CLEAR_LIST(pNode->pChildren);
       nodesDestroyNode((SNode*)pNode);
@@ -2660,21 +2684,77 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
 }
 
 static bool pushDownLimitOptShouldBeOptimized(SLogicNode* pNode) {
-  if (NULL == pNode->pLimit || 1 != LIST_LENGTH(pNode->pChildren)) {
+  if ((NULL == pNode->pLimit && pNode->pSlimit == NULL) || 1 != LIST_LENGTH(pNode->pChildren)) {
     return false;
   }
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
-  // push down to sort node
-  if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pChild)) {
-    // if we have pushed down, we skip it
-    if (pChild->pLimit) return false;
-  } else if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) || QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode)) {
-    // push down to table scan node
-    // if pNode is sortNode, we skip push down limit info to table scan node
-    return false;
-  }
+  if (pChild->pLimit || pChild->pSlimit) return false;
   return true;
+}
+
+static void swapLimit(SLogicNode* pParent, SLogicNode* pChild) {
+  pChild->pLimit = pParent->pLimit;
+  pParent->pLimit = NULL;
+}
+
+static void cloneLimit(SLogicNode* pParent, SLogicNode* pChild) {
+  SLimitNode* pLimit = NULL;
+  if (pParent->pLimit) {
+    pChild->pLimit = nodesCloneNode(pParent->pLimit);
+    pLimit = (SLimitNode*)pChild->pLimit;
+    pLimit->limit += pLimit->offset;
+    pLimit->offset = 0;
+  }
+
+  if (pParent->pSlimit) {
+    pChild->pSlimit = nodesCloneNode(pParent->pSlimit);
+    pLimit = (SLimitNode*)pChild->pSlimit;
+    pLimit->limit += pLimit->offset;
+    pLimit->offset = 0;
+  }
+}
+
+static bool pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo);
+static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo) {
+  switch (nodeType(pNodeLimitPushTo)) {
+    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+      SWindowLogicNode* pWindow = (SWindowLogicNode*)pNodeLimitPushTo;
+      if (pWindow->winType != WINDOW_TYPE_INTERVAL) break;
+      cloneLimit(pNodeWithLimit, pNodeLimitPushTo);
+      return true;
+    }
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
+      cloneLimit(pNodeWithLimit, pNodeLimitPushTo);
+      SNode* pChild = NULL;
+      FOREACH(pChild, pNodeLimitPushTo->pChildren) { pushDownLimitHow(pNodeLimitPushTo, (SLogicNode*)pChild); }
+      return true;
+    }
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNodeWithLimit->pLimit) {
+        swapLimit(pNodeWithLimit, pNodeLimitPushTo);
+        return true;
+      }
+    default:
+      break;
+  }
+  return false;
+}
+
+static bool pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo) {
+  switch (nodeType(pNodeWithLimit)) {
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      return pushDownLimitTo(pNodeWithLimit, pNodeLimitPushTo);
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
+      SSortLogicNode* pSort = (SSortLogicNode*)pNodeWithLimit;
+      if (sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys)) return pushDownLimitTo(pNodeWithLimit, pNodeLimitPushTo);
+    }
+    default:
+      break;
+  }
+  return false;
 }
 
 static int32_t pushDownLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -2685,17 +2765,9 @@ static int32_t pushDownLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   nodesDestroyNode(pChild->pLimit);
-  if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pChild)) {
-    pChild->pLimit = nodesCloneNode(pNode->pLimit);
-    SLimitNode* pLimit = (SLimitNode*)pChild->pLimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-  } else {
-    pChild->pLimit = pNode->pLimit;
-    pNode->pLimit = NULL;
+  if (pushDownLimitHow(pNode, pChild)) {
+    pCxt->optimized = true;
   }
-  pCxt->optimized = true;
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2996,6 +3068,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},
+  {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
   {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
@@ -3004,7 +3077,6 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
   {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
-  {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
   {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize},
 };
 // clang-format on
