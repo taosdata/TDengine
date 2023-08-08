@@ -77,7 +77,7 @@ int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int
 struct SMeta {
   TdThreadRwlock lock;
 
-  tsem_t canWrite;
+  tsem_t txnReady; // if false we should not write journal
 
   char*   path;
   SVnode* pVnode;

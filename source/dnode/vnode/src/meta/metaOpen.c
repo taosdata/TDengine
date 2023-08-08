@@ -51,7 +51,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   }
 
   metaInitLock(pMeta);
-  tsem_init(&(pMeta->canWrite), 0, 1);
+  tsem_init(&(pMeta->txnReady), 0, 0);
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
@@ -285,7 +285,7 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
-    tsem_destroy(&(pMeta->canWrite));
+    tsem_destroy(&(pMeta->txnReady));
     metaDestroyLock(pMeta);
 
     taosMemoryFreeClear(*ppMeta);

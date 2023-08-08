@@ -367,12 +367,9 @@ static int32_t vnodeTtlTask(void *arg) {
     goto _exit;
   }
 
-  // if (taosArrayGetSize(tbUids) > 0) {
-  //   tqUpdateTbUidList(pVnode->pTq, tbUids, false);
-  // }
-
-  // TODO(LSG)
-  //vnodeAsyncRentention(pVnode, ttlReq.timestampSec);
+  if (taosArrayGetSize(tbUids) > 0) {
+    tqUpdateTbUidList(pVnode->pTq, tbUids, false);
+  }
 
 _exit:
   // end commit

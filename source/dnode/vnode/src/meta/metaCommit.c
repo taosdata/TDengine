@@ -40,25 +40,24 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
     return -1;
   }
 
-  tsem_post(&pMeta->canWrite);
+  tsem_post(&pMeta->txnReady);
 
   return 0;
 }
 
 // commit the meta txn
 TXN *metaGetTxn(SMeta *pMeta) { return pMeta->txn; }
-int  metaCommit(SMeta *pMeta, TXN *txn) { return tdbCommit(pMeta->pEnv, txn); }
-int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv, txn); }
-int  metaPrepareAsyncCommit(SMeta *pMeta) {
+int  metaCommit(SMeta *pMeta, TXN *txn) {
+  tsem_wait(&pMeta->txnReady);
+
+  ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  return tdbCommit(pMeta->pEnv, txn);
+}
+
+int metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv, txn); }
+int metaPrepareAsyncCommit(SMeta *pMeta) {
   // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
-  int code = 0;
-
-  tsem_wait(&pMeta->canWrite);
-
-  code = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
-  code = tdbCommit(pMeta->pEnv, pMeta->txn);
-
-  return code;
+  return metaCommit(pMeta, pMeta->txn);
 }
 
 // abort the meta txn

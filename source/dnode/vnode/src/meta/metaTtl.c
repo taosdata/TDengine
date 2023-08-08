@@ -81,7 +81,7 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
   }
 
   int64_t endNs = taosGetTimestampNs();
-  metaInfo("%s, ttl mgr open end, hash size: %d, time consumed: %" PRId64 " ns", pTtlMgr->logPrefix,
+  metaInfo("%s, ttl mgr open end, hash size:%d, time consumed:%" PRId64 " ns", pTtlMgr->logPrefix,
            taosHashGetSize(pTtlMgr->pTtlCache), endNs - startNs);
 
   *ppTtlMgr = pTtlMgr;
@@ -133,7 +133,7 @@ int ttlMgrUpgrade(STtlManger *pTtlMgr, void *pMeta) {
   }
 
   int64_t endNs = taosGetTimestampNs();
-  metaInfo("%s, ttl mgr upgrade end, hash size: %d, time consumed: %" PRId64 " ns", pTtlMgr->logPrefix,
+  metaInfo("%s, ttl mgr upgrade end, hash size:%d, time consumed:%" PRId64 " ns", pTtlMgr->logPrefix,
            taosHashGetSize(pTtlMgr->pTtlCache), endNs - startNs);
 
 _out:
@@ -223,14 +223,14 @@ static int ttlMgrConvertOneEntry(const void *pKey, int keyLen, const void *pVal,
 
   int ret = metaGetTableTtlByUid(pData->pMeta, uid, &ttlDays);
   if (ret < 0) {
-    metaError("ttlMgr convert failed to get ttl since %s", tstrerror(terrno));
+    metaError("ttl mgr convert failed to get ttl since %s", tstrerror(terrno));
     goto _out;
   }
 
   STtlIdxKeyV1 ttlKeyV1 = {.deleteTimeMs = ttlKey->deleteTimeSec * 1000, .uid = uid};
   ret = tdbTbUpsert(pData->pNewTtlIdx, &ttlKeyV1, sizeof(ttlKeyV1), &ttlDays, sizeof(ttlDays), pData->pMeta->txn);
   if (ret < 0) {
-    metaError("ttlMgr convert failed to upsert since %s", tstrerror(terrno));
+    metaError("ttl mgr convert failed to upsert since %s", tstrerror(terrno));
     goto _out;
   }
 
@@ -243,7 +243,7 @@ _out:
 static int ttlMgrConvert(TTB *pOldTtlIdx, TTB *pNewTtlIdx, void *pMeta) {
   SMeta *meta = pMeta;
 
-  metaInfo("ttlMgr convert ttl start.");
+  metaInfo("ttl mgr convert ttl start.");
 
   SConvertData cvData = {.pNewTtlIdx = pNewTtlIdx, .pMeta = meta};
 
@@ -252,7 +252,7 @@ static int ttlMgrConvert(TTB *pOldTtlIdx, TTB *pNewTtlIdx, void *pMeta) {
     metaError("failed to convert ttl since %s", tstrerror(terrno));
   }
 
-  metaInfo("ttlMgr convert ttl end.");
+  metaInfo("ttl mgr convert ttl end.");
   return ret;
 }
 
@@ -266,13 +266,13 @@ int ttlMgrInsertTtl(STtlManger *pTtlMgr, const STtlUpdTtlCtx *updCtx) {
 
   int ret = taosHashPut(pTtlMgr->pTtlCache, &updCtx->uid, sizeof(updCtx->uid), &cacheEntry, sizeof(cacheEntry));
   if (ret < 0) {
-    metaError("%s, ttlMgr insert failed to update ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+    metaError("%s, ttl mgr insert failed to update ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
     goto _out;
   }
 
   ret = taosHashPut(pTtlMgr->pDirtyUids, &updCtx->uid, sizeof(updCtx->uid), &dirtryEntry, sizeof(dirtryEntry));
   if (ret < 0) {
-    metaError("%s, ttlMgr insert failed to update ttl dirty uids since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+    metaError("%s, ttl mgr insert failed to update ttl dirty uids since %s", pTtlMgr->logPrefix, tstrerror(terrno));
     goto _out;
   }
 
@@ -285,7 +285,7 @@ int ttlMgrInsertTtl(STtlManger *pTtlMgr, const STtlUpdTtlCtx *updCtx) {
 _out:
   ttlMgrULock(pTtlMgr);
 
-  metaDebug("%s, ttl mgr insert ttl, uid: %" PRId64 ", ctime: %" PRId64 ", ttlDays: %" PRId64, pTtlMgr->logPrefix,
+  metaDebug("%s, ttl mgr insert ttl, uid:%" PRId64 ", ctime:%" PRId64 ", ttlDays:%" PRId64, pTtlMgr->logPrefix,
             updCtx->uid, updCtx->changeTimeMs, updCtx->ttlDays);
 
   return ret;
@@ -299,7 +299,7 @@ int ttlMgrDeleteTtl(STtlManger *pTtlMgr, const STtlDelTtlCtx *delCtx) {
 
   int ret = taosHashPut(pTtlMgr->pDirtyUids, &delCtx->uid, sizeof(delCtx->uid), &dirtryEntry, sizeof(dirtryEntry));
   if (ret < 0) {
-    metaError("%s, ttlMgr del failed to update ttl dirty uids since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+    metaError("%s, ttl mgr del failed to update ttl dirty uids since %s", pTtlMgr->logPrefix, tstrerror(terrno));
     goto _out;
   }
 
@@ -312,7 +312,7 @@ int ttlMgrDeleteTtl(STtlManger *pTtlMgr, const STtlDelTtlCtx *delCtx) {
 _out:
   ttlMgrULock(pTtlMgr);
 
-  metaDebug("%s, ttl mgr delete ttl, uid: %" PRId64, pTtlMgr->logPrefix, delCtx->uid);
+  metaDebug("%s, ttl mgr delete ttl, uid:%" PRId64, pTtlMgr->logPrefix, delCtx->uid);
 
   return ret;
 }
@@ -327,19 +327,27 @@ int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtime
     goto _out;
   }
 
+  if (oldData->changeTimeMs > pTtlMgr->expireTimeMs) {
+    // has expired => skip update ctime
+    metaInfo("%s, ttl mgr skip update ctime, entry expired. uid:%" PRId64 ", oldCtime:%" PRId64
+              ", expireTime:%" PRId64,
+              pTtlMgr->logPrefix, pUpdCtimeCtx->uid, oldData->changeTimeMs, pTtlMgr->expireTimeMs);
+    goto _out;
+  }
+
   STtlCacheEntry cacheEntry = {.ttlDays = oldData->ttlDays, .changeTimeMs = pUpdCtimeCtx->changeTimeMs};
   STtlDirtyEntry dirtryEntry = {.type = ENTRY_TYPE_UPSERT};
 
   ret = taosHashPut(pTtlMgr->pTtlCache, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &cacheEntry, sizeof(cacheEntry));
   if (ret < 0) {
-    metaError("%s, ttlMgr update ctime failed to update ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+    metaError("%s, ttl mgr update ctime failed to update ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
     goto _out;
   }
 
   ret = taosHashPut(pTtlMgr->pDirtyUids, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &dirtryEntry,
                     sizeof(dirtryEntry));
   if (ret < 0) {
-    metaError("%s, ttlMgr update ctime failed to update ttl dirty uids since %s", pTtlMgr->logPrefix,
+    metaError("%s, ttl mgr update ctime failed to update ttl dirty uids since %s", pTtlMgr->logPrefix,
               tstrerror(terrno));
     goto _out;
   }
@@ -353,7 +361,7 @@ int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtime
 _out:
   ttlMgrULock(pTtlMgr);
 
-  metaDebug("%s, ttl mgr update ctime, uid: %" PRId64 ", ctime: %" PRId64, pTtlMgr->logPrefix, pUpdCtimeCtx->uid,
+  metaDebug("%s, ttl mgr update ctime, uid:%" PRId64 ", ctime:%" PRId64, pTtlMgr->logPrefix, pUpdCtimeCtx->uid,
             pUpdCtimeCtx->changeTimeMs);
 
   return ret;
@@ -363,7 +371,7 @@ int ttlMgrFindExpired(STtlManger *pTtlMgr, SArray *pTbUids) {
   ttlMgrRLock(pTtlMgr);
 
   if (pTtlMgr->expireTimeMs == 0) {
-    metaError("%s, ttl expireTimeMs uninitialized, skip find expired", pTtlMgr->logPrefix);
+    metaError("%s, ttl mgr expireTimeMs uninitialized, skip find expired", pTtlMgr->logPrefix);
     return 0;
   }
 
@@ -423,7 +431,7 @@ static int ttlMgrFlushUnlocked(STtlManger *pTtlMgr, TXN *pTxn) {
 
     STtlCacheEntry *cacheEntry = taosHashGet(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
     if (cacheEntry == NULL) {
-      metaError("%s, ttlMgr flush failed to get ttl cache since %s, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix,
+      metaError("%s, ttl mgr flush failed to get ttl cache since %s, uid:%" PRId64 ", type:%d", pTtlMgr->logPrefix,
                 tstrerror(terrno), *pUid, pEntry->type);
       continue;
     }
@@ -435,23 +443,23 @@ static int ttlMgrFlushUnlocked(STtlManger *pTtlMgr, TXN *pTxn) {
       ret = tdbTbUpsert(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), &cacheEntry->ttlDays, sizeof(cacheEntry->ttlDays),
                         pTxn);
       if (ret < 0) {
-        metaError("%s, ttlMgr flush failed to flush ttl cache upsert since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+        metaError("%s, ttl mgr flush failed to flush ttl cache upsert since %s", pTtlMgr->logPrefix, tstrerror(terrno));
         goto _out;
       }
     } else if (pEntry->type == ENTRY_TYPE_DEL) {
       ret = tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn);
       if (ret < 0) {
-        metaError("%s, ttlMgr flush failed to flush ttl cache del since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+        metaError("%s, ttl mgr flush failed to flush ttl cache del since %s", pTtlMgr->logPrefix, tstrerror(terrno));
         goto _out;
       }
 
       ret = taosHashRemove(pTtlMgr->pTtlCache, pUid, sizeof(*pUid));
       if (ret < 0) {
-        metaError("%s, ttlMgr flush failed to delete ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
+        metaError("%s, ttl mgr flush failed to delete ttl cache since %s", pTtlMgr->logPrefix, tstrerror(terrno));
         goto _out;
       }
     } else {
-      metaError("%s, ttlMgr flush failed to flush ttl cache, unknown type: %d", pTtlMgr->logPrefix, pEntry->type);
+      metaError("%s, ttl mgr flush failed to flush ttl cache, unknown type:%d", pTtlMgr->logPrefix, pEntry->type);
       goto _out;
     }
 
@@ -498,7 +506,7 @@ int ttlMgrSetExpireTime(STtlManger *pTtlMgr, int64_t timePointMs) {
 static int32_t ttlMgrRLock(STtlManger *pTtlMgr) {
   int32_t ret = 0;
 
-  metaTrace("%s, ttlMgr rlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
+  metaTrace("%s, ttl mgr rlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
 
   ret = taosThreadRwlockRdlock(&pTtlMgr->lock);
 
@@ -508,7 +516,7 @@ static int32_t ttlMgrRLock(STtlManger *pTtlMgr) {
 static int32_t ttlMgrWLock(STtlManger *pTtlMgr) {
   int32_t ret = 0;
 
-  metaTrace("%s, ttlMgr wlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
+  metaTrace("%s, ttl mgr wlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
 
   ret = taosThreadRwlockWrlock(&pTtlMgr->lock);
 
@@ -518,7 +526,7 @@ static int32_t ttlMgrWLock(STtlManger *pTtlMgr) {
 static int32_t ttlMgrULock(STtlManger *pTtlMgr) {
   int32_t ret = 0;
 
-  metaTrace("%s, ttlMgr ulock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
+  metaTrace("%s, ttl mgr ulock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
 
   ret = taosThreadRwlockUnlock(&pTtlMgr->lock);
 

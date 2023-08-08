@@ -724,6 +724,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   if (code) goto end;
 
   code = vnodeAsyncTtlDropTable(pVnode);
+  if (code) goto end;
+
+  code = vnodeDoRetention(pVnode, ttlReq.timestampSec);
 
 end:
   return code;

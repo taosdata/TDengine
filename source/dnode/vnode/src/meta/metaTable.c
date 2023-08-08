@@ -935,6 +935,10 @@ int metaTtlSetExpireTime(SMeta *pMeta, int64_t timePointMs) {
 int metaTtlDropTable(SMeta *pMeta, SArray *tbUids) {
   int64_t startMs = taosGetTimestampMs();
 
+  tsem_wait(&pMeta->txnReady);
+  ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  tsem_post(&pMeta->txnReady);
+
   int ret = ttlMgrFindExpired(pMeta->pTtlMgr, tbUids);
   if (ret != 0) {
     metaError("ttl failed to find expired table, ret:%d", ret);
@@ -948,12 +952,13 @@ int metaTtlDropTable(SMeta *pMeta, SArray *tbUids) {
   metaInfo("ttl find expired table count: %zu", TARRAY_SIZE(tbUids));
 
   for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
-    tsem_wait(&pMeta->canWrite);
-    metaWLock(pMeta);
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
+
+    tsem_wait(&pMeta->txnReady);
+    metaWLock(pMeta);
     metaDropTableByUid(pMeta, uid, NULL);
     metaULock(pMeta);
-    tsem_post(&pMeta->canWrite);
+    tsem_post(&pMeta->txnReady);
   }
 
   int64_t endMs = taosGetTimestampMs();
