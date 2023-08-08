@@ -1845,35 +1845,6 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, int3
   return mndPersistTransLog(pStream, pTrans);
 }
 
-static int32_t updateTaskEpInfo(SStreamObj* pStream, int32_t nodeId, SEpSet* pEpSet) {
-  int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
-
-  for (int32_t j = 0; j < numOfLevels; ++j) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, j);
-
-    int32_t numOfTasks = taosArrayGetSize(pLevel);
-    for (int32_t k = 0; k < numOfTasks; ++k) {
-      SStreamTask *pTask = taosArrayGetP(pLevel, k);
-      if (pTask->info.nodeId == nodeId) {
-        pTask->info.epSet = *pEpSet;
-        continue;
-      }
-
-      // check for the dispath info and the upstream task info
-      int32_t level = pTask->info.taskLevel;
-      if (level == TASK_LEVEL__SOURCE) {
-        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
-      } else if (level == TASK_LEVEL__AGG) {
-        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
-      } else { // TASK_LEVEL__SINK
-        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-      }
-    }
-  }
-  return 0;
-}
-
 // todo: this process should be executed by the write queue worker of the mnode
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
@@ -1944,7 +1915,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
       // update the related upstream and downstream tasks, todo remove this, no need this function
       taosWLockLatch(&pStream->lock);
-      updateTaskEpInfo(pStream, req.vgId, &req.epset);
+      streamTaskUpdateEpInfo(pStream->tasks, req.vgId, &req.epset);
+      streamTaskUpdateEpInfo(pStream->pHTasksList, req.vgId, &req.epset);
       taosWUnLockLatch(&pStream->lock);
 
       code = createStreamUpdateTrans(pMnode, pStream, nodeId, &newEpSet);

@@ -481,3 +481,31 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir) {
   return 0;
 }
 
+int32_t streamTaskUpdateEpInfo(SArray* pTaskList, int32_t nodeId, SEpSet* pEpSet) {
+  int32_t numOfLevels = taosArrayGetSize(pTaskList);
+
+  for (int32_t j = 0; j < numOfLevels; ++j) {
+    SArray *pLevel = taosArrayGetP(pTaskList, j);
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel);
+    for (int32_t k = 0; k < numOfTasks; ++k) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, k);
+      if (pTask->info.nodeId == nodeId) {
+        pTask->info.epSet = *pEpSet;
+        continue;
+      }
+
+      // check for the dispath info and the upstream task info
+      int32_t level = pTask->info.taskLevel;
+      if (level == TASK_LEVEL__SOURCE) {
+        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+      } else if (level == TASK_LEVEL__AGG) {
+        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+      } else { // TASK_LEVEL__SINK
+        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+      }
+    }
+  }
+  return 0;
+}
