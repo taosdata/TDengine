@@ -2180,15 +2180,11 @@ FETCH_NEXT_BLOCK:
           continue;
         }
 
-        // filter the block extracted from WAL files, according to the time window
-        // apply additional time window filter
-        doBlockDataWindowFilter(pRes, pInfo->primaryTsIndex, &pStreamInfo->fillHistoryWindow, id);
-        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-        if (pRes->info.rows == 0) {
+        setBlockIntoRes(pInfo, pRes, &pStreamInfo->fillHistoryWindow, false);
+        if (pInfo->pRes->info.rows == 0) {
           continue;
         }
 
-        setBlockIntoRes(pInfo, pRes, &pStreamInfo->fillHistoryWindow, false);
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
           qDebug("create table res exists, rows:%"PRId64" return from stream scan, %s", pInfo->pCreateTbRes->info.rows, id);
