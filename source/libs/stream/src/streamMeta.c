@@ -93,7 +93,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->expandFunc = expandFunc;
 
   // send heartbeat every 20sec.
-//  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 20000, pMeta, streamEnv.timer);
+//  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 20000, ahandle, streamEnv.timer);
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -549,8 +549,16 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
 }
 
 void metaHbToMnode(void* param, void* tmrId) {
-  SStreamMeta* pMeta = param;
+  STQ* pMeta = param;
   SStreamHbMsg hbMsg = {0};
+
+  taosRLockLatch(&pMeta->lock);
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+  taosRUnLockLatch(&pMeta->lock);
+
+  hbMsg.numOfTasks = numOfTasks;
+  hbMsg.vgId = pMeta->vgId;
+  hbMsg.epset = ;
 
   int32_t code = 0;
   int32_t tlen = 0;
@@ -581,7 +589,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen + sizeof(SMsgHead));
-  qDebug("vgId:%d, send hb to mnode", pMeta->mgmtInfo.mnodeId);
+  qDebug("vgId:%d, build and send hb to mnode", pMeta->mgmtInfo.mnodeId);
 
   tmsgSendReq(&pMeta->mgmtInfo.epset, &msg);
 }
