@@ -1,6 +1,6 @@
 <template>
   <div class="agent-doc">
-    <h1>1.{{ $t("taosagents.step1") }}</h1>
+    <h1>1. {{ $t("taosagents.step1") }}</h1>
     <section>
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
@@ -30,7 +30,7 @@ cd taosx-agent-*
         </el-tab-pane>
       </el-tabs>
     </section>
-    <h1>2.{{ $t("taosagents.step2") }}</h1>
+    <h1>2. {{ $t("taosagents.step2") }}</h1>
     <section>
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
@@ -43,21 +43,21 @@ cd taosx-agent-*
         </el-tab-pane>
       </el-tabs>
 
-      <p>{{ $t("taosagents.step2sub3") }}</p>
-      <el-alert
+      <!-- <p>{{ $t("taosagents.step2sub3") }}</p> -->
+      <!-- <el-alert
         style="margin-bottom: 10px"
         :title="$t('copyagentWaring')"
         type="warning"
         :closable="false"
-        show-icon
+        show-icons
       >
-      </el-alert>
-      <pre v-highlight><code>endpoint = "{{endpoint}}"
-token = "{{token}}"
-</code></pre>
-      <p>{{ $t("taosagents.step2sub4") }}</p>
+      </el-alert> -->
+      <pre v-highlight><code>endpoint = {{endpoint}}</code>
+<code>token = {{token}}</code>
+</pre>
+      <!-- <p>{{ $t("taosagents.step2sub4") }}</p> -->
     </section>
-    <h1>3.{{ $t("taosagents.step3") }}</h1>
+    <h1>3. {{ $t("taosagents.step3") }}</h1>
     <section>
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
@@ -72,8 +72,8 @@ token = "{{token}}"
         </el-tab-pane>
       </el-tabs>
     </section>
-    <h1>4.{{ $t("taosagents.step4") }}</h1>
-    <section>
+    <h1>4. {{ $t("taosagents.step4") }}</h1>
+    <section style="margin-top:5px;">
       <p>{{ $t("taosagents.step4sub1") }}</p>
     </section>
   </div>
@@ -109,11 +109,13 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+section{
+  margin-bottom: 10px;
+}
 h1 {
   text-align: left;
   color: #0969da;
   font-size: 18px;
-  margin-bottom: 10px;
 }
 p {
   text-align: left;
