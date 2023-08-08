@@ -421,7 +421,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         }
       }
       info->currSTableMeta = (*tmp)->tableMeta;
-      info->masColKVs = (*tmp)->cols;
+      info->maxColKVs = (*tmp)->cols;
     }
   }
 
@@ -536,13 +536,13 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         freeSSmlKv(&kv);
         return TSDB_CODE_SUCCESS;
       }
-      if (cnt >= taosArrayGetSize(info->masColKVs)) {
+      if (cnt >= taosArrayGetSize(info->maxColKVs)) {
         info->dataFormat = false;
         info->reRun = true;
         freeSSmlKv(&kv);
         return TSDB_CODE_SUCCESS;
       }
-      SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->masColKVs, cnt);
+      SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->maxColKVs, cnt);
       if (kv.type != maxKV->type) {
         info->dataFormat = false;
         info->reRun = true;

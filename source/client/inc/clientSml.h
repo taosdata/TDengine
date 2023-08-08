@@ -193,7 +193,7 @@ typedef struct {
   //
   SArray      *preLineTagKV;
   SArray      *maxTagKVs;
-  SArray      *masColKVs;
+  SArray      *maxColKVs;
 
   SSmlLineInfo preLine;
   STableMeta  *currSTableMeta;
