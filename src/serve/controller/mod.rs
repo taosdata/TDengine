@@ -626,7 +626,7 @@ impl TaskController {
                 .clone()
                 .replace("files", "");
             let root = std::path::Path::new(path.as_str());
-            assert!(env::set_current_dir(&root).is_ok());
+            let _ = env::set_current_dir(&root);
             let now = Utc::now();
             let _ = sqlx::query!(
                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
