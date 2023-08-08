@@ -863,6 +863,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
+      mndReleaseDb(pMnode, pDb);
     } else {
       while (1) {
         SDbObj *pDb = NULL;
@@ -887,6 +888,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         mndReleaseDb(pMnode, pDb);
         goto _OVER;
       }
+      mndReleaseDb(pMnode, pDb);
     } else {
       while (1) {
         SDbObj *pDb = NULL;
@@ -908,6 +910,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         goto _OVER;
       }
       taosHashRemove(newUser.readDbs, alterReq.objname, len);
+      mndReleaseDb(pMnode, pDb);
     } else {
       taosHashClear(newUser.readDbs);
     }
@@ -922,6 +925,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         goto _OVER;
       }
       taosHashRemove(newUser.writeDbs, alterReq.objname, len);
+      mndReleaseDb(pMnode, pDb);
     } else {
       taosHashClear(newUser.writeDbs);
     }
