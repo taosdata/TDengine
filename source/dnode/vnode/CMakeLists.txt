@@ -162,8 +162,8 @@ target_link_libraries(
 
     # s3
     cos_c_sdk
-    apr
-    apr-util
+    apr-1
+    aprutil-1
     mxml
     curl
 )

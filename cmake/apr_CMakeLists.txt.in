@@ -1,5 +1,5 @@
 # apr
-ExternalProject_Add(apr
+ExternalProject_Add(apr-1
         GIT_REPOSITORY https://github.com/apache/apr.git
 	GIT_TAG 1.5.2
         SOURCE_DIR "${TD_CONTRIB_DIR}/apr"

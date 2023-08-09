@@ -43,7 +43,7 @@ target_include_directories(
 #find_library(CURL_LIBRARY curl)
 
 target_link_libraries(cosTest cos_c_sdk)
-target_link_libraries(cosTest apr})
-target_link_libraries(cosTest apr-util})
+target_link_libraries(cosTest apr-1})
+target_link_libraries(cosTest aprutil-1})
 target_link_libraries(cosTest mxml)
 target_link_libraries(cosTest curl)
