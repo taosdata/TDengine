@@ -200,13 +200,16 @@ void taosArrayClear(SArray* pArray);
  * @param pArray
  * @param fp
  */
+
 void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
+
+void taosArrayClearP(SArray* pArray, void (*fp)(void*));
 
 void* taosArrayDestroy(SArray* pArray);
 
-void  taosArrayDestroyP(SArray* pArray, FDelete fp);
+void taosArrayDestroyP(SArray* pArray, FDelete fp);
 
-void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
+void taosArrayDestroyEx(SArray* pArray, FDelete fp);
 
 void taosArraySwap(SArray* a, SArray* b);
 

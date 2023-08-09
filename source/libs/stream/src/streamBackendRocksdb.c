@@ -31,6 +31,9 @@ typedef struct {
   char*     path;
   char*     buf;
   int32_t   len;
+
+  SArray* pAdd;
+  SArray* pDel;
 } SBackendManager;
 
 typedef struct SCompactFilteFactory {
@@ -149,7 +152,24 @@ SBackendManager* backendManagerCreate(char* path) {
   p->pSSTable = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   p->len = strlen(path) + 128;
   p->buf = taosMemoryCalloc(1, p->len);
+
+  p->pAdd = taosArrayInit(64, sizeof(void*));
+  p->pDel = taosArrayInit(64, sizeof(void*));
   return p;
+}
+void backendManagerDestroy(SBackendManager* bm) {
+  if (bm == NULL) return;
+
+  taosMemoryFree(bm->buf);
+  taosMemoryFree(bm->path);
+
+  taosHashCleanup(bm->pSSTable);
+
+  taosArrayDestroyP(bm->pSST, taosMemoryFree);
+  taosArrayDestroyP(bm->pAdd, taosMemoryFree);
+  taosArrayDestroyP(bm->pDel, taosMemoryFree);
+
+  taosMemoryFree(bm);
 }
 
 int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
@@ -191,6 +211,9 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
                          ? bm->pSSTable
                          : taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
+  taosArrayClearP(bm->pAdd, taosMemoryFree);
+  taosArrayClearP(bm->pDel, taosMemoryFree);
+
   TdDirPtr      pDir = taosOpenDir(bm->buf);
   TdDirEntryPtr de = NULL;
   int8_t        dummy = 0;
@@ -222,23 +245,23 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
     bm->curChkpId = chkpId;
     bm->init = 1;
 
-    SArray* add = taosArrayInit(64, sizeof(void*));
+    // SArray* add = taosArrayInit(64, sizeof(void*));
 
     void* pIter = taosHashIterate(pTable, NULL);
     while (pIter) {
       size_t len;
       char*  name = taosHashGetKey(pIter, &len);
       if (name != NULL && len != 0) {
-        taosArrayPush(add, &name);
+        taosArrayPush(bm->pAdd, &name);
       }
       pIter = taosHashIterate(pTable, pIter);
     }
 
   } else {
-    SArray* add = taosArrayInit(64, sizeof(void*));
-    SArray* del = taosArrayInit(64, sizeof(void*));
+    // SArray* add = taosArrayInit(64, sizeof(void*));
+    // SArray* del = taosArrayInit(64, sizeof(void*));
 
-    int32_t code = compareHashTable(bm->pSSTable, pTable, add, del);
+    int32_t code = compareHashTable(bm->pSSTable, pTable, bm->pAdd, bm->pDel);
 
     bm->curChkpId = chkpId;
     taosHashCleanup(pTable);
@@ -248,7 +271,8 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
 
 int32_t backendManagerDumpTo(SBackendManager* bm, char* name) {
   int32_t code = 0;
-  char*   buf = taosMemoryCalloc(1, strlen(bm->path) + 64);
+  int32_t len = bm->len + 64;
+  char*   buf = taosMemoryCalloc(1, len);
   sprintf(buf, "%s%s%s", bm->path, TD_DIRSEP, name);
 
   code = taosMkDir(buf);
@@ -256,8 +280,37 @@ int32_t backendManagerDumpTo(SBackendManager* bm, char* name) {
     return code;
   }
 
-  
+  // clear current file
+  memset(buf, 0, len);
+  sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, bm->pCurrent);
+  taosRemoveFile(buf);
 
+  memset(buf, 0, len);
+  sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, bm->pManifest);
+  taosRemoveFile(buf);
+
+  for (int i = 0; i < taosArrayGetSize(bm->pAdd); i++) {
+    memset(buf, 0, len);
+
+    char* filename = taosArrayGetP(bm->pAdd, i);
+    sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, filename);
+
+    char* src = taosMemoryCalloc(1, len);
+    sprintf(src, "%s%s%s%" PRId64 "%s%s", bm->path, TD_DIRSEP, "checkpoint", bm->curChkpId, TD_DIRSEP, filename);
+    taosCopyFile(src, buf);
+  }
+
+  for (int i = 0; i < taosArrayGetSize(bm->pDel); i++) {
+    memset(buf, 0, len);
+
+    char* filename = taosArrayGetP(bm->pDel, i);
+    sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, filename);
+    taosRemoveFile(buf);
+  }
+  // clear delta data
+  taosArrayClearP(bm->pAdd, taosMemoryFree);
+  taosArrayClearP(bm->pDel, taosMemoryFree);
+  return code;
 }
 
 SCfInit ginitDict[] = {

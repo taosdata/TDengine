@@ -191,7 +191,7 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   }
 
   if (index >= pArray->size) {
-    uError("index is out of range, current:%"PRIzu" max:%d", index, pArray->capacity);
+    uError("index is out of range, current:%" PRIzu " max:%d", index, pArray->capacity);
     return NULL;
   }
 
@@ -319,7 +319,7 @@ SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
   if (NULL == pSrc) {
     return NULL;
   }
-  
+
   if (pSrc->size == 0) {  // empty array list
     return taosArrayInit(8, pSrc->elemSize);
   }
@@ -359,6 +359,23 @@ void taosArrayClearEx(SArray* pArray, void (*fp)(void*)) {
   }
 
   pArray->size = 0;
+}
+void taosArrayClearP(SArray* pArray, void (*fp)(void*)) {
+  // if (pArray == NULL) return;
+  // if (fp == NULL) {
+  //   pArray->size = 0;
+  //   return;
+  // }
+
+  // for (int32_t i = 0; i < pArray->size; ++i) {
+  //   fp(TARRAY_GET_ELEM(pArray, i));
+  // }
+  if (pArray) {
+    for (int32_t i = 0; i < pArray->size; i++) {
+      fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+    }
+  }
+  taosArrayClear(pArray);
 }
 
 void* taosArrayDestroy(SArray* pArray) {
@@ -492,7 +509,7 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
 // order array<type *>
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param) {
   taosqsort(pArray->pData, pArray->size, pArray->elemSize, param, fn);
-//  taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
+  //  taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
 }
 
 void taosArraySwap(SArray* a, SArray* b) {
