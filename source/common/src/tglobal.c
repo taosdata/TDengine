@@ -266,6 +266,9 @@ int32_t taosSetTfsCfg(SConfig *pCfg);
 
 int32_t taosSetS3Cfg(SConfig *pCfg) {
   tstrncpy(tsS3AccessKey, cfgGetItem(pCfg, "s3Accesskey")->str, TSDB_FQDN_LEN);
+  if (tsS3AccessKey[0] == '<') {
+    return 0;
+  }
   char *colon = strchr(tsS3AccessKey, ':');
   if (!colon) {
     uError("invalid access key:%s", tsS3AccessKey);
