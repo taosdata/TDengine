@@ -876,7 +876,67 @@ bool needDeleteWindowBuf(STimeWindow* pWin, STimeWindowAggSupp* pTwSup) {
   return pTwSup->maxTs != INT64_MIN && pWin->ekey < pTwSup->maxTs - pTwSup->deleteMark;
 }
 
-static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
+static bool tsKeyCompFn(void* l, void* r, void* param) {
+  TSKEY* lTS = (TSKEY*)l;
+  TSKEY* rTS = (TSKEY*)r;
+  SIntervalAggOperatorInfo* pInfo = param;
+  return pInfo->binfo.outputTsOrder == ORDER_ASC ? *lTS < *rTS : *lTS > *rTS;
+}
+
+static bool isCalculatedWin(SIntervalAggOperatorInfo* pInfo, const STimeWindow* win, uint64_t tableGroupId) {
+  char keyBuf[sizeof(TSKEY) + sizeof(uint64_t)] = {0};
+  SET_RES_WINDOW_KEY(keyBuf, (char*)&win->skey, sizeof(TSKEY), tableGroupId);
+  return tSimpleHashGet(pInfo->aggSup.pResultRowHashTable, keyBuf, GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY))) != NULL;
+}
+
+/**
+ * @brief check if cur window should be filtered out by limit info
+ * @retval true if should be filtered out
+ * @retval false if not filtering out
+ * @note If no limit info, we skip filtering.
+ *       If input/output ts order mismatch, we skip filtering too.
+ *       eg. input ts order: desc, and output ts order: asc, limit: 10
+ *       IntervalOperator should output the first 10 windows, however, we can't find the first 10 windows until we scan
+ *       every tuple in every block.
+ *       And the boundedQueue keeps refreshing all records with smaller ts key.
+ */
+static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STimeWindow* win, uint64_t groupId) {
+  if (!pOperatorInfo->limited  // if no limit info, no filter will be applied
+      || pOperatorInfo->binfo.inputTsOrder !=
+             pOperatorInfo->binfo.outputTsOrder  // if input/output ts order mismatch, no filter
+  ) {
+    return false;
+  }
+  if (pOperatorInfo->limit == 0) return true;
+
+  if (pOperatorInfo->pBQ == NULL) {
+    pOperatorInfo->pBQ = createBoundedQueue(pOperatorInfo->limit - 1, tsKeyCompFn, taosMemoryFree, pOperatorInfo);
+  }
+
+  bool shouldFilter = false;
+  // if BQ has been full, compare it with top of BQ
+  if (taosBQSize(pOperatorInfo->pBQ) == taosBQMaxSize(pOperatorInfo->pBQ) + 1) {
+    PriorityQueueNode* top = taosBQTop(pOperatorInfo->pBQ);
+    shouldFilter = tsKeyCompFn(top->data, &win->skey, pOperatorInfo);
+  }
+  if (shouldFilter) {
+    return true;
+  } else if (isCalculatedWin(pOperatorInfo, win, groupId)) {
+    return false;
+  }
+
+  // cur win not been filtered out and not been pushed into BQ yet, push it into BQ
+  PriorityQueueNode node = {.data = taosMemoryMalloc(sizeof(TSKEY))};
+  *((TSKEY*)node.data) = win->skey;
+
+  if (NULL == taosBQPush(pOperatorInfo->pBQ, &node)) {
+    taosMemoryFree(node.data);
+    return true;
+  }
+  return false;
+}
+
+static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
                             int32_t scanFlag) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
 
@@ -891,8 +951,21 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   TSKEY       ts = getStartTsKey(&pBlock->info.window, tsCols);
   SResultRow* pResult = NULL;
 
+  if (tableGroupId != pInfo->curGroupId) {
+    pInfo->handledGroupNum += 1;
+    if (pInfo->slimited && pInfo->handledGroupNum > pInfo->slimit) {
+      return true;
+    } else {
+      pInfo->curGroupId = tableGroupId;
+      destroyBoundedQueue(pInfo->pBQ);
+      pInfo->pBQ = NULL;
+    }
+  }
+
   STimeWindow win =
       getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, pInfo->binfo.inputTsOrder);
+  if (filterWindowWithLimit(pInfo, &win, tableGroupId)) return false;
+
   int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
@@ -929,7 +1002,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   while (1) {
     int32_t prevEndPos = forwardRows - 1 + startPos;
     startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos, pInfo->binfo.inputTsOrder);
-    if (startPos < 0) {
+    if (startPos < 0 || filterWindowWithLimit(pInfo, &nextWin, tableGroupId)) {
       break;
     }
     // null data, failed to allocate more memory buffer
@@ -963,6 +1036,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   if (pInfo->timeWindowInterpo) {
     saveDataBlockLastRow(pInfo->pPrevValues, pBlock, pInfo->pInterpCols);
   }
+  return false;
 }
 
 void doCloseWindow(SResultRowInfo* pResultRowInfo, const SIntervalAggOperatorInfo* pInfo, SResultRow* pResult) {
@@ -1043,7 +1117,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pSup, pBlock, pInfo->binfo.inputTsOrder, scanFlag, true);
-    hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag);
+    if (hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag)) break;
   }
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->binfo.outputTsOrder);
@@ -1495,6 +1569,7 @@ void destroyIntervalOperatorInfo(void* param) {
 
   cleanupGroupResInfo(&pInfo->groupResInfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  destroyBoundedQueue(pInfo->pBQ);
   taosMemoryFreeClear(param);
 }
 
@@ -1658,6 +1733,17 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   pInfo->interval = interval;
   pInfo->twAggSup = as;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;
+  if (pPhyNode->window.node.pLimit) {
+    SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pLimit;
+    pInfo->limited = true;
+    pInfo->limit = pLimit->limit + pLimit->offset;
+  }
+  if (pPhyNode->window.node.pSlimit) {
+    SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pSlimit;
+    pInfo->slimited = true;
+    pInfo->slimit = pLimit->limit + pLimit->offset;
+    pInfo->curGroupId = UINT64_MAX;
+  }
 
   if (pPhyNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;

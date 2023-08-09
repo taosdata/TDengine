@@ -3047,17 +3047,22 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
 
-  STableMergeScanSortSourceParam param = {0};
-  param.pOperator = pOperator;
+  STableMergeScanSortSourceParam *param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
+  param->pOperator = pOperator;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock, (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, NULL);
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  ps->param = &param;
-  ps->onlyRef = true;
+  ps->param = param;
+  ps->onlyRef = false;
   tsortAddSource(pInfo->pSortHandle, ps);
 
-  int32_t code = tsortOpen(pInfo->pSortHandle);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (numOfTable == 1) {
+    setSingleTableMerge(pInfo->pSortHandle);
+  } else {
+    code = tsortOpen(pInfo->pSortHandle);
+  }
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
