@@ -926,7 +926,6 @@ int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList) {
     }
 
     pIter = taosHashIterate(vgHash, pIter);
-    vgInfo = NULL;
   }
 
   *pList = vgList;
@@ -1587,6 +1586,12 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 
   if (pInfo->superAuth) {
     pRes->pass = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
+    pRes->pass = true;
+    ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
     return TSDB_CODE_SUCCESS;
   }
 

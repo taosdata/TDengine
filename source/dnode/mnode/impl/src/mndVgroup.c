@@ -875,7 +875,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     // if (pDb == NULL || pDb->compactStartTime <= 0) {
     //   colDataSetNULL(pColInfo, numOfRows);
     // } else {
-    //   colDataAppend(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
+    //   colDataSetVal(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
     // }
 
     numOfRows++;
@@ -2591,6 +2591,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     pIter = sdbFetch(pMnode->pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
     if (!mndIsDnodeOnline(pDnode, curMs)) {
+      sdbCancelFetch(pMnode->pSdb, pIter);
       terrno = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
       mError("failed to balance vgroup since %s, dnode:%d", terrstr(), pDnode->id);
       sdbRelease(pMnode->pSdb, pDnode);

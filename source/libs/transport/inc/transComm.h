@@ -154,6 +154,7 @@ typedef struct {
 
 #pragma pack(push, 1)
 
+#define TRANS_VER 2
 typedef struct {
   char version : 4;  // RPC version
   char comp : 2;     // compression algorithm, 0:no compression 1:lz4
@@ -166,6 +167,7 @@ typedef struct {
 
   uint64_t timestamp;
   char     user[TSDB_UNI_LEN];
+  int32_t  compatibilityVer;
   uint32_t magicNum;
   STraceId traceId;
   uint64_t ahandle;  // ahandle assigned by client
@@ -291,7 +293,7 @@ bool transReadComplete(SConnBuffer* connBuf);
 int  transResetBuffer(SConnBuffer* connBuf);
 int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf);
 
-int transSetConnOption(uv_tcp_t* stream);
+int transSetConnOption(uv_tcp_t* stream, int keepalive);
 
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);

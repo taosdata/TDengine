@@ -14,6 +14,7 @@
  */
 
 #include "meta.h"
+#include "vnd.h"
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -29,33 +30,32 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
+static void metaCleanup(SMeta **ppMeta);
+
 int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   SMeta *pMeta = NULL;
   int    ret;
-  int    slen;
+  int    offset;
+  char   path[TSDB_FILENAME_LEN] = {0};
 
   *ppMeta = NULL;
 
   // create handle
-  if (pVnode->pTfs) {
-    slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
-  } else {
-    slen = strlen(pVnode->path) + strlen(VNODE_META_DIR) + 2;
-  }
-  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + slen)) == NULL) {
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  offset = strlen(path);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VNODE_META_DIR);
+
+  if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + strlen(path) + 1)) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   metaInitLock(pMeta);
+
   pMeta->path = (char *)&pMeta[1];
-  if (pVnode->pTfs) {
-    sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-            VNODE_META_DIR);
-  } else {
-    sprintf(pMeta->path, "%s%s%s", pVnode->path, TD_DIRSEP, VNODE_META_DIR);
-  }
-  taosRealPath(pMeta->path, NULL, slen);
+  strcpy(pMeta->path, path);
+  taosRealPath(pMeta->path, NULL, strlen(path) + 1);
+
   pMeta->pVnode = pVnode;
 
   // create path if not created yet
@@ -128,7 +128,9 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   }
 
   // open pTtlMgr ("ttlv1.idx")
-  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0);
+  char logPrefix[128] = {0};
+  sprintf(logPrefix, "vgId:%d", TD_VID(pVnode));
+  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -180,51 +182,43 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   return 0;
 
 _err:
-  if (pMeta->pIdx) metaCloseIdx(pMeta);
-  if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
-  if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
-  if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
-  if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
-  if (pMeta->pTtlMgr) ttlMgrClose(pMeta->pTtlMgr);
-  if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-  if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-  if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
-  if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
-  if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
-  if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
-  if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
-  if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
-  if (pMeta->pEnv) tdbClose(pMeta->pEnv);
-  metaDestroyLock(pMeta);
-  taosMemoryFree(pMeta);
+  metaCleanup(&pMeta);
   return -1;
 }
 
-int metaClose(SMeta **ppMeta) {
+int metaUpgrade(SVnode *pVnode, SMeta **ppMeta) {
+  int    code = TSDB_CODE_SUCCESS;
   SMeta *pMeta = *ppMeta;
-  if (pMeta) {
-    if (pMeta->pEnv) metaAbort(pMeta);
-    if (pMeta->pCache) metaCacheClose(pMeta);
-    if (pMeta->pIdx) metaCloseIdx(pMeta);
-    if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
-    if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
-    if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
-    if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
-    if (pMeta->pTtlMgr) ttlMgrClose(pMeta->pTtlMgr);
-    if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-    if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-    if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
-    if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
-    if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
-    if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
-    if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
-    if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
-    if (pMeta->pEnv) tdbClose(pMeta->pEnv);
-    metaDestroyLock(pMeta);
 
-    taosMemoryFreeClear(*ppMeta);
+  if (ttlMgrNeedUpgrade(pMeta->pEnv)) {
+    code = metaBegin(pMeta, META_BEGIN_HEAP_OS);
+    if (code < 0) {
+      metaError("vgId:%d, failed to upgrade meta, meta begin failed since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
+
+    code = ttlMgrUpgrade(pMeta->pTtlMgr, pMeta);
+    if (code < 0) {
+      metaError("vgId:%d, failed to upgrade meta ttl since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
+
+    code = metaCommit(pMeta, pMeta->txn);
+    if (code < 0) {
+      metaError("vgId:%d, failed to upgrade meta ttl, meta commit failed since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
+  return TSDB_CODE_SUCCESS;
+
+_err:
+  metaCleanup(ppMeta);
+  return code;
+}
+
+int metaClose(SMeta **ppMeta) {
+  metaCleanup(ppMeta);
   return 0;
 }
 
@@ -268,6 +262,32 @@ int32_t metaULock(SMeta *pMeta) {
   ret = taosThreadRwlockUnlock(&pMeta->lock);
 
   return ret;
+}
+
+static void metaCleanup(SMeta **ppMeta) {
+  SMeta *pMeta = *ppMeta;
+  if (pMeta) {
+    if (pMeta->pEnv) metaAbort(pMeta);
+    if (pMeta->pCache) metaCacheClose(pMeta);
+    if (pMeta->pIdx) metaCloseIdx(pMeta);
+    if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
+    if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
+    if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
+    if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
+    if (pMeta->pTtlMgr) ttlMgrClose(pMeta->pTtlMgr);
+    if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
+    if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
+    if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+    if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
+    if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
+    if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
+    if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
+    if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
+    if (pMeta->pEnv) tdbClose(pMeta->pEnv);
+    metaDestroyLock(pMeta);
+
+    taosMemoryFreeClear(*ppMeta);
+  }
 }
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {

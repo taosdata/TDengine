@@ -45,27 +45,10 @@ extern "C" {
 typedef struct STqOffsetStore STqOffsetStore;
 
 // tqPush
-
-// typedef struct {
-//   // msg info
-//   int64_t consumerId;
-//   int64_t reqOffset;
-//   int64_t processedVer;
-//   int32_t epoch;
-//   // rpc info
-//   int64_t        reqId;
-//   SRpcHandleInfo rpcInfo;
-//   tmr_h          timerId;
-//   int8_t         tmrStopped;
-//   // exec
-//   int8_t       inputStatus;
-//   int8_t       execStatus;
-//   SStreamQueue inputQ;
-//   SRWLatch     lock;
-// } STqPushHandle;
+#define EXTRACT_DATA_FROM_WAL_ID    (-1)
+#define STREAM_TASK_STATUS_CHECK_ID (-2)
 
 // tqExec
-
 typedef struct {
   char* qmsg;  // SubPlanToString
 } STqExecCol;
@@ -151,7 +134,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
-int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
+//int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
+int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
@@ -184,11 +168,10 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqStreamTasksScanWal(STQ* pTq);
+int32_t tqStreamTasksStatusCheck(STQ* pTq);
 
 // tq util
 int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock);
-char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
-int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);

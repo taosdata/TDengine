@@ -102,7 +102,7 @@ Ensure that your firewall rules do not block TCP port 6042  on any host in the c
 | Value Range   | 10-50000000                                          |
 | Default Value | 5000                                                 |
 
-### numOfRpcSessions 
+### numOfRpcSessions
 
 | Attribute     | Description                                |
 | ------------- | ------------------------------------------ |
@@ -166,7 +166,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report service usage information |
 | Value Range   | 0: Not allowed; 1: Allowed                                                   |
 | Default Value | 1                                                                            |
@@ -174,7 +174,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute     | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                  |
+| Applicable    | Server and Client                                                            |
 | Meaning       | Switch for allowing TDengine to collect and report crash related information |
 | Value Range   | 0,1   0: Not allowed; 1: allowed                                             |
 | Default Value | 1                                                                            |
@@ -202,7 +202,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Default Value | 0                                                                                                                                                                   |
 | Notes         | 0: Disable SMA indexing and perform all queries on non-indexed data; 1: Enable SMA indexing and perform queries from suitable statements on precomputation results. |
 
-### countAlwaysReturnValue 
+### countAlwaysReturnValue
 
 | Attribute  | Description                                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -670,6 +670,15 @@ The charset that takes effect is UTF-8.
 | Value Range | 0: not consistent; 1: consistent.                                                   |
 | Default     | 0                                                                                   |
 
+### smlTsDefaultName
+
+| Attribute     | Description                                                     |
+| --------      | --------------------------------------------------------        |
+| Applicable    | Client only                                                     |
+| Meaning       | The name of the time column for schemaless automatic table creation is set through this configuration |
+| Type          | String                                                          |
+| Default Value | _ts                                                             |
+
 ## Compress Parameters
 
 ### compressMsgSize
@@ -713,6 +722,33 @@ The charset that takes effect is UTF-8.
 | Value Range   | 0: disable UDF; 1: enabled UDF     |
 | Default Value | 1                                  |
 
+### ttlChangeOnWrite
+
+| Attribute     | Description                                                                   |
+| ------------- | ----------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                   |
+| Meaning       | Whether the ttl expiration time changes with the table modification operation |
+| Value Range   | 0: not change; 1: change by modification                                      |
+| Default Value | 0                                                                             |
+
+### keepTimeOffset
+
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server Only               |
+| Meaning       | Latency of data migration |
+| Unit          | hour                      |
+| Value Range   | 0-23                      |
+| Default Value | 0                         |
+
+### tmqMaxTopicNum
+
+| Attribute     | Description               |
+| -------- | ------------------ |
+| Applicable | Server Only       |
+| Meaning     | The max num of topics  |
+| Value Range | 1-10000|
+| Default Value   | 20                  |
 
 ## 3.0 Parameters
 
@@ -770,3 +806,5 @@ The charset that takes effect is UTF-8.
 | 52  |        charset         | Yes                    | Yes                          |                         |
 | 53  |          udf           | Yes                    | Yes                          |                         |
 | 54  |     enableCoreFile     | Yes                    | Yes                          |                         |
+| 55  |    ttlChangeOnWrite    | No                     | Yes                          |                         |
+| 56  |     keepTimeOffset     | Yes                    | Yes                          |                         |

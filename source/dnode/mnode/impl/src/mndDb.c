@@ -1303,11 +1303,10 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
     sdbRelease(pSdb, pVgroup);
 
     if (pDb && (vindex >= pDb->cfg.numOfVgroups)) {
+      sdbCancelFetch(pSdb, pIter);
       break;
     }
   }
-
-  sdbCancelFetch(pSdb, pIter);
 }
 
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq) {
@@ -1873,12 +1872,6 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRollPeriod, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);

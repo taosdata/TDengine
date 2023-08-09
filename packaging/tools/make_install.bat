@@ -56,8 +56,8 @@ copy %binary_dir%\\build\\bin\\taos.exe %target_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %target_dir% > nul
 )
-if exist %binary_dir%\\build\\lib\\taosws.dll.lib (
-    copy %binary_dir%\\build\\lib\\taosws.dll.lib %target_dir%\\driver  > nul
+if exist %binary_dir%\\build\\lib\\taosws.lib (
+    copy %binary_dir%\\build\\lib\\taosws.lib %target_dir%\\driver  > nul
 )
 if exist %binary_dir%\\build\\lib\\taosws.dll (
     copy %binary_dir%\\build\\lib\\taosws.dll %target_dir%\\driver  > nul

@@ -47,7 +47,7 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.0.0</version>
+            <version>3.2.4</version>
         </dependency>
 
         <dependency>

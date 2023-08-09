@@ -38,6 +38,8 @@ typedef struct STtlManger {
   SHashObj* pTtlCache;   // key: tuid, value: {ttl, ctime}
   SHashObj* pDirtyUids;  // dirty tuid
   TTB*      pTtlIdx;     // btree<{deleteTime, tuid}, ttl>
+
+  char* logPrefix;
 } STtlManger;
 
 typedef struct {
@@ -77,18 +79,21 @@ typedef struct {
 typedef struct {
   tb_uid_t uid;
   TXN*     pTxn;
+  int64_t  ttlDays;
 } STtlDelTtlCtx;
 
-int ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback);
-int ttlMgrClose(STtlManger* pTtlMgr);
-int ttlMgrBegin(STtlManger* pTtlMgr, void* pMeta);
+int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix);
+void ttlMgrClose(STtlManger* pTtlMgr);
+int  ttlMgrPostOpen(STtlManger* pTtlMgr, void* pMeta);
 
-int ttlMgrConvert(TTB* pOldTtlIdx, TTB* pNewTtlIdx, void* pMeta);
-int ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
+bool ttlMgrNeedUpgrade(TDB* pEnv);
+int  ttlMgrUpgrade(STtlManger* pTtlMgr, void* pMeta);
 
 int ttlMgrInsertTtl(STtlManger* pTtlMgr, const STtlUpdTtlCtx* pUpdCtx);
 int ttlMgrDeleteTtl(STtlManger* pTtlMgr, const STtlDelTtlCtx* pDelCtx);
 int ttlMgrUpdateChangeTime(STtlManger* pTtlMgr, const STtlUpdCtimeCtx* pUpdCtimeCtx);
+
+int ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
 int ttlMgrFindExpired(STtlManger* pTtlMgr, int64_t timePointMs, SArray* pTbUids);
 
 #ifdef __cplusplus

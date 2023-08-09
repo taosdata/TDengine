@@ -402,10 +402,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
-  if (pMsg->msgType == TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE || pMsg->msgType == TDMT_STREAM_TASK_CHECK_RSP) {
-    if (tqCheckLogInWal(pVnode->pTq, ver)) return 0;
-  }
-
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
@@ -462,12 +458,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_VND_TMQ_COMMIT_OFFSET:
-      if (tqProcessOffsetCommitReq(pVnode->pTq, ver, pReq, pMsg->contLen - sizeof(SMsgHead)) < 0) {
-        goto _err;
-      }
-      break;
-    case TDMT_VND_TMQ_SEEK_TO_OFFSET:
-      if (tqProcessSeekReq(pVnode->pTq, ver, pReq, pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      if (tqProcessOffsetCommitReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
       }
       break;
@@ -498,16 +489,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     } break;
     case TDMT_STREAM_TASK_RESUME: {
       if (pVnode->restored && tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
-        goto _err;
-      }
-    } break;
-    case TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE: {
-      if (tqProcessTaskRecover2Req(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
-        goto _err;
-      }
-    } break;
-    case TDMT_STREAM_TASK_CHECK_RSP: {
-      if (tqProcessStreamTaskCheckRsp(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
       }
     } break;
@@ -643,26 +624,50 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TMQ_VG_COMMITTEDINFO:
+      return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TMQ_SEEK:
+      return tqProcessSeekReq(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+
+int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
-    case TDMT_STREAM_TASK_CHECK:
-      return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECK:
+      return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECK_RSP:
+      return tqProcessStreamTaskCheckRsp(pVnode->pTq, 0, pMsg);
     case TDMT_STREAM_RETRIEVE:
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE:
-      return tqProcessTaskRecover1Req(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RECOVER_FINISH:
-      return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RECOVER_FINISH_RSP:
-      return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_SCAN_HISTORY:
+      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TRANSFER_STATE:
+      return tqProcessTaskTransferStateReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_SCAN_HISTORY_FINISH:
+      return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
+      return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
     default:
-      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
@@ -683,7 +688,8 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
-extern int32_t vnodeAsyncRentention(SVnode *pVnode, int64_t now);
+extern int32_t vnodeDoRetention(SVnode *pVnode, int64_t now);
+
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
@@ -696,10 +702,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
   vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
-  // process
-  vnodeAsyncRentention(pVnode, trimReq.timestamp);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
+  code = vnodeDoRetention(pVnode, trimReq.timestamp);
 
 _exit:
   return code;
@@ -724,7 +727,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-  vnodeAsyncRentention(pVnode, ttlReq.timestampSec);
+  vnodeDoRetention(pVnode, ttlReq.timestampSec);
 
 end:
   taosArrayDestroy(tbUids);
@@ -1698,7 +1701,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   tDecodeSBatchDeleteReq(&decoder, &deleteReq);
 
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
 
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {

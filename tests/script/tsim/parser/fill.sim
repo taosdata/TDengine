@@ -1143,4 +1143,185 @@ if $rows != 20026 then
   return -1
 endi
 
+print ===================== TD-25209 test fill prev/next/linear after data range
+sql use $db
+
+sql select _wstart,_wend,count(*) from tm0 where ts >= '2020-01-01 01:03:06.000' and ts <= '2020-01-01 01:03:10.000' interval(1s) fill(prev);
+
+if $rows != 5 then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data22 != 1 then
+  return -1
+endi
+
+if $data32 != 1 then
+  return -1
+endi
+
+if $data42 != 1 then
+  return -1
+endi
+
+sql select _wstart,_wend,count(*) from tm0 where ts >= '2020-01-01 01:03:06.000' and ts <= '2020-01-01 01:03:10.000' interval(1s) fill(next);
+
+if $rows != 5 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data22 != 1 then
+  return -1
+endi
+
+if $data32 != 1 then
+  return -1
+endi
+
+if $data42 != NULL then
+  return -1
+endi
+
+sql select _wstart,_wend,count(*) from tm0 where ts >= '2020-01-01 01:03:06.000' and ts <= '2020-01-01 01:03:10.000' interval(1s) fill(linear);
+
+if $rows != 5 then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data22 != 1 then
+  return -1
+endi
+
+if $data32 != 1 then
+  return -1
+endi
+
+if $data42 != NULL then
+  return -1
+endi
+
+print ===================== TD-3625 test fill value NULL
+sql use $db
+
+sql select _wstart,_wend,count(*) from tm0 where ts >= '2020-01-01 01:03:06.000' and ts <= '2020-01-01 01:03:10.000' interval(1s) fill(value, NULL);
+
+if $rows != 5 then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data22 != 1 then
+  return -1
+endi
+
+if $data32 != 1 then
+  return -1
+endi
+
+if $data42 != NULL then
+  return -1
+endi
+
+sql select _wstart,_wend,count(*),sum(k),avg(k) from tm0 where ts >= '2020-01-01 01:03:06.000' and ts <= '2020-01-01 01:03:10.000' interval(1s) fill(value, 1, NULL, 1);
+
+if $rows != 5 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data22 != 1 then
+  return -1
+endi
+
+if $data32 != 1 then
+  return -1
+endi
+
+if $data42 != 1 then
+  return -1
+endi
+
+
+if $data03 != NULL then
+  return -1
+endi
+
+if $data13 != 7 then
+  return -1
+endi
+
+if $data23 != 8 then
+  return -1
+endi
+
+if $data33 != 9 then
+  return -1
+endi
+
+if $data43 != NULL then
+  return -1
+endi
+
+
+if $data04 != 1.000000000 then
+  return -1
+endi
+
+if $data14 != 7.000000000 then
+  return -1
+endi
+
+if $data24 != 8.000000000 then
+  return -1
+endi
+
+if $data34 != 9.000000000 then
+  return -1
+endi
+
+if $data44 != 1.000000000 then
+  return -1
+endi
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+

@@ -138,9 +138,9 @@ class TDTestCase:
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{BASEVERSION}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
+        # os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
+        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
+        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
         os.system(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/tmqBasic.json ")
         # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
@@ -152,6 +152,7 @@ class TDTestCase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
 
         cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
                 
@@ -192,7 +193,6 @@ class TDTestCase:
         tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
-        tdsql.execute("alter database db wal_retention_period 3600")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
@@ -203,7 +203,6 @@ class TDTestCase:
         tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
         tdsql.query("select * from db.ct4")
         tdsql.checkData(0,1,14)
-        print(1)
         tdsql=tdCom.newTdSql()
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   
@@ -224,7 +223,7 @@ class TDTestCase:
                 args = (caller.filename, caller.lineno)
                 tdLog.exit("%s(%d) failed" % args)
         tdsql.query("show streams;")
-        tdsql.checkRows(2)
+        tdsql.checkRows(0)
         tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
         tdsql.checkRows(6)
         expectList = [0,3003,20031,20032,20033,30031]

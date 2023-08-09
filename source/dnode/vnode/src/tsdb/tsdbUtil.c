@@ -528,25 +528,27 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
   *maxKey = *minKey + tsTickPerMin[precision] * minutes - 1;
 }
 
-int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
+int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
   int32_t aFid[3];
   TSKEY   key;
 
   if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
-    now = now * 1000;
+    nowSec = nowSec * 1000;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
-    now = now * 1000000l;
+    nowSec = nowSec * 1000000l;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
-    now = now * 1000000000l;
+    nowSec = nowSec * 1000000000l;
   } else {
     ASSERT(0);
   }
 
-  key = now - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
+  nowSec = nowSec - tsKeepTimeOffset * tsTickPerHour[pKeepCfg->precision];
+
+  key = nowSec - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
   aFid[0] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
-  key = now - pKeepCfg->keep1 * tsTickPerMin[pKeepCfg->precision];
+  key = nowSec - pKeepCfg->keep1 * tsTickPerMin[pKeepCfg->precision];
   aFid[1] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
-  key = now - pKeepCfg->keep2 * tsTickPerMin[pKeepCfg->precision];
+  key = nowSec - pKeepCfg->keep2 * tsTickPerMin[pKeepCfg->precision];
   aFid[2] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
 
   if (fid >= aFid[0]) {
@@ -640,7 +642,7 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
 int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t   code = 0;
   TSDBKEY   key = TSDBROW_KEY(pRow);
-  SColVal * pColVal = &(SColVal){0};
+  SColVal  *pColVal = &(SColVal){0};
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
 
@@ -764,7 +766,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
   }
 }
 
-int32_t tsdbRowMergerInit(SRowMerger* pMerger, STSchema *pSchema) {
+int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
   pMerger->pTSchema = pSchema;
   pMerger->pArray = taosArrayInit(pSchema->numOfCols, sizeof(SColVal));
   if (pMerger->pArray == NULL) {
@@ -774,7 +776,7 @@ int32_t tsdbRowMergerInit(SRowMerger* pMerger, STSchema *pSchema) {
   }
 }
 
-void tsdbRowMergerClear(SRowMerger* pMerger) {
+void tsdbRowMergerClear(SRowMerger *pMerger) {
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
     if (IS_VAR_DATA_TYPE(pTColVal->type)) {
@@ -785,7 +787,7 @@ void tsdbRowMergerClear(SRowMerger* pMerger) {
   taosArrayClear(pMerger->pArray);
 }
 
-void tsdbRowMergerCleanup(SRowMerger* pMerger) {
+void tsdbRowMergerCleanup(SRowMerger *pMerger) {
   int32_t numOfCols = taosArrayGetSize(pMerger->pArray);
   for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
@@ -1041,8 +1043,6 @@ int32_t tsdbBuildDeleteSkyline2(SArray *aDelData, int32_t sidx, int32_t eidx, SA
 
 // SBlockData ======================================================
 int32_t tBlockDataCreate(SBlockData *pBlockData) {
-  int32_t code = 0;
-
   pBlockData->suid = 0;
   pBlockData->uid = 0;
   pBlockData->nRow = 0;
@@ -1051,7 +1051,7 @@ int32_t tBlockDataCreate(SBlockData *pBlockData) {
   pBlockData->aTSKEY = NULL;
   pBlockData->nColData = 0;
   pBlockData->aColData = NULL;
-  return code;
+  return 0;
 }
 
 void tBlockDataDestroy(SBlockData *pBlockData) {
@@ -1107,8 +1107,8 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
     int32_t   iColumn = 1;
     STColumn *pTColumn = &pTSchema->columns[iColumn];
     for (int32_t iCid = 0; iCid < nCid; iCid++) {
-
-      // aCid array (from taos client catalog) contains columns that does not exist in the pTSchema. the pTSchema is newer
+      // aCid array (from taos client catalog) contains columns that does not exist in the pTSchema. the pTSchema is
+      // newer
       if (pTColumn == NULL) {
         continue;
       }
@@ -1239,7 +1239,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 _exit:
   return code;
 }
-static int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
 
   // version

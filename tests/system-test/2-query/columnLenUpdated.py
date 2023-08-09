@@ -26,7 +26,7 @@ def taos_command (buildPath, key, value, expectString, sqlString=''):
         taosCmd = buildPath + '/build/bin/taos '
 
     cfgPath = buildPath + "/../sim/psim/cfg"
-    taosCmd = taosCmd + ' -c' + cfgPath + ' -' + key
+    taosCmd = taosCmd + ' -c ' + cfgPath + ' -' + key
     if len(value) != 0:
         taosCmd = taosCmd + ' ' + value
 
@@ -202,7 +202,7 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
-        tdSql.query("select count(*) from stb group by tg1")
+        tdSql.query("select count(*) from stb group by tg1 order by count(*) desc")
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(1, 0, 1)
 

@@ -1522,6 +1522,36 @@ int sml_ts2385_Test() {
   return code;
 }
 
+int sml_ts3724_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists ts3724");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists ts3724");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "stb.2,t1=1 f1=283i32 1632299372000",
+      ".stb2,t1=1 f1=106i32 1632299378000",
+      "stb2.,t1=1 f1=106i32 1632299378000",
+  };
+
+  pRes = taos_query(taos, "use ts3724");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
@@ -1579,5 +1609,8 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_19221_Test();
   ASSERT(!ret);
+  ret = sml_ts3724_Test();
+  ASSERT(!ret);
+
   return ret;
 }

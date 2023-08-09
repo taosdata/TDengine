@@ -966,20 +966,20 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
 
     // table name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
-    colDataAppend(pColInfoData, numOfRows, tName, false);
+    colDataSetVal(pColInfoData, numOfRows, tName, false);
 
     // database name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, dbname, false);
+    colDataSetVal(pColInfoData, numOfRows, dbname, false);
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
-    colDataAppend(pColInfoData, numOfRows, tableType, false);
+    colDataSetVal(pColInfoData, numOfRows, tableType, false);
 
     // col name
     char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(colName, schemaRow->pSchema[i].name);
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
-    colDataAppend(pColInfoData, numOfRows, colName, false);
+    colDataSetVal(pColInfoData, numOfRows, colName, false);
 
     // col type
     int8_t colType = schemaRow->pSchema[i].type;
@@ -994,10 +994,10 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
                             (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
     varDataSetLen(colTypeStr, colTypeLen);
-    colDataAppend(pColInfoData, numOfRows, (char*)colTypeStr, false);
+    colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-    colDataAppend(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
+    colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
 
     for (int32_t j = 6; j <= 8; ++j) {
       pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);

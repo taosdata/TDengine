@@ -173,6 +173,7 @@ int32_t initCtxAsText() {
 
     if (geosCtx->WKTWriter) {
       GEOSWKTWriter_setRoundingPrecision_r(geosCtx->handle, geosCtx->WKTWriter, 6);
+      GEOSWKTWriter_setTrim_r(geosCtx->handle, geosCtx->WKTWriter, 0);
     } else {
       return code;
     }

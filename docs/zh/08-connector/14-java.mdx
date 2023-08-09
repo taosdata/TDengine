@@ -36,6 +36,7 @@ REST 连接支持所有能运行 Java 的平台。
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
+|        3.2.4         |                                   数据订阅在 WebSocket 连接下增加 enable.auto.commit 参数，以及 unsubscribe() 方法。                                   |         -          |
 |        3.2.3         |                                                         修复 ResultSet 在一些情况数据解析失败                                                          |         -          |
 |        3.2.2         |                                                           新增功能：数据订阅支持 seek 功能。                                                           | 3.0.5.0 及更高版本 |
 |        3.2.1         | 新增功能：WebSocket 连接支持 schemaless 与 prepareStatement 写入。变更：consumer poll 返回结果集为 ConsumerRecord，可通过 value() 获取指定结果集数据。 | 3.0.3.0 及更高版本 |
@@ -445,7 +446,7 @@ TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据�
 **注意**：
 
 - JDBC REST 连接目前不支持参数绑定
-- 以下示例代码基于 taos-jdbcdriver-3.2.1
+- 以下示例代码基于 taos-jdbcdriver-3.2.4
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
 - 预处理语句中指定数据库与子表名称不要使用 `db.?`，应直接使用 `?`，然后在 setTableName 中指定数据库，如：`prepareStatement.setTableName("db.t1")`。
 
@@ -1021,11 +1022,13 @@ while(true) {
 #### 指定订阅 Offset
 
 ```java
+// 获取 offset
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
 Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
 
+// 指定下一次 poll 中使用的 offset
 void seek(TopicPartition partition, long offset) throws SQLException;
 ```
 

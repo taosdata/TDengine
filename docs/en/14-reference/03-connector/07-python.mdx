@@ -87,9 +87,9 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 |NCHAR|str|
 |JSON|str|
 
-## Installation
+## Installation Steps
 
-### Preparation
+### Pre-installation preparation
 
 1. Install Python. The recent taospy package requires Python 3.6.2+. The earlier versions of taospy require Python 3.7+.  The taos-ws-py package requires Python 3.7+. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
@@ -275,7 +275,7 @@ Transfer-Encoding: chunked
 </TabItem>
 </Tabs>
 
-### Using connectors to establish connections
+### Specify the Host and Properties to get the connection
 
 The following example code assumes that TDengine is installed locally and that the default configuration is used for both FQDN and serverPort.
 
@@ -331,7 +331,69 @@ The parameter of `connect()` is the url of TDengine, and the protocol is `taosws
 </TabItem>
 </Tabs>
 
-## Example program
+### Priority of configuration parameters
+
+If the configuration parameters are duplicated in the parameters or client configuration file, the priority of the parameters, from highest to lowest, are as follows:
+
+1. Parameters in `connect` function.
+2. the configuration file taos.cfg of the TDengine client driver when using a native connection.
+
+## Usage examples
+
+### Create database and tables
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="native connection">
+
+```python
+conn = taos.connect()
+# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
+conn.execute("DROP DATABASE IF EXISTS test")
+conn.execute("CREATE DATABASE test")
+# change database. same as execute "USE db"
+conn.select_db("test")
+conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+```
+
+</TabItem>
+
+<TabItem value="rest" label="REST connection">
+
+```python
+conn = taosrest.connect(url="http://localhost:6041")
+# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
+conn.execute("DROP DATABASE IF EXISTS test")
+conn.execute("CREATE DATABASE test")
+conn.execute("USE test")
+conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+```
+
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+conn = taosws.connect("taosws://localhost:6041")
+# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
+conn.execute("DROP DATABASE IF EXISTS test")
+conn.execute("CREATE DATABASE test")
+conn.execute("USE test")
+conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+```
+
+</TabItem>
+</Tabs>
+
+### Insert data
+
+```python
+conn.execute("INSERT INTO t1 USING weather TAGS(1) VALUES (now, 23.5) (now+1m, 23.5) (now+2m, 24.4)")
+```
+
+:::
+now is an internal function. The default is the current time of the client's computer. now + 1s represents the current time of the client plus 1 second, followed by the number representing the unit of time: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks), n (months), y (years).
+:::
+
 
 ### Basic Usage
 
@@ -453,7 +515,7 @@ The `query` method of the `TaosConnection` class can be used to query data and r
 </TabItem>
 </Tabs>
 
-### Usage with req_id
+### Execute SQL with reqId
 
 By using the optional req_id parameter, you can specify a request ID that can be used for tracing.
 
@@ -553,221 +615,7 @@ As the way to connect introduced above but add `req_id` argument.
 </TabItem>
 </Tabs>
 
-### Subscription
-
-Connector support data subscription. For more information about subscroption, please refer to [Data Subscription](../../../develop/tmq/).
-
-<Tabs defaultValue="native">
-<TabItem value="native" label="native connection">
-
-The `consumer` in the connector contains the subscription api. 
-
-##### Create Consumer
-
-The syntax for creating a consumer is `consumer = Consumer(configs)`. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/).
-
-```python
-from taos.tmq import Consumer
-
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
-```
-
-##### Subscribe topics
-
-The `subscribe` function is used to subscribe to a list of topics.
-
-```python
-consumer.subscribe(['topic1', 'topic2'])
-```
-
-##### Consume
-
-The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
-
-```python
-while True:
-    res = consumer.poll(1)
-    if not res:
-        continue
-    err = res.error()
-    if err is not None:
-        raise err
-    val = res.value()
-
-    for block in val:
-        print(block.fetchall())
-```
-
-##### assignment
-
-The `assignment` function is used to get the assignment of the topic. 
-
-```python
-assignments = consumer.assignment()
-```
-
-##### Seek
-
-The `seek` function is used to reset the assignment of the topic.
-
-```python
-tp = TopicPartition(topic='topic1', partition=0, offset=0)
-consumer.seek(tp)
-```
-
-##### After consuming data
-
-You should unsubscribe to the topics and close the consumer after consuming.
-
-```python
-consumer.unsubscribe()
-consumer.close()
-```
-
-##### Tmq subscription example
-
-```python
-{{#include docs/examples/python/tmq_example.py}}
-```
-
-##### assignment and seek example
-
-```python
-{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
-```
-
-</TabItem>
-
-<TabItem value="websocket" label="WebSocket connection">
-
-In addition to native connections, the connector also supports subscriptions via websockets.
-
-##### Create Consumer
-
-The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/#create-a-consumer).
-
-```python
-import taosws
-
-consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
-```
-
-##### subscribe topics
-
-The `subscribe` function is used to subscribe to a list of topics.
-
-```python
-consumer.subscribe(['topic1', 'topic2'])
-```
-
-##### Consume
-
-The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
-
-```python
-while True:
-    res = consumer.poll(timeout=1.0)
-    if not res:
-        continue
-    err = res.error()
-    if err is not None:
-        raise err
-    for block in message:
-        for row in block:
-            print(row)
-```
-
-##### assignment
-
-The `assignment` function is used to get the assignment of the topic. 
-
-```python
-assignments = consumer.assignment()
-```
-
-##### Seek
-
-The `seek` function is used to reset the assignment of the topic.
-
-```python
-consumer.seek(topic='topic1', partition=0, offset=0)
-```
-
-##### After consuming data
-
-You should unsubscribe to the topics and close the consumer after consuming.
-
-```python
-consumer.unsubscribe()
-consumer.close()
-```
-
-##### Subscription example
-
-```python
-{{#include docs/examples/python/tmq_websocket_example.py}}
-```
-
-##### Assignment and seek example
-
-```python
-{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
-```
-
-</TabItem>
-</Tabs>
-
-### Schemaless Insert
-
-Connector support schemaless insert.
-
-<Tabs defaultValue="list">
-<TabItem value="list" label="List Insert">
-
-##### Simple insert
-
-```python
-{{#include docs/examples/python/schemaless_insert.py}}
-```
-
-##### Insert with ttl argument
-
-```python
-{{#include docs/examples/python/schemaless_insert_ttl.py}}
-```
-
-##### Insert with req_id argument
-
-```python
-{{#include docs/examples/python/schemaless_insert_req_id.py}}
-```
-
-</TabItem>
-
-<TabItem value="raw" label="Raw Insert">
-
-##### Simple insert
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw.py}}
-```
-
-##### Insert with ttl argument
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
-```
-
-##### Insert with req_id argument
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
-```
-
-</TabItem>
-</Tabs>
-
-### Parameter Binding
+### Writing data via parameter binding
 
 The Python connector provides a parameter binding api for inserting data. Similar to most databases, TDengine currently only supports the question mark `?` to indicate the parameters to be bound.
 
@@ -898,16 +746,273 @@ stmt.close()
 </TabItem>
 </Tabs>
 
+### Schemaless Writing
+
+Connector support schemaless insert.
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List Insert">
+
+##### Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+##### Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+##### Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw Insert">
+
+##### Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+##### Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+##### Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+```
+
+</TabItem>
+</Tabs>
+
+### Schemaless with reqId
+
+There is a optional parameter called `req_id` in `schemaless_insert` and `schemaless_insert_raw` method. This reqId can be used to request link tracing.
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+```
+
+### Data Subscription
+
+Connector support data subscription. For more information about subscroption, please refer to [Data Subscription](../../../develop/tmq/).
+
+#### Create a Topic
+
+To create topic, please refer to [Data Subscription](../../../develop/tmq/#create-a-topic).
+
+#### Create a Consumer
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="native connection">
+
+The consumer in the connector contains the subscription api. The syntax for creating a consumer is consumer = Consumer(configs). For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/#create-a-consumer).
+
+```python
+from taos.tmq import Consumer
+
+consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+```
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket connection">
+
+In addition to native connections, the connector also supports subscriptions via websockets.
+
+The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/#create-a-consumer).
+
+```python
+import taosws
+
+consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+```
+
+</TabItem>
+</Tabs>
+
+#### Subscribe to a Topic
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="native connection">
+
+The `subscribe` function is used to subscribe to a list of topics.
+
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+The `subscribe` function is used to subscribe to a list of topics.
+
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
+
+</TabItem>
+</Tabs>
+
+#### Consume messages
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="native connection">
+
+The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
+
+```python
+while True:
+    res = consumer.poll(1)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    val = res.value()
+
+    for block in val:
+        print(block.fetchall())
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
+
+```python
+while True:
+    res = consumer.poll(timeout=1.0)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    for block in message:
+        for row in block:
+            print(row)
+```
+
+</TabItem>
+</Tabs>
+
+#### Assignment subscription Offset
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="native connection">
+
+The `assignment` function is used to get the assignment of the topic. 
+
+```python
+assignments = consumer.assignment()
+```
+
+The `seek` function is used to reset the assignment of the topic.
+
+```python
+tp = TopicPartition(topic='topic1', partition=0, offset=0)
+consumer.seek(tp)
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+The `assignment` function is used to get the assignment of the topic. 
+
+```python
+assignments = consumer.assignment()
+```
+
+The `seek` function is used to reset the assignment of the topic.
+
+```python
+consumer.seek(topic='topic1', partition=0, offset=0)
+```
+
+</TabItem>
+</Tabs>
+
+#### Close subscriptions
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="native connection">
+
+You should unsubscribe to the topics and close the consumer after consuming.
+
+```python
+consumer.unsubscribe()
+consumer.close()
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+You should unsubscribe to the topics and close the consumer after consuming.
+
+```python
+consumer.unsubscribe()
+consumer.close()
+```
+
+</TabItem>
+</Tabs>
+
+#### Full Sample Code
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="native connection">
+
+```python
+{{#include docs/examples/python/tmq_example.py}}
+```
+
+```python
+{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/tmq_websocket_example.py}}
+```
+
+```python
+{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
+```
+
+</TabItem>
+</Tabs>
+
 ### Other sample programs
 
 | Example program links | Example program content |
-| ------------------------------------------------------------------------------------------------------------- | ------------------- ---- |
-| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | parameter binding, 
-bind multiple rows at once |
-| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | bind_row.py
+|-----------------------|-------------------------|
+| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | parameter binding, bind multiple rows at once |
+| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | parameter binding, bind one row at once |
 | [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py) | InfluxDB line protocol writing |
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Use JSON type tags |
-| [tmq.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq.py)                         | TMQ subscription              |
+| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py) | TMQ subscription |
 
 ## Other notes 
 

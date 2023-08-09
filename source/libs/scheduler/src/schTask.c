@@ -745,7 +745,6 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pTask->candidateIdx = 0;
   pTask->candidateAddrs = taosArrayInit(SCHEDULE_DEFAULT_MAX_NODE_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
     SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
@@ -769,6 +768,8 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_ERR_RET(schSetAddrsFromNodeList(pJob, pTask));
+
+  pTask->candidateIdx = taosRand() % taosArrayGetSize(pTask->candidateAddrs);
 
   /*
     for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
@@ -961,7 +962,6 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
     localRsp->rsp.numOfPlans = 0;
     localRsp->rsp.subplanInfo = NULL;
     pTask = NULL;
-    pJob = NULL;
   }
 
 _return:

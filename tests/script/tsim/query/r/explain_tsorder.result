@@ -2798,3 +2798,1163 @@ taos> select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 as
 ========================================
  2022-05-15 00:01:08.000 |         234 |
 
+taos> explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Event (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Start Cond: (`test`.`meters`.`c2` > 0)
+*************************** 3.row ***************************
+QUERY_PLAN:       End Cond: (`test`.`meters`.`c2` < 100)
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Event (functions=3 width=24)
+*************************** 4.row ***************************
+QUERY_PLAN:          Start Cond: (`test`.`meters`.`c2` > 0)
+*************************** 5.row ***************************
+QUERY_PLAN:          End Cond: (`test`.`meters`.`c2` < 100)
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Event (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Start Cond: (`test`.`meters`.`c2` > 0)
+*************************** 3.row ***************************
+QUERY_PLAN:       End Cond: (`test`.`meters`.`c2` < 100)
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Event (functions=3 width=24)
+*************************** 4.row ***************************
+QUERY_PLAN:          Start Cond: (`test`.`meters`.`c2` > 0)
+*************************** 5.row ***************************
+QUERY_PLAN:          End Cond: (`test`.`meters`.`c2` < 100)
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Event (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Start Cond: (`test`.`meters`.`c2` > 0)
+*************************** 3.row ***************************
+QUERY_PLAN:       End Cond: (`test`.`meters`.`c2` < 100)
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-17 00:01:08.000 |                     5 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-19 00:01:08.000 | 2022-05-21 00:01:08.000 |                     5 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     1 |
+
+taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart desc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     1 |
+ 2022-05-19 00:01:08.000 | 2022-05-21 00:01:08.000 |                     5 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     1 |
+ 2022-05-15 00:01:08.000 | 2022-05-17 00:01:08.000 |                     5 |
+
+taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart asc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-17 00:01:08.000 |                     5 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-19 00:01:08.000 | 2022-05-21 00:01:08.000 |                     5 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     1 |
+
+taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend desc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-19 00:01:08.000 | 2022-05-21 00:01:08.000 |                     5 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-15 00:01:08.000 | 2022-05-17 00:01:08.000 |                     5 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     1 |
+
+taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend asc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-17 00:01:08.000 |                     5 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     1 |
+ 2022-05-19 00:01:08.000 | 2022-05-21 00:01:08.000 |                     5 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     1 |
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Session (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Window: gap=3600000
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Session (functions=3 width=24)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=3 width=24
+*************************** 5.row ***************************
+QUERY_PLAN:          Window: gap=3600000
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Session (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Window: gap=3600000
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Session (functions=3 width=24)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=3 width=24
+*************************** 5.row ***************************
+QUERY_PLAN:          Window: gap=3600000
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Session (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Window: gap=3600000
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h);
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Session (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Window: gap=3600000
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Session (functions=3 width=24)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=3 width=24
+*************************** 5.row ***************************
+QUERY_PLAN:          Window: gap=3600000
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Session (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Window: gap=3600000
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Session (functions=3 width=24)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=3 width=24
+*************************** 5.row ***************************
+QUERY_PLAN:          Window: gap=3600000
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=8)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Session (functions=3 width=24)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Window: gap=3600000
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=1 width=8 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=1 width=8 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h);
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 |
+
+taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=4 width=32)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 3.row ***************************
+QUERY_PLAN:    -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=4 width=32
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=4 width=32
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=4 width=32)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 3.row ***************************
+QUERY_PLAN:    -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=4 width=32
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=4 width=32
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 4.row ***************************
+QUERY_PLAN:    -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2);
+         _wstart         |          _wend          |       count(*)        |        last(ts)         |
+======================================================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 | 2022-05-15 00:01:08.000 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 | 2022-05-16 00:01:08.000 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 | 2022-05-17 00:01:08.000 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 | 2022-05-18 00:01:08.000 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 | 2022-05-19 00:01:08.000 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 | 2022-05-20 00:01:08.000 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 | 2022-05-21 00:01:08.000 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 | 2022-05-22 00:01:08.000 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 | 2022-05-23 00:01:08.000 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 | 2022-05-24 00:01:08.000 |
+
+taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc;
+         _wstart         |          _wend          |       count(*)        |        last(ts)         |
+======================================================================================================
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 | 2022-05-24 00:01:08.000 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 | 2022-05-23 00:01:08.000 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 | 2022-05-22 00:01:08.000 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 | 2022-05-21 00:01:08.000 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 | 2022-05-20 00:01:08.000 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 | 2022-05-19 00:01:08.000 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 | 2022-05-18 00:01:08.000 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 | 2022-05-17 00:01:08.000 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 | 2022-05-16 00:01:08.000 |
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 | 2022-05-15 00:01:08.000 |
+
+taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc;
+         _wstart         |          _wend          |       count(*)        |        last(ts)         |
+======================================================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 | 2022-05-15 00:01:08.000 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 | 2022-05-16 00:01:08.000 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 | 2022-05-17 00:01:08.000 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 | 2022-05-18 00:01:08.000 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 | 2022-05-19 00:01:08.000 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 | 2022-05-20 00:01:08.000 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 | 2022-05-21 00:01:08.000 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 | 2022-05-22 00:01:08.000 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 | 2022-05-23 00:01:08.000 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 | 2022-05-24 00:01:08.000 |
+
+taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc;
+         _wstart         |          _wend          |       count(*)        |        last(ts)         |
+======================================================================================================
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 | 2022-05-24 00:01:08.000 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 | 2022-05-23 00:01:08.000 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 | 2022-05-22 00:01:08.000 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 | 2022-05-21 00:01:08.000 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 | 2022-05-20 00:01:08.000 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 | 2022-05-19 00:01:08.000 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 | 2022-05-18 00:01:08.000 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 | 2022-05-17 00:01:08.000 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 | 2022-05-16 00:01:08.000 |
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 | 2022-05-15 00:01:08.000 |
+
+taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc;
+         _wstart         |          _wend          |       count(*)        |        last(ts)         |
+======================================================================================================
+ 2022-05-15 00:01:08.000 | 2022-05-15 00:01:08.000 |                     2 | 2022-05-15 00:01:08.000 |
+ 2022-05-16 00:01:08.000 | 2022-05-16 00:01:08.000 |                     2 | 2022-05-16 00:01:08.000 |
+ 2022-05-17 00:01:08.000 | 2022-05-17 00:01:08.000 |                     2 | 2022-05-17 00:01:08.000 |
+ 2022-05-18 00:01:08.000 | 2022-05-18 00:01:08.000 |                     2 | 2022-05-18 00:01:08.000 |
+ 2022-05-19 00:01:08.000 | 2022-05-19 00:01:08.000 |                     2 | 2022-05-19 00:01:08.000 |
+ 2022-05-20 00:01:08.000 | 2022-05-20 00:01:08.000 |                     2 | 2022-05-20 00:01:08.000 |
+ 2022-05-21 00:01:08.000 | 2022-05-21 00:01:08.000 |                     2 | 2022-05-21 00:01:08.000 |
+ 2022-05-22 00:01:08.000 | 2022-05-22 00:01:08.000 |                     2 | 2022-05-22 00:01:08.000 |
+ 2022-05-23 00:01:08.000 | 2022-05-23 00:01:08.000 |                     2 | 2022-05-23 00:01:08.000 |
+ 2022-05-24 00:01:08.000 | 2022-05-24 00:01:08.000 |                     2 | 2022-05-24 00:01:08.000 |
+
+taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc, count(*) desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=asc output_order=asc  (columns=4 width=32)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=4 width=32
+*************************** 3.row ***************************
+QUERY_PLAN:    -> StateWindow on Column c2 (functions=5 width=44)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=5 width=40
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: columns=5 width=40
+*************************** 6.row ***************************
+QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, last(ts) from (select _wstart as ts, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc) interval(1h) order by _wstart desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Interval on Column ts (functions=3 width=24 input_order=desc output_order=desc )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Time Window: interval=1h offset=0a sliding=1h
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Projection (columns=3 width=24 input_order=desc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=3 width=24
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=3 width=24
+*************************** 11.row ***************************
+QUERY_PLAN:          -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 12.row ***************************
+QUERY_PLAN:                Output: columns=4 width=32
+*************************** 13.row ***************************
+QUERY_PLAN:                Output: columns=4 width=32
+*************************** 14.row ***************************
+QUERY_PLAN:             -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 15.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: false
+*************************** 17.row ***************************
+QUERY_PLAN:                   Merge Key: _group_id asc, ts asc
+*************************** 18.row ***************************
+QUERY_PLAN:                -> Data Exchange 1:1 (width=12)
+*************************** 19.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 20.row ***************************
+QUERY_PLAN:                   -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 21.row ***************************
+QUERY_PLAN:                         Output: columns=2 width=12
+*************************** 22.row ***************************
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 23.row ***************************
+QUERY_PLAN:                -> Data Exchange 1:1 (width=12)
+*************************** 24.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                   -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 26.row ***************************
+QUERY_PLAN:                         Output: columns=2 width=12
+*************************** 27.row ***************************
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select _wstart, _wend, last(ts) from (select _wstart as ts, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc) interval(1h) order by _wstart desc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Interval on Column ts (functions=3 width=24 input_order=asc output_order=desc )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=24
+*************************** 3.row ***************************
+QUERY_PLAN:       Time Window: interval=1h offset=0a sliding=1h
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Projection (columns=3 width=24 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=3 width=24
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 9.row ***************************
+QUERY_PLAN:       -> StateWindow on Column c2 (functions=4 width=36)
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=4 width=32
+*************************** 11.row ***************************
+QUERY_PLAN:             Output: columns=4 width=32
+*************************** 12.row ***************************
+QUERY_PLAN:          -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
+*************************** 13.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: false
+*************************** 15.row ***************************
+QUERY_PLAN:                Merge Key: _group_id asc, ts asc
+*************************** 16.row ***************************
+QUERY_PLAN:             -> Data Exchange 1:1 (width=12)
+*************************** 17.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 19.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 20.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 21.row ***************************
+QUERY_PLAN:             -> Data Exchange 1:1 (width=12)
+*************************** 22.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 23.row ***************************
+QUERY_PLAN:                -> Table Merge Scan on meters (columns=2 width=12 order=[asc|1 desc|0])
+*************************** 24.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+

@@ -20,7 +20,6 @@
 
 #define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 60
-char    tsVersionName[16] = "community";
 int64_t tsExpireTime = 0;
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
@@ -77,7 +76,6 @@ static SClusterObj *mndAcquireCluster(SMnode *pMnode, void **ppIter) {
     if (pIter == NULL) break;
 
     *ppIter = pIter;
-
     return pCluster;
   }
 
@@ -124,7 +122,7 @@ static int32_t mndGetClusterUpTimeImp(SClusterObj *pCluster) {
 #endif
 }
 
-float mndGetClusterUpTime(SMnode *pMnode) {
+int64_t mndGetClusterUpTime(SMnode *pMnode) {
   int64_t      upTime = 0;
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
@@ -133,7 +131,7 @@ float mndGetClusterUpTime(SMnode *pMnode) {
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
-  return upTime / 86400.0f;
+  return upTime;
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {

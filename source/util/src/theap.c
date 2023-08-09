@@ -230,7 +230,7 @@ static void pqSwapPQNode(PriorityQueueNode* a, PriorityQueueNode* b) {
 
 size_t taosPQSize(PriorityQueue* pq) { return pqContainerSize(pq); }
 
-static void pqHeapify(PriorityQueue* pq, size_t from, size_t last) {
+static PriorityQueueNode* pqHeapify(PriorityQueue* pq, size_t from, size_t last) {
   size_t largest = from;
   do {
     from = largest;
@@ -246,6 +246,7 @@ static void pqHeapify(PriorityQueue* pq, size_t from, size_t last) {
       pqSwapPQNode(pqContainerGetEle(pq, from), pqContainerGetEle(pq, largest));
     }
   } while (largest != from);
+  return pqContainerGetEle(pq, largest);
 }
 
 static void pqBuildHeap(PriorityQueue* pq) {
@@ -257,12 +258,13 @@ static void pqBuildHeap(PriorityQueue* pq) {
   }
 }
 
-static void pqReverseHeapify(PriorityQueue* pq, size_t i) {
+static PriorityQueueNode* pqReverseHeapify(PriorityQueue* pq, size_t i) {
   while (i > 0 && !pq->fn(pqContainerGetEle(pq, i)->data, pqContainerGetEle(pq, pqParent(i))->data, pq->param)) {
     size_t parentIdx = pqParent(i);
     pqSwapPQNode(pqContainerGetEle(pq, i), pqContainerGetEle(pq, parentIdx));
     i = parentIdx;
   }
+  return pqContainerGetEle(pq, i);
 }
 
 static void pqUpdate(PriorityQueue* pq, size_t i) {
@@ -290,9 +292,9 @@ PriorityQueueNode* taosPQTop(PriorityQueue* pq) {
   return pqContainerGetEle(pq, 0);
 }
 
-void taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node) {
+PriorityQueueNode* taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node) {
   taosArrayPush(pq->container, node);
-  pqReverseHeapify(pq, pqContainerSize(pq) - 1);
+  return pqReverseHeapify(pq, pqContainerSize(pq) - 1);
 }
 
 void taosPQPop(PriorityQueue* pq) {
@@ -324,16 +326,20 @@ void destroyBoundedQueue(BoundedQueue* q) {
   taosMemoryFree(q);
 }
 
-void taosBQPush(BoundedQueue* q, PriorityQueueNode* n) {
+PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n) {
   if (pqContainerSize(q->queue) == q->maxSize + 1) {
     PriorityQueueNode* top = pqContainerGetEle(q->queue, 0);
-    void *p = top->data;
-    top->data = n->data;
-    n->data = p;
-    if (q->queue->deleteFn) q->queue->deleteFn(n->data);
-    pqHeapify(q->queue, 0, taosBQSize(q));
+    if (q->queue->fn(top->data, n->data, q->queue->param)) {
+      return NULL;
+    } else {
+      void* p = top->data;
+      top->data = n->data;
+      n->data = p;
+      if (q->queue->deleteFn) q->queue->deleteFn(n->data);
+    }
+    return pqHeapify(q->queue, 0, taosBQSize(q));
   } else {
-    taosPQPush(q->queue, n);
+    return taosPQPush(q->queue, n);
   }
 }
 

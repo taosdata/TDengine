@@ -341,13 +341,10 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
   SCtgAuthReq req = {0};
   req.pRawReq = pReq;
   req.pConn = pConn;
-  req.onlyCache = exists ? true : false;
+  req.onlyCache = false;
   CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pReq->user, &req.authInfo, NULL));
 
   CTG_ERR_JRET(ctgChkSetAuthRes(pCtg, &req, &rsp));
-  if (rsp.metaNotExists && exists) {
-    *exists = false;
-  }
 
 _return:
 

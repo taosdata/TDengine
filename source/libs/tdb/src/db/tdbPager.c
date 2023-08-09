@@ -292,7 +292,23 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   */
   return 0;
 }
+/*
+int tdbPagerCancelDirty(SPager *pPager, SPage *pPage, TXN *pTxn) {
+  SRBTreeNode *pNode = tRBTreeGet(&pPager->rbt, (SRBTreeNode *)pPage);
+  if (pNode) {
+    pPage->isDirty = 0;
 
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    if (pTxn->jPageSet) {
+      hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    }
+
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  }
+
+  return 0;
+}
+*/
 int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
   int    ret;
@@ -338,10 +354,13 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     if (pTxn->jPageSet) {
       hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
+
+    tdbTrace("tdb/pager-commit: remove page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
+
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
-  tdbTrace("pager/commit reset dirty tree: %p", &pPager->rbt);
+  tdbTrace("tdb/pager-commit reset dirty tree: %p", &pPager->rbt);
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // sync the db file
@@ -629,6 +648,8 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn) {
   return 0;
 }
 
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn);
+
 int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                       TXN *pTxn) {
   SPage *pPage;
@@ -643,7 +664,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   // alloc new page
   if (pgno == 0) {
     loadPage = 0;
-    ret = tdbPagerAllocPage(pPager, &pgno);
+    ret = tdbPagerAllocPage(pPager, &pgno, pTxn);
     if (ret < 0) {
       tdbError("tdb/pager: %p, ret: %d pgno: %" PRIu32 ", alloc page failed.", pPager, ret, pgno);
       return -1;
@@ -695,23 +716,114 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   //        TDB_PAGE_PGNO(pPage), pPage);
 }
 
-static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
-  // TODO: Allocate a page from the free list
+int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
+  int   code = 0;
+  SPgno pgno = TDB_PAGE_PGNO(pPage);
+
+  if (pPager->frps) {
+    taosArrayPush(pPager->frps, &pgno);
+    pPage->pPager = NULL;
+    return code;
+  }
+
+  pPager->frps = taosArrayInit(8, sizeof(SPgno));
+  // memset(pPage->pData, 0, pPage->pageSize);
+  tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", pgno);
+  // printf("tdb/insert-free-page: tbc recycle page: %d.\n", pgno);
+  code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
+  if (code < 0) {
+    tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
+    taosArrayDestroy(pPager->frps);
+    pPager->frps = NULL;
+    return -1;
+  }
+
+  while (TARRAY_SIZE(pPager->frps) > 0) {
+    pgno = *(SPgno *)taosArrayPop(pPager->frps);
+
+    code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
+    if (code < 0) {
+      tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
+      taosArrayDestroy(pPager->frps);
+      pPager->frps = NULL;
+      return -1;
+    }
+  }
+
+  taosArrayDestroy(pPager->frps);
+  pPager->frps = NULL;
+
+  pPage->pPager = NULL;
+
+  return code;
+}
+
+static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
+  int  code = 0;
+  TBC *pCur;
+
+  if (!pPager->pEnv->pFreeDb) {
+    return code;
+  }
+
+  if (pPager->frps) {
+    return code;
+  }
+
+  code = tdbTbcOpen(pPager->pEnv->pFreeDb, &pCur, pTxn);
+  if (code < 0) {
+    return 0;
+  }
+
+  code = tdbTbcMoveToFirst(pCur);
+  if (code) {
+    tdbError("tdb/remove-free-page: moveto first failed with ret: %d.", code);
+    tdbTbcClose(pCur);
+    return 0;
+  }
+
+  void *pKey = NULL;
+  int   nKey = 0;
+
+  code = tdbTbcGet(pCur, (const void **)&pKey, &nKey, NULL, NULL);
+  if (code < 0) {
+    // tdbError("tdb/remove-free-page: tbc get failed with ret: %d.", code);
+    tdbTbcClose(pCur);
+    return 0;
+  }
+
+  *pPgno = *(SPgno *)pKey;
+  tdbTrace("tdb/remove-free-page: tbc get page: %d.", *pPgno);
+  // printf("tdb/remove-free-page: tbc get page: %d.\n", *pPgno);
+
+  code = tdbTbcDelete(pCur);
+  if (code < 0) {
+    tdbError("tdb/remove-free-page: tbc delete failed with ret: %d.", code);
+    tdbTbcClose(pCur);
+    return 0;
+  }
+  tdbTbcClose(pCur);
   return 0;
+}
+
+static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
+  // Allocate a page from the free list
+  return tdbPagerRemoveFreePage(pPager, ppgno, pTxn);
 }
 
 static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
   *ppgno = ++pPager->dbFileSize;
+  // tdbError("tdb/alloc-new-page: %d.", *ppgno);
   return 0;
 }
 
-int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
   int ret;
 
   *ppgno = 0;
 
   // Try to allocate from the free list of the pager
-  ret = tdbPagerAllocFreePage(pPager, ppgno);
+  ret = tdbPagerAllocFreePage(pPager, ppgno, pTxn);
   if (ret < 0) {
     return -1;
   }
@@ -980,6 +1092,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     jname[dirLen] = '/';
     sprintf(jname + dirLen + 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
     if (tdbPagerRestore(pPager, jname) < 0) {
+      taosArrayDestroy(pTxnList);
       tdbCloseDir(&pDir);
 
       tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), jname);
