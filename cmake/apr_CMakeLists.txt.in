@@ -8,7 +8,9 @@ ExternalProject_Add(apr-1
 	#GIT_TAG 1.5.2
         SOURCE_DIR "${TD_CONTRIB_DIR}/apr"
         BUILD_IN_SOURCE TRUE
-        UPDATE_COMMAND ""
+        UPDATE_DISCONNECTED TRUE
+        BUILD_ALWAYS 1
+        #UPDATE_COMMAND ""
         CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/local/
         #CONFIGURE_COMMAND ./configure
         BUILD_COMMAND make

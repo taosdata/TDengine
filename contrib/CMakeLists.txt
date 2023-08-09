@@ -162,21 +162,6 @@ if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-#    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=unused-function")
-#    include(ExternalProject)
-#    ExternalProject_Add(mxml
-#        GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
-#	GIT_TAG release-2.10
-#        SOURCE_DIR "${TD_CONTRIB_DIR}/mxml"
-#        #BINARY_DIR ""
-#        BUILD_IN_SOURCE TRUE
-#        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build
-#        BUILD_COMMAND make
-#        INSTALL_COMMAND make install
-#        TEST_COMMAND ""
-#    )
-
-
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .

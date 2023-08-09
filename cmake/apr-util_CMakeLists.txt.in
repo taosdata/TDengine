@@ -9,7 +9,8 @@ ExternalProject_Add(aprutil-1
         SOURCE_DIR "${TD_CONTRIB_DIR}/apr-util"
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
-        UPDATE_COMMAND ""
+        BUILD_ALWAYS 1
+        #UPDATE_COMMAND ""
         CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/local/ --with-apr=$ENV{HOME}/local
         #CONFIGURE_COMMAND ./configure --with-apr=/usr/local/apr
         BUILD_COMMAND make

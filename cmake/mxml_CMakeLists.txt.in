@@ -5,7 +5,7 @@ ExternalProject_Add(mxml
         SOURCE_DIR "${TD_CONTRIB_DIR}/mxml"
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
-        UPDATE_COMMAND ""
+        #UPDATE_COMMAND ""
         CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/local
         #CONFIGURE_COMMAND ./configure
         BUILD_COMMAND make
