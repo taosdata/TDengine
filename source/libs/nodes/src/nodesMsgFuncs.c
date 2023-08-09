@@ -3613,6 +3613,8 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_VG_SLOT1,
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT0,
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1,
+  PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN0,
+  PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN1,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3637,6 +3639,12 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeEnum(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1, pNode->stbJoin.uidSlot[1]);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN0, pNode->stbJoin.srcScan[0]);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN1, pNode->stbJoin.srcScan[1]);
         }
         break;
       }
@@ -3674,6 +3682,12 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1:
         code = tlvDecodeEnum(pTlv, &pNode->stbJoin.uidSlot[1], sizeof(pNode->stbJoin.uidSlot[1]));
+        break;      
+      case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN0:
+        code = tlvDecodeBool(pTlv, &pNode->stbJoin.srcScan[0]);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN1:
+        code = tlvDecodeBool(pTlv, &pNode->stbJoin.srcScan[1]);
         break;      
       default:
         break;

@@ -684,12 +684,12 @@ _return:
       QW_SET_PHASE(ctx, phase);
     }
 
+    if (code) {
+      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
+    }
+
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     qwReleaseTaskCtx(mgmt, ctx);
-  }
-
-  if (code) {
-    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
   }
 
   QW_TASK_DLOG("end to handle event at phase %s, code:%x - %s", qwPhaseStr(phase), code, tstrerror(code));

@@ -667,8 +667,9 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
     }
     
     if (pJoinInfo->pLeft == NULL) {
-      if (pOperator->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initParam) {
+      if (pOperator->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initDownstreamNum > 0) {
         leftEmpty = true;
+        ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initDownstreamNum--;
       } else {
         setMergeJoinDone(pOperator);
         return false;
@@ -679,6 +680,10 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
     if (!pJoinInfo->downstreamFetchDone[1]) {
       pJoinInfo->pRight = getNextBlockFromDownstream(pOperator, 1);
+
+      if (pOperator->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initDownstreamNum > 0) {
+        ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initDownstreamNum--;
+      }
 
       pJoinInfo->rightPos = 0;
       qError("merge join right got block, rows:%" PRId64, pJoinInfo->pRight ? pJoinInfo->pRight->info.rows : 0);

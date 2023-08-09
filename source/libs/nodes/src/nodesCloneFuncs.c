@@ -553,6 +553,7 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_SCALAR_FIELD(stbJoin.batchFetch);
   CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
+  COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
   return TSDB_CODE_SUCCESS;
 }
 

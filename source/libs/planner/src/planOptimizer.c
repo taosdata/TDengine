@@ -3224,13 +3224,14 @@ static int32_t stbJoinOptCreateTagHashJoinNode(SLogicNode* pOrig, SNodeList* pCh
   return code;
 }
 
-static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppList) {
+static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppList, bool* srcScan) {
   SNodeList* pList = nodesCloneList(pJoin->pChildren);
   if (NULL == pList) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t i = 0;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -3238,7 +3239,10 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     if (code) {
       break;
     }
+
     pScan->node.dynamicOp = true;
+    *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;
+    
     pScan->scanType = SCAN_TYPE_TABLE;
   }
 
@@ -3259,7 +3263,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
-  pGrpCache->node.dynamicOp = true;
+  //pGrpCache->node.dynamicOp = true;
   pGrpCache->grpColsMayBeNull = false;
   pGrpCache->grpByUid = true;
   pGrpCache->batchFetch = true;
@@ -3342,7 +3346,7 @@ static int32_t stbJoinOptCreateMergeJoinNode(SLogicNode* pOrig, SLogicNode* pChi
   }
 
   pJoin->joinAlgo = JOIN_ALGO_MERGE;
-  pJoin->node.dynamicOp = true;
+  //pJoin->node.dynamicOp = true;
 
   stbJoinOptRemoveTagEqCond(pJoin);
   NODES_DESTORY_NODE(pJoin->pTagEqCond);
@@ -3360,7 +3364,7 @@ static int32_t stbJoinOptCreateMergeJoinNode(SLogicNode* pOrig, SLogicNode* pChi
 }
 
 
-static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* pPost, SLogicNode** ppDynNode) {
+static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* pPost, bool* srcScan, SLogicNode** ppDynNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlLogicNode* pDynCtrl = (SDynQueryCtrlLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL);
   if (NULL == pDynCtrl) {
@@ -3369,6 +3373,7 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
 
   pDynCtrl->qType = DYN_QTYPE_STB_HASH;
   pDynCtrl->stbJoin.batchFetch = true;
+  memcpy(pDynCtrl->stbJoin.srcScan, srcScan, sizeof(pDynCtrl->stbJoin.srcScan));
   
   if (TSDB_CODE_SUCCESS == code) {  
     pDynCtrl->node.pChildren = nodesMakeList();
@@ -3422,13 +3427,15 @@ static int32_t stbJoinOptRewriteStableJoin(SOptimizeContext* pCxt, SLogicNode* p
   SLogicNode* pGrpCacheNode = NULL;
   SLogicNode* pHJoinNode = NULL;
   SLogicNode* pMJoinNode = NULL;
-  SLogicNode* pDynNode = NULL;
+  SLogicNode* pDynNode = NULL;  
+  bool        srcScan[2] = {0};
+  
   int32_t code = stbJoinOptCreateTagScanNode(pJoin, &pTagScanNodes);
   if (TSDB_CODE_SUCCESS == code) {
     code = stbJoinOptCreateTagHashJoinNode(pJoin, pTagScanNodes, &pHJoinNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbJoinOptCreateTableScanNodes(pJoin, &pTbScanNodes);
+    code = stbJoinOptCreateTableScanNodes(pJoin, &pTbScanNodes, srcScan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = stbJoinOptCreateGroupCacheNode(pTbScanNodes, &pGrpCacheNode);
@@ -3437,7 +3444,7 @@ static int32_t stbJoinOptRewriteStableJoin(SOptimizeContext* pCxt, SLogicNode* p
     code = stbJoinOptCreateMergeJoinNode(pJoin, pGrpCacheNode, &pMJoinNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbJoinOptCreateDynQueryCtrlNode(pHJoinNode, pMJoinNode, &pDynNode);
+    code = stbJoinOptCreateDynQueryCtrlNode(pHJoinNode, pMJoinNode, srcScan, &pDynNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, pJoin, (SLogicNode*)pDynNode);

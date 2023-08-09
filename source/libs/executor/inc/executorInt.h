@@ -153,7 +153,7 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SSortMergeJoinOperatorParam {
-  bool initParam;
+  int32_t initDownstreamNum;
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {
@@ -731,6 +731,7 @@ void streamOpReloadState(struct SOperatorInfo* pOperator);
 
 void destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
+int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
 
 #ifdef __cplusplus
 }

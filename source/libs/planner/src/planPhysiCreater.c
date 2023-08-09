@@ -1015,6 +1015,8 @@ static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList*
     code = setListSlotId(pCxt, pPrevDesc->dataBlockId, -1, pLogicNode->stbJoin.pUidList, &pUidList);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    memcpy(pDynCtrl->stbJoin.srcScan, pLogicNode->stbJoin.srcScan, sizeof(pDynCtrl->stbJoin.srcScan));
+    
     SNode* pNode = NULL;
     int32_t i = 0;
     FOREACH(pNode, pVgList) {

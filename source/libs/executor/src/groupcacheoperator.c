@@ -97,13 +97,16 @@ static void destroyGroupCacheOperator(void* param) {
 }
 
 static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd, char* filename) {
-//  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
-  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE);
+  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
+  //TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE);
   if (NULL == newFd) {
     return TAOS_SYSTEM_ERROR(errno);
   }
   pFileFd->fd = newFd;
   taosThreadMutexInit(&pFileFd->mutex, NULL);
+
+  qTrace("file path %s created", filename);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -276,6 +279,22 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
   return code;
 }
 
+static FORCE_INLINE void chkRemoveVgroupCurrFile(SGcFileCacheCtx* pFileCtx, int32_t downstreamIdx, int32_t vgId) {
+  SGroupCacheFileInfo* pFileInfo = taosHashGet(pFileCtx->pCacheFile, &pFileCtx->fileId, sizeof(pFileCtx->fileId));
+  if (0 == pFileInfo->groupNum) {
+    removeGroupCacheFile(pFileInfo);
+
+#if 0  
+    /* debug only */
+    sprintf(&pFileCtx->baseFilename[pFileCtx->baseNameLen], "_%d", pFileCtx->fileId);
+    taosRemoveFile(pFileCtx->baseFilename);
+    /* debug only */
+#endif
+
+    qTrace("FileId:%d-%d-%d removed", downstreamIdx, vgId, pFileCtx->fileId);
+    //taosHashRemove(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));
+  }
+}
 
 static FORCE_INLINE void groupCacheSwitchNewFile(SGcFileCacheCtx* pFileCtx, int32_t downstreamIdx, int32_t vgId, bool removeCheck) {
   if (pFileCtx->fileSize < GROUP_CACHE_DEFAULT_MAX_FILE_SIZE) {
@@ -283,12 +302,7 @@ static FORCE_INLINE void groupCacheSwitchNewFile(SGcFileCacheCtx* pFileCtx, int3
   }
 
   if (removeCheck) {
-    SGroupCacheFileInfo* pFileInfo = taosHashGet(pFileCtx->pCacheFile, &pFileCtx->fileId, sizeof(pFileCtx->fileId));
-    if (0 == pFileInfo->groupNum) {
-      removeGroupCacheFile(pFileInfo);
-      qTrace("FileId:%d-%d-%d removed", downstreamIdx, vgId, pFileCtx->fileId);
-      //taosHashRemove(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));
-    }
+    chkRemoveVgroupCurrFile(pFileCtx, downstreamIdx, vgId);
   }
       
   pFileCtx->fileId++;
@@ -810,7 +824,7 @@ static int32_t handleDownstreamFetchDone(struct SOperatorInfo* pOperator, SGcSes
         handleGroupFetchDone(pNew->pGroup);
       }
       taosArrayClear(pVgCtx->pTbList);
-    }
+    }    
   }
 
   taosHashClear(pCtx->pWaitSessions);
@@ -1087,7 +1101,7 @@ static int32_t initGroupCacheExecInfo(SOperatorInfo*        pOperator) {
 
 static void freeRemoveGroupCacheData(void* p) {
   SGroupCacheData* pGroup = p;
-  if (pGroup->vgId >= 0) {
+  if (pGroup->vgId > 0) {
     SGcFileCacheCtx* pFileCtx = &pGroup->pVgCtx->fileCtx;
     if (pGroup->fileId >= 0) {
       SGroupCacheFileInfo* pFileInfo = taosHashGet(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));
@@ -1097,6 +1111,14 @@ static void freeRemoveGroupCacheData(void* p) {
 
       if (0 == remainNum && pGroup->fileId != pFileCtx->fileId) {
         removeGroupCacheFile(pFileInfo);
+
+#if 0
+        /* debug only */
+        sprintf(&pFileCtx->baseFilename[pFileCtx->baseNameLen], "_%d", pGroup->fileId);
+        taosRemoveFile(pFileCtx->baseFilename);
+        /* debug only */
+#endif
+
         qTrace("FileId:%d-%d-%d removed", pGroup->downstreamIdx, pGroup->vgId, pFileCtx->fileId);
         //taosHashRemove(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));
       }

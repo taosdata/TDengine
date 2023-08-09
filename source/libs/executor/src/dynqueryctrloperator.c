@@ -220,7 +220,7 @@ static FORCE_INLINE int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pJoin->initParam = initParam;
+  pJoin->initDownstreamNum = initParam ? 2 : 0;
   
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   (*ppRes)->value = pJoin;
@@ -307,11 +307,49 @@ static void updatePostJoinCurrTableInfo(SStbJoinDynCtrlInfo*          pStbJoin) 
   }  
 }
 
+static FORCE_INLINE int32_t buildBatchTableScanOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, SSHashObj* pVg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t vgNum = tSimpleHashGetSize(pVg);
+  if (vgNum <= 0 || vgNum > 1) {
+    qError("Invalid vgroup num %d to build table scan operator param", vgNum);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t iter = 0;
+  void* p = NULL;
+  while (p = tSimpleHashIterate(pVg, p, &iter)) {
+    int32_t* pVgId = tSimpleHashGetKey(p, NULL);
+    SArray* pUidList = *(SArray**)p;
+
+    code = buildTableScanOperatorParam(ppRes, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false);
+    if (code) {
+      return code;
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static FORCE_INLINE int32_t buildSingleTableScanOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid) {
+  SArray* pUidList = taosArrayInit(1, sizeof(int64_t));
+  if (NULL == pUidList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  taosArrayPush(pUidList, pUid);
+
+  int32_t code = buildTableScanOperatorParam(ppRes, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, true);
+  if (code) {
+    return code;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SStbJoinPrevJoinCtx* pPrev, SStbJoinPostJoinCtx* pPost, SOperatorParam** ppParam) {
   int64_t                     rowIdx = pPrev->pListHead->readIdx;
-  SOperatorParam*             pExcParam0 = NULL;
-  SOperatorParam*             pExcParam1 = NULL;
+  SOperatorParam*             pSrcParam0 = NULL;
+  SOperatorParam*             pSrcParam1 = NULL;
   SOperatorParam*             pGcParam0 = NULL;
   SOperatorParam*             pGcParam1 = NULL;  
   int32_t*                    leftVg = pPrev->pListHead->pLeftVg + rowIdx;
@@ -327,9 +365,9 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
   
   if (pInfo->stbJoin.basic.batchFetch) {
     if (pPrev->leftHash) {
-      code = buildBatchExchangeOperatorParam(&pExcParam0, 0, pPrev->leftHash);
+      code = pInfo->stbJoin.basic.srcScan[0] ? buildBatchTableScanOperatorParam(&pSrcParam0, 0, pPrev->leftHash) : buildBatchExchangeOperatorParam(&pSrcParam0, 0, pPrev->leftHash);
       if (TSDB_CODE_SUCCESS == code) {
-        code = buildBatchExchangeOperatorParam(&pExcParam1, 1, pPrev->rightHash);
+        code = pInfo->stbJoin.basic.srcScan[1] ? buildBatchTableScanOperatorParam(&pSrcParam1, 1, pPrev->rightHash) : buildBatchExchangeOperatorParam(&pSrcParam1, 1, pPrev->rightHash);
       }
       if (TSDB_CODE_SUCCESS == code) {
         tSimpleHashCleanup(pPrev->leftHash);
@@ -339,20 +377,20 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
       }
     }
   } else {
-    code = buildExchangeOperatorParam(&pExcParam0, 0, leftVg, leftUid);
+    code = pInfo->stbJoin.basic.srcScan[0] ? buildSingleTableScanOperatorParam(&pSrcParam0, 0, leftVg, leftUid) : buildExchangeOperatorParam(&pSrcParam0, 0, leftVg, leftUid);
     if (TSDB_CODE_SUCCESS == code) {
-      code = buildExchangeOperatorParam(&pExcParam1, 1, rightVg, rightUid);
+      code = pInfo->stbJoin.basic.srcScan[1] ? buildSingleTableScanOperatorParam(&pSrcParam1, 1, rightVg, rightUid) : buildExchangeOperatorParam(&pSrcParam1, 1, rightVg, rightUid);
     }
   }
   
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pPost->leftNeedCache, pExcParam0);
+    code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pPost->leftNeedCache, pSrcParam0);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pPost->rightNeedCache, pExcParam1);
+    code = buildGroupCacheOperatorParam(&pGcParam1, 1, *rightVg, *rightUid, pPost->rightNeedCache, pSrcParam1);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildMergeJoinOperatorParam(ppParam, pExcParam0 ? true : false, pGcParam0, pGcParam1);
+    code = buildMergeJoinOperatorParam(ppParam, pSrcParam0 ? true : false, pGcParam0, pGcParam1);
   }
   return code;
 }
@@ -746,6 +784,8 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
+
+  pTaskInfo->dynamicTask = pPhyciNode->node.dynamicOp;
 
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (TSDB_CODE_SUCCESS != code) {

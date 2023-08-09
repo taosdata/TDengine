@@ -1152,11 +1152,11 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
   SNode*  pChild = NULL;
   FOREACH(pChild, pJoin->node.pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
-      if (pJoin->node.dynamicOp) {
-        code = TSDB_CODE_SUCCESS;
-      } else {
+      //if (pJoin->node.dynamicOp) {
+      //  code = TSDB_CODE_SUCCESS;
+      //} else {
         code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, false);
-      }
+      //}
     } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
       code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pChild);
     } else {
@@ -1172,9 +1172,9 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
 static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   int32_t code = stbSplSplitJoinNodeImpl(pCxt, pInfo->pSubplan, (SJoinLogicNode*)pInfo->pSplitNode);
   if (TSDB_CODE_SUCCESS == code) {
-    if (!pInfo->pSplitNode->dynamicOp) {
+    //if (!pInfo->pSplitNode->dynamicOp) {
       pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
-    }
+    //}
     SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
   }
   return code;

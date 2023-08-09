@@ -172,6 +172,7 @@ typedef struct SDynQueryCtrlStbJoin {
   bool          batchFetch;
   SNodeList*    pVgList;
   SNodeList*    pUidList;
+  bool          srcScan[2];
 } SDynQueryCtrlStbJoin;
 
 typedef struct SDynQueryCtrlLogicNode {
@@ -465,6 +466,7 @@ typedef struct SStbJoinDynCtrlBasic {
   bool     batchFetch;
   int32_t  vgSlot[2];
   int32_t  uidSlot[2];
+  bool     srcScan[2];
 } SStbJoinDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {
