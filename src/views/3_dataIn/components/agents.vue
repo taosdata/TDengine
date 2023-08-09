@@ -203,7 +203,7 @@
       class="copy-agent"
       align="center"
       :title="$t('copyagent')"
-      width="1000px"
+      width="1025px"
       :visible.sync="copyDialog"
       :destroy-on-close="true"
       :before-close="beforeClose"
