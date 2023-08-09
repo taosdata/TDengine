@@ -34,6 +34,8 @@ typedef struct {
 
   SArray* pAdd;
   SArray* pDel;
+
+  int8_t update;
 } SBackendManager;
 
 typedef struct SCompactFilteFactory {
@@ -155,6 +157,7 @@ SBackendManager* backendManagerCreate(char* path) {
 
   p->pAdd = taosArrayInit(64, sizeof(void*));
   p->pDel = taosArrayInit(64, sizeof(void*));
+  p->update = 0;
   return p;
 }
 void backendManagerDestroy(SBackendManager* bm) {
@@ -254,12 +257,16 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
       }
       pIter = taosHashIterate(pTable, pIter);
     }
+    bm->update = 1;
 
   } else {
     int32_t code = compareHashTable(bm->pSSTable, pTable, bm->pAdd, bm->pDel);
 
     bm->curChkpId = chkpId;
     taosHashCleanup(pTable);
+    if (taosArrayGetSize(bm->pAdd) == 0 && taosArrayGetSize(bm->pDel) == 0) {
+      bm->update = 0;
+    }
   }
   return 0;
 }
