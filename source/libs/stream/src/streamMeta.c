@@ -93,7 +93,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->expandFunc = expandFunc;
 
   // send heartbeat every 20sec.
-//  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 20000, ahandle, streamEnv.timer);
+  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 20000, pMeta, streamEnv.timer);
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -534,7 +534,6 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->vgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->numOfTasks) < 0) return -1;
-  if (tEncodeSEpSet(pEncoder, &pReq->epset) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -543,13 +542,12 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->vgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->numOfTasks) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &pReq->epset) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
 
 void metaHbToMnode(void* param, void* tmrId) {
-  STQ* pMeta = param;
+  SStreamMeta* pMeta = param;
   SStreamHbMsg hbMsg = {0};
 
   taosRLockLatch(&pMeta->lock);
@@ -558,7 +556,6 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   hbMsg.numOfTasks = numOfTasks;
   hbMsg.vgId = pMeta->vgId;
-  hbMsg.epset = ;
 
   int32_t code = 0;
   int32_t tlen = 0;
@@ -592,4 +589,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   qDebug("vgId:%d, build and send hb to mnode", pMeta->mgmtInfo.mnodeId);
 
   tmsgSendReq(&pMeta->mgmtInfo.epset, &msg);
+
+  // next hb will be issued in 20sec.
+  taosTmrReset(metaHbToMnode, 20000, pMeta, streamEnv.timer, pMeta->hbTmr);
 }

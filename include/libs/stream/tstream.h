@@ -537,7 +537,6 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 
 typedef struct {
   int32_t vgId;
-  SEpSet  epset;
   int32_t numOfTasks;
 } SStreamHbMsg;
 
@@ -556,14 +555,19 @@ int32_t tEncodeCompleteHistoryDataMsg(SEncoder* pEncoder, const SStreamCompleteH
 int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistoryMsg* pReq);
 
 typedef struct {
+  int32_t nodeId;
+  SEpSet  prevEp;
+  SEpSet  newEp;
+} SNodeUpdateInfo;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
-  int32_t nodeId;
-  SEpSet  epset;
-} SStreamTaskUpdateMsg;
+  SArray* pNodeList;   // SArray<SNodeUpdateInfo>
+} SStreamTaskNodeUpdateMsg;
 
-int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskUpdateMsg* pMsg);
-int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskUpdateMsg* pMsg);
+int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
+int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
 
 typedef struct {
   int64_t streamId;

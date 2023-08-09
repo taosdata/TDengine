@@ -973,22 +973,40 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskUpdateMsg* pMsg) {
+int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pMsg->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pMsg->nodeId) < 0) return -1;
-  if (tEncodeSEpSet(pEncoder, &pMsg->epset) < 0) return -1;
+
+  int32_t size = taosArrayGetSize(pMsg->pNodeList);
+  if (tEncodeI32(pEncoder, size) < 0) return -1;
+
+  for (int32_t i = 0; i < size; ++i) {
+    SNodeUpdateInfo* pInfo = taosArrayGet(pMsg->pNodeList, i);
+    if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pInfo->prevEp) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pInfo->newEp) < 0) return -1;
+  }
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskUpdateMsg* pMsg) {
+int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pMsg->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pMsg->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pMsg->nodeId) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &pMsg->epset) < 0) return -1;
+
+  int32_t size = 0;
+  if (tDecodeI32(pDecoder, &size) < 0) return -1;
+  pMsg->pNodeList = taosArrayInit(size, sizeof(SNodeUpdateInfo));
+  for (int32_t i = 0; i < size; ++i) {
+    SNodeUpdateInfo info = {0};
+    if (tDecodeI32(pDecoder, &info.nodeId) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &info.prevEp) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &info.newEp) < 0) return -1;
+    taosArrayPush(pMsg->pNodeList, &info);
+  }
+
   tEndDecode(pDecoder);
   return 0;
 }

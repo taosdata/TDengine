@@ -1822,7 +1822,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
-  SStreamTaskUpdateMsg req = {0};
+  SStreamTaskNodeUpdateMsg req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);

@@ -120,7 +120,6 @@ static void mndPullupTtl(SMnode *pMnode) {
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
-  mTrace("calc mq rebalance");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -133,11 +132,16 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER,
-        .pCont = pReq,
-        .contLen = contLen,
-    };
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
+static void mndStreamCheckNode(SMnode* pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
@@ -266,6 +270,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsStreamCheckpointTickInterval == 0) {
       mndStreamCheckpointTick(pMnode, sec);
+    }
+
+    if (sec % tsStreamNodeCheckInterval == 0) {
+      mndStreamCheckNode(pMnode);
     }
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {

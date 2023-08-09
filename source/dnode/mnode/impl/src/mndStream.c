@@ -34,6 +34,7 @@
 #define MND_STREAM_MAX_NUM      60
 #define MND_STREAM_HB_INTERVAL  100  // 100 sec
 
+
 typedef struct SNodeEntry {
   int32_t nodeId;
   SEpSet  epset;           // compare the epset to identify the vgroup tranferring between different dnodes.
@@ -41,10 +42,11 @@ typedef struct SNodeEntry {
 } SNodeEntry;
 
 typedef struct SStreamVnodeRevertIndex {
-//  SHashObj* pVnodeMap;
+  SArray*   pDBList;
   SArray*   pNodeEntryList;
 } SStreamVnodeRevertIndex;
 
+static int32_t                 mndNodeCheckSentinel = 0;
 static SStreamVnodeRevertIndex execNodeList;
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
@@ -66,6 +68,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
 static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
                                                   int64_t streamId, int32_t taskId);
+static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 
 static int32_t mndPersistTransLog(SStreamObj* pStream, STrans* pTrans);
 static void initTransAction(STransAction* pAction, void* pCont, int32_t contLen, int32_t msgType, const SEpSet* pEpset);
@@ -83,6 +86,8 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_NODECHECK_TIMER, mndProcessNodeCheckReq);
+
   /*mndSetMsgHandle(pMnode, TDMT_MND_RECOVER_STREAM, mndProcessRecoverStreamReq);*/
 
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
@@ -1729,10 +1734,18 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static int32_t doBuildStreamTaskUpdateMsg(void** pBuf, int32_t* pLen, int32_t nodeId, const SEpSet* pEpset) {
-  SStreamTaskUpdateMsg req = {0};
-  req.nodeId = nodeId;
-  req.epset = *pEpset;
+typedef struct SVgroupChangeInfo {
+  SHashObj* pDBMap;
+  SArray*   pUpdateNodeList;   //SArray<SNodeUpdateInfo>
+} SVgroupChangeInfo;
+
+static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg, const SVgroupChangeInfo* pInfo) {
+  taosArrayAddAll(pMsg->pNodeList, pInfo->pUpdateNodeList);
+}
+
+static int32_t doBuildStreamTaskUpdateMsg(void** pBuf, int32_t* pLen, int32_t nodeId, SVgroupChangeInfo* pInfo) {
+  SStreamTaskNodeUpdateMsg req = {0};
+  initNodeUpdateMsg(&req, pInfo);
 
   int32_t code = 0;
   int32_t blen;
@@ -1800,7 +1813,7 @@ void initTransAction(STransAction* pAction, void* pCont, int32_t contLen, int32_
 }
 
 // build trans to update the epset
-static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, int32_t nodeId, SEpSet *pEpset) {
+static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo* pInfo) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-task-update");
   if (pTrans == NULL) {
     mError("failed to build stream task DAG update, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
@@ -1830,11 +1843,10 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, int3
 
       void   *pBuf = NULL;
       int32_t len = 0;
-      doBuildStreamTaskUpdateMsg(&pBuf, &len, nodeId, pEpset);
+      doBuildStreamTaskUpdateMsg(&pBuf, &len, pTask->info.nodeId, pInfo);
 
       STransAction action = {0};
       initTransAction(&action, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &pTask->info.epSet);
-
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pBuf);
         taosWUnLockLatch(&pStream->lock);
@@ -1845,6 +1857,122 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, int3
 
   taosWUnLockLatch(&pStream->lock);
   return mndPersistTransLog(pStream, pTrans);
+}
+
+// todo. 1. multiple change, 2. replica change problem
+static SVgroupChangeInfo mndFindChangedVgroupInfo(SMnode *pMnode, const SArray *pPrevVgroupList,
+                                                  const SArray *pVgroupList) {
+  SVgroupChangeInfo info = {
+      .pUpdateNodeList = taosArrayInit(4, sizeof(SNodeUpdateInfo)),
+      .pDBMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
+  };
+
+  int32_t numOfVgroups = taosArrayGetSize(pPrevVgroupList);
+  for (int32_t i = 0; i < numOfVgroups; ++i) {
+    SNodeEntry *pPrevEntry = taosArrayGet(pPrevVgroupList, i);
+
+    int32_t num = taosArrayGetSize(pVgroupList);
+    for (int32_t j = 0; j < num; ++j) {
+      SNodeEntry *pCurrent = taosArrayGet(pVgroupList, j);
+      if (pCurrent->nodeId == pPrevEntry->nodeId) {
+        // todo handle the replica change problem.
+        if (!isEpsetEqual(&pCurrent->epset, &pPrevEntry->epset)) {
+          SNodeUpdateInfo updateInfo = {.nodeId = pPrevEntry->nodeId};
+          epsetAssign(&updateInfo.prevEp, &pPrevEntry->epset);
+          epsetAssign(&updateInfo.newEp, &pCurrent->epset);
+          taosArrayPush(info.pUpdateNodeList, &updateInfo);
+
+          SVgObj *pVgroup = mndAcquireVgroup(pMnode, pCurrent->nodeId);
+          taosHashPut(info.pDBMap, pVgroup->dbName, strlen(pVgroup->dbName), NULL, 0);
+          mndReleaseVgroup(pMnode, pVgroup);
+        }
+        break;
+      }
+    }
+  }
+
+  return info;
+}
+
+static SArray* mndTakeVgroupSnapshot(SMnode* pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  SVgObj *pVgroup = NULL;
+
+  SArray* pVgroupListSnapshot = taosArrayInit(4, sizeof(SNodeEntry));
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SNodeEntry entry = {0};
+    entry.epset = mndGetVgroupEpset(pMnode, pVgroup);
+    entry.nodeId = pVgroup->vgId;
+    entry.hbTimestamp = -1;
+
+    taosArrayPush(pVgroupListSnapshot, &entry);
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return pVgroupListSnapshot;
+}
+
+int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo* pChangeInfo) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  // check all streams that involved this vnode should update the epset info
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    // update the related upstream and downstream tasks, todo remove this, no need this function
+    //    taosWLockLatch(&pStream->lock);
+    //      streamTaskUpdateEpInfo(pStream->tasks, req.vgId, &req.epset);
+    //      streamTaskUpdateEpInfo(pStream->pHTasksList, req.vgId, &req.epset);
+    //    taosWUnLockLatch(&pStream->lock);
+    void* p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
+    void* p1 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
+    if (p == NULL && p1 == NULL) {
+      mndReleaseStream(pMnode, pStream);
+      continue;
+    }
+
+    int32_t code = createStreamUpdateTrans(pMnode, pStream, pChangeInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo
+    }
+  }
+
+  return 0;
+}
+
+static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
+  int32_t old = atomic_val_compare_exchange_32(&mndNodeCheckSentinel, 0, 1);
+  if (old != 0) {
+    mDebug("still in checking node change");
+    return 0;
+  }
+
+  mDebug("start to do node change checking");
+
+  SMnode *pMnode = pMsg->info.node;
+  SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode);
+
+  SVgroupChangeInfo changeInfo = mndFindChangedVgroupInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
+
+  if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
+    mndProcessVgroupChange(pMnode, &changeInfo);
+
+  }
+
+  mDebug("end to do node change checking");
+  return 0;
 }
 
 // todo: this process should be executed by the write queue worker of the mnode
@@ -1889,10 +2017,10 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     // check epset to identify whether the node has been transferred to other dnodes.
     // node the epset is changed, which means the node transfer has occurred for this node.
-    if (!isEpsetEqual(&pEntry->epset, &req.epset)) {
-      nodeChanged = true;
-      break;
-    }
+//    if (!isEpsetEqual(&pEntry->epset, &req.epset)) {
+//      nodeChanged = true;
+//      break;
+//    }
   }
 
   // todo handle the node timeout case. Once the vnode is off-line, we should check the dnode status from mnode,
@@ -1904,7 +2032,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   int32_t nodeId = req.vgId;
-  SEpSet  newEpSet = req.epset;
 
   {// check all streams that involved this vnode should update the epset info
     SStreamObj *pStream = NULL;
@@ -1917,14 +2044,14 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
       // update the related upstream and downstream tasks, todo remove this, no need this function
       taosWLockLatch(&pStream->lock);
-      streamTaskUpdateEpInfo(pStream->tasks, req.vgId, &req.epset);
-      streamTaskUpdateEpInfo(pStream->pHTasksList, req.vgId, &req.epset);
+//      streamTaskUpdateEpInfo(pStream->tasks, req.vgId, &req.epset);
+//      streamTaskUpdateEpInfo(pStream->pHTasksList, req.vgId, &req.epset);
       taosWUnLockLatch(&pStream->lock);
 
-      code = createStreamUpdateTrans(pMnode, pStream, nodeId, &newEpSet);
-      if (code != TSDB_CODE_SUCCESS) {
-        // todo
-      }
+//      code = createStreamUpdateTrans(pMnode, pStream, nodeId, );
+//      if (code != TSDB_CODE_SUCCESS) {
+//         todo
+//      }
     }
   }
 
