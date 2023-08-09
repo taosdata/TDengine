@@ -264,47 +264,73 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
   return 0;
 }
 
-int32_t backendManagerDumpTo(SBackendManager* bm, char* name) {
+int32_t backendManagerDumpTo(SBackendManager* bm, char* dname) {
   int32_t code = 0;
-  int32_t len = bm->len + 64;
-  char*   buf = taosMemoryCalloc(1, len);
-  sprintf(buf, "%s%s%s", bm->path, TD_DIRSEP, name);
+  int32_t len = bm->len + 128;
 
-  code = taosMkDir(buf);
+  char* dstBuf = taosMemoryCalloc(1, len);
+  char* srcBuf = taosMemoryCalloc(1, len);
+
+  char* srcDir = taosMemoryCalloc(1, len);
+  char* dstDir = taosMemoryCalloc(1, len);
+
+  sprintf(srcDir, "%s%s%s%" PRId64 "", bm->path, TD_DIRSEP, "checkpoint", bm->curChkpId);
+  sprintf(dstDir, "%s%s%s", bm->path, TD_DIRSEP, dname);
+
+  code = taosMkDir(dstDir);
   if (code != 0) {
     return code;
   }
 
   // clear current file
-  memset(buf, 0, len);
-  sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, bm->pCurrent);
-  taosRemoveFile(buf);
+  memset(dstBuf, 0, len);
+  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, bm->pCurrent);
+  taosRemoveFile(dstBuf);
 
-  memset(buf, 0, len);
-  sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, bm->pManifest);
-  taosRemoveFile(buf);
+  memset(dstBuf, 0, len);
+  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, bm->pManifest);
+  taosRemoveFile(dstBuf);
 
+  // add file to $name dir
   for (int i = 0; i < taosArrayGetSize(bm->pAdd); i++) {
-    memset(buf, 0, len);
+    memset(dstBuf, 0, len);
 
     char* filename = taosArrayGetP(bm->pAdd, i);
-    sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, filename);
+    sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, filename);
+    sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, filename);
 
-    char* src = taosMemoryCalloc(1, len);
-    sprintf(src, "%s%s%s%" PRId64 "%s%s", bm->path, TD_DIRSEP, "checkpoint", bm->curChkpId, TD_DIRSEP, filename);
-    taosCopyFile(src, buf);
+    taosCopyFile(srcBuf, dstBuf);
   }
-
+  // del file in $name
   for (int i = 0; i < taosArrayGetSize(bm->pDel); i++) {
-    memset(buf, 0, len);
-
+    memset(dstBuf, 0, len);
     char* filename = taosArrayGetP(bm->pDel, i);
-    sprintf(buf, "%s%s%s%s%s", bm->path, TD_DIRSEP, name, TD_DIRSEP, filename);
-    taosRemoveFile(buf);
+    sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, filename);
+    taosRemoveFile(dstBuf);
   }
+
+  // copy current file to dst dir
+  memset(srcBuf, 0, len);
+  memset(dstBuf, 0, len);
+  sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, bm->pCurrent);
+  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, bm->pCurrent);
+  taosCopyFile(srcBuf, dstBuf);
+
+  // copy manifest file to dst dir
+  memset(srcBuf, 0, len);
+  memset(dstBuf, 0, len);
+  sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, bm->pManifest);
+  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, bm->pManifest);
+  taosCopyFile(srcBuf, dstBuf);
+
   // clear delta data
   taosArrayClearP(bm->pAdd, taosMemoryFree);
   taosArrayClearP(bm->pDel, taosMemoryFree);
+
+  taosMemoryFree(srcBuf);
+  taosMemoryFree(dstBuf);
+  taosMemoryFree(srcDir);
+  taosMemoryFree(dstDir);
   return code;
 }
 
