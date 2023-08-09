@@ -692,6 +692,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       taosArrayDestroy(rebOutput.modifyConsumers);
       taosArrayDestroy(rebOutput.rebVgs);
 
+      taosHashCancelIterate(pReq->rebSubHash, pIter);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       mInfo("mq re-balance failed, due to out of memory");
       taosHashCleanup(pReq->rebSubHash);
