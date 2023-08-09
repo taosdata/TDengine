@@ -135,8 +135,8 @@ else()
     endif()
 endif()
 
-find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
-find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
+#find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
+#find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
 #find_library(MINIXML_LIBRARY mxml)
 #find_library(CURL_LIBRARY curl)
 
@@ -162,8 +162,8 @@ target_link_libraries(
 
     # s3
     cos_c_sdk
-    ${APR_UTIL_LIBRARY}
-    ${APR_LIBRARY}
+    apr
+    apr-util
     mxml
     curl
 )

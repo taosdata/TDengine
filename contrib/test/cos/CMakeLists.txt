@@ -37,13 +37,13 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
   )
 
-find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
-find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
+#find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
+#find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
 #find_library(MINIXML_LIBRARY mxml)
 #find_library(CURL_LIBRARY curl)
 
 target_link_libraries(cosTest cos_c_sdk)
-target_link_libraries(cosTest ${APR_UTIL_LIBRARY})
-target_link_libraries(cosTest ${APR_LIBRARY})
+target_link_libraries(cosTest apr})
+target_link_libraries(cosTest apr-util})
 target_link_libraries(cosTest mxml)
 target_link_libraries(cosTest curl)

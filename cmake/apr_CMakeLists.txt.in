@@ -1,0 +1,12 @@
+# apr
+ExternalProject_Add(apr
+        GIT_REPOSITORY https://github.com/apache/apr.git
+	GIT_TAG 1.5.2
+        SOURCE_DIR "${TD_CONTRIB_DIR}/apr"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)
