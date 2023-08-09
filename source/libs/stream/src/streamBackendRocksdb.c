@@ -245,8 +245,6 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
     bm->curChkpId = chkpId;
     bm->init = 1;
 
-    // SArray* add = taosArrayInit(64, sizeof(void*));
-
     void* pIter = taosHashIterate(pTable, NULL);
     while (pIter) {
       size_t len;
@@ -258,9 +256,6 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
     }
 
   } else {
-    // SArray* add = taosArrayInit(64, sizeof(void*));
-    // SArray* del = taosArrayInit(64, sizeof(void*));
-
     int32_t code = compareHashTable(bm->pSSTable, pTable, bm->pAdd, bm->pDel);
 
     bm->curChkpId = chkpId;
