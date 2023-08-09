@@ -696,7 +696,7 @@ pub async fn generate_opcconfig_from_csv(
                     );
                 }
                 let column_type = IpcDataType::from_str(split_tag.get(1).unwrap())
-                    .map_err(|err| anyhow::Error::msg(err))?;
+                    .map_err(|err| anyhow::Error::msg(format!("{err} should be a valid Data Type")))?;
                 let tag_name = split_tag.get(2).unwrap().to_string();
                 check_duplicated(&current_tag_names, None, &tag_name)?;
                 current_tag_names.push(tag_name.clone());
