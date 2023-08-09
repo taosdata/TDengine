@@ -541,7 +541,9 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   qDebug("s-task:0x%x in timer to launch related history task", pInfo->taskId);
 
   taosWLockLatch(&pMeta->lock);
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &pInfo->taskId, sizeof(int32_t));
+  int64_t keys[2] = {pInfo->streamId, pInfo->taskId};
+
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive == 1);
 
@@ -596,8 +598,9 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
   int32_t      hTaskId = pTask->historyTaskId.taskId;
 
+  int64_t keys[2] = {pTask->historyTaskId.streamId, pTask->historyTaskId.taskId};
   // Set the execute conditions, including the query time window and the version range
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &hTaskId, sizeof(hTaskId));
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (pHTask == NULL) {
     qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
           pMeta->vgId, hTaskId);

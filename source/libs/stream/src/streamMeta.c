@@ -161,43 +161,6 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosMemoryFree(pMeta);
 }
 
-#if 0
-int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, int32_t msgLen) {
-  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
-  if (pTask == NULL) {
-    return -1;
-  }
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeStreamTask(&decoder, pTask) < 0) {
-    tDecoderClear(&decoder);
-    goto FAIL;
-  }
-  tDecoderClear(&decoder);
-
-  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    ASSERT(0);
-    goto FAIL;
-  }
-
-  if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
-    goto FAIL;
-  }
-
-  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t), msg, msgLen, pMeta->txn) < 0) {
-    taosHashRemove(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t));
-    ASSERT(0);
-    goto FAIL;
-  }
-
-  return 0;
-
-FAIL:
-  if (pTask) tFreeStreamTask(pTask);
-  return -1;
-}
-#endif
-
 int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void*   buf = NULL;
   int32_t len;
@@ -241,7 +204,8 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
 int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded) {
   *pAdded = false;
 
-  void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+  int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
+  void* p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (p == NULL) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
       tFreeStreamTask(pTask);
@@ -263,7 +227,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return 0;
   }
 
-  taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
+  taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, POINTER_BYTES);
   *pAdded = true;
   return 0;
 }
@@ -315,12 +279,14 @@ static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamId* id) {
   }
 }
 
-int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
+int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   SStreamTask* pTask = NULL;
 
   // pre-delete operation
   taosWLockLatch(&pMeta->lock);
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+
+  int64_t keys[2] = {streamId, taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
     pTask = *ppTask;
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
@@ -336,7 +302,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
 
   while (1) {
     taosRLockLatch(&pMeta->lock);
-    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
 
     if (ppTask) {
       if ((*ppTask)->status.timerActive == 0) {
@@ -355,7 +321,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
 
   // let's do delete of stream task
   taosWLockLatch(&pMeta->lock);
-  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
@@ -472,7 +438,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     }
 
     // do duplicate task check.
-    void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+    int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
+    void* p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if (p == NULL) {
       if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
         tdbFree(pKey);
@@ -492,7 +459,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       continue;
     }
 
-    if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
+    if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);

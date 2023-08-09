@@ -350,10 +350,9 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
-  int32_t taskId = pTask->id.taskId;
 
   // 5. free it and remove fill-history task from disk meta-store
-  streamMetaUnregisterTask(pMeta, taskId);
+  streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);

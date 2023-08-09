@@ -1242,7 +1242,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       tqDebug("s-task:%s fill-history task set status to be dropping", id);
 
-      streamMetaUnregisterTask(pMeta, pTask->id.taskId);
+      streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
       streamMetaReleaseTask(pMeta, pTask);
       return -1;
     }
@@ -1575,7 +1575,7 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
     return 0;
   }
 
-  streamMetaUnregisterTask(pTq->pStreamMeta, pReq->taskId);
+  streamMetaUnregisterTask(pTq->pStreamMeta, pReq->streamId, pReq->taskId);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }

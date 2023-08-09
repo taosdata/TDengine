@@ -185,7 +185,7 @@ int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
     return 0;
   }
 
-  streamMetaUnregisterTask(pSnode->pMeta, pReq->taskId);
+  streamMetaUnregisterTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
   streamMetaReleaseTask(pSnode->pMeta, pTask);
   return 0;
 }
