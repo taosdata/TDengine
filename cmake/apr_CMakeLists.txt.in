@@ -9,7 +9,8 @@ ExternalProject_Add(apr-1
         SOURCE_DIR "${TD_CONTRIB_DIR}/apr"
         BUILD_IN_SOURCE TRUE
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        #CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        CONFIGURE_COMMAND ./configure
         BUILD_COMMAND make
         INSTALL_COMMAND make install
         TEST_COMMAND ""

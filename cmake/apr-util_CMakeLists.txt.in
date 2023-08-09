@@ -10,7 +10,8 @@ ExternalProject_Add(aprutil-1
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --with-apr=${CMAKE_BINARY_DIR}/build
+        #CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --with-apr=${CMAKE_BINARY_DIR}/build
+        CONFIGURE_COMMAND ./configure --with-apr=/usr/local/
         BUILD_COMMAND make
         INSTALL_COMMAND make install
         TEST_COMMAND ""

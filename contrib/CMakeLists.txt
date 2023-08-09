@@ -124,7 +124,7 @@ endif(${BUILD_WITH_SQLITE})
 
 # cos
 if(${BUILD_WITH_COS})
-    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/build/)
+    #file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/build/)
     cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -376,7 +376,7 @@ endif()
 # cos
 if(${BUILD_WITH_COS})
   if(NOT ${TD_WINDOWS})
-    set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/build)
+    #set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/build)
     #ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
     option(ENABLE_TEST "Enable the tests" OFF)
     INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
