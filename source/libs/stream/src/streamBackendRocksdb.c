@@ -308,6 +308,7 @@ int32_t backendManagerDumpTo(SBackendManager* bm, char* dname) {
   // del file in $name
   for (int i = 0; i < taosArrayGetSize(bm->pDel); i++) {
     memset(dstBuf, 0, len);
+
     char* filename = taosArrayGetP(bm->pDel, i);
     sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, filename);
     taosRemoveFile(dstBuf);
