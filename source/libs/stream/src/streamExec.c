@@ -290,7 +290,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
     // todo: destroy the fill-history task here
     qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,

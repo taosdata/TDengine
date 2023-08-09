@@ -646,7 +646,7 @@ int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t      streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);
 int32_t      streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);  // todo remove it
-SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
+SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);

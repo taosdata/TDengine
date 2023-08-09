@@ -66,14 +66,14 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+  _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
   pMeta->pTasks = taosHashInit(64, fp, true, HASH_NO_LOCK);
   if (pMeta->pTasks == NULL) {
     goto _err;
   }
 
   // task list
-  pMeta->pTaskList = taosArrayInit(4, sizeof(int32_t));
+  pMeta->pTaskList = taosArrayInit(4, sizeof(SStreamId));
   if (pMeta->pTaskList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -248,7 +248,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
       return -1;
     }
 
-    taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+    taosArrayPush(pMeta->pTaskList, &pTask->id);
 
     if (streamMetaSaveTask(pMeta, pTask) < 0) {
       tFreeStreamTask(pTask);
@@ -274,10 +274,11 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
   return (int32_t)size;
 }
 
-SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
+SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
 
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  int64_t keys[2] = {streamId, taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask != NULL) {
     if (!streamTaskShouldStop(&(*ppTask)->status)) {
       int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
@@ -304,10 +305,10 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   }
 }
 
-static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, int32_t taskId) {
+static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamId* id) {
   for (int32_t i = 0; i < num; ++i) {
-    int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
-    if (*pTaskId == taskId) {
+    SStreamId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    if (pTaskId->streamId == id->streamId && pTaskId->taskId == id->taskId) {
       taosArrayRemove(pMeta->pTaskList, i);
       break;
     }
@@ -360,9 +361,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int32_t taskId) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
 
     ASSERT(pTask->status.timerActive == 0);
-
-    int32_t num = taosArrayGetSize(pMeta->pTaskList);
-    doRemoveIdFromList(pMeta, num, pTask->id.taskId);
+    doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
 
     // remove the ref by timer
     if (pTask->triggerParam != 0) {
@@ -484,7 +483,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
         return -1;
       }
 
-      taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+      taosArrayPush(pMeta->pTaskList, &pTask->id);
     } else {
       tdbFree(pKey);
       tdbFree(pVal);

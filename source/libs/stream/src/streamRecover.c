@@ -19,7 +19,8 @@
 
 typedef struct SStreamTaskRetryInfo {
   SStreamMeta* pMeta;
-  int32_t taskId;
+  int32_t      taskId;
+  int64_t      streamId;
 } SStreamTaskRetryInfo;
 
 static int32_t streamSetParamForScanHistory(SStreamTask* pTask);
@@ -556,12 +557,12 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   }
   taosWUnLockLatch(&pMeta->lock);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->streamId, pInfo->taskId);
   if (pTask != NULL) {
     ASSERT(pTask->status.timerActive == 1);
 
     // abort the timer if intend to stop task
-    SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
+    SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
     if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
       const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
       qWarn(
@@ -603,6 +604,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
 
     SStreamTaskRetryInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTaskRetryInfo));
     pInfo->taskId = pTask->id.taskId;
+    pInfo->streamId = pTask->id.streamId;
     pInfo->pMeta = pTask->pMeta;
 
     if (pTask->launchTaskTimer == NULL) {
