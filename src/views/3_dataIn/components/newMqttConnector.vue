@@ -45,7 +45,7 @@
       </ul>
       <div class="col-content">
         <Mqttcolumn
-          v-for="item in fields.filter((item) => item.name != 'payload')"
+          v-for="item in fields.filter((item) => item.name != 'payload' && item.name !== 'value')"
           :key="item.name"
           :colData="item"
           @changePrimary="changePrimary"

@@ -57,7 +57,7 @@ export const PermissionMap = {
   2: 0,
 };
 export const RedirectKey = "TDengine-Redirect";
-export const ReLoginCode = ["502", "401", "432", "512"]; //重新登录的状态码
+export const ReLoginCode = ["502", "401", "432"]; //重新登录的状态码
 export const SuccessCode = ["200", "302"]; //请求成功的状态码
 export const ServerLevel = {
   FREE: 0,
@@ -328,7 +328,7 @@ export const TDengineSqlKeywrods = [
   "TOP",
   "TOPIC",
   "TOPICS",
-  "TO_ISO0861",
+  "TO_ISO8601",
   "TO_JSON",
   "TO_UNIXTIMESTAMP",
   "TRIGGER",
@@ -607,7 +607,7 @@ export const CoversionFn = [
     supportDatatype:StringType.concat(IntegerType)
   },
   {
-    label: "TO_ISO0861",
+    label: "TO_ISO8601",
     supportDatatype:['int','timestamp']
   },
   {

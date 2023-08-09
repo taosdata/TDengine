@@ -215,7 +215,7 @@
   }
   .right {
     flex: 1;
-    margin-left: -40px;
+    // margin-left: -40px;
     overflow: hidden;
   }
 </style>

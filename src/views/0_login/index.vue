@@ -76,7 +76,7 @@
 
       <div class="login-content">
         <div class="login-title">
-          <span class="dynamic-title">{{ $t('systemTitle') }}</span>
+          <span class="dynamic-title">{{ $t("systemTitle") }}</span>
         </div>
         <el-form
           :model="dynamicValidateForm"
@@ -177,7 +177,7 @@
         >
         | 新版时序数据库 TDengine v3.0</span
       > -->
-      <span>{{$t('copyright')}}</span>
+      <span>{{ $t("copyright") }}</span>
     </div>
     <SearchPop :hidden.sync="hidden"></SearchPop>
   </div>
@@ -199,7 +199,7 @@ export default {
   data() {
     var validatePass = (rule, value, callback) => {
       if (value === "") {
-        callback(new Error(this.$t('login.passwordTips')));
+        callback(new Error(this.$t("login.passwordTips")));
       } else {
         // setTimeout(() => {
         //   if (this.dynamicValidateForm.password !== "") {
@@ -241,7 +241,7 @@ export default {
         username: [
           {
             required: true,
-            message: this.$t('login.usernameTips'),
+            message: this.$t("login.usernameTips"),
             trigger: "blur",
           },
         ],
@@ -287,7 +287,7 @@ export default {
     },
     async getClusterID() {
       try {
-        return sendSQLReq(` select id from information_schema.ins_cluster;`)
+        return sendSQLReq(`select id from information_schema.ins_cluster;`)
           .then((res) => {
             let id = res.data.flat(Infinity).toString();
             localStorage.setItem("local_clusterID", id);
@@ -322,7 +322,11 @@ export default {
           this.dynamicValidateForm.cluster,
           token,
           sql
-        ).then((res) => {
+        ).catch(reason => {
+          console.log(reason);
+          Promise.reject(reason);
+        }).then((res) => {
+          console.log("login response", res);
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
@@ -332,11 +336,11 @@ export default {
             this.getUserAuthority();
           } else {
             this.loading = false;
-            if(res && res.code == 11) {
+            if (res && res.code == 11) {
               Message.error(this.$t("login.servTaosdTip"));
-              return
+              return;
             }
-            Message.error(this.$t("login.errorTip"));
+            Message.error(res.desc || this.$t("login.errorTip"));
           }
         });
       } catch (error) {
@@ -347,24 +351,26 @@ export default {
     },
     async getClusterAndDashboardUrl() {
       try {
-        await getUrls().then((res) => {
-          if (res && res.cluster) {
-            this.dynamicValidateForm.cluster = res.cluster;
-            localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-            this.$store.commit(
-              "app/SET_CLUSTER_URL",
-              this.dynamicValidateForm.cluster
-            );
-          }
-          if (res && res.dashboard) {
-            localStorage.setItem("local_grafana", res.dashboard);
-          }
-          if (res && res.x_api) {
-            this.taosxStatus = true;
-          } else {
-            this.taosxStatus = false;
-          }
-        });
+        let res = await getUrls();
+        if (res && res.cluster) {
+          this.dynamicValidateForm.cluster = res.cluster;
+          localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
+          this.$store.commit(
+            "app/SET_CLUSTER_URL",
+            this.dynamicValidateForm.cluster
+          );
+        }
+        if (res && res.dashboard) {
+          localStorage.setItem("local_grafana", res.dashboard);
+        }
+        if (res && res.grpc) {
+          localStorage.setItem("local_endpoint", res.grpc);
+        }
+        if (res && res.x_api) {
+          this.taosxStatus = true;
+        } else {
+          this.taosxStatus = false;
+        }
       } catch (error) {
         // Message.error(error);
       }
@@ -373,7 +379,8 @@ export default {
     async getUserAuthority() {
       try {
         return await sendSQLReq(
-          `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+          // `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+          `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         ).then((res) => {
           this.loading = false;
           if (res) {
@@ -384,6 +391,7 @@ export default {
                 })
               );
             });
+            console.log(result, "===pp");
             if (
               result.length > 0 &&
               ["official", "trial"].includes(result[0].version)
@@ -392,17 +400,18 @@ export default {
                 path: "/explorer",
               });
             } else {
-              Message.error(this.$t('login.versiontip'));
+              Message.error(this.$t("login.versiontip"));
             }
           }
         });
       } catch (err) {
         this.loading = false;
+        
         if (err && err.code == 11) {
           Message.error(this.$t("login.servTaosdTip"));
-          return
+          return;
         }
-        Message.error(this.$t('login.versiontip'));
+        Message.error(this.$t("login.versiontip"));
       }
     },
   },
@@ -419,7 +428,6 @@ export default {
       ) {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-        
       }
     });
   },
@@ -519,6 +527,12 @@ export default {
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      .dynamic-title {
+        width: 500px;
+        overflow: hidden;
+        display: block;
+        text-overflow: ellipsis;
+      }
       .login-title {
         font-size: 28px;
         font-weight: 500;
@@ -659,12 +673,12 @@ export default {
     font-size: 16px;
     margin-top: 25px;
   }
-  .copyright{
+  .copyright {
     display: flex;
     justify-content: center;
     margin-bottom: 40px;
-    span{
-      color:#909399;
+    span {
+      color: #909399;
     }
   }
 }

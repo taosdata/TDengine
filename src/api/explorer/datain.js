@@ -61,11 +61,50 @@ export function getUaAndDaData(data){
 export function refreshTask(id){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/tasks/${id}?detail=true`,
+        url:`/tasks/${id}?detail=true&lang=${language}`,
         method:'get',
         headers:{
             "Content-Type":"application/json"
         }
         
+    })
+}
+
+export function uploadFile(file){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/upload`,
+        method:'post',
+        headers:{
+            "Content-Type":"multipart/form-data"
+        }
+        
+    })
+}
+
+export function getCSVColumns(path,type,hasheader){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/filemeta?file_path=${path}&file_type=${type}&has_header=${hasheader}`,
+        method:'get',
+        headers:{
+            "Content-Type":"multipart/form-data"
+        }
+    })
+}
+
+export function getAgentActivities(agentId){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/agents/${agentId}/activities`,
+        method:'get'
+    })
+}
+
+export function getTaskActivities(taskId){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/tasks/${taskId}/activities`,
+        method:'get'
     })
 }

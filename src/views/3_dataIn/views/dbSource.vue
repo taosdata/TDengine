@@ -14,7 +14,7 @@
       :opcConfig="opcConfig"
       :isEditable="isEditable"
       :echoData="echoData"
-      :sourceName='sourceName'
+      :sourceName="sourceName"
       ref="table"
     ></component>
   </div>
@@ -27,7 +27,7 @@ import { getUIData } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
 import constOpc from "./opcconfig.json";
 import { deepClone } from "@/utils";
-const opcDefaultChecked=["value", "received_time"]
+const opcDefaultChecked = ["value", "received_time"];
 export default {
   name: "DbSource",
   components: {
@@ -37,7 +37,7 @@ export default {
   },
   data() {
     return {
-      sourceName:'',
+      sourceName: "",
       opcConfig: constOpc,
       parserobj: constparser,
       protocol: "ua", //只针对opc的ua/da
@@ -52,7 +52,7 @@ export default {
       mqttParser: null,
       staticParser: null,
       staticOpc: null,
-      currentTaskStatus:'',
+      currentTaskStatus: "",
       echoData: deepClone(opcDefaultChecked),
     };
   },
@@ -64,7 +64,12 @@ export default {
   methods: {
     //回显opc的数据
     echoOpcData() {
-      let opcconfigData=this.uidata[0].groups.filter(item=>item.name==this.$t('datasource.opcconfig'))[0].params[0]
+      let opcconfigData = this.uidata[0].groups.filter(
+        (item) => item.name == this.$t("datasource.opcconfig")
+      )[0].params[0];
+      if(!opcconfigData.value){
+        opcconfigData.value=JSON.stringify(constOpc)
+      }
       this.echoData = deepClone(
         JSON.parse(opcconfigData.value).column_configs.map(
           (item) => item.column_name
@@ -75,26 +80,19 @@ export default {
       );
       let newEcho = {
         column_configs: deepClone(
-          JSON.parse(opcconfigData.value
-          ).column_configs.concat(others)
+          JSON.parse(opcconfigData.value).column_configs.concat(others)
         ),
-        stable_prefix: JSON.parse(opcconfigData.value)
-          .stable_prefix,
+        stable_prefix: JSON.parse(opcconfigData.value).stable_prefix,
       };
       this.$store.commit("app/SET_OPC_CONFIG", {
         column_configs: deepClone(
-          JSON.parse(
-            opcconfigData.value
-          ).column_configs.concat(others)
+          JSON.parse(opcconfigData.value).column_configs.concat(others)
         ),
-        stable_prefix: JSON.parse(opcconfigData.value)
-          .stable_prefix,
+        stable_prefix: JSON.parse(opcconfigData.value).stable_prefix,
       });
 
       opcconfigData.value = JSON.stringify(newEcho);
-      this.opcConfig = deepClone(
-        JSON.parse(opcconfigData.value)
-      );
+      this.opcConfig = deepClone(JSON.parse(opcconfigData.value));
     },
     async getData() {
       try {
@@ -117,15 +115,15 @@ export default {
         //新增
 
         let data = this.sourceList.filter((item) => item.id === type);
-        if (type == "mqtt") {
+        if (type == "mqtt" || type == 'kafka') {
           this.uidata = this.deepClone(data);
           this.parserobj = deepClone(this.staticParser);
-          this.parserobj.model.columns.push('ts')//默认新增时候选中ts列
+          this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);
           this.opcConfig = deepClone(this.staticOpc);
-           this.echoData=deepClone(opcDefaultChecked)
+          this.echoData = deepClone(opcDefaultChecked);
           this.$store.commit("app/SET_OPC_CONFIG", this.opcConfig);
         }
         this.isEditable = false;
@@ -172,6 +170,18 @@ export default {
             this.currentName = "ui";
             this.tagName = "pibackfill";
             break;
+          case "csv":
+            this.currentName = "opcui";
+            this.tagName = "csv";
+            break
+          case "taos":
+            this.currentName = "ui";
+            this.tagName = "taos";
+            break;
+          case "kafka":
+            this.currentName = "opcui";
+            this.tagName = "kafka";
+            break;
         }
       } else {
         switch (id) {
@@ -183,7 +193,10 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "ua";
-            this.echoOpcData();
+            // if (this.$store.state.app.opcnodesfiles.length == 0) {
+              this.echoOpcData();
+            // }
+
             break;
           case "opcda":
             this.currentName = "opcui";
@@ -217,12 +230,35 @@ export default {
             this.currentName = "ui";
             this.tagName = "pibackfill";
             break;
+          case "csv":
+            console.log("csv跳转编辑", this.echoData);
+            (this.currentName = "opcui"), (this.tagName = "csv");
+            break;
+          case "taos":
+            this.currentName = "ui";
+            this.tagName = "taos";
+            break;
+          case "kafka":
+            this.currentName = "opcui";
+            this.tagName = "kafka";
+
+            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
+              (item) => {
+                if (item.name == "value") {
+                  item["value"] = "json";
+                  item["name"] = "payload"
+                }
+                return item;
+              }
+            );
+
+          break;
         }
         this.isEditable = true;
         this.editId = editid;
         this.dbName = dbname;
         this.getData();
-        if (id === "tmq") {
+        if (id === "tmq" || id === 'taos') {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {

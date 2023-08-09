@@ -85,6 +85,11 @@ export function isArray(arg) {
   return Array.isArray(arg);
 }
 
+/**
+ * 只允许数字、字母、下划线
+ * @param {*} str 
+ * @returns {Boolean}
+ */
 export function validDatabaseName(str) {
   const reg = /^[a-zA-Z_]\w*$/;
   return reg.test(str);
@@ -112,4 +117,13 @@ export function validTopicSql(sql) {
 
 export function validDir(arg) {
   return /^[A-Za-z0-9_\/]*$/g.test(arg)
+}
+
+//linux文件路径校验
+export function validPath(arg) {
+  if((String.raw`${arg}`).includes('\\')){
+    arg=(String.raw`${arg}`).replace(/\\/g,'\\\\')
+  }
+  console.log(arg,'文件路径',(String.raw`${arg}`).replace(/\\/g,'\\\\'));
+  return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
 }

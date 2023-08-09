@@ -69,24 +69,24 @@ request.interceptors.response.use(
         return Promise.resolve(res)
       }
       return Promise.resolve(res);
-    }else if(response.status==200){
+    } else if (response.status == 200) {
       return Promise.resolve(response)
     }
 
   },
   (error) => {
+    console.log("error:", error, error.response.data);
     Message.closeAll();
-      Message({
-        message: error.message || "Unknown Error",
-        type: "error",
-        duration: 3000,
-        showClose: true,
-      });
+    if (error.response.data.code) {
+      return Promise.resolve(error.response.data);
+    }
+    let msg = error.response.data.message || error.response.data.desc || error.message || "Unexpected error"
+    Message.error(msg)
     let taosx404en = 'The Taosx API is not configured. Please check the explorer configuration'
     let taosx500en = 'The Taosx API cannot be accessed. Please check the Taosx service status'
     let taosx404 = '未配置 TaosX API，请检查 Explorer 配置'
     let taosx500 = 'TaosX API 无法访问，请检查 taosx 服务状态'
-    Message.closeAll()
+    // Message.closeAll()
     if (error.config.baseURL.includes('/api/x')) {
       if (error.response && error.response.status === 404) {
         Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)
@@ -96,10 +96,9 @@ request.interceptors.response.use(
         } else {
           error.message && Message.error(error.message)
         }
-
-
     }
-
+    error.message = msg;
+    
     return Promise.reject(error);
   }
 );

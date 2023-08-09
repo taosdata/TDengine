@@ -24,7 +24,7 @@
           <el-table-column width="120" :label="$t('stream.sourceDB')" prop="source_db"></el-table-column>
           <el-table-column width="120" :label="$t('stream.targetDB')" prop="target_db"></el-table-column>
           <el-table-column width="120" :label="$t('stream.targetTable')" prop="target_table"></el-table-column>
-          <el-table-column width="100" :label="watermarkdetail" prop="watermark"></el-table-column>
+          <el-table-column width="140" :label="watermarkdetail" prop="watermark"></el-table-column>
           <el-table-column width="100" :label="$t('stream.trigger')" prop="trigger"></el-table-column>
 
           <el-table-column :label="$t('operate')" width="80">

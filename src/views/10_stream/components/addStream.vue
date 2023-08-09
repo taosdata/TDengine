@@ -25,7 +25,6 @@
     <template v-if="model == 'Wizard'">
       <el-form-item
         :label="$t('stream.streamName')"
-        required
         prop="stream_name"
       >
         <el-input v-model="info.stream_name"> </el-input>
@@ -249,7 +248,7 @@ import SQLEditor from "@/views/11_topic/components/sqlEditor.vue";
 import { createStream } from "@/api/stream";
 import { isStableExist } from "@/api/gateway/data/stables";
 import Subquery from "@/views/11_topic/components/subquery.vue";
-import { validStreamSql } from "@/utils/validate"
+import { validStreamSql, validDatabaseName } from "@/utils/validate"
 // const infoValidaterField = ["stream_name", "topic_type", "db_name"];
 export default {
   props: {
@@ -265,6 +264,8 @@ export default {
         callback(new Error(this.$t("stream.streamNameError")));
       } else if (this.streamList.some((item) => item.stream_name === val)) {
         callback(new Error(this.$t("stream.streamNameExist")));
+      } else if (!validDatabaseName(val)) {
+        callback(new Error(this.$t("formatWrong")))
       } else {
         callback();
       }
@@ -279,7 +280,11 @@ export default {
     return {
       sqlPrefix: "CREATE STREAM ",
       rules: {
-        stream_name: [{ validator: validateTopicName }],
+        stream_name: [{ 
+          validator: validateTopicName, 
+          trigger: "blur", 
+          required: true
+        }],
         target_stb: [{ 
           // validator: validateTargetStb, 
           required: true,
