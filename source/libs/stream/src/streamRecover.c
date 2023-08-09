@@ -802,7 +802,8 @@ void launchFillHistoryTask(SStreamTask* pTask) {
   }
 
   ASSERT(pTask->status.downstreamReady == 1);
-  qDebug("s-task:%s start to launch related fill-history task:0x%x", pTask->id.idStr, tId);
+  qDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
+         pTask->historyTaskId.streamId, tId);
 
   // launch associated fill history task
   streamLaunchFillHistoryTask(pTask);

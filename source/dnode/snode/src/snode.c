@@ -192,7 +192,8 @@ int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
 int32_t sndProcessTaskRunReq(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamTaskRunReq *pReq = pMsg->pCont;
-  SStreamTask       *pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
+
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
   if (pTask) {
     streamProcessRunReq(pTask);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
@@ -246,8 +247,11 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
 
 int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamDispatchRsp *pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t             taskId = ntohl(pRsp->upstreamTaskId);
-  SStreamTask        *pTask = streamMetaAcquireTask(pSnode->pMeta, pRsp->streamId, taskId);
+
+  int32_t taskId = htonl(pRsp->upstreamTaskId);
+  int64_t streamId = htobe64(pRsp->streamId);
+
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, streamId, taskId);
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
@@ -255,7 +259,6 @@ int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   } else {
     return -1;
   }
-  return 0;
 }
 
 int32_t sndProcessTaskRetrieveRsp(SSnode *pSnode, SRpcMsg *pMsg) {
