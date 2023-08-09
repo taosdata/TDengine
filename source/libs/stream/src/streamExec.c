@@ -21,6 +21,7 @@
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
 static int32_t updateCheckPointInfo(SStreamTask* pTask);
+static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
@@ -544,8 +545,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   return 0;
 }
 
+// the task may be set dropping/stopping, while it is still in the task queue, therefore, the sched-status can not
+// be updated by tryExec function, therefore, the schedStatus will always be the TASK_SCHED_STATUS__WAITING.
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE || pTask->status.taskStatus == TASK_STATUS__STOP ||
+          pTask->status.taskStatus == TASK_STATUS__DROPPING);
 }
 
 int32_t streamTaskEndScanWAL(SStreamTask* pTask) {

@@ -26,7 +26,7 @@ def taos_command (buildPath, key, value, expectString, sqlString=''):
         taosCmd = buildPath + '/build/bin/taos '
 
     cfgPath = buildPath + "/../sim/psim/cfg"
-    taosCmd = taosCmd + ' -c' + cfgPath + ' -' + key
+    taosCmd = taosCmd + ' -c ' + cfgPath + ' -' + key
     if len(value) != 0:
         taosCmd = taosCmd + ' ' + value
 
