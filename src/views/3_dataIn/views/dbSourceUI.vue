@@ -619,7 +619,7 @@
       <section class="choose-db">
         <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
         <div class="target-db-name">
-          <el-select v-model="dbname" placeholder="">
+          <el-select v-model="dbname" placeholder="" style="margin-right: 8px;">
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -629,6 +629,9 @@
           </el-select>
           <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
         </div>
+        <el-button size="medium" type="primary" plain  @click="handleDbBtn">
+          {{ $t('data.createDatabase') }}
+        </el-button>
       </section>
       <section class="bottom">
         <el-button @click="cancel" class="cancel-btn">{{
@@ -647,6 +650,7 @@
         :subfield="false"
       />
     </div>
+    <DialogCreateDb></DialogCreateDb>
   </div>
 </template>
 <script>
@@ -656,9 +660,10 @@ import DatePicker from '@/components/date-picker'
 import { Message } from "element-ui";
 import marked from "marked";
 import { debounce, parsinginZone } from "@/utils/index";
+import DialogCreateDb from '../components/addDbDialog.vue';
 export default {
   name: "DbSourceUI",
-  components: {DatePicker},
+  components: {DatePicker,DialogCreateDb},
   props: {
     // sourceName: {
     //   type: String,
@@ -802,6 +807,13 @@ export default {
         }
       },
     },
+    "$store.state.dbs.dialogDbVisible": {
+      handler(val) {
+        if (!val) {
+          this.getDatabases()
+        }
+      }
+    }
   },
   methods: {
     handleEditData() {
@@ -1170,6 +1182,12 @@ export default {
       this.$parent.currentName = 'dbsource'
     },
     
+    handleDbBtn() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
+      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
+    },
+
     handleClick(tab, event) {
       this.isShowConfiguration = false;
       this.configurationdata = [];
@@ -1726,6 +1744,16 @@ export default {
         }
       }
     }
+    :deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 38px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  }
+
   }
   .right-ui {
     margin-left: 20px;
@@ -1741,15 +1769,6 @@ export default {
     color: #acaab2;
     margin-bottom: 0px !important;
     white-space: normal !important;
-  }
-  :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 38px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
   }
   .target {
     display: flex;

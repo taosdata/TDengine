@@ -294,6 +294,7 @@ export default {
     addDatabase() {
       this.$store.commit("dbs/HANDLE_ADD_DB");
       this.$store.commit("console/SET_TAB_NAME", this.$t("add"));
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'explorer');
       this.$store.state.console.partActive = "detail";
       this.$store.state.console.currentComponent = "DatabaseCreate";
     },
@@ -538,6 +539,7 @@ export default {
           break;
       }
       this.$store.commit("console/SET_TAB_NAME", this.$t("edit"));
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'explorer');
       this.$store.state.console.partActive = "detail";
     },
     async del(data, node) {
