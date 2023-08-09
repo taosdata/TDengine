@@ -821,7 +821,19 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
                FUNCTION_TYPE_IROWTS == pFunc->funcType) {
       return true;
     }
-  }
+  } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
+      SOperatorNode* pOper = (SOperatorNode*)pExpr;
+      if (OP_TYPE_ADD != pOper->opType && OP_TYPE_SUB != pOper->opType) {
+        return false;
+      }
+      if (!isPrimaryKeyImpl(pOper->pLeft)) {
+        return false;
+      }
+      if (QUERY_NODE_VALUE != nodeType(pOper->pRight)) {
+        return false;
+      }
+      return true;
+    }
   return false;
 }
 
