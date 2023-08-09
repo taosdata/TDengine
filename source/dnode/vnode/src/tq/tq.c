@@ -956,7 +956,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
                           .winRange = pTask->dataRange.window};
     initStorageAPI(&handle.api);
 
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId);
+    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
     if (pTask->exec.pExecutor == NULL) {
       return -1;
     }
@@ -983,7 +983,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
                           .winRange = pTask->dataRange.window};
     initStorageAPI(&handle.api);
 
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId);
+    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
     if (pTask->exec.pExecutor == NULL) {
       return -1;
     }
@@ -1149,32 +1149,27 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   taosWLockLatch(&pStreamMeta->lock);
   code = streamMetaRegisterTask(pStreamMeta, sversion, pTask, &added);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
+  taosWUnLockLatch(&pStreamMeta->lock);
 
   if (code < 0) {
     tqError("vgId:%d failed to add s-task:0x%x, total:%d", vgId, pTask->id.taskId, numOfTasks);
     tFreeStreamTask(pTask);
-    taosWUnLockLatch(&pStreamMeta->lock);
     return -1;
   }
 
   // not added into meta store
-  if (!added) {
+  if (added) {
+    tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
+    SStreamTask* p = streamMetaAcquireTask(pStreamMeta, taskId);
+    if (p != NULL) {  // reset the downstreamReady flag.
+      streamTaskCheckDownstreamTasks(p);
+    }
+    streamMetaReleaseTask(pStreamMeta, p);
+  } else {
     tqWarn("vgId:%d failed to add s-task:0x%x, already exists in meta store", vgId, taskId);
     tFreeStreamTask(pTask);
-    pTask = NULL;
   }
 
-  taosWUnLockLatch(&pStreamMeta->lock);
-
-  tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
-
-  // 3. It's an fill history task, do nothing. wait for the main task to start it
-  SStreamTask* p = streamMetaAcquireTask(pStreamMeta, taskId);
-  if (p != NULL) { // reset the downstreamReady flag.
-    streamTaskCheckDownstreamTasks(p);
-  }
-
-  streamMetaReleaseTask(pStreamMeta, p);
   return 0;
 }
 
