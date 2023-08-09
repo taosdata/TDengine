@@ -3,10 +3,9 @@ ExternalProject_Add(curl
         GIT_REPOSITORY https://github.com/curl/curl.git
 	GIT_TAG curl-7_88_1
         SOURCE_DIR "${TD_CONTRIB_DIR}/curl"
-        BINARY_DIR ""
-        #BUILD_IN_SOURCE TRUE
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
         TEST_COMMAND ""
 )

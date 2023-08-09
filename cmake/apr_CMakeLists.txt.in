@@ -1,12 +1,19 @@
 # apr
 ExternalProject_Add(apr-1
-        GIT_REPOSITORY https://github.com/apache/apr.git
-	GIT_TAG 1.5.2
+        URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
+        URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
+        DOWNLOAD_NO_PROGRESS 1
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+        #GIT_REPOSITORY https://github.com/apache/apr.git
+	#GIT_TAG 1.5.2
         SOURCE_DIR "${TD_CONTRIB_DIR}/apr"
-        BINARY_DIR ""
-        #BUILD_IN_SOURCE TRUE
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
+        #BINARY_DIR "${CMAKE_BINARY_DIR}/build"
+        BUILD_IN_SOURCE TRUE
+        #CONFIGURE_COMMAND ""
+        #BUILD_COMMAND ""
+        #INSTALL_COMMAND ""
+        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
         TEST_COMMAND ""
 )
