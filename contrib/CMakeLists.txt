@@ -379,7 +379,7 @@ if(${BUILD_WITH_COS})
     set(CMAKE_PREFIX_PATH $ENV{HOME}/local)
     #ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
     option(ENABLE_TEST "Enable the tests" OFF)
-    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
+    INCLUDE_DIRECTORIES($ENV{HOME}/local/include)
 
     set(CMAKE_BUILD_TYPE debug)
     set(ORIG_CMAKE_PROJECT_NAME ${CMAKE_PROJECT_NAME})
