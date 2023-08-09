@@ -1552,10 +1552,12 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
 
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t             taskId = ntohl(pRsp->upstreamTaskId);
-  SStreamTask*        pTask = streamMetaAcquireTask(pTq->pStreamMeta, pRsp->streamId, taskId);
 
-  int32_t vgId = pTq->pStreamMeta->vgId;
+  int32_t      vgId = pTq->pStreamMeta->vgId;
+  int32_t      taskId = htonl(pRsp->upstreamTaskId);
+  int64_t      streamId = htobe64(pRsp->streamId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, streamId, taskId);
+
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
