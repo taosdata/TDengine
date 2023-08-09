@@ -1,0 +1,12 @@
+# cos
+ExternalProject_Add(mxml
+        GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
+	GIT_TAG release-2.10
+        SOURCE_DIR "${TD_CONTRIB_DIR}/mxml"
+        #BINARY_DIR ""
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
+        TEST_COMMAND ""
+)
