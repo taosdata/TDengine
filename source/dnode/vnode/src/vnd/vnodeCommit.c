@@ -373,6 +373,7 @@ static int32_t vnodeTtlTask(void *arg) {
 
 _exit:
   // end commit
+  taosArrayDestroy(tbUids);
   taosMemoryFree(pInfo);
   return code;
 }
