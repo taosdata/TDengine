@@ -305,6 +305,7 @@ int32_t bkdMgtDumpTo(SBackendManager* bm, char* dname) {
   // add file to $name dir
   for (int i = 0; i < taosArrayGetSize(bm->pAdd); i++) {
     memset(dstBuf, 0, len);
+    memset(srcBuf, 0, len);
 
     char* filename = taosArrayGetP(bm->pAdd, i);
     sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, filename);
@@ -315,6 +316,7 @@ int32_t bkdMgtDumpTo(SBackendManager* bm, char* dname) {
   // del file in $name
   for (int i = 0; i < taosArrayGetSize(bm->pDel); i++) {
     memset(dstBuf, 0, len);
+    memset(srcBuf, 0, len);
 
     char* filename = taosArrayGetP(bm->pDel, i);
     sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, filename);
