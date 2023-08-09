@@ -89,7 +89,7 @@ typedef struct SRpcInit {
   int32_t retryMinInterval;  // retry init interval
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval
-  int64_t retryMaxTimouet;
+  int64_t retryMaxTimeout;
 
   int32_t failFastThreshold;
   int32_t failFastInterval;
