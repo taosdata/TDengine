@@ -95,9 +95,9 @@ void osCleanup() {}
 
 bool osLogSpaceAvailable() { return tsLogSpace.size.avail > 0; }
 
-bool osDataSpaceAvailable() { return tsDataSpace.size.avail > 0; }
-
 bool osTempSpaceAvailable() { return tsTempSpace.size.avail > 0; }
+
+bool osDataSpaceAvailable() { return tsDataSpace.size.avail > 0; }
 
 bool osLogSpaceSufficient() { return tsLogSpace.size.avail > tsLogSpace.reserved; }
 
