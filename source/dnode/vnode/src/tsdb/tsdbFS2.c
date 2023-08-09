@@ -537,6 +537,9 @@ static void tsdbDoWaitBgTask(STFileSystem *fs, STFSBgTask *task) {
 
   if (task->numWait == 0) {
     taosThreadCondDestroy(task->done);
+    if (task->free) {
+      task->free(task->arg);
+    }
     taosMemoryFree(task);
   }
 }
@@ -546,6 +549,9 @@ static void tsdbDoDoneBgTask(STFileSystem *fs, STFSBgTask *task) {
     taosThreadCondBroadcast(task->done);
   } else {
     taosThreadCondDestroy(task->done);
+    if (task->free) {
+      task->free(task->arg);
+    }
     taosMemoryFree(task);
   }
 }
@@ -627,7 +633,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
       SSttLvl *lvl = TARRAY2_FIRST(fset->lvlArr);
       if (lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) < fs->tsdb->pVnode->config.sttTrigger) continue;
 
-      code = tsdbFSScheduleBgTask(fs, TSDB_BG_TASK_MERGER, tsdbMerge, fs->tsdb, NULL);
+      code = tsdbFSScheduleBgTask(fs, TSDB_BG_TASK_MERGER, tsdbMerge, NULL, fs->tsdb, NULL);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       break;
@@ -774,19 +780,20 @@ static int32_t tsdbFSRunBgTask(void *arg) {
   return 0;
 }
 
-static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg,
-                                        int64_t *taskid) {
+static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT   type, int32_t (*run)(void *),
+                                        void (*destroy)(void *), void *arg, int64_t *taskid) {
   if (fs->stop) {
+    if (destroy) {
+      destroy(arg);
+    }
     return 0;  // TODO: use a better error code
   }
 
-  // check if same task is on
-  // if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
-  //   return 0;
-  // }
-
   for (STFSBgTask *task = fs->bgTaskQueue->next; task != fs->bgTaskQueue; task = task->next) {
     if (task->type == type) {
+      if (destroy) {
+        destroy(arg);
+      }
       return 0;
     }
   }
@@ -798,6 +805,7 @@ static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32
 
   task->type = type;
   task->run = run;
+  task->free = destroy;
   task->arg = arg;
   task->scheduleTime = taosGetTimestampMs();
   task->taskid = ++fs->taskid;
@@ -819,9 +827,10 @@ static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32
   return 0;
 }
 
-int32_t tsdbFSScheduleBgTask(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg, int64_t *taskid) {
+int32_t tsdbFSScheduleBgTask(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void (*free)(void *), void *arg,
+                             int64_t *taskid) {
   taosThreadMutexLock(fs->mutex);
-  int32_t code = tsdbFSScheduleBgTaskImpl(fs, type, run, arg, taskid);
+  int32_t code = tsdbFSScheduleBgTaskImpl(fs, type, run, free, arg, taskid);
   taosThreadMutexUnlock(fs->mutex);
   return code;
 }

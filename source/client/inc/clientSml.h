@@ -64,8 +64,8 @@ extern "C" {
 #define IS_INVALID_COL_LEN(len)   ((len) <= 0 || (len) >= TSDB_COL_NAME_LEN)
 #define IS_INVALID_TABLE_LEN(len) ((len) <= 0 || (len) >= TSDB_TABLE_NAME_LEN)
 
-#define TS        "_ts"
-#define TS_LEN    3
+//#define TS        "_ts"
+//#define TS_LEN    3
 #define VALUE     "_value"
 #define VALUE_LEN 6
 
@@ -258,6 +258,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseJSON(SSmlHandle *info, char *payload);
 
+void    smlStrReplace(char* src, int32_t len);
 #ifdef __cplusplus
 }
 #endif

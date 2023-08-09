@@ -726,7 +726,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       tError("read error %s", uv_err_name(nread));
     }
     // TODO(log other failure reason)
-    tWarn("failed to create connect:%p", q);
+    tWarn("failed to create connect:%p, reason: %s", q, uv_err_name(nread));
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t*)q, NULL);
     return;
@@ -741,10 +741,17 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_pipe_t* pipe = (uv_pipe_t*)q;
   if (!uv_pipe_pending_count(pipe)) {
     tError("No pending count");
+    uv_close((uv_handle_t*)q, NULL);
+    return;
+  }
+  if (pThrd->quit) {
+    tWarn("thread already received quit msg, ignore incoming conn");
+
+    uv_close((uv_handle_t*)q, NULL);
     return;
   }
 
-  uv_handle_type pending = uv_pipe_pending_type(pipe);
+  // uv_handle_type pending = uv_pipe_pending_type(pipe);
 
   SSvrConn* pConn = createConn(pThrd);
 
@@ -760,7 +767,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  transSetConnOption((uv_tcp_t*)pConn->pTcp);
+  // transSetConnOption((uv_tcp_t*)pConn->pTcp);
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
     uv_os_fd_t fd;

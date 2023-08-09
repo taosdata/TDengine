@@ -70,25 +70,13 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t fetchVer = pReader->curVersion;
   int64_t lastVer = walGetLastVer(pReader->pWal);
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
-//  int64_t appliedVer = walGetAppliedVer(pReader->pWal);
-
-//  if(appliedVer < committedVer){   // wait apply ver equal to commit ver, otherwise may lost data when consume data [TD-24010]
-//    wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64, pReader->pWal->cfg.vgId, appliedVer, committedVer);
-//  }
-
-//  int64_t endVer = TMIN(appliedVer, committedVer);
-  int64_t endVer = committedVer;
+  int64_t appliedVer = walGetAppliedVer(pReader->pWal);
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
-         ", end index:%" PRId64,
-         pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, endVer);
+         ", applied index:%" PRId64,
+         pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
 
-  if (fetchVer > endVer){
-    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
-    return -1;
-  }
-
-  while (fetchVer <= endVer) {
+  while (fetchVer <= appliedVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
       return -1;
     }
@@ -109,6 +97,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     }
   }
 
+  terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
   return -1;
 }
 

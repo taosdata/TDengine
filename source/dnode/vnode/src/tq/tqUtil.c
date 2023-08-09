@@ -127,7 +127,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
 
 static void setRequestVersion(STqOffsetVal* offset, int64_t ver){
   if(offset->type == TMQ_OFFSET__LOG){
-    offset->version = ver + 1;
+    offset->version = ver;
   }
 }
 
@@ -152,8 +152,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     // lock
     taosWLockLatch(&pTq->lock);
     int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
-    if (pOffset->version >= ver ||
-        dataRsp.rspOffset.version >= ver) {  // check if there are data again to avoid lost data
+    if (dataRsp.rspOffset.version > ver) {  // check if there are data again to avoid lost data
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
       goto end;
@@ -317,6 +316,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
     // the offset value can not be monotonious increase??
     offset = reqOffset;
   } else {
+    uError("req offset type is 0");
     return TSDB_CODE_TMQ_INVALID_MSG;
   }
 

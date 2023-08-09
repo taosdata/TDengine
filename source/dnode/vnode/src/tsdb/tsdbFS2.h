@@ -59,7 +59,8 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
 // background task
-int32_t tsdbFSScheduleBgTask(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg, int64_t *taskid);
+int32_t tsdbFSScheduleBgTask(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void (*free)(void *), void *arg,
+                             int64_t *taskid);
 int32_t tsdbFSWaitBgTask(STFileSystem *fs, int64_t taskid);
 int32_t tsdbFSWaitAllBgTask(STFileSystem *fs);
 int32_t tsdbFSDisableBgTask(STFileSystem *fs);
@@ -70,6 +71,7 @@ int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 struct STFSBgTask {
   EFSBgTaskT type;
   int32_t (*run)(void *arg);
+  void (*free)(void *arg);
   void *arg;
 
   TdThreadCond done[1];

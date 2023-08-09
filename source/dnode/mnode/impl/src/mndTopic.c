@@ -799,6 +799,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         mndTransDrop(pTrans);
         return -1;
       }
+      sdbRelease(pSdb, pVgroup);
     }
   }
 

@@ -74,7 +74,7 @@ typedef enum {
  * @param vgId
  * @return
  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId);
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId);
 
 /**
  * Create the exec task for queue mode
@@ -94,8 +94,6 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList
  * @param queryId
  */
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
-
-//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 
@@ -221,12 +219,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
-bool    qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo);
-bool    qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo);
-int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo);
+int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
 void    resetTaskInfo(qTaskInfo_t tinfo);
-
-void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo);
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
