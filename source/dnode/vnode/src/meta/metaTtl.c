@@ -42,6 +42,8 @@ static int32_t ttlMgrULock(STtlManger *pTtlMgr);
 const char *ttlTbname = "ttl.idx";
 const char *ttlV1Tbname = "ttlv1.idx";
 
+#define TTL_EXPIRE_TIME_UNINIT -1
+
 int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *logPrefix, int32_t flushThreshold) {
   int     ret = TSDB_CODE_SUCCESS;
   int64_t startNs = taosGetTimestampNs();
@@ -59,7 +61,7 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
   strcpy(logBuffer, logPrefix);
   pTtlMgr->logPrefix = logBuffer;
   pTtlMgr->flushThreshold = flushThreshold;
-  pTtlMgr->expireTimeMs = 0; // TODO(LSG)
+  pTtlMgr->expireTimeMs = TTL_EXPIRE_TIME_UNINIT;
 
   ret = tdbTbOpen(ttlV1Tbname, TDB_VARIANT_LEN, TDB_VARIANT_LEN, ttlIdxKeyV1Cmpr, pEnv, &pTtlMgr->pTtlIdx, rollback);
   if (ret < 0) {
@@ -370,9 +372,9 @@ _out:
 int ttlMgrFindExpired(STtlManger *pTtlMgr, SArray *pTbUids) {
   ttlMgrRLock(pTtlMgr);
 
-  if (pTtlMgr->expireTimeMs == 0) {
+  if (pTtlMgr->expireTimeMs == TTL_EXPIRE_TIME_UNINIT) {
     metaError("%s, ttl mgr expireTimeMs uninitialized, skip find expired", pTtlMgr->logPrefix);
-    return 0;
+    goto _out;
   }
 
   TBC *pCur;

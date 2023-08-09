@@ -60,6 +60,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   info.state.committed = -1;
   info.state.applied = -1;
   info.state.commitID = 0;
+  info.state.ttlExpireTime = 0;
 
   vInfo("vgId:%d, save config while create", info.config.vgId);
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
@@ -364,6 +365,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->state.commitID = info.state.commitID;
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
+  pVnode->state.ttlExpireTime = info.state.ttlExpireTime;
   pVnode->pTfs = pTfs;
   pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;

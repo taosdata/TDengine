@@ -347,6 +347,7 @@ struct SVState {
   int64_t applyTerm;
   int64_t commitID;
   int64_t commitTerm;
+  int64_t ttlExpireTime;
 };
 
 struct SVStatis {

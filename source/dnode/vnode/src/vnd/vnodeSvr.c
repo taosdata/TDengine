@@ -720,7 +720,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   vDebug("vgId:%d, drop ttl table req will be processed, time:%" PRId32, pVnode->config.vgId, ttlReq.timestampSec);
-  code = metaTtlSetExpireTime(pVnode->pMeta, (int64_t)ttlReq.timestampSec * 1000);
+  int64_t ttlExpireTimeMs = (int64_t)ttlReq.timestampSec * 1000;
+  atomic_store_64(&pVnode->state.ttlExpireTime, ttlExpireTimeMs);
+  code = metaTtlSetExpireTime(pVnode->pMeta, ttlExpireTimeMs);
   if (code) goto end;
 
   code = vnodeAsyncTtlDropTable(pVnode);

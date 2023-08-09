@@ -291,6 +291,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = ++pVnode->state.commitID;
+  pInfo->info.state.ttlExpireTime = pVnode->state.ttlExpireTime;
   pInfo->pVnode = pVnode;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
@@ -572,6 +573,7 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "commit term", pState->commitTerm) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "ttl expire time", pState->ttlExpireTime) < 0) return -1;
 
   return 0;
 }
@@ -585,6 +587,8 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "commit ID", pState->commitID, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "commit term", pState->commitTerm, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "ttl expire time", pState->ttlExpireTime, code);
   if (code < 0) return -1;
 
   return 0;
