@@ -39,11 +39,11 @@ target_include_directories(
 
 find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
 find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
-find_library(MINIXML_LIBRARY mxml)
+#find_library(MINIXML_LIBRARY mxml)
 find_library(CURL_LIBRARY curl)
 
 target_link_libraries(cosTest cos_c_sdk)
 target_link_libraries(cosTest ${APR_UTIL_LIBRARY})
 target_link_libraries(cosTest ${APR_LIBRARY})
-target_link_libraries(cosTest ${MINIXML_LIBRARY})
+target_link_libraries(cosTest mxml)
 target_link_libraries(cosTest ${CURL_LIBRARY})

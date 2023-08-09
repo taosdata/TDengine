@@ -124,6 +124,9 @@ endif(${BUILD_WITH_SQLITE})
 
 # cos
 if(${BUILD_WITH_COS})
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/build/)
+    set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/build)
+    cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_COS)
 endif(${BUILD_WITH_COS})
@@ -156,6 +159,21 @@ endif(${BUILD_ADDR2LINE})
 if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
+
+#    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=unused-function")
+#    include(ExternalProject)
+#    ExternalProject_Add(mxml
+#        GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
+#	GIT_TAG release-2.10
+#        SOURCE_DIR "${TD_CONTRIB_DIR}/mxml"
+#        #BINARY_DIR ""
+#        BUILD_IN_SOURCE TRUE
+#        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build
+#        BUILD_COMMAND make
+#        INSTALL_COMMAND make install
+#        TEST_COMMAND ""
+#    )
+
 
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
@@ -355,7 +373,10 @@ endif()
 
 # cos
 if(${BUILD_WITH_COS})
+  if(NOT ${TD_WINDOWS})
+    #ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
     option(ENABLE_TEST "Enable the tests" OFF)
+    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 
     set(CMAKE_BUILD_TYPE debug)
     set(ORIG_CMAKE_PROJECT_NAME ${CMAKE_PROJECT_NAME})
@@ -363,11 +384,15 @@ if(${BUILD_WITH_COS})
 
     add_subdirectory(cos-c-sdk-v5 EXCLUDE_FROM_ALL)
     target_include_directories(
-	cos_c_sdk
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cos-c-sdk-v5/cos_c_sdk>
-    )
+      cos_c_sdk
+      PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cos-c-sdk-v5/cos_c_sdk>
+      )
 
     set(CMAKE_PROJECT_NAME ${ORIG_CMAKE_PROJECT_NAME})
+
+  else()
+
+  endif(NOT ${TD_WINDOWS})
 endif(${BUILD_WITH_COS})
 
 # lucene
