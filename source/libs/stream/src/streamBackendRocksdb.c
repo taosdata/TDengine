@@ -221,6 +221,19 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
     bm->preCkptId = chkpId;
     bm->curChkpId = chkpId;
     bm->init = 1;
+
+    SArray* add = taosArrayInit(64, sizeof(void*));
+
+    void* pIter = taosHashIterate(pTable, NULL);
+    while (pIter) {
+      size_t len;
+      char*  name = taosHashGetKey(pIter, &len);
+      if (name != NULL && len != 0) {
+        taosArrayPush(add, &name);
+      }
+      pIter = taosHashIterate(pTable, pIter);
+    }
+
   } else {
     SArray* add = taosArrayInit(64, sizeof(void*));
     SArray* del = taosArrayInit(64, sizeof(void*));
@@ -231,6 +244,20 @@ int32_t backendManagerGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list
     taosHashCleanup(pTable);
   }
   return 0;
+}
+
+int32_t backendManagerDumpTo(SBackendManager* bm, char* name) {
+  int32_t code = 0;
+  char*   buf = taosMemoryCalloc(1, strlen(bm->path) + 64);
+  sprintf(buf, "%s%s%s", bm->path, TD_DIRSEP, name);
+
+  code = taosMkDir(buf);
+  if (code != 0) {
+    return code;
+  }
+
+  
+
 }
 
 SCfInit ginitDict[] = {
