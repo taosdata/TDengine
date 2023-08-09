@@ -547,6 +547,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
 }
 
 void metaHbToMnode(void* param, void* tmrId) {
+#if 0
   SStreamMeta* pMeta = param;
   SStreamHbMsg hbMsg = {0};
 
@@ -592,4 +593,5 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   // next hb will be issued in 20sec.
   taosTmrReset(metaHbToMnode, 20000, pMeta, streamEnv.timer, pMeta->hbTmr);
+#endif
 }

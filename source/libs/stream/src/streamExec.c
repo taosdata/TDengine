@@ -658,6 +658,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
       qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
              pTask->status.schedStatus);
 
+      // the inputQ is empty due to the checkpoint process, so we need to scan data from WAL here.
       if ((!streamTaskShouldStop(&pTask->status)) && (!streamTaskShouldPause(&pTask->status))) {
         streamSchedExec(pTask);
       }
