@@ -7,7 +7,8 @@ ExternalProject_Add(curl
         #GIT_TAG curl-7_88_1
         SOURCE_DIR "${TD_CONTRIB_DIR}/curl"
         BUILD_IN_SOURCE TRUE
-        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --with-openssl
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --without-ssl
         BUILD_COMMAND make
         INSTALL_COMMAND make install
         TEST_COMMAND ""

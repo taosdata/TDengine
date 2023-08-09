@@ -5,6 +5,7 @@ ExternalProject_Add(mxml
         SOURCE_DIR "${TD_CONTRIB_DIR}/mxml"
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
+        UPDATE_COMMAND ""
         CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
         BUILD_COMMAND make
         INSTALL_COMMAND make install
