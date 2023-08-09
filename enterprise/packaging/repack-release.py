@@ -82,7 +82,7 @@ def replace_contents(dir, args):
                 file_path = os.path.join(root, file)
                 fin = open(file_path, "r")
                 content = fin.read()
-                content = content.replace("ExecStart=/usr/bin/"+args.prompt+"keeper", "ExecStart=/usr/bin/"+args.prompt+"keeper -c /etc/"+args.prompt+"/keeper.toml")
+                content = content.replace("ExecStart=/usr/bin/"+args.prompt+"keeper", "ExecStart=/usr/bin/"+args.prompt+"keeper -c /etc/"+args.prompt+"/"+args.prompt+"keeper.toml")
                 fin.close()
 
                 fout = open(file_path, "w")
@@ -204,9 +204,9 @@ def repack_tar(args, pkg, output_dir):
     if os.path.exists(examples_dir):
         shutil.rmtree(examples_dir)
 
-    connector_dir =  extract_dir + "/connector"
-    if os.path.exists(connector_dir):
-        shutil.rmtree(connector_dir)
+    # connector_dir =  extract_dir + "/connector"
+    # if os.path.exists(connector_dir):
+    #     shutil.rmtree(connector_dir)
 
     package_file = extract_dir + "/package.tar.gz"
     package_tar = tarfile.open(package_file)

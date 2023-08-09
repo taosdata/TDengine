@@ -99,6 +99,7 @@ if [ -d $archiveDir ]; then
         echo "build rpms and debs package at Ubuntu"
     elif [[ "${cpuType}" == "x64"  &&  $osName == "\"CentOS Linux\"" ]]; then
         cp -f $communityDir/rpms/* ./
+        cp -f $communityDir/debs/* ./
         echo "build rpms package at CentOS Linux"
     fi
 else
