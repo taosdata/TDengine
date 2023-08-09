@@ -277,6 +277,10 @@ int32_t backendManagerDumpTo(SBackendManager* bm, char* dname) {
   sprintf(srcDir, "%s%s%s%" PRId64 "", bm->path, TD_DIRSEP, "checkpoint", bm->curChkpId);
   sprintf(dstDir, "%s%s%s", bm->path, TD_DIRSEP, dname);
 
+  if (!taosDirExist(srcDir)) {
+    return 0;
+  }
+
   code = taosMkDir(dstDir);
   if (code != 0) {
     return code;
