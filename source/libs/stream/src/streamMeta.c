@@ -323,7 +323,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   taosWLockLatch(&pMeta->lock);
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
-    taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
+    taosHashRemove(pMeta->pTasks, keys, sizeof(keys));
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
 
     ASSERT(pTask->status.timerActive == 0);
