@@ -482,14 +482,14 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
     double el = (taosGetTimestampUs() - st) / 1000.0;
     tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
-
+/*
   bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
   if (!exists) {
     pIter->iSttBlk = -1;
     pIter->pSttBlk = NULL;
     return TSDB_CODE_SUCCESS;
   }
-
+*/
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.
   size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
