@@ -624,7 +624,7 @@ void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* 
       }
     }
 
-    if (nSma < pCfg->numOfColumns) {
+    if (nSma < pCfg->numOfColumns && nSma > 0) {
       bool smaOn = false;
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " SMA(");
       for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
