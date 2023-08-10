@@ -21,6 +21,7 @@
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
 static int32_t updateCheckPointInfo(SStreamTask* pTask);
+static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
@@ -289,7 +290,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
     // todo: destroy the fill-history task here
     qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
@@ -349,10 +350,9 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
-  int32_t taskId = pTask->id.taskId;
 
   // 5. free it and remove fill-history task from disk meta-store
-  streamMetaUnregisterTask(pMeta, taskId);
+  streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
@@ -364,6 +364,16 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 7. pause allowed.
   streamTaskEnablePause(pStreamTask);
+  if (taosQueueEmpty(pStreamTask->inputQueue->queue)) {
+    SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);;
+    SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+    pDelBlock->info.rows = 0;
+    pDelBlock->info.version = 0;
+    pItem->type = STREAM_INPUT__REF_DATA_BLOCK;
+    pItem->pBlock = pDelBlock;
+    int32_t code = tAppendDataToInputQueue(pStreamTask, (SStreamQueueItem*)pItem);
+    qDebug("s-task:%s append dummy delete block,res:%d", pStreamTask->id.idStr, code);
+  }
 
   streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pMeta, pStreamTask);
@@ -534,8 +544,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   return 0;
 }
 
+// the task may be set dropping/stopping, while it is still in the task queue, therefore, the sched-status can not
+// be updated by tryExec function, therefore, the schedStatus will always be the TASK_SCHED_STATUS__WAITING.
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE || pTask->status.taskStatus == TASK_STATUS__STOP ||
+          pTask->status.taskStatus == TASK_STATUS__DROPPING);
 }
 
 int32_t streamTaskEndScanWAL(SStreamTask* pTask) {

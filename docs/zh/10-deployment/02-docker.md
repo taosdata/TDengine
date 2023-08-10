@@ -1,5 +1,6 @@
 ---
 title: 用 Docker 部署 TDengine
+sidebar_label: Docker
 description: '本章主要介绍如何在容器中启动 TDengine 服务并访问它'
 ---
 
@@ -10,8 +11,17 @@ description: '本章主要介绍如何在容器中启动 TDengine 服务并访�
 TDengine 镜像启动时默认激活 HTTP 服务，使用下列命令
 
 ```shell
-docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
+docker run -d --name tdengine \
+-v ~/data/taos/dnode/data:/var/lib/taos \
+-v ~/data/taos/dnode/log:/var/log/taos \
+-p 6041:6041 tdengine/tdengine
 ```
+:::note
+
+- /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/data为你自己的数据目录
+- /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/log为你自己的日志目录
+
+:::
 
 以上命令启动了一个名为“tdengine”的容器，并把其中的 HTTP 服务的端 6041 映射到了主机端口 6041。使用如下命令可以验证该容器中提供的 HTTP 服务是否可用：
 
@@ -291,38 +301,37 @@ services:
     environment:
       TAOS_FQDN: "td-1"
       TAOS_FIRST_EP: "td-1"
+    ports:
+      - 6041:6041
+      - 6030:6030
     volumes:
-      - taosdata-td1:/var/lib/taos/
-      - taoslog-td1:/var/log/taos/
+      # /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode1/data为你自己的数据目录
+      - ~/data/taos/dnode1/data:/var/lib/taos
+      # /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode1/log为你自己的日志目录
+      - ~/data/taos/dnode1/log:/var/log/taos
   td-2:
     image: tdengine/tdengine:$VERSION
     environment:
       TAOS_FQDN: "td-2"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td2:/var/lib/taos/
-      - taoslog-td2:/var/log/taos/
+      - ~/data/taos/dnode2/data:/var/lib/taos
+      - ~/data/taos/dnode2/log:/var/log/taos
   td-3:
     image: tdengine/tdengine:$VERSION
     environment:
       TAOS_FQDN: "td-3"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td3:/var/lib/taos/
-      - taoslog-td3:/var/log/taos/
-volumes:
-  taosdata-td1:
-  taoslog-td1:
-  taosdata-td2:
-  taoslog-td2:
-  taosdata-td3:
-  taoslog-td3:
+      - ~/data/taos/dnode3/data:/var/lib/taos
+      - ~/data/taos/dnode3/log:/var/log/taos
 ```
 
 :::note
 
 * `VERSION` 环境变量被用来设置 tdengine image tag
 * 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
+
 :::
 
 2. 启动集群
@@ -397,24 +406,22 @@ networks:
 services:
   td-1:
     image: tdengine/tdengine:$VERSION
-    networks:
-      - inter
     environment:
       TAOS_FQDN: "td-1"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td1:/var/lib/taos/
-      - taoslog-td1:/var/log/taos/
+      # /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode1/data为你自己的数据目录
+      - ~/data/taos/dnode1/data:/var/lib/taos
+      # /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode1/log为你自己的日志目录
+      - ~/data/taos/dnode1/log:/var/log/taos
   td-2:
     image: tdengine/tdengine:$VERSION
-    networks:
-      - inter
     environment:
       TAOS_FQDN: "td-2"
       TAOS_FIRST_EP: "td-1"
     volumes:
-      - taosdata-td2:/var/lib/taos/
-      - taoslog-td2:/var/log/taos/
+      - ~/data/taos/dnode2/data:/var/lib/taos
+      - ~/data/taos/dnode2/log:/var/log/taos
   adapter:
     image: tdengine/tdengine:$VERSION
     entrypoint: "taosadapter"
@@ -446,11 +453,6 @@ services:
         >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
         nginx -g 'daemon off;'",
       ]
-volumes:
-  taosdata-td1:
-  taoslog-td1:
-  taosdata-td2:
-  taoslog-td2:
 ```
 
 ## 使用 docker swarm 部署

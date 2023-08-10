@@ -780,19 +780,20 @@ static int32_t tsdbFSRunBgTask(void *arg) {
   return 0;
 }
 
-static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void (*free)(void *),
-                                        void *arg, int64_t *taskid) {
+static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT   type, int32_t (*run)(void *),
+                                        void (*destroy)(void *), void *arg, int64_t *taskid) {
   if (fs->stop) {
+    if (destroy) {
+      destroy(arg);
+    }
     return 0;  // TODO: use a better error code
   }
 
-  // check if same task is on
-  // if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
-  //   return 0;
-  // }
-
   for (STFSBgTask *task = fs->bgTaskQueue->next; task != fs->bgTaskQueue; task = task->next) {
     if (task->type == type) {
+      if (destroy) {
+        destroy(arg);
+      }
       return 0;
     }
   }
@@ -804,7 +805,7 @@ static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32
 
   task->type = type;
   task->run = run;
-  task->free = free;
+  task->free = destroy;
   task->arg = arg;
   task->scheduleTime = taosGetTimestampMs();
   task->taskid = ++fs->taskid;

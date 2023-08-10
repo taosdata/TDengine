@@ -16,8 +16,6 @@ public class JdbcRestfulDemo {
 
             Properties properties = new Properties();
             properties.setProperty("charset", "UTF-8");
-            properties.setProperty("locale", "en_US.UTF-8");
-            properties.setProperty("timezone", "UTC-8");
 
             Connection conn = DriverManager.getConnection(url, properties);
             Statement stmt = conn.createStatement();

@@ -12,6 +12,11 @@ import Release from "/components/ReleaseV3";
 
 ## 3.1.0.0
 
+:::note IMPORTANT
+- Once you upgrade to TDengine 3.1.0.0, you cannot roll back to any previous version of TDengine. Upgrading to 3.1.0.0 will alter your data such that it cannot be read by previous versions.
+- You must remove all streams before upgrading to TDengine 3.1.0.0. If you upgrade a deployment that contains streams, the upgrade will fail and your deployment will become nonoperational.
+:::
+
 <Release type="tdengine" version="3.1.0.0" />
 
 ## 3.0.7.1

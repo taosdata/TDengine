@@ -183,7 +183,7 @@ It equals to execute following commands:
 ```bash
 mkdir debug
 cd debug
-cmake .. -DBUILD_TOOLS=true
+cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
 

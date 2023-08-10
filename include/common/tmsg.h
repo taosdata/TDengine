@@ -2767,6 +2767,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   int64_t  leftForVer;
+  int64_t  streamId;
   int32_t  taskId;
 } SVDropStreamTaskReq;
 
@@ -2958,6 +2959,7 @@ int32_t tDecodeMqVgOffset(SDecoder* pDecoder, SMqVgOffset* pOffset);
 
 typedef struct {
   SMsgHead head;
+  int64_t  streamId;
   int32_t  taskId;
 } SVPauseStreamTaskReq;
 
@@ -2976,6 +2978,7 @@ int32_t tDeserializeSMPauseStreamReq(void* buf, int32_t bufLen, SMPauseStreamReq
 typedef struct {
   SMsgHead head;
   int32_t  taskId;
+  int64_t  streamId;
   int8_t   igUntreated;
 } SVResumeStreamTaskReq;
 
