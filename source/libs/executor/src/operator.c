@@ -551,10 +551,14 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
   return pOptr;
 }
 
+
 void destroyOperator(SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
     return;
   }
+
+  freeResetOperatorParams(pOperator, OP_GET_PARAM, true);
+  freeResetOperatorParams(pOperator, OP_NOTIFY_PARAM, true);
 
   if (pOperator->fpSet.closeFn != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
@@ -626,9 +630,12 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
             taosMemoryFree(pBatch);
             return TSDB_CODE_OUT_OF_MEMORY;
           }
+          tSimpleHashSetFreeFp(pBatch->pBatchs, freeExchangeGetBasicOperatorParam);
+          
           tSimpleHashPut(pBatch->pBatchs, &pDExc->basic.vgId, sizeof(pDExc->basic.vgId), &pDExc->basic, sizeof(pDExc->basic));        
           tSimpleHashPut(pBatch->pBatchs, &pSExc->basic.vgId, sizeof(pSExc->basic.vgId), &pSExc->basic, sizeof(pSExc->basic));        
-          destroyOperatorParamValue(pDst->value);
+          
+          taosMemoryFree(pDst->value);
           pDst->value = pBatch;
         } else {
           taosArrayAddAll(pDExc->basic.uidList, pSExc->basic.uidList);
@@ -668,10 +675,10 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
     default:
       return TSDB_CODE_INVALID_PARA;
   }
+
+  freeResetOperatorParams(pOperator, type, false);
   
   if (NULL == pInput) {
-    *ppParam = NULL;
-    taosMemoryFreeClear(*pppDownstramParam);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -710,31 +717,19 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
     }
   }
 
-  taosArrayClear((*ppParam)->pChildren);
+  taosArrayDestroy((*ppParam)->pChildren);
+  (*ppParam)->pChildren = NULL;
 
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam) {
-  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
-    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
-    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamGetParams[idx]);
-    if (clearParam) {
-      pOperator->pDownstreamGetParams[idx] = NULL;
-    }
-    return pBlock;
-  }
-  
-  return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
-}
-
 
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
-  return getNextBlockFromDownstreamImpl(pOperator, idx, false);
+  return getNextBlockFromDownstreamImpl(pOperator, idx, true);
 }
 
-SSDataBlock* getNextBlockFromDownstreamOnce(struct SOperatorInfo* pOperator, int32_t idx) {
-  return getNextBlockFromDownstreamImpl(pOperator, idx, true);
+SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
+  return getNextBlockFromDownstreamImpl(pOperator, idx, false);
 }
 
 

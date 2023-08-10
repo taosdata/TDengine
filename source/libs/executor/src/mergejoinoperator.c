@@ -301,10 +301,15 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->rightBuildTable = tSimpleHashInit(256,  hashFn);
   }
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  if (newDownstreams) {
+    taosMemoryFree(pDownstream);
+  }
+
   pOperator->numOfRealDownstream = newDownstreams ? 1 : 2;
 
   return pOperator;
@@ -449,7 +454,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
   mergeJoinGetBlockRowsEqualTs(dataBlock, tsSlotId, startPos, timestamp, &endPos, rowLocations, createdBlocks);
   while (endPos == dataBlock->info.rows) {
     SOperatorInfo* ds = pOperator->pDownstream[whichChild];
-    dataBlock = getNextBlockFromDownstream(pOperator, whichChild);
+    dataBlock = getNextBlockFromDownstreamRemain(pOperator, whichChild);
     qError("merge join %s got block for same ts, rows:%" PRId64, whichChild == 0 ? "left" : "right", dataBlock ? dataBlock->info.rows : 0);
     if (whichChild == 0) {
       pJoinInfo->leftPos = 0;
@@ -648,6 +653,8 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
 
 static void setMergeJoinDone(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
+  freeOperatorParam(pOperator->pDownstreamGetParams[0], OP_GET_PARAM);
+  freeOperatorParam(pOperator->pDownstreamGetParams[1], OP_GET_PARAM);
   pOperator->pDownstreamGetParams[0] = NULL;
   pOperator->pDownstreamGetParams[1] = NULL;
 }
@@ -658,7 +665,7 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   
   if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
     if (!pJoinInfo->downstreamFetchDone[0]) {
-      pJoinInfo->pLeft = getNextBlockFromDownstream(pOperator, 0);
+      pJoinInfo->pLeft = getNextBlockFromDownstreamRemain(pOperator, 0);
 
       pJoinInfo->leftPos = 0;
       qError("merge join left got block, rows:%" PRId64, pJoinInfo->pLeft ? pJoinInfo->pLeft->info.rows : 0);
@@ -679,7 +686,7 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
 
   if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
     if (!pJoinInfo->downstreamFetchDone[1]) {
-      pJoinInfo->pRight = getNextBlockFromDownstream(pOperator, 1);
+      pJoinInfo->pRight = getNextBlockFromDownstreamRemain(pOperator, 1);
 
       if (pOperator->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initDownstreamNum > 0) {
         ((SSortMergeJoinOperatorParam*)pOperator->pOperatorGetParam->value)->initDownstreamNum--;

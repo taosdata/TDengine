@@ -48,6 +48,14 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct STsdbReader STsdbReader;
 typedef struct STqReader  STqReader;
 
+
+typedef enum SOperatorParamType{
+  OP_GET_PARAM = 1,
+  OP_NOTIFY_PARAM
+} SOperatorParamType;
+
+
+
 #define IS_VALID_SESSION_WIN(winInfo)        ((winInfo).sessionWin.win.skey > 0)
 #define SET_SESSION_WIN_INVALID(winInfo)     ((winInfo).sessionWin.win.skey = INT64_MIN)
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
@@ -741,6 +749,11 @@ void streamOpReloadState(struct SOperatorInfo* pOperator);
 void destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
+void freeExchangeGetBasicOperatorParam(void* pParam);
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
+void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
+SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam);
+
 
 #ifdef __cplusplus
 }

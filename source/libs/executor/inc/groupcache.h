@@ -56,7 +56,7 @@ typedef struct SGcDownstreamCtx {
   SRWLatch        grpLock;
   int64_t         fetchSessionId;
   SArray*         pNewGrpList; // SArray<SGcNewGroupInfo>
-  SSHashObj*      pVgTbHash;
+  SSHashObj*      pVgTbHash;   // SHash<SGcVgroupCtx>
   SHashObj*       pGrpHash;
   SRWLatch        blkLock;
   SSDataBlock*    pBaseBlock;
@@ -136,7 +136,6 @@ typedef struct SGcBlkBufInfo {
 } SGcBlkBufInfo;
 
 typedef struct SGcExecInfo {
-  int32_t  downstreamNum;
   int64_t* pDownstreamBlkNum;
 } SGcExecInfo;
 
@@ -157,13 +156,13 @@ typedef struct SGcBlkCacheInfo {
 } SGcBlkCacheInfo;
 
 typedef struct SGroupCacheOperatorInfo {
-  TdThreadMutex     sessionMutex;
   int64_t           maxCacheSize;
   int64_t           currentBlkId;
   SGroupColsInfo    groupColsInfo;
   bool              globalGrp;
   bool              grpByUid;
   bool              batchFetch;
+  int32_t           downstreamNum;
   SGcDownstreamCtx* pDownstreams;
   SGcBlkCacheInfo   blkCache;
   SHashObj*         pGrpHash;  

@@ -20,11 +20,6 @@
 extern "C" {
 #endif
 
-typedef enum SOperatorParamType{
-  OP_GET_PARAM = 1,
-  OP_NOTIFY_PARAM
-} SOperatorParamType;
-
 typedef struct SOperatorCostInfo {
   double openCost;
   double totalCost;
@@ -180,7 +175,7 @@ int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
 SSDataBlock*   optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
-SSDataBlock*   getNextBlockFromDownstreamOnce(struct SOperatorInfo* pOperator, int32_t idx);
+SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx);
 int16_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 
 SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,

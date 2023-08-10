@@ -73,15 +73,85 @@ static int32_t initGroupColsInfo(SGroupColsInfo* pCols, bool grpColsMayBeNull, S
 }
 
 static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
-  char* buf = taosMemoryMalloc(pGrpCacheOperator->execInfo.downstreamNum * 32 + 100);
+  char* buf = taosMemoryMalloc(pGrpCacheOperator->downstreamNum * 32 + 100);
   if (NULL == buf) {
     return;
   }
   int32_t offset = sprintf(buf, "groupCache exec info, downstreamBlkNum:");
-  for (int32_t i = 0; i < pGrpCacheOperator->execInfo.downstreamNum; ++i) {
+  for (int32_t i = 0; i < pGrpCacheOperator->downstreamNum; ++i) {
     offset += sprintf(buf + offset, " %" PRId64 , pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
   }
   qDebug("%s", buf);
+  taosMemoryFree(buf);
+}
+
+static void freeSGcSessionCtx(void* p) {
+  SGcSessionCtx* pSession = p;
+  if (pSession->semInit) {
+    tsem_destroy(&pSession->waitSem);
+  }
+}
+
+static void freeSGroupCacheFileInfo(void* p) {
+  SGroupCacheFileInfo* pFileInfo = p;
+  if (pFileInfo->deleted) {
+    return;
+  }
+
+  removeGroupCacheFile(pFileInfo);
+}
+
+static void freeSGcFileCacheCtx(SGcFileCacheCtx* pFileCtx) {
+  taosHashCleanup(pFileCtx->pCacheFile);
+}
+
+static void freeSGcVgroupCtx(void* p) {
+  SGcVgroupCtx* pVgCtx = p;
+  taosArrayDestroy(pVgCtx->pTbList);
+  freeSGcFileCacheCtx(&pVgCtx->fileCtx);
+}
+
+static void freeGcBlockInList(void* p) {
+  SSDataBlock** ppBlock = p;
+  if (*ppBlock) {
+    taosArrayDestroy((*ppBlock)->pDataBlock);
+    taosMemoryFree(*ppBlock);
+  }
+}
+
+static void freeSGcDownstreamCtx(SGcDownstreamCtx* pCtx) {
+  taosArrayDestroy(pCtx->pNewGrpList);
+  tSimpleHashCleanup(pCtx->pVgTbHash);
+  taosHashCleanup(pCtx->pGrpHash);
+
+  taosArrayDestroyEx(pCtx->pFreeBlock, freeGcBlockInList);
+  taosHashCleanup(pCtx->pSessions);
+  taosHashCleanup(pCtx->pWaitSessions);
+  freeSGcFileCacheCtx(&pCtx->fileCtx);
+}
+
+static void destroyGroupCacheDownstreamCtx(SGroupCacheOperatorInfo* pGrpCacheOperator) {
+  if (NULL == pGrpCacheOperator->pDownstreams) {
+    return;
+  }
+  
+  for (int32_t i = 0; i < pGrpCacheOperator->downstreamNum; ++i) {
+    SGcDownstreamCtx* pCtx = &pGrpCacheOperator->pDownstreams[i];
+    freeSGcDownstreamCtx(pCtx);
+  }
+
+  taosMemoryFree(pGrpCacheOperator->pDownstreams);
+}
+
+static void destroySGcBlkCacheInfo(SGcBlkCacheInfo* pBlkCache) {
+  taosHashCleanup(pBlkCache->pDirtyBlk);
+
+  void* p = NULL;
+  while (p = taosHashIterate(pBlkCache->pReadBlk, p)) {
+    freeGcBlockInList(p);
+  }
+
+  taosHashCleanup(pBlkCache->pReadBlk);
 }
 
 static void destroyGroupCacheOperator(void* param) {
@@ -91,7 +161,12 @@ static void destroyGroupCacheOperator(void* param) {
   
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pColsInfo);
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pBuf);
+
+  destroyGroupCacheDownstreamCtx(pGrpCacheOperator);
+  destroySGcBlkCacheInfo(&pGrpCacheOperator->blkCache);
   taosHashCleanup(pGrpCacheOperator->pGrpHash);
+
+  taosMemoryFree(pGrpCacheOperator->execInfo.pDownstreamBlkNum);
   
   taosMemoryFreeClear(param);
 }
@@ -117,6 +192,7 @@ static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId, S
     if (NULL == pFileCtx->pCacheFile) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    taosHashSetFreeFp(pFileCtx->pCacheFile, freeSGroupCacheFileInfo);
   }
   
   SGroupCacheFileInfo* pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
@@ -622,6 +698,7 @@ static int32_t addFileRefTableNum(SGcFileCacheCtx* pFileCtx, int32_t fileId, int
     if (NULL == pFileCtx->pCacheFile) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    taosHashSetFreeFp(pFileCtx->pCacheFile, freeSGroupCacheFileInfo);
   }
   
   SGroupCacheFileInfo* pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
@@ -1091,7 +1168,6 @@ static int32_t getBlkFromGroupCache(struct SOperatorInfo* pOperator, SSDataBlock
 
 static int32_t initGroupCacheExecInfo(SOperatorInfo*        pOperator) {
   SGroupCacheOperatorInfo* pInfo = pOperator->info;
-  pInfo->execInfo.downstreamNum = pOperator->numOfDownstream;
   pInfo->execInfo.pDownstreamBlkNum = taosMemoryCalloc(pOperator->numOfDownstream, sizeof(int64_t));
   if (NULL == pInfo->execInfo.pDownstreamBlkNum) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1127,6 +1203,7 @@ static void freeRemoveGroupCacheData(void* p) {
 
   taosArrayDestroy(pGroup->waitQueue);
   taosArrayDestroy(pGroup->blkList.pList);
+  taosThreadMutexDestroy(&pGroup->mutex);
 
   qTrace("group removed");
 }
@@ -1139,6 +1216,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
   if (NULL == pInfo->pDownstreams) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pInfo->downstreamNum = pOperator->numOfDownstream;
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SGcDownstreamCtx* pCtx = &pInfo->pDownstreams[i];
@@ -1149,6 +1227,8 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     if (NULL == pCtx->pVgTbHash) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    tSimpleHashSetFreeFp(pCtx->pVgTbHash, freeSGcVgroupCtx);      
+
     if (pInfo->batchFetch) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
@@ -1172,6 +1252,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     if (pCtx->pSessions == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    taosHashSetFreeFp(pCtx->pSessions, freeSGcSessionCtx);
   
     pCtx->pFreeBlock = taosArrayInit(10, POINTER_BYTES);
     if (NULL == pCtx->pFreeBlock) {
@@ -1234,7 +1315,7 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
   
   setOperatorInfo(pOperator, "GroupCacheOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  pInfo->maxCacheSize = 1;
+  pInfo->maxCacheSize = 0;
   pInfo->grpByUid = pPhyciNode->grpByUid;
   pInfo->globalGrp = pPhyciNode->globalGrp;
   pInfo->batchFetch = pPhyciNode->batchFetch;

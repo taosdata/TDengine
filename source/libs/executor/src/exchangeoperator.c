@@ -382,7 +382,8 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroyEx(pExInfo->pRecycledBlocks, freeBlock);
 
   blockDataDestroy(pExInfo->pDummyBlock);
-
+  tSimpleHashCleanup(pExInfo->pHashSources);
+  
   tsem_destroy(&pExInfo->ready);
   taosMemoryFreeClear(param);
 }
@@ -438,11 +439,14 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
 
   STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
   if (NULL == pScan) {
+    taosMemoryFreeClear(*ppRes);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pScan->pUidList = taosArrayDup(pUidList, NULL);
   if (NULL == pScan->pUidList) {
+    taosMemoryFree(pScan);
+    taosMemoryFreeClear(*ppRes);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pScan->tableSeq = tableSeq;
@@ -500,6 +504,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (msgSize < 0) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
+      freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
 
@@ -507,6 +512,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (NULL == msg) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
+      freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
 
@@ -514,8 +520,11 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pWrapper);
       taosMemoryFree(msg);
+      freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
+
+    freeOperatorParam(req.pOpParam, OP_GET_PARAM);
 
     qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %p, %d/%" PRIzu,
            GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId,

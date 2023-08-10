@@ -924,6 +924,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     int32_t code = createTableListInfoFromParam(pOperator);
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
