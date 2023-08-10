@@ -112,15 +112,15 @@ stop_explore_service(){
 
 # remove old taosx and taosx-agent
 remove_taosx() {
+    echo "stop taosx related services..."
     stop_taosx_agent_service
-    if [ "$(command -v taosd)" = "" ]; then
-      echo "remove taosx/taos-explorer"
-      stop_taosx_service
-      stop_explore_service
+    stop_taosx_service
+    stop_explore_service
 
-      ${csudo}rm -rf ${INSTALL_DIR}/${xName}
-      ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
-    fi
+    echo "delete related files..."
+    ${csudo}rm -rf ${INSTALL_DIR}/${xName}
+    ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
+
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh

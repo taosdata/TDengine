@@ -134,6 +134,17 @@ remove_taosx() {
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
+print_tips(){
+    echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
+    echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
+    echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
+    echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+    echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
+
+    echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
+    echo -e "\033[32mOpen taos-explorer in web browser: http://localhost:6060\033[0m"
+}
+
 # install new taosx and taosx-agent
 install_taosx() {
     echo "install starting..."
@@ -161,13 +172,13 @@ install_taosx() {
             ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
         fi
     fi
-    echo "install success."
+    print_tips
 }
 
 check_java_env() {
     if ! command -v java &> /dev/null
     then
-        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is requiered.\033[0m"
+        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
         return
     fi
 
@@ -187,9 +198,11 @@ check_java_env() {
 }
 
 check_install_env(){
-    echo "check java env for influxdb"
+    echo "Check Java env for InfluxDB Connector"
     check_java_env
 }
+print_tips
+exit
 
 check_install_env
 
