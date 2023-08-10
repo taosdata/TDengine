@@ -89,6 +89,24 @@ void    streamSnapHandleDestroy(SStreamSnapHandle* handle);
     sprintf(fullname, "%s%s%s", path, TD_DIRSEP, file);     \
   } while (0)
 
+int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
+  int ret = 0;
+
+  char* fullname = taosMemoryCalloc(1, strlen(path) + 32);
+  sprintf(fullname, "%s%s%s", path, TD_DIRSEP, name);
+
+  ret = taosStatFile(fullname, sz, NULL);
+  taosMemoryFree(fullname);
+
+  return ret;
+}
+
+TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
+  char fullname[256] = {0};
+  STREAM_ROCKSDB_BUILD_FULLNAME(path, name, fullname);
+  return taosOpenFile(fullname, opt);
+}
+
 int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chkpId) {
   // impl later
   int   len = strlen(path);
@@ -129,7 +147,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       continue;
     }
     if (strlen(name) >= strlen(ROCKSDB_OPTIONS) && 0 == strncmp(name, ROCKSDB_OPTIONS, strlen(ROCKSDB_OPTIONS))) {
-      pFile->pMainfest = taosStrdup(name);
+      pFile->pOptions = taosStrdup(name);
       continue;
     }
     if (strlen(name) >= strlen(ROCKSDB_CHECKPOINT_META) &&
@@ -157,50 +175,39 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
   // current
   item.name = pFile->pCurrent;
   item.type = ROCKSDB_CURRENT_TYPE;
-  if (taosStatFile(pFile->pCurrent, &item.size, NULL) != 0) {
-    qError("stream-state failed to get file size: %s", pFile->pCurrent);
-  }
+  streamGetFileSize(pFile->path, item.name, &item.size);
   taosArrayPush(list, &item);
+
   // mainfest
   item.name = pFile->pMainfest;
   item.type = ROCKSDB_MAINFEST_TYPE;
-  taosStatFile(pFile->pMainfest, &item.size, NULL);
+  streamGetFileSize(pFile->path, item.name, &item.size);
   taosArrayPush(list, &item);
+
   // options
   item.name = pFile->pOptions;
   item.type = ROCKSDB_OPTIONS_TYPE;
-  taosStatFile(pFile->pOptions, &item.size, NULL);
+  streamGetFileSize(pFile->path, item.name, &item.size);
   taosArrayPush(list, &item);
   // sst
   for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
     char* sst = taosArrayGetP(pFile->pSst, i);
     item.name = sst;
     item.type = ROCKSDB_SST_TYPE;
-    taosStatFile(sst, &item.size, NULL);
+    streamGetFileSize(pFile->path, item.name, &item.size);
     taosArrayPush(list, &item);
   }
   // meta
   item.name = pFile->pCheckpointMeta;
   item.type = ROCKSDB_CHECKPOINT_META_TYPE;
-  taosStatFile(pFile->pCheckpointMeta, &item.size, NULL);
-  taosArrayPush(list, &item);
+  if (streamGetFileSize(pFile->path, item.name, &item.size) == 0) {
+    taosArrayPush(list, &item);
+  }
 
   pHandle->pBackendFile = pFile;
 
   pHandle->currFileIdx = 0;
   pHandle->pFileList = list;
-
-  char  fullname[256] = {0};
-  char* file = ((SBackendFileItem*)taosArrayGet(pHandle->pFileList, pHandle->currFileIdx))->name;
-  STREAM_ROCKSDB_BUILD_FULLNAME(pFile->path, file, fullname);
-
-  pHandle->fd = taosOpenFile(fullname, TD_FILE_READ);
-  if (pHandle->fd == NULL) {
-    qError("stream-state failed to open %s, reason: %s", tdir, tstrerror(errno));
-    tdir = NULL;
-    goto _err;
-  }
-  qDebug("stream-state open file %s, current offset %" PRId64 "", file, (int64_t)0);
   pHandle->seraial = 0;
   pHandle->offset = 0;
   return 0;
@@ -264,29 +271,35 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
 
   SBackendFileItem* item = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
 
-  qDebug("stream-state start to read file %s, current offset %" PRId64 ", size : % " PRId64 ", file no. %d", item->name,
-         (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+  if (pHandle->fd == NULL) {
+    if (pHandle->currFileIdx >= taosArrayGetSize(pHandle->pFileList)) {
+      // finish
+      *ppData = NULL;
+      *size = 0;
+      return 0;
+    } else {
+      pHandle->fd = streamOpenFile(pFile->path, item->name, TD_FILE_READ);
+      qDebug("stream-state open file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d", item->name,
+             (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+    }
+  }
 
+  qDebug("stream-state start to read file %s, current offset:%" PRId64 ", size:%" PRId64 ", file no.%d", item->name,
+         (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   int64_t  nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
   if (nread == -1) {
     code = TAOS_SYSTEM_ERROR(terrno);
-    qError("stream-state snap failed to read snap, file name:%s, type:%d, reason:%s", item->name, item->type,
+    qError("stream-state snap failed to read snap, file name:%s, type:%d,reason:%s", item->name, item->type,
            tstrerror(code));
-    qDebug("stream-state failed to read file %s, current offset %" PRId64 ", size : % " PRId64 ", file no. %d",
-           item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
-    return code;
-    // handle later
     return -1;
   } else if (nread > 0 && nread <= kBlockSize) {
     // left bytes less than kBlockSize
-    qDebug("stream-state read file %s, current offset %" PRId64 ", size : % " PRId64 ", file no. %d", item->name,
+    qDebug("stream-state read file %s, current offset:%" PRId64 ",size:% " PRId64 ", file no.%d", item->name,
            (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
     pHandle->offset += nread;
     if (pHandle->offset >= item->size || nread < kBlockSize) {
       taosCloseFile(&pHandle->fd);
-      qDebug("stream-state close file no.%d, move to next file, next file no.%d", pHandle->currFileIdx,
-             pHandle->currFileIdx + 1);
       pHandle->offset = 0;
       pHandle->currFileIdx += 1;
     }
@@ -303,15 +316,13 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
       return 0;
     }
     item = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
-    char fullname[256] = {0};
-    STREAM_ROCKSDB_BUILD_FULLNAME(pFile->path, item->name, fullname);
-    pHandle->fd = taosOpenFile(fullname, TD_FILE_READ);
+    pHandle->fd = streamOpenFile(pFile->path, item->name, TD_FILE_READ);
 
     nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
     pHandle->offset += nread;
 
-    qDebug("read file %s, current offset %" PRId64 ", size : % " PRId64 ", file no. %d", item->name,
-           (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+    qDebug("stream-state open file and read file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d",
+           item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
   }
 
   SStreamSnapBlockHdr* pHdr = (SStreamSnapBlockHdr*)buf;
@@ -349,7 +360,7 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   pHandle->pFileList = list;
   pHandle->currFileIdx = 0;
   pHandle->offset = 0;
-  pHandle->fd = taosOpenFile(taosArrayGet(pHandle->pFileList, pHandle->currFileIdx), TD_FILE_WRITE);
+
   *ppWriter = pWriter;
   return 0;
 }
@@ -360,14 +371,25 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
   SStreamSnapBlockHdr* pHdr = (SStreamSnapBlockHdr*)pData;
   SStreamSnapHandle*   pHandle = &pWriter->handle;
   SBanckendFile*       pFile = pHandle->pBackendFile;
-  SBackendFileItem*    pItem = taosArrayGetP(pHandle->pFileList, pHandle->currFileIdx);
-  if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
-    if (taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset) != pHdr->size) {
+  SBackendFileItem*    pItem = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
+
+  if (pHandle->fd == NULL) {
+    pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    if (pHandle->fd == NULL) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      qError("stream snap failed to write snap, file name:%s, reason:%s", pHdr->name, tstrerror(code));
+      qError("stream-state failed to open file name:%s%s%s, reason:%s", pFile->path, TD_DIRSEP, pHdr->name,
+             tstrerror(code));
+    }
+  }
+
+  if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
+    int64_t bytes = taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset);
+    if (bytes != pHdr->size) {
+      code = TAOS_SYSTEM_ERROR(terrno);
+      qError("stream-state failed to write snap, file name:%s, reason:%s", pHdr->name, tstrerror(code));
       return code;
     }
-    pHandle->offset += pHdr->size;
+    pHandle->offset += bytes;
   } else {
     taosCloseFile(&pHandle->fd);
     pHandle->offset = 0;
@@ -378,10 +400,13 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     item.type = pHdr->type;
     taosArrayPush(pHandle->pFileList, &item);
 
-    char  fullname[256] = {0};
-    char* name = ((SBackendFileItem*)taosArrayGet(pHandle->pFileList, taosArrayGetSize(pHandle->pFileList) - 1))->name;
-    STREAM_ROCKSDB_BUILD_FULLNAME(pFile->path, name, fullname);
-    pHandle->fd = taosOpenFile(fullname, TD_FILE_WRITE);
+    SBackendFileItem* pItem = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
+    pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    if (pHandle->fd == NULL) {
+      code = TAOS_SYSTEM_ERROR(terrno);
+      qError("stream-state failed to open file name:%s%s%s, reason:%s", pFile->path, TD_DIRSEP, pHdr->name,
+             tstrerror(code));
+    }
 
     taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset);
     pHandle->offset += pHdr->size;
@@ -406,6 +431,7 @@ int32_t streamSnapWriterClose(SStreamSnapWriter* pWriter, int8_t rollback) {
     qDebug("stream snap get file list, %s", buf);
     taosMemoryFree(buf);
   }
+
   for (int i = 0; i < taosArrayGetSize(handle->pFileList); i++) {
     SBackendFileItem* item = taosArrayGet(handle->pFileList, i);
     taosMemoryFree(item->name);

@@ -158,7 +158,6 @@ int32_t copyFiles(const char* src, const char* dst) {
   if (pDir == NULL) return 0;
 
   TdDirEntryPtr de = NULL;
-
   while ((de = taosReadDir(pDir)) != NULL) {
     char* name = taosGetDirEntryName(de);
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
@@ -186,7 +185,11 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
   // impl later
   int32_t code = 0;
 
-  // chkpId = 0;
+  /*param@1: checkpointId dir
+    param@2: state
+    copy checkpointdir's file to state dir
+    opt to set hard link to previous file
+  */
   char* state = taosMemoryCalloc(1, strlen(path) + 32);
   sprintf(state, "%s%s%s", path, TD_DIRSEP, "state");
   if (chkpId != 0) {
@@ -1471,10 +1474,11 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   qDebug("streamStateClear_rocksdb");
 
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  char               sKeyStr[128] = {0};
-  char               eKeyStr[128] = {0};
-  SStateKey          sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
-  SStateKey          eKey = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number};
+
+  char      sKeyStr[128] = {0};
+  char      eKeyStr[128] = {0};
+  SStateKey sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
+  SStateKey eKey = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number};
 
   int sLen = stateKeyEncode(&sKey, sKeyStr);
   int eLen = stateKeyEncode(&eKey, eKeyStr);
@@ -1509,9 +1513,9 @@ int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key) {
   qDebug("streamStateGetFirst_rocksdb");
   SWinKey tmp = {.ts = 0, .groupId = 0};
   streamStatePut_rocksdb(pState, &tmp, NULL, 0);
-  SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pState, &tmp);
 
-  int32_t code = streamStateGetKVByCur_rocksdb(pCur, key, NULL, 0);
+  SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pState, &tmp);
+  int32_t          code = streamStateGetKVByCur_rocksdb(pCur, key, NULL, 0);
   streamStateFreeCur(pCur);
   streamStateDel_rocksdb(pState, &tmp);
   return code;
@@ -1525,10 +1529,8 @@ int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey,
   uint64_t groupId = pKey->groupId;
 
   int32_t code = streamStateFillGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
-  if (code == 0) {
-    if (pKey->groupId == groupId) {
-      return 0;
-    }
+  if (code == 0 && pKey->groupId == groupId) {
+    return 0;
   }
   return -1;
 }
@@ -1630,6 +1632,9 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
 
   const SStateKey maxStateKey = {.key = {.groupId = UINT64_MAX, .ts = INT64_MAX}, .opNum = INT64_MAX};
   STREAM_STATE_PUT_ROCKSDB(pState, "state", &maxStateKey, "", 0);
+  if (code != 0) {
+    return NULL;
+  }
 
   char    buf[128] = {0};
   int32_t klen = stateKeyEncode((void*)&maxStateKey, buf);
@@ -1666,9 +1671,10 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   qDebug("streamStateGetCur_rocksdb");
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  SStreamStateCur*   pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
 
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
+
   pCur->db = wrapper->rocksdb;
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
@@ -1717,8 +1723,6 @@ int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* k
   int              code = 0;
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, value, vLen);
-  if (code == -1) {
-  }
   return code;
 }
 int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
@@ -1728,21 +1732,21 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
   SSessionKey      resKey = *key;
   void*            tmp = NULL;
   int32_t          vLen = 0;
-  code = streamStateSessionGetKVByCur_rocksdb(pCur, &resKey, &tmp, &vLen);
-  if (code == 0) {
-    if (pVLen != NULL) *pVLen = vLen;
 
-    if (key->win.skey != resKey.win.skey) {
-      code = -1;
-    } else {
-      *key = resKey;
-      *pVal = taosMemoryCalloc(1, *pVLen);
-      memcpy(*pVal, tmp, *pVLen);
-    }
+  code = streamStateSessionGetKVByCur_rocksdb(pCur, &resKey, &tmp, &vLen);
+  if (code == 0 && key->win.skey != resKey.win.skey) {
+    *key = resKey;
+
+    if (pVal) {
+      *pVal = tmp;
+      tmp = NULL;
+    };
+    if (pVLen) *pVLen = vLen;
+  } else {
+    code = -1;
   }
+
   taosMemoryFree(tmp);
-  streamStateFreeCur(pCur);
-  // impl later
   return code;
 }
 
@@ -1788,8 +1792,6 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
 
   rocksdb_iter_prev(pCur->iter);
   if (!rocksdb_iter_valid(pCur->iter)) {
-    // qWarn("streamState failed to seek key prev
-    // %s", toString);
     streamStateFreeCur(pCur);
     return NULL;
   }
@@ -1807,10 +1809,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pSta
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
-  char buf[128] = {0};
-
+  char             buf[128] = {0};
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int              len = stateSessionKeyEncode(&sKey, buf);
+
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
@@ -1858,6 +1860,7 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
     streamStateFreeCur(pCur);
     return NULL;
   }
+
   size_t           klen;
   const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
   SStateSessionKey curKey = {0};
@@ -2393,8 +2396,8 @@ void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rock
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb_writebatch_t* pBatch, void* key,
                             void* val, int32_t vlen, int64_t ttl) {
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
-  int                i = streamStateGetCfIdx(pState, cfKeyName);
 
+  int i = streamStateGetCfIdx(pState, cfKeyName);
   if (i < 0) {
     qError("streamState failed to put to cf name:%s", cfKeyName);
     return -1;

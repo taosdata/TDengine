@@ -93,7 +93,7 @@ typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_BUFPOOL_SEGMENTS 3
 
-#define VND_INFO_FNAME "vnode.json"
+#define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 // vnd.h
@@ -181,8 +181,8 @@ SArray*       metaGetSmaTbUids(SMeta* pMeta);
 void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 
-int64_t       metaGetTbNum(SMeta *pMeta);
-void          metaReaderDoInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+int64_t metaGetTbNum(SMeta* pMeta);
+void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -329,6 +329,8 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData);
 int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateWriter** ppWriter);
 int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback);
 int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, char* path, int64_t chkpId);
+
 // SStreamTaskReader ======================================
 // SStreamStateWriter =====================================
 // SStreamStateReader =====================================
