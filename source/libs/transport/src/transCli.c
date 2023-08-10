@@ -2287,7 +2287,7 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->retryMinInterval = pTransInst->retryMinInterval;
     pCtx->retryMaxInterval = pTransInst->retryMaxInterval;
     pCtx->retryStepFactor = pTransInst->retryStepFactor;
-    pCtx->retryMaxTimeout = pTransInst->retryMaxTimouet;
+    pCtx->retryMaxTimeout = pTransInst->retryMaxTimeout;
     pCtx->retryInitTimestamp = taosGetTimestampMs();
     pCtx->retryNextInterval = pCtx->retryMinInterval;
     pCtx->retryStep = 0;

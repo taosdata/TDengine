@@ -47,7 +47,7 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
-int32_t tsNumOfRpcSessions = 10000;
+int32_t tsNumOfRpcSessions = 30000;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
@@ -1281,9 +1281,9 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         //        tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
         //      } else if (strcasecmp("smlBatchSize", name) == 0) {
         //        tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
-      } else if(strcasecmp("smlTsDefaultName", name) == 0) {
+      } else if (strcasecmp("smlTsDefaultName", name) == 0) {
         tstrncpy(tsSmlTsDefaultName, cfgGetItem(pCfg, "smlTsDefaultName")->str, TSDB_COL_NAME_LEN);
-      } else if(strcasecmp("smlDot2Underline", name) == 0) {
+      } else if (strcasecmp("smlDot2Underline", name) == 0) {
         tsSmlDot2Underline = cfgGetItem(pCfg, "smlDot2Underline")->bval;
       } else if (strcasecmp("shellActivityTimer", name) == 0) {
         tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
