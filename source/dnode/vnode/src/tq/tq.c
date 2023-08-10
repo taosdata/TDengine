@@ -289,9 +289,8 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   }
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, &req);
+  tqInitDataRsp(&dataRsp, req.reqOffset);
   dataRsp.blockNum = 0;
-  dataRsp.rspOffset = dataRsp.reqOffset;
   char buf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
   tqInfo("tqPushEmptyDataRsp to consumer:0x%"PRIx64 " vgId:%d, offset:%s, reqId:0x%" PRIx64, req.consumerId, vgId, buf, req.reqId);
@@ -714,7 +713,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, &req);
+  tqInitDataRsp(&dataRsp, req.reqOffset);
 
   if (req.useSnapshot == true) {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);

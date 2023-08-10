@@ -75,7 +75,10 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
          ", applied index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
-
+  if (fetchVer > appliedVer){
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
   while (fetchVer <= appliedVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
       return -1;
@@ -97,7 +100,6 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     }
   }
 
-  terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
   return -1;
 }
 
