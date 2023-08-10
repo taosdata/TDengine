@@ -768,7 +768,7 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
         sprintf(winStr, "TZ=%s:00", &(keyValue[1]));
-        *tsTimezone = taosStr2Int32(&keyValue[4], NULL, 10);
+        *tsTimezone = -taosStr2Int32(&keyValue[4], NULL, 10);
       }
       break;
     }
@@ -789,7 +789,7 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         indexStr = ppp - pp + 3;
       }
       sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '-' : '+'), p[1], p[2], p[3], p[4]);
-      *tsTimezone = taosStr2Int32(p, NULL, 10);
+      *tsTimezone = -taosStr2Int32(p, NULL, 10);
     } else {
       *tsTimezone = 0;
     }
