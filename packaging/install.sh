@@ -142,7 +142,7 @@ print_tips(){
     echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
 
     echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
-    echo -e "\033[32mOpen taos-explorer in web browser: http://localhost:6060\033[0m"
+    echo -e "\033[32mOpen taos-explorer in web browser: http://`hostname`:6060\033[0m"
 }
 
 # install new taosx and taosx-agent
@@ -201,9 +201,6 @@ check_install_env(){
     echo "Check Java env for InfluxDB Connector"
     check_java_env
 }
-print_tips
-exit
-
 check_install_env
 
 # main entry point
