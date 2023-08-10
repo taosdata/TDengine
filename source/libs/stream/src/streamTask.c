@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <libs/transport/trpc.h>
-#include <streamInt.h>
+#include "streamInt.h"
 #include "executor.h"
 #include "tstream.h"
 #include "wal.h"
+#include "ttimer.h"
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -26,13 +26,14 @@ static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   return 0;
 }
 
-SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam, SArray* pTaskList) {
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam,
+                            SArray* pTaskList) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-
+  pTask->ver = SSTREAM_TASK_VER;
   pTask->id.taskId = tGenIdPI32();
   pTask->id.streamId = streamId;
   pTask->info.taskLevel = taskLevel;
@@ -72,6 +73,7 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
 
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->ver) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->id.streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->id.taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->info.totalLevel) < 0) return -1;
@@ -135,6 +137,9 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
 
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->ver) < 0) return -1;
+  if (pTask->ver != SSTREAM_TASK_VER) return -1;
+
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->info.totalLevel) < 0) return -1;
@@ -163,7 +168,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.skey)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.ekey)) return -1;
 
-  int32_t epSz;
+  int32_t epSz = -1;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;
 
   pTask->pUpstreamEpInfoList = taosArrayInit(epSz, POINTER_BYTES);
@@ -211,7 +216,23 @@ static void freeItem(void* p) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  qDebug("free s-task:%s, %p", pTask->id.idStr, pTask);
+  qDebug("free s-task:0x%x, %p", pTask->id.taskId, pTask);
+
+  // remove the ref by timer
+  while(pTask->status.timerActive > 0) {
+    qDebug("s-task:%s wait for task stop timer activities", pTask->id.idStr);
+    taosMsleep(10);
+  }
+
+  if (pTask->schedTimer != NULL) {
+    taosTmrStop(pTask->schedTimer);
+    pTask->schedTimer = NULL;
+  }
+
+  if (pTask->launchTaskTimer != NULL) {
+    taosTmrStop(pTask->launchTaskTimer);
+    pTask->launchTaskTimer = NULL;
+  }
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {

@@ -47,8 +47,10 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
-int32_t tsNumOfRpcSessions = 10000;
+int32_t tsNumOfRpcSessions = 30000;
 int32_t tsTimeToGetAvailableConn = 500000;
+int32_t tsKeepAliveIdle = 60;
+
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
@@ -436,6 +438,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, CFG_SCOPE_BOTH) != 0)
     return -1;
 
+  tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
+  if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH) != 0) return -1;
+
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
   if (tsNumOfTaskQueueThreads >= 10) {
@@ -511,6 +516,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
   if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsNumOfRpcSessions, 20, 1000000, CFG_SCOPE_BOTH) != 0) return -1;
+
+  tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
+  if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
@@ -664,6 +672,13 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
     pItem->i32 = tsTimeToGetAvailableConn;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "keepAliveIdle");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 720000);
+    pItem->i32 = tsKeepAliveIdle;
     pItem->stype = stype;
   }
 
@@ -898,6 +913,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
 
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
+
+  tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
   return 0;
 }
 
@@ -936,6 +953,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
+
+  tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
 
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;

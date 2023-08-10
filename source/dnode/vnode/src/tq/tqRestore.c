@@ -72,8 +72,8 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
   taosWUnLockLatch(&pMeta->lock);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    int32_t*     pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, *pTaskId);
+    SStreamId*   pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
     }
@@ -242,8 +242,8 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   numOfTasks = taosArrayGetSize(pTaskList);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    int32_t*     pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, *pTaskId);
+    SStreamId*   pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
     }

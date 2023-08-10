@@ -498,6 +498,18 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
       }
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+      SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
+      if (pMerge->node.pLimit) {
+        nodesDestroyNode(pMerge->node.pLimit);
+        pMerge->node.pLimit = NULL;
+      }
+      if (pMerge->node.pSlimit) {
+        nodesDestroyNode(pMerge->node.pSlimit);
+        pMerge->node.pSlimit = NULL;
+      }
+      break;
+    }
     default:
       break;
   }

@@ -96,28 +96,23 @@ _exit:
   return code;
 }
 
-static bool dmCheckDiskSpace() {
-  osUpdate();
-  // sufficiency
-  if (!osDataSpaceSufficient()) {
-    dWarn("free data disk size: %f GB, not sufficient, expected %f GB at least",
-          (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-          (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+static bool dmDataSpaceAvailable() {
+  SDnode *pDnode = dmInstance();
+  if (pDnode->pTfs) {
+    return tfsDiskSpaceAvailable(pDnode->pTfs, 0);
   }
-  if (!osLogSpaceSufficient()) {
-    dWarn("free log disk size: %f GB, not sufficient, expected %f GB at least",
-          (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-          (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-  }
-  if (!osTempSpaceSufficient()) {
-    dWarn("free temp disk size: %f GB, not sufficient, expected %f GB at least",
-          (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-          (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-  }
-  // availability
-  bool ret = true;
   if (!osDataSpaceAvailable()) {
     dError("data disk space unavailable, i.e. %s", tsDataDir);
+    return false;
+  }
+  return true;
+}
+
+static bool dmCheckDiskSpace() {
+  osUpdate();
+  // availability
+  bool ret = true;
+  if (!dmDataSpaceAvailable()) {
     terrno = TSDB_CODE_NO_DISKSPACE;
     ret = false;
   }
@@ -134,6 +129,34 @@ static bool dmCheckDiskSpace() {
   return ret;
 }
 
+int32_t dmDiskInit() {
+  SDnode  *pDnode = dmInstance();
+  SDiskCfg dCfg = {0};
+  tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
+  dCfg.level = 0;
+  dCfg.primary = 1;
+  SDiskCfg *pDisks = tsDiskCfg;
+  int32_t   numOfDisks = tsDiskCfgNum;
+  if (numOfDisks <= 0 || pDisks == NULL) {
+    pDisks = &dCfg;
+    numOfDisks = 1;
+  }
+
+  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
+  if (pDnode->pTfs == NULL) {
+    dError("failed to init tfs since %s", terrstr());
+    return -1;
+  }
+  return 0;
+}
+
+int32_t dmDiskClose() {
+  SDnode *pDnode = dmInstance();
+  tfsClose(pDnode->pTfs);
+  pDnode->pTfs = NULL;
+  return 0;
+}
+
 static bool dmCheckDataDirVersion() {
   char checkDataDirJsonFileName[PATH_MAX] = {0};
   snprintf(checkDataDirJsonFileName, PATH_MAX, "%s/dnode/dnodeCfg.json", tsDataDir);
@@ -147,6 +170,7 @@ static bool dmCheckDataDirVersion() {
 
 int32_t dmInit() {
   dInfo("start to init dnode env");
+  if (dmDiskInit() != 0) return -1;
   if (!dmCheckDataDirVersion()) return -1;
   if (!dmCheckDiskSpace()) return -1;
   if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
@@ -177,6 +201,7 @@ void dmCleanup() {
   udfcClose();
   udfStopUdfd();
   taosStopCacheRefreshWorker();
+  dmDiskClose();
   dInfo("dnode env is cleaned up");
 
   taosCleanupCfg();
@@ -367,6 +392,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
   SMgmtInputOpt opt = {
       .path = pWrapper->path,
       .name = pWrapper->name,
+      .pTfs = pWrapper->pDnode->pTfs,
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
