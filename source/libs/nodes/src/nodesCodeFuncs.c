@@ -2814,6 +2814,8 @@ static const char* jkSubplanDataSink = "DataSink";
 static const char* jkSubplanTagCond = "TagCond";
 static const char* jkSubplanTagIndexCond = "TagIndexCond";
 static const char* jkSubplanShowRewrite = "ShowRewrite";
+static const char* jkSubplanRowsThreshold = "RowThreshold";
+static const char* jkSubplanDynamicRowsThreshold = "DyRowThreshold";
 
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   const SSubplan* pNode = (const SSubplan*)pObj;
@@ -2851,6 +2853,12 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->showRewrite);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanRowsThreshold, pNode->rowsThreshold);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSubplanDynamicRowsThreshold, pNode->dynamicRowThreshold);
   }
 
   return code;
@@ -2892,6 +2900,12 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->showRewrite);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSubplanRowsThreshold, &pNode->rowsThreshold);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSubplanDynamicRowsThreshold, &pNode->dynamicRowThreshold);
   }
 
   return code;
