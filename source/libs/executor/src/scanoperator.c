@@ -2913,7 +2913,6 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   STagScanInfo* pInfo = pOperator->info;
-  SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock*  pRes = pInfo->pRes;
   blockDataCleanup(pRes);
   int32_t count = 0;
@@ -2941,6 +2940,8 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, pInfo->readHandle.vnode, aUidTagIdxs, pAPI);
     }
     tagScanFillResultBlock(pOperator, pRes, aUidTags, aUidTagIdxs, pAPI);
+    count = taosArrayGetSize(aUidTagIdxs);
+
     if (taosArrayGetSize(aUidTagIdxs) != 0) {
       break;
     }
