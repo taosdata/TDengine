@@ -11,7 +11,7 @@ ExternalProject_Add(apr-1
         UPDATE_DISCONNECTED TRUE
         BUILD_ALWAYS 1
         #UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/local/
+        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local/
         #CONFIGURE_COMMAND ./configure
         BUILD_COMMAND make
         INSTALL_COMMAND make install
