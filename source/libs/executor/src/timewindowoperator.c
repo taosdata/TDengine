@@ -2507,20 +2507,20 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     doBuildPullDataBlock(pInfo->pPullWins, &pInfo->pullIndex, pInfo->pPullDataRes);
     if (pInfo->pPullDataRes->info.rows != 0) {
       // process the rest of the data
-      printDataBlock(pInfo->pPullDataRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+      printDataBlock(pInfo->pPullDataRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
       return pInfo->pPullDataRes;
     }
 
     doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
     if (pInfo->pDelRes->info.rows != 0) {
       // process the rest of the data
-      printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+      printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
       return pInfo->pDelRes;
     }
 
     doBuildStreamIntervalResult(pOperator, pInfo->pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
     if (pInfo->binfo.pRes->info.rows != 0) {
-      printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+      printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
       return pInfo->binfo.pRes;
     }
 
@@ -2551,7 +2551,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
-        printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+        printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
         return pInfo->pDelRes;
       }
     }
@@ -2588,7 +2588,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
     pInfo->numOfDatapack++;
-    printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "interval final recv" : "interval semi recv");
+    printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "interval final recv" : "interval semi recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA) {
       pInfo->binfo.pRes->info.type = pBlock->info.type;
@@ -2612,7 +2612,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
-        printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+        printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
         if (pBlock->info.type == STREAM_CLEAR) {
           pInfo->pDelRes->info.type = STREAM_CLEAR;
         } else {
@@ -2676,20 +2676,20 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   doBuildPullDataBlock(pInfo->pPullWins, &pInfo->pullIndex, pInfo->pPullDataRes);
   if (pInfo->pPullDataRes->info.rows != 0) {
     // process the rest of the data
-    printDataBlock(pInfo->pPullDataRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+    printDataBlock(pInfo->pPullDataRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
     return pInfo->pPullDataRes;
   }
 
   doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data
-    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
     return pInfo->pDelRes;
   }
 
   doBuildStreamIntervalResult(pOperator, pInfo->pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
   if (pInfo->binfo.pRes->info.rows != 0) {
-    printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+    printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi", GET_TASKID(pTaskInfo));
     return pInfo->binfo.pRes;
   }
 
@@ -3578,18 +3578,19 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*                pBInfo = &pInfo->binfo;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
   qDebug("===stream=== stream session agg");
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   } else if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
-      printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
+      printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session", GET_TASKID(pTaskInfo));
       return pInfo->pDelRes;
     }
     doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
     if (pBInfo->pRes->info.rows > 0) {
-      printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
+      printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "final session" : "single session", GET_TASKID(pTaskInfo));
       return pBInfo->pRes;
     }
 
@@ -3610,7 +3611,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
-    printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "final session recv" : "single session recv");
+    printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "final session recv" : "single session recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -3688,13 +3689,13 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
 
   doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
-    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
+    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session", GET_TASKID(pTaskInfo));
     return pInfo->pDelRes;
   }
 
   doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
-    printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
+    printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "final session" : "single session", GET_TASKID(pTaskInfo));
     return pBInfo->pRes;
   }
 
@@ -3868,6 +3869,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   TSKEY                          maxTs = INT64_MIN;
   SExprSupp*                     pSup = &pOperator->exprSupp;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
 
   qDebug("===stream=== stream session semi agg");
   if (pOperator->status == OP_EXEC_DONE) {
@@ -3877,13 +3879,13 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   {
     doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
     if (pBInfo->pRes->info.rows > 0) {
-      printDataBlock(pBInfo->pRes, "semi session");
+      printDataBlock(pBInfo->pRes, "semi session", GET_TASKID(pTaskInfo));
       return pBInfo->pRes;
     }
 
     doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
-      printDataBlock(pInfo->pDelRes, "semi session delete");
+      printDataBlock(pInfo->pDelRes, "semi session delete", GET_TASKID(pTaskInfo));
       return pInfo->pDelRes;
     }
 
@@ -3911,7 +3913,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       pOperator->status = OP_RES_TO_RETURN;
       break;
     }
-    printDataBlock(pBlock, "semi session recv");
+    printDataBlock(pBlock, "semi session recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -3960,13 +3962,13 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
 
   doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
-    printDataBlock(pBInfo->pRes, "semi session");
+    printDataBlock(pBInfo->pRes, "semi session", GET_TASKID(pTaskInfo));
     return pBInfo->pRes;
   }
 
   doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
-    printDataBlock(pInfo->pDelRes, "semi session delete");
+    printDataBlock(pInfo->pDelRes, "semi session delete", GET_TASKID(pTaskInfo));
     return pInfo->pDelRes;
   }
 
@@ -4259,17 +4261,18 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
   SExprSupp*                   pSup = &pOperator->exprSupp;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*              pBInfo = &pInfo->binfo;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   qDebug("===stream=== stream state agg");
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
-      printDataBlock(pInfo->pDelRes, "single state delete");
+      printDataBlock(pInfo->pDelRes, "single state delete", GET_TASKID(pTaskInfo));
       return pInfo->pDelRes;
     }
 
     doBuildSessionResult(pOperator, pInfo->streamAggSup.pState, &pInfo->groupResInfo, pBInfo->pRes);
     if (pBInfo->pRes->info.rows > 0) {
-      printDataBlock(pBInfo->pRes, "single state");
+      printDataBlock(pBInfo->pRes, "single state", GET_TASKID(pTaskInfo));
       return pBInfo->pRes;
     }
 
@@ -4290,7 +4293,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
-    printDataBlock(pBlock, "single state recv");
+    printDataBlock(pBlock, "single state recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -4343,13 +4346,13 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
 
   doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
-    printDataBlock(pInfo->pDelRes, "single state delete");
+    printDataBlock(pInfo->pDelRes, "single state delete", GET_TASKID(pTaskInfo));
     return pInfo->pDelRes;
   }
 
   doBuildSessionResult(pOperator, pInfo->streamAggSup.pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
-    printDataBlock(pBInfo->pRes, "single state");
+    printDataBlock(pBInfo->pRes, "single state", GET_TASKID(pTaskInfo));
     return pBInfo->pRes;
   }
   setOperatorCompleted(pOperator);
@@ -5129,13 +5132,13 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
     if (pInfo->pDelRes->info.rows > 0) {
-      printDataBlock(pInfo->pDelRes, "single interval delete");
+      printDataBlock(pInfo->pDelRes, "single interval delete", GET_TASKID(pTaskInfo));
       return pInfo->pDelRes;
     }
 
     doBuildStreamIntervalResult(pOperator, pInfo->pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
     if (pInfo->binfo.pRes->info.rows > 0) {
-      printDataBlock(pInfo->binfo.pRes, "single interval");
+      printDataBlock(pInfo->binfo.pRes, "single interval", GET_TASKID(pTaskInfo));
       return pInfo->binfo.pRes;
     }
 
@@ -5175,7 +5178,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     pInfo->numOfDatapack++;
-    printDataBlock(pBlock, "single interval recv");
+    printDataBlock(pBlock, "single interval recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -5187,7 +5190,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
-      printDataBlock(pBlock, "single interval");
+      printDataBlock(pBlock, "single interval", GET_TASKID(pTaskInfo));
       return pBlock;
     } else {
       ASSERTS(pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
@@ -5241,13 +5244,13 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
   doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows > 0) {
-    printDataBlock(pInfo->pDelRes, "single interval delete");
+    printDataBlock(pInfo->pDelRes, "single interval delete", GET_TASKID(pTaskInfo));
     return pInfo->pDelRes;
   }
 
   doBuildStreamIntervalResult(pOperator, pInfo->pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
   if (pInfo->binfo.pRes->info.rows > 0) {
-    printDataBlock(pInfo->binfo.pRes, "single interval");
+    printDataBlock(pInfo->binfo.pRes, "single interval", GET_TASKID(pTaskInfo));
     return pInfo->binfo.pRes;
   }
 
