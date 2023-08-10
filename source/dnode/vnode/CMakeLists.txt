@@ -195,7 +195,7 @@ include_directories (${APR_INCLUDE_DIR})
 target_include_directories(
   vnode
   PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
-  PUBLIC "$ENV{HOME}/local/include"
+  PUBLIC "$ENV{HOME}/.cos-local/include"
   )
 
 if(${BUILD_TEST})
