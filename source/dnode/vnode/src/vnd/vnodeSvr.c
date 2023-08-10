@@ -725,8 +725,14 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   code = metaTtlSetExpireTime(pVnode->pMeta, ttlExpireTimeMs);
   if (code) goto end;
 
-  code = vnodeAsyncTtlDropTable(pVnode);
-  if (code) goto end;
+  if (!pVnode->hasTtlTask) {
+    pVnode->hasTtlTask = true;
+    code = vnodeAsyncTtlDropTable(pVnode);
+    if (code) {
+      pVnode->hasTtlTask = false;
+      goto end;
+    }
+  }
 
   code = vnodeDoRetention(pVnode, ttlReq.timestampSec);
 

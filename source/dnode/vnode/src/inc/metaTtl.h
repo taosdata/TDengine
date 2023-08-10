@@ -31,7 +31,7 @@ typedef enum DirtyEntryType {
 } DirtyEntryType;
 
 typedef struct STtlManger {
-  TdThreadRwlock lock;
+  //TdThreadRwlock lock; // use meta lock, no self lock needed
 
   TTB* pOldTtlIdx;  // btree<{deleteTime, tuid}, NULL>
 

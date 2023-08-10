@@ -153,7 +153,7 @@ int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pR
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
 int32_t         metaTrimTables(SMeta* pMeta);
 int32_t         metaTtlSetExpireTime(SMeta* pMeta, int64_t timePointMs);
-int             metaTtlDropTable(SMeta* pMeta, SArray* tbUids);
+int             metaTtlDropTables(SMeta* pMeta, SArray* tbUids);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
@@ -415,6 +415,7 @@ struct SVnode {
   TdThreadMutex lock;
   bool          blocked;
   bool          restored;
+  bool          hasTtlTask;
   tsem_t        syncSem;
   int32_t       blockSec;
   int64_t       blockSeq;

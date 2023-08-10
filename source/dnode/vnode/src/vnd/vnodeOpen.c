@@ -371,6 +371,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
+  pVnode->hasTtlTask = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);

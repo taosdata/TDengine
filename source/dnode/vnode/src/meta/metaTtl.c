@@ -73,7 +73,7 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
   pTtlMgr->pTtlCache = taosHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   pTtlMgr->pDirtyUids = taosHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
 
-  taosThreadRwlockInit(&pTtlMgr->lock, NULL);
+  //taosThreadRwlockInit(&pTtlMgr->lock, NULL);
 
   ret = ttlMgrFillCache(pTtlMgr);
   if (ret < 0) {
@@ -150,7 +150,7 @@ static void ttlMgrCleanup(STtlManger *pTtlMgr) {
   taosHashCleanup(pTtlMgr->pTtlCache);
   taosHashCleanup(pTtlMgr->pDirtyUids);
   tdbTbClose(pTtlMgr->pTtlIdx);
-  taosThreadRwlockDestroy(&pTtlMgr->lock);
+  //taosThreadRwlockDestroy(&pTtlMgr->lock);
   taosMemoryFree(pTtlMgr);
 }
 
@@ -508,9 +508,7 @@ int ttlMgrSetExpireTime(STtlManger *pTtlMgr, int64_t timePointMs) {
 static int32_t ttlMgrRLock(STtlManger *pTtlMgr) {
   int32_t ret = 0;
 
-  metaTrace("%s, ttl mgr rlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
-
-  ret = taosThreadRwlockRdlock(&pTtlMgr->lock);
+  //ret = taosThreadRwlockRdlock(&pTtlMgr->lock);
 
   return ret;
 }
@@ -518,9 +516,7 @@ static int32_t ttlMgrRLock(STtlManger *pTtlMgr) {
 static int32_t ttlMgrWLock(STtlManger *pTtlMgr) {
   int32_t ret = 0;
 
-  metaTrace("%s, ttl mgr wlock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
-
-  ret = taosThreadRwlockWrlock(&pTtlMgr->lock);
+  //ret = taosThreadRwlockWrlock(&pTtlMgr->lock);
 
   return ret;
 }
@@ -528,9 +524,7 @@ static int32_t ttlMgrWLock(STtlManger *pTtlMgr) {
 static int32_t ttlMgrULock(STtlManger *pTtlMgr) {
   int32_t ret = 0;
 
-  metaTrace("%s, ttl mgr ulock %p", pTtlMgr->logPrefix, &pTtlMgr->lock);
-
-  ret = taosThreadRwlockUnlock(&pTtlMgr->lock);
+  //ret = taosThreadRwlockUnlock(&pTtlMgr->lock);
 
   return ret;
 }
