@@ -26,7 +26,7 @@ class TDTestCase:
         cmdStr1 = '%s/build/bin/taosBenchmark -i 50 -B 1 -t 1000 -n 100000 -y &'%(buildPath)
         tdLog.info(cmdStr1)
         os.system(cmdStr1)
-        time.sleep(10)
+        time.sleep(15)
 
         cmdStr2 = '%s/build/bin/tmq_offset_test &'%(buildPath)
         tdLog.info(cmdStr2)

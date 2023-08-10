@@ -266,7 +266,7 @@ void test_ts3756(TAOS* pConn){
   int32_t numOfAssign = 0;
 
   while (1) {
-    printf("start to poll\n");
+//    printf("start to poll\n");
 
     pRes = tmq_consumer_poll(tmq, timeout);
     if (pRes) {
