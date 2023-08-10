@@ -655,7 +655,10 @@
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
-      <section v-if="tagName == 'mqtt' || tagName == 'kafka'" class="mqtt-config">
+      <section
+        v-if="tagName == 'mqtt' || tagName == 'kafka'"
+        class="mqtt-config"
+      >
         <div class="header">
           <div class="block-title">
             <span>{{ dbsource[0].parser?.display }}</span>
@@ -827,7 +830,7 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
-      dbprecision: '',
+      dbprecision: "",
       isShowConfiguration: false,
       loading: false,
       configurationdata: [],
@@ -869,7 +872,7 @@ export default {
     }
   },
   mounted() {
-    if (this.tagName == "mqtt" || this.tagName == 'kafka') {
+    if (this.tagName == "mqtt" || this.tagName == "kafka") {
       this.constmqttCols = this.dbsource[0].parser.fields;
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
@@ -954,7 +957,7 @@ export default {
         this.opcPointavalible = true;
       }
     }
-    
+
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
@@ -970,11 +973,11 @@ export default {
     },
     dbname: {
       handler() {
-        if ( this.tagName == "kafka") {
-          this.getdbprecision()
+        if (this.tagName == "kafka") {
+          this.getdbprecision();
         }
-      }
-    }
+      },
+    },
   },
   methods: {
     //处理空值和‘undefined’字符值
@@ -1074,9 +1077,11 @@ export default {
     },
 
     async getdbprecision() {
-      let res = await sendSQLReq(`select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`)
+      let res = await sendSQLReq(
+        `select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`
+      );
       if (res && res.code == 0) {
-        this.dbprecision = res.data[0][0]
+        this.dbprecision = res.data[0][0];
       }
     },
 
@@ -1191,7 +1196,10 @@ export default {
                     return;
                   }
                 }
-                if (data.groups[index].params[g].name == "topics" && this.tagName == 'mqtt') {
+                if (
+                  data.groups[index].params[g].name == "topics" &&
+                  this.tagName == "mqtt"
+                ) {
                   Message({
                     type: "warning",
                     message:
@@ -1390,7 +1398,7 @@ export default {
           });
           return;
         }
-        if (this.tagName == "mqtt" || this.tagName == 'kafka') {
+        if (this.tagName == "mqtt" || this.tagName == "kafka") {
           if (this.$refs.mqtt) {
             this.$refs.mqtt.submit();
             if (this.$refs.mqtt.showSuperTip) {
@@ -1492,46 +1500,69 @@ export default {
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
-        if (this.tagName == 'kafka') {
+        if (this.tagName == "kafka") {
           let value = this.$store.state.app.mqttParser.parse.payload;
           piParams["parser"] = {
             ...this.$store.state.app.mqttParser,
             parse: {
               value: {
                 ...value,
-                keep: false
+                keep: false,
               },
               ts: {
-                as: `timestamp(${this.dbprecision})`
-              } 
-            }
+                as: `timestamp(${this.dbprecision})`,
+              },
+            },
           };
         }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
         }
         if (this.tagName == "csv") {
-          console.log('csv提交',this.$refs.csvdata,this.$refs.csvdata.$refs.param.isAllValid);
-          this.$refs.csvdata.$refs.param.submit()
-          this.$refs.csvdata.$refs.param.submit2()
-          if(!this.$refs.csvdata.$refs.param.isAllValid){
-            return
+          this.$refs.csvdata.$refs.param.submit();
+          this.$refs.csvdata.$refs.param.submit2();
+          if (
+            this.$refs.csvdata.activeName == "first" &&
+            this.$refs.csvdata.fileList.length == 0
+          ) {
+            Message.error(this.$t("datasource.uploadcsvtip"));
+            return;
+          }
+          if (
+            this.$refs.csvdata.activeName == "second" &&
+            !this.$refs.csvdata.fileurl
+          ) {
+            Message.error(this.$t("datasource.uploadcsvtip"));
+            return;
+          }
+          if (!this.$refs.csvdata.$refs.param.isAllValid) {
+            return;
+          }
+          if (!this.$refs.csvdata.$refs.csvconfig) {
+            Message.error(this.$t("datasource.csvconfigtip"));
+            return;
           }
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
-          model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname
+          model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
 
           model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
           piParams["parser"] = this.$store.state.app.csvParser;
 
-          let flag = Object.keys(parse).some((item) => parse[item].as == "");
           if (
             model.columns.length == 0 ||
-            model.tags.length==0||
-            model.columns[0] == undefined ||
-            flag
+            model.tags.length == 0 ||
+            model.columns[0] == undefined
           ) {
-            Message.error(this.$t('datasource.csvwholeinfo'));
+            Message.error(this.$t("datasource.csvwholeinfo"));
+            return;
+          }
+          let flag = [...model.columns, ...model.tags].some(
+            (item) => parse[item].as == ""
+          );
+
+          if (flag) {
+            Message.error(this.$t("datasource.csvwholeinfo"));
             return;
           }
           piParams["from"] =
@@ -1541,7 +1572,10 @@ export default {
             }) +
             dns.substring(3) +
             `&has_header=` +
-            this.$refs.csvdata.$refs.param.ruleForm.hasHeader+(!this.$refs.csvdata.$refs.param.ruleForm.hasHeader?`&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`:'');
+            this.$refs.csvdata.$refs.param.ruleForm.hasHeader +
+            (!this.$refs.csvdata.$refs.param.ruleForm.hasHeader
+              ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
+              : "");
         }
 
         if (this.isEditable) {
