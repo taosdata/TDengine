@@ -301,7 +301,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   return pTaskInfo;
 }
 
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId) {
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId) {
   if (msg == NULL) {
     return NULL;
   }
@@ -314,7 +314,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, vgId, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
+  code = qCreateExecTask(readers, vgId, taskId, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
@@ -1043,7 +1043,7 @@ int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
-  qDebug("%s set remove scan-history filter window:%" PRId64 "-%" PRId64 ", new window:%" PRId64 "-%" PRId64,
+  qDebug("%s remove scan-history filter window:%" PRId64 "-%" PRId64 ", set new window:%" PRId64 "-%" PRId64,
          GET_TASKID(pTaskInfo), pWindow->skey, pWindow->ekey, INT64_MIN, INT64_MAX);
 
   pWindow->skey = INT64_MIN;

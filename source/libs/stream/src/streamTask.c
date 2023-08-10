@@ -33,7 +33,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-
+  pTask->ver = SSTREAM_TASK_VER;
   pTask->id.taskId = tGenIdPI32();
   pTask->id.streamId = streamId;
   pTask->info.taskLevel = taskLevel;
@@ -73,6 +73,7 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
 
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->ver) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->id.streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->id.taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->info.totalLevel) < 0) return -1;
@@ -165,6 +166,9 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
 
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->ver) < 0) return -1;
+  if (pTask->ver != SSTREAM_TASK_VER) return -1;
+
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->info.totalLevel) < 0) return -1;
@@ -193,7 +197,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.skey)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.ekey)) return -1;
 
-  int32_t epSz;
+  int32_t epSz = -1;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;
 
   pTask->pUpstreamInfoList = taosArrayInit(epSz, POINTER_BYTES);
@@ -246,7 +250,7 @@ static void freeUpstreamItem(void* p) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  qDebug("free s-task:%s, %p", pTask->id.idStr, pTask);
+  qDebug("free s-task:0x%x, %p", pTask->id.taskId, pTask);
 
   // remove the ref by timer
   while(pTask->status.timerActive > 0) {

@@ -821,7 +821,19 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
                FUNCTION_TYPE_IROWTS == pFunc->funcType) {
       return true;
     }
-  }
+  } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
+      SOperatorNode* pOper = (SOperatorNode*)pExpr;
+      if (OP_TYPE_ADD != pOper->opType && OP_TYPE_SUB != pOper->opType) {
+        return false;
+      }
+      if (!isPrimaryKeyImpl(pOper->pLeft)) {
+        return false;
+      }
+      if (QUERY_NODE_VALUE != nodeType(pOper->pRight)) {
+        return false;
+      }
+      return true;
+    }
   return false;
 }
 
@@ -6584,7 +6596,10 @@ typedef struct SProjColPos {
 } SProjColPos;
 
 static int32_t projColPosCompar(const void* l, const void* r) {
-  return ((SProjColPos*)l)->colId > ((SProjColPos*)r)->colId;
+  if (((SProjColPos*)l)->colId < ((SProjColPos*)r)->colId) {
+    return -1;
+  }
+  return ((SProjColPos*)l)->colId == ((SProjColPos*)r)->colId ? 0 : 1;
 }
 
 static void projColPosDelete(void* p) { nodesDestroyNode(((SProjColPos*)p)->pProj); }

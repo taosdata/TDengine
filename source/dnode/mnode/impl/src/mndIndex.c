@@ -515,7 +515,6 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     if (pDb == NULL) return 0;
   }
   SSmaAndTagIter *pIter = pShow->pIter;
-  int             invalid = -1;
   while (numOfRows < rows) {
     pIter->pIdxIter = sdbFetch(pSdb, SDB_IDX, pIter->pIdxIter, (void **)&pIdx);
     if (pIter->pIdxIter == NULL) break;
@@ -552,7 +551,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    colDataSetVal(pColInfo, numOfRows, (const char *)&invalid, false);
+    colDataSetVal(pColInfo, numOfRows, NULL, true);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);

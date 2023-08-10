@@ -70,6 +70,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pArray, j);
+      pTask->ver = SSTREAM_TASK_VER;
       if (tEncodeStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
@@ -160,7 +161,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   return 0;
 }
 
-static void* freeStreamTasks(SArray* pTaskLevel) {
+static void *freeStreamTasks(SArray *pTaskLevel) {
   int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
   for (int32_t i = 0; i < numOfLevel; i++) {
     SArray *pLevel = taosArrayGetP(pTaskLevel, i);
@@ -229,7 +230,7 @@ void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   return (void *)buf;
 }
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char* cgroup) {
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup) {
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -266,12 +267,12 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char* cgroup) {
 }
 
 void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer, bool delete) {
-  if(pConsumer == NULL) return;
+  if (pConsumer == NULL) return;
   taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
-  if(delete){
+  if (delete) {
     taosMemoryFree(pConsumer);
   }
 }
@@ -645,7 +646,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
       }
     }
     buf = taosDecodeString(buf, &pSub->qmsg);
-  }else{
+  } else {
     pSub->qmsg = taosStrdup("");
   }
   return (void *)buf;

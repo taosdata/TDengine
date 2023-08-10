@@ -359,7 +359,7 @@ static int32_t suidComparFn(const void *target, const void *p2) {
   if (*uid2 == (*targetUid)) {
     return 0;
   } else {
-    return (*targetUid) < (*uid2) ? -1:1;
+    return (*targetUid) < (*uid2) ? -1 : 1;
   }
 }
 
@@ -381,7 +381,7 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
     return false;
   }
 
-  while(i < TARRAY2_SIZE(pStatisBlkArray)) {
+  while (i < TARRAY2_SIZE(pStatisBlkArray)) {
     SStatisBlk *p = &pStatisBlkArray->data[i];
     if (p->minTbid.suid > suid) {
       return false;
@@ -483,12 +483,12 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
     tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
 
-  bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
-  if (!exists) {
-    pIter->iSttBlk = -1;
-    pIter->pSttBlk = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
+  // bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
+  // if (!exists) {
+  //   pIter->iSttBlk = -1;
+  //   pIter->pSttBlk = NULL;
+  //   return TSDB_CODE_SUCCESS;
+  // }
 
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.

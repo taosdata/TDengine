@@ -849,30 +849,29 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       return result;
     }
 
-    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
-      setOperatorCompleted(pOperator);
-      return NULL;
+    while (1) {
+      if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+        setOperatorCompleted(pOperator);
+        return NULL;
+      }
+
+      // reset value for the next group data output
+      pOperator->status = OP_OPENED;
+      resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
+
+      int32_t        num = 0;
+      STableKeyInfo* pList = NULL;
+      tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
+
+      pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
+      pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      pInfo->scanTimes = 0;
+
+      result = doGroupedTableScan(pOperator);
+      if (result != NULL) {
+        return result;
+      }
     }
-
-    // reset value for the next group data output
-    pOperator->status = OP_OPENED;
-    resetLimitInfoForNextGroup(&pInfo->base.limitInfo);
-
-    int32_t        num = 0;
-    STableKeyInfo* pList = NULL;
-    tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
-
-    pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
-    pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-    pInfo->scanTimes = 0;
-
-    result = doGroupedTableScan(pOperator);
-    if (result != NULL) {
-      return result;
-    }
-
-    setOperatorCompleted(pOperator);
-    return NULL;
   }
 }
 
@@ -2982,17 +2981,22 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
 
-  STableMergeScanSortSourceParam param = {0};
-  param.pOperator = pOperator;
+  STableMergeScanSortSourceParam *param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
+  param->pOperator = pOperator;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock, (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, NULL);
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  ps->param = &param;
-  ps->onlyRef = true;
+  ps->param = param;
+  ps->onlyRef = false;
   tsortAddSource(pInfo->pSortHandle, ps);
 
-  int32_t code = tsortOpen(pInfo->pSortHandle);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (numOfTable == 1) {
+    setSingleTableMerge(pInfo->pSortHandle);
+  } else {
+    code = tsortOpen(pInfo->pSortHandle);
+  }
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);

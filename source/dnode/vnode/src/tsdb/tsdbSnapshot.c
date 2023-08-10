@@ -342,18 +342,18 @@ static int32_t tsdbSnapCmprTombData(STsdbSnapReader* reader, uint8_t** data) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int64_t size = sizeof(SSnapDataHdr);
+  int64_t size = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(reader->tombBlock->dataArr); i++) {
     size += TARRAY2_DATA_LEN(reader->tombBlock->dataArr + i);
   }
 
-  data[0] = taosMemoryMalloc(size);
+  data[0] = taosMemoryMalloc(size + sizeof(SSnapDataHdr));
   if (data[0] == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  SSnapDataHdr* hdr = (SSnapDataHdr*)data[0];
+  SSnapDataHdr* hdr = (SSnapDataHdr*)(data[0]);
   hdr->type = SNAP_DATA_DEL;
   hdr->size = size;
 
@@ -938,7 +938,7 @@ static int32_t tsdbSnapWriteDecmprTombBlock(SSnapDataHdr* hdr, STombBlock* tombB
   int32_t code = 0;
   int32_t lino = 0;
 
-  int64_t size = hdr->size - sizeof(*hdr);
+  int64_t size = hdr->size;
   ASSERT(size % TOMB_RECORD_ELEM_NUM == 0);
   size = size / TOMB_RECORD_ELEM_NUM;
   ASSERT(size % sizeof(int64_t) == 0);

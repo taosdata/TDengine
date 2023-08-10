@@ -230,7 +230,8 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SArray* pTaskList, SStrea
 
 int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup,
                                int32_t fillHistory) {
-  SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SINK, fillHistory, 0, pTaskList);
+  int64_t uid = (fillHistory == 0)? pStream->uid:pStream->hTaskUid;
+  SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SINK, fillHistory, 0, pTaskList);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -294,8 +295,8 @@ static void setHTasksId(SArray* pTaskList, const SArray* pHTaskList) {
     (*pHTask)->streamTaskId.taskId = (*pStreamTask)->id.taskId;
     (*pHTask)->streamTaskId.streamId = (*pStreamTask)->id.streamId;
 
-    mDebug("s-task:0x%x related history task:0x%x, level:%d", (*pStreamTask)->id.taskId, (*pHTask)->id.taskId,
-           (*pHTask)->info.taskLevel);
+    mDebug("s-task:0x%" PRIx64 "-0x%x related history task:0x%" PRIx64 "-0x%x, level:%d", (*pStreamTask)->id.streamId,
+           (*pStreamTask)->id.taskId, (*pHTask)->id.streamId, (*pHTask)->id.taskId, (*pHTask)->info.taskLevel);
   }
 }
 
