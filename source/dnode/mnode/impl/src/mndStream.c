@@ -649,6 +649,8 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
 
   pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
+  pReq->streamId = pTask->id.streamId;
+
   STransAction action = {0};
   memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = pReq;
@@ -1361,6 +1363,8 @@ static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
   }
   pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
+  pReq->streamId = pTask->id.streamId;
+
   STransAction action = {0};
   memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = pReq;
@@ -1501,7 +1505,9 @@ static int32_t mndResumeStreamTask(STrans *pTrans, SStreamTask *pTask, int8_t ig
   }
   pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
+  pReq->streamId = pTask->id.streamId;
   pReq->igUntreated = igUntreated;
+
   STransAction action = {0};
   memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = pReq;

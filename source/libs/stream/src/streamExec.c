@@ -290,7 +290,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
     // todo: destroy the fill-history task here
     qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
@@ -350,10 +350,9 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
-  int32_t taskId = pTask->id.taskId;
 
   // 5. free it and remove fill-history task from disk meta-store
-  streamMetaUnregisterTask(pMeta, taskId);
+  streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
