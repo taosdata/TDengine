@@ -185,7 +185,7 @@ int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI *pAPI);
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag);
+void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
 
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);

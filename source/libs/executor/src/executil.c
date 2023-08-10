@@ -2178,12 +2178,12 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   return TSDB_CODE_SUCCESS;
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag) {
+void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===%s: Block is Null or Empty", flag);
+    qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
     return;
   }
   char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
+  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf, taskIdStr));
   taosMemoryFree(pBuf);
 }

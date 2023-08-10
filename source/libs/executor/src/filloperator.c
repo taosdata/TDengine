@@ -1292,14 +1292,14 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
       (pInfo->pFillInfo->pos != FILL_POS_INVALID && pInfo->pFillInfo->needFill == true)) {
     doStreamFillRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
     if (pInfo->pRes->info.rows > 0) {
-      printDataBlock(pInfo->pRes, "stream fill");
+      printDataBlock(pInfo->pRes, "stream fill", GET_TASKID(pTaskInfo));
       return pInfo->pRes;
     }
   }
   if (pOperator->status == OP_RES_TO_RETURN) {
     doDeleteFillFinalize(pOperator);
     if (pInfo->pRes->info.rows > 0) {
-      printDataBlock(pInfo->pRes, "stream fill");
+      printDataBlock(pInfo->pRes, "stream fill", GET_TASKID(pTaskInfo));
       return pInfo->pRes;
     }
     setOperatorCompleted(pOperator);
@@ -1317,12 +1317,12 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
         pOperator->status = OP_RES_TO_RETURN;
         pInfo->pFillInfo->preRowKey = INT64_MIN;
         if (pInfo->pRes->info.rows > 0) {
-          printDataBlock(pInfo->pRes, "stream fill");
+          printDataBlock(pInfo->pRes, "stream fill", GET_TASKID(pTaskInfo));
           return pInfo->pRes;
         }
         break;
       }
-      printDataBlock(pBlock, "stream fill recv");
+      printDataBlock(pBlock, "stream fill recv", GET_TASKID(pTaskInfo));
 
       if (pInfo->pFillInfo->curGroupId != pBlock->info.id.groupId) {
         pInfo->pFillInfo->curGroupId = pBlock->info.id.groupId;
@@ -1339,7 +1339,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           pInfo->pFillSup->hasDelete = true;
           doDeleteFillResult(pOperator);
           if (pInfo->pDelRes->info.rows > 0) {
-            printDataBlock(pInfo->pDelRes, "stream fill delete");
+            printDataBlock(pInfo->pDelRes, "stream fill delete", GET_TASKID(pTaskInfo));
             return pInfo->pDelRes;
           }
           continue;
@@ -1378,7 +1378,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   }
 
   pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
-  printDataBlock(pInfo->pRes, "stream fill");
+  printDataBlock(pInfo->pRes, "stream fill", GET_TASKID(pTaskInfo));
   return pInfo->pRes;
 }
 
