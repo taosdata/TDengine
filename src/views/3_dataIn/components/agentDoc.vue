@@ -5,7 +5,7 @@
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
           <p v-html="$t('taosagents.linuxdesc')"></p>
-          <pre
+          <!-- <pre
             class="agent-code"
             style="padding-top: 0px"
           ><code class="language-bash" v-if="language.includes('en')">
@@ -33,7 +33,7 @@ cd taosx-agent-*
           <i class="el-icon-copy-document"></i>
           {{ $t("copy") }}
         </span>
-        </pre>
+        </pre> -->
         </el-tab-pane>
         <el-tab-pane name="tab2" :label="$t('taosagents.step1window')">
           <p v-html="$t('taosagents.windowdesc')"></p>
