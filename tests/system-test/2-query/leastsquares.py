@@ -221,7 +221,7 @@ class TDTestCase:
             if res is None:
                 tdLog.exit("result is not correct")
 
-    def __test_current(self):
+    def __test_current(self, dbname=DBNAME):
         # tdSql.query("explain select c1 from {dbname}.ct1")
         # tdSql.query("explain select 1 from {dbname}.ct2")
         # tdSql.query("explain select cast(ceil(c6) as bigint) from {dbname}.ct4 group by c6")
@@ -229,10 +229,10 @@ class TDTestCase:
         # tdSql.query("explain select ct2.c3 from {dbname}.ct4 join ct2 on ct4.ts=ct2.ts")
         # tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
         #
-        tdSql.query("select leastsquares(c1, 1, 1) from (select c1 from nt1 group by c1)")
-        tdSql.query("select leastsquares(c1, 1, 1) from (select c1 from nt1 partition by c1)")
-        tdSql.query("select leastsquares(c1, 1, 1) from (select c1 from nt1 order by c1)")
-        tdSql.query("select leastsquares(c1, 1, 1) from (select c1 from nt1 union select c1 from nt1)")
+        tdSql.query(f"select leastsquares(c1, 1, 1) from (select c1 from {dbname}.nt1 group by c1)")
+        tdSql.query(f"select leastsquares(c1, 1, 1) from (select c1 from {dbname}.nt1 partition by c1)")
+        tdSql.query(f"select leastsquares(c1, 1, 1) from (select c1 from {dbname}.nt1 order by c1)")
+        tdSql.query(f"select leastsquares(c1, 1, 1) from (select c1 from {dbname}.nt1 union select c1 from {dbname}.nt1)")
 
         self.leastsquares_check()
 
