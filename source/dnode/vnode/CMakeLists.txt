@@ -135,6 +135,7 @@ else()
     endif()
 endif()
 
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
 find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
 find_library(MINIXML_LIBRARY mxml)
