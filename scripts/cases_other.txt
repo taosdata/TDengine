@@ -1,4 +1,8 @@
 
 # need long time to finish
+<<<<<<< HEAD
 taostest --setup=54_58_stability_jenkins.yaml --case=manager/splitVGroupFull.py --keep --containers --log-level=info
 
+=======
+taostest --setup=common_cluster_30.yaml --case=manager/splitVGroupFull.py --keep --containers --log-level=info
+>>>>>>> c2477c38a0dab72422cd14b3075cef7754604f8e
