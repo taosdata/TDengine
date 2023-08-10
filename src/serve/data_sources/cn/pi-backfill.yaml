@@ -21,7 +21,7 @@ options:
     placeholder: 'Example: Met1'
 strict: false
 groups:
-- name: PI System
+- name: PI 系统设置
   display_order: 2
   description: PI 系统相关配置项。
   params:
@@ -32,9 +32,9 @@ groups:
     hint:
       type: str
 
-- name: Backfill
+- name: 历史填充（Backfill）
   display_order: 3
-  description: TDBackfill 参数设置
+  description: Backfill 参数设置
   params:
   - name: FromTDengineLastTime
     display: 从TDenine已有数据开始
@@ -63,7 +63,7 @@ groups:
       导入历史数据以该时间结束，默认是当前时间。
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
-- name: Data Queue
+- name: 数据队列
   display_order: 4
   description: 其他配置
   params:
@@ -85,7 +85,7 @@ groups:
     value: 1
 
 datasets:
-  name: Data Sets
+  name: 监测点集
   description: PI 系统模板和点位。
   categories:
   - category: PointList

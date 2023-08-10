@@ -33,7 +33,7 @@ groups:
       type: str
 
 
-- name: Data Queue
+- name: 数据队列
   display_order: 3
   description: Other configurations.
   params:
