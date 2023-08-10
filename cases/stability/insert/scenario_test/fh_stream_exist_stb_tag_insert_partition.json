@@ -44,7 +44,7 @@
                     "interlace_rows": 400,
                     "line_protocol": null,
                     "tcp_transfer": "no",
-                    "insert_rows": 200000,
+                    "insert_rows": 100000,
                     "partial_col_num": 0,
                     "childtable_limit": 0,
                     "childtable_offset": 0,
