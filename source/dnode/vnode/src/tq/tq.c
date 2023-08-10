@@ -1634,7 +1634,7 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, req.dstTaskId);
   if (pTask == NULL) {
-    tDeleteStreamDispatchReq(&req);
+//    tDeleteStreamDispatchReq(&req);
     return -1;
   }
 
@@ -1741,7 +1741,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   // todo handle the case when the task not in ready state, and the checkpoint msg is arrived.
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId,
             req.taskId);
@@ -1798,7 +1798,7 @@ int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
   }
   tDecoderClear(&decoder);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.upstreamTaskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, it may have been destroyed already", vgId, req.downstreamTaskId);
     return code;
@@ -1831,7 +1831,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   tDecoderClear(&decoder);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to acquire task:0x%x when handling update, it may have been dropped already", pMeta->vgId,
             req.taskId);
@@ -1844,7 +1844,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTask* pHistoryTask = NULL;
   if (pTask->historyTaskId.taskId != 0) {
-    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
+    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
     if (pHistoryTask == NULL) {
       tqError(
           "vgId:%d failed to acquire fill-history task:0x%x when handling task update, it may have been dropped "
