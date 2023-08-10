@@ -1001,7 +1001,12 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   SArray*          aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
 
   size_t maxBufSize = pHandle->numOfPages * pHandle->pageSize;
-  createPageBuf(pHandle);
+
+  int32_t code = createPageBuf(pHandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(aExtSrc);
+    return code;
+  }
 
   SSortSource* pSrc = taosArrayGetP(pHandle->pOrderedSource, 0);
   int32_t      szSort = 0;
@@ -1076,7 +1081,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   taosArrayDestroy(aExtSrc);
 
   pHandle->type = SORT_SINGLESOURCE_SORT;
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {

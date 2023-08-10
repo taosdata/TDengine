@@ -1121,6 +1121,8 @@ static bool getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBl
   SBrinRecord* p = taosArrayGet(pTableBlockScanInfo->pBlockList, pBlockInfo->tbBlockIdx + step);
   memcpy(pRecord, p, sizeof(SBrinRecord));
 
+  *nextIndex = pBlockInfo->tbBlockIdx + step;
+
   //  tMapDataGetItemByIdx(&pTableBlockScanInfo->mapData, pIndex->ordinalIndex, pBlock, tGetDataBlk);
   return true;
 }

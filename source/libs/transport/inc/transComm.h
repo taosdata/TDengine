@@ -293,7 +293,7 @@ bool transReadComplete(SConnBuffer* connBuf);
 int  transResetBuffer(SConnBuffer* connBuf);
 int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf);
 
-int transSetConnOption(uv_tcp_t* stream);
+int transSetConnOption(uv_tcp_t* stream, int keepalive);
 
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);

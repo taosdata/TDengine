@@ -178,6 +178,7 @@ description: TDengine 保留关键字的详细列表
 
 - MATCH
 - MAX_DELAY
+- MAX_SPEED
 - MAXROWS
 - MERGE
 - META
