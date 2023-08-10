@@ -1511,6 +1511,8 @@ export default {
           piParams["via"] = this.$parent.agentID;
         }
         if (this.tagName == "csv") {
+          console.log('csv提交',this.$refs.csvdata,this.$refs.csvdata.$refs.param.isAllValid);
+          this.$refs.csvdata.$refs.param.submit()
           this.$refs.csvdata.$refs.param.submit2()
           if(!this.$refs.csvdata.$refs.param.isAllValid){
             return
