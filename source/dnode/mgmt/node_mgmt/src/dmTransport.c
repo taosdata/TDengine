@@ -298,7 +298,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
-  rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
+  rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
 
   rpcInit.failFastInterval = 5000;  // interval threshold(ms)
   rpcInit.failFastThreshold = 3;    // failed threshold

@@ -47,11 +47,11 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pReader->sver = sver;
   pReader->ever = ever;
 
-  int64_t checkpointId = meta ? meta->checkpointId : 0;
+  int64_t chkpId = meta ? meta->chkpId : 0;
 
   SStreamSnapReader* pSnapReader = NULL;
 
-  if (streamSnapReaderOpen(pTq, sver, checkpointId, pTq->path, &pSnapReader) == 0) {
+  if (streamSnapReaderOpen(pTq, sver, chkpId, pTq->path, &pSnapReader) == 0) {
     pReader->complete = 1;
   } else {
     code = -1;
@@ -163,7 +163,20 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
   return code;
 }
 int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, char* path, int64_t chkpId) {
-  return streamStateRebuild(pWriter->pTq->pStreamMeta, path, chkpId);
+  int32_t code = streamMetaReopen(pWriter->pTq->pStreamMeta, chkpId);
+  if (code == 0) {
+    code = streamStateLoadTasks(pWriter);
+  }
+  return code;
+}
+
+int32_t streamStateLoadTasksImpl(SStreamMeta* pMeta, int64_t ver) {
+  // impl later
+  return streamLoadTasks(pMeta, ver);
+}
+int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) {
+  SWal* pWal = pWriter->pTq->pVnode->pWal;
+  return streamStateLoadTasksImpl(pWriter->pTq->pStreamMeta, walGetCommittedVer(pWal));
 }
 
 int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData) {

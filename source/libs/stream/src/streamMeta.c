@@ -36,14 +36,14 @@ void streamMetaCleanup() {
   taosCloseRef(streamBackendCfWrapperId);
 }
 
-int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId) {
-  int32_t code = 0;
+// int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId) {
+//   int32_t code = 0;
 
-  int32_t nTask = taosHashGetSize(pMeta->pTasks);
-  assert(nTask == 0);
+//   int32_t nTask = taosHashGetSize(pMeta->pTasks);
+//   assert(nTask == 0);
 
-  return code;
-}
+//   return code;
+// }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -91,12 +91,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  pMeta->checkpointSaved = taosArrayInit(4, sizeof(int64_t));
-  pMeta->checkpointInUse = taosArrayInit(4, sizeof(int64_t));
-  pMeta->checkpointCap = 8;
-  taosInitRWLatch(&pMeta->checkpointDirLock);
+  pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
+  pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
+  pMeta->chkpCap = 8;
+  taosInitRWLatch(&pMeta->chkpDirLock);
 
   int64_t chkpId = streamGetLatestCheckpointId(pMeta);
+  pMeta->chkpId = chkpId;
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, chkpId);
   if (pMeta->streamBackend == NULL) {
@@ -109,7 +110,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
-
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
@@ -128,48 +128,65 @@ _err:
   return NULL;
 }
 
-void streamMetaReopen(SStreamMeta** ppMeta) {
-  SStreamMeta* pMeta = *ppMeta;
+int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
+  // stop all running tasking and reopen later
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    if (pIter == NULL) {
+      break;
+    }
 
-  SStreamMeta* pNewMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
-  pNewMeta->path = taosStrdup(pMeta->path);
-  pNewMeta->vgId = pMeta->vgId;
-  pNewMeta->walScanCounter = 0;
-  pNewMeta->ahandle = pMeta->ahandle;
-  pNewMeta->expandFunc = pMeta->expandFunc;
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->schedTimer) {
+      taosTmrStop(pTask->schedTimer);
+      pTask->schedTimer = NULL;
+    }
 
-  *ppMeta = pNewMeta;
+    if (pTask->launchTaskTimer) {
+      taosTmrStop(pTask->launchTaskTimer);
+      pTask->launchTaskTimer = NULL;
+    }
 
-  streamMetaClose(pMeta);
+    tFreeStreamTask(pTask);
+  }
 
-  // tdbAbort(pMeta->db, pMeta->txn);
-  // tdbTbClose(pMeta->pTaskDb);
-  // tdbTbClose(pMeta->pCheckpointDb);
-  // tdbClose(pMeta->db);
+  // close stream backend
+  streamBackendCleanup(pMeta->streamBackend);
+  taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
+  pMeta->streamBackendRid = -1;
+  pMeta->streamBackend = NULL;
 
-  // void* pIter = NULL;
-  // while (1) {
-  //   pIter = taosHashIterate(pMeta->pTasks, pIter);
-  //   if (pIter == NULL) {
-  //     break;
-  //   }
+  char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
+  sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+  taosRemoveDir(defaultPath);
 
-  //   SStreamTask* pTask = *(SStreamTask**)pIter;
-  //   if (pTask->schedTimer) {
-  //     taosTmrStop(pTask->schedTimer);
-  //     pTask->schedTimer = NULL;
-  //   }
+  char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
+  sprintf(newPath, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
 
-  //   if (pTask->launchTaskTimer) {
-  //     taosTmrStop(pTask->launchTaskTimer);
-  //     pTask->launchTaskTimer = NULL;
-  //   }
+  if (taosRenameFile(newPath, defaultPath) < 0) {
+    taosMemoryFree(defaultPath);
+    taosMemoryFree(newPath);
+    return -1;
+  }
 
-  //   tFreeStreamTask(pTask);
-  // }
+  pMeta->streamBackend = streamBackendInit(pMeta->path, 0);
+  if (pMeta->streamBackend == NULL) {
+    return -1;
+  }
+  pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
-  // taosHashClear(pMeta->pTasks);
-  // taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
+  taosHashClear(pMeta->pTasks);
+
+  taosArrayClear(pMeta->pTaskList);
+
+  taosHashClear(pMeta->pTaskBackendUnique);
+
+  taosArrayClear(pMeta->chkpSaved);
+
+  taosArrayClear(pMeta->chkpInUse);
+
+  return 0;
 }
 void streamMetaClose(SStreamMeta* pMeta) {
   tdbAbort(pMeta->db, pMeta->txn);
@@ -205,8 +222,8 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosThreadMutexDestroy(&pMeta->backendMutex);
   taosHashCleanup(pMeta->pTaskBackendUnique);
 
-  taosArrayDestroy(pMeta->checkpointSaved);
-  taosArrayDestroy(pMeta->checkpointInUse);
+  taosArrayDestroy(pMeta->chkpSaved);
+  taosArrayDestroy(pMeta->chkpInUse);
 
   taosMemoryFree(pMeta);
 }
