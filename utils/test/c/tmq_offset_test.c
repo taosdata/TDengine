@@ -194,7 +194,7 @@ void test_offset(TAOS* pConn){
         int64_t position = tmq_position(tmq, "tp", pAssign[i].vgId);
         if(position == 0) continue;
 
-        printf("position = %lld\n", position);
+        printf("position = %d\n", (int)position);
         tmq_commit_offset_sync(tmq, "tp", pAssign[i].vgId, position);
         int64_t committed = tmq_committed(tmq, "tp", pAssign[i].vgId);
         ASSERT(position == committed);
