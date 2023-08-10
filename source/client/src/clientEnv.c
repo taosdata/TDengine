@@ -169,7 +169,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
-  rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
+  rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);

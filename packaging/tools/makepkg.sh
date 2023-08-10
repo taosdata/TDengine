@@ -319,6 +319,11 @@ if [[ $dbName == "taos" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    
+    mkdir -p ${install_dir}/share/        
+    cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:    
+  fi
+
 fi
 
 # Copy driver

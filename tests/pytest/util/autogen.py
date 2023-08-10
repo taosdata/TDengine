@@ -17,7 +17,7 @@ class AutoGen:
     def __init__(self):
         self.ts = 1600000000000
         self.batch_size = 100
-        seed = time.clock_gettime(time.CLOCK_REALTIME)
+        seed = time.time() % 10000
         random.seed(seed)
 
     # set start ts

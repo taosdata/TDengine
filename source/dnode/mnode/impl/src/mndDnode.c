@@ -41,7 +41,7 @@ static const char *offlineReason[] = {
     "timezone not match",
     "locale not match",
     "charset not match",
-    "ttl change on write not match"
+    "ttlChangeOnWrite not match",
     "unknown",
 };
 
