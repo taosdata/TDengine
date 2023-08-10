@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::{time::Duration};
+use std::time::Duration;
 use taos::*;
 use taosx_core::{
     csv_to_taos, influxdb_to_taos, kafka_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos,
@@ -52,7 +52,7 @@ pub(super) struct Cli {
     /// - 'rename-super-table:suffix:_stb': rename all super tables as suffixed '_stb'
     ///
     /// - 'rename-child-table:template:prefix_{{ name }}_stb': rename all super tables with prefix 'prefix_' and suffix '_stb'
-    /// 
+    ///
     /// - 'rename-replace-with-regex:replace_with_regex:prefix(?<old>)::newprefix_$old': replace all tables prefix with new prefix
     #[clap(short = 'T', long)]
     transform: Vec<Action>,
@@ -115,11 +115,11 @@ impl Cli {
                     .await
                     {
                         Ok(_) => break,
-                        Err(err) if err.to_string().contains("[0xE002]") => {
-                            log::warn!("connection broken, retry after {sleep:?}.");
+                        Err(err) if format!("{err:#}").contains("[0xE002]") => {
+                            log::warn!("connection broken since {err:#}, retry after {sleep:?}\nError details:\n{err:?}.");
                             tokio::time::sleep(sleep).await;
                             sleep *= 2;
-                            continue;
+                            break;
                         }
                         Err(err) => {
                             Err(err).with_context(|| format!("tmq to td task exec error"))?
@@ -141,7 +141,7 @@ impl Cli {
                     .await
                     {
                         Ok(_) => break,
-                        Err(err) if err.to_string().contains("[0xE002]") => {
+                        Err(err) if format!("{err:#}").contains("[0xE002]") => {
                             log::warn!("connection broken, retry after {sleep:?}.");
                             tokio::time::sleep(sleep).await;
                             sleep *= 2;

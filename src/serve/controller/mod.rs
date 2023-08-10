@@ -626,7 +626,7 @@ impl TaskController {
                 .clone()
                 .replace("files", "");
             let root = std::path::Path::new(path.as_str());
-            assert!(env::set_current_dir(&root).is_ok());
+            let _ = env::set_current_dir(&root);
             let now = Utc::now();
             let _ = sqlx::query!(
                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
@@ -763,7 +763,7 @@ impl TaskController {
                                     push_task_activity(&pool, &activity).await?;
                                 }
                                 Err(err) => {
-                                    let err_string = err.to_string();
+                                    let err_string = format!("{err:#}");
                                     // let code = err.code();
 
                                     match err_string.as_str() {
@@ -789,7 +789,7 @@ impl TaskController {
 
                                             break;
                                         }
-                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") => {
+                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") || e.contains("0xE002") => {
                                             log::warn!("run task {id} failed: {err}, wait for resume...");
                                             let err = format!("{err:#}");
                                             let now = Utc::now();

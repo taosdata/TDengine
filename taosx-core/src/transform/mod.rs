@@ -633,7 +633,7 @@ enum ActionType {
     RenameTable,
     RenameChildTable,
     RenameSuperTable,
-    RenameReplaceWithRegex,
+    // RenameReplaceWithRegex,
 }
 
 impl Hash for Action {

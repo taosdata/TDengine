@@ -5,7 +5,7 @@ use std::{
     path::Path,
     str::FromStr,
     sync::{
-        atomic::{AtomicU16, AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicU64, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -473,7 +473,7 @@ async fn sync_single_table_partial(
                 let ok = to.write_raw_block(&block).await;
                 if let Err(err) = ok {
                     let err_str = err.to_string();
-                    log::debug!("sync_single_table_partial write raw block error: {err:#}", );
+                    log::debug!("sync_single_table_partial write raw block error: {err:#}",);
                     if err_str.contains("0x2603") {
                         if let Some(stable) = stable {
                             sync_super_table_schema_with_subs_without_pool(
@@ -593,8 +593,9 @@ async fn sync_single_table_partial(
                         );
                         stmt.bind(&params)
                             .context(format!("[{new_table_name}] bind by chunk {batch_size}"))?;
-                        stmt.add_batch()
-                            .context(format!("[{new_table_name}] add batch by chunk {batch_size}"))?;
+                        stmt.add_batch().context(format!(
+                            "[{new_table_name}] add batch by chunk {batch_size}"
+                        ))?;
                         stmt.execute()
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
 
@@ -725,13 +726,17 @@ async fn sync_super_table_schema_with_subs_without_pool(
         .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    let create_sql = transform_sql_with_actions(sql.replace("VARCHAR", "BINARY")
-        .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-        .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
-        .replace("create table", "CREATE TABLE IF NOT EXISTS")
-        .replace("create stable", "CREATE TABLE IF NOT EXISTS"), name, actions, true)?;
-    if let Err(err) = to.exec(create_sql).await
-    {
+    let create_sql = transform_sql_with_actions(
+        sql.replace("VARCHAR", "BINARY")
+            .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+            .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
+            .replace("create table", "CREATE TABLE IF NOT EXISTS")
+            .replace("create stable", "CREATE TABLE IF NOT EXISTS"),
+        name,
+        actions,
+        true,
+    )?;
+    if let Err(err) = to.exec(create_sql).await {
         if err.to_string().contains("0x000B") {
             from.exec(format!("desc `{name}`")).await?;
         } else {
@@ -750,7 +755,15 @@ async fn sync_super_table_schema_with_subs_without_pool(
     let tag_name_vec = desc.tag_names().collect_vec();
     let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
 
-    let cond_for_to = subs.iter().map(|n| format!("'{}'", transform_tbname_with_actions(n.as_ref(), actions, false).unwrap())).join(",");
+    let cond_for_to = subs
+        .iter()
+        .map(|n| {
+            format!(
+                "'{}'",
+                transform_tbname_with_actions(n.as_ref(), actions, false).unwrap()
+            )
+        })
+        .join(",");
     let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
 
     let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
@@ -836,7 +849,11 @@ async fn sync_super_table_schema_with_subs_without_pool(
     if tables > 0 {
         log::debug!("Create child tables with sql: {sql}");
         to.exec(&sql).await?;
-        log::info!("Created {} tables in stable {} in this chunk", tables, new_stable_name);
+        log::info!(
+            "Created {} tables in stable {} in this chunk",
+            tables,
+            new_stable_name
+        );
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
     }
 
@@ -851,7 +868,7 @@ async fn sync_super_table_schema_with_subs(
     tables: usize,
     target_opts: &TargetOpts,
     is_v3: bool,
-    to_is_v3: bool,
+    _to_is_v3: bool,
     actions: &Vec<Action>,
     _concurrency: usize,
     metrics: &Arc<LegacyMetrics>,
@@ -903,7 +920,15 @@ async fn sync_super_table_schema_with_subs(
     let tag_name_vec = desc.tag_names().collect_vec();
     let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
 
-    let cond_for_to = subs.iter().map(|n| format!("'{}'", transform_tbname_with_actions(n.as_ref(), actions, false).unwrap())).join(",");
+    let cond_for_to = subs
+        .iter()
+        .map(|n| {
+            format!(
+                "'{}'",
+                transform_tbname_with_actions(n.as_ref(), actions, false).unwrap()
+            )
+        })
+        .join(",");
     let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
 
     let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
@@ -969,7 +994,8 @@ async fn sync_super_table_schema_with_subs(
     for (child, row) in non_exists {
         let new_table_name = transform_tbname_with_actions(&child, actions, false)?;
         let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        let e = format!("  IF NOT EXISTS `{new_table_name}` USING `{new_stable_name}` TAGS({tags})");
+        let e =
+            format!("  IF NOT EXISTS `{new_table_name}` USING `{new_stable_name}` TAGS({tags})");
         batch += 1;
         tables += 1;
 
@@ -989,7 +1015,11 @@ async fn sync_super_table_schema_with_subs(
     if tables > 0 {
         tracing::debug!("Create child tables with sql: {sql}");
         to.exec(&sql).await?;
-        log::info!("Created {} tables in stable {} in this chunk", tables, new_stable_name);
+        log::info!(
+            "Created {} tables in stable {} in this chunk",
+            tables,
+            new_stable_name
+        );
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
     }
 
@@ -997,7 +1027,12 @@ async fn sync_super_table_schema_with_subs(
 }
 
 // transfrom create sql based on actions
-fn transform_sql_with_actions(mut sql: String, table_name: &str, actions: &Vec<Action>, is_stable: bool) -> anyhow::Result<String> {
+fn transform_sql_with_actions(
+    mut sql: String,
+    table_name: &str,
+    actions: &Vec<Action>,
+    is_stable: bool,
+) -> anyhow::Result<String> {
     // log::debug!("sql transform before: {sql}");
     if is_stable {
         for action in actions {
@@ -1061,7 +1096,11 @@ fn transform_sql_with_actions(mut sql: String, table_name: &str, actions: &Vec<A
     Ok(sql)
 }
 
-fn transform_tbname_with_actions(table_name: &str, actions: &Vec<Action>, is_stable: bool) -> anyhow::Result<String> {
+fn transform_tbname_with_actions(
+    table_name: &str,
+    actions: &Vec<Action>,
+    is_stable: bool,
+) -> anyhow::Result<String> {
     log::debug!("table name transform before: {table_name}");
     let mut new_table_name = String::from(table_name);
     if is_stable {
@@ -1093,7 +1132,12 @@ fn transform_tbname_with_actions(table_name: &str, actions: &Vec<Action>, is_sta
     Ok(new_table_name)
 }
 
-async fn sync_normal_table_schema(from: &Taos, name: &str, actions: &Vec<Action>, to: &Taos) -> anyhow::Result<()> {
+async fn sync_normal_table_schema(
+    from: &Taos,
+    name: &str,
+    actions: &Vec<Action>,
+    to: &Taos,
+) -> anyhow::Result<()> {
     log::info!("Sync normal table schema of {name}");
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
@@ -1101,11 +1145,11 @@ async fn sync_normal_table_schema(from: &Taos, name: &str, actions: &Vec<Action>
         .context("Show create table error")?
         .unwrap();
     // todo: here will produce error: [0x000B] Unable to establish connection
-    let mut sql = sql.replace("VARCHAR", "BINARY")
-    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS");
+    let mut sql = sql
+        .replace("VARCHAR", "BINARY")
+        .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS");
     sql = transform_sql_with_actions(sql, name, actions, false)?;
-    if let Err(err) = to.exec(sql.clone()) .await
-    {
+    if let Err(err) = to.exec(sql.clone()).await {
         if !err.to_string().contains("[0x000B]") {
             Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
         }
@@ -2080,11 +2124,11 @@ pub async fn legacy_to_taos(
     )
     .await;
 
-    let mut task_done = false;
+    let task_done = AtomicBool::new(false);
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
     std::thread::spawn(move || loop {
-        if *task_done_clone {
+        if task_done_clone.load(Ordering::Relaxed) {
             log::debug!("stop timer");
             break;
         }
@@ -2255,7 +2299,7 @@ pub async fn legacy_to_taos(
     }
 
     info!("syncing done, wait to release resources");
-    task_done = true;
+    rc.store(true, Ordering::Relaxed);
     println!("{}", metrics);
     Ok(())
 }

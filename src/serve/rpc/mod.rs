@@ -8,7 +8,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll, time::Duration,
+    task::Poll,
 };
 
 use arrow::{
@@ -745,7 +745,9 @@ impl RpcConfig {
             controller: controller.clone(),
         };
         let flight_service = FlightServiceServer::new(service);
-        let flight_service = flight_service.max_decoding_message_size(std::usize::MAX).max_encoding_message_size(std::usize::MAX);
+        let flight_service = flight_service
+            .max_decoding_message_size(std::usize::MAX)
+            .max_encoding_message_size(std::usize::MAX);
         if let Some(tcp) = self.tcp {
             Server::builder()
                 .max_frame_size(max_frame_size)

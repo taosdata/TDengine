@@ -274,6 +274,7 @@ async fn sync(
         .exec("desc information_schema.ins_databases")
         .await
         .is_ok();
+    let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -281,7 +282,6 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-                let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
                 log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
                 let assignments = if a >= 3 && b >= 0 && c >= 5 {
                     consumer.assignments().await.unwrap()

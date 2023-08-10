@@ -200,7 +200,7 @@ async fn ipc_tcp_read(
     stream: socket2::Socket,
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
-    cancel: CancellationToken,
+    _cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
@@ -1811,7 +1811,7 @@ pub fn listen_tcp_socket(
     info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
     let socket = Arc::new(socket);
-    let closer_socket = socket.clone();
+    // let closer_socket = socket.clone();
 
     let (closer, receiver) = std::sync::mpsc::channel::<()>();
     let closed = Arc::new(AtomicBool::new(false));
