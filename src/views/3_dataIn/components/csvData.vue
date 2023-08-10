@@ -254,7 +254,7 @@ export default {
     submitUpload() {
       this.$refs.upload.submit();
     },
-
+    
     async getCsvColumnsData() {
       try {
         if (this.activeName == "first" && this.fileList.length == 0) {

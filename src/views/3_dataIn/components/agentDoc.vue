@@ -182,6 +182,6 @@ p {
   padding: 15px;
 }
 p {
-  word-break: break-all;
+  word-break: break-word;
 }
 </style>
