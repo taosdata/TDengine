@@ -903,7 +903,8 @@ export default {
   },
 
   datasource: {
-    csvwholeinfo:'请填写完整的csv配置信息',
+    csvconfigtip:'请配置csv信息',
+    csvwholeinfo:'请填写完整的csv配置信息（主键，tag，列和列类型）',
     customcolname:'自定义列',
     customcol:'请输入自定义列',
     uploadcsvtip:'请上传文件或输入文件地址',
