@@ -43,6 +43,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    qError("vgId:%d failed to prepare stream meta, alloc size:%"PRIzu", out of memory", vgId, sizeof(SStreamMeta));
     return NULL;
   }
 
@@ -121,6 +122,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
+  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%"PRId64, vgId, chkpId);
   return pMeta;
 
 _err:
@@ -505,7 +507,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     }
   }
 
-  qDebug("vgId:%d load %d task from disk", pMeta->vgId, (int32_t)taosArrayGetSize(pMeta->pTaskList));
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  qDebug("vgId:%d load %d tasks into meta from disk completed", pMeta->vgId, numOfTasks);
   taosArrayDestroy(pRecycleList);
   return 0;
 }

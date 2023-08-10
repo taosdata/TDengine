@@ -1813,11 +1813,12 @@ int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
-  int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
-  int32_t      code = 0;
+
+  int32_t vgId = TD_VID(pTq->pVnode);
+  char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t len = pMsg->contLen - sizeof(SMsgHead);
+  int32_t code = 0;
 
   SStreamTaskNodeUpdateMsg req = {0};
 
