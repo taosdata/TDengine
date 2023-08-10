@@ -47,11 +47,11 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pReader->sver = sver;
   pReader->ever = ever;
 
-  int64_t checkpointId = meta ? meta->checkpointId : 0;
+  int64_t chkpId = meta ? meta->chkpId : 0;
 
   SStreamSnapReader* pSnapReader = NULL;
 
-  if (streamSnapReaderOpen(pTq, sver, checkpointId, pTq->path, &pSnapReader) == 0) {
+  if (streamSnapReaderOpen(pTq, sver, chkpId, pTq->path, &pSnapReader) == 0) {
     pReader->complete = 1;
   } else {
     code = -1;

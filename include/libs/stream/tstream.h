@@ -369,11 +369,11 @@ typedef struct SStreamMeta {
 
   int32_t chkptNotReadyTasks;
 
-  int64_t  checkpointId;
-  SArray*  checkpointSaved;
-  SArray*  checkpointInUse;
-  int32_t  checkpointCap;
-  SRWLatch checkpointDirLock;
+  int64_t  chkpId;
+  SArray*  chkpSaved;
+  SArray*  chkpInUse;
+  int32_t  chkpCap;
+  SRWLatch chkpDirLock;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);

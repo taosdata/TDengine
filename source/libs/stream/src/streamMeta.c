@@ -91,12 +91,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  pMeta->checkpointSaved = taosArrayInit(4, sizeof(int64_t));
-  pMeta->checkpointInUse = taosArrayInit(4, sizeof(int64_t));
-  pMeta->checkpointCap = 8;
-  taosInitRWLatch(&pMeta->checkpointDirLock);
+  pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
+  pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
+  pMeta->chkpCap = 8;
+  taosInitRWLatch(&pMeta->chkpDirLock);
 
   int64_t chkpId = streamGetLatestCheckpointId(pMeta);
+  pMeta->chkpId = chkpId;
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, chkpId);
   if (pMeta->streamBackend == NULL) {
@@ -109,7 +110,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
-
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
@@ -182,9 +182,9 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
 
   taosHashClear(pMeta->pTaskBackendUnique);
 
-  taosArrayClear(pMeta->checkpointSaved);
+  taosArrayClear(pMeta->chkpSaved);
 
-  taosArrayClear(pMeta->checkpointInUse);
+  taosArrayClear(pMeta->chkpInUse);
 
   return 0;
 }
@@ -222,8 +222,8 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosThreadMutexDestroy(&pMeta->backendMutex);
   taosHashCleanup(pMeta->pTaskBackendUnique);
 
-  taosArrayDestroy(pMeta->checkpointSaved);
-  taosArrayDestroy(pMeta->checkpointInUse);
+  taosArrayDestroy(pMeta->chkpSaved);
+  taosArrayDestroy(pMeta->chkpInUse);
 
   taosMemoryFree(pMeta);
 }
