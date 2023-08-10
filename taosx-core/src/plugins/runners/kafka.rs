@@ -25,7 +25,6 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
 
     let mut consumer = build_consumer(&mut from)?;
-
     let timeout = parse_timeout(&from);
     let mut start = chrono::Utc::now().timestamp_millis();
     loop {
@@ -48,10 +47,16 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         let mut key = BinaryBuilder::new();
         let mut value = BinaryBuilder::new();
 
+
         for ms in message_sets.iter() {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos();
-                // print_message(&ms, &m, &ts);
+                let default_print_value = String::from("false");
+                let print_value: bool = from.params.get("print_value").unwrap_or(&default_print_value).parse().unwrap();
+                if print_value {
+                    print_message(&ms, &m, &ts);
+                }
+
                 timestamp.append_value(ts);
                 topic.append_value(ms.topic());
                 partition.append_value(ms.partition());
@@ -59,21 +64,24 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
                 key.append_value(m.key.clone());
                 value.append_value(m.value.clone());
             }
+
+            let batch = RecordBatch::try_new(
+                Arc::new(schema.clone()),
+                vec![
+                    Arc::new(timestamp.finish()),
+                    Arc::new(topic.finish()),
+                    Arc::new(partition.finish()),
+                    Arc::new(offset.finish()),
+                    Arc::new(key.finish()),
+                    Arc::new(value.finish()),
+                ],
+            )?;
+            writer.write(&batch)?;
+            tokio::task::yield_now().await;
+
+            consumer.consume_messageset(ms)?;
         }
 
-        let batch = RecordBatch::try_new(
-            Arc::new(schema.clone()),
-            vec![
-                Arc::new(timestamp.finish()),
-                Arc::new(topic.finish()),
-                Arc::new(partition.finish()),
-                Arc::new(offset.finish()),
-                Arc::new(key.finish()),
-                Arc::new(value.finish()),
-            ],
-        )?;
-        writer.write(&batch)?;
-        tokio::task::yield_now().await;
 
         consumer.commit_consumed()?;
         start = chrono::Utc::now().timestamp_millis();
@@ -148,7 +156,7 @@ pub async fn kafka_to_taos(
                 tracing::info!("Kafka task cancelled");
                 abort_handle.abort();
             }
-        };
+        }
         // send an empty tuple
         let _ = abort.send(());
         // stop the connector
@@ -158,8 +166,7 @@ pub async fn kafka_to_taos(
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
-    })
-    .await??;
+    }).await??;
 
     Ok(())
 }
@@ -372,13 +379,9 @@ fn parse_offset_storage(offset_storage: Option<&String>) -> GroupOffsetStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{Int32Builder, Int64Builder, PrimitiveArray, PrimitiveBuilder};
-    use arrow::datatypes::{DataType, Field, Int32Type, Schema, Time64NanosecondType};
-    use chrono::Timelike;
-    use itertools::assert_equal;
+    use arrow::datatypes::{DataType, Field, Schema};
     use std::collections::HashMap;
-    use std::fmt;
-    use std::fmt::{format, Debug};
+    use std::fmt::Debug;
     use std::str::FromStr;
     use taosx_ipc::prelude::ArrowDataType;
 
