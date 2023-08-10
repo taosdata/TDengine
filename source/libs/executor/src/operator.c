@@ -380,7 +380,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
         return NULL;
       }
 
-      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       STableListInfo*          pTableListInfo = tableListCreate();
