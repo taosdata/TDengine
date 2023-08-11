@@ -410,6 +410,7 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
 int32_t streamLoadTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
 
+  qInfo("vgId:%d load stream tasks from meta files", pMeta->vgId);
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     qError("vgId:%d failed to open stream meta, code:%s", pMeta->vgId, tstrerror(terrno));
     return -1;

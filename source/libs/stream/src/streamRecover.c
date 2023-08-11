@@ -67,6 +67,7 @@ const char* streamGetTaskStatusStr(int32_t status) {
     case TASK_STATUS__CK: return "check-point";
     case TASK_STATUS__CK_READY: return "check-point-ready";
     case TASK_STATUS__DROPPING: return "dropping";
+    case TASK_STATUS__STOP: return "stop";
     default:return "";
   }
 }
@@ -115,6 +116,7 @@ int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask) {
       .upstreamTaskId = pTask->id.taskId,
       .upstreamNodeId = pTask->info.nodeId,
       .childId = pTask->info.selfChildId,
+      .stage = pTask->status.stage,
   };
 
   // serialize
@@ -172,6 +174,7 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
       .downstreamTaskId = pRsp->downstreamTaskId,
       .downstreamNodeId = pRsp->downstreamNodeId,
       .childId = pRsp->childId,
+      .stage = pTask->status.stage,
   };
 
   qDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) (recheck)", pTask->id.idStr, pTask->info.nodeId,

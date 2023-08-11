@@ -93,6 +93,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_UPDATE_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
@@ -1743,14 +1744,17 @@ typedef struct SVgroupChangeInfo {
   SArray*   pUpdateNodeList;   //SArray<SNodeUpdateInfo>
 } SVgroupChangeInfo;
 
-static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg, const SVgroupChangeInfo* pInfo) {
+static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg, const SVgroupChangeInfo* pInfo, int64_t streamId, int32_t taskId) {
+  pMsg->streamId = streamId;
+  pMsg->taskId = taskId;
   pMsg->pNodeList = taosArrayInit(taosArrayGetSize(pInfo->pUpdateNodeList), sizeof(SNodeUpdateInfo));
   taosArrayAddAll(pMsg->pNodeList, pInfo->pUpdateNodeList);
 }
 
-static int32_t doBuildStreamTaskUpdateMsg(void** pBuf, int32_t* pLen, int32_t nodeId, SVgroupChangeInfo* pInfo) {
+static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupChangeInfo *pInfo, int32_t nodeId,
+                                          int64_t streamId, int32_t taskId) {
   SStreamTaskNodeUpdateMsg req = {0};
-  initNodeUpdateMsg(&req, pInfo);
+  initNodeUpdateMsg(&req, pInfo, streamId, taskId);
 
   int32_t code = 0;
   int32_t blen;
@@ -1847,7 +1851,8 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
 
       void   *pBuf = NULL;
       int32_t len = 0;
-      doBuildStreamTaskUpdateMsg(&pBuf, &len, pTask->info.nodeId, pInfo);
+      streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
+      doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId);
 
       STransAction action = {0};
       initTransAction(&action, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &pTask->info.epSet);
@@ -1881,24 +1886,47 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-// todo. 1. multiple change, 2. replica change problem
-static SVgroupChangeInfo mndFindChangedVgroupInfo(SMnode *pMnode, const SArray *pPrevVgroupList,
-                                                  const SArray *pVgroupList) {
+static bool isNodeEpsetChanged(const SEpSet* pPrevEpset, const SEpSet* pCurrent) {
+  const SEp* pEp = GET_ACTIVE_EP(pPrevEpset);
+
+  for(int32_t i = 0; i < pCurrent->numOfEps; ++i) {
+    const SEp* p = &(pCurrent->eps[i]);
+    if (pEp->port == p->port && strncmp(pEp->fqdn, p->fqdn, TSDB_FQDN_LEN) == 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// 1. increase the replica does not affect the stream process.
+// 2. decreasing the replica may affect the stream task execution in the way that there is one or more running stream
+// tasks on the will be removed replica.
+// 3. vgroup redistribution is an combination operation of first increase replica and then decrease replica. So we will
+// handle it as mentioned in 1 & 2 items.
+static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList) {
   SVgroupChangeInfo info = {
       .pUpdateNodeList = taosArrayInit(4, sizeof(SNodeUpdateInfo)),
       .pDBMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
   };
 
-  int32_t numOfVgroups = taosArrayGetSize(pPrevVgroupList);
-  for (int32_t i = 0; i < numOfVgroups; ++i) {
-    SNodeEntry *pPrevEntry = taosArrayGet(pPrevVgroupList, i);
+  int32_t numOfNodes = taosArrayGetSize(pPrevNodeList);
+  for (int32_t i = 0; i < numOfNodes; ++i) {
+    SNodeEntry *pPrevEntry = taosArrayGet(pPrevNodeList, i);
 
-    int32_t num = taosArrayGetSize(pVgroupList);
+    int32_t num = taosArrayGetSize(pNodeList);
     for (int32_t j = 0; j < num; ++j) {
-      SNodeEntry *pCurrent = taosArrayGet(pVgroupList, j);
+      SNodeEntry *pCurrent = taosArrayGet(pNodeList, j);
+
       if (pCurrent->nodeId == pPrevEntry->nodeId) {
-        // todo handle the replica change problem.
-        if (!isEpsetEqual(&pCurrent->epset, &pPrevEntry->epset)) {
+        if (isNodeEpsetChanged(&pPrevEntry->epset, &pCurrent->epset)) {
+          const SEp *pPrevEp = GET_ACTIVE_EP(&pPrevEntry->epset);
+
+          char buf[256] = {0};
+          EPSET_TO_STR(&pCurrent->epset, buf);
+          mDebug("nodeId:%d epset changed detected, old:%s:%d -> new:%s", pCurrent->nodeId, pPrevEp->fqdn,
+                 pPrevEp->port, buf);
+
           SNodeUpdateInfo updateInfo = {.nodeId = pPrevEntry->nodeId};
           epsetAssign(&updateInfo.prevEp, &pPrevEntry->epset);
           epsetAssign(&updateInfo.newEp, &pCurrent->epset);
@@ -1908,6 +1936,7 @@ static SVgroupChangeInfo mndFindChangedVgroupInfo(SMnode *pMnode, const SArray *
           taosHashPut(info.pDBMap, pVgroup->dbName, strlen(pVgroup->dbName), NULL, 0);
           mndReleaseVgroup(pMnode, pVgroup);
         }
+
         break;
       }
     }
@@ -1953,11 +1982,6 @@ int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo* pChangeInfo) {
       break;
     }
 
-    // update the related upstream and downstream tasks, todo remove this, no need this function
-    //    taosWLockLatch(&pStream->lock);
-    //      streamTaskUpdateEpInfo(pStream->tasks, req.vgId, &req.epset);
-    //      streamTaskUpdateEpInfo(pStream->pHTasksList, req.vgId, &req.epset);
-    //    taosWUnLockLatch(&pStream->lock);
     void* p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
     void* p1 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
     if (p == NULL && p1 == NULL) {
@@ -1975,7 +1999,7 @@ int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo* pChangeInfo) {
   return 0;
 }
 
-static SArray* doExtractNodeList(SMnode *pMnode) {
+static SArray* doExtractNodeListFromStream(SMnode *pMnode) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
@@ -2022,7 +2046,6 @@ static SArray* doExtractNodeList(SMnode *pMnode) {
 }
 
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
-  return 0;
   int32_t old = atomic_val_compare_exchange_32(&mndNodeCheckSentinel, 0, 1);
   if (old != 0) {
     mDebug("still in checking node change");
@@ -2030,17 +2053,26 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   }
 
   mDebug("start to do node change checking");
+  int64_t ts = taosGetTimestampSec();
 
   SMnode *pMnode = pMsg->info.node;
-  if (execNodeList.pNodeEntryList == NULL) {
-    execNodeList.pNodeEntryList = doExtractNodeList(pMnode);
+  if (execNodeList.pNodeEntryList == NULL || (taosArrayGetSize(execNodeList.pNodeEntryList) == 0)) {
+    if (execNodeList.pNodeEntryList != NULL) {
+      execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
+    }
+    execNodeList.pNodeEntryList = doExtractNodeListFromStream(pMnode);
+  }
+
+  if (taosArrayGetSize(execNodeList.pNodeEntryList) == 0) {
+    mDebug("end to do stream task node change checking, no vgroup exists, do nothing");
+    execNodeList.ts = ts;
+    atomic_store_32(&mndNodeCheckSentinel, 0);
+    return 0;
   }
 
   SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode);
-  int64_t ts = taosGetTimestampSec();
 
-  SVgroupChangeInfo changeInfo = mndFindChangedVgroupInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
-
+  SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
   if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
     mndProcessVgroupChange(pMnode, &changeInfo);
   }
@@ -2053,7 +2085,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   execNodeList.pNodeEntryList = pNodeSnapshot;
   execNodeList.ts = ts;
 
-  mDebug("end to do node change checking");
+  mDebug("end to do stream task node change checking");
   atomic_store_32(&mndNodeCheckSentinel, 0);
   return 0;
 }

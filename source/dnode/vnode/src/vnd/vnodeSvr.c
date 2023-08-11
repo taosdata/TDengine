@@ -473,7 +473,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      if (pVnode->restored && tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len) < 0) {
+      if (tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
       }
     } break;
