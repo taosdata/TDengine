@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "vnd.h"
 #include "tq.h"
 
 static int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle);
@@ -129,6 +130,11 @@ int32_t tqCheckStreamStatus(STQ* pTq) {
 int32_t tqStartStreamTasks(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
+
+  // for follower or vnode does not restored, do not launch the stream tasks.
+  if (!(vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored)) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   taosWLockLatch(&pMeta->lock);
 

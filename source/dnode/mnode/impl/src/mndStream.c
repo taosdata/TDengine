@@ -88,8 +88,6 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NODECHECK_TIMER, mndProcessNodeCheckReq);
 
-  /*mndSetMsgHandle(pMnode, TDMT_MND_RECOVER_STREAM, mndProcessRecoverStreamReq);*/
-
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
@@ -776,16 +774,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
-  if (pDb->cfg.replications != 1) {
-    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
-    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
-    mndReleaseDb(pMnode, pDb);
-    pDb = NULL;
-    goto _OVER;
-  }
+//  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+//  if (pDb->cfg.replications != 1) {
+//    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+//    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+//    mndReleaseDb(pMnode, pDb);
+//    pDb = NULL;
+//    goto _OVER;
+//  }
 
-  mndReleaseDb(pMnode, pDb);
+//  mndReleaseDb(pMnode, pDb);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
@@ -868,7 +866,7 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
 
   SRpcMsg rpcMsg = {
       .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = sizeof(SMStreamDoCheckpointMsg)};
-//  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   return 0;
 }
 

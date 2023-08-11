@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include "vnd.h"
 
 typedef struct {
   int8_t inited;
@@ -680,7 +681,6 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = len, .code = 0};
 
   tmsgSendRsp(&rsp);
-
   return 0;
 }
 
@@ -1137,13 +1137,12 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   code = tDecodeStreamTask(&decoder, pTask);
+  tDecoderClear(&decoder);
+
   if (code < 0) {
-    tDecoderClear(&decoder);
     taosMemoryFree(pTask);
     return -1;
   }
-
-  tDecoderClear(&decoder);
 
   SStreamMeta* pStreamMeta = pTq->pStreamMeta;
 
@@ -1166,16 +1165,22 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   // added into meta store, pTask cannot be reference since it may have been destroyed by other threads already now if
   // it is added into the meta store
   if (added) {
-    tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
-    SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
+    // only handled in the leader node
+    if (vnodeIsRoleLeader(pTq->pVnode)) {
+      tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
+      SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
 
-    bool restored = pTq->pVnode->restored;
-    if (p != NULL && restored) {  // reset the downstreamReady flag.
-      streamTaskCheckDownstreamTasks(p);
-    } else if (!restored) {
-      tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
+      bool restored = pTq->pVnode->restored;
+      if (p != NULL && restored) {
+        streamTaskCheckDownstreamTasks(p);
+      } else if (!restored) {
+        tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
+      }
+
+      if (p != NULL) {
+        streamMetaReleaseTask(pStreamMeta, p);
+      }
     }
-    streamMetaReleaseTask(pStreamMeta, p);
   } else {
     tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store", vgId, taskId);
     tFreeStreamTask(pTask);
@@ -1663,6 +1668,7 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
+// todo refactor.
 int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STQ*      pTq = pVnode->pTq;
   SMsgHead* msgStr = pMsg->pCont;
@@ -1830,26 +1836,26 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t vgId = TD_VID(pTq->pVnode);
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t len = pMsg->contLen - sizeof(SMsgHead);
-  int32_t code = 0;
+  bool    startTask = vnodeIsRoleLeader(pTq->pVnode);                // in case of follower, do not launch task
+  SRpcMsg rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
 
   SStreamTaskNodeUpdateMsg req = {0};
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
   if (tDecodeStreamTaskUpdateMsg(&decoder, &req) < 0) {
-    code = TSDB_CODE_MSG_DECODE_ERROR;
-    tDecoderClear(&decoder);
-    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(code));
-    return code;
+    rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
+    tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
+    goto _end;
   }
-  tDecoderClear(&decoder);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to acquire task:0x%x when handling update, it may have been dropped already", pMeta->vgId,
             req.taskId);
     // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
-    return TSDB_CODE_SUCCESS;
+    rsp.code = TSDB_CODE_SUCCESS;
+    goto _end;
   }
 
   tqDebug("s-task:%s receive task nodeEp update msg from mnode", pTask->id.idStr);
@@ -1858,27 +1864,26 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask* pHistoryTask = NULL;
   if (pTask->historyTaskId.taskId != 0) {
     pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
-    if (pHistoryTask == NULL) {
+    if (pHistoryTask != NULL) {
+      tqDebug("s-task:%s fill-history task handle task update along with related stream task", pHistoryTask->id.idStr);
+      streamTaskUpdateEpsetInfo(pHistoryTask, req.pNodeList);
+
+      streamTaskRestart(pHistoryTask, NULL, startTask);
+      streamMetaReleaseTask(pMeta, pHistoryTask);
+    } else {
       tqError("vgId:%d failed to get fill-history task:0x%x when handling task update, it may have been dropped",
               pMeta->vgId, pTask->historyTaskId.taskId);
-
       streamMetaReleaseTask(pMeta, pTask);
-
-      // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
-      return TSDB_CODE_SUCCESS;
     }
-
-    tqDebug("s-task:%s fill-history task handle task update along with related stream task", pHistoryTask->id.idStr);
-    streamTaskUpdateEpsetInfo(pHistoryTask, req.pNodeList);
   }
 
-  if (pHistoryTask != NULL) {
-    streamTaskRestart(pHistoryTask, NULL);
-    streamMetaReleaseTask(pMeta, pHistoryTask);
-  }
-
-  streamTaskRestart(pTask, NULL);
+  streamTaskRestart(pTask, NULL, startTask);
   streamMetaReleaseTask(pMeta, pTask);
 
-  return TSDB_CODE_SUCCESS;
+  int32_t code = rsp.code;
+
+_end:
+  tDecoderClear(&decoder);
+  tmsgSendRsp(&rsp);
+  return code;
 }
