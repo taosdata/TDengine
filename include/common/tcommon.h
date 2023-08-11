@@ -169,6 +169,7 @@ typedef enum EStreamType {
   STREAM_PULL_OVER,
   STREAM_FILL_OVER,
   STREAM_CREATE_CHILD_TABLE,
+  STREAM_TRANS_STATE,
 } EStreamType;
 
 #pragma pack(push, 1)
