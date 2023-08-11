@@ -59,11 +59,16 @@ typedef struct {
   bool         hasVal;
 } SIterInfo;
 
+typedef struct STableDataBlockIdx {
+  int32_t globalIndex;
+} STableDataBlockIdx;
+
 typedef struct STableBlockScanInfo {
   uint64_t  uid;
   TSKEY     lastKey;
   TSKEY     lastKeyInStt;       // last accessed key in stt
   SArray*   pBlockList;         // block data index list, SArray<SBrinRecord>
+  SArray*   pBlockIdxList;      // SArray<STableDataBlockIndx>
   SArray*   pMemDelData;        // SArray<SDelData>
   SArray*   pfileDelData;       // SArray<SDelData> from each file set
   SIterInfo iter;               // mem buffer skip list iterator
