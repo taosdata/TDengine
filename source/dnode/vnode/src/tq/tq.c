@@ -1180,6 +1180,8 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
       if (p != NULL) {
         streamMetaReleaseTask(pStreamMeta, p);
       }
+    } else {
+      tqDebug("vgId:%d not leader, not launch stream task s-task:0x%x", vgId, taskId);
     }
   } else {
     tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store", vgId, taskId);

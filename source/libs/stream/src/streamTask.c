@@ -495,7 +495,10 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) 
          pTask->status.stage, streamGetTaskStatusStr(pTask->status.taskStatus));
 
   // 3. start to check the downstream status
-  streamTaskCheckDownstreamTasks(pTask);
+  if (startTask) {
+    streamTaskCheckDownstreamTasks(pTask);
+  }
+
   return 0;
 }
 
