@@ -8,7 +8,16 @@ description: |
   TaosX 可以通过 `taosx-influxdb` 插件高效地读取 influxdb 中的数据，并将其写入TDengine，以实现历史数据迁移或实时数据同步。
 
 strict: false
-
+protocol:
+  display: 连接协议
+  description: InfluxDB 数据库连接的协议
+  choices:
+    - name: http
+      display: HTTP Protocol
+      description: Connect to InfluxDB using the HTTP protocol
+    - name: https
+      display: HTTPS Protocol
+      description: Connect to InfluxDB using the HTTPS protocol
 options:
   host:
     display: 服务器地址

@@ -119,7 +119,8 @@ impl InfluxdbConfig {
             .first()
             .and_then(|addr| addr.port.clone())
             .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
-        let influx_url = format!("http://{}:{}/", host, port);
+        let protocol = dsn.protocol.as_deref().unwrap_or("http");
+        let influx_url = format!("{}://{}:{}/", protocol, host, port);
         let influx_version = dsn
             .remove("version")
             .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
@@ -432,7 +433,8 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         .first()
         .and_then(|addr| addr.port.clone())
         .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
-    let influx_url = format!("http://{}:{}/", host, port);
+    let protocol = dsn.protocol.as_deref().unwrap_or("http");
+    let influx_url = format!("{}://{}:{}/", protocol, host, port);
     let influx_version = dsn.remove("version").unwrap_or("".to_string());
     if influx_version == "" {
         anyhow::bail!("The version is required");
