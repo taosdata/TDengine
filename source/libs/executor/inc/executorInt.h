@@ -25,6 +25,7 @@ extern "C" {
 #include "tsort.h"
 #include "ttszip.h"
 #include "tvariant.h"
+#include "theap.h"
 
 #include "dataSinkMgt.h"
 #include "executil.h"
@@ -80,7 +81,6 @@ enum {
   STREAM_RECOVER_STEP__PREPARE1,
   STREAM_RECOVER_STEP__PREPARE2,
   STREAM_RECOVER_STEP__SCAN1,
-  STREAM_RECOVER_STEP__SCAN2,
 };
 
 extern int32_t exchangeObjRefPool;
@@ -232,19 +232,20 @@ typedef struct STableMergeScanInfo {
   int32_t         tableEndIndex;
   bool            hasGroupId;
   uint64_t        groupId;
-  SArray*         queryConds;  // array of queryTableDataCond
   STableScanBase  base;
   int32_t         bufPageSize;
   uint32_t        sortBufSize;  // max buffer size for in-memory sort
   SArray*         pSortInfo;
   SSortHandle*    pSortHandle;
   SSDataBlock*    pSortInputBlock;
+  SSDataBlock*    pReaderBlock;
   int64_t         startTs;  // sort start time
   SArray*         sortSourceParams;
   SLimitInfo      limitInfo;
   int64_t         numOfRows;
   SScanInfo       scanInfo;
   int32_t         scanTimes;
+  int32_t         readIdx;
   SSDataBlock*    pResBlock;
   SSampleExecInfo sample;  // sample execution info
   SSortExecInfo   sortExecInfo;
@@ -362,7 +363,6 @@ typedef struct SStreamScanInfo {
   SNode*     pTagIndexCond;
 
   // recover
-  int32_t      blockRecoverContiCnt;
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
@@ -415,6 +415,14 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  // for limit optimization
+  bool          limited;
+  int64_t       limit;
+  bool          slimited;
+  int64_t       slimit;
+  uint64_t      curGroupId; // initialize to UINT64_MAX
+  uint64_t      handledGroupNum;
+  BoundedQueue* pBQ;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
@@ -498,6 +506,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   STimeWindowAggSupp  twAggSup;
   SSDataBlock*        pWinBlock;   // window result
   SSDataBlock*        pDelRes;     // delete result
+  SSDataBlock*        pUpdateRes;  // update window
   bool                returnUpdate;
   SSHashObj*          pStDeleted;
   void*               pDelIterator;

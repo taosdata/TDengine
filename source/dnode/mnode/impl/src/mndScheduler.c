@@ -25,10 +25,8 @@
 #define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
-static int32_t setTaskUpstreamEpInfo(const SStreamTask* pTask, SStreamTask* pDownstream);
 static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId,
                                       SVgObj* pVgroup, int32_t fillHistory);
-static void    setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask);
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
@@ -88,10 +86,10 @@ END:
 
 int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
   if (pStream->smaId != 0) {
-    pTask->outputType = TASK_OUTPUT__SMA;
+    pTask->outputInfo.type = TASK_OUTPUT__SMA;
     pTask->smaSink.smaId = pStream->smaId;
   } else {
-    pTask->outputType = TASK_OUTPUT__TABLE;
+    pTask->outputInfo.type = TASK_OUTPUT__TABLE;
     pTask->tbSink.stbUid = pStream->targetStbUid;
     memcpy(pTask->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
@@ -111,7 +109,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
     if (pDb != NULL && pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
-      pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
+      pTask->outputInfo.type = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
       if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
         return -1;
@@ -141,7 +139,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
     }
   } else {
     SStreamTask* pOneSinkTask = taosArrayGetP(pSinkNodeList, 0);
-    setFixedDownstreamEpInfo(pTask, pOneSinkTask);
+    streamTaskSetFixedDownstreamInfo(pTask, pOneSinkTask);
   }
 
   return 0;
@@ -168,6 +166,7 @@ SSnodeObj* mndSchedFetchOneSnode(SMnode* pMnode) {
   void*      pIter = NULL;
   // TODO random fetch
   pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void**)&pObj);
+  sdbCancelFetch(pMnode->pSdb, pIter);
   return pObj;
 }
 
@@ -199,6 +198,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
       sdbRelease(pMnode->pSdb, pVgroup);
       continue;
     }
+    sdbCancelFetch(pMnode->pSdb, pIter);
     return pVgroup;
   }
   return pVgroup;
@@ -230,7 +230,8 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SArray* pTaskList, SStrea
 
 int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup,
                                int32_t fillHistory) {
-  SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SINK, fillHistory, 0, pTaskList);
+  int64_t uid = (fillHistory == 0)? pStream->uid:pStream->hTaskUid;
+  SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SINK, fillHistory, 0, pTaskList);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -270,48 +271,9 @@ static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTas
 
   for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
     SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
-    setTaskUpstreamEpInfo(pTask, pSinkTask);
+    streamTaskSetUpstreamInfo(pSinkTask, pTask);
   }
 
-  return TSDB_CODE_SUCCESS;
-}
-
-static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
-  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
-  if (pEpInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pEpInfo->childId = pTask->info.selfChildId;
-  pEpInfo->epSet = pTask->info.epSet;
-  pEpInfo->nodeId = pTask->info.nodeId;
-  pEpInfo->taskId = pTask->id.taskId;
-
-  return pEpInfo;
-}
-
-void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask) {
-  STaskDispatcherFixedEp* pDispatcher = &pDstTask->fixedEpDispatcher;
-  pDispatcher->taskId = pTask->id.taskId;
-  pDispatcher->nodeId = pTask->info.nodeId;
-  pDispatcher->epSet = pTask->info.epSet;
-
-  pDstTask->outputType = TASK_OUTPUT__FIXED_DISPATCH;
-  pDstTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
-}
-
-int32_t setTaskUpstreamEpInfo(const SStreamTask* pTask, SStreamTask* pDownstream) {
-  SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pTask);
-  if (pEpInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  if (pDownstream->pUpstreamInfoList == NULL) {
-    pDownstream->pUpstreamInfoList = taosArrayInit(4, POINTER_BYTES);
-  }
-
-  taosArrayPush(pDownstream->pUpstreamInfoList, &pEpInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -333,8 +295,8 @@ static void setHTasksId(SArray* pTaskList, const SArray* pHTaskList) {
     (*pHTask)->streamTaskId.taskId = (*pStreamTask)->id.taskId;
     (*pHTask)->streamTaskId.streamId = (*pStreamTask)->id.streamId;
 
-    mDebug("s-task:0x%x related history task:0x%x, level:%d", (*pStreamTask)->id.taskId, (*pHTask)->id.taskId,
-           (*pHTask)->info.taskLevel);
+    mDebug("s-task:0x%" PRIx64 "-0x%x related history task:0x%" PRIx64 "-0x%x, level:%d", (*pStreamTask)->id.streamId,
+           (*pStreamTask)->id.taskId, (*pHTask)->id.streamId, (*pHTask)->id.taskId, (*pHTask)->info.taskLevel);
   }
 }
 
@@ -419,12 +381,12 @@ static int32_t doAddSourceTask(SArray* pTaskList, int8_t fillHistory, int64_t ui
          pWindow->skey, pWindow->ekey);
 
   // all the source tasks dispatch result to a single agg node.
-  setFixedDownstreamEpInfo(pTask, pDownstreamTask);
+  streamTaskSetFixedDownstreamInfo(pTask, pDownstreamTask);
   if (mndAssignStreamTaskToVgroup(pMnode, pTask, pPlan, pVgroup) < 0) {
     return -1;
   }
 
-  return setTaskUpstreamEpInfo(pTask, pDownstreamTask);
+  return streamTaskSetUpstreamInfo(pDownstreamTask, pTask);
 }
 
 static int32_t doAddAggTask(uint64_t uid, SArray* pTaskList, SArray* pSinkNodeList, SMnode* pMnode, SStreamObj* pStream,
@@ -596,7 +558,7 @@ static void setSinkTaskUpstreamInfo(SArray* pTasksList, const SStreamTask* pUpst
   SArray* pSinkTaskList = taosArrayGetP(pTasksList, SINK_NODE_LEVEL);
   for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
     SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
-    setTaskUpstreamEpInfo(pUpstreamTask, pSinkTask);
+    streamTaskSetUpstreamInfo(pSinkTask, pUpstreamTask);
   }
 }
 

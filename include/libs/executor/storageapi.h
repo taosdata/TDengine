@@ -228,7 +228,7 @@ typedef struct SStoreTqReader {
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
-  int32_t (*createSnapshot)(SSnapContext* ctx, int64_t uid);
+  int32_t (*setForSnapShot)(SSnapContext* ctx, int64_t uid);
   int32_t (*destroySnapshot)(SSnapContext* ctx);
   SMetaTableInfo (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx);
   int32_t (*getTableInfoFromSnapshot)(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid);
@@ -368,6 +368,8 @@ typedef struct SStateStore {
   bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
+  void (*windowSBfDelete)(SUpdateInfo *pInfo, uint64_t count);
+  void (*windowSBfAdd)(SUpdateInfo *pInfo, uint64_t count);
 
   SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);

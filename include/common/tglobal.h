@@ -58,6 +58,7 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsTimeToGetAvailableConn;
+extern int32_t tsKeepAliveIdle;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
@@ -85,7 +86,13 @@ extern int64_t tsVndCommitMaxIntervalMs;
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
+extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
+
+// dnode
+extern int64_t tsDndStart;
+extern int64_t tsDndStartOsUptime;
+extern int64_t tsDndUpTime;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -163,6 +170,8 @@ extern char tsUdfdLdLibPath[];
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
+extern bool tsSmlDot2Underline;
+extern char tsSmlTsDefaultName[];
 // extern bool    tsSmlDataFormat;
 // extern int32_t tsSmlBatchSize;
 
@@ -175,6 +184,7 @@ extern int64_t tsWalFsyncDataSizeLimit;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointTickInterval;
+extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;

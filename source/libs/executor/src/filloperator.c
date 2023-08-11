@@ -502,9 +502,13 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
-  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal, &pFillSup->pAPI->stateStore);   //?????
-  pFillSup->cur.pRowVal = NULL;
   cleanupExprSupp(&pFillSup->notFillExprSup);
+  if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
+    taosMemoryFree(pFillSup->cur.pRowVal);
+  }
+  taosMemoryFree(pFillSup->prev.pRowVal);
+  taosMemoryFree(pFillSup->next.pRowVal);
+  taosMemoryFree(pFillSup->nextNext.pRowVal);
 
   taosMemoryFree(pFillSup);
   return NULL;
@@ -546,13 +550,17 @@ static void destroyStreamFillOperatorInfo(void* param) {
 
 static void resetFillWindow(SResultRowData* pRowData) {
   pRowData->key = INT64_MIN;
-  pRowData->pRowVal = NULL;
+  taosMemoryFreeClear(pRowData->pRowVal);
 }
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, void* pState, SStorageAPI* pAPI) {
+  if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
+    resetFillWindow(&pFillSup->cur);
+  } else {
+    pFillSup->cur.key = INT64_MIN;
+    pFillSup->cur.pRowVal = NULL;
+  }
   resetFillWindow(&pFillSup->prev);
-  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal, &pAPI->stateStore);   //???
-  resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
 }
@@ -1514,11 +1522,11 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
         float v = 0;
         GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
-      } else if (pCell->type == TSDB_DATA_TYPE_DOUBLE) {
+      } else if (IS_FLOAT_TYPE(pCell->type)) {
         double v = 0;
         GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
-      } else if (IS_SIGNED_NUMERIC_TYPE(pCell->type)) {
+      } else if (IS_INTEGER_TYPE(pCell->type)) {
         int64_t v = 0;
         GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);

@@ -515,7 +515,6 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     if (pDb == NULL) return 0;
   }
   SSmaAndTagIter *pIter = pShow->pIter;
-  int             invalid = -1;
   while (numOfRows < rows) {
     pIter->pIdxIter = sdbFetch(pSdb, SDB_IDX, pIter->pIdxIter, (void **)&pIdx);
     if (pIter->pIdxIter == NULL) break;
@@ -552,7 +551,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    colDataSetVal(pColInfo, numOfRows, (const char *)&invalid, false);
+    colDataSetVal(pColInfo, numOfRows, NULL, true);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
@@ -831,6 +830,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
       memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
+      sdbCancelFetch(pSdb, pIter);
       return 0;
     }
 
@@ -851,7 +851,7 @@ int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     if (pIdx->dbUid == pDb->uid) {
       if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
         sdbRelease(pSdb, pIdx);
-        sdbCancelFetch(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }

@@ -120,7 +120,6 @@ static void mndPullupTtl(SMnode *pMnode) {
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
-  mTrace("calc mq rebalance");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -133,11 +132,16 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER,
-        .pCont = pReq,
-        .contLen = contLen,
-    };
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
+static void mndStreamCheckNode(SMnode* pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
@@ -266,6 +270,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsStreamCheckpointTickInterval == 0) {
       mndStreamCheckpointTick(pMnode, sec);
+    }
+
+    if (sec % tsStreamNodeCheckInterval == 0) {
+      mndStreamCheckNode(pMnode);
     }
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
@@ -800,7 +808,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pObj->id == pMnode->selfDnodeId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
-      pClusterInfo->master_uptime = mndGetClusterUpTime(pMnode);
+      pClusterInfo->master_uptime = (float)mndGetClusterUpTime(pMnode) / 86400.0f;
       // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
     } else {
@@ -886,7 +894,10 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
   pLoad->syncState = state.state;
   pLoad->syncRestore = state.restored;
-  mTrace("mnode current syncState is %s, syncRestore:%d", syncStr(pLoad->syncState), pLoad->syncRestore);
+  pLoad->syncTerm = state.term;
+  pLoad->roleTimeMs = state.roleTimeMs;
+  mTrace("mnode current syncState is %s, syncRestore:%d, syncTerm:%" PRId64 " ,roleTimeMs:%" PRId64,
+         syncStr(pLoad->syncState), pLoad->syncRestore, pLoad->syncTerm, pLoad->roleTimeMs);
   return 0;
 }
 

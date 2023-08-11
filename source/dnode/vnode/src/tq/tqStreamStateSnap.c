@@ -170,18 +170,9 @@ int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, char* path, int6
   return code;
 }
 
-int32_t streamStateLoadTasksImpl(SStreamMeta* pMeta, int64_t ver) {
-  // impl later
-  return streamLoadTasks(pMeta, ver);
-}
-int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) {
-  SWal* pWal = pWriter->pTq->pVnode->pWal;
-  return streamStateLoadTasksImpl(pWriter->pTq->pStreamMeta, walGetCommittedVer(pWal));
-}
+int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) { return streamLoadTasks(pWriter->pTq->pStreamMeta); }
 
 int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t code = 0;
   tqDebug("vgId:%d, vnode stream-state snapshot write", TD_VID(pWriter->pTq->pVnode));
-  code = streamSnapWrite(pWriter->pWriterImpl, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  return code;
+  return streamSnapWrite(pWriter->pWriterImpl, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
 }

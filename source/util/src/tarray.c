@@ -221,7 +221,7 @@ size_t taosArrayGetSize(const SArray* pArray) {
   return TARRAY_SIZE(pArray);
 }
 
-void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
+void* taosArrayInsert(SArray* pArray, size_t index, const void* pData) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }

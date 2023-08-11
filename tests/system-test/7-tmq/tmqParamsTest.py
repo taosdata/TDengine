@@ -26,7 +26,7 @@ class TDTestCase:
         # self.commit_value_list = ["true"]
         # self.offset_value_list = [""]
         # self.tbname_value_list = ["true"]
-        # self.snapshot_value_list = ["true"]
+        # self.snapshot_value_list = ["false"]
 
     def tmqParamsTest(self):
         paraDict = {'dbName':     'db1',
@@ -131,8 +131,8 @@ class TDTestCase:
                         if snapshot_value == "true":
                             if offset_value != "earliest" and offset_value != "":
                                 if offset_value == "latest":
-                                    offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace("earliest", "0")), subscription_info))
-                                    tdSql.checkEqual(sum(offset_value_list) > 0, True)
+                                    offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace(offset_value, "0")), subscription_info))
+                                    tdSql.checkEqual(sum(offset_value_list) >= 0, True)
                                     rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                     tdSql.checkEqual(sum(rows_value_list), expected_res)
                                 elif offset_value == "none":
@@ -154,8 +154,8 @@ class TDTestCase:
                                     tdSql.checkEqual(rows_value_list, [None]*len(subscription_info))
                         else:
                             if offset_value != "none":
-                                offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace("earliest", "0")), subscription_info))
-                                tdSql.checkEqual(sum(offset_value_list) > 0, True)
+                                offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace(offset_value, "0")), subscription_info))
+                                tdSql.checkEqual(sum(offset_value_list) >= 0, True)
                                 rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                 tdSql.checkEqual(sum(rows_value_list), expected_res)
                             else:

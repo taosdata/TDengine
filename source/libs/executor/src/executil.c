@@ -127,6 +127,10 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
+  if (pGroupResInfo->pBuf) {
+    taosMemoryFree(pGroupResInfo->pBuf);
+    pGroupResInfo->pBuf = NULL;
+  }
 
   // extract the result rows information from the hash map
   int32_t size = tSimpleHashGetSize(pHashmap);
@@ -2104,6 +2108,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     if (groupSort && groupByTbname) {
       taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
       pTableListInfo->numOfOuputGroups = numOfTables;
+    } else if (groupByTbname && pScanNode->groupOrderScan){
+      pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;
     }
@@ -2112,8 +2118,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    if (pScanNode->groupOrderScan) pTableListInfo->numOfOuputGroups = taosArrayGetSize(pTableListInfo->pTableList);
 
-    if (groupSort) {
+    if (groupSort || pScanNode->groupOrderScan) {
       code = sortTableGroup(pTableListInfo);
     }
   }

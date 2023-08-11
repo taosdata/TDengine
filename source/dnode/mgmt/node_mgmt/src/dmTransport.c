@@ -290,6 +290,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;

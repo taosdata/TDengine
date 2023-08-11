@@ -33,7 +33,7 @@
 
 static int64_t adjustExpEntries(int64_t entries) { return TMIN(DEFAULT_EXPECTED_ENTRIES, entries); }
 
-static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
+void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   if (pInfo->numSBFs < count) {
     count = pInfo->numSBFs;
   }
@@ -49,7 +49,7 @@ static void clearItemHelper(void *p) {
   tScalableBfDestroy(*pBf);
 }
 
-static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
+void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
   if (count < pInfo->numSBFs) {
     for (uint64_t i = 0; i < count; ++i) {
       SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, 0);

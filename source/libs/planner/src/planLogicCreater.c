@@ -847,7 +847,6 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
           : (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
   pWindow->node.resultDataOrder =
       pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : getRequireDataOrder(true, pSelect);
-
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);
@@ -1033,7 +1032,6 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
     code = nodesListMakeStrictAppend(&pSort->node.pTargets,
@@ -1047,6 +1045,7 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
     SNode*            pNode = NULL;
     SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+    if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
     if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
       SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
       int16_t      projIdx = 1;

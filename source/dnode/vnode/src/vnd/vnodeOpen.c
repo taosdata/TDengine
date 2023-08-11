@@ -476,8 +476,8 @@ void vnodeClose(SVnode *pVnode) {
     tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-    walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
+    walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);

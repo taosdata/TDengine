@@ -220,20 +220,29 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // STREAM ============
+  vInfo("stream task start");
   if (!pReader->streamTaskDone) {
     if (pReader->pStreamTaskReader == NULL) {
+      vInfo("stream task start 1");
       code = streamTaskSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamTaskReader);
-      if (code) goto _err;
+      if (code) {
+        vInfo("stream task start err");
+        goto _err;
+      }
     }
     code = streamTaskSnapRead(pReader->pStreamTaskReader, ppData);
+    vInfo("stream task start 2");
     if (code) {
+      vInfo("stream task start 3");
       goto _err;
     } else {
       if (*ppData) {
         goto _exit;
+        vInfo("stream task start 4");
       } else {
         pReader->streamTaskDone = 1;
         code = streamTaskSnapReaderClose(pReader->pStreamTaskReader);
+        vInfo("stream task start 5");
         if (code) goto _err;
         pReader->pStreamTaskReader = NULL;
       }

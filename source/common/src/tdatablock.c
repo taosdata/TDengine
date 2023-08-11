@@ -549,6 +549,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
   pDst->info = pBlock->info;
   pDst->info.rows = 0;
   pDst->info.capacity = 0;
+  pDst->info.rowSize = 0;
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
@@ -632,7 +633,10 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
         pStart += colSize;
       }
     } else {
-      memcpy(pStart, pCol->pData, dataSize);
+      if (dataSize != 0) {
+        // ubsan reports error if pCol->pData==NULL && dataSize==0
+        memcpy(pStart, pCol->pData, dataSize);
+      }
       pStart += dataSize;
     }
   }
@@ -684,8 +688,10 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
         return TSDB_CODE_FAILED;
       }
     }
-
-    memcpy(pCol->pData, pStart, colLength);
+    if (colLength != 0) {
+      // ubsan reports error if colLength==0 && pCol->pData == 0
+      memcpy(pCol->pData, pStart, colLength);
+    }
     pStart += colLength;
   }
 

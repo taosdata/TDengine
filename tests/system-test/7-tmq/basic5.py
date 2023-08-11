@@ -149,7 +149,6 @@ class TDTestCase:
         topicFromStb = 'topic_stb_column'
         topicFromCtb = 'topic_ctb_column'
 
-        tdSql.execute("alter database %s wal_retention_period 3600" % (parameterDict['dbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s_0" %(topicFromCtb, parameterDict['dbName'], parameterDict['stbName']))
 

@@ -15,38 +15,45 @@
 
 #include "streamInt.h"
 
+#define MAX_STREAM_EXEC_BATCH_NUM 32
+#define MIN_STREAM_EXEC_BATCH_NUM 4
+
 SStreamQueue* streamQueueOpen(int64_t cap) {
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
-  if (pQueue == NULL) return NULL;
+  if (pQueue == NULL) {
+    return NULL;
+  }
+
   pQueue->queue = taosOpenQueue();
   pQueue->qall = taosAllocateQall();
+
   if (pQueue->queue == NULL || pQueue->qall == NULL) {
-    goto FAIL;
+    if (pQueue->queue) taosCloseQueue(pQueue->queue);
+    if (pQueue->qall) taosFreeQall(pQueue->qall);
+    taosMemoryFree(pQueue);
+    return NULL;
   }
+
   pQueue->status = STREAM_QUEUE__SUCESS;
   taosSetQueueCapacity(pQueue->queue, cap);
   taosSetQueueMemoryCapacity(pQueue->queue, cap * 1024);
   return pQueue;
-
-FAIL:
-  if (pQueue->queue) taosCloseQueue(pQueue->queue);
-  if (pQueue->qall) taosFreeQall(pQueue->qall);
-  taosMemoryFree(pQueue);
-  return NULL;
 }
 
-void streamQueueClose(SStreamQueue* queue) {
-  while (1) {
-    void* qItem = streamQueueNextItem(queue);
-    if (qItem) {
-      streamFreeQitem(qItem);
-    } else {
-      break;
-    }
+void streamQueueClose(SStreamQueue* pQueue) {
+  streamQueueCleanup(pQueue);
+
+  taosFreeQall(pQueue->qall);
+  taosCloseQueue(pQueue->queue);
+  taosMemoryFree(pQueue);
+}
+
+void streamQueueCleanup(SStreamQueue* pQueue) {
+  void* qItem = NULL;
+  while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
+    streamFreeQitem(qItem);
   }
-  taosFreeQall(queue->qall);
-  taosCloseQueue(queue->queue);
-  taosMemoryFree(queue);
+  pQueue->status = STREAM_QUEUE__SUCESS;
 }
 
 #if 0
@@ -107,8 +114,6 @@ SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
 }
 #endif
 
-#define MAX_STREAM_EXEC_BATCH_NUM 32
-#define MIN_STREAM_EXEC_BATCH_NUM 4
 
 // todo refactor:
 // read data from input queue

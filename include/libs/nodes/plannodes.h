@@ -55,6 +55,7 @@ typedef struct SLogicNode {
   EGroupAction       groupAction;
   EOrder             inputTsOrder;
   EOrder             outputTsOrder;
+  bool               forceCreateNonBlockingOptr;  // true if the operator can use non-blocking(pipeline) mode
 } SLogicNode;
 
 typedef enum EScanType {
@@ -105,6 +106,7 @@ typedef struct SScanLogicNode {
   bool          hasNormalCols;  // neither tag column nor primary key tag column
   bool          sortPrimaryKey;
   bool          igLastNull;
+  bool          groupOrderScan;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -246,6 +248,8 @@ typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
   bool       groupSort;
+  int64_t    maxRows;
+  bool       skipPKSortOpt;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -316,6 +320,7 @@ typedef struct SPhysiNode {
   struct SPhysiNode*  pParent;
   SNode*              pLimit;
   SNode*              pSlimit;
+  bool                forceCreateNonBlockingOptr;
 } SPhysiNode;
 
 typedef struct SScanPhysiNode {
@@ -326,6 +331,7 @@ typedef struct SScanPhysiNode {
   uint64_t   suid;
   int8_t     tableType;
   SName      tableName;
+  bool       groupOrderScan;
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;

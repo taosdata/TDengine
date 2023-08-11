@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#define TARRAY_MIN_SIZE               8
+#define TARRAY_MIN_SIZE               4
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
 #define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
 
@@ -138,7 +138,7 @@ size_t taosArrayGetSize(const SArray* pArray);
  * @param index
  * @param pData
  */
-void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
+void* taosArrayInsert(SArray* pArray, size_t index, const void* pData);
 
 /**
  * set data in array

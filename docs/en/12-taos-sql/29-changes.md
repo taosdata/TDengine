@@ -18,6 +18,7 @@ description: This document describes how TDengine SQL has changed in version 3.0
 | 8 | Mixed operations | Enhanced | Mixing scalar and vector operations in queries has been enhanced and is supported in all SELECT clauses.
 | 9 | Tag operations | Added | Tag columns can be used in queries and clauses like data columns.
 | 10 | Timeline clauses and time functions in supertables | Enhanced | When PARTITION BY is not used, data in supertables is merged into a single timeline.
+| 11 | GEOMETRY | Added | Geometry
 
 ## SQL Syntax
 

@@ -1,4 +1,4 @@
-#Coulumn Define
+#Column Define
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
@@ -25,6 +25,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -38,6 +39,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
@@ -104,7 +106,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
@@ -134,6 +136,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -153,13 +156,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
+#,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
+,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
@@ -342,6 +348,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaBasic.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sma_index.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
@@ -447,7 +455,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 ,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
-
+,,n,system-test,python ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
@@ -789,9 +797,10 @@
 ,,y,script,./test.sh -f tsim/user/basic.sim
 ,,y,script,./test.sh -f tsim/user/password.sim
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
-#,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,y,script,./test.sh -f tsim/user/privilege_topic.sim
 ,,y,script,./test.sh -f tsim/user/privilege_table.sim
+,,y,script,./test.sh -f tsim/user/privilege_create_db.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
 ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
@@ -950,6 +959,7 @@
 ,,n,script,./test.sh -f tsim/query/udfpy.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/join_interval.sim
+,,y,script,./test.sh -f tsim/query/join_pk.sim
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
@@ -964,6 +974,7 @@
 ,,y,script,./test.sh -f tsim/query/tag_scan.sim 
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
 ,,y,script,./test.sh -f tsim/query/bug3398.sim
+,,y,script,./test.sh -f tsim/query/explain_tsorder.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -1216,3 +1227,4 @@
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
+,,n,docs-examples-test,bash test_R.sh

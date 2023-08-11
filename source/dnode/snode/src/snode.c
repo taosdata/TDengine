@@ -35,9 +35,7 @@ void sndEnqueueStreamDispatch(SSnode *pSnode, SRpcMsg *pMsg) {
 
   tDecoderClear(&decoder);
 
-  int32_t taskId = req.taskId;
-
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, req.taskId);
   if (pTask) {
     SRpcMsg rsp = {
         .info = pMsg->info,
@@ -60,23 +58,10 @@ FAIL:
 
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->pUpstreamInfoList) != 0);
-
-  pTask->refCnt = 1;
-  pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
-
-  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->inputQueue = streamQueueOpen(512 << 10);
-  pTask->outputQueue = streamQueueOpen(512 << 10);
-
-  if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) {
-    return -1;
+  int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, ver);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
-
-  pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
-  pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
-  pTask->pMsgCb = &pSnode->msgCb;
-  pTask->pMeta = pSnode->pMeta;
-  taosThreadMutexInit(&pTask->lock, NULL);
 
   pTask->pState = streamStateOpen(pSnode->path, pTask, false, -1, -1);
   if (pTask->pState == NULL) {
@@ -87,12 +72,10 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   SReadHandle handle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState, .fillHistory = pTask->info.fillHistory };
   initStreamStateAPI(&handle.api);
 
-  pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, 0);
+  pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, 0, pTask->id.taskId);
   ASSERT(pTask->exec.pExecutor);
 
-  streamTaskOpenAllUpstreamInput(pTask);
   streamSetupScheduleTrigger(pTask);
-
   qDebug("snode:%d expand stream task on snode, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d", SNODE_HANDLE,
          pTask->id.idStr, pTask->chkInfo.checkpointVer, pTask->info.selfChildId, pTask->info.taskLevel);
 
@@ -159,7 +142,9 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   // 2.save task
   taosWLockLatch(&pSnode->pMeta->lock);
-  code = streamMetaAddDeployedTask(pSnode->pMeta, -1, pTask);
+
+  bool added = false;
+  code = streamMetaRegisterTask(pSnode->pMeta, -1, pTask, &added);
   if (code < 0) {
     taosWUnLockLatch(&pSnode->pMeta->lock);
     return -1;
@@ -167,11 +152,10 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   int32_t numOfTasks = streamMetaGetNumOfTasks(pSnode->pMeta);
   taosWUnLockLatch(&pSnode->pMeta->lock);
-
-  streamPrepareNdoCheckDownstream(pTask);
   qDebug("snode:%d s-task:%s is deployed on snode and add into meta, status:%s, numOfTasks:%d", SNODE_HANDLE, pTask->id.idStr,
-          streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
+         streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
 
+  streamTaskCheckDownstreamTasks(pTask);
   return 0;
 }
 
@@ -179,14 +163,21 @@ int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   SVDropStreamTaskReq *pReq = (SVDropStreamTaskReq *)msg;
   qDebug("snode:%d receive msg to drop stream task:0x%x", pSnode->pMeta->vgId, pReq->taskId);
 
-  streamMetaRemoveTask(pSnode->pMeta, pReq->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
+  if (pTask == NULL) {
+    qError("vgId:%d failed to acquire s-task:0x%x when dropping it", pSnode->pMeta->vgId, pReq->taskId);
+    return 0;
+  }
+
+  streamMetaUnregisterTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
+  streamMetaReleaseTask(pSnode->pMeta, pTask);
   return 0;
 }
 
 int32_t sndProcessTaskRunReq(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamTaskRunReq *pReq = pMsg->pCont;
-  int32_t            taskId = pReq->taskId;
-  SStreamTask       *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
   if (pTask) {
     streamProcessRunReq(pTask);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
@@ -204,9 +195,8 @@ int32_t sndProcessTaskDispatchReq(SSnode *pSnode, SRpcMsg *pMsg, bool exec) {
   SDecoder           decoder;
   tDecoderInit(&decoder, (uint8_t *)msgBody, msgLen);
   tDecodeStreamDispatchReq(&decoder, &req);
-  int32_t taskId = req.taskId;
 
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, req.taskId);
   if (pTask) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp, exec);
@@ -226,8 +216,7 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecoderInit(&decoder, msgBody, msgLen);
   tDecodeStreamRetrieveReq(&decoder, &req);
   tDecoderClear(&decoder);
-  int32_t      taskId = req.dstTaskId;
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, req.dstTaskId);
 
   if (pTask) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
@@ -242,8 +231,11 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
 
 int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamDispatchRsp *pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t             taskId = ntohl(pRsp->upstreamTaskId);
-  SStreamTask        *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+
+  int32_t taskId = htonl(pRsp->upstreamTaskId);
+  int64_t streamId = htobe64(pRsp->streamId);
+
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, streamId, taskId);
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
@@ -251,7 +243,6 @@ int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   } else {
     return -1;
   }
-  return 0;
 }
 
 int32_t sndProcessTaskRetrieveRsp(SSnode *pSnode, SRpcMsg *pMsg) {
@@ -275,7 +266,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   return 0;
 }
 
-int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
+int32_t sndProcessStreamTaskScanHistoryFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
@@ -288,12 +279,12 @@ int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecoderClear(&decoder);
 
   // find task
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, req.downstreamTaskId);
   if (pTask == NULL) {
     return -1;
   }
   // do process request
-  if (streamProcessScanHistoryFinishReq(pTask, req.childId) < 0) {
+  if (streamProcessScanHistoryFinishReq(pTask, &req, &pMsg->info) < 0) {
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return -1;
   }
@@ -331,20 +322,19 @@ int32_t sndProcessStreamTaskCheckReq(SSnode *pSnode, SRpcMsg *pMsg) {
       .upstreamTaskId = req.upstreamTaskId,
   };
 
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, taskId);
 
   if (pTask != NULL) {
-    rsp.status = streamTaskCheckStatus(pTask);
+    rsp.status = streamTaskCheckStatus(pTask, req.stage);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
 
-    qDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%s, rsp status %d",
-            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId,
-            streamGetTaskStatusStr(pTask->status.taskStatus), rsp.status);
+    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+    qDebug("s-task:%s status:%s, recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+            pTask->id.idStr, pStatus, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
-    qDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64
-            ") from task:0x%x (vgId:%d), rsp status %d",
-            taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    qDebug("recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64 ") from task:0x%x (vgId:%d), rsp status %d",
+           taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   }
 
   SEncoder encoder;
@@ -391,7 +381,7 @@ int32_t sndProcessStreamTaskCheckRsp(SSnode* pSnode, SRpcMsg* pMsg) {
   qDebug("tq task:0x%x (vgId:%d) recv check rsp(reqId:0x%" PRIx64 ") from 0x%x (vgId:%d) status %d",
           rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pSnode->pMeta, rsp.upstreamTaskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pSnode->pMeta, rsp.streamId, rsp.upstreamTaskId);
   if (pTask == NULL) {
     qError("tq failed to locate the stream task:0x%x (vgId:%d), it may have been destroyed", rsp.upstreamTaskId,
             pSnode->pMeta->vgId);
@@ -416,7 +406,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_RETRIEVE_RSP:
       return sndProcessTaskRetrieveRsp(pSnode, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
-      return sndProcessTaskRecoverFinishReq(pSnode, pMsg);
+      return sndProcessStreamTaskScanHistoryFinishReq(pSnode, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
       return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
     case TDMT_STREAM_TASK_CHECK:
