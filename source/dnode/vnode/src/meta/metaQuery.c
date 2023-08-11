@@ -1432,10 +1432,10 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
   int32_t code = 0;
   void   *pData = NULL;
   int     nData = 0;
-  bool    lock = false;
+  int     lock = 0;
 
   if (pReader && !(pReader->flags & META_READER_NOLOCK)) {
-    lock = true;
+    lock = 1;
   }
 
   if(!lock) metaRLock(pMeta);
