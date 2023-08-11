@@ -1544,23 +1544,32 @@ export default {
           }
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
-          model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
+           if(this.$store.state.app.csvtags.length>0&&!model.tags){
+            model['tags']=this.$store.state.app.csvtags
+           }
+          if (model.tags.length > 0) {
+            model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
+            model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
+            piParams["parser"] = this.$store.state.app.csvParser;
+          } else {
+            piParams["parser"] = Object.assign(
+              { parse: parse },
+              {
+                model: {
+                  name: this.$refs.csvdata.$refs.param.ruleForm2.subname,
+                  columns: model.columns,
+                },
+              }
+            );
+          }
 
-          model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
-          piParams["parser"] = this.$store.state.app.csvParser;
-
-          if (
-            model.columns.length == 0 ||
-            model.tags.length == 0 ||
-            model.columns[0] == undefined
-          ) {
+          if (model.columns.length == 0 || model.columns[0] == undefined) {
             Message.error(this.$t("datasource.csvwholeinfo"));
             return;
           }
           let flag = [...model.columns, ...model.tags].some(
             (item) => parse[item].as == ""
           );
-
           if (flag) {
             Message.error(this.$t("datasource.csvwholeinfo"));
             return;
