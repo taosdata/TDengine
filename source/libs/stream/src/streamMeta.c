@@ -43,7 +43,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    qError("vgId:%d failed to prepare stream meta, alloc size:%"PRIzu", out of memory", vgId, sizeof(SStreamMeta));
+    qError("vgId:%d failed to prepare stream meta, alloc size:%" PRIzu ", out of memory", vgId, sizeof(SStreamMeta));
     return NULL;
   }
 
@@ -122,7 +122,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
-  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%"PRId64, vgId, chkpId);
+  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64, vgId, chkpId);
   return pMeta;
 
 _err:
@@ -211,7 +211,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   *pAdded = false;
 
   int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
-  void* p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (p == NULL) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
       tFreeStreamTask(pTask);
@@ -247,7 +247,7 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
 
-  int64_t keys[2] = {streamId, taskId};
+  int64_t       keys[2] = {streamId, taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask != NULL) {
     if (!streamTaskShouldStop(&(*ppTask)->status)) {
@@ -291,7 +291,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   // pre-delete operation
   taosWLockLatch(&pMeta->lock);
 
-  int64_t keys[2] = {streamId, taskId};
+  int64_t       keys[2] = {streamId, taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
     pTask = *ppTask;
@@ -390,6 +390,9 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+    if (pVal != NULL && vLen != 0) {
+      break;
+    }
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
@@ -462,7 +465,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
 
     // do duplicate task check.
     int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
-    void* p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if (p == NULL) {
       if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
         tdbFree(pKey);
