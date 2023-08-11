@@ -260,8 +260,8 @@ public class BucketThread implements Runnable {
             throw new Exception("parameter endTime configuration error.");
         }
         // 转换格式
-        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_21);
-        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_21);
+        Date begin = DateUtils.stringWithZoneToDate(beginTime);
+        Date end = DateUtils.stringWithZoneToDate(endTime);
         this.endTime = end;
         // 默认按天拆分
         if (StringUtils.isEmpty(readWindow)) {

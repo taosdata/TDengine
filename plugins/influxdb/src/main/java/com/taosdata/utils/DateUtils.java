@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.TimeZone;
 
@@ -132,6 +133,11 @@ public class DateUtils {
         }
         simpleDateFormat.setTimeZone(timeZone);
         return simpleDateFormat.parse(date);
+    }
+
+    public static Date stringWithZoneToDate(String dateWithZone) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[xxx][xx][X]");
+        return fromOffsetDateTime(OffsetDateTime.parse(dateWithZone, formatter));
     }
 
     /**
