@@ -7,6 +7,7 @@ add_executable(write_raw_block_test write_raw_block_test.c)
 add_executable(sml_test sml_test.c)
 add_executable(get_db_name_test get_db_name_test.c)
 add_executable(tmq_offset tmqOffset.c)
+add_executable(tmq_offset_test tmq_offset_test.c)
 target_link_libraries(
     tmq_offset
     PUBLIC taos
@@ -37,6 +38,13 @@ target_link_libraries(
 )
 target_link_libraries(
     tmq_taosx_ci
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+target_link_libraries(
+    tmq_offset_test
     PUBLIC taos
     PUBLIC util
     PUBLIC common
