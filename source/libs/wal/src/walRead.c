@@ -250,7 +250,6 @@ int32_t walReaderSeekVer(SWalReader *pReader, int64_t ver) {
   return 0;
 }
 
-void walSetReaderCapacity(SWalReader *pRead, int32_t capacity) { pRead->capacity = capacity; }
 
 int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   int64_t code;
