@@ -398,10 +398,14 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_SLASH;
         return 1;
       }
+      bool isHint = false;
+      if (z[2] == '+') {
+        isHint = TK_NK_HINT;
+      }
       for (i = 3; z[i] && (z[i] != '/' || z[i - 1] != '*'); i++) {
       }
       if (z[i]) i++;
-      *tokenId = TK_NK_COMMENT;
+      *tokenId = isHint ? TK_NK_HINT : TK_NK_COMMENT;
       return i;
     }
     case '%': {

@@ -361,6 +361,7 @@
 #define TK_NK_HEX     603  // hex number  0x123
 #define TK_NK_OCT     604  // oct number
 #define TK_NK_BIN     605  // bin format data 0b111
+#define TK_NK_HINT    606
 
 #define TK_NK_NIL 65535
 

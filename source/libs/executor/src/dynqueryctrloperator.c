@@ -357,6 +357,7 @@ static int32_t buildBatchTableScanOperatorParam(SOperatorParam** ppRes, int32_t 
     if (code) {
       return code;
     }
+    taosArrayDestroy(pUidList);
     *(SArray**)p = NULL;
   }
   
@@ -532,9 +533,11 @@ static FORCE_INLINE int32_t addToJoinVgroupHash(SSHashObj* pHash, void* pKey, in
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     if (NULL == taosArrayPush(pArray, pVal)) {
+      taosArrayDestroy(pArray);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     if (tSimpleHashPut(pHash, pKey, keySize, &pArray, POINTER_BYTES)) {
+      taosArrayDestroy(pArray);      
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     return TSDB_CODE_SUCCESS;
@@ -748,6 +751,8 @@ static void seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppR
   }
 
   *ppRes = NULL;
+  setOperatorCompleted(pOperator);
+
   return;
 }
 
@@ -760,20 +765,32 @@ SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
     return pRes;
   }
 
+  int64_t st = 0;
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
+
   if (!pStbJoin->ctx.prev.joinBuild) {
     buildStbJoinTableList(pOperator);
     if (pStbJoin->execInfo.prevBlkRows <= 0) {
-      pOperator->status = OP_EXEC_DONE;
-      return NULL;
+      setOperatorCompleted(pOperator);
+      goto _return;
     }
   }
 
   seqJoinContinueCurrRetrieve(pOperator, &pRes);
   if (pRes) {
-    return pRes;
+    goto _return;
   }
   
   seqJoinLaunchNewRetrieve(pOperator, &pRes);
+
+_return:
+
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+  }
+  
   return pRes;
 }
 

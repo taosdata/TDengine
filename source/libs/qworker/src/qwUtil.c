@@ -312,6 +312,8 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
     ctx->sinkHandle = NULL;
     qDebug("sink handle destroyed");
   }
+
+  taosArrayDestroy(ctx->tbInfo);
 }
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
@@ -462,15 +464,29 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
-  char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  char tbName[TSDB_TABLE_NAME_LEN] = {0};
+  char dbFName[TSDB_DB_FNAME_LEN];
+  char tbName[TSDB_TABLE_NAME_LEN];
+  STbVerInfo tbInfo;
+  int32_t i = 0;
 
-  qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
+  while (true) {
+    if (qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i) < 0) {
+      break;
+    }
 
-  if (dbFName[0] && tbName[0]) {
-    sprintf(ctx->tbInfo.tbFName, "%s.%s", dbFName, tbName);
-  } else {
-    ctx->tbInfo.tbFName[0] = 0;
+    if (dbFName[0] && tbName[0]) {
+      sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+    } else {
+      tbInfo.tbFName[0] = 0;
+    }
+
+    if (NULL == ctx->tbInfo) {
+      ctx->tbInfo = taosArrayInit(1, sizeof(tbInfo));
+    }
+    
+    taosArrayPush(ctx->tbInfo, &tbInfo);
+    
+    i++;
   }
 }
 

@@ -90,11 +90,6 @@ typedef struct SExecResult {
   void*    res;
 } SExecResult;
 
-typedef struct STbVerInfo {
-  char    tbFName[TSDB_TABLE_FNAME_LEN];
-  int32_t sversion;
-  int32_t tversion;
-} STbVerInfo;
 
 #pragma pack(push, 1) 
 typedef struct SCTableMeta {

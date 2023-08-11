@@ -144,7 +144,7 @@ typedef struct SQWTaskCtx {
   SArray    *explainRes;
   void      *taskHandle;
   void      *sinkHandle;
-  STbVerInfo tbInfo;
+  SArray    *tbInfo; // STbVerInfo
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {

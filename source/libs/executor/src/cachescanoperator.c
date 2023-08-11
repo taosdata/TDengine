@@ -330,7 +330,8 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  SSchemaWrapper* pWrapper = pTaskInfo->schemaInfo.sw;
+  SSchemaInfo* pSchemaInfo = taosArrayGetLast(pTaskInfo->schemaInfos);
+  SSchemaWrapper* pWrapper = pSchemaInfo->sw;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColMatchItem* pColMatch = taosArrayGet(pColMatchInfo, i);

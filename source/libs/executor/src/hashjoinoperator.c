@@ -735,8 +735,7 @@ static int32_t launchBlockHashJoin(struct SOperatorInfo* pOperator, SSDataBlock*
 }
 
 static void setHJoinDone(struct SOperatorInfo* pOperator) {
-  setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-  pOperator->status = OP_EXEC_DONE;
+  setOperatorCompleted(pOperator);
 
   SHJoinOperatorInfo* pInfo = pOperator->info;
   destroyHJoinKeyHash(&pInfo->pKeyHash);

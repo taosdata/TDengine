@@ -641,7 +641,7 @@ typedef struct SStreamFillOperatorInfo {
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo);
-void    cleanupQueriedTableScanInfo(SSchemaInfo* pSchemaInfo);
+void    cleanupQueriedTableScanInfo(void* p);
 
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void cleanupBasicInfo(SOptrBasicInfo* pInfo);

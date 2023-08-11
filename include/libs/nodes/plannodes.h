@@ -451,6 +451,10 @@ typedef struct SHashJoinPhysiNode {
   SNode*     pFilterConditions;
   SNodeList* pTargets;
   SQueryStat inputStat[2];
+
+  SNode*     pPrimKeyCond;
+  SNode*     pColEqCond;
+  SNode*     pTagEqCond;  
 } SHashJoinPhysiNode;
 
 typedef struct SGroupCachePhysiNode {

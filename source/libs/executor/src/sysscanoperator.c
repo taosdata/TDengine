@@ -933,7 +933,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       } else {
         int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? (tagLen + VARSTR_HEADER_SIZE)
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
-        tagVarChar = taosMemoryMalloc(bufSize);
+        tagVarChar = taosMemoryCalloc(1, bufSize + 1);
         int32_t len = -1;
         convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
         varDataSetLen(tagVarChar, len);

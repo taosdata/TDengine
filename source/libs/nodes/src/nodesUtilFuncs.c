@@ -1261,6 +1261,10 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->pFilterConditions);
       nodesDestroyList(pPhyNode->pTargets);
+      
+      nodesDestroyNode(pPhyNode->pPrimKeyCond);
+      nodesDestroyNode(pPhyNode->pColEqCond);
+      nodesDestroyNode(pPhyNode->pTagEqCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {

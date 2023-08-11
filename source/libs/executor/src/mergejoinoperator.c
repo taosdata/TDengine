@@ -652,7 +652,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
 }
 
 static void setMergeJoinDone(SOperatorInfo* pOperator) {
-  pOperator->status = OP_EXEC_DONE;
+  setOperatorCompleted(pOperator);
   freeOperatorParam(pOperator->pDownstreamGetParams[0], OP_GET_PARAM);
   freeOperatorParam(pOperator->pDownstreamGetParams[1], OP_GET_PARAM);
   pOperator->pDownstreamGetParams[0] = NULL;
@@ -794,6 +794,11 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     }
   }
 
+  int64_t st = 0;
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
+
   SSDataBlock* pRes = pJoinInfo->pRes;
   blockDataCleanup(pRes);
 
@@ -813,6 +818,10 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     if (pOperator->status == OP_EXEC_DONE) {
       break;
     }
+  }
+
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
   
   if (pRes->info.rows > 0) {

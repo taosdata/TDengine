@@ -84,6 +84,7 @@ struct SExecTaskInfo {
   int32_t               qbufQuota;  // total available buffer (in KB) during execution query
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
+  SArray*               schemaInfos;
   SSchemaInfo           schemaInfo;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.

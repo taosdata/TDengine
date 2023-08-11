@@ -5818,11 +5818,18 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
   if (tStartEncode(&encoder) < 0) return -1;
 
   if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;
-  if (tEncodeCStr(&encoder, pRsp->tbFName) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->sversion) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->tversion) < 0) return -1;
   if (tEncodeI64(&encoder, pRsp->affectedRows) < 0) return -1;
-
+  int32_t tbNum = taosArrayGetSize(pRsp->tbVerInfo);
+  if (tEncodeI32(&encoder, tbNum) < 0) return -1;
+  if (tbNum > 0) {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      STbVerInfo *pVer = taosArrayGet(pRsp->tbVerInfo, i);
+      if (tEncodeCStr(&encoder, pVer->tbFName) < 0) return -1;
+      if (tEncodeI32(&encoder, pVer->sversion) < 0) return -1;
+      if (tEncodeI32(&encoder, pVer->tversion) < 0) return -1;
+    }
+  }
+  
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -5838,11 +5845,19 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
   if (tStartDecode(&decoder) < 0) return -1;
 
   if (tDecodeI32(&decoder, &pRsp->code) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->tbFName) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->sversion) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->tversion) < 0) return -1;
   if (tDecodeI64(&decoder, &pRsp->affectedRows) < 0) return -1;
-
+  int32_t tbNum = 0;
+  if (tDecodeI32(&decoder, &tbNum) < 0) return -1;
+  if (tbNum > 0) {
+    pRsp->tbVerInfo = taosArrayInit(tbNum, sizeof(STbVerInfo));
+    if (NULL == pRsp->tbVerInfo) return -1;
+    STbVerInfo tbVer;
+    if (tDecodeCStrTo(&decoder, tbVer.tbFName) < 0) return -1;
+    if (tDecodeI32(&decoder, &tbVer.sversion) < 0) return -1;
+    if (tDecodeI32(&decoder, &tbVer.tversion) < 0) return -1;
+    if (NULL == taosArrayPush(pRsp->tbVerInfo, &tbVer)) return -1;
+  }
+  
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

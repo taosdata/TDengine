@@ -949,6 +949,11 @@ typedef struct STimeWindow {
   TSKEY ekey;
 } STimeWindow;
 
+typedef struct SQueryHint {
+  bool withHint;
+  bool batchScan;
+} SQueryHint;
+
 typedef struct {
   int32_t tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t tsLen;          // total length of ts comp block
@@ -967,12 +972,18 @@ typedef struct {
   int64_t offset;
 } SInterval;
 
-typedef struct {
-  int32_t code;
+
+typedef struct STbVerInfo {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
+} STbVerInfo;
+
+
+typedef struct {
+  int32_t code;
   int64_t affectedRows;
+  SArray* tbVerInfo;  // STbVerInfo
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);

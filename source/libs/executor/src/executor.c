@@ -474,28 +474,30 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
 }
 
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion) {
+                                    int32_t* tversion, int32_t idx) {
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  if (pTaskInfo->schemaInfo.sw == NULL) {
-    return TSDB_CODE_SUCCESS;
+  if (taosArrayGetSize(pTaskInfo->schemaInfos) <= idx) {
+    return -1;
   }
 
-  *sversion = pTaskInfo->schemaInfo.sw->version;
-  *tversion = pTaskInfo->schemaInfo.tversion;
-  if (pTaskInfo->schemaInfo.dbname) {
-    strcpy(dbName, pTaskInfo->schemaInfo.dbname);
+  SSchemaInfo* pSchemaInfo = taosArrayGet(pTaskInfo->schemaInfos, idx);
+
+  *sversion = pSchemaInfo->sw->version;
+  *tversion = pSchemaInfo->tversion;
+  if (pSchemaInfo->dbname) {
+    strcpy(dbName, pSchemaInfo->dbname);
   } else {
     dbName[0] = 0;
   }
-  if (pTaskInfo->schemaInfo.tablename) {
-    strcpy(tableName, pTaskInfo->schemaInfo.tablename);
+  if (pSchemaInfo->tablename) {
+    strcpy(tableName, pSchemaInfo->tablename);
   } else {
     tableName[0] = 0;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo) {

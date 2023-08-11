@@ -820,6 +820,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
     code = addSingleExchangeSource(pOperator, pBasicParam);
   }
 
+  freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
   pOperator->pOperatorGetParam = NULL;
 
   return TSDB_CODE_SUCCESS;

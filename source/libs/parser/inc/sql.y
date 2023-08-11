@@ -1009,10 +1009,10 @@ join_type(A) ::= INNER.                                                         
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
-  SELECT set_quantifier_opt(B) select_list(C) from_clause_opt(D) 
+  SELECT hint_opt(M) set_quantifier_opt(B) select_list(C) from_clause_opt(D) 
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K) 
   fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  { 
-                                                                                    A = createSelectStmt(pCxt, B, C, D);
+                                                                                    A = createSelectStmt(pCxt, B, C, D, M);
                                                                                     A = addWhereClause(pCxt, A, E);
                                                                                     A = addPartitionByClause(pCxt, A, F);
                                                                                     A = addWindowClauseClause(pCxt, A, G);
@@ -1022,6 +1022,11 @@ query_specification(A) ::=
                                                                                     A = addEveryClause(pCxt, A, K);
                                                                                     A = addFillClause(pCxt, A, L);
                                                                                   }
+
+%type hint_opt                                                                    { SQueryHint }
+%destructor hint_opt                                                              { }
+hint_opt(A) ::= .                                                                 { A.withHint = false; }
+hint_opt(A) ::= NO_BATCH_SCAN.                                                    { A.withHint = true; A.batchScan = false; }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }

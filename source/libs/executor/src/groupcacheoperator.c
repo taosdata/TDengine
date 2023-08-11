@@ -801,6 +801,9 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     taosWUnLockLatch(&pCtx->grpLock);
+    
+    taosArrayDestroy(pParam->pChildren);
+    pParam->pChildren = NULL;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1275,11 +1278,20 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
 
 static SSDataBlock* groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
   SSDataBlock* pBlock = NULL;
+  int64_t st = 0;
+
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
 
   int32_t code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  }
+
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   return pBlock;
