@@ -33,6 +33,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t mndStopInvolvedStreamTasks(SMnode *pMnode, int32_t vgId, STrans *pTrans);
+
 // for sma
 // TODO refactor
 int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);

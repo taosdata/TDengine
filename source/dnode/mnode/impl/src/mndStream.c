@@ -91,6 +91,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_STOP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_UPDATE_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
@@ -1819,6 +1820,7 @@ void initTransAction(STransAction* pAction, void* pCont, int32_t contLen, int32_
   pAction->msgType = msgType;
 }
 
+// todo extract method: traverse stream tasks
 // build trans to update the epset
 static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo* pInfo) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-task-update");
@@ -2085,6 +2087,76 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
 
   mDebug("end to do stream task node change checking");
   atomic_store_32(&mndNodeCheckSentinel, 0);
+  return 0;
+}
+
+
+
+int32_t mndBuildUpdateTaskStatusTrans(SStreamObj* pStream, STrans* pTrans) {
+  pStream->status = STREAM_STATUS__STOP;
+
+  int32_t size = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < size; i++) {
+    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel);
+    for (int32_t j = 0; j < numOfTasks; j++) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, j);
+
+      SVPauseStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVPauseStreamTaskReq));
+      if (pReq == NULL) {
+        mError("failed to malloc in pause stream, size:%" PRIzu ", code:%s", sizeof(SVPauseStreamTaskReq),
+               tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+
+      pReq->head.vgId = htonl(pTask->info.nodeId);
+      pReq->taskId = pTask->id.taskId;
+      pReq->streamId = pTask->id.streamId;
+
+      STransAction action = {0};
+      initTransAction(&action, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_STOP, &pTask->info.epSet);
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+        taosMemoryFree(pReq);
+        return -1;
+      }
+
+      if (atomic_load_8(&pTask->status.taskStatus) != TASK_STATUS__STOP) {
+        atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
+        atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__STOP);
+      }
+    }
+  }
+  return 0;
+}
+
+int32_t mndStopInvolvedStreamTasks(SMnode *pMnode, int32_t vgId, STrans *pTrans) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+
+  const char *p = strdup(pVgroup->dbName);
+  mndReleaseVgroup(pMnode, pVgroup);
+
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (strcmp(pStream->targetDb, p) == 0 || strcmp(pStream->sourceDb, p) == 0) {
+      int32_t code = mndBuildUpdateTaskStatusTrans(pStream, pTrans);
+      //    mDebug("stream:0x%"PRIx64" involved node changed, create update trans", pStream->uid);
+      if (code != TSDB_CODE_SUCCESS) {
+        // todo
+      }
+    }
+
+    mndReleaseStream(pMnode, pStream);
+  }
+
   return 0;
 }
 

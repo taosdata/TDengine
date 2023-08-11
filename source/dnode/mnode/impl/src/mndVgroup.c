@@ -1680,6 +1680,8 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
       pNew1->memUsed += vgMem;
     }
 
+//    mndStopInvolvedStreamTasks(pMnode, pVgroup->vgId, pTrans);
+
     if (mndAddIncVgroupReplicaToTrans(pMnode, pTrans, pDb, &newVg, pNew1->id) != 0) goto _OVER;
     if (mndAddDecVgroupReplicaFromTrans(pMnode, pTrans, pDb, &newVg, pOld1->id) != 0) goto _OVER;
   }

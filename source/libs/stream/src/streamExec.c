@@ -20,7 +20,6 @@
 #define MIN_STREAM_EXEC_BATCH_NUM 4
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
-static int32_t updateCheckPointInfo(SStreamTask* pTask);
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
