@@ -102,3 +102,5 @@ taostest --use=common_cluster_30.yaml --case=restful_insert/numeric_type_boundar
 
 #taostest --use=common_cluster_30.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 
+taostest --use=common_cluster_30.yaml --case=bug_regression/td23659.py --keep --containers
+
