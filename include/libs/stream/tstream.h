@@ -637,7 +637,7 @@ void    streamTaskCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t stage);
-int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir);
+int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 int32_t streamTaskStop(SStreamTask* pTask);
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
