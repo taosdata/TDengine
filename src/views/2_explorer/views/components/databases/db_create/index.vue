@@ -502,7 +502,7 @@
         return {
           name: [
             {
-              // required: true,
+              required: true,
               message: this.$t("data.nameTip").replace('/name/',this.$t('data.databases')),
             },
             {
