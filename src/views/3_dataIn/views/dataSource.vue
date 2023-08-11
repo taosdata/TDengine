@@ -34,7 +34,7 @@
         <el-table-column type="expand">
           <template >
             <div>
-              <el-table :data="taskActivities" size="mini" class="tabel-expand">
+              <el-table :data="taskActivities" size="mini" class="tabel-expand" max-height="160">
                 <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
                   <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
                     <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
@@ -500,6 +500,7 @@ export default {
         this.expandRowKeys = []
         return 
       } 
+      this.taskActivities = []
       let res =  await getTaskActivities(row.taskid)
       this.expandRowKeys = [row.taskid]
       if (res && res.code && res.code != 0) {
@@ -591,7 +592,7 @@ export default {
   .tabel-expand {
    width: 64%;
    margin-left: 40px;
-   padding: 10px 5px;
+   padding: 0px 5px;
    ::v-deep.el-table th.el-table__cell.is-leaf {
     border: none !important;
    }
