@@ -848,6 +848,10 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   bool                    ignoreNull = getIgoreNullRes(pSup);
   int32_t                 order = TSDB_ORDER_ASC;
 
+  if (checkWindowBoundReached(pSliceInfo)) {
+    return;
+  }
+
   int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
