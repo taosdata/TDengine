@@ -762,8 +762,10 @@ export default {
     endTime: 'End time',
     cols: 'Cols',
     tags: 'Tags',
-    kafka: 'Kafka',
-    kafkaTopic: 'Kafka Topic'
+    kafka: 'Kafka Server',
+    kafkaTopic: 'Topics',
+    kafkaAckTimeout: 'Timeout',
+    kafkaBatchSize: 'Batch Size'
   },
   dataout: {
     dump: {

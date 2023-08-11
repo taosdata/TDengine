@@ -76,12 +76,11 @@
             parsinginZone(scope.row.created_at)
           }}</span>
         </el-table-column>
-        <el-table-column
+        <!-- <el-table-column
           :label="$t('datasource.via')"
           prop="via"
           width="150"
-        ></el-table-column>
-        <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
+        ></el-table-column> -->
 
         <el-table-column
           :label="$t('datasource.status')"
@@ -205,9 +204,9 @@
         @current-change="handlePageChange"
       ></el-pagination>
     </div>
-    <div class="agent" style="margin-top: 20px">
+    <!-- <div class="agent" style="margin-top: 20px">
       <Agents ref="agents" />
-    </div>
+    </div> -->
   </div>
 </template>
 <script>
@@ -237,7 +236,6 @@ export default {
     return {
       disable: true,
       typeList: [],
-      mqttdialog: false,
       dbsource: null,
       pageSize: 10,
       currentPage: 1,
@@ -295,93 +293,29 @@ export default {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via
-      if (data.from_detail) {
-        let editDdata = [].concat(data.from_detail);
-        if (data.from_expand && data.from_expand.id == "mqtt") {
-          let dnsarr = data.from.split("?")[1].split("&");
-          let caindex=dnsarr.findIndex((item) =>
-            item.includes("ca=")
-          );
-          let certindex=dnsarr.findIndex((item) =>
-            item.includes("cert=")
-          );
-          let certkeyindex=dnsarr.findIndex((item) =>
-            item.includes("cert_key=")
-          );
-          if(caindex>-1){
-           let file = dnsarr[caindex].split("=")[1].replace('@','')
-            this.$store.commit("app/SET_MQTT_CAFILE", [].concat(file));
-          }
-          if(certindex>-1){
-            let file = dnsarr[certindex].split("=")[1].replace('@','')
-            this.$store.commit("app/SET_MQTT_CERTFILE", [].concat(file));
-          }
-          if(certkeyindex>-1){
-            let file = dnsarr[certkeyindex].split("=")[1].replace('@','')
-            this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
-          }
-          this.$store.commit("app/SET_MQTT_PARSER", data.parser);
-          console.log('mqtt的编辑',this.$store.state.app);
-          this.$parent.parserobj = deepClone(data.parser);
-        }
-        if (data.from_expand && data.from_expand.id == "kafka") {
-          let payload = deepClone(data.parser.parse.value)
-          let parser = {
-            ...data.parser,
-            parse:{
-              payload
-            }
-          }
-          this.$store.commit("app/SET_MQTT_PARSER", parser);
-          this.$parent.parserobj = deepClone(parser);
-        }
-        if (data.from_expand && data.from_expand.id == "opcua") {
-          let dnsarr = data.from.split("?")[1].split("&");
-          let fileindex = dnsarr.findIndex((item) =>
-            item.includes("csv_config_file=")
-          );
-          if (fileindex > -1) {
-            let file = dnsarr
-              .filter((item) => item.includes("csv_config_file="))[0]
-              .split("=")[1].replace('@','');
-            this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
-          }
-
-          let certfile = dnsarr
-            .filter((item) => item.includes("certificate="))[0]
-            ?.split("=")[1].replace('@','');
-          let privatefile = dnsarr
-            .filter((item) => item.includes("private_key="))[0]
-            ?.split("=")[1].replace('@','');
-          // console.log(certfile, privatefile, file, "opc的文件---======");
-          
-          this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));
-          this.$store.commit(
-            "app/SET_OPC_PRIVATEFILES",
-            [].concat(privatefile)
-          );
+      if (data.from_expand && data.to_expand) {
+        let info = {
+          sourceData: {
+            dbFiled: data.from_expand.subject,
+            ...data.from_expand.params,
+            cols: data.from_expand.params.cols ? data.from_expand.params.cols.split(',') : [],
+            tags: data.from_expand.params.tags ? data.from_expand.params.tags.split(',') : [],
+          },
+          target: {
+            ...data.to_expand.params,
+            kafkaUrl: `${data.to_expand.host}${data.to_expand.port ? ':'+data.to_expand.port : ''}` ,
+            topic: data.to_expand.subject
+          } 
         }
 
-        if (data.from_expand && data.from_expand.id == "csv") {
-          this.$store.commit("app/SET_CSV_PARSER", data.parser);
-          this.$parent.echoData = deepClone([].concat(data.parser));
-          let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
-          let hasheader = data.from.match(/(?<=has_header=).*/)[0];
-          this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
-          this.$store.commit("app/SET_CSV_FILES", filelist);
-        }
         let dbname =
-          data.to_expand && data.to_expand.subject
-            ? data.to_expand.subject
+          data.from_expand && data.from_expand.subject
+            ? data.from_expand.subject
             : "";
-        this.$parent.uidata = editDdata;
-        localStorage.setItem("datainName", data.name);
+        this.$parent.uidata = info;
+        localStorage.setItem("dataoutName", data.name);
         this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname);
       }
-
-      // this.$router.push({
-      //   path: `/dataIn/source/${data.data_source_name}`
-      // });
     },
     addDbSource() {
       this.dialog = true;
@@ -392,12 +326,12 @@ export default {
         this.requestIng = true;
         this.topicList = [];
         let id = localStorage.getItem("local_clusterID");
-        await getDatain(id, 'datain').then((res) => {
+        await getDatain(id,'dataout').then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
               (item["taskid"] = item.id), (item["localname"] = item.name);
-              item["localtype"] = item.from_detail ? item.from_detail.name : "";
-              item["target"] = item.to_expand ? item.to_expand.subject : "";
+              item["localtype"] = item.to_expand ? item.to_expand.id : "";
+              item["target"] = item.from_expand ? item.from_expand.subject : "";
               item["created_at"] = item.created_at
                 ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
                   "Z"
@@ -597,6 +531,10 @@ export default {
    }
    ::v-deep.el-table td.el-table__cell {
     border: none !important;
+   }
+   ::v-deep.el-table td.el-table__cell div {
+      word-wrap: break-word;
+      word-break: break-word;
    }
   }
 

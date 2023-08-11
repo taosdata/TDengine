@@ -1030,8 +1030,10 @@ export default {
     endTime: '结束时间',
     cols: '列',
     tags: '标签',
-    kafka: 'Kafka',
-    kafkaTopic: 'Kafka Topic'
+    kafka: 'Kafka Server',
+    kafkaTopic: 'Topics',
+    kafkaAckTimeout: 'Timeout',
+    kafkaBatchSize: '批量发送 kafka 条数'
   },
   docs: {
     connector: {

@@ -1,9 +1,12 @@
 <template>
   <div class="page-wrapper">
     <MainContentHeader :title="routeTitle"> </MainContentHeader>
-    <section class="content">
-      <!-- <router-view></router-view> -->
+    <!-- <section class="content">
+      <router-view></router-view>
       <mainComponent></mainComponent>
+    </section> -->
+    <section class="content" style="border:none!important;">
+      <router-view></router-view>
     </section>
   </div>
 </template>
