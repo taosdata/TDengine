@@ -3048,10 +3048,13 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+
   pInfo->pTagCond = pTagCond;
   pInfo->pTagIndexCond = pTagIndexCond;
-  pInfo->pTableListInfo = pTableListInfo;
+  pInfo->suid = pPhyNode->suid;
   pInfo->pStorageAPI = &pTaskInfo->storageAPI;
+
+  pInfo->pTableListInfo = pTableListInfo;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
@@ -3062,10 +3065,10 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
+  __optr_fn_t tagScanNextFn = (pPhyNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdx : doTagScan;
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doTagScan, NULL, destroyTagScanOperatorInfo, optrDefaultBufFn, NULL);
+      createOperatorFpSet(optrDummyOpenFn, tagScanNextFn, NULL, destroyTagScanOperatorInfo, optrDefaultBufFn, NULL);
 
-  pInfo->suid = pPhyNode->suid;
   return pOperator;
 
 _error:
