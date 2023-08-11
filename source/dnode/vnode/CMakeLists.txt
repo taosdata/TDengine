@@ -162,7 +162,7 @@ target_link_libraries(
     PUBLIC index
 
     # s3
-    cos_c_sdk
+    cos_c_sdk_static
     ${APR_UTIL_LIBRARY}
     ${APR_LIBRARY}
     ${MINIXML_LIBRARY}
