@@ -1541,12 +1541,12 @@ impl TaskController {
     ) -> anyhow::Result<Vec<Agent>> {
         let mut sql = if id.is_some() {
             format!(
-                "select * from agents where name = '{}' and id != '{}'",
+                "select * from agents_view where name = '{}' and id != '{}'",
                 name,
                 id.unwrap()
             )
         } else {
-            format!("select * from agents where name = '{}'", name)
+            format!("select * from agents_view where name = '{}'", name)
         };
         if cluster_id.is_some() {
             sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
