@@ -502,7 +502,7 @@
         return {
           name: [
             {
-              required: true,
+              // required: true,
               message: this.$t("data.nameTip").replace('/name/',this.$t('data.databases')),
             },
             {
@@ -548,8 +548,7 @@
                   type: "success",
                   message: this.$t("createSucc"),
                 });
-                this.$store
-                .commit('dbs/SET_DIALOG_DB_VISABLE', false)
+                this.cancel()
             })
             .catch((err) => {
               this.$message({
