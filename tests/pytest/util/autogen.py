@@ -17,7 +17,7 @@ class AutoGen:
     def __init__(self):
         self.ts = 1600000000000
         self.batch_size = 100
-        seed = time.clock_gettime(time.CLOCK_REALTIME)
+        seed = time.time() % 10000
         random.seed(seed)
 
     # set start ts
@@ -93,9 +93,9 @@ class AutoGen:
         return ''.join(random.choice(letters) for i in range(count))
 
     # create db
-    def create_db(self, dbname):
+    def create_db(self, dbname, vgroups = 2, replica = 1):
         self.dbname  = dbname
-        tdSql.execute(f'create database {dbname}')
+        tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica}')
         tdSql.execute(f'use {dbname}')
         
     # create table or stable

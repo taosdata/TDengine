@@ -32,7 +32,7 @@ chmod +x TDinsight.sh
    - 使用已经存在的 Grafana Notification Channel `uid`，参数 `-E`。该参数可以使用 `curl -u admin:admin localhost:3000/api/alert-notifications |jq` 来获取。
 
      ```bash
-     sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
+     ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
      ```
 
 运行程序并重启 Grafana 服务，打开面板：`http://localhost:3000/d/tdinsight`。
@@ -210,19 +210,6 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### logs 表
-
-`logs` 表记录登录信息。
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|level|VARCHAR||log level|
-|content|NCHAR||log content，长度不超过1024字节|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
 ### log\_summary 表
 
 `log_summary` 记录日志统计信息。
@@ -270,7 +257,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||监控指标值|
+|gauge|DOUBLE||监控指标值|
 |client\_ip|NCHAR|TAG|client ip|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 |request\_method|NCHAR|TAG|request method|
@@ -284,7 +271,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||监控指标值|
+|gauge|DOUBLE||监控指标值|
 |client\_ip|NCHAR|TAG|client ip|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 |request\_method|NCHAR|TAG|request method|
@@ -298,7 +285,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||监控指标值|
+|gauge|DOUBLE||监控指标值|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 
 ### taosadapter\_restful\_http\_request\_summary\_milliseconds 表
@@ -326,7 +313,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||监控指标值|
+|gauge|DOUBLE||监控指标值|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 
 ### taosadapter\_system\_cpu\_percent 表
@@ -336,5 +323,5 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
-|guage|DOUBLE||监控指标值|
+|gauge|DOUBLE||监控指标值|
 |endpoint|NCHAR|TAG|taosadpater endpoint|

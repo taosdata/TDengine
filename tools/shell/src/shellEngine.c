@@ -20,6 +20,7 @@
 #define _DEFAULT_SOURCE
 #include "shellInt.h"
 #include "shellAuto.h"
+#include "geosWrapper.h"
 
 static bool    shellIsEmptyCommand(const char *cmd);
 static int32_t shellRunSingleCommand(char *command);
@@ -29,6 +30,7 @@ static void    shellRunSingleCommandImp(char *command);
 static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
 static int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
+static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
 static int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
 static int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
 static int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
@@ -306,6 +308,15 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
   return buf;
 }
 
+char *shellDumpHexValue(char *buf, const char *val, int32_t length) {
+  for (int32_t i = 0; i < length; i++) {
+    sprintf(buf + (i * 2), "%02X", val[i]);
+  }
+  buf[length * 2] = 0;
+
+  return buf;
+}
+
 void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
   if (val == NULL) {
     taosFprintfFile(pFile, "NULL");
@@ -315,6 +326,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   char quotationStr[2];
   quotationStr[0] = '\"';
   quotationStr[1] = 0;
+  int32_t width;
 
   int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
@@ -347,20 +359,27 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      width = SHELL_FLOAT_WIDTH;
       if (tsEnableScience) {
-        taosFprintfFile(pFile, "%e", GET_FLOAT_VAL(val));
+        taosFprintfFile(pFile, "%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.7f", width, GET_FLOAT_VAL(val));
+        if (n > SHELL_FLOAT_WIDTH) {
+          taosFprintfFile(pFile, "%*.7e", width, GET_FLOAT_VAL(val));
+        } else {
+          taosFprintfFile(pFile, "%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
+      width = SHELL_DOUBLE_WIDTH;
       if (tsEnableScience) {
-        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9e", 23, GET_DOUBLE_VAL(val));
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15e", width, GET_DOUBLE_VAL(val));
         taosFprintfFile(pFile, "%s", buf);
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
-        if (n > TMAX(25, length)) {
-          taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15f", width, GET_DOUBLE_VAL(val));
+        if (n > SHELL_DOUBLE_WIDTH) {
+          taosFprintfFile(pFile, "%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
           taosFprintfFile(pFile, "%s", buf);
         }
@@ -383,6 +402,10 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
         
         taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       }
+      break;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      shellDumpHexValue(buf, val, length);
+      taosFprintfFile(pFile, "%s", buf);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t *)val, precision);
@@ -507,16 +530,53 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
   }
 }
 
+void shellPrintString(const char *str, int32_t width) {
+  int32_t len = strlen(str);
+
+  if (width == 0) {
+    printf("%s", str);
+  }
+  else if (len > width) {
+    if (width <= 3) {
+      printf("%.*s.", width - 1, str);
+    }
+    else {
+      printf("%.*s...", width - 3, str);
+    }
+  } else {
+    printf("%s%*.s", str, width - len, "");
+  }
+}
+
+void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width) {
+  if (length == 0) {  //empty value
+    shellPrintString("", width);
+    return;
+  }
+
+  int32_t code = TSDB_CODE_FAILED;
+
+  code = initCtxAsText();
+  if (code != TSDB_CODE_SUCCESS) {
+    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);
+    return;
+  }
+
+  char *outputWKT = NULL;
+  code = doAsText(val, length, &outputWKT);
+  if (code != TSDB_CODE_SUCCESS) {
+    shellPrintString(getThreadLocalGeosCtx()->errMsg, width);  //should NOT happen
+    return;
+  }
+
+  shellPrintString(outputWKT, width);
+
+  geosFreeBuffer(outputWKT);
+}
+
 void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision) {
   if (val == NULL) {
-    int32_t w = width;
-    if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
-      w = 0;
-    }
-    w = printf("%*s", w, TSDB_DATA_NULL_STR);
-    for (; w < width; w++) {
-      putchar(' ');
-    }
+    shellPrintString(TSDB_DATA_NULL_STR, width);
     return;
   }
 
@@ -524,7 +584,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      printf("%*s", width, ((((int32_t)(*((char *)val))) == 1) ? "true" : "false"));
+      shellPrintString(((((int32_t)(*((char *)val))) == 1) ? "true" : "false"), width);
       break;
     case TSDB_DATA_TYPE_TINYINT:
       printf("%*d", width, *((int8_t *)val));
@@ -552,11 +612,12 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_FLOAT:
       if (tsEnableScience) {
-        printf("%*e", width, GET_FLOAT_VAL(val));
+        printf("%*.7e",width,GET_FLOAT_VAL(val));
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.5f", width, GET_FLOAT_VAL(val));
-        if (n > TMAX(20, width)) {
-            printf("%*e", width, GET_FLOAT_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.7f", width, GET_FLOAT_VAL(val));
+        if (n > SHELL_FLOAT_WIDTH) {
+
+            printf("%*.7e", width,GET_FLOAT_VAL(val));
         } else {
             printf("%s", buf);
         }
@@ -564,14 +625,14 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       if (tsEnableScience) {
-        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
-        printf("%*s", width, buf);
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15e", width,GET_DOUBLE_VAL(val));
+        printf("%s", buf);
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
-        if (n > TMAX(25, width)) {
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15f", width, GET_DOUBLE_VAL(val));
+        if (n > SHELL_DOUBLE_WIDTH) {
             printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
-            printf("%s", buf);
+            printf("%*s", width,buf);
         }
       }
       break;
@@ -579,6 +640,9 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
+      break;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      shellPrintGeometry(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t *)val, precision);
@@ -702,12 +766,13 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       return TMAX(21, width);  // '-9223372036854775807'
 
     case TSDB_DATA_TYPE_FLOAT:
-      return TMAX(20, width);
+      return TMAX(SHELL_FLOAT_WIDTH, width);
 
     case TSDB_DATA_TYPE_DOUBLE:
-      return TMAX(25, width);
+      return TMAX(SHELL_DOUBLE_WIDTH, width);
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (field->bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
       } else {
@@ -1089,6 +1154,7 @@ void *shellThreadLoop(void *arg) {
       taosResetTerminalMode();
     } while (shellRunCommand(command, true) == 0);
 
+    destroyThreadLocalGeosCtx();
     taosMemoryFreeClear(command);
     shellWriteHistory();
     shellExit();

@@ -127,14 +127,15 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
 
     if(kv->keyLen != strlen(pTagSchema->name) || memcmp(kv->key, pTagSchema->name, kv->keyLen) != 0 || kv->type != pTagSchema->type){
       code = TSDB_CODE_SML_INVALID_DATA;
-      uError("SML smlBuildCol error col not same %s", pTagSchema->name);
+      uError("SML smlBuildTagRow error col not same %s", pTagSchema->name);
       goto end;
     }
 
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
     //    strcpy(val.colName, pTagSchema->name);
-    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
+    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY ||
+        pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
     } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -209,7 +210,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSmlKv*  kv = (SSmlKv*)data;
   if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 || kv->type != pColSchema->type){
     ret = TSDB_CODE_SML_INVALID_DATA;
-    uError("SML smlBuildCol error col not same %s", pColSchema->name);
+    uInfo("SML smlBuildCol error col not same %s", pColSchema->name);
     goto end;
   }
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {
@@ -236,7 +237,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     }
     pVal->value.pData = pUcs4;
     pVal->value.nData = len;
-  } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
+  } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = (uint8_t*)kv->value;
   } else {
@@ -363,7 +364,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         }
         pVal->value.pData = pUcs4;
         pVal->value.nData = len;
-      } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
+      } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
         pVal->value.nData = kv->length;
         pVal->value.pData = (uint8_t*)kv->value;
       } else {

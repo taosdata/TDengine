@@ -39,6 +39,7 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, vo
 
 void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst);
 void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst);
+void mndExtractShortDbNameFromDbFullName(const char *stbFullName, char *dst);
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize);
 
 const char *mndGetStbStr(const char *src);
@@ -47,6 +48,7 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew);
 int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId);
 void   *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
                               int32_t alterOriDataLen);
+int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb);
 
 #ifdef __cplusplus
 }

@@ -40,6 +40,8 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
     return -1;
   }
 
+  tdbCommit(pMeta->pEnv, pMeta->txn);
+
   return 0;
 }
 
@@ -50,6 +52,7 @@ int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv
 int  metaPrepareAsyncCommit(SMeta *pMeta) {
    // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
   int code = 0;
+  code = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
 
   return code;

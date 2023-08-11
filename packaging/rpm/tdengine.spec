@@ -123,12 +123,12 @@ if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
         cp %{_compiledir}/build/lib/libjemalloc.so.2 %{buildroot}%{homepath}/jemalloc/lib
         ln -sf libjemalloc.so.2 %{buildroot}%{homepath}/jemalloc/lib/libjemalloc.so
     fi
-    if [ -f %{_compiledir}/build/lib/libjemalloc.a ]; then
-        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{homepath}/jemalloc/lib
-    fi
-    if [ -f %{_compiledir}/build/lib/libjemalloc_pic.a ]; then
-        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{homepath}/jemalloc/lib
-    fi
+#    if [ -f %{_compiledir}/build/lib/libjemalloc.a ]; then
+#        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{homepath}/jemalloc/lib
+#    fi
+#    if [ -f %{_compiledir}/build/lib/libjemalloc_pic.a ]; then
+#        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{homepath}/jemalloc/lib
+#    fi
     if [ -f %{_compiledir}/build/lib/pkgconfig/jemalloc.pc ]; then
         cp %{_compiledir}/build/lib/pkgconfig/jemalloc.pc %{buildroot}%{homepath}/jemalloc/lib/pkgconfig
     fi

@@ -16,7 +16,7 @@
 #include "tsdb.h"
 
 // =============== PAGE-WISE FILE ===============
-static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
+int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
   int32_t  code = 0;
   STsdbFD *pFD = NULL;
 
@@ -68,7 +68,7 @@ _exit:
   return code;
 }
 
-static void tsdbCloseFile(STsdbFD **ppFD) {
+void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
@@ -141,7 +141,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
+int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
@@ -173,7 +173,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
@@ -202,7 +202,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbFsyncFile(STsdbFD *pFD) {
+int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
   code = tsdbWriteFilePage(pFD);
@@ -523,7 +523,7 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-    if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type) || ((pColData->flag & HAS_VALUE) == 0)) continue;
+    if ((!pColData->smaOn) || ((pColData->flag & HAS_VALUE) == 0)) continue;
 
     SColumnDataAgg sma = {.colId = pColData->cid};
     tColDataCalcSMA[pColData->type](pColData, &sma.sum, &sma.max, &sma.min, &sma.numOfNull);
@@ -749,7 +749,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   int64_t   size;
   TdFilePtr pOutFD = NULL;
   TdFilePtr PInFD = NULL;
-  int32_t   szPage = pTsdb->pVnode->config.szPage;
+  int32_t   szPage = pTsdb->pVnode->config.tsdbPageSize;
   char      fNameFrom[TSDB_FILENAME_LEN];
   char      fNameTo[TSDB_FILENAME_LEN];
 
@@ -1489,6 +1489,10 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {
+  return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
+}
+
+int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
   int32_t code = 0;
   int64_t offset = pDelIdx->offset;
   int64_t size = pDelIdx->size;
@@ -1510,11 +1514,15 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
     SDelData delData;
     n += tGetDelData(pReader->aBuf[0] + n, &delData);
 
+    if (delData.version > maxVer) {
+      continue;
+    }
     if (taosArrayPush(aDelData, &delData) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
   }
+
   ASSERT(n == size);
 
   return code;

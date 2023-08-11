@@ -52,7 +52,7 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
 
   pRes = taos_query(pConn, "create table d2 using meters tags(3, 'San Francisco')");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table d1, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create child table d2, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);

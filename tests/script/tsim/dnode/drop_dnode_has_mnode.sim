@@ -35,7 +35,7 @@ endi
 
 print =============== step2 drop dnode 3
 sql_error drop dnode 1
-sql drop dnode 3
+sql drop dnode 3 force
 
 sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05

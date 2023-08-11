@@ -38,7 +38,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
 ```
   - OR REPLACE: 如果函数已经存在，会修改已有的函数属性。
   - function_name：聚合函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  - LANGUAGE 'C|Python'：函数编程语言，目前支持C语言和Python语言。  
+  - LANGUAGE 'C|Python'：函数编程语言，目前支持C语言和Python语言（v3.7+）。
   - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是Python，路径是包含 UDF 函数实现的Python文件路径。这个路径需要用英文单引号或英文双引号括起来；；
   - output_type：此函数计算结果的数据类型名称；
   - buffer_size：中间计算结果的缓冲区大小，单位是字节。如果不使用可以不设置。

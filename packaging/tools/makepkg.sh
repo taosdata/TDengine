@@ -69,25 +69,29 @@ if [ "$pagMode" == "lite" ]; then
   bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark "
   taostools_bin_files=""
 else
-
-  wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
+  if [ "$verMode" == "cloud" ]; then
+    taostools_bin_files=" ${build_dir}/bin/taosBenchmark"
+  else
+    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
       && echo "TDinsight.sh downloaded!" \
       || echo "failed to download TDinsight.sh"
-  # download TDinsight caches
-  orig_pwd=$(pwd)
-  tdinsight_caches=""
-  cd ${build_dir}/bin/ && \
-    chmod +x TDinsight.sh
-  ./TDinsight.sh --download-only ||:
-#  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
-  cd $orig_pwd
-  echo "TDinsight caches: $tdinsight_caches"
+    # download TDinsight caches
+    orig_pwd=$(pwd)
+    tdinsight_caches=""
+    cd ${build_dir}/bin/ && \
+      chmod +x TDinsight.sh
+    ./TDinsight.sh --download-only ||:
+    #  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
+    cd $orig_pwd
+    echo "TDinsight caches: $tdinsight_caches"
 
-  taostools_bin_files=" ${build_dir}/bin/taosdump \
+    taostools_bin_files=" ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       ${build_dir}/bin/tdengine-datasource.zip \
       ${build_dir}/bin/tdengine-datasource.zip.md5sum"
+  fi
+
   [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
   explorer_bin_files=$(find ${build_dir}/bin/ -name '*-explorer')
 
@@ -122,7 +126,6 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -213,12 +216,12 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
     cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
     ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
   fi
-  if [ -f ${build_dir}/lib/libjemalloc.a ]; then
-    cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
-  fi
-  if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
-    cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
-  fi
+  # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+  # fi
+  # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+  # fi
   if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
     cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
   fi
@@ -316,17 +319,11 @@ if [[ $dbName == "taos" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  # Add web files
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
-    if [ -d "${web_dir}/admin" ] ; then
-      mkdir -p ${install_dir}/share/
-      cp -Rfap ${web_dir}/admin ${install_dir}/share/
-      cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
-      cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
-    else
-      echo "directory not found for enterprise release: ${web_dir}/admin"
-    fi
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    
+    mkdir -p ${install_dir}/share/        
+    cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:    
   fi
+
 fi
 
 # Copy driver
@@ -334,14 +331,14 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
-if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+if [ "$verMode" == "cluster" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
         tmp_pwd=`pwd`
     	  cd ${install_dir}/connector
     	  if [ ! -d taos-connector-jdbc ];then
-          	git clone -b 3.1.0 --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+          	git clone -b 3.2.1 --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
     	  fi
     	  cd taos-connector-jdbc
     	  mvn clean package -Dmaven.test.skip=true
@@ -424,7 +421,7 @@ if [ "$exitcode" != "0" ]; then
   exit $exitcode
 fi
 
-if [ -n "${taostools_bin_files}" ]; then
+if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
     if [ "$osType" != "Darwin" ]; then
         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :

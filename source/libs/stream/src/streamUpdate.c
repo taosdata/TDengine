@@ -20,9 +20,9 @@
 #include "ttime.h"
 
 #define DEFAULT_FALSE_POSITIVE   0.01
-#define DEFAULT_BUCKET_SIZE      1310720
-#define DEFAULT_MAP_CAPACITY     1310720
-#define DEFAULT_MAP_SIZE         (DEFAULT_MAP_CAPACITY * 10)
+#define DEFAULT_BUCKET_SIZE      131072
+#define DEFAULT_MAP_CAPACITY     131072
+#define DEFAULT_MAP_SIZE         (DEFAULT_MAP_CAPACITY * 100)
 #define ROWS_PER_MILLISECOND     1
 #define MAX_NUM_SCALABLE_BF      100000
 #define MIN_NUM_SCALABLE_BF      10
@@ -33,7 +33,7 @@
 
 static int64_t adjustExpEntries(int64_t entries) { return TMIN(DEFAULT_EXPECTED_ENTRIES, entries); }
 
-static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
+void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   if (pInfo->numSBFs < count) {
     count = pInfo->numSBFs;
   }
@@ -44,12 +44,12 @@ static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   }
 }
 
-static void clearItemHelper(void* p) {
-  SScalableBf** pBf = p;
+static void clearItemHelper(void *p) {
+  SScalableBf **pBf = p;
   tScalableBfDestroy(*pBf);
 }
 
-static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
+void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
   if (count < pInfo->numSBFs) {
     for (uint64_t i = 0; i < count; ++i) {
       SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, 0);
@@ -274,7 +274,7 @@ void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo) {
 }
 
 int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo) {
-  if(!pInfo) {
+  if (!pInfo) {
     return 0;
   }
 

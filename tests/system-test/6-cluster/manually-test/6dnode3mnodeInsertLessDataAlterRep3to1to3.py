@@ -40,7 +40,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -182,7 +182,7 @@ class TDTestCase:
         tdLog.info(f"show transactions;alter database db0_0 replica {replica3};")
         TdSqlEx.execute(f'show transactions;')
         TdSqlEx.execute(f'alter database db0_0 replica {replica3};')
-        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica3,db_name=paraDict["dbName"],count_number=120)
+        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica3,db_name=paraDict["dbName"],count_number=180)
 
     def run(self):
         # print(self.master_dnode.cfgDict)

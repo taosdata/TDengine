@@ -41,7 +41,13 @@ static const char *offlineReason[] = {
     "timezone not match",
     "locale not match",
     "charset not match",
+    "ttlChangeOnWrite not match",
     "unknown",
+};
+
+enum {
+  DND_ACTIVE_CODE,
+  DND_CONN_ACTIVE_CODE,
 };
 
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
@@ -64,6 +70,8 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
+
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
 
 int32_t mndInitDnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -227,6 +235,14 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew) {
   mTrace("dnode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->updateTime = pNew->updateTime;
+#ifdef TD_ENTERPRISE
+  if (strncmp(pOld->active, pNew->active, TSDB_ACTIVE_KEY_LEN) != 0) {
+    strncpy(pOld->active, pNew->active, TSDB_ACTIVE_KEY_LEN);
+  }
+  if (strncmp(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN) != 0) {
+    strncpy(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+  }
+#endif
   return 0;
 }
 
@@ -399,6 +415,12 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
+  if (pCfg->ttlChangeOnWrite != tsTtlChangeOnWrite) {
+    mError("dnode:%d, ttlChangeOnWrite:%d inconsistent with cluster:%d", pDnode->id, pCfg->ttlChangeOnWrite,
+           tsTtlChangeOnWrite);
+    return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
+  }
+
   return 0;
 }
 
@@ -509,13 +531,23 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
-    if (pObj->syncState != statusReq.mload.syncState || pObj->syncRestore != statusReq.mload.syncRestore) {
-      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d", pObj->id, syncStr(pObj->syncState),
-            syncStr(statusReq.mload.syncState), pObj->syncRestore, statusReq.mload.syncRestore);
+    bool roleChanged = pObj->syncState != statusReq.mload.syncState ||
+                       (statusReq.mload.syncTerm != -1 && pObj->syncTerm != statusReq.mload.syncTerm);
+    bool restoreChanged = pObj->syncRestore != statusReq.mload.syncRestore;
+    if (roleChanged || restoreChanged) {
+      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64
+            " to %" PRId64,
+            pObj->id, syncStr(pObj->syncState), syncStr(statusReq.mload.syncState), pObj->syncRestore,
+            statusReq.mload.syncRestore, pObj->syncTerm, statusReq.mload.syncTerm);
       pObj->syncState = statusReq.mload.syncState;
       pObj->syncRestore = statusReq.mload.syncRestore;
-      pObj->stateStartTime = taosGetTimestampMs();
+      pObj->syncTerm = statusReq.mload.syncTerm;
     }
+
+    if (roleChanged) {
+      pObj->roleTimeMs = (statusReq.mload.roleTimeMs != 0) ? statusReq.mload.roleTimeMs : taosGetTimestampMs();
+    }
+
     mndReleaseMnode(pMnode, pObj);
   }
 
@@ -619,7 +651,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;
   mInfo("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   pRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
@@ -633,6 +665,72 @@ _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return code;
+}
+
+static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfgReq, int8_t action) {
+  SSdbRaw   *pRaw = NULL;
+  STrans    *pTrans = NULL;
+  SDnodeObj *pDnode = NULL;
+  bool       cfgAll = pCfgReq->dnodeId == -1;
+  int32_t    iter = 0;
+
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    if (cfgAll) {
+      pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+      if (pIter == NULL) break;
+      ++iter;
+    } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
+      goto _OVER;
+    }
+
+    if (!pTrans) {
+      pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "config-dnode");
+      if (!pTrans) goto _OVER;
+      if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+    }
+
+    SDnodeObj tmpDnode = *pDnode;
+    if (action == DND_ACTIVE_CODE) {
+      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
+    } else if (action == DND_CONN_ACTIVE_CODE) {
+      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
+    } else {
+      terrno = TSDB_CODE_INVALID_CFG;
+      goto _OVER;
+    }
+
+    pRaw = mndDnodeActionEncode(&tmpDnode);
+    if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
+
+    mInfo("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
+          pCfgReq->config, pCfgReq->value);
+
+    if (cfgAll) {
+      sdbRelease(pSdb, pDnode);
+      pDnode = NULL;
+    } else {
+      break;
+    }
+  }
+
+  if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  tsGrantHBInterval = TMIN(TMAX(5, iter / 2), 30);
+  terrno = 0;
+
+_OVER:
+  if (cfgAll) {
+    sdbRelease(pSdb, pDnode);
+  } else {
+    mndReleaseDnode(pMnode, pDnode);
+  }
+  sdbCancelFetch(pSdb, pIter);
+  mndTransDrop(pTrans);
+  sdbFreeRaw(pRaw);
+  return terrno;
 }
 
 static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
@@ -707,18 +805,22 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   strcpy(info.name, "statusInterval");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  strcpy(info.scope, "server");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "timezone");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "locale");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   strcpy(info.name, "charset");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
@@ -781,7 +883,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
+  tsGrantHBInterval = 5;
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
@@ -804,7 +906,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
 #endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
-                            SSnodeObj *pSObj, int32_t numOfVnodes, bool force) {
+                            SSnodeObj *pSObj, int32_t numOfVnodes, bool force, bool unsafe) {
   int32_t  code = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -813,7 +915,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop dnode:%d, force:%d", pTrans->id, pDnode->id, force);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   pRaw = mndDnodeActionEncode(pDnode);
   if (pRaw == NULL) goto _OVER;
@@ -844,7 +946,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (numOfVnodes > 0) {
     mInfo("trans:%d, %d vnodes on dnode:%d will be dropped", pTrans->id, numOfVnodes, pDnode->id);
-    if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id, force) != 0) goto _OVER;
+    if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id, force, unsafe) != 0) goto _OVER;
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -871,9 +973,16 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to drop, ep:%s:%d", dropReq.dnodeId, dropReq.fqdn, dropReq.port);
+  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s",
+          dropReq.dnodeId, dropReq.fqdn, dropReq.port, dropReq.force?"true":"false", dropReq.unsafe?"true":"false");
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
+  }
+
+  bool force = dropReq.force;
+  if(dropReq.unsafe)
+  {
+    force = true;
   }
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
@@ -903,16 +1012,23 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-  if ((numOfVnodes > 0 || pMObj != NULL || pSObj != NULL || pQObj != NULL) && !dropReq.force) {
-    if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
-      terrno = TSDB_CODE_DNODE_OFFLINE;
-      mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-             numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
-      goto _OVER;
-    }
+  bool isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+
+  if (isonline && force) {
+    terrno = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
+    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
+            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+    goto _OVER;
   }
 
-  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, dropReq.force);
+  if (!isonline && !force) {
+    terrno = TSDB_CODE_DNODE_OFFLINE;
+    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
+            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+    goto _OVER;
+  }
+
+  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -970,6 +1086,48 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "keeptimeoffset", 14) == 0) {
+    int32_t optLen = strlen("keeptimeoffset");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 23) {
+      mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "keeptimeoffset");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+#ifdef TD_ENTERPRISE
+  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
+    int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
+    int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
+    if (' ' != cfgReq.config[index] && 0 != cfgReq.config[index]) {
+      mError("dnode:%d, failed to config activeCode since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+    int32_t vlen = strlen(cfgReq.value);
+    if (vlen > 0 && ((opt == DND_ACTIVE_CODE && vlen != (TSDB_ACTIVE_KEY_LEN - 1)) ||
+                     (opt == DND_CONN_ACTIVE_CODE &&
+                      (vlen > (TSDB_CONN_ACTIVE_KEY_LEN - 1) || vlen < (TSDB_ACTIVE_KEY_LEN - 1))))) {
+      mError("dnode:%d, failed to config activeCode since invalid vlen:%d. conf:%s, val:%s", cfgReq.dnodeId, vlen,
+             cfgReq.config, cfgReq.value);
+      terrno = TSDB_CODE_INVALID_OPTION;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? "activeCode" : "cActiveCode");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
+
+    if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
+      mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
+      return -1;
+    }
+    return 0;
+#endif
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
@@ -1023,7 +1181,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
         tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
         mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
               dcfgReq.config, dcfgReq.value);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
         tmsgSendReq(&epSet, &rpcMsg);
         code = 0;
       }
@@ -1173,4 +1331,29 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+// get int32_t value from 'SMCfgDnodeReq'
+static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int32_t *pOutValue) {
+  terrno = 0;
+  if (' ' != pMCfgReq->config[opLen] && 0 != pMCfgReq->config[opLen]) {
+    goto _err;
+  }
+
+  if (' ' == pMCfgReq->config[opLen]) {
+    // 'key value'
+    if (strlen(pMCfgReq->value) != 0) goto _err;
+    *pOutValue = atoi(pMCfgReq->config + opLen + 1);
+  } else {
+    // 'key' 'value'
+    if (strlen(pMCfgReq->value) == 0) goto _err;
+    *pOutValue = atoi(pMCfgReq->value);
+  }
+
+  return 0;
+
+_err:
+  mError("dnode:%d, failed to config keeptimeoffset since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
+  terrno = TSDB_CODE_INVALID_CFG;
+  return -1;
 }

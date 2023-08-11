@@ -55,7 +55,7 @@ window_clause: {
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
 interp_clause:
-    RANGE(ts_val, ts_val) EVERY(every_val) FILL(fill_mod_and_val)
+    RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY expr [, expr] ...
@@ -315,7 +315,7 @@ WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 
 ### 使用限制
 
-只能针对表名（即 tbname 筛选）、binary/nchar 类型标签值进行正则表达式过滤，不支持普通列的过滤。
+只能针对表名（即 tbname 筛选）、binary/nchar 类型值进行正则表达式过滤。
 
 正则匹配字符串长度不能超过 128 字节。可以通过参数 _maxRegexStringLen_ 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
 

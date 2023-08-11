@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "storageapi.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -43,6 +44,8 @@ typedef struct STimeSliceOperatorInfo {
   uint64_t             groupId;
   SGroupKeys*          pPrevGroupKey;
   SSDataBlock*         pNextGroupRes;
+  SSDataBlock*         pRemainRes;    // save block unfinished processing
+  int32_t              remainIndex;     // the remaining index in the block to be processed
 } STimeSliceOperatorInfo;
 
 static void destroyTimeSliceOperatorInfo(void* param);
@@ -209,6 +212,45 @@ static bool isGroupKeyFunc(SExprInfo* pExprInfo) {
   return (functionType == FUNCTION_TYPE_GROUP_KEY);
 }
 
+static bool getIgoreNullRes(SExprSupp* pExprSup) {
+  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
+    SExprInfo* pExprInfo = &pExprSup->pExprInfo[i];
+
+    if (isInterpFunc(pExprInfo)) {
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        SFunctParam *pFuncParam = &pExprInfo->base.pParam[j];
+        if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
+          return pFuncParam->param.i ? true : false;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+static bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull) {
+  if (!ignoreNull) {
+    return false;
+  }
+
+  for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
+    SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
+
+    if (isInterpFunc(pExprInfo)) {
+      int32_t       srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+      SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
+
+      if (colDataIsNull_s(pSrc, index)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                    SSDataBlock* pSrcBlock, int32_t index, bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
@@ -217,7 +259,8 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
 
   // output the result
-  bool hasInterp = true;
+  int32_t fillColIndex = 0;
+  bool       hasInterp = true;
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
 
@@ -229,7 +272,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
       continue;
     } else if (isIsfilledPseudoColumn(pExprInfo)) {
       bool isFilled = true;
-      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
+      colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     } else if (!isInterpFunc(pExprInfo)) {
       if (isGroupKeyFunc(pExprInfo)) {
@@ -267,20 +310,41 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
       case TSDB_FILL_SET_VALUE:
       case TSDB_FILL_SET_VALUE_F: {
-        SVariant* pVar = &pSliceInfo->pFillColInfo[j].fillVal;
+        SVariant* pVar = &pSliceInfo->pFillColInfo[fillColIndex].fillVal;
 
+        bool isNull = (TSDB_DATA_TYPE_NULL == pVar->nType) ? true : false;
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
           float v = 0;
-          GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-          colDataSetVal(pDst, rows, (char*)&v, false);
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, float, pVar->nType, &pVar->f);
+          } else {
+            v = taosStr2Float(varDataVal(pVar->pz), NULL);
+          }
+          colDataSetVal(pDst, rows, (char*)&v, isNull);
         } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
           double v = 0;
-          GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-          colDataSetVal(pDst, rows, (char*)&v, false);
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
+          } else {
+            v = taosStr2Double(varDataVal(pVar->pz), NULL);
+          }
+          colDataSetVal(pDst, rows, (char*)&v, isNull);
         } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
           int64_t v = 0;
-          GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-          colDataSetVal(pDst, rows, (char*)&v, false);
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+          } else {
+            v = taosStr2Int64(varDataVal(pVar->pz), NULL, 10);
+          }
+          colDataSetVal(pDst, rows, (char*)&v, isNull);
+        } else if (IS_UNSIGNED_NUMERIC_TYPE(pDst->info.type)) {
+          uint64_t v = 0;
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
+          } else {
+            v = taosStr2UInt64(varDataVal(pVar->pz), NULL, 10);
+          }
+          colDataSetVal(pDst, rows, (char*)&v, isNull);
         } else if (IS_BOOLEAN_TYPE(pDst->info.type)) {
           bool v = false;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
@@ -288,8 +352,10 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           } else {
             v = taosStr2Int8(varDataVal(pVar->pz), NULL, 10);
           }
-          colDataSetVal(pDst, rows, (char*)&v, false);
+          colDataSetVal(pDst, rows, (char*)&v, isNull);
         }
+
+        ++fillColIndex;
         break;
       }
 
@@ -306,6 +372,11 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         if (!pLinearInfo->isStartSet || !pLinearInfo->isEndSet) {
+          hasInterp = false;
+          break;
+        }
+
+        if (end.key != INT64_MIN && end.key < pSliceInfo->current) {
           hasInterp = false;
           break;
         }
@@ -584,13 +655,47 @@ static int32_t resetKeeperInfo(STimeSliceOperatorInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool checkThresholdReached(STimeSliceOperatorInfo* pSliceInfo, int32_t threshold) {
+  SSDataBlock* pResBlock = pSliceInfo->pRes;
+  if (pResBlock->info.rows > threshold) {
+    return true;
+  }
+
+  return false;
+}
+
+static bool checkWindowBoundReached(STimeSliceOperatorInfo* pSliceInfo) {
+  if (pSliceInfo->current > pSliceInfo->win.ekey) {
+    return true;
+  }
+
+  return false;
+}
+
+static void saveBlockStatus(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock, int32_t curIndex) {
+  SSDataBlock* pResBlock = pSliceInfo->pRes;
+
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
+  if (curIndex < pBlock->info.rows - 1) {
+    pSliceInfo->pRemainRes = pBlock;
+    pSliceInfo->remainIndex = curIndex + 1;
+    return;
+  }
+
+  // all data in remaining block processed
+  pSliceInfo->pRemainRes = NULL;
+
+}
+
 static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock,
-                            SExecTaskInfo* pTaskInfo) {
+                            SExecTaskInfo* pTaskInfo, bool ignoreNull) {
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
-  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+
+  int32_t i = (pSliceInfo->pRemainRes == NULL) ? 0 : pSliceInfo->remainIndex;
+  for (; i < pBlock->info.rows; ++i) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
     // check for duplicate timestamps
@@ -598,8 +703,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_FUNC_DUP_TIMESTAMP);
     }
 
-    if (pSliceInfo->current > pSliceInfo->win.ekey) {
-      break;
+    if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
+      continue;
     }
 
     if (ts == pSliceInfo->current) {
@@ -610,8 +715,13 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
 
       pSliceInfo->current =
           taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-      if (pSliceInfo->current > pSliceInfo->win.ekey) {
+
+      if (checkWindowBoundReached(pSliceInfo)) {
         break;
+      }
+      if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+        saveBlockStatus(pSliceInfo, pBlock, i);
+        return;
       }
     } else if (ts < pSliceInfo->current) {
       // in case of interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
@@ -633,8 +743,12 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
             }
           }
 
-          if (pSliceInfo->current > pSliceInfo->win.ekey) {
+          if (checkWindowBoundReached(pSliceInfo)) {
             break;
+          }
+          if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+            saveBlockStatus(pSliceInfo, pBlock, i);
+            return;
           }
         } else {
           // ignore current row, and do nothing
@@ -666,11 +780,20 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
       }
       doKeepPrevRows(pSliceInfo, pBlock, i);
 
-      if (pSliceInfo->current > pSliceInfo->win.ekey) {
+      if (checkWindowBoundReached(pSliceInfo)) {
         break;
+      }
+      if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+        saveBlockStatus(pSliceInfo, pBlock, i);
+        return;
       }
     }
   }
+
+  // if reached here, meaning block processing finished naturally,
+  // or interpolation reach window upper bound
+  pSliceInfo->pRemainRes = NULL;
+
 }
 
 static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperatorInfo* pOperator, int32_t index) {
@@ -717,38 +840,69 @@ static void resetTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
   resetKeeperInfo(pSliceInfo);
 }
 
+static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
+  SExprSupp*              pSup = &pOperator->exprSupp;
+  bool                    ignoreNull = getIgoreNullRes(pSup);
+  int32_t                 order = TSDB_ORDER_ASC;
+
+  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
+  if (code != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+
+  if (pSliceInfo->scalarSup.pExprInfo != NULL) {
+    SExprSupp* pExprSup = &pSliceInfo->scalarSup;
+    projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+  }
+
+  // the pDataBlock are always the same one, no need to call this again
+  setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+  doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo, ignoreNull);
+  copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKey, pBlock);
+}
+
 static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-
+  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
-  SExprSupp*              pSup = &pOperator->exprSupp;
 
-  int32_t        order = TSDB_ORDER_ASC;
-  SInterval*     pInterval = &pSliceInfo->interval;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
-
   blockDataCleanup(pResBlock);
 
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {
-      setInputDataBlock(pSup, pSliceInfo->pNextGroupRes, order, MAIN_SCAN, true);
-      doTimesliceImpl(pOperator, pSliceInfo, pSliceInfo->pNextGroupRes, pTaskInfo);
-      copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKey, pSliceInfo->pNextGroupRes);
+      doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
+      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+        doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        if (pSliceInfo->pRemainRes == NULL) {
+          pSliceInfo->pNextGroupRes = NULL;
+        }
+        if (pResBlock->info.rows != 0) {
+          goto _finished;
+        } else {
+          // after fillter if result block has 0 rows, go back to
+          // process pNextGroupRes again for unfinished data
+          continue;
+        }
+      }
       pSliceInfo->pNextGroupRes = NULL;
     }
 
     while (1) {
-      SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes : downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
         setOperatorCompleted(pOperator);
         break;
       }
 
+      pResBlock->info.scanFlag = pBlock->info.scanFlag;
       if (pSliceInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
         pSliceInfo->groupId = pBlock->info.id.groupId;
       } else {
@@ -759,21 +913,15 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         }
       }
 
-      if (pSliceInfo->scalarSup.pExprInfo != NULL) {
-        SExprSupp* pExprSup = &pSliceInfo->scalarSup;
-        projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+      doHandleTimeslice(pOperator, pBlock);
+      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+        doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        if (pResBlock->info.rows != 0) {
+          goto _finished;
+        }
       }
-
-      int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
-
-      // the pDataBlock are always the same one, no need to call this again
-      setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
-      doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo);
-      copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKey, pBlock);
     }
+    // post work for a specific group
 
     // check if need to interpolate after last datablock
     // except for fill(next), fill(linear)
@@ -786,11 +934,12 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // restore initial value for next group
     resetTimesliceInfo(pSliceInfo);
-    if (pResBlock->info.rows >= 4096) {
+    if (pResBlock->info.rows != 0) {
       break;
     }
   }
 
+_finished:
   // restore the value
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
   if (pResBlock->info.rows == 0) {
@@ -812,7 +961,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
 
   int32_t    numOfExprs = 0;
   SExprInfo* pExprInfo = createExprInfo(pInterpPhyNode->pFuncs, NULL, &numOfExprs);
-  int32_t    code = initExprSupp(pSup, pExprInfo, numOfExprs);
+  int32_t    code = initExprSupp(pSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -820,7 +969,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   if (pInterpPhyNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pInterpPhyNode->pExprs, NULL, &num);
-    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num);
+    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -846,6 +995,8 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->groupId = 0;
   pInfo->pPrevGroupKey = NULL;
   pInfo->pNextGroupRes = NULL;
+  pInfo->pRemainRes = NULL;
+  pInfo->remainIndex = 0;
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;

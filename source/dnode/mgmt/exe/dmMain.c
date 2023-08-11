@@ -19,6 +19,9 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "version.h"
+#ifdef TD_JEMALLOC_ENABLED
+#include "jemalloc/jemalloc.h"
+#endif
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -87,6 +90,18 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
+  // taosIgnSignal(SIGTERM);
+  // taosIgnSignal(SIGHUP);
+  // taosIgnSignal(SIGINT);
+  // taosIgnSignal(SIGBREAK);
+
+#ifndef WINDOWS
+  taosIgnSignal(SIGBUS);
+#endif
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
   char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
@@ -243,6 +258,10 @@ static void taosCleanupArgs() {
 }
 
 int main(int argc, char const *argv[]) {
+#ifdef TD_JEMALLOC_ENABLED
+  bool jeBackgroundThread = true;
+  mallctl("background_thread", NULL, NULL, &jeBackgroundThread, sizeof(bool));
+#endif
   if (!taosCheckSystemIsLittleEnd()) {
     printf("failed to start since on non-little-end machines\n");
     return -1;
@@ -340,7 +359,11 @@ int mainWindows(int argc, char **argv) {
   taosCleanupArgs();
 
   if (dmInit() != 0) {
-    dError("failed to init dnode since %s", terrstr());
+    if (terrno == TSDB_CODE_NOT_FOUND) {
+      dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
+    } else {
+      dError("failed to init dnode since %s", terrstr());
+    }
 
     taosCleanupCfg();
     taosCloseLog();
@@ -350,6 +373,8 @@ int mainWindows(int argc, char **argv) {
 
   dInfo("start to init service");
   dmSetSignalHandle();
+  tsDndStart = taosGetTimestampMs();
+  tsDndStartOsUptime = taosGetOsUptime();
   int32_t code = dmRun();
   dInfo("shutting down the service");
 

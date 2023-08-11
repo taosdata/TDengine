@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "vnodeInt.h"
 #include "meta.h"
+
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME);
@@ -35,8 +37,8 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
 
   // validate req
   // save smaIndex
-  metaReaderInit(&mr, pMeta, 0);
-  if (metaGetTableEntryByUidCache(&mr, pCfg->indexUid) == 0) {
+  metaReaderDoInit(&mr, pMeta, 0);
+  if (metaReaderGetTableEntryByUidCache(&mr, pCfg->indexUid) == 0) {
 #if 1
     terrno = TSDB_CODE_TSMA_ALREADY_EXIST;
     metaReaderClear(&mr);

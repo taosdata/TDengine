@@ -198,9 +198,6 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
 
-  //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
-
   atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 

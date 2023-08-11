@@ -76,7 +76,11 @@ static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
+#ifdef ASSERT_NOT_CORE
+bool    tsAssert = false;
+#else
 bool    tsAssert = true;
+#endif
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
 LogFp   tsLogFp = NULL;
@@ -253,15 +257,15 @@ static void taosKeepOldLog(char *oldName) {
 
   (void)taosRenameFile(oldName, fileName);
 
-  if (tsLogKeepDays < 0) {
-    char compressFileName[LOG_FILE_NAME_LEN + 20];
-    snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
-    if (taosCompressFile(fileName, compressFileName) == 0) {
-      (void)taosRemoveFile(fileName);
-    }
+  char compressFileName[LOG_FILE_NAME_LEN + 20];
+  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
+  if (taosCompressFile(fileName, compressFileName) == 0) {
+    (void)taosRemoveFile(fileName);
   }
 
-  taosRemoveOldFiles(tsLogDir, TABS(tsLogKeepDays));
+  if (tsLogKeepDays > 0) {
+    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  }
 }
 
 static void *taosThreadToOpenNewFile(void *param) {
@@ -486,24 +490,11 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
-#if 0 
-    // DEBUG_FATAL and DEBUG_ERROR are duplicated
-    // fsync will cause thread blocking and may also generate log misalignment in case of asyncLog
-    if (tsAsyncLog && level != DEBUG_FATAL) {
-      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
-    } else {
-      taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
-      if (level == DEBUG_FATAL) {
-        taosFsyncFile(tsLogObj.logHandle->pFile);
-      }
-    }
-#else
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
     }
-#endif
 
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
@@ -556,6 +547,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 - len, format, argpointer);
   va_end(argpointer);
 
+  len = len > LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 ? LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 : len;
   buffer[len++] = '\n';
   buffer[len] = 0;
 
@@ -664,7 +656,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[128] = {0};
+  char           tmpBuf[128];
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;

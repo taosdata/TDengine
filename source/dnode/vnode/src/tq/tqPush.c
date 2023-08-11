@@ -16,14 +16,30 @@
 #include "tq.h"
 #include "vnd.h"
 
-int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
+  if (taosHashGetSize(pTq->pPushMgr) <= 0) {
+    return 0;
+  }
+  SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME_PUSH};
+  msg.pCont = rpcMallocCont(sizeof(SMsgHead));
+  msg.contLen = sizeof(SMsgHead);
+  SMsgHead *pHead = msg.pCont;
+  pHead->vgId = TD_VID(pTq->pVnode);
+  pHead->contLen = msg.contLen;
+  tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+  return 0;
+}
 
+int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType == TDMT_VND_SUBMIT) {
     tqProcessSubmitReqForSubscribe(pTq);
   }
 
+  taosRLockLatch(&pTq->pStreamMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
-  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, numOfTasks);
+  taosRUnLockLatch(&pTq->pStreamMeta->lock);
+
+  tqTrace("handle submit, restore:%d, size:%d", pTq->pVnode->restored, numOfTasks);
 
   // push data for stream processing:
   // 1. the vnode has already been restored.
@@ -34,12 +50,8 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
       return 0;
     }
 
-    if (msgType == TDMT_VND_SUBMIT) {
+    if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE) {
       tqStartStreamTasks(pTq);
-    }
-
-    if (msgType == TDMT_VND_DELETE) {
-      tqProcessDelReq(pTq, POINTER_SHIFT(msg, sizeof(SMsgHead)), msgLen - sizeof(SMsgHead), ver);
     }
   }
 
@@ -55,7 +67,9 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
   } else {
-    tqPushDataRsp(pHandle, vgId);
+//    tqPushDataRsp(pHandle, vgId);
+    tqPushEmptyDataRsp(pHandle, vgId);
+
     void* tmp = pHandle->msg->pCont;
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = tmp;
@@ -64,20 +78,24 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
   pHandle->msg->contLen = pMsg->contLen;
   int32_t ret = taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey), &pHandle, POINTER_BYTES);
-  tqDebug("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, ret,
+  tqInfo("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, ret,
           pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
   return 0;
 }
 
-int32_t tqUnregisterPushHandle(STQ* pTq, void *handle) {
+int tqUnregisterPushHandle(STQ* pTq, void *handle) {
   STqHandle *pHandle = (STqHandle*)handle;
   int32_t    vgId = TD_VID(pTq->pVnode);
 
+  if(taosHashGetSize(pTq->pPushMgr) <= 0) {
+    return 0;
+  }
   int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
-  tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
+  tqInfo("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
 
   if(pHandle->msg != NULL) {
-    tqPushDataRsp(pHandle, vgId);
+//    tqPushDataRsp(pHandle, vgId);
+    tqPushEmptyDataRsp(pHandle, vgId);
 
     rpcFreeCont(pHandle->msg->pCont);
     taosMemoryFree(pHandle->msg);

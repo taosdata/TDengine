@@ -213,4 +213,54 @@ if $rows != 2 then
   return -1
 endi
 
+print =======================> regresss bug in last_row query
+sql drop database if exists db;
+sql create database if not exists db vgroups 1 cachemodel 'both';
+sql create table db.stb (ts timestamp, c0 bigint) tags(t1 int);
+sql insert into db.stb_0 using db.stb tags(1) values ('2023-11-23 19:06:40.000', 491173569);
+sql insert into db.stb_2 using db.stb tags(3) values ('2023-11-25 19:30:00.000', 2080726142);
+sql insert into db.stb_3 using db.stb tags(4) values ('2023-11-26 06:48:20.000', 1907405128);
+sql insert into db.stb_4 using db.stb tags(5) values ('2023-11-24 22:56:40.000', 220783803);
+
+sql create table db.stb_1 using db.stb tags(2);
+sql insert into db.stb_1 (ts) values('2023-11-26 13:11:40.000');
+sql insert into db.stb_1 (ts, c0) values('2023-11-26 13:11:39.000', 11);
+
+sql select tbname,ts,last_row(c0) from db.stb;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb_1@ then
+  return -1
+endi
+
+if $data01 != @23-11-26 13:11:40.000@  then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+sql alter database db cachemodel 'none';
+sql reset query cache;
+sql select tbname,last_row(c0, ts) from db.stb;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb_1@ then
+  return -1
+endi
+
+if $data02 != @23-11-26 13:11:40.000@  then
+  return -1
+endi
+
+if $data01 != NULL then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

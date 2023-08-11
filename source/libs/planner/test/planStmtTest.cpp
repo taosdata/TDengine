@@ -108,6 +108,7 @@ class PlanStmtTest : public PlannerTestBase {
     switch (type) {
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
         strncpy((char*)pBindParam->buffer, pVal, bytes);
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:

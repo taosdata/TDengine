@@ -66,7 +66,7 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
   colInfo.info.type = pInfo->type;
   if (pInfo->type == TSDB_DATA_TYPE_NCHAR) {
     colInfo.info.bytes = TSDB_NCHAR_SIZE * VARCOUNT + VARSTR_HEADER_SIZE;
-  } else if (pInfo->type == TSDB_DATA_TYPE_BINARY) {
+  } else if (pInfo->type == TSDB_DATA_TYPE_BINARY || pInfo->type == TSDB_DATA_TYPE_GEOMETRY) {
     colInfo.info.bytes = VARCOUNT + VARSTR_HEADER_SIZE;
   } else {
     colInfo.info.bytes = tDataTypes[pInfo->type].bytes;
@@ -94,7 +94,7 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
       colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
       pBlock->info.hasVarCol = true;
       printf("nchar: %s\n", strOri);
-    } else if (pInfo->type == TSDB_DATA_TYPE_BINARY) {
+    } else if (pInfo->type == TSDB_DATA_TYPE_BINARY || pInfo->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t size = taosRand() % VARCOUNT;
       char    str[64] = {0};
       taosRandStr(varDataVal(str), size);
@@ -317,7 +317,7 @@ TEST(testCase, external_mem_sort_Test) {
         char        buf[128] = {0};
         int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(v), varDataLen(v), buf);
         printf("%d: %s\n", row++, buf);
-      }else if(pInfo[i].type == TSDB_DATA_TYPE_BINARY){
+      }else if(pInfo[i].type == TSDB_DATA_TYPE_BINARY || pInfo[i]->type == TSDB_DATA_TYPE_GEOMETRY){
         char        buf[128] = {0};
         memcpy(buf, varDataVal(v), varDataLen(v));
         printf("%d: %s\n", row++, buf);

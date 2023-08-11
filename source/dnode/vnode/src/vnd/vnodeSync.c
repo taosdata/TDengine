@@ -431,7 +431,7 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
   return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
 
-static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (pMsg->code == 0) {
     return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
@@ -451,7 +451,7 @@ static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFs
   return 0;
 }
 
-static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
     return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
@@ -463,7 +463,7 @@ static SyncIndex vnodeSyncAppliedIndex(const SSyncFSM *pFSM) {
   return atomic_load_64(&pVnode->state.applied);
 }
 
-static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
          pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
@@ -551,10 +551,10 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   // start to restore all stream tasks
   if (tsDisableStream) {
-    vInfo("vgId:%d, not restore stream tasks, since disabled", pVnode->config.vgId);
+    vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", pVnode->config.vgId);
   } else {
-    vInfo("vgId:%d start to restore stream tasks", pVnode->config.vgId);
-    tqStartStreamTasks(pVnode->pTq);
+    vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
+    tqCheckStreamStatus(pVnode->pTq);
   }
 }
 

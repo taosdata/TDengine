@@ -178,6 +178,7 @@ The following list shows all reserved keywords:
 
 - MATCH
 - MAX_DELAY
+- MAX_SPEED
 - MAXROWS
 - MERGE
 - META
@@ -334,8 +335,6 @@ The following list shows all reserved keywords:
 - WAL_LEVEL
 - WAL_RETENTION_PERIOD
 - WAL_RETENTION_SIZE
-- WAL_ROLL_PERIOD
-- WAL_SEGMENT_SIZE
 - WATERMARK
 - WHERE
 - WINDOW_CLOSE

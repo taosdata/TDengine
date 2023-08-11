@@ -123,8 +123,8 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
   ${csudo}rm -f ${bin_link_dir}/${keeperName2}      || :
-  ${csudo}rm -f ${bin_link_dir}/${xName2}           || :
-  ${csudo}rm -f ${bin_link_dir}/${explorerName2}    || :
+  # ${csudo}rm -f ${bin_link_dir}/${xName2}           || :
+  # ${csudo}rm -f ${bin_link_dir}/${explorerName2}    || :
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
     ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
@@ -147,6 +147,7 @@ function clean_lib() {
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
   [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
+  
 }
 
 function clean_header() {
@@ -193,26 +194,26 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
 
-  x_service_config="${service_config_dir}/${xName2}.service"
-  if [ -e "$x_service_config" ]; then
-    if systemctl is-active --quiet ${xName2}; then
-      echo "${productName2} ${xName2} is running, stopping it..."
-      ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${x_service_config}
-  fi
+  # x_service_config="${service_config_dir}/${xName2}.service"
+  # if [ -e "$x_service_config" ]; then
+  #   if systemctl is-active --quiet ${xName2}; then
+  #     echo "${productName2} ${xName2} is running, stopping it..."
+  #     ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
+  #   fi
+  #   ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
+  #   ${csudo}rm -f ${x_service_config}
+  # fi
 
-  explorer_service_config="${service_config_dir}/${explorerName2}.service"
-  if [ -e "$explorer_service_config" ]; then
-    if systemctl is-active --quiet ${explorerName2}; then
-      echo "${productName2} ${explorerName2} is running, stopping it..."
-      ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${explorer_service_config}
-    ${csudo}rm -f /etc/${clientName2}/explorer.toml
-  fi
+  # explorer_service_config="${service_config_dir}/${explorerName2}.service"
+  # if [ -e "$explorer_service_config" ]; then
+  #   if systemctl is-active --quiet ${explorerName2}; then
+  #     echo "${productName2} ${explorerName2} is running, stopping it..."
+  #     ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
+  #   fi
+  #   ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
+  #   ${csudo}rm -f ${explorer_service_config}
+  #   ${csudo}rm -f /etc/${clientName2}/explorer.toml
+  # fi
 }
 
 function clean_service_on_sysvinit() {

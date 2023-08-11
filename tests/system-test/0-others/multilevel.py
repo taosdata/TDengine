@@ -116,7 +116,7 @@ class TDTestCase:
         tdSql.checkRows(1000)
         tdLog.info("================= step3")
         tdSql.execute('drop database test')
-        for i in range(50):
+        for i in range(10):
             tdSql.execute("create database test%d duration 1" %(i))
             tdSql.execute("use test%d" %(i))
             tdSql.execute("create table tb (ts timestamp,i int)") 

@@ -912,11 +912,11 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
   return opos;
 }
 
-uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
+FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
   uint64_t diff = 0ul;
-  int32_t  nbytes = (flag & INT8MASK(3)) + 1;
+  int32_t  nbytes = (flag & 0x7) + 1;
   for (int32_t i = 0; i < nbytes; i++) {
-    diff = diff | ((INT64MASK(8) & input[(*ipos)++]) << BITS_PER_BYTE * i);
+    diff |= (((uint64_t)0xff & input[(*ipos)++]) << BITS_PER_BYTE * i);
   }
   int32_t shift_width = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff <<= shift_width;
@@ -936,25 +936,22 @@ int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, 
   uint8_t  flags = 0;
   int32_t  ipos = 1;
   int32_t  opos = 0;
-  uint64_t prev_value = 0;
+  uint64_t diff = 0;
+  union {
+    uint64_t bits;
+    double   real;
+  } curr;
+
+  curr.bits = 0;
 
   for (int32_t i = 0; i < nelements; i++) {
     if ((i & 0x01) == 0) {
       flags = input[ipos++];
     }
 
-    uint8_t flag = flags & INT8MASK(4);
+    diff = decodeDoubleValue(input, &ipos, flags & 0x0f);
     flags >>= 4;
-
-    uint64_t diff = decodeDoubleValue(input, &ipos, flag);
-    union {
-      uint64_t bits;
-      double   real;
-    } curr;
-
-    uint64_t predicted = prev_value;
-    curr.bits = predicted ^ diff;
-    prev_value = curr.bits;
+    curr.bits ^= diff;
 
     ostream[opos++] = curr.real;
   }
@@ -1381,6 +1378,14 @@ static struct {
      .getI64 = NULL,
      .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_MEDIUMBLOB,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_GEOMETRY,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,

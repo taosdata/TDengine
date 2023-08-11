@@ -8,12 +8,14 @@ target_include_directories(
 )
 
 target_link_libraries(scalar
-    PRIVATE os 
-    PRIVATE util 
+    PRIVATE os
+    PRIVATE util
     PRIVATE common
     PRIVATE nodes
     PRIVATE function
     PRIVATE qcom
+    PRIVATE parser
+    PRIVATE geometry
 )
 
 if(${BUILD_TEST})

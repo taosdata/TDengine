@@ -25,7 +25,8 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
-#include "vnode.h"
+
+#include "storageapi.h"
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
@@ -37,9 +38,16 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
       .closeFn = closeFn,
       .reqBufFn = reqBufFn,
       .getExplainFn = explain,
+      .releaseStreamStateFn = NULL,
+      .reloadStreamStateFn = NULL,
   };
 
   return fpSet;
+}
+
+void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn) {
+  pOperator->fpSet.releaseStreamStateFn = relaseFn;
+  pOperator->fpSet.reloadStreamStateFn = reloadFn;
 }
 
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
@@ -233,11 +241,12 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 }
 
 static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam, const char* pIdStr) {
+  SStorageAPI* pAPI = pParam->pParam;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pInfo = pOperator->info;
 
     if (pInfo->base.dataReader != NULL) {
-      tsdbReaderSetCloseFlag(pInfo->base.dataReader);
+      pAPI->tsdReader.tsdReaderNotifyClosing(pInfo->base.dataReader);
     }
     return OPTR_FN_RET_ABORT;
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -246,7 +255,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     if (pInfo->pTableScanOp != NULL) {
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       if (pTableScanInfo != NULL && pTableScanInfo->base.dataReader != NULL) {
-        tsdbReaderSetCloseFlag(pTableScanInfo->base.dataReader);
+        pAPI->tsdReader.tsdReaderNotifyClosing(pTableScanInfo->base.dataReader);
       }
     }
 
@@ -256,8 +265,8 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
   return OPTR_FN_RET_CONTINUE;
 }
 
-int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr) {
-  STraverParam p = {0};
+int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SStorageAPI* pAPI) {
+  STraverParam p = {.pParam = pAPI};
   traverseOperatorTree(pOperator, doStopDataReader, &p, pIdStr);
   return p.code;
 }
@@ -266,7 +275,6 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
                               SNode* pTagIndexCond, const char* pUser, const char* dbname) {
   int32_t     type = nodeType(pPhyNode);
   const char* idstr = GET_TASKID(pTaskInfo);
-
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     SOperatorInfo* pOperator = NULL;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
@@ -378,17 +386,18 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       STableListInfo*          pTableListInfo = tableListCreate();
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
-        SArray* pList = taosArrayInit(4, sizeof(STableKeyInfo));
-        int32_t code = vnodeGetAllTableList(pHandle->vnode, pBlockNode->uid, pList);
+        SArray* pList = taosArrayInit(4, sizeof(uint64_t));
+        int32_t code = pTaskInfo->storageAPI.metaFn.getChildTableList(pHandle->vnode, pBlockNode->uid, pList);
         if (code != TSDB_CODE_SUCCESS) {
-          pTaskInfo->code = terrno;
+          pTaskInfo->code = code;
+          taosArrayDestroy(pList);
           return NULL;
         }
 
         size_t num = taosArrayGetSize(pList);
         for (int32_t i = 0; i < num; ++i) {
-          STableKeyInfo* p = taosArrayGet(pList, i);
-          tableListAddTableInfo(pTableListInfo, p->uid, 0);
+          uint64_t* id = taosArrayGet(pList, i);
+          tableListAddTableInfo(pTableListInfo, *id, 0);
         }
 
         taosArrayDestroy(pList);
@@ -482,13 +491,13 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
     pOptr = createSessionAggOperatorInfo(ops[0], pSessionNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
-    pOptr = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
+    pOptr = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION == type) {
     int32_t children = 0;
-    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
+    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION == type) {
     int32_t children = pHandle->numOfVgroups;
-    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
+    pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     pOptr = createPartitionOperatorInfo(ops[0], (SPartitionPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION == type) {
@@ -497,7 +506,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
     pOptr = createStatewindowOperatorInfo(ops[0], pStateNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
-    pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
+    pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     pOptr = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {

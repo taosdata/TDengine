@@ -113,7 +113,7 @@ typedef struct time_wheel_t {
 
 static int32_t tsMaxTmrCtrl = TSDB_MAX_VNODES_PER_DB + 100;
 
-static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
+static int32_t       tmrModuleInit = 0;
 static TdThreadMutex tmrCtrlMutex;
 static tmr_ctrl_t*   tmrCtrls;
 static tmr_ctrl_t*   unusedTmrCtrl = NULL;
@@ -512,11 +512,11 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
   return stopped;
 }
 
-static void taosTmrModuleInit(void) {
+static int32_t taosTmrModuleInit(void) {
   tmrCtrls = taosMemoryMalloc(sizeof(tmr_ctrl_t) * tsMaxTmrCtrl);
   if (tmrCtrls == NULL) {
     tmrError("failed to allocate memory for timer controllers.");
-    return;
+    return -1;
   }
 
   memset(&timerMap, 0, sizeof(timerMap));
@@ -535,14 +535,14 @@ static void taosTmrModuleInit(void) {
     time_wheel_t* wheel = wheels + i;
     if (taosThreadMutexInit(&wheel->mutex, NULL) != 0) {
       tmrError("failed to create the mutex for wheel, reason:%s", strerror(errno));
-      return;
+      return -1;
     }
     wheel->nextScanAt = now + wheel->resolution;
     wheel->index = 0;
     wheel->slots = (tmr_obj_t**)taosMemoryCalloc(wheel->size, sizeof(tmr_obj_t*));
     if (wheel->slots == NULL) {
       tmrError("failed to allocate wheel slots");
-      return;
+      return -1;
     }
     timerMap.size += wheel->size;
   }
@@ -551,20 +551,48 @@ static void taosTmrModuleInit(void) {
   timerMap.slots = (timer_list_t*)taosMemoryCalloc(timerMap.size, sizeof(timer_list_t));
   if (timerMap.slots == NULL) {
     tmrError("failed to allocate hash map");
-    return;
+    return -1;
   }
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr", NULL);
   taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
 
   tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
+
+  return 2;
+}
+
+static int32_t taosTmrInitModule(void) {
+  if (atomic_load_32(&tmrModuleInit) == 2) {
+    return 0;
+  }
+
+  if (atomic_load_32(&tmrModuleInit) < 0) {
+    return -1;
+  }
+  
+  while (true) {
+    if (0 == atomic_val_compare_exchange_32(&tmrModuleInit, 0, 1)) {
+      atomic_store_32(&tmrModuleInit, taosTmrModuleInit());
+    } else if (atomic_load_32(&tmrModuleInit) < 0) {
+      return -1;
+    } else if (atomic_load_32(&tmrModuleInit) == 2) {
+      return 0;
+    } else {
+      taosMsleep(1);
+    }
+  }
+
+  return -1;
 }
 
 void* taosTmrInit(int32_t maxNumOfTmrs, int32_t resolution, int32_t longest, const char* label) {
   const char* ret = taosMonotonicInit();
   tmrDebug("ttimer monotonic clock source:%s", ret);
 
-  taosThreadOnce(&tmrModuleInit, taosTmrModuleInit);
+  if (taosTmrInitModule() < 0) {
+    return NULL;
+  }
 
   taosThreadMutexLock(&tmrCtrlMutex);
   tmr_ctrl_t* ctrl = unusedTmrCtrl;
@@ -581,6 +609,7 @@ void* taosTmrInit(int32_t maxNumOfTmrs, int32_t resolution, int32_t longest, con
   }
 
   tstrncpy(ctrl->label, label, sizeof(ctrl->label));
+  
   tmrDebug("%s timer controller is initialized, number of timer controllers: %d.", label, numOfTmrCtrl);
   return ctrl;
 }
@@ -629,8 +658,6 @@ void taosTmrCleanUp(void* handle) {
 
     tmrCtrls = NULL;
     unusedTmrCtrl = NULL;
-#if defined(LINUX)
-    tmrModuleInit = PTHREAD_ONCE_INIT;  // to support restart
-#endif
+    atomic_store_32(&tmrModuleInit, 0);
   }
 }

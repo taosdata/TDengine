@@ -48,6 +48,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (pSchema->bytes - VARSTR_HEADER_SIZE);
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
@@ -86,7 +87,7 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
-static void setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
+static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
   blockDataEnsureCapacity(pBlock, numOfRows);
   pBlock->info.rows = 0;
 
@@ -113,6 +114,11 @@ static void setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, in
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }
+  if (pBlock->info.rows <= 0) {
+    qError("no permission to view any columns");
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
@@ -122,7 +128,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildDescResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
+    code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
@@ -285,21 +291,24 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
     hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
   }
 
-  len += sprintf(
-      buf2 + VARSTR_HEADER_SIZE,
-      "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
-      "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
-      "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-      "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " WAL_ROLL_PERIOD %d WAL_SEGMENT_SIZE %" PRId64,
-      dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
-      pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
-      pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
-      1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
-      pCfg->walRetentionSize, pCfg->walRollPeriod, pCfg->walSegmentSize);
+  if (IS_SYS_DBNAME(dbName)) {
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s`", dbName);
+  } else {
+    len += sprintf(
+        buf2 + VARSTR_HEADER_SIZE,
+        "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
+        "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
+        "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
+        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64,
+        dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
+        pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
+        pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
+        1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize);
 
-  if (retentions) {
-    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
-    taosMemoryFree(retentions);
+    if (retentions) {
+      len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
+      taosMemoryFree(retentions);
+    }
   }
 
   (varDataLen(buf2)) = len;
@@ -391,7 +400,7 @@ static int32_t setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock
   int32_t          status = 0;
   int32_t          code = getAliveStatusFromApi(pConnId, dbName, &status);
   if (code == TSDB_CODE_SUCCESS) {
-    colDataAppend(pCol1, 0, (const char*)&status, false);
+    colDataSetVal(pCol1, 0, (const char*)&status, false);
   }
   return code;
 }
@@ -448,7 +457,7 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     SSchema* pSchema = pCfg->pSchemas + i;
     char     type[32];
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
@@ -463,7 +472,7 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
@@ -539,7 +548,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     /*
-    if (type == TSDB_DATA_TYPE_BINARY) {
+    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pTagVal->nData > 0) {
         if (num) {
           *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
@@ -605,6 +614,31 @@ void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* 
 
   if (pCfg->ttl > 0) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " TTL %d", pCfg->ttl);
+  }
+
+  if (TSDB_SUPER_TABLE == pCfg->tableType || TSDB_NORMAL_TABLE == pCfg->tableType) {
+    int32_t nSma = 0;
+    for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
+      if (IS_BSMA_ON(pCfg->pSchemas + i)) {
+        ++nSma;
+      }
+    }
+
+    if (nSma < pCfg->numOfColumns) {
+      bool smaOn = false;
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " SMA(");
+      for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
+        if (IS_BSMA_ON(pCfg->pSchemas + i)) {
+          if (smaOn) {
+            *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ",`%s`", (pCfg->pSchemas + i)->name);
+          } else {
+            smaOn = true;
+            *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "`%s`", (pCfg->pSchemas + i)->name);
+          }
+        }
+      }
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ")");
+    }
   }
 }
 
@@ -748,7 +782,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno;
   }
 
-  if (taosSetCfg(tsCfg, pStmt->config)) {
+  if (taosApplyLocalCfg(tsCfg, pStmt->config)) {
     return terrno;
   }
 
@@ -768,13 +802,17 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
 
   SColumnInfoData infoData = {0};
+
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
-
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   *pOutput = pBlock;
@@ -789,6 +827,7 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SConfigItem* pItem = taosArrayGet(tsCfg->array, i);
     GRANT_CFG_SKIP;
+
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
@@ -800,6 +839,12 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
     varDataSetLen(value, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataSetVal(pColInfo, i, value, false);
+
+    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    varDataSetLen(scope, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataSetVal(pColInfo, i, scope, false);
 
     numOfRows++;
   }

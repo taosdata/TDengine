@@ -700,7 +700,7 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
+**功能说明**：统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
 
 **返回数据类型**：字符串表达式（斜率, 截距）。
 
@@ -869,10 +869,15 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值, 缺省值为0。
 
 **返回数据类型**：同字段类型。
 
@@ -885,9 +890,10 @@ INTERP(expr)
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
 - INTERP 需要同时与 RANGE，EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
+- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如：SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
 - INTERP 作用于超级表时, 会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
 - INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0版本以后支持)。
 - INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0版本以后支持)。
@@ -985,18 +991,13 @@ SAMPLE(expr, k)
 
 **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
 
-**返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
+**返回结果类型**： 同原始数据类型。
 
-**适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
+**适用数据类型**： 全部类型字段。
 
 **嵌套子查询支持**： 适用于内层查询和外层查询。
 
 **适用于**：表和超级表。
-
-**使用说明**：
-
-- 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-- 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1042,11 +1043,11 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**功能说明**：返回该列的数值首次出现的值。该函数功能与 distinct 相似，但是可以匹配标签和时间戳信息。可以针对除时间列以外的字段进行查询，可以匹配标签和时间戳，其中的标签和时间戳是第一次出现时刻的标签和时间戳。
+**功能说明**：返回该列数据首次出现的值。该函数功能与 distinct 相似。
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：适合于除时间类型以外的字段。
+**适用数据类型**：全部类型字段。
 
 **适用于**: 表和超级表。
 
@@ -1075,7 +1076,6 @@ CSUM(expr)
 
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
@@ -1099,7 +1099,6 @@ ignore_negative: {
 
 **使用说明**:
 
-- DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
@@ -1162,7 +1161,6 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### STATECOUNT
@@ -1188,7 +1186,6 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1216,7 +1213,6 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1233,8 +1229,6 @@ TWA(expr)
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
-
-**使用说明**： TWA 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 
 
 ## 系统信息函数
@@ -1271,3 +1265,140 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。
+
+
+## Geometry 函数
+
+### Geometry 输入函数：
+
+#### ST_GeomFromText
+
+```sql
+ST_GeomFromText(VARCHAR WKT expr)
+```
+
+**功能说明**：根据 Well-Known Text (WKT) 表示从指定的几何值创建几何数据。
+
+**返回值类型**：GEOMETRY
+
+**适用数据类型**：VARCHAR
+
+**适用表类型**：标准表和超表
+
+**使用说明**：输入可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。输出是以二进制字符串形式定义的 GEOMETRY 数据类型。
+
+### Geometry 输出函数：
+
+#### ST_AsText
+
+```sql
+ST_AsText(GEOMETRY geom)
+```
+
+**功能说明**：从几何数据中返回指定的 Well-Known Text (WKT) 表示。
+
+**返回值类型**：VARCHAR
+
+**适用数据类型**：GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：输出可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。
+
+### Geometry 关系函数：
+
+#### ST_Intersects
+
+```sql
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+##功能说明**：比较两个几何对象，并在它们相交时返回 true。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：如果两个几何对象有任何一个共享点，则它们相交。
+
+#### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果给定的几何对象是"空间相等"的，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
+
+#### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 和 B 相交，但它们的内部不相交，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
+
+#### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 中的每个点都位于几何形状 A 内部（与内部或边界相交），则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 包含 B 意味着 B 中的没有点位于 A 的外部（在外部）。
+
+#### ST_Contains
+
+```sql
+ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 包含 B，描述：如果几何形状 A 包含几何形状 B，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 包含 B 当且仅当 B 的所有点位于 A 的内部（即位于内部或边界上）（或等效地，B 的没有点位于 A 的外部），并且 A 和 B 的内部至少有一个公共点。
+
+#### ST_ContainsProperly
+
+```sql
+ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 的每个点都位于 A 内部，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：B 的没有点位于 A 的边界或外部。

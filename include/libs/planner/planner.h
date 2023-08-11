@@ -52,6 +52,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @groupId id of a group of datasource subplans of this @pSubplan
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
+int32_t qContinuePlanPostQuery(void *pPostPlan);
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan);
 

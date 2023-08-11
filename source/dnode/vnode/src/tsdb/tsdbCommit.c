@@ -266,7 +266,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
     suid = pDelIdx->suid;
     uid = pDelIdx->uid;
 
-    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData);
+    code = tsdbReadDelDatav1(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData, INT64_MAX);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     taosArrayClear(pCommitter->aDelData);
@@ -562,7 +562,8 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
       code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+    code = tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+    TSDB_CHECK_CODE(code, lino, _exit);
     wSet.diskId = did;
     wSet.nSttF = 1;
   }

@@ -19,7 +19,7 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tmsg.h"
-#include "tscalablebf.h"
+#include "storageapi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,18 +30,18 @@ typedef struct SUpdateKey {
   TSKEY   ts;
 } SUpdateKey;
 
-typedef struct SUpdateInfo {
-  SArray      *pTsBuckets;
-  uint64_t     numBuckets;
-  SArray      *pTsSBFs;
-  uint64_t     numSBFs;
-  int64_t      interval;
-  int64_t      watermark;
-  TSKEY        minTS;
-  SScalableBf *pCloseWinSBF;
-  SHashObj    *pMap;
-  uint64_t     maxDataVersion;
-} SUpdateInfo;
+//typedef struct SUpdateInfo {
+//  SArray      *pTsBuckets;
+//  uint64_t     numBuckets;
+//  SArray      *pTsSBFs;
+//  uint64_t     numSBFs;
+//  int64_t      interval;
+//  int64_t      watermark;
+//  TSKEY        minTS;
+//  SScalableBf *pCloseWinSBF;
+//  SHashObj    *pMap;
+//  uint64_t     maxDataVersion;
+//} SUpdateInfo;
 
 SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark);
 SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark);
@@ -53,6 +53,8 @@ void         updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
 void         updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);
 int32_t      updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo);
 int32_t      updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo);
+void         windowSBfDelete(SUpdateInfo *pInfo, uint64_t count);
+void         windowSBfAdd(SUpdateInfo *pInfo, uint64_t count);
 
 #ifdef __cplusplus
 }

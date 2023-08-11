@@ -56,7 +56,7 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(column, "name", cname);
     cJSON* ctype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(column, "type", ctype);
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(column, "length", cbytes);
@@ -77,7 +77,7 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(tag, "name", tname);
     cJSON* ttype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(tag, "type", ttype);
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(tag, "length", cbytes);
@@ -130,7 +130,7 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
       cJSON* colType = cJSON_CreateNumber(field->type);
       cJSON_AddItemToObject(json, "colType", colType);
 
-      if (field->type == TSDB_DATA_TYPE_BINARY) {
+      if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -155,7 +155,7 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(field->type);
       cJSON_AddItemToObject(json, "colType", colType);
-      if (field->type == TSDB_DATA_TYPE_BINARY) {
+      if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -457,7 +457,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       cJSON_AddItemToObject(json, "colType", colType);
 
-      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY) {
+      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY || vAlterTbReq.type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -478,7 +478,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.colModType);
       cJSON_AddItemToObject(json, "colType", colType);
-      if (vAlterTbReq.colModType == TSDB_DATA_TYPE_BINARY) {
+      if (vAlterTbReq.colModType == TSDB_DATA_TYPE_BINARY || vAlterTbReq.colModType == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.colModBytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -1286,6 +1286,10 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosArrayPush(pArray, &pVgData);
 
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  if (NULL == pQuery) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;
@@ -1323,6 +1327,9 @@ end:
 
 int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
                                      int numFields) {
+  if (!taos || !pData || !tbname) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
@@ -1409,6 +1416,9 @@ end:
 }
 
 int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
+  if (!taos || !pData || !tbname) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
   SQuery*     pQuery = NULL;
@@ -1808,6 +1818,7 @@ end:
 }
 
 char* tmq_get_json_meta(TAOS_RES* res) {
+  if (res == NULL) return NULL;
   uDebug("tmq_get_json_meta called");
   if (!TD_RES_TMQ_META(res) && !TD_RES_TMQ_METADATA(res)) {
     return NULL;

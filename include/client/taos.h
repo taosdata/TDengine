@@ -51,7 +51,8 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_BLOB       18  // binary
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
-#define TSDB_DATA_TYPE_MAX        20
+#define TSDB_DATA_TYPE_GEOMETRY   20  // geometry
+#define TSDB_DATA_TYPE_MAX        21
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -286,9 +287,19 @@ DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
 DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
 DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
 DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
+DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
 DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,
                                               int32_t *numOfAssignment);
+DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
 DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+
+DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
+DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
+DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
+DLL_EXPORT int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);
+DLL_EXPORT int64_t     tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
 
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
@@ -306,11 +317,6 @@ DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
-
-DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
-DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
-DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
-DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
 
 /* ------------------------------ TAOSX -----------------------------------*/
 // note: following apis are unstable

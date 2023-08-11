@@ -126,7 +126,6 @@ endi
 if $data10 != 1 then
   return -1
 endi
-
 sql (select 'ab' as options from union_tb1 limit 1) union all (select 'dd' as options from union_tb0 limit 1) order by options;
 if $rows != 2 then
   return -1

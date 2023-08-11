@@ -26,7 +26,7 @@ The following characters cannot occur in a password: single quotation marks ('),
 
 - Maximum length of database name is 64 bytes
 - Maximum length of table name is 192 bytes, excluding the database name prefix and the separator.
-- Maximum length of each data row is 48K bytes. Note that the upper limit includes the extra 2 bytes consumed by each column of BINARY/NCHAR type.
+- Maximum length of each data row is 48K(64K since version 3.0.5.0) bytes. Note that the upper limit includes the extra 2 bytes consumed by each column of BINARY/NCHAR type.
 - The maximum length of a column name is 64 bytes.
 - Maximum number of columns is 4096. There must be at least 2 columns, and the first column must be timestamp.
 - The maximum length of a tag name is 64 bytes
@@ -36,7 +36,7 @@ The following characters cannot occur in a password: single quotation marks ('),
 - Maximum numbers of databases, STables, tables are dependent only on the system resources.
 - The number of replicas can only be 1 or 3.
 - The maximum length of a username is 23 bytes.
-- The maximum length of a password is 128 bytes.
+- The maximum length of a password is 31 bytes.
 - The maximum number of rows depends on system resources.
 - The maximum number of vnodes in a database is 1024.
 

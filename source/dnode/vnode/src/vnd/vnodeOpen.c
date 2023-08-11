@@ -15,7 +15,27 @@
 
 #include "vnd.h"
 
-int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
+int32_t vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
+  if (pTfs) {
+    SDiskID diskId = {0};
+    diskId.id = diskPrimary;
+    snprintf(buf, bufLen - 1, "%s%s%s", tfsGetDiskPath(pTfs, diskId), TD_DIRSEP, relPath);
+  } else {
+    snprintf(buf, bufLen - 1, "%s", relPath);
+  }
+  buf[bufLen - 1] = '\0';
+  return 0;
+}
+
+static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
+  if (pTfs) {
+    return tfsMkdirRecur(pTfs, path);
+  } else {
+    return taosMkDir(path);
+  }
+}
+
+int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
 
@@ -26,18 +46,11 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  if (pTfs) {
-    if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-      vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
-      return -1;
-    }
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    if (taosMkDir(path)) {
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  if (vnodeMkDir(pTfs, path)) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(errno), path);
+    return TAOS_SYSTEM_ERROR(errno);
   }
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   if (pCfg) {
     info.config = *pCfg;
@@ -58,16 +71,12 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   return 0;
 }
 
-int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
+int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
-  }
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -76,7 +85,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   }
 
   SSyncCfg *pCfg = &info.config.syncCfg;
- 
+
   pCfg->replicaNum = 0;
   pCfg->totalReplicaNum = 0;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
@@ -109,7 +118,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
     pCfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
   }
 
-  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d", 
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d",
             pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex);
 
   info.config.syncCfg = *pCfg;
@@ -129,16 +138,23 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   return 0;
 }
 
-int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
-  int32_t ret = tfsRename(pTfs, srcPath, dstPath);
-  if (ret != 0) return ret;
+static int32_t vnodeVgroupIdLen(int32_t vgId) {
+  char tmp[TSDB_FILENAME_LEN];
+  sprintf(tmp, "%d", vgId);
+  return strlen(tmp);
+}
+
+int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
+                            int32_t diskPrimary, STfs *pTfs) {
+  int32_t ret = 0;
 
   char oldRname[TSDB_FILENAME_LEN] = {0};
   char newRname[TSDB_FILENAME_LEN] = {0};
   char tsdbPath[TSDB_FILENAME_LEN] = {0};
   char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
-  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", dstPath, TD_DIRSEP);
+  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
   snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+  int32_t prefixLen = strlen(tsdbFilePrefix);
 
   STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
   if (tsdbDir == NULL) return 0;
@@ -152,18 +168,17 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
     if (tsdbFilePrefixPos == NULL) continue;
 
-    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
+    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + prefixLen);
     if (tsdbFileVgId == srcVgId) {
-      char *tsdbFileSurfixPos = strstr(tsdbFilePrefixPos, "f");
-      if (tsdbFileSurfixPos == NULL) continue;
+      char *tsdbFileSurfixPos = tsdbFilePrefixPos + prefixLen + vnodeVgroupIdLen(srcVgId);
 
-      tsdbFilePrefixPos[6] = 0;
+      tsdbFilePrefixPos[prefixLen] = 0;
       snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
       vInfo("vgId:%d, rename file from %s to %s", dstVgId, tsdbFile->rname, newRname);
 
-      ret = tfsRename(pTfs, tsdbFile->rname, newRname);
+      ret = tfsRename(pTfs, diskPrimary, tsdbFile->rname, newRname);
       if (ret != 0) {
-        vInfo("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
+        vError("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
         tfsClosedir(tsdbDir);
         return ret;
       }
@@ -171,21 +186,22 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   }
 
   tfsClosedir(tsdbDir);
-  return 0;
+
+  vInfo("vgId:%d, rename dir from %s to %s", dstVgId, srcPath, dstPath);
+  ret = tfsRename(pTfs, diskPrimary, srcPath, dstPath);
+  if (ret != 0) {
+    vError("vgId:%d, failed to rename dir from %s to %s since %s", dstVgId, srcPath, dstPath, terrstr());
+  }
+  return ret;
 }
 
-int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs) {
+int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq,
+                            int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, srcPath);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", srcPath);
-  }
-
-  // todo add stat file to handle exception while vnode open
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -229,7 +245,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   }
 
   vInfo("vgId:%d, rename %s to %s", pReq->dstVgId, srcPath, dstPath);
-  ret = vnodeRenameVgroupId(srcPath, dstPath, pReq->srcVgId, pReq->dstVgId, pTfs);
+  ret = vnodeRenameVgroupId(srcPath, dstPath, pReq->srcVgId, pReq->dstVgId, diskPrimary, pTfs);
   if (ret < 0) {
     vError("vgId:%d, failed to rename vnode from %s to %s since %s", pReq->dstVgId, srcPath, dstPath,
            tstrerror(terrno));
@@ -240,23 +256,73 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   return 0;
 }
 
+int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
+                             int32_t diskPrimary, STfs *pTfs) {
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  if (vnodeLoadInfo(dir, &info) == 0) {
+    if (info.config.vgId != dstVgId) {
+      vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
+      return -1;
+    }
+    return dstVgId;
+  }
+
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  if (vnodeLoadInfo(dir, &info) < 0) {
+    vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
+    return -1;
+  }
+
+  if (info.config.vgId == srcVgId) {
+    vInfo("vgId:%d, rollback alter hashrange", srcVgId);
+    return srcVgId;
+  } else if (info.config.vgId != dstVgId) {
+    vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
+    return -1;
+  }
+
+  vInfo("vgId:%d, rename %s to %s", dstVgId, srcPath, dstPath);
+  if (vnodeRenameVgroupId(srcPath, dstPath, srcVgId, dstVgId, diskPrimary, pTfs) < 0) {
+    vError("vgId:%d, failed to rename vnode from %s to %s since %s", dstVgId, srcPath, dstPath, tstrerror(terrno));
+    return -1;
+  }
+
+  return dstVgId;
+}
+
 void vnodeDestroy(const char *path, STfs *pTfs) {
   vInfo("path:%s is removed while destroy vnode", path);
   tfsRmdir(pTfs, path);
 }
 
-SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
+static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
+  int32_t ndisk = 1;
+  if (pTfs) {
+    ndisk = tfsGetDisksAtLevel(pTfs, 0);
+  }
+  if (diskPrimary < 0 || diskPrimary >= ndisk) {
+    vError("disk:%d is unavailable from the %d disks mounted at level 0", diskPrimary, ndisk);
+    terrno = TSDB_CODE_FS_INVLD_CFG;
+    return -1;
+  }
+  return 0;
+}
+
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
 
-  if (pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  if (vnodeCheckDisk(diskPrimary, pTfs)) {
+    vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
+    return NULL;
   }
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   info.config = vnodeCfgDefault;
 
@@ -299,6 +365,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
+  pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
@@ -322,15 +389,13 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+  if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+    vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
+  }
+
   // open tsdb
   if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
-
-  // open sma
-  if (smaOpen(pVnode, rollback)) {
-    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -350,6 +415,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->pTq = tqOpen(tdir, pVnode);
   if (pVnode->pTq == NULL) {
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // open sma
+  if (smaOpen(pVnode, rollback)) {
+    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -405,8 +476,8 @@ void vnodeClose(SVnode *pVnode) {
     tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-    walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
+    walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);

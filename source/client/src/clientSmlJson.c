@@ -456,7 +456,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset) {
 static inline int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *metric, SSmlLineInfo *elements) {
   elements->measureLen = strlen(metric->valuestring);
   if (IS_INVALID_TABLE_LEN(elements->measureLen)) {
-    uError("OTD:0x%" PRIx64 " Metric lenght is 0 or large than 192", info->id);
+    uError("OTD:0x%" PRIx64 " Metric length is 0 or large than 192", info->id);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
@@ -695,6 +695,10 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
           return TSDB_CODE_SUCCESS;
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
+        if(sMeta == NULL){
+          taosMemoryFreeClear(pTableMeta);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, elements->measure, elements->measureLen, &sMeta, POINTER_BYTES);
         for(int i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++){
@@ -784,7 +788,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
       if (tinfo->tableDataCtx == NULL) {
         smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
-        smlDestroyTableInfo(info, tinfo);
+        smlDestroyTableInfo(&tinfo);
         return TSDB_CODE_SML_INVALID_DATA;
       }
     }
@@ -992,8 +996,8 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
-  SSmlKv kvTs = {.key = TS,
-                 .keyLen = TS_LEN,
+  SSmlKv kvTs = {.key = tsSmlTsDefaultName,
+                 .keyLen = strlen(tsSmlTsDefaultName),
                  .type = TSDB_DATA_TYPE_TIMESTAMP,
                  .i = ts,
                  .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
@@ -1048,12 +1052,18 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  info->lineNum = payloadNum;
-  info->dataFormat = true;
+
   if (unlikely(info->lines != NULL)) {
+    for (int i = 0; i < info->lineNum; i++) {
+      taosArrayDestroyEx(info->lines[i].colArray, freeSSmlKv);
+      if (info->lines[i].measureTagsLen != 0) taosMemoryFree(info->lines[i].measureTag);
+    }
     taosMemoryFree(info->lines);
     info->lines = NULL;
   }
+  info->lineNum = payloadNum;
+  info->dataFormat = true;
+
   ret = smlClearForRerun(info);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
@@ -1190,8 +1200,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       return TSDB_CODE_INVALID_TIMESTAMP;
     }
   }
-  SSmlKv kvTs = {.key = TS,
-                 .keyLen = TS_LEN,
+  SSmlKv kvTs = {.key = tsSmlTsDefaultName,
+                 .keyLen = strlen(tsSmlTsDefaultName),
                  .type = TSDB_DATA_TYPE_TIMESTAMP,
                  .i = ts,
                  .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};

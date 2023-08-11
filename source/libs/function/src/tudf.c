@@ -255,6 +255,18 @@ int32_t udfStopUdfd() {
   return 0;
 }
 
+int32_t udfGetUdfdPid(int32_t* pUdfdPid) {
+  SUdfdData *pData = &udfdGlobal;
+  if (pData->spawnErr) {
+    return pData->spawnErr;
+  }
+  uv_pid_t pid = uv_process_get_pid(&pData->process);
+  if (pUdfdPid) {
+    *pUdfdPid = (int32_t)pid;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 //==============================================================================================
 /* Copyright (c) 2013, Ben Noordhuis <info@bnoordhuis.nl>
  * The QUEUE is copied from queue.h under libuv
@@ -791,7 +803,21 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
       udfCol->colData.varLenCol.payloadLen = colDataGetLength(col, udfBlock->numOfRows);
       udfCol->colData.varLenCol.payload = taosMemoryMalloc(udfCol->colData.varLenCol.payloadLen);
-      memcpy(udfCol->colData.varLenCol.payload, col->pData, udfCol->colData.varLenCol.payloadLen);
+      if (col->reassigned) {
+        for (int32_t row = 0; row < udfCol->colData.numOfRows; ++row) {
+          char* pColData = col->pData + col->varmeta.offset[row];
+          int32_t colSize = 0;
+          if (col->info.type == TSDB_DATA_TYPE_JSON) {
+            colSize = getJsonValueLen(pColData);
+          } else {
+            colSize = varDataTLen(pColData);
+          }
+          memcpy(udfCol->colData.varLenCol.payload, pColData, colSize);
+          udfCol->colData.varLenCol.payload += colSize;
+        }
+      } else {
+        memcpy(udfCol->colData.varLenCol.payload, col->pData, udfCol->colData.varLenCol.payloadLen);
+      }
     } else {
       udfCol->colData.fixLenCol.nullBitmapLen = BitmapLen(udfCol->colData.numOfRows);
       int32_t bitmapLen = udfCol->colData.fixLenCol.nullBitmapLen;

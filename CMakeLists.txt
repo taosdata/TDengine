@@ -15,10 +15,14 @@ SET(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
+
+
+
 include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
+
 
 # contrib
 add_subdirectory(contrib)

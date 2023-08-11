@@ -450,10 +450,11 @@ endi
 print ====================>check boundary check crash at client side
 sql select count(*) from sliding_mt0 where ts>now and ts < now-1h;
 
+sql select sum(c1) from sliding_tb0 interval(1a) sliding(1a);
+
 print ========================query on super table
 
 print ========================error case
-sql_error select sum(c1) from sliding_tb0 interval(1a) sliding(1a);
 sql_error select sum(c1) from sliding_tb0 interval(10a) sliding(12a);
 sql_error select sum(c1) from sliding_tb0 sliding(1n) interval(1y);
 sql_error select sum(c1) from sliding_tb0 interval(-1y)  sliding(1n);

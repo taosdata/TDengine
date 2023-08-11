@@ -123,6 +123,16 @@ else
     echo "Unknown cpuType: ${cpuType}"
     exit 1
 fi
+# check the tdengine cloud base image existed or not
+if [ "$cloudBuild" == "y" ]; then
+  CloudBase=$(docker images | grep tdengine/tdengine-cloud-base ||:)
+  if [[ "$CloudBase" == "" ]]; then
+    echo "Rebuild tdengine cloud base image..."
+    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloud.base" -t tdengine/tdengine-cloud-base "." --build-arg cpuType=${cpuTypeAlias}
+  else
+    echo "Already found tdengine cloud base image"
+  fi
+fi
 
 docker build --rm -f "${Dockerfile}"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName} --build-arg cpuType=${cpuTypeAlias}
 if [ "$cloudBuild" != "y" ]; then

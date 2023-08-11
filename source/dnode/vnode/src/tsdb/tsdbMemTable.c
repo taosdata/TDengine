@@ -38,6 +38,16 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
                                         SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
 
+static int32_t tTbDataCmprFn(const SRBTreeNode *n1, const SRBTreeNode *n2) {
+  STbData *tbData1 = TCONTAINER_OF(n1, STbData, rbtn);
+  STbData *tbData2 = TCONTAINER_OF(n2, STbData, rbtn);
+  if (tbData1->suid < tbData2->suid) return -1;
+  if (tbData1->suid > tbData2->suid) return 1;
+  if (tbData1->uid < tbData2->uid) return -1;
+  if (tbData1->uid > tbData2->uid) return 1;
+  return 0;
+}
+
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   int32_t    code = 0;
   SMemTable *pMemTable = NULL;
@@ -66,6 +76,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     goto _err;
   }
   vnodeBufPoolRef(pMemTable->pPool);
+  tRBTreeCreate(pMemTable->tbDataTree, tTbDataCmprFn);
 
   *ppMemTable = pMemTable;
   return code;
@@ -190,9 +201,9 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     tsdbCacheDeleteLast(pTsdb->lruCache, pTbData->uid, eKey);
   }
   */
-  if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
-    tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
-  }
+  // if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
+  tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
+  //}
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " at version %" PRId64,
@@ -302,12 +313,12 @@ int64_t tsdbCountTbDataRows(STbData *pTbData) {
   return rowsNum;
 }
 
-void tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj* pTableMap, int64_t *rowsNum) {
+void tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *rowsNum) {
   taosRLockLatch(&pMemTable->latch);
   for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
     STbData *pTbData = pMemTable->aBucket[i];
     while (pTbData) {
-      void* p = tSimpleHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
+      void *p = tSimpleHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
       if (p == NULL) {
         pTbData = pTbData->next;
         continue;
@@ -405,6 +416,8 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pTbData->next = pMemTable->aBucket[idx];
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
+
+  tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
 
   taosWUnLockLatch(&pMemTable->latch);
 
@@ -673,7 +686,10 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
   }
-  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  }
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
@@ -734,7 +750,9 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
   }
-  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  }
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);

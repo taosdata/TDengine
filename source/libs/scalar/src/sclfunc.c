@@ -289,7 +289,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 static VarDataLenT tlength(char *input, int32_t type) { return varDataLen(input); }
 
 static VarDataLenT tcharlength(char *input, int32_t type) {
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return varDataLen(input);
   } else {  // NCHAR
     return varDataLen(input) / TSDB_NCHAR_SIZE;
@@ -935,7 +935,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
-      case TSDB_DATA_TYPE_BINARY: {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY: {
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           // NOTE: sprintf will append '\0' at the end of string
           int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE),

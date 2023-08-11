@@ -32,7 +32,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[16];
+extern const int32_t TYPE_BYTES[21];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
@@ -53,10 +53,11 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_BIGINT_NULL    0x8000000000000000LL
 #define TSDB_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define TSDB_DATA_FLOAT_NULL  0x7FF00000            // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000LL  // an NAN
-#define TSDB_DATA_NCHAR_NULL  0xFFFFFFFF
-#define TSDB_DATA_BINARY_NULL 0xFF
+#define TSDB_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define TSDB_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
+#define TSDB_DATA_NCHAR_NULL    0xFFFFFFFF
+#define TSDB_DATA_BINARY_NULL   0xFF
+#define TSDB_DATA_GEOMETRY_NULL 0xFF
 
 #define TSDB_DATA_UTINYINT_NULL  0xFF
 #define TSDB_DATA_USMALLINT_NULL 0xFFFF
@@ -190,15 +191,16 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_NODE_NAME_LEN   64
-#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
-#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
-#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
-#define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
-#define TSDB_DB_NAME_LEN     65
-#define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_PRIVILEDGE_CONDITION_LEN    200
+#define TSDB_NODE_NAME_LEN            64
+#define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
+#define TSDB_DB_NAME_LEN              65
+#define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIVILEDGE_CONDITION_LEN 48*1024
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -247,14 +249,15 @@ typedef enum ELogicConditionType {
 #define TSDB_LABEL_LEN         8
 #define TSDB_JOB_STATUS_LEN    32
 
-#define TSDB_CLUSTER_ID_LEN     40
-#define TSDB_FQDN_LEN           128
-#define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
-#define TSDB_IPv4ADDR_LEN       16
-#define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       2048
-#define TSDB_SLOW_QUERY_SQL_LEN 512
-#define TSDB_SHOW_SUBQUERY_LEN  1000
+#define TSDB_CLUSTER_ID_LEN       40
+#define TSDB_FQDN_LEN             128
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
+#define TSDB_IPv4ADDR_LEN         16
+#define TSDB_FILENAME_LEN         128
+#define TSDB_SHOW_SQL_LEN         2048
+#define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
+#define TSDB_SLOW_QUERY_SQL_LEN   512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -267,8 +270,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
 
-#define TSDB_ACTIVE_KEY_LEN      109  // history 109:?
-#define TSDB_CONN_ACTIVE_KEY_LEN 257  // history 257:?
+#define TSDB_ACTIVE_KEY_LEN      109
+#define TSDB_CONN_ACTIVE_KEY_LEN 255
 
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 
@@ -366,8 +369,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 #define TSDB_MIN_STT_TRIGGER            1
-#define TSDB_MAX_STT_TRIGGER            16
-#define TSDB_DEFAULT_SST_TRIGGER        1
+#ifdef TD_ENTERPRISE
+#define TSDB_MAX_STT_TRIGGER     16
+#define TSDB_DEFAULT_SST_TRIGGER 2
+#else
+#define TSDB_MAX_STT_TRIGGER     1
+#define TSDB_DEFAULT_SST_TRIGGER 1
+#endif
 #define TSDB_MIN_HASH_PREFIX            (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX        0
@@ -376,8 +384,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_HASH_SUFFIX        0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
-#define TSDB_REP_DEF_DB_WAL_RET_PERIOD   0
-#define TSDB_REPS_DEF_DB_WAL_RET_PERIOD  0
+#define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
+#define TSDB_REPS_DEF_DB_WAL_RET_PERIOD  3600
 #define TSDB_DB_MIN_WAL_RETENTION_SIZE   -1
 #define TSDB_REP_DEF_DB_WAL_RET_SIZE     0
 #define TSDB_REPS_DEF_DB_WAL_RET_SIZE    0
@@ -407,9 +415,11 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN             65519               // 16384:65519
-#define TSDB_MAX_BINARY_LEN            TSDB_MAX_FIELD_LEN  // 16384-8:65519
-#define TSDB_MAX_NCHAR_LEN             TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_FIELD_LEN    65519               // 16384:65519
+#define TSDB_MAX_BINARY_LEN   TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_NCHAR_LEN    TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_GEOMETRY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
+
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
@@ -487,6 +497,7 @@ enum {
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64
+#define TSDB_CONFIG_SCOPE_LEN  8
 #define TSDB_CONFIG_NUMBER     8
 
 #define QUERY_ID_SIZE      20

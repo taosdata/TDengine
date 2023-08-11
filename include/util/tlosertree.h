@@ -43,7 +43,7 @@ typedef struct SMultiwayMergeTreeInfo {
 int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo **pTree, uint32_t numOfEntries, void *param,
                          __merge_compare_fn_t compareFn);
 
-void tMergeTreeDestroy(SMultiwayMergeTreeInfo *pTree);
+void tMergeTreeDestroy(SMultiwayMergeTreeInfo **pTree);
 
 void tMergeTreeAdjust(SMultiwayMergeTreeInfo *pTree, int32_t idx);
 

@@ -120,7 +120,8 @@ typedef struct SQWTaskCtx {
   int8_t   explain;
   int8_t   needFetch;
   int8_t   localExec;
-  int32_t  msgType;
+  int32_t  queryMsgType;
+  int32_t  fetchMsgType;
   int32_t  level;
   uint64_t sId;
 

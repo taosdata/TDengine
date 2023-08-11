@@ -30,7 +30,15 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-    
+        self.deletedDataSql= '''drop database if exists deldata;create database deldata duration 300;use deldata;
+                            create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
+                            create table deldata.ct1 using deldata.stb1 tags ( 1 );
+                            insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );
+                            select avg(c1) from deldata.ct1;
+                            delete from deldata.stb1;
+                            flush database deldata;
+                            insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );
+                            delete from deldata.ct1;'''   
     def checkProcessPid(self,processName):
         i=0
         while i<60:
@@ -138,9 +146,11 @@ class TDTestCase:
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{BASEVERSION}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
+
+        # os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
+        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
+        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
         os.system(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/tmqBasic.json ")
         # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
@@ -151,7 +161,12 @@ class TDTestCase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
 
+        # add deleted  data
+        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{self.deletedDataSql}" ')
+
+
         cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
                 
@@ -184,15 +199,22 @@ class TDTestCase:
         # tdsql.query("show streams;")
         # tdsql.query(f"select count(*) from {stb}")
         # tdsql.checkData(0,0,tableNumbers*recordNumbers2)
-        tdsql.query(f"select count(*) from db4096.stb0")
+        
+        # checkout db4096
+        tdsql.query("select count(*) from db4096.stb0")
         tdsql.checkData(0,0,50000)
+        
+        # checkout deleted data
+        tdsql.execute("insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );")
+        tdsql.execute("flush database deldata;")
+        tdsql.query("select avg(c1) from deldata.ct1;")
+
 
         tdsql=tdCom.newTdSql()
-        tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
+        tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
         tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
-        tdsql.execute("alter database db wal_retention_period 3600")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
@@ -203,7 +225,8 @@ class TDTestCase:
         tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
         tdsql.query("select * from db.ct4")
         tdsql.checkData(0,1,14)
-        print(1)
+
+        #check retentions
         tdsql=tdCom.newTdSql()
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   
@@ -223,8 +246,12 @@ class TDTestCase:
                 caller = inspect.getframeinfo(inspect.stack()[0][0])
                 args = (caller.filename, caller.lineno)
                 tdLog.exit("%s(%d) failed" % args)
+
+        # check stream
         tdsql.query("show streams;")
-        tdsql.checkRows(2)
+        tdsql.checkRows(0)
+
+        #check TS-3131
         tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
         tdsql.checkRows(6)
         expectList = [0,3003,20031,20032,20033,30031]
@@ -239,6 +266,8 @@ class TDTestCase:
         tdsql.execute("insert into test.d80 values (now+1s, 11, 103, 0.21);")
         tdsql.execute("insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
 
+
+        # check tmq
         conn = taos.connect()
 
         consumer = Consumer(
@@ -266,6 +295,8 @@ class TDTestCase:
                 print(block.fetchall())
         tdsql.query("show topics;")
         tdsql.checkRows(1)
+
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
