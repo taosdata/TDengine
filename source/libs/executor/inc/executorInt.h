@@ -263,6 +263,7 @@ typedef struct STagScanInfo {
   void*           pCtbCursor;
   SNode*          pTagCond;
   SNode*          pTagIndexCond;
+  SStorageAPI*    pStorageAPI;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
