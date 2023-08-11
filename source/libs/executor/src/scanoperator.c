@@ -2922,7 +2922,8 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
   SArray* aFilterIdxs = taosArrayInit(pOperator->resultInfo.capacity, sizeof(int32_t));
 
   while (1) {
-    while (count < pOperator->resultInfo.capacity) {
+    int32_t numTables = 0;
+    while (numTables < pOperator->resultInfo.capacity) {
       SMCtbCursor* pCur = pInfo->pCtbCursor;
       tb_uid_t     uid = pAPI->metaFn.ctbCursorNext(pInfo->pCtbCursor);
       if (uid == 0) {
@@ -2932,14 +2933,19 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       taosArrayPush(aUidTags, &info);
+      ++numTables;
     }
 
-    int32_t numTables = taosArrayGetSize(aUidTags);
     if (numTables == 0) {
       break;
     }
-
-    tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, pInfo->readHandle.vnode, aFilterIdxs, pAPI);
+    if (pInfo->pTagCond != NULL) {
+      tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, pInfo->readHandle.vnode, aFilterIdxs, pAPI);
+    } else {
+      for (int i = 0; i < numTables; ++i) {
+        taosArrayPush(aFilterIdxs, &i);
+      }
+    }
 
     tagScanFillResultBlock(pOperator, pRes, aUidTags, aFilterIdxs, pAPI);
     count = taosArrayGetSize(aFilterIdxs);
@@ -2955,6 +2961,7 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
   taosArrayDestroy(aFilterIdxs);
   taosArrayDestroyEx(aUidTags, tagScanFreeUidTag);
 
+  pRes->info.rows = count;
   pOperator->resultInfo.totalRows += count;
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }

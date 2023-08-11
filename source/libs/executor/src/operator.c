@@ -371,6 +371,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       pOperator = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pTagScanPhyNode = (STagScanPhysiNode*)pPhyNode;
+      pTagScanPhyNode->onlyMetaCtbIdx = true;
       STableListInfo*    pTableListInfo = tableListCreate();
       if (!pTagScanPhyNode->onlyMetaCtbIdx) {
         int32_t code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,

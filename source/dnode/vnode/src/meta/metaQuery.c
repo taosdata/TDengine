@@ -427,7 +427,7 @@ SMCtbCursor *metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock) {
     metaRLock(pMeta);
   }
 
-  ret = tdbTbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
+  ret = tdbTbcOpen(pMeta->pCtbIdx, (TBC**)&pCtbCur->pCur, NULL);
   if (ret < 0) {
     metaULock(pMeta);
     taosMemoryFree(pCtbCur);
@@ -1365,7 +1365,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
 }
 
 int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(((SVnode *)pVnode)->pMeta, suid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1);
 
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
