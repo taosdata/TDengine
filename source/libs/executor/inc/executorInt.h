@@ -259,6 +259,11 @@ typedef struct STagScanInfo {
   SLimitNode*     pSlimit;
   SReadHandle     readHandle;
   STableListInfo* pTableListInfo;
+  uint64_t        suid;
+  void*           pCtbCursor;
+  SNode*          pTagCond;
+  SNode*          pTagIndexCond;
+  SStorageAPI*    pStorageAPI;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {

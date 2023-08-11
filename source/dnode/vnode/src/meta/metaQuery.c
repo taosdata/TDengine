@@ -408,17 +408,9 @@ _err:
   return NULL;
 }
 
-struct SMCtbCursor {
-  SMeta   *pMeta;
-  TBC     *pCur;
-  tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-};
 
-SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid, int lock) {
+SMCtbCursor *metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock) {
+  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
   int          ret = 0;
