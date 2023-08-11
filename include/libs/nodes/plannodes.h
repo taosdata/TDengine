@@ -334,7 +334,19 @@ typedef struct SScanPhysiNode {
   bool       groupOrderScan;
 } SScanPhysiNode;
 
-typedef SScanPhysiNode STagScanPhysiNode;
+typedef struct STagScanPhysiNode {
+  //   SScanPhysiNode scan; //TODO?
+  SPhysiNode node;
+  SNodeList* pScanCols;
+  SNodeList* pScanPseudoCols;
+  uint64_t   uid;  // unique id of the table
+  uint64_t   suid;
+  int8_t     tableType;
+  SName      tableName;
+  bool       groupOrderScan;
+  bool       onlyMetaCtbIdx; //no tbname, tag index not used.
+} STagScanPhysiNode;
+
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
