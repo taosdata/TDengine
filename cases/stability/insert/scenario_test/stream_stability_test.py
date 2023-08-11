@@ -190,7 +190,7 @@ class StreamStabilityTest(TDCase):
         Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         Insert_file.get_node_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         if self.trigger_mode.lower() == "at_once" and "ignore_expired 1" not in self.stream_sql and int(self.stream_json_info["streams"][0]["fill_history"]) == 1:
-            if "partition by" not in self.stream_sql
+            if "partition by" not in self.stream_sql:
                 self.tdSql.query(self.stream_sql)
                 expected_res = self.tdSql.query_row
                 self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname}')
