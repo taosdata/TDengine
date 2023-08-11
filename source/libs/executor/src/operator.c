@@ -373,7 +373,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       STagScanPhysiNode* pTagScanPhyNode = (STagScanPhysiNode*)pPhyNode;
       STableListInfo*    pTableListInfo = tableListCreate();
       if (!pTagScanPhyNode->onlyMetaCtbIdx) {
-        int32_t code = createScanTableListInfo(pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+        int32_t code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
                                                pTagIndexCond, pTaskInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
