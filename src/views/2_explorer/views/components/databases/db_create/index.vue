@@ -548,8 +548,7 @@
                   type: "success",
                   message: this.$t("createSucc"),
                 });
-                this.$store
-                .commit('dbs/SET_DIALOG_DB_VISABLE', false)
+                this.cancel()
             })
             .catch((err) => {
               this.$message({

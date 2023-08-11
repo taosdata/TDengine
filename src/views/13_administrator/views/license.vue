@@ -244,7 +244,11 @@ export default {
       try {
         await activeLicence(this.ruleForm).then(res => {
           console.log('res',res);
-          this.$message.success(this.$t('operateSucc'))
+          if (res && res.code == 0) {
+            this.$message.success(this.$t('operateSucc'))
+          } else {
+            this.$message.error(res?.desc)
+          }
         })     
       } catch (error) {
         this.$message.error(error)
