@@ -627,6 +627,7 @@ int32_t streamSourceScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
+int32_t appendTranstateIntoInputQ(SStreamTask* pTask);
 
 // agg level
 int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask);

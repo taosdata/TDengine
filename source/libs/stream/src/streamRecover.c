@@ -415,6 +415,35 @@ static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferRe
   return 0;
 }
 
+int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
+  SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
+  if (pTranstate == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    taosFreeQitem(pTranstate);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pBlock->info.type = STREAM_TRANS_STATE;
+  pBlock->info.rows = 1;
+  pBlock->info.childId = pTask->info.selfChildId;
+
+  pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));//pBlock;
+  taosArrayPush(pTranstate->blocks, pBlock);
+
+  taosMemoryFree(pBlock);
+  if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pTranstate) < 0) {
+    taosFreeQitem(pTranstate);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  streamSchedExec(pTask);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
   SStreamTransferReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
 

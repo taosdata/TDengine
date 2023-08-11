@@ -390,6 +390,11 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   if (level == TASK_LEVEL__SOURCE) {
     streamTaskFillHistoryFinished(pTask);
     streamTaskEndScanWAL(pTask);
+
+      code = streamDoTransferStateToStreamTask(pTask);
+      if (code != TSDB_CODE_SUCCESS) {  // todo handle this
+          return code;
+      }
   } else if (level == TASK_LEVEL__AGG) { // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
     if (code != TSDB_CODE_SUCCESS) {  // todo handle this
@@ -460,6 +465,40 @@ static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   }
 }
 
+int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+  const char* id = pTask->id.idStr;
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  int32_t level = pTask->info.taskLevel;
+  if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SINK) {
+    int32_t remain = streamAlignTransferState(pTask);
+    if (remain > 0) {
+      qDebug("s-task:%s receive upstream transfer state msg, remain:%d", id, remain);
+      return 0;
+    }
+
+    // transfer the ownership of executor state
+    qDebug("s-task:%s all upstream tasks send transfer msg, open transfer state flag", id);
+    ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
+
+    pTask->status.transferState = true;
+  }
+
+  // dispatch the transtate block to downstream task immediately
+  if (level == TASK_LEVEL__SOURCE || level == TASK_LEVEL__AGG) {
+    //          pBlock-> = pTask->id.taskId;
+    pBlock->srcVgId = pTask->pMeta->vgId;
+    code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
+    if (code == 0) {
+      streamDispatchStreamBlock(pTask);
+    } else {
+      streamFreeQitem((SStreamQueueItem*)pBlock);
+    }
+  }
+
+  return code;
+}
+
 /**
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
  * appropriate batch of blocks should be handled in 5 to 10 sec.
@@ -482,6 +521,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     if (pInput == NULL) {
       ASSERT(batchSize == 0);
       break;
+    }
+
+    if (pInput->type == STREAM_INPUT__TRANS_STATE) {
+      streamProcessTranstateBlock(pTask, (SStreamDataBlock*)pInput);
+      return 0;
     }
 
     if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
@@ -557,17 +601,15 @@ int32_t streamTaskEndScanWAL(SStreamTask* pTask) {
   qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
 
   // 1. notify all downstream tasks to transfer executor state after handle all history blocks.
-  int32_t code = streamDispatchTransferStateMsg(pTask);
-  if (code != TSDB_CODE_SUCCESS) {
-    // todo handle error
-  }
+//  pTask->status.transferState = true;
+  appendTranstateIntoInputQ(pTask);
 
   // 2. do transfer stream task operator states.
-  pTask->status.transferState = true;
-  code = streamDoTransferStateToStreamTask(pTask);
-  if (code != TSDB_CODE_SUCCESS) { // todo handle error
-    return code;
-  }
+  // todo remove this
+//  int32_t code = streamDoTransferStateToStreamTask(pTask);
+//  if (code != TSDB_CODE_SUCCESS) {  // todo handle error
+//    return code;
+//  }
 
   return TSDB_CODE_SUCCESS;
 }
