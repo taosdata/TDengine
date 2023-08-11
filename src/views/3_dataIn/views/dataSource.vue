@@ -599,6 +599,11 @@ export default {
    ::v-deep.el-table td.el-table__cell {
     border: none !important;
    }
+
+  ::v-deep.el-table td.el-table__cell div {
+    word-wrap: break-word;
+    word-break: break-word;
   }
+}
 
 </style>

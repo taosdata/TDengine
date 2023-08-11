@@ -30,7 +30,7 @@
       :rules="rules"
     >
       <el-form-item :label="$t('datasource.target')" prop="dbName">
-        <el-select v-model="ruleForm2.dbName" placeholder="">
+        <el-select v-model="ruleForm2.dbName" placeholder="" style="margin-right: 8px;">
           <el-option
             v-for="item in dblist"
             :key="item.name"
@@ -38,6 +38,9 @@
             :label="item.name"
           ></el-option>
         </el-select>
+        <el-button size="medium" type="primary" plain  @click="handleDbBtn">
+          {{ $t('data.createDatabase') }}
+        </el-button>
       </el-form-item>
       <el-form-item :label="$t('datasource.name')" prop="subname">
         <el-input v-model="ruleForm2.subname"></el-input>
@@ -132,6 +135,15 @@ export default {
       ],
     };
   },
+  watch: {
+    "$store.state.dbs.dialogDbVisible": {
+      handler(val) {
+        if (!val) {
+          this.getDatabases()
+        }
+      }
+    }
+  },
   mounted() {
     if (this.isEditable) {
       this.ruleForm2.dbName = this.targetName;
@@ -146,6 +158,11 @@ export default {
     this.getDatabases();
   },
   methods: {
+    handleDbBtn() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
+      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
+    },
     changeHeader() {
       this.showcustom = !this.ruleForm.hasHeader;
     },

@@ -684,6 +684,7 @@
           :echoData="echoData"
           ref="csvdata"
           :dbName="dbName"
+          @handleDbBtn="handleDbBtn"
         ></CsvData>
       </section>
       <section class="choose-db" v-else>
