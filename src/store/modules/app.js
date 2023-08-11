@@ -55,6 +55,7 @@ const state = {
   mqttParser: null, //专供mqtt parser使用
   opcConfig: null, //opc的单例配置
   csvParser: null,
+  csvtags:[],//用来保存csv的tag,有的时候是超级表，否则位普通表
   csvfiles: [],
   opcnodesfiles: [],
   opccertfiles: [],
@@ -63,6 +64,7 @@ const state = {
   mqttcafile: [],
   mqttcertfile: [],
   mqttcertkeyfile: [],
+  showcsvStable:false
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -97,6 +99,12 @@ const mutations = {
     state.mqttcafile=data
     state.mqttcertfile=data
     state.mqttcertkeyfile=data
+  },
+  SET_SHOW_CSV_STABLE:(state,data)=>{
+    state.showcsvStable=data
+  },
+  SET_CSV_TAGS:(state,data)=>{
+    state.csvtags=data
   },
   SET_MQTT_CAFILE: (state, data) => {
     state.mqttcafile = data;

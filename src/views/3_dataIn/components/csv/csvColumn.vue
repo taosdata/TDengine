@@ -172,6 +172,7 @@ export default {
 
   data() {
     return {
+      showStable: false,
       value: ["", "", ""],
       oldValue: ["", "", ""],
       columnChecked: false,
@@ -199,9 +200,11 @@ export default {
       return false;
     },
     primaryCheckedVal() {
-      return this.colData.parser.parse[this.csvColName].alias ==
-          this.colData.parser.model.columns[0]
-    }
+      return (
+        this.colData.parser.parse[this.csvColName].alias ==
+        this.colData.parser.model.columns[0]
+      );
+    },
   },
   methods: {
     handleClearItem(val) {
@@ -223,10 +226,10 @@ export default {
     getPreveiousParser(val, type, key, needSkipColumnChecked) {
       let oldparser = this.$store.state.app.csvParser;
       let columns = oldparser.model.columns;
-      let tags = oldparser.model?.tags;
+      let tags = oldparser.model?.tags ? oldparser.model.tags : [];
       if (key == "primary") {
         this.columnChecked = false;
-        if (tags.includes(val)) {
+        if (tags && tags.includes(val)) {
           tags.splice(columns.indexOf(val), 1);
         }
 
@@ -235,11 +238,15 @@ export default {
             columns.splice(0, 1);
             columns.unshift(undefined);
           } else {
-            this.columnChecked = false;
-            columns.splice(columns.indexOf(val), 1);
+            if (columns[0] == undefined) {
+              columns.splice(0, 1);
+              this.columnChecked = true;
+            } else {
+              this.columnChecked = false;
+              columns.splice(columns.indexOf(val), 1);
 
-            columns.unshift(val);
-            this.columnChecked = false;
+              columns.unshift(val);
+            }
           }
         } else {
           this.columnChecked = false;
@@ -258,15 +265,15 @@ export default {
           columns.splice(columns.indexOf(val), 1);
         }
         if (this.tagChecked) {
-          if (!tags.includes(val)) {
+          if (tags && !tags.includes(val)) {
             tags.push(val);
           }
         } else {
-          tags.splice(tags.indexOf(val), 1);
+          tags && tags.splice(tags.indexOf(val), 1);
         }
       }
       if (type == "column" && key != "primary") {
-        if (tags.includes(val)) {
+        if (tags && tags.includes(val)) {
           tags.splice(tags.indexOf(val), 1);
         }
         if (this.columnChecked) {
@@ -288,6 +295,10 @@ export default {
         }
       }
       this.$store.commit("app/SET_CSV_PARSER", oldparser);
+      this.$store.commit(
+        "app/SET_CSV_TAGS",
+        oldparser.model.tags ? oldparser.model.tags : tags
+      );
     },
     setColumnChecked() {
       this.tagChecked = false;
@@ -305,6 +316,7 @@ export default {
     },
     changeType(val) {
       this.colData.parser.parse[this.csvColName].as = val;
+      this.$store.commit("app/SET_CSV_PARSER", this.colData.parser);
     },
     handledbChange(val, index) {
       let oldItem = this.colData.parser.parse[this.csvColName].alias;
@@ -346,7 +358,10 @@ export default {
       if (columns.includes(this.colData.parser.parse[this.csvColName].alias)) {
         this.columnChecked = true;
       }
-      if (tags.includes(this.colData.parser.parse[this.csvColName].alias)) {
+      if (
+        tags &&
+        tags.includes(this.colData.parser.parse[this.csvColName].alias)
+      ) {
         this.tagChecked = true;
       }
     },
@@ -363,26 +378,23 @@ export default {
         this.$emit("changeAddStatus");
       },
     },
-    "$store.state.app.mqttParser": {
+    "$store.state.app.csvtags": {
       deep: true,
+      immediate:true,
       handler(val) {
-        // if (val.model.columns.includes(this.colData.name)) {
-        //   this.columnChecked = true;
-        // } else {
-        //   this.columnChecked = false;
-        // }
-        // if (val.model.tags.includes(this.colData.name)) {
-        //   this.tagChecked = true;
-        // } else {
-        //   this.tagChecked = false;
-        // }
+        if (val && val.length > 0) {
+          this.showStable = true;
+        } else {
+          this.showStable = false;
+        }
+        this.$store.commit("app/SET_SHOW_CSV_STABLE", this.showStable);
       },
     },
     primaryCheckedVal(val) {
       if (!val) {
         this.columnChecked = false;
       }
-    }
+    },
   },
 };
 </script>

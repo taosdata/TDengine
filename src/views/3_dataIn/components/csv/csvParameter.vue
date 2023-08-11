@@ -45,7 +45,12 @@
       <el-form-item :label="$t('datasource.name')" prop="subname">
         <el-input v-model="ruleForm2.subname"></el-input>
       </el-form-item>
-      <el-form-item :label="$t('datasource.using')" prop="tableName">
+      <el-form-item
+        :label="$t('datasource.using')"
+        prop="tableName"
+        v-if="showStable"
+        :rules="tableName"
+      >
         <el-input v-model="ruleForm2.tableName"></el-input>
       </el-form-item>
     </el-form>
@@ -73,9 +78,10 @@ export default {
   },
   data() {
     return {
+      showStable: false,
       language: window.navigator.language,
       showcustom: true,
-      isAllValid:true,
+      isAllValid: true,
       ruleForm: {
         hasHeader: false,
         customcol: "",
@@ -93,6 +99,13 @@ export default {
           message: this.$t("datasource.customcol"),
         },
       ],
+      tableName: [
+        {
+          required: true,
+          trigger: "blur",
+          message: this.$t("datasource.tabletip"),
+        },
+      ],
 
       rules: {
         dbName: [
@@ -107,14 +120,6 @@ export default {
             required: true,
             trigger: "blur",
             message: this.$t("datasource.name"),
-          },
-        ],
-
-        tableName: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t("datasource.tabletip"),
           },
         ],
       },
@@ -152,7 +157,8 @@ export default {
       this.ruleForm.customcol = Object.keys(this.echoData[0].parse).join(",");
       this.ruleForm.hasHeader =
         this.$store.state.app.hasheader == "true" ? true : false;
-
+      this.showStable=this.echoData[0].model?.tags?.length>0?true:false
+      this.$store.commit('SET_SHOW_CSV_STABLE',this.showStable)
       this.showcustom = !this.ruleForm.hasHeader;
     }
     this.getDatabases();
@@ -192,6 +198,14 @@ export default {
           return false;
         }
       });
+    },
+  },
+  watch: {
+    "$store.state.app.showcsvStable": {
+      deep: true,
+      handler(val) {
+        this.showStable = val;
+      },
     },
   },
 };
