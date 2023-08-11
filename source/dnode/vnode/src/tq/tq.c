@@ -192,37 +192,40 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
 }
 
 void tqNotifyClose(STQ* pTq) {
-  if (pTq != NULL) {
-    SStreamMeta* pMeta = pTq->pStreamMeta;
-    taosWLockLatch(&pMeta->lock);
-
-    void* pIter = NULL;
-    while (1) {
-      pIter = taosHashIterate(pMeta->pTasks, pIter);
-      if (pIter == NULL) {
-        break;
-      }
-
-      SStreamTask* pTask = *(SStreamTask**)pIter;
-      tqDebug("vgId:%d s-task:%s set closing flag", pMeta->vgId, pTask->id.idStr);
-      streamTaskStop(pTask);
-    }
-
-    taosWUnLockLatch(&pMeta->lock);
-
-    tqDebug("vgId:%d start to check all tasks", pMeta->vgId);
-
-    int64_t st = taosGetTimestampMs();
-
-    while (hasStreamTaskInTimer(pMeta)) {
-      tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
-      taosMsleep(100);
-    }
-
-    int64_t el = taosGetTimestampMs() - st;
-    tqDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms",
-            pMeta->vgId, el);
+  if (pTq == NULL) {
+    return;
   }
+
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = pMeta->vgId;
+
+  tqDebug("vgId:%d notify all stream tasks that the vnode is closing", vgId);
+  taosWLockLatch(&pMeta->lock);
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    tqDebug("vgId:%d s-task:%s set closing flag", vgId, pTask->id.idStr);
+    streamTaskStop(pTask);
+  }
+
+  taosWUnLockLatch(&pMeta->lock);
+
+  tqDebug("vgId:%d start to check all tasks", vgId);
+  int64_t st = taosGetTimestampMs();
+
+  while (hasStreamTaskInTimer(pMeta)) {
+    tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
+    taosMsleep(100);
+  }
+
+  int64_t el = taosGetTimestampMs() - st;
+  tqDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
 }
 
 //static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch,
@@ -1100,8 +1103,8 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, rsp.streamId, rsp.upstreamTaskId);
   if (pTask == NULL) {
-    tqError("tq failed to locate the stream task:0x%x (vgId:%d), it may have been destroyed", rsp.upstreamTaskId,
-            pTq->pStreamMeta->vgId);
+    tqError("tq failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed",
+            rsp.streamId, rsp.upstreamTaskId, pTq->pStreamMeta->vgId);
     terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return -1;
   }
@@ -1116,8 +1119,11 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   int32_t vgId = TD_VID(pTq->pVnode);
 
   if (tsDisableStream) {
+    tqInfo("vgId:%d stream disabled, not deploy stream tasks", vgId);
     return 0;
   }
+
+  tqDebug("vgId:%d receive new stream task deploy msg, start to build stream task", vgId);
 
   // 1.deserialize msg and build task
   SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
@@ -1141,8 +1147,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   SStreamMeta* pStreamMeta = pTq->pStreamMeta;
 
-  // 2.save task, use the newest commit version as the initial start version of stream task.
+  // 2.save task, use the latest commit version as the initial start version of stream task.
   int32_t taskId = pTask->id.taskId;
+  int64_t streamId = pTask->id.streamId;
   bool    added = false;
 
   taosWLockLatch(&pStreamMeta->lock);
@@ -1151,21 +1158,26 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   taosWUnLockLatch(&pStreamMeta->lock);
 
   if (code < 0) {
-    tqError("vgId:%d failed to add s-task:0x%x, total:%d", vgId, pTask->id.taskId, numOfTasks);
+    tqError("vgId:%d failed to add s-task:0x%x, total:%d, code:%s", vgId, taskId, numOfTasks, tstrerror(code));
     tFreeStreamTask(pTask);
     return -1;
   }
 
-  // not added into meta store
+  // added into meta store, pTask cannot be reference since it may have been destroyed by other threads already now if
+  // it is added into the meta store
   if (added) {
     tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
-    SStreamTask* p = streamMetaAcquireTask(pStreamMeta, pTask->id.streamId, taskId);
-    if (p != NULL) {  // reset the downstreamReady flag.
+    SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
+
+    bool restored = pTq->pVnode->restored;
+    if (p != NULL && restored) {  // reset the downstreamReady flag.
       streamTaskCheckDownstreamTasks(p);
+    } else if (!restored) {
+      tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
     }
     streamMetaReleaseTask(pStreamMeta, p);
   } else {
-    tqWarn("vgId:%d failed to add s-task:0x%x, already exists in meta store", vgId, taskId);
+    tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store", vgId, taskId);
     tFreeStreamTask(pTask);
   }
 
@@ -1840,17 +1852,15 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
-//  streamTaskUpdateEpInfo(pTask);
+  tqDebug("s-task:%s receive task nodeEp update msg from mnode", pTask->id.idStr);
+  streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
 
   SStreamTask* pHistoryTask = NULL;
   if (pTask->historyTaskId.taskId != 0) {
     pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
     if (pHistoryTask == NULL) {
-      tqError(
-          "vgId:%d failed to acquire fill-history task:0x%x when handling task update, it may have been dropped "
-          "already",
-          pMeta->vgId, pTask->historyTaskId.taskId);
+      tqError("vgId:%d failed to get fill-history task:0x%x when handling task update, it may have been dropped",
+              pMeta->vgId, pTask->historyTaskId.taskId);
 
       streamMetaReleaseTask(pMeta, pTask);
 
@@ -1859,7 +1869,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     tqDebug("s-task:%s fill-history task handle task update along with related stream task", pHistoryTask->id.idStr);
-//    streamTaskUpdateEpInfo(pHistoryTask);
+    streamTaskUpdateEpsetInfo(pHistoryTask, req.pNodeList);
   }
 
   if (pHistoryTask != NULL) {

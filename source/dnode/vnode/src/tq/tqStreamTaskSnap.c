@@ -81,7 +81,6 @@ _err:
   tqError("vgId:%d, vnode stream-task snapshot reader open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
-  return 0;
 }
 
 int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {

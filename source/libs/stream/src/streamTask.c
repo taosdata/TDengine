@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "streamInt.h"
+#include "tmisce.h"
 #include "executor.h"
+#include "streamInt.h"
 #include "tstream.h"
-#include "wal.h"
 #include "ttimer.h"
+#include "wal.h"
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -404,7 +405,7 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
   for(int32_t i = 0; i < numOfUpstream; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
     if (pInfo->nodeId == nodeId) {
-      pInfo->epSet = *pEpSet;
+      epsetAssign(&pInfo->epSet, pEpSet);
       break;
     }
   }
@@ -465,6 +466,12 @@ int32_t streamTaskStop(SStreamTask* pTask) {
 }
 
 int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir) {
+  const char* id = pTask->id.idStr;
+  int32_t vgId = pTask->pMeta->vgId;
+
+  qDebug("s-task:%s vgId:%d restart current task, stage:%d, status:%s, sched-status:%d", id, vgId, pTask->status.stage,
+         streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+
   // 1. stop task
   streamTaskStop(pTask);
 
@@ -477,39 +484,68 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir) {
   pTask->status.downstreamReady = 0;
   pTask->status.stage += 1;
 
-  qDebug("s-task:%s reset downstream status and stage:%d, start to check downstream", pTask->id.idStr,
-         pTask->status.stage);
+  streamSetStatusNormal(pTask);
+  qDebug("s-task:%s reset downstream status and inc stage to be:%d, status:%s, start to check downstream", id,
+         pTask->status.stage, streamGetTaskStatusStr(pTask->status.taskStatus));
 
   // 3. start to check the downstream status
   streamTaskCheckDownstreamTasks(pTask);
   return 0;
 }
 
-int32_t streamTaskUpdateEpInfo(SArray* pTaskList, int32_t nodeId, SEpSet* pEpSet) {
-  int32_t numOfLevels = taosArrayGetSize(pTaskList);
+// todo remove it
+//int32_t streamTaskUpdateEpInfo(SArray* pTaskList, int32_t nodeId, SEpSet* pEpSet) {
+//  int32_t numOfLevels = taosArrayGetSize(pTaskList);
+//
+//  for (int32_t j = 0; j < numOfLevels; ++j) {
+//    SArray *pLevel = taosArrayGetP(pTaskList, j);
+//
+//    int32_t numOfTasks = taosArrayGetSize(pLevel);
+//    for (int32_t k = 0; k < numOfTasks; ++k) {
+//      SStreamTask *pTask = taosArrayGetP(pLevel, k);
+//      if (pTask->info.nodeId == nodeId) {
+//        pTask->info.epSet = *pEpSet;
+//        continue;
+//      }
+//
+//      // check for the dispath info and the upstream task info
+//      int32_t level = pTask->info.taskLevel;
+//      if (level == TASK_LEVEL__SOURCE) {
+//        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+//      } else if (level == TASK_LEVEL__AGG) {
+//        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+//        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+//      } else { // TASK_LEVEL__SINK
+//        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+//      }
+//    }
+//  }
+//  return 0;
+//}
 
-  for (int32_t j = 0; j < numOfLevels; ++j) {
-    SArray *pLevel = taosArrayGetP(pTaskList, j);
+int32_t doUpdateEpsetInfo(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
+  if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
+    epsetAssign(&pTask->info.epSet, pEpSet);
+  }
 
-    int32_t numOfTasks = taosArrayGetSize(pLevel);
-    for (int32_t k = 0; k < numOfTasks; ++k) {
-      SStreamTask *pTask = taosArrayGetP(pLevel, k);
-      if (pTask->info.nodeId == nodeId) {
-        pTask->info.epSet = *pEpSet;
-        continue;
-      }
+  // check for the dispath info and the upstream task info
+  int32_t level = pTask->info.taskLevel;
+  if (level == TASK_LEVEL__SOURCE) {
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+  } else if (level == TASK_LEVEL__AGG) {
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+  } else {  // TASK_LEVEL__SINK
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+  }
 
-      // check for the dispath info and the upstream task info
-      int32_t level = pTask->info.taskLevel;
-      if (level == TASK_LEVEL__SOURCE) {
-        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
-      } else if (level == TASK_LEVEL__AGG) {
-        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-        streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
-      } else { // TASK_LEVEL__SINK
-        streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-      }
-    }
+  return 0;
+}
+
+int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
+  for(int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
+    SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
+    doUpdateEpsetInfo(pTask, pInfo->nodeId, &pInfo->newEp);
   }
   return 0;
 }

@@ -1010,3 +1010,19 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
   tEndDecode(pDecoder);
   return 0;
 }
+
+int32_t tEncodeStreamTaskUpdateRsp(SEncoder* pEncoder, const SStreamTaskNodeUpdateRsp* pMsg) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pMsg->taskId) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeStreamTaskUpdateRsp(SDecoder* pDecoder, SStreamTaskNodeUpdateRsp* pMsg) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pMsg->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pMsg->taskId) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}

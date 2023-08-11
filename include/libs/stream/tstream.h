@@ -558,13 +558,13 @@ typedef struct {
 int32_t tEncodeCompleteHistoryDataMsg(SEncoder* pEncoder, const SStreamCompleteHistoryMsg* pReq);
 int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistoryMsg* pReq);
 
-typedef struct {
+typedef struct SNodeUpdateInfo {
   int32_t nodeId;
   SEpSet  prevEp;
   SEpSet  newEp;
 } SNodeUpdateInfo;
 
-typedef struct {
+typedef struct SStreamTaskNodeUpdateMsg {
   int64_t streamId;
   int32_t taskId;
   SArray* pNodeList;   // SArray<SNodeUpdateInfo>
@@ -572,6 +572,14 @@ typedef struct {
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
+
+typedef struct SStreamTaskNodeUpdateRsp {
+  int64_t streamId;
+  int32_t taskId;
+} SStreamTaskNodeUpdateRsp;
+
+int32_t tEncodeStreamTaskUpdateRsp(SEncoder* pEncoder, const SStreamTaskNodeUpdateRsp* pMsg);
+int32_t tDecodeStreamTaskUpdateRsp(SDecoder* pDecoder, SStreamTaskNodeUpdateRsp* pMsg);
 
 typedef struct {
   int64_t streamId;
@@ -632,7 +640,7 @@ int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t stage);
 int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir);
-int32_t streamTaskUpdateEpInfo(SArray* pTaskList, int32_t nodeId, SEpSet* pEpSet);
+int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 int32_t streamTaskStop(SStreamTask* pTask);
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
                            SRpcHandleInfo* pRpcInfo, int32_t taskId);

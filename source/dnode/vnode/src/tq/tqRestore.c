@@ -61,7 +61,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  tqDebug("vgId:%d start to check all (%d) stream tasks downstream status", vgId, numOfTasks);
+  tqDebug("vgId:%d start to check all %d stream task(s) downstream status", vgId, numOfTasks);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
