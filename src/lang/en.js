@@ -1128,7 +1128,8 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
-    csvwholeinfo:'Please fill in the complete csv information',
+    csvconfigtip:'Please configure csv information',
+    csvwholeinfo:'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
     customcolname:'Custom Columns',
     customcol:'Please enter custom columns',
     uploadcsvtip:'Please upload file or enter the file url',
@@ -1167,7 +1168,7 @@ export default {
     value:'Value',
     repeattip:'Cannot enter ts, topic, and qos as new fields ',
     primarytip:'Primary keys only support columns of type timestamp',
-    bothtagsuper:'Tags and super table name must both exist or be empty',
+    bothtagsuper:'Tags and super table name must both exist',
     selectfieldtip:'Please check the Field(Source) with value',
     createsubtbtip:'Select Column(Targte) as template',
     ascolumn: 'As Column',
@@ -1835,18 +1836,18 @@ export default {
     step3:'Start',
     step4:'Check Status',
     step1linux:'Linux',
-    linuxdesc:`Download agent installer package from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
+    linuxdesc:`Download agent installer package from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
     linuxcode:`cd $TMPDIR
     mkdir agent-installer
     cd agent-installer
-    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    wget -c https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
     tar xvf taosx-agent-latest-linux-x64.tar.gz
     cd taosx-agent-*
     ./install.sh
     # remove files
     #cd ../../; rm -rf agent-installer`,
   step1window:'Windows',
-  windowdesc:`Download agent installer from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
+  windowdesc:`Download agent installer from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
   step2sub1:'Configuration file path:',
   step2sub2linux:`Configuration file path: <code>/etc/taos/agent.toml</code>`, 
   step2sub2window:`Copy the following lines into configuration file at:<code> C:\\Program Files\\taosX\\config\\agent.toml</code>`,

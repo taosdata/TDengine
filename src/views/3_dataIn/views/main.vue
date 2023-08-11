@@ -8,9 +8,9 @@
         <el-tab-pane name="datasource" :label="$t('topic.datasource')" v-if="!isOem" :disabled='sourceDisabled'>
           <DbSource ref="dbsource"></DbSource>
         </el-tab-pane>
-        <el-tab-pane name="csv" :label="$t('topic.csv')">
+        <!-- <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
     

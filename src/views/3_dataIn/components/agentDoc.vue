@@ -5,10 +5,20 @@
       <el-tabs v-model="activeTab">
         <el-tab-pane name="tab1" :label="$t('taosagents.step1linux')">
           <p v-html="$t('taosagents.linuxdesc')"></p>
-          <pre
+          <!-- <pre
             class="agent-code"
             style="padding-top: 0px"
-          ><code class="language-bash">
+          ><code class="language-bash" v-if="language.includes('en')">
+tmpdir=`mktemp -d`
+cd  $tmpdir
+mkdir agent-installer
+cd agent-installer
+wget -c https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+tar xvf taosx-agent-latest-linux-x64.tar.gz
+cd taosx-agent-*
+./install.sh
+# remove files
+#cd ../../; rm -rf $tmpdir</code><code class="language-bash" v-else>
 tmpdir=`mktemp -d`
 cd  $tmpdir
 mkdir agent-installer
@@ -23,7 +33,7 @@ cd taosx-agent-*
           <i class="el-icon-copy-document"></i>
           {{ $t("copy") }}
         </span>
-        </pre>
+        </pre> -->
         </el-tab-pane>
         <el-tab-pane name="tab2" :label="$t('taosagents.step1window')">
           <p v-html="$t('taosagents.windowdesc')"></p>
@@ -52,8 +62,8 @@ cd taosx-agent-*
         show-icons
       >
       </el-alert> -->
-      <pre v-highlight><code>endpoint = {{endpoint}}</code>
-<code>token = {{token}}</code>
+      <pre v-highlight><code style="padding:0px;">endpoint = "{{endpoint}}"
+token = "{{token}}"</code>
 </pre>
       <!-- <p>{{ $t("taosagents.step2sub4") }}</p> -->
     </section>
@@ -73,7 +83,7 @@ cd taosx-agent-*
       </el-tabs>
     </section>
     <h1>4. {{ $t("taosagents.step4") }}</h1>
-    <section style="margin-top:5px;">
+    <section style="margin-top: 5px">
       <p>{{ $t("taosagents.step4sub1") }}</p>
     </section>
   </div>
@@ -93,6 +103,7 @@ export default {
   },
   data() {
     return {
+      language: window.navigator.language,
       activeTab: "tab1",
       endpoint: localStorage.getItem("local_endpoint"),
     };
@@ -103,13 +114,14 @@ export default {
   methods: {
     copyCode(val) {
       let text = document.querySelector(`.${val}`);
+      console.log(text,'赋值的值');
       copy(text.children[0].innerText);
     },
   },
 };
 </script>
 <style lang="scss" scoped>
-section{
+section {
   margin-bottom: 10px;
 }
 h1 {
@@ -168,5 +180,8 @@ p {
 }
 .agent-doc {
   padding: 15px;
+}
+p {
+  word-break: break-word;
 }
 </style>
