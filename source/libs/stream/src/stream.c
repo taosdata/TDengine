@@ -268,7 +268,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     } else {
       qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
              pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
-      return streamDispatchAllBlocks(pTask, pTask->msgInfo.pData);
+      return doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
     }
   }
 

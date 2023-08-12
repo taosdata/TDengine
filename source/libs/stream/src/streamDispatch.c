@@ -436,7 +436,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   return 0;
 }
 
-int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData) {
+int32_t doDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData) {
   int32_t code = 0;
 
   int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
@@ -552,7 +552,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   SStreamTask* pTask = param;
   ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
 
-  int32_t code = streamDispatchAllBlocks(pTask, pTask->msgInfo.pData);
+  int32_t code = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("s-task:%s reset the waitRspCnt to be 0 before launch retry dispatch", pTask->id.idStr);
     atomic_store_32(&pTask->shuffleDispatcher.waitingRspCnt, 0);
@@ -593,12 +593,13 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   }
 
   pTask->msgInfo.pData = pBlock;
-  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK || pBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
+         pBlock->type == STREAM_INPUT__TRANS_STATE);
 
   int32_t retryCount = 0;
 
   while (1) {
-    int32_t code = streamDispatchAllBlocks(pTask, pBlock);
+    int32_t code = doDispatchAllBlocks(pTask, pBlock);
     if (code == TSDB_CODE_SUCCESS) {
       break;
     }
