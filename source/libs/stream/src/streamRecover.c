@@ -427,6 +427,8 @@ int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pTranstate->type = STREAM_INPUT__TRANS_STATE;
+
   pBlock->info.type = STREAM_TRANS_STATE;
   pBlock->info.rows = 1;
   pBlock->info.childId = pTask->info.selfChildId;
@@ -440,7 +442,10 @@ int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  qDebug("s-task:%s set sched-status:%d, prev:%d", pTask->id.idStr, TASK_SCHED_STATUS__INACTIVE, pTask->status.schedStatus);
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   streamSchedExec(pTask);
+
   return TSDB_CODE_SUCCESS;
 }
 

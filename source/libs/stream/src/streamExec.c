@@ -391,11 +391,11 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
     streamTaskFillHistoryFinished(pTask);
     streamTaskEndScanWAL(pTask);
 
-      code = streamDoTransferStateToStreamTask(pTask);
-      if (code != TSDB_CODE_SUCCESS) {  // todo handle this
-          return code;
-      }
-  } else if (level == TASK_LEVEL__AGG) { // do transfer task operator states.
+    code = streamDoTransferStateToStreamTask(pTask);
+    if (code != TSDB_CODE_SUCCESS) {  // todo handle this
+      return code;
+    }
+  } else if (level == TASK_LEVEL__AGG) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
     if (code != TSDB_CODE_SUCCESS) {  // todo handle this
       return code;
@@ -484,9 +484,10 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     pTask->status.transferState = true;
   }
 
-  // dispatch the transtate block to downstream task immediately
-  if (level == TASK_LEVEL__SOURCE || level == TASK_LEVEL__AGG) {
-    //          pBlock-> = pTask->id.taskId;
+  // dispatch the tran-state block to downstream task immediately
+  int32_t type = pTask->outputInfo.type;
+  if ((level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) &&
+      (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH)) {
     pBlock->srcVgId = pTask->pMeta->vgId;
     code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
     if (code == 0) {
@@ -640,10 +641,10 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
         // the schedStatus == TASK_SCHED_STATUS__ACTIVE, streamSchedExec cannot be executed, so execute once again by
         // call this function (streamExecForAll) directly.
-        code = streamExecForAll(pTask);
-        if (code < 0) {
+//        code = streamExecForAll(pTask);
+//        if (code < 0) {
           // do nothing
-        }
+//        }
       }
 
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);

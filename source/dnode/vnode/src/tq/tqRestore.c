@@ -214,9 +214,11 @@ static void checkForFillHistoryVerRange(SStreamTask* pTask, int64_t ver) {
     qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64
           ", not scan wal anymore, set the transfer state flag",
           pTask->id.idStr, ver, pTask->dataRange.range.maxVer);
-    pTask->status.transferState = true;
-
-    /*int32_t code = */streamSchedExec(pTask);
+    if (!pTask->status.appendTranstateBlock) {
+      pTask->status.appendTranstateBlock = true;
+      appendTranstateIntoInputQ(pTask);
+      /*int32_t code = */streamSchedExec(pTask);
+    }
   }
 }
 
