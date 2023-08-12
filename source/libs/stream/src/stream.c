@@ -239,20 +239,60 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
 
-  // todo add the input queue buffer limitation
-  streamTaskEnqueueBlocks(pTask, pReq, pRsp);
-  tDeleteStreamDispatchReq(pReq);
+  int32_t status = 0;
 
-  if (exec) {
-    if (streamTryExec(pTask) < 0) {
-      return -1;
-    }
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
+  ASSERT(pInfo != NULL);
+
+  if (!pInfo->dataAllowed) {
+    qWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr, pReq->upstreamTaskId);
+    status = TASK_INPUT_STATUS__BLOCKED;
   } else {
-    streamSchedExec(pTask);
+    // Current task has received the checkpoint req from the upstream task, from which the message should all be blocked
+    if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+      streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+      qDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
+    }
+
+    status = streamTaskAppendInputBlocks(pTask, pReq);
   }
+
+  {
+    // do send response with the input status
+    int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo handle failure
+      return code;
+    }
+
+    pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
+    tmsgSendRsp(pRsp);
+  }
+
+  tDeleteStreamDispatchReq(pReq);
+  streamSchedExec(pTask);
 
   return 0;
 }
+
+//int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
+//  qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
+//         pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
+//
+//  // todo add the input queue buffer limitation
+//  streamTaskEnqueueBlocks(pTask, pReq, pRsp);
+//  tDeleteStreamDispatchReq(pReq);
+//
+//  if (exec) {
+//    if (streamTryExec(pTask) < 0) {
+//      return -1;
+//    }
+//  } else {
+//    streamSchedExec(pTask);
+//  }
+//
+//  return 0;
+//}
 
 // todo record the idle time for dispatch data
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {

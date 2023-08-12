@@ -251,6 +251,7 @@ typedef struct SStreamChildEpInfo {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
+  int8_t  dataAllowed;
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
@@ -400,6 +401,7 @@ typedef struct {
 
 typedef struct {
   int64_t streamId;
+  int32_t type;
   int32_t taskId;
   int32_t dataSrcVgId;
   int32_t upstreamTaskId;
