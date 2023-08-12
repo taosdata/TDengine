@@ -403,7 +403,7 @@ typedef struct {
   int64_t streamId;
   int32_t type;
   int32_t taskId;
-  int32_t dataSrcVgId;
+  int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
@@ -582,6 +582,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
+void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 

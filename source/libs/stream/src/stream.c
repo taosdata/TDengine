@@ -145,7 +145,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
 int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
   int8_t status = 0;
 
-  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, STREAM_INPUT__DATA_BLOCK, pReq->dataSrcVgId);
+  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, STREAM_INPUT__DATA_BLOCK, pReq->srcVgId);
   if (pBlock == NULL) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
@@ -235,6 +235,8 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   return 0;
 }
 
+
+
 static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
   int8_t status = 0;
 
@@ -270,6 +272,13 @@ static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchR
   pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
 
   return TSDB_CODE_SUCCESS;
+}
+
+void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  if (pInfo != NULL) {
+    pInfo->dataAllowed = false;
+  }
 }
 
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
