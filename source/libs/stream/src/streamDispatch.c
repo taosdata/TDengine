@@ -89,7 +89,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->dataSrcVgId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->srcVgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
@@ -115,7 +115,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
 int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId, int32_t numOfBlocks,
                                int64_t dstTaskId) {
   pReq->streamId = pTask->id.streamId;
-  pReq->dataSrcVgId = vgId;
+  pReq->srcVgId = vgId;
   pReq->upstreamTaskId = pTask->id.taskId;
   pReq->upstreamChildId = pTask->info.selfChildId;
   pReq->upstreamNodeId = pTask->info.nodeId;

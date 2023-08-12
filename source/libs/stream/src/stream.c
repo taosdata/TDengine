@@ -142,40 +142,6 @@ int32_t streamSchedExec(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  int8_t status = 0;
-
-  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, STREAM_INPUT__DATA_BLOCK, pReq->srcVgId);
-  if (pBlock == NULL) {
-    streamTaskInputFail(pTask);
-    status = TASK_INPUT_STATUS__FAILED;
-    qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
-           pTask->id.idStr);
-  } else {
-    int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock);
-    // input queue is full, upstream is blocked now
-    status = (code == TSDB_CODE_SUCCESS)? TASK_INPUT_STATUS__NORMAL:TASK_INPUT_STATUS__BLOCKED;
-  }
-
-  // rsp by input status
-  void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
-  ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
-  SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT(buf, sizeof(SMsgHead));
-
-  pDispatchRsp->inputStatus = status;
-  pDispatchRsp->streamId = htobe64(pReq->streamId);
-  pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
-  pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
-  pDispatchRsp->downstreamNodeId = htonl(pTask->info.nodeId);
-  pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
-
-  pRsp->pCont = buf;
-  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
-  tmsgSendRsp(pRsp);
-
-  return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
-}
-
 int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
   int8_t            status = TASK_INPUT_STATUS__NORMAL;
@@ -240,7 +206,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
   int8_t status = 0;
 
-  SStreamDataBlock* pBlock = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
+  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
   if (pBlock == NULL) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;

@@ -122,6 +122,7 @@ typedef struct {
   int8_t type;
 
   int32_t srcVgId;
+  int32_t srcTaskId;
   int32_t childId;
   int64_t sourceVer;
   int64_t reqId;
