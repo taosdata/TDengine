@@ -2940,7 +2940,7 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       break;
     }
     if (pInfo->pTagCond != NULL) {
-      tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, pInfo->readHandle.vnode, aFilterIdxs, pAPI);
+      tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI);
     } else {
       for (int i = 0; i < numTables; ++i) {
         taosArrayPush(aFilterIdxs, &i);
