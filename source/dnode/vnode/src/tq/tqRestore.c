@@ -210,13 +210,22 @@ int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
 }
 
 static void checkForFillHistoryVerRange(SStreamTask* pTask, int64_t ver) {
-  if ((pTask->info.fillHistory == 1) && ver > pTask->dataRange.range.maxVer) {
-    qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64
-          ", not scan wal anymore, set the transfer state flag",
-          pTask->id.idStr, ver, pTask->dataRange.range.maxVer);
-    pTask->status.transferState = true;
+  const char* id = pTask->id.idStr;
 
-    /*int32_t code = */streamSchedExec(pTask);
+  if ((pTask->info.fillHistory == 1) && ver > pTask->dataRange.range.maxVer) {
+    if (!pTask->status.appendTranstateBlock) {
+      qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64
+            ", not scan wal anymore, add transfer-state block into inputQ",
+            id, ver, pTask->dataRange.range.maxVer);
+
+      double el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
+      qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
+      appendTranstateIntoInputQ(pTask);
+      /*int32_t code = */streamSchedExec(pTask);
+    } else {
+      qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64 ", not scan wal",
+            id, ver, pTask->dataRange.range.maxVer);
+    }
   }
 }
 
@@ -262,7 +271,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if ((pTask->info.fillHistory == 1) && pTask->status.transferState) {
+    if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
       ASSERT(status == TASK_STATUS__NORMAL);
       // the maximum version of data in the WAL has reached already, the step2 is done
       tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
