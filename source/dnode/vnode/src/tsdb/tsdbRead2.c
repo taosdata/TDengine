@@ -1144,7 +1144,7 @@ static int32_t findFileBlockInfoIndex(SDataBlockIter* pBlockIter, SFileDataBlock
   return -1;
 }
 
-static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t index, int32_t step) {
+static int32_t setFileBlockActiveInBlockIter(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t index, int32_t step) {
   if (index < 0 || index >= pBlockIter->numOfBlocks) {
     return -1;
   }
@@ -1152,12 +1152,34 @@ static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t
   SFileDataBlockInfo fblock = *(SFileDataBlockInfo*)taosArrayGet(pBlockIter->blockList, index);
   pBlockIter->index += step;
 
-  if (index != pBlockIter->index) {
-    taosArrayRemove(pBlockIter->blockList, index);
-    taosArrayInsert(pBlockIter->blockList, pBlockIter->index, &fblock);
+  if (index != pBlockIter->index) {    
+    if (index > pBlockIter->index) {
+      for (int32_t i = index - 1; i >= pBlockIter->index; --i) {
+        SFileDataBlockInfo* pBlockInfo = taosArrayGet(pBlockIter->blockList, i);
 
-    SFileDataBlockInfo* pBlockInfo = taosArrayGet(pBlockIter->blockList, pBlockIter->index);
-    ASSERT(pBlockInfo->uid == fblock.uid && pBlockInfo->tbBlockIdx == fblock.tbBlockIdx);
+        STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
+        STableDataBlockIdx* pTableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, pBlockInfo->tbBlockIdx);
+        pTableDataBlockIdx->globalIndex = i + 1;
+
+        taosArraySet(pBlockIter->blockList, i + 1, pBlockInfo);
+      }
+    } else if (index < pBlockIter->index) {
+      for (int32_t i = index + 1; i <= pBlockIter->index; ++i) {
+        SFileDataBlockInfo* pBlockInfo = taosArrayGet(pBlockIter->blockList, i);
+
+        STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
+        STableDataBlockIdx* pTableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, pBlockInfo->tbBlockIdx);
+        pTableDataBlockIdx->globalIndex = i - 1;
+
+        taosArraySet(pBlockIter->blockList, i - 1, pBlockInfo);
+      }
+
+    }
+
+    taosArraySet(pBlockIter->blockList, pBlockIter->index, &fblock);
+    STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, fblock.uid, pReader->idStr);
+    STableDataBlockIdx*  pTableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, fblock.tbBlockIdx);
+    pTableDataBlockIdx->globalIndex = pBlockIter->index;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2249,7 +2271,7 @@ static int32_t loadNeighborIfOverlap(SFileDataBlockInfo* pBlockInfo, STableBlock
     int32_t            neighborIndex = tableDataBlockIdx->globalIndex;
 
     // 2. remove it from the scan block list
-    setFileBlockActiveInBlockIter(pBlockIter, neighborIndex, step);
+    setFileBlockActiveInBlockIter(pReader, pBlockIter, neighborIndex, step);
 
     // 3. load the neighbor block, and set it to be the currently accessed file data block
     code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pBlockInfo->uid);
