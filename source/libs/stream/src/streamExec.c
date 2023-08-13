@@ -504,6 +504,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SINK) {
     int32_t remain = streamAlignTransferState(pTask);
     if (remain > 0) {
+      streamFreeQitem((SStreamQueueItem*)pBlock);
       qDebug("s-task:%s receive upstream transfer state msg, remain:%d", id, remain);
       return 0;
     }
@@ -532,6 +533,8 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     }
   } else { // non-dispatch task, do task state transfer directly
     qDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
     ASSERT(pTask->info.fillHistory == 1);
     code = streamTransferStateToStreamTask(pTask);
 

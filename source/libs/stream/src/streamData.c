@@ -15,45 +15,6 @@
 
 #include "streamInt.h"
 
-SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen);
-  if (pData == NULL) {
-    return NULL;
-  }
-
-  pData->type = blockType;
-  pData->srcVgId = srcVg;
-  pData->srcTaskId = pReq->upstreamTaskId;
-
-  int32_t blockNum = pReq->blockNum;
-  SArray* pArray = taosArrayInit_s(sizeof(SSDataBlock), blockNum);
-  if (pArray == NULL) {
-    taosFreeQitem(pData);
-    return NULL;
-  }
-
-  ASSERT((pReq->blockNum == taosArrayGetSize(pReq->data)) && (pReq->blockNum == taosArrayGetSize(pReq->dataLen)));
-
-  for (int32_t i = 0; i < blockNum; i++) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*) taosArrayGetP(pReq->data, i);
-    SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
-    blockDecode(pDataBlock, pRetrieve->data);
-
-    // TODO: refactor
-    pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
-    pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
-    pDataBlock->info.version = be64toh(pRetrieve->version);
-    pDataBlock->info.watermark = be64toh(pRetrieve->watermark);
-    memcpy(pDataBlock->info.parTbName, pRetrieve->parTbName, TSDB_TABLE_NAME_LEN);
-
-    pDataBlock->info.type = pRetrieve->streamBlockType;
-    pDataBlock->info.childId = pReq->upstreamChildId;
-  }
-
-  pData->blocks = pArray;
-  return pData;
-}
-
 SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen);
   if (pData == NULL) {
@@ -243,7 +204,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
   if (type == STREAM_INPUT__GET_RES) {
     blockDataDestroy(((SStreamTrigger*)data)->pBlock);
     taosFreeQitem(data);
-  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE) {
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE || type == STREAM_INPUT__TRANS_STATE) {
     taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__DATA_SUBMIT) {

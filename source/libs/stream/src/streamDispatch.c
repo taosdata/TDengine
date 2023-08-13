@@ -774,7 +774,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     pTask->inputStatus = TASK_INPUT_STATUS__BLOCKED;   // block the input of current task, to push pressure to upstream
     pTask->msgInfo.blockingTs = taosGetTimestampMs();  // record the blocking start time
-    qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64 "wait for %dms and retry dispatch data",
+    qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64 " wait for %dms and retry dispatch data",
            id, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS);
     streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
   } else {  // pipeline send data in output queue
