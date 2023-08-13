@@ -372,49 +372,6 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
   return 0;
 }
 
-static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferReq* pReq, int32_t vgId, SEpSet* pEpSet) {
-  void*   buf = NULL;
-  int32_t code = -1;
-  SRpcMsg msg = {0};
-
-  int32_t tlen;
-  tEncodeSize(tEncodeStreamScanHistoryFinishReq, pReq, tlen, code);
-  if (code < 0) {
-    return -1;
-  }
-
-  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
-  if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  ((SMsgHead*)buf)->vgId = htonl(vgId);
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamScanHistoryFinishReq(&encoder, pReq)) < 0) {
-    if (buf) {
-      rpcFreeCont(buf);
-    }
-    return code;
-  }
-
-  tEncoderClear(&encoder);
-
-  msg.contLen = tlen + sizeof(SMsgHead);
-  msg.pCont = buf;
-  msg.msgType = TDMT_STREAM_TRANSFER_STATE;
-  msg.info.noResp = 1;
-
-  tmsgSendReq(pEpSet, &msg);
-  qDebug("s-task:%s level:%d, status:%s dispatch transfer state msg to taskId:0x%x (vgId:%d)", pTask->id.idStr,
-         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), pReq->downstreamTaskId, vgId);
-
-  return 0;
-}
-
 int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
   SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pTranstate == NULL) {
@@ -442,32 +399,13 @@ int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pTask->status.appendTranstateBlock = true;
+
   qDebug("s-task:%s set sched-status:%d, prev:%d", pTask->id.idStr, TASK_SCHED_STATUS__INACTIVE, pTask->status.schedStatus);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   streamSchedExec(pTask);
 
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
-  SStreamTransferReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
-
-  // serialize
-  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
-    doDispatchTransferMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
-
-    int32_t numOfVgs = taosArrayGetSize(vgInfo);
-    for (int32_t i = 0; i < numOfVgs; i++) {
-      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-      req.downstreamTaskId = pVgInfo->taskId;
-      doDispatchTransferMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
-    }
-  }
-
-  return 0;
 }
 
 // agg

@@ -287,7 +287,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
   }
 }
 
-static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
+int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
   SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
@@ -301,7 +301,7 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
            pStreamTask->id.idStr);
   }
 
-  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.transferState == true);
+  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.appendTranstateBlock == true);
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
@@ -383,11 +383,9 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
+int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!pTask->status.transferState) {
-    return code;
-  }
+  ASSERT(pTask->status.appendTranstateBlock == 1);
 
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SOURCE) {
@@ -513,13 +511,11 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 
   // transfer the ownership of executor state
   if (level == TASK_LEVEL__SOURCE) {
-    qDebug("s-task:%s open transfer state flag for source task", id);
+    qDebug("s-task:%s add transfer-state block into outputQ", id);
   } else {
-    qDebug("s-task:%s all upstream tasks send transfer msg, open transfer state flag", id);
+    qDebug("s-task:%s all upstream tasks send transfer-state block, add transfer-state block into outputQ", id);
     ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
   }
-
-  pTask->status.transferState = true;
 
   // dispatch the tran-state block to downstream task immediately
   int32_t type = pTask->outputInfo.type;
@@ -639,16 +635,7 @@ int32_t streamTaskEndScanWAL(SStreamTask* pTask) {
   qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
 
   // 1. notify all downstream tasks to transfer executor state after handle all history blocks.
-//  pTask->status.transferState = true;
   appendTranstateIntoInputQ(pTask);
-
-  // 2. do transfer stream task operator states.
-  // todo remove this
-//  int32_t code = streamDoTransferStateToStreamTask(pTask);
-//  if (code != TSDB_CODE_SUCCESS) {  // todo handle error
-//    return code;
-//  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -667,35 +654,36 @@ int32_t streamTryExec(SStreamTask* pTask) {
     }
 
     // todo the task should be commit here
-    if (taosQueueEmpty(pTask->inputQueue->queue)) {
+//    if (taosQueueEmpty(pTask->inputQueue->queue)) {
       // fill-history WAL scan has completed
-      if (pTask->status.transferState) {
-        code = streamTransferStateToStreamTask(pTask);
-        if (code != TSDB_CODE_SUCCESS) {
-          atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-          return code;
-        }
+//      if (pTask->status.transferState) {
+//        code = streamTransferStateToStreamTask(pTask);
+//        if (code != TSDB_CODE_SUCCESS) {
+//          atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+//          return code;
+//        }
 
         // the schedStatus == TASK_SCHED_STATUS__ACTIVE, streamSchedExec cannot be executed, so execute once again by
         // call this function (streamExecForAll) directly.
-//        code = streamExecForAll(pTask);
-//        if (code < 0) {
-          // do nothing
-//        }
-      }
+        //        code = streamExecForAll(pTask);
+        //        if (code < 0) {
+        // do nothing
+        //        }
+//      }
 
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-      qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
-             streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
-    } else {
+//      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+//      qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
+//             streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+//    } else {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
              pTask->status.schedStatus);
 
-      if ((!streamTaskShouldStop(&pTask->status)) && (!streamTaskShouldPause(&pTask->status))) {
+      if (!(taosQueueEmpty(pTask->inputQueue->queue) || streamTaskShouldStop(&pTask->status) ||
+            streamTaskShouldPause(&pTask->status))) {
         streamSchedExec(pTask);
       }
-    }
+//    }
   } else {
     qDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id,
            streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);

@@ -38,6 +38,7 @@ static int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatc
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->type) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcVgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
@@ -91,6 +92,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->type) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcVgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
@@ -115,8 +117,8 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   return 0;
 }
 
-int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId,
-                                      int32_t numOfBlocks, int64_t dstTaskId, int32_t type) {
+int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId, int32_t numOfBlocks,
+                               int64_t dstTaskId, int32_t type) {
   pReq->streamId = pTask->id.streamId;
   pReq->srcVgId = vgId;
   pReq->upstreamTaskId = pTask->id.taskId;
@@ -456,8 +458,8 @@ static int32_t doDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* p
 
     for (int32_t i = 0; i < numOfBlocks; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
-      code = streamAddBlockIntoDispatchMsg(pDataBlock, &req);
 
+      code = streamAddBlockIntoDispatchMsg(pDataBlock, &req);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroyP(req.data, taosMemoryFree);
         taosArrayDestroy(req.dataLen);
@@ -720,14 +722,16 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
 }
 
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
+  const char* id = pTask->id.idStr;
+
   if (code != TSDB_CODE_SUCCESS) {
     // dispatch message failed: network error, or node not available.
     // in case of the input queue is full, the code will be TSDB_CODE_SUCCESS, the and pRsp>inputStatus will be set
     // flag. here we need to retry dispatch this message to downstream task immediately. handle the case the failure
     // happened too fast.
     // todo handle the shuffle dispatch failure
-    qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
-           pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
+    qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", id, pRsp->downstreamTaskId,
+           tstrerror(code), ++pTask->msgInfo.retryCount);
     int32_t ret = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
     if (ret != TSDB_CODE_SUCCESS) {
     }
@@ -735,22 +739,35 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("s-task:%s recv dispatch rsp, downstream task input status:%d code:%d", pTask->id.idStr, pRsp->inputStatus,
-         code);
+  qDebug("s-task:%s recv dispatch rsp from 0x%x, downstream task input status:%d code:%d", id, pRsp->downstreamTaskId,
+         pRsp->inputStatus, code);
 
   // there are other dispatch message not response yet
   if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
-    qDebug("s-task:%s is shuffle, left waiting rsp %d", pTask->id.idStr, leftRsp);
+    qDebug("s-task:%s is shuffle, left waiting rsp %d", id, leftRsp);
     if (leftRsp > 0) {
       return 0;
+    }
+  }
+
+  // transtate msg has been sent to downstream successfully. let's transfer the fill-history task state
+  SStreamDataBlock* p = pTask->msgInfo.pData;
+  if (p->type == STREAM_INPUT__TRANS_STATE) {
+    qDebug("s-task:%s dispatch transtate msg to downstream successfully, start to transfer state", id);
+    ASSERT(pTask->info.fillHistory == 1);
+    code = streamTransferStateToStreamTask(pTask);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      return code;
     }
   }
 
   pTask->msgInfo.retryCount = 0;
   ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
 
-  qDebug("s-task:%s output status is set to:%d", pTask->id.idStr, pTask->outputInfo.status);
+  qDebug("s-task:%s output status is set to:%d", id, pTask->outputInfo.status);
 
   // the input queue of the (down stream) task that receive the output data is full,
   // so the TASK_INPUT_STATUS_BLOCKED is rsp
@@ -758,7 +775,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     pTask->inputStatus = TASK_INPUT_STATUS__BLOCKED;   // block the input of current task, to push pressure to upstream
     pTask->msgInfo.blockingTs = taosGetTimestampMs();  // record the blocking start time
     qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64 "wait for %dms and retry dispatch data",
-           pTask->id.idStr, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS);
+           id, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS);
     streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
   } else {  // pipeline send data in output queue
     // this message has been sent successfully, let's try next one.
@@ -767,8 +784,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
     if (pTask->msgInfo.blockingTs != 0) {
       int64_t el = taosGetTimestampMs() - pTask->msgInfo.blockingTs;
-      qDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
-             pTask->id.idStr, pRsp->downstreamTaskId, el);
+      qDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms", id,
+             pRsp->downstreamTaskId, el);
       pTask->msgInfo.blockingTs = 0;
 
       // put data into inputQ of current task is also allowed

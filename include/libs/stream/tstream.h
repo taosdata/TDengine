@@ -274,7 +274,7 @@ typedef struct SStreamStatus {
   int8_t schedStatus;
   int8_t keepTaskStatus;
   bool   transferState;
-  bool   appendTranstateBlock;  // has append the transfer state data block already
+  bool   appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
   int8_t timerActive;   // timer is active
   int8_t pauseAllowed;  // allowed task status to be set to be paused
 } SStreamStatus;
@@ -582,6 +582,7 @@ int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
+void streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 
@@ -629,7 +630,6 @@ int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* p
 int32_t streamSourceScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
-int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
 int32_t appendTranstateIntoInputQ(SStreamTask* pTask);
 
 // agg level
