@@ -27,6 +27,7 @@ use taos::{
 };
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
+use tonic::transport::Channel;
 use tracing::{debug, info, instrument};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
@@ -169,11 +170,25 @@ async fn ipc_tcp_forward(
         .with_schema(schema.clone())
         .with_options(IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap())
         .build(IpcStream::new(receiver));
-    let channel = tonic::transport::Endpoint::try_from(remote)
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+
+    const MAX_RETRIES: usize = 3;
+    const RETRY_DELAY: Duration = Duration::from_secs(5);
+
+    let mut retries = 0;
+    let channel = loop {
+        match try_establish_channel(remote.clone()).await {
+            Ok(channel) => break channel,
+            Err(err) => {
+                retries += 1;
+                log::error!("Failed to establish connection: {}. Retrying...", err);
+                if retries >= MAX_RETRIES {
+                    log::error!("Max retries reached. Exiting...");
+                    return Err(err);
+                }
+                tokio::time::sleep(RETRY_DELAY).await;
+            }
+        }
+    };
     let mut client = FlightClient::new(channel);
     let _ = client
         .handshake(Bytes::from(token.as_bytes().to_vec()))
@@ -190,6 +205,12 @@ async fn ipc_tcp_forward(
 
     info!("[{task_id}] Putting stream finished");
     Ok(())
+}
+
+async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
+    let endpoint = tonic::transport::Endpoint::try_from(remote)?;
+    let channel = endpoint.connect().await?;
+    Ok(channel)
 }
 
 // #[instrument(skip_all)]
