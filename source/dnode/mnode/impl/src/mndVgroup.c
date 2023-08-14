@@ -27,7 +27,7 @@
 #include "mndUser.h"
 #include "tmisce.h"
 
-#define VGROUP_VER_NUMBER   2
+#define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
 
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
@@ -159,9 +159,9 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
   }
-  if(sver > 1){
-    SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
-  }
+  //if(sver > 1){
+  SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
+  //}
   
   SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
 
