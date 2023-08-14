@@ -292,9 +292,20 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
-    // todo: destroy the fill-history task here
-    qError("s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed", pTask->id.idStr,
-           pTask->streamTaskId.taskId);
+    qError(
+        "s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed, destroy the related "
+        "fill-history task",
+        pTask->id.idStr, pTask->streamTaskId.taskId);
+
+    // 1. free it and remove fill-history task from disk meta-store
+    streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+
+    // 2. save to disk
+    taosWLockLatch(&pMeta->lock);
+    if (streamMetaCommit(pMeta) < 0) {
+      // persist to disk
+    }
+    taosWUnLockLatch(&pMeta->lock);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
     qDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
@@ -333,9 +344,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   } else {
     qDebug("s-task:%s no need to update time window for non-source task", pStreamTask->id.idStr);
   }
-
-  // todo check the output queue for fill-history task, and wait for it complete
-
 
   // 1. expand the query time window for stream task of WAL scanner
   pTimeWindow->skey = INT64_MIN;
@@ -390,15 +398,10 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SOURCE) {
     streamTaskFillHistoryFinished(pTask);
+  }
+
+  if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
-    if (code != TSDB_CODE_SUCCESS) {  // todo handle this
-      return code;
-    }
-  } else if (level == TASK_LEVEL__AGG) {  // do transfer task operator states.
-    code = streamDoTransferStateToStreamTask(pTask);
-    if (code != TSDB_CODE_SUCCESS) {  // todo handle this
-      return code;
-    }
   }
 
   return code;
@@ -522,6 +525,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
     }
 
+    // agg task should dispatch trans-state msg to sink task, to flush all data to sink task.
     if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {
       pBlock->srcVgId = pTask->pMeta->vgId;
       code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);

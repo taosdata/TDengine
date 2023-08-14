@@ -758,10 +758,10 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     ASSERT(pTask->info.fillHistory == 1);
     code = streamTransferStateToStreamTask(pTask);
 
-    if (code != TSDB_CODE_SUCCESS) {
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-      return code;
+    if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
+//      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     }
+    return TSDB_CODE_SUCCESS;
   }
 
   pTask->msgInfo.retryCount = 0;
