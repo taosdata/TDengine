@@ -76,9 +76,22 @@ $env:TDENGINE_CLOUD_URL='<url>'
 
 复制下面的代码到您的编辑器，然后执行这段代码。如果您正在使用 Jupyter 并且按照它的指南搭建好环境，您可以负责下面代码到您浏览器的 Jupyter 编辑器。
 
+<Tabs defaultValue="rest">
+<TabItem value="rest" label="REST">
+
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket">
+
+```python
+{{#include docs/examples/python/develop_tutorial_ws.py:connect}}
+```
+
+</TabItem>
+</Tabs>
 
 对于如何写入数据和查询输入，请参考<https://docs.taosdata.com/cloud/data-in/insert-data/>和 <https://docs.taosdata.com/cloud/data-out/query-data/>。
 
