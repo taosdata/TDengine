@@ -2,10 +2,6 @@
 
 #include "vndCos.h"
 
-#include "cos_api.h"
-#include "cos_http_io.h"
-#include "cos_log.h"
-
 extern char tsS3Endpoint[];
 extern char tsS3AccessKeyId[];
 extern char tsS3AccessKeySecret[];
@@ -13,6 +9,10 @@ extern char tsS3BucketName[];
 extern char tsS3AppId[];
 
 #ifdef USE_COS
+#include "cos_api.h"
+#include "cos_http_io.h"
+#include "cos_log.h"
+
 int32_t s3Init() {
   if (cos_http_io_initialize(NULL, 0) != COSE_OK) {
     return -1;
