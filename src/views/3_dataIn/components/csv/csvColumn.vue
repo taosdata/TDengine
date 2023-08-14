@@ -119,7 +119,7 @@
         @change="setTagChecked"
         :disabled="
           colData.parser.parse[csvColName].alias ==
-          colData.parser.model.columns[0]
+            colData.parser.model.columns[0] || islesstwo
         "
       >
         &nbsp;
@@ -172,6 +172,7 @@ export default {
 
   data() {
     return {
+      islesstwo: false,
       showStable: false,
       value: ["", "", ""],
       oldValue: ["", "", ""],
@@ -232,7 +233,6 @@ export default {
         if (tags && tags.includes(val)) {
           tags.splice(columns.indexOf(val), 1);
         }
-
         if (columns.includes(val)) {
           if (columns[0] == val) {
             columns.splice(0, 1);
@@ -240,13 +240,13 @@ export default {
           } else {
             if (columns[0] == undefined) {
               columns.splice(0, 1);
-              this.columnChecked = true;
+              // this.columnChecked = true;
             } else {
-              this.columnChecked = false;
               columns.splice(columns.indexOf(val), 1);
 
               columns.unshift(val);
             }
+            this.columnChecked = true;
           }
         } else {
           this.columnChecked = false;
@@ -370,6 +370,9 @@ export default {
     if (this.isEditable) {
       this.echoColOrTag();
     }
+    if (this.$parent.$parent.$parent.csvColumns.length <= 2) {
+      this.islesstwo = true;
+    }
   },
   watch: {
     addStatus: {
@@ -380,7 +383,7 @@ export default {
     },
     "$store.state.app.csvtags": {
       deep: true,
-      immediate:true,
+      immediate: true,
       handler(val) {
         if (val && val.length > 0) {
           this.showStable = true;
