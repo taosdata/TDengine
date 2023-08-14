@@ -2679,6 +2679,9 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   }
   nodesDestroyNode((SNode*)pAgg);
   tagScanOptCloneAncestorSlimit((SLogicNode*)pScanNode);
+
+  pScanNode->onlyMetaCtbIdx = false;
+  
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }

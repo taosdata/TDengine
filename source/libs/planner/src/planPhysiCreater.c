@@ -520,7 +520,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   }
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   
-  pScan->onlyMetaCtbIdx = false;
+  pScan->onlyMetaCtbIdx = pScanLogicNode->onlyMetaCtbIdx;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }

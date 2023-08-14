@@ -660,6 +660,7 @@ static const char* jkScanLogicPlanDynamicScanFuncs = "DynamicScanFuncs";
 static const char* jkScanLogicPlanDataRequired = "DataRequired";
 static const char* jkScanLogicPlanTagCond = "TagCond";
 static const char* jkScanLogicPlanGroupTags = "GroupTags";
+static const char* jkScanLogicPlanOnlyMetaCtbIdx = "OnlyMetaCtbIdx";
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -701,7 +702,9 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkScanLogicPlanGroupTags, pNode->pGroupTags);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkScanLogicPlanOnlyMetaCtbIdx, pNode->onlyMetaCtbIdx);
+  }
   return code;
 }
 
@@ -746,7 +749,10 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkScanLogicPlanGroupTags, &pNode->pGroupTags);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkScanLogicPlanOnlyMetaCtbIdx, &pNode->onlyMetaCtbIdx);
+  }
+  
   return code;
 }
 
