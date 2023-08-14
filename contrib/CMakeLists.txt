@@ -6,6 +6,8 @@ function(cat IN_FILE OUT_FILE)
     file(APPEND ${OUT_FILE} "${CONTENTS}")
 endfunction(cat IN_FILE OUT_FILE)
 
+if(${TD_LINUX})
+
 set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
 
@@ -34,6 +36,8 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+
+endif(${TD_LINUX})
 
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -388,7 +392,7 @@ endif()
 
 # cos
 if(${BUILD_WITH_COS})
-  if(NOT ${TD_WINDOWS})
+  if(${TD_LINUX})
     set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.1)
     #ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
     option(ENABLE_TEST "Enable the tests" OFF)
@@ -406,10 +410,9 @@ if(${BUILD_WITH_COS})
       )
 
     set(CMAKE_PROJECT_NAME ${ORIG_CMAKE_PROJECT_NAME})
-
   else()
 
-  endif(NOT ${TD_WINDOWS})
+  endif(${TD_LINUX})
 endif(${BUILD_WITH_COS})
 
 # lucene

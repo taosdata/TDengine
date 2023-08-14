@@ -135,12 +135,6 @@ else()
     endif()
 endif()
 
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
-find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
-find_library(MINIXML_LIBRARY mxml)
-find_library(CURL_LIBRARY curl)
-
 target_link_libraries(
     vnode
     PUBLIC os
@@ -160,28 +154,24 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
-
-    # s3
-    cos_c_sdk_static
-    ${APR_UTIL_LIBRARY}
-    ${APR_LIBRARY}
-    ${MINIXML_LIBRARY}
-    ${CURL_LIBRARY}
 )
 
-IF (TD_GRANT)
-  TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
-ENDIF ()
+if(${TD_LINUX})
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
+find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
+find_library(MINIXML_LIBRARY mxml)
+find_library(CURL_LIBRARY curl)
+target_link_libraries(
+    vnode
 
-target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
-
-if(${BUILD_WITH_INVERTEDINDEX})
-    add_definitions(-DUSE_INVERTED_INDEX)
-endif(${BUILD_WITH_INVERTEDINDEX})
-
-if(${BUILD_WITH_ROCKSDB})
-    add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
+    # s3
+    PUBLIC cos_c_sdk_static
+    PUBLIC ${APR_UTIL_LIBRARY}
+    PUBLIC ${APR_LIBRARY}
+    PUBLIC ${MINIXML_LIBRARY}
+    PUBLIC ${CURL_LIBRARY}
+)
 
 # s3
 FIND_PROGRAM(APR_CONFIG_BIN NAMES apr-config apr-1-config PATHS /usr/bin /usr/local/bin /usr/local/apr/bin/)
@@ -198,6 +188,22 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
   PUBLIC "$ENV{HOME}/.cos-local.1/include"
   )
+
+endif(${TD_LINUX})
+
+IF (TD_GRANT)
+  TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
+ENDIF ()
+
+target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
+
+if(${BUILD_WITH_INVERTEDINDEX})
+    add_definitions(-DUSE_INVERTED_INDEX)
+endif(${BUILD_WITH_INVERTEDINDEX})
+
+if(${BUILD_WITH_ROCKSDB})
+    add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB})
 
 if(${BUILD_TEST})
     add_subdirectory(test)

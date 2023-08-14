@@ -292,7 +292,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
     }
   }
   if (tsS3BucketName[0] != '<' && tsDiskCfgNum > 1) {
+#ifdef USE_COS
     tsS3Enabled = true;
+#endif
   }
 
   return 0;

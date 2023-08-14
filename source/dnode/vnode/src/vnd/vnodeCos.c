@@ -12,6 +12,7 @@ extern char tsS3AccessKeySecret[];
 extern char tsS3BucketName[];
 extern char tsS3AppId[];
 
+#ifdef USE_COS
 int32_t s3Init() {
   if (cos_http_io_initialize(NULL, 0) != COSE_OK) {
     return -1;
@@ -294,3 +295,16 @@ long s3Size(const char *object_name) {
 
   return size;
 }
+
+#else
+
+int32_t s3Init() { return 0; }
+void    s3CleanUp() {}
+void    s3PutObjectFromFile(const char *file, const char *object) {}
+void    s3DeleteObjects(const char *object_name[], int nobject) {}
+bool    s3Exists(const char *object_name) { return false; }
+bool    s3Get(const char *object_name, const char *path) { return false; }
+void    s3EvictCache(const char *path, long object_size) {}
+long    s3Size(const char *object_name) { return 0; }
+
+#endif
