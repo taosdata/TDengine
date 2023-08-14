@@ -2178,6 +2178,45 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   return TSDB_CODE_SUCCESS;
 }
 
+char* getStreamOpName(uint16_t opType) {
+  switch (opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN: {
+      return "stream scan";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL: {
+      return "interval single";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL: {
+      return "interval final";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL: {
+      return "interval semi";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL: {
+      return "stream fill";
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION: {
+      return "session single";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION: {
+      return "session semi";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION: {
+      return "session final";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
+      return "state single";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
+      return "stream partitionby";
+    };
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT: {
+      return "stream event";
+    };
+  }
+  return "";
+}
+
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock || pBlock->info.rows == 0) {
     qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
@@ -2186,6 +2225,20 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
   char* pBuf = NULL;
   qDebug("%s", dumpBlockData(pBlock, flag, &pBuf, taskIdStr));
   taosMemoryFree(pBuf);
+}
+
+void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
+  if (!pBlock || pBlock->info.rows == 0) {
+    qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
+    return;
+  }
+  if (qDebugFlag & DEBUG_DEBUG) {
+    char* pBuf = NULL;
+    char flagBuf[64];
+    snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
+    qDebug("%s", dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr));
+    taosMemoryFree(pBuf);
+  }
 }
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NULL ? win->skey : tsCols[0]; }
