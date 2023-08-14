@@ -374,4 +374,21 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
+bool getBatchScanOptionFromHint(SNodeList* pList) {
+  SNode* pNode = NULL;
+  bool batchScan = true;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_BATCH_SCAN) {
+      batchScan = true;
+      break;
+    } else if (pHint->option == HINT_NO_BATCH_SCAN) {
+      batchScan = false;
+      break;
+    }
+  }
+
+  return batchScan;
+}
+
 

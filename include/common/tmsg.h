@@ -247,6 +247,7 @@ typedef enum ENodeType {
   QUERY_NODE_WHEN_THEN,
   QUERY_NODE_CASE_WHEN,
   QUERY_NODE_EVENT_WINDOW,
+  QUERY_NODE_HINT,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -950,7 +951,6 @@ typedef struct STimeWindow {
 } STimeWindow;
 
 typedef struct SQueryHint {
-  bool withHint;
   bool batchScan;
 } SQueryHint;
 

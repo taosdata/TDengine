@@ -101,6 +101,7 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
 
 SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
+SNode* createHintNode(SAstCreateContext* pCxt, EHintOption option, const SToken* pLiteral);
 SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral);
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt);
@@ -142,7 +143,7 @@ SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange);
 SNode* addEveryClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pEvery);
 SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill);
-SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
+SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
 SDataType createDataType(uint8_t type);

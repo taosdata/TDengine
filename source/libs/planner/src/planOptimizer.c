@@ -930,6 +930,7 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
   if (pJoin->joinAlgo != JOIN_ALGO_UNKNOWN) {
     return TSDB_CODE_SUCCESS;
   }
+  pJoin->joinAlgo = JOIN_ALGO_MERGE;
 
   if (NULL == pJoin->node.pConditions) {
     int32_t code = pushDownCondOptJoinExtractCond(pCxt, pJoin);
@@ -3328,7 +3329,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
   return code;
 }
 
-static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode** ppLogic) {
+static int32_t stbJoinOptCreateGroupCacheNode(SOptimizeContext* pCxt, SNodeList* pChildren, SLogicNode** ppLogic) {
   int32_t code = TSDB_CODE_SUCCESS;
   SGroupCacheLogicNode* pGrpCache = (SGroupCacheLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_GROUP_CACHE);
   if (NULL == pGrpCache) {
@@ -3338,7 +3339,7 @@ static int32_t stbJoinOptCreateGroupCacheNode(SNodeList* pChildren, SLogicNode**
   //pGrpCache->node.dynamicOp = true;
   pGrpCache->grpColsMayBeNull = false;
   pGrpCache->grpByUid = true;
-  pGrpCache->batchFetch = false;
+  pGrpCache->batchFetch = getBatchScanOptionFromHint(((SSelectStmt*)pCxt->pPlanCxt->pAstRoot)->pHint);
   pGrpCache->node.pChildren = pChildren;
   pGrpCache->node.pTargets = nodesMakeList();
   if (NULL == pGrpCache->node.pTargets) {
@@ -3435,8 +3436,7 @@ static int32_t stbJoinOptCreateMergeJoinNode(SLogicNode* pOrig, SLogicNode* pChi
   return TSDB_CODE_SUCCESS;
 }
 
-
-static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* pPost, bool* srcScan, SLogicNode** ppDynNode) {
+static int32_t stbJoinOptCreateDynQueryCtrlNode(SOptimizeContext* pCxt, SLogicNode* pPrev, SLogicNode* pPost, bool* srcScan, SLogicNode** ppDynNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlLogicNode* pDynCtrl = (SDynQueryCtrlLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL);
   if (NULL == pDynCtrl) {
@@ -3444,7 +3444,7 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pPrev, SLogicNode* p
   }
 
   pDynCtrl->qType = DYN_QTYPE_STB_HASH;
-  pDynCtrl->stbJoin.batchFetch = false;
+  pDynCtrl->stbJoin.batchFetch = getBatchScanOptionFromHint(((SSelectStmt*)pCxt->pPlanCxt->pAstRoot)->pHint);
   memcpy(pDynCtrl->stbJoin.srcScan, srcScan, sizeof(pDynCtrl->stbJoin.srcScan));
   
   if (TSDB_CODE_SUCCESS == code) {  
@@ -3510,13 +3510,13 @@ static int32_t stbJoinOptRewriteStableJoin(SOptimizeContext* pCxt, SLogicNode* p
     code = stbJoinOptCreateTableScanNodes(pJoin, &pTbScanNodes, srcScan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbJoinOptCreateGroupCacheNode(pTbScanNodes, &pGrpCacheNode);
+    code = stbJoinOptCreateGroupCacheNode(pCxt, pTbScanNodes, &pGrpCacheNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = stbJoinOptCreateMergeJoinNode(pJoin, pGrpCacheNode, &pMJoinNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbJoinOptCreateDynQueryCtrlNode(pHJoinNode, pMJoinNode, srcScan, &pDynNode);
+    code = stbJoinOptCreateDynQueryCtrlNode(pCxt, pHJoinNode, pMJoinNode, srcScan, &pDynNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, pJoin, (SLogicNode*)pDynNode);

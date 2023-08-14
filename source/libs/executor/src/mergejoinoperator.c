@@ -236,6 +236,9 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
       goto _error;
     }
     numOfDownstream = 2;
+  } else {
+    pInfo->downstreamResBlkId[0] = getOperatorResultBlockId(pDownstream[0], 0);
+    pInfo->downstreamResBlkId[1] = getOperatorResultBlockId(pDownstream[1], 1);
   }
 
   int32_t      numOfCols = 0;
@@ -653,10 +656,12 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
 
 static void setMergeJoinDone(SOperatorInfo* pOperator) {
   setOperatorCompleted(pOperator);
-  freeOperatorParam(pOperator->pDownstreamGetParams[0], OP_GET_PARAM);
-  freeOperatorParam(pOperator->pDownstreamGetParams[1], OP_GET_PARAM);
-  pOperator->pDownstreamGetParams[0] = NULL;
-  pOperator->pDownstreamGetParams[1] = NULL;
+  if (pOperator->pDownstreamGetParams) {
+    freeOperatorParam(pOperator->pDownstreamGetParams[0], OP_GET_PARAM);
+    freeOperatorParam(pOperator->pDownstreamGetParams[1], OP_GET_PARAM);
+    pOperator->pDownstreamGetParams[0] = NULL;
+    pOperator->pDownstreamGetParams[1] = NULL;
+  }
 }
 
 static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs, int64_t* pRightTs) {
@@ -785,7 +790,7 @@ void resetMergeJoinOperator(struct SOperatorInfo* pOperator) {
 SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   SMJoinOperatorInfo* pJoinInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
-    if (NULL == pOperator->pDownstreamGetParams[0] || NULL == pOperator->pDownstreamGetParams[1]) {
+    if (NULL == pOperator->pDownstreamGetParams || NULL == pOperator->pDownstreamGetParams[0] || NULL == pOperator->pDownstreamGetParams[1]) {
       qError("total merge join res rows:%" PRId64, pJoinInfo->resRows);
       return NULL;
     } else {

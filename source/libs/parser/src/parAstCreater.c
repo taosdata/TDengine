@@ -348,6 +348,17 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
+SNode* createHintNode(SAstCreateContext* pCxt, EHintOption option, const SToken* pLiteral) {
+  CHECK_PARSER_STATUS(pCxt);
+  SHintNode* hint = (SHintNode*)nodesMakeNode(QUERY_NODE_HINT);
+  CHECK_OUT_OF_MEM(hint);
+  hint->option = option;
+  hint->literal = strndup(pLiteral->z, pLiteral->n);
+  trimString(pLiteral->z, pLiteral->n, hint->literal, pLiteral->n);
+  CHECK_OUT_OF_MEM(hint->literal);
+  return (SNode*)hint;
+}
+
 SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral) {
   trimEscape(pLiteral);
   return createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, pLiteral);
@@ -845,9 +856,9 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   return pStmt;
 }
 
-SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
+SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable);
+  SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable, pHint);
   CHECK_OUT_OF_MEM(select);
   return select;  
 }

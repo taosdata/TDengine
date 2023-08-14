@@ -1024,12 +1024,12 @@ query_specification(A) ::=
                                                                                   }
 
 
-hint_opt(A) ::= .                                                                 { A = false; }
 hint_opt(A) ::= NO_BATCH_SCAN NK_LP NK_RP.                                        { A = createHintNode(pCxt, HINT_NO_BATCH_SCAN, NULL); }
 hint_opt(A) ::= BATCH_SCAN NK_LP NK_RP.                                           { A = createHintNode(pCxt, HINT_BATCH_SCAN, NULL); }
 
 %type hint_opt_list                                                               { SNodeList* }
 %destructor hint_opt_list                                                         { nodesDestroyList($$); }
+hint_opt_list(A) ::= .                                                            { A = NULL; }
 hint_opt_list(A) ::= hint_opt(B).                                                 { A = createNodeList(pCxt, B); }
 hint_opt_list(A) ::= hint_opt_list(B) hint_opt(C).                                { A = addNodeToList(pCxt, B, C); }
 

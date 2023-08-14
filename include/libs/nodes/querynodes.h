@@ -116,6 +116,18 @@ typedef struct SLeftValueNode {
   ENodeType type;
 } SLeftValueNode;
 
+typedef enum EHintOption {
+  HINT_NO_BATCH_SCAN = 1,
+  HINT_BATCH_SCAN,
+} EHintOption;
+
+typedef struct SHintNode {
+  ENodeType   type;
+  EHintOption option;
+  char*       literal;
+  void*       value;
+} SHintNode;
+
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
@@ -304,6 +316,7 @@ typedef struct SSelectStmt {
   SLimitNode*   pLimit;
   SLimitNode*   pSlimit;
   STimeWindow   timeRange;
+  SNodeList*    pHint;
   char          stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t       precision;
   int32_t       selectFuncNum;

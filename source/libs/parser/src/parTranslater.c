@@ -6166,7 +6166,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
     strcpy(realTable->table.dbName, pStmt->subDbName);
     strcpy(realTable->table.tableName, pStmt->subSTbName);
     strcpy(realTable->table.tableAlias, pStmt->subSTbName);
-    *pSelect = createSelectStmtImpl(true, pProjection, (SNode*)realTable);
+    *pSelect = createSelectStmtImpl(true, pProjection, (SNode*)realTable, NULL);
     ((SSelectStmt*)*pSelect)->pWhere = nodesCloneNode(pStmt->pWhere);
     pCxt->pParseCxt->topicQuery = true;
     code = translateQuery(pCxt, *pSelect);

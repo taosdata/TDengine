@@ -301,6 +301,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCaseWhenNode));
     case QUERY_NODE_EVENT_WINDOW:
       return makeNode(type, sizeof(SEventWindowNode));
+    case QUERY_NODE_HINT:
+      return makeNode(type, sizeof(SHintNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -656,6 +658,15 @@ static void destroyTableCfg(STableCfg* pCfg) {
 
 static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
 
+static void destroyHintValue(EHintOption option, void* value) {
+  switch (option) {
+    default:
+      break;
+  }
+
+  taosMemoryFree(value);
+}
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -814,6 +825,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pEndCond);
       break;
     }
+    case QUERY_NODE_HINT: {
+      SHintNode* pHint = (SHintNode*)pNode;
+      taosMemoryFreeClear(pHint->literal);
+      destroyHintValue(pHint->option, pHint->value);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -840,6 +857,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pOrderByList);
       nodesDestroyNode((SNode*)pStmt->pLimit);
       nodesDestroyNode((SNode*)pStmt->pSlimit);
+      nodesDestroyList(pStmt->pHint);
       break;
     }
     case QUERY_NODE_VNODE_MODIFY_STMT: {

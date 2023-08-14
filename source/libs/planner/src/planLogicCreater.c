@@ -435,6 +435,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pJoin->joinType = pJoinTable->joinType;
+  pJoin->joinAlgo = JOIN_ALGO_UNKNOWN;
   pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
   pJoin->hasSubQuery = pJoinTable->hasSubQuery;
   pJoin->node.inputTsOrder = ORDER_ASC;
