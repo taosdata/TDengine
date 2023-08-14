@@ -24,7 +24,7 @@
       :column="3"
     >
       <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
-        <span style="color:#333;"> {{item.key == 'expire_time'? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
+        <span style="color:#333;"> {{(item.key == 'expire_time' && item.value !=='unlimited')? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
       </el-descriptions-item>
     </el-descriptions>
     <p class="title">
@@ -161,7 +161,7 @@ export default {
       return {
         'font-size':'14px',
         'color':'#4d6992',
-        'min-width': '78px',
+        'min-width': '82px',
         'display': 'inline-block',
         'text-align': 'right'
       }
