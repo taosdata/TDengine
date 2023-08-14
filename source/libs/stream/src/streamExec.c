@@ -661,36 +661,14 @@ int32_t streamTryExec(SStreamTask* pTask) {
     }
 
     // todo the task should be commit here
-//    if (taosQueueEmpty(pTask->inputQueue->queue)) {
-      // fill-history WAL scan has completed
-//      if (pTask->status.transferState) {
-//        code = streamTransferStateToStreamTask(pTask);
-//        if (code != TSDB_CODE_SUCCESS) {
-//          atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-//          return code;
-//        }
+    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
+           pTask->status.schedStatus);
 
-        // the schedStatus == TASK_SCHED_STATUS__ACTIVE, streamSchedExec cannot be executed, so execute once again by
-        // call this function (streamExecForAll) directly.
-        //        code = streamExecForAll(pTask);
-        //        if (code < 0) {
-        // do nothing
-        //        }
-//      }
-
-//      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-//      qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
-//             streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
-//    } else {
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-      qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
-             pTask->status.schedStatus);
-
-      if (!(taosQueueEmpty(pTask->inputQueue->queue) || streamTaskShouldStop(&pTask->status) ||
-            streamTaskShouldPause(&pTask->status))) {
-        streamSchedExec(pTask);
-      }
-//    }
+    if (!(taosQueueEmpty(pTask->inputQueue->queue) || streamTaskShouldStop(&pTask->status) ||
+          streamTaskShouldPause(&pTask->status))) {
+      streamSchedExec(pTask);
+    }
   } else {
     qDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id,
            streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
