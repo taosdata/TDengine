@@ -263,6 +263,8 @@ typedef struct STagScanInfo {
   void*           pCtbCursor;
   SNode*          pTagCond;
   SNode*          pTagIndexCond;
+  SArray*         aUidTags; // SArray<STUidTagInfo>
+  SArray*         aFilterIdxs; // SArray<int32_t>
   SStorageAPI*    pStorageAPI;
 } STagScanInfo;
 
