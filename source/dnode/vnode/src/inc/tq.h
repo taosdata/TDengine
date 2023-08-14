@@ -175,7 +175,7 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
-int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq);
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
 #ifdef __cplusplus
 }
 #endif
