@@ -78,9 +78,22 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 
 Copy code bellow to your editor, then run it. If you are using jupyter, assuming you have followed the guide about Jupyter, you can copy the code into Jupyter editor in your browser.
 
+<Tabs defaultValue="rest">
+<TabItem value="rest" label="REST">
+
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket">
+
+```python
+{{#include docs/examples/python/develop_tutorial_ws.py:connect}}
+```
+
+</TabItem>
+</Tabs>
 
 For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Data Out](https://docs.tdengine.com/cloud/data-out/).
 
