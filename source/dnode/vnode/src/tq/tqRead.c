@@ -219,11 +219,13 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
             goto END;
           }
 
+          pHead = &(pHandle->pWalReader->pHead->head);
           if (isValValidForTable(pHandle, pHead)) {
             code = 0;
             goto END;
           } else {
             offset++;
+            code = -1;
             continue;
           }
         }
@@ -234,6 +236,7 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
       }
       offset++;
     }
+    code = -1;
   }
 
 END:

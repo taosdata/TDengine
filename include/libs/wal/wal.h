@@ -206,7 +206,6 @@ void        walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64
 void        walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset);
 
 // only for tq usage
-void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
 int32_t walFetchHead(SWalReader *pRead, int64_t ver);
 int32_t walFetchBody(SWalReader *pRead);
 int32_t walSkipFetchBody(SWalReader *pRead);
