@@ -1020,7 +1020,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       SStateWinodwPhysiNode *pStateNode = (SStateWinodwPhysiNode *)pNode;
 
       EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT,
-                      nodesGetNameFromColumnNode(((STargetNode *)pStateNode->pStateKey)->pExpr));
+                      nodesGetNameFromColumnNode(pStateNode->pStateKey));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));

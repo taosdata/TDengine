@@ -700,7 +700,7 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
+**功能说明**：统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
 
 **返回数据类型**：字符串表达式（斜率, 截距）。
 
@@ -1265,3 +1265,140 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。
+
+
+## Geometry 函数
+
+### Geometry 输入函数：
+
+#### ST_GeomFromText
+
+```sql
+ST_GeomFromText(VARCHAR WKT expr)
+```
+
+**功能说明**：根据 Well-Known Text (WKT) 表示从指定的几何值创建几何数据。
+
+**返回值类型**：GEOMETRY
+
+**适用数据类型**：VARCHAR
+
+**适用表类型**：标准表和超表
+
+**使用说明**：输入可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。输出是以二进制字符串形式定义的 GEOMETRY 数据类型。
+
+### Geometry 输出函数：
+
+#### ST_AsText
+
+```sql
+ST_AsText(GEOMETRY geom)
+```
+
+**功能说明**：从几何数据中返回指定的 Well-Known Text (WKT) 表示。
+
+**返回值类型**：VARCHAR
+
+**适用数据类型**：GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：输出可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。
+
+### Geometry 关系函数：
+
+#### ST_Intersects
+
+```sql
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+##功能说明**：比较两个几何对象，并在它们相交时返回 true。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：如果两个几何对象有任何一个共享点，则它们相交。
+
+#### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果给定的几何对象是"空间相等"的，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
+
+#### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 和 B 相交，但它们的内部不相交，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
+
+#### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 中的每个点都位于几何形状 A 内部（与内部或边界相交），则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 包含 B 意味着 B 中的没有点位于 A 的外部（在外部）。
+
+#### ST_Contains
+
+```sql
+ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 包含 B，描述：如果几何形状 A 包含几何形状 B，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 包含 B 当且仅当 B 的所有点位于 A 的内部（即位于内部或边界上）（或等效地，B 的没有点位于 A 的外部），并且 A 和 B 的内部至少有一个公共点。
+
+#### ST_ContainsProperly
+
+```sql
+ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 的每个点都位于 A 内部，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：B 的没有点位于 A 的边界或外部。
