@@ -1009,7 +1009,7 @@ join_type(A) ::= INNER.                                                         
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
-  SELECT hint_opt(M) set_quantifier_opt(B) select_list(C) from_clause_opt(D) 
+  SELECT hint_opt_list(M) set_quantifier_opt(B) select_list(C) from_clause_opt(D) 
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K) 
   fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  { 
                                                                                     A = createSelectStmt(pCxt, B, C, D, M);
@@ -1023,10 +1023,15 @@ query_specification(A) ::=
                                                                                     A = addFillClause(pCxt, A, L);
                                                                                   }
 
-%type hint_opt                                                                    { SQueryHint }
-%destructor hint_opt                                                              { }
-hint_opt(A) ::= .                                                                 { A.withHint = false; }
-hint_opt(A) ::= NO_BATCH_SCAN NK_LP NK_RP.                                        { A.withHint = true; A.batchScan = false; }
+
+hint_opt(A) ::= .                                                                 { A = false; }
+hint_opt(A) ::= NO_BATCH_SCAN NK_LP NK_RP.                                        { A = createHintNode(pCxt, HINT_NO_BATCH_SCAN, NULL); }
+hint_opt(A) ::= BATCH_SCAN NK_LP NK_RP.                                           { A = createHintNode(pCxt, HINT_BATCH_SCAN, NULL); }
+
+%type hint_opt_list                                                               { SNodeList* }
+%destructor hint_opt_list                                                         { nodesDestroyList($$); }
+hint_opt_list(A) ::= hint_opt(B).                                                 { A = createNodeList(pCxt, B); }
+hint_opt_list(A) ::= hint_opt_list(B) hint_opt(C).                                { A = addNodeToList(pCxt, B, C); }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }
