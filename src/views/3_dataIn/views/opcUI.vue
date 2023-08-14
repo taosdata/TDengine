@@ -1600,6 +1600,7 @@ export default {
             (!this.$refs.csvdata.$refs.param.ruleForm.hasHeader
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
+              console.log('csv最新代码');
         }
 
         if (this.isEditable) {

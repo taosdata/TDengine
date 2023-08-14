@@ -152,6 +152,12 @@ export default {
     };
   },
   watch: {
+    "$store.state.app.showcsvStable": {
+      deep: true,
+      handler(val) {
+        this.showStable = val;
+      },
+    },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
         if (!val) {
@@ -209,14 +215,6 @@ export default {
           return false;
         }
       });
-    },
-  },
-  watch: {
-    "$store.state.app.showcsvStable": {
-      deep: true,
-      handler(val) {
-        this.showStable = val;
-      },
     },
   },
 };
