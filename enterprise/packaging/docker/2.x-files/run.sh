@@ -371,12 +371,24 @@ do
         initDnodeAndMnode
         if [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]; then
             if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
-                taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"|grep -q -w meters
-                if [ $? -ne 0 ]; then
-                    taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
-                    taos -s "GRANT ALL on test.* to admin_user;"
-                    TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] taosBenchmark executed to generate test database"
+                #TODO need to check the HA cluster status first and if the HA cluster status is OK
+                dbs=`taos -s "show databases;"`
+                if [ $? -eq 0 ]; then
+                    echo $dbs | grep -w -q -o "test"
+                    if [ $? -eq 1 ]; then
+                        testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
+                        if [ $? -eq 0 ]; then
+                            echo $testStables | grep -q -w -o meters
+                            if [ $? -eq 1 ]; then
+                                taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
+                                taos -s "GRANT ALL on test.* to admin_user;"
+                                TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
+                                echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [INFO] taosBenchmark executed to generate test database"
+                            fi
+                        fi
+                    else
+                        echo "$? $testDB found test"
+                    fi
                 fi
             fi
         fi
