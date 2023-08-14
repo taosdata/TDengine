@@ -19,7 +19,7 @@ use std::{
         Arc,
     },
     task::Poll,
-    time::Duration,
+    time::Duration, str::FromStr,
 };
 use taos::{
     taos_query::common::Describe, AsyncFetchable, AsyncQueryable, Bindable, Dsn, Itertools,
@@ -399,6 +399,13 @@ async fn consume_lush_record(
     Ok(())
 }
 
+struct ModifyStructForPointMessage {
+    id: String,
+    point_name: String,
+    value_cloumn_name: String,
+    value_cloumn_length: usize,
+}
+
 async fn consume_point_record(
     taos: &Taos,
     _: &mut Stmt,
@@ -495,7 +502,8 @@ async fn consume_point_record(
                 );
             }
         }
-
+        // stable, Vec<insert_sql, sql length overflow?, value_column_type>
+        let mut stable_insert_map :HashMap<String, Vec<(String, bool, String, ModifyStructForPointMessage)>> = HashMap::new();
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
@@ -511,14 +519,13 @@ async fn consume_point_record(
             } else {
                 anyhow::bail!("id: {id} failded to get stable");
             };
-
             let child_table_name = if point_config.stable.is_some() {
                 format!("{}", point_config.code)
             } else {
                 format!("{stable_name}_{}", point_config.code)
             };
             // child_table_name.push_str(format!("_{}", point_config.code).as_str());
-            let mut insert_sql = format!("insert into `{child_table_name}` ");
+            // let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
             let mut value_cloumn_name = "value";
             let mut value_cloumn_length = 128;
@@ -624,170 +631,212 @@ async fn consume_point_record(
                     &point_name
                 )
             };
-            insert_sql.push_str(tag_sql.as_str());
-            insert_sql.push_str(format!(" VALUES ({})", values).as_str());
-            debug!("point message insert sql: {}", insert_sql);
-            'outer: loop {
-                let sql_res = taos.exec(&insert_sql).await;
-                match sql_res {
-                    Ok(n) => {
-                        *count += n;
-                        points += n;
+            let sql_vec = stable_insert_map.get_mut(stable_name);
+            let mut insert_done = false;
+            if sql_vec.is_some() {
+                let sql_vec = sql_vec.unwrap();
+                for index in 0..sql_vec.len() {
+                    let (insert_sql, overflow, _, _) = sql_vec.get_mut(index).unwrap();
+                    if *overflow {
+                        continue;
+                    } else {
+                        let sql_suffix = format!(" `{child_table_name}` {} VALUES ({}) ", tag_sql.as_str(), values);
+                        if insert_sql.len() + sql_suffix.len() > 1000 * 1000 {
+                            *overflow = true;
+                            continue;
+                        } else {
+                            insert_sql.push_str(sql_suffix.as_str());
+                            insert_done = true;
+                        }
+                    }
+                }
+            } 
+            if !insert_done {
+                let insert_sql = format!("insert into `{child_table_name}` {} VALUES ({})", tag_sql.as_str(), values);
+                let value_column_type = if point_config.value_type.is_some() {
+                    // maybe should replace value column type
+                    point_config.value_type.clone().unwrap().sql_repr()
+                } else {
+                    value_type.clone()
+                };
+                let mut sql_vec = Vec::new();
+                sql_vec.push((insert_sql, false, value_column_type, ModifyStructForPointMessage {
+                    id,
+                    point_name,
+                    value_cloumn_name: value_cloumn_name.to_string(),
+                    value_cloumn_length,
+                }));
+                stable_insert_map.insert(stable_name.clone(), sql_vec);
+            }
+            // insert_sql.push_str(tag_sql.as_str());
+            // insert_sql.push_str(format!(" VALUES ({})", values).as_str());
+        }
+        for (stable_name, sql_vec) in stable_insert_map {
+            for (insert_sql, _, value_column_type, modify_message) in sql_vec {
+                debug!("point message insert sql: {}", insert_sql);
+                let mut retry = 0;
+                'outer: loop {
+                    if retry >= 3 {
+                        log::warn!("sql error cannot be solved, break;");
                         break;
                     }
-                    Err(err) => {
-                        let errstr = err.to_string();
-                        log::warn!("error: {}", errstr);
-                        if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
-                            // stable not exists
-                            let value_column_type = if point_config.value_type.is_some() {
-                                // maybe should replace value column type
-                                point_config.value_type.clone().unwrap().sql_repr()
-                            } else {
-                                value_type.clone()
-                                // value_column.unwrap().column_type
-                            };
-                            // should be some
-                            let value_column_config = value_column.as_ref().unwrap();
-                            let primary_key_column_name = value_column_config.column_name.clone();
-                            let prinmary_key_column_alias = value_column_config
-                                .column_alias
-                                .clone()
-                                .unwrap_or(primary_key_column_name.clone());
-                            columns.push_str(
-                                format!(",`{prinmary_key_column_alias}` {value_column_type}")
-                                    .as_str(),
-                            );
-                            let stable_sql = format!(
-                                "create table if not exists `{}` ({}) tags ({})",
-                                stable_name, columns, tags
-                            );
-                            log::info!("create stable sql: {}", &stable_sql);
-                            match taos.exec(&stable_sql).await {
-                                Ok(_) => (),
-                                Err(err) => {
-                                    if err.to_string().contains("0x032C") {
-                                        // Object is creating, maybe should ignore
-                                        log::warn!("create stable sql encounter 0x032C");
-                                    } else {
-                                        anyhow::bail!("create stable sql err: {}", err.to_string());
-                                    }
-                                }
-                            }
-                        } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
-                            // Illegal number of columns or tags, alter to add columns or tag
-                            for column_config in &table_config.column_configs {
-                                let mut need_add = true;
-                                let column_name = get_real_column_name(column_config);
-                                // alter stable column not supported by taosd
-                                let desc = taos.describe(&stable_name).await?;
-                                desc.into_iter().for_each(|column_meta| {
-                                    if column_name == column_meta.field() {
-                                        need_add = false;
-                                    }
-                                });
-                                if need_add {
-                                    let column_real_name = get_real_column_name(column_config);
-                                    if column_config.column_type.is_none() {
-                                        // shouldn't happen if normal
-                                        // encounter when rename value column
-                                        log::error!("column {} column_type is error, maybe stable set error", column_real_name);
-                                        break 'outer;
-                                    }
-                                    let add_column_sql = format!(
-                                        "alter table `{stable_name}` ADD COLUMN {} {}",
-                                        column_real_name,
-                                        column_config.column_type.unwrap()
-                                    );
-                                    log::info!("add_column_sql:{}", add_column_sql);
-                                    taos.exec(&add_column_sql).await?;
-                                }
-                            }
-
-                            if table_config.tag_configs.is_some() {
-                                // let tag_configs = &table_config.tag_configs.clone().unwrap();
-                                let desc = taos.describe(&stable_name).await?;
-                                let fields = table_config
-                                    .tag_configs
-                                    .as_ref()
-                                    .unwrap()
-                                    .iter()
-                                    .map(|config| {
-                                        (config.column_name.clone(), config.column_type.clone())
-                                    })
-                                    .collect_vec();
-                                let sqls = generate_alter_sql_diff_desc(
-                                    &stable_name,
-                                    &desc,
-                                    &fields,
-                                    true,
+                    let sql_res = taos.exec(&insert_sql).await;
+                    match sql_res {
+                        Ok(n) => {
+                            *count += n;
+                            points += n;
+                            break;
+                        }
+                        Err(err) => {
+                            let errstr = err.to_string();
+                            log::warn!("error: {}", errstr);
+                            if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
+                                // stable not exists
+                                // should be some
+                                let value_column_config = value_column.as_ref().unwrap();
+                                let primary_key_column_name = value_column_config.column_name.clone();
+                                let prinmary_key_column_alias = value_column_config
+                                    .column_alias
+                                    .clone()
+                                    .unwrap_or(primary_key_column_name.clone());
+                                let mut temp_conlumns = columns.clone();
+                                temp_conlumns.push_str(
+                                    format!(",`{prinmary_key_column_alias}` {value_column_type}")
+                                        .as_str(),
                                 );
-                                if sqls.is_some() {
-                                    let sqls = sqls.unwrap();
-                                    for alter_sql in sqls {
-                                        log::info!("alter table sql: {alter_sql}");
-                                        match taos.exec(alter_sql).await {
-                                            Ok(_) => (),
-                                            Err(err) => {
-                                                if err.to_string().contains("0x0369") {
-                                                    // Tag already exists occur when concurrent exec same alter
-                                                    log::warn!(
-                                                        "alter table err: {}, will be ignored",
-                                                        err.to_string()
-                                                    );
-                                                } else {
-                                                    log::warn!(
-                                                        "alter table err: {}",
-                                                        err.to_string()
-                                                    );
-                                                    break 'outer;
+                                let stable_sql = format!(
+                                    "create table if not exists `{}` ({}) tags ({})",
+                                    stable_name, temp_conlumns, tags
+                                );
+                                log::info!("create stable sql: {}", &stable_sql);
+                                match taos.exec(&stable_sql).await {
+                                    Ok(_) => (),
+                                    Err(err) => {
+                                        if err.to_string().contains("0x032C") {
+                                            // Object is creating, maybe should ignore
+                                            log::warn!("create stable sql encounter 0x032C");
+                                        } else {
+                                            anyhow::bail!("create stable sql err: {}", err.to_string());
+                                        }
+                                    }
+                                }
+                            } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
+                                // Illegal number of columns or tags, alter to add columns or tag
+                                for column_config in &table_config.column_configs {
+                                    let mut need_add = true;
+                                    let column_name = get_real_column_name(column_config);
+                                    // alter stable column not supported by taosd
+                                    let desc = taos.describe(&stable_name).await?;
+                                    desc.into_iter().for_each(|column_meta| {
+                                        if column_name == column_meta.field() {
+                                            need_add = false;
+                                        }
+                                    });
+                                    if need_add {
+                                        let column_real_name = get_real_column_name(column_config);
+                                        if column_config.column_type.is_none() {
+                                            // shouldn't happen if normal
+                                            // encounter when rename value column
+                                            log::error!("column {} column_type is error, maybe stable set error", column_real_name);
+                                            break 'outer;
+                                        }
+                                        let add_column_sql = format!(
+                                            "alter table `{stable_name}` ADD COLUMN {} {}",
+                                            column_real_name,
+                                            column_config.column_type.unwrap()
+                                        );
+                                        log::info!("add_column_sql:{}", add_column_sql);
+                                        taos.exec(&add_column_sql).await?;
+                                    }
+                                }
+
+                                if table_config.tag_configs.is_some() {
+                                    // let tag_configs = &table_config.tag_configs.clone().unwrap();
+                                    let desc = taos.describe(&stable_name).await?;
+                                    let fields = table_config
+                                        .tag_configs
+                                        .as_ref()
+                                        .unwrap()
+                                        .iter()
+                                        .map(|config| {
+                                            (config.column_name.clone(), config.column_type.clone())
+                                        })
+                                        .collect_vec();
+                                    let sqls = generate_alter_sql_diff_desc(
+                                        &stable_name,
+                                        &desc,
+                                        &fields,
+                                        true,
+                                    );
+                                    if sqls.is_some() {
+                                        let sqls = sqls.unwrap();
+                                        for alter_sql in sqls {
+                                            log::info!("alter table sql: {alter_sql}");
+                                            match taos.exec(alter_sql).await {
+                                                Ok(_) => (),
+                                                Err(err) => {
+                                                    if err.to_string().contains("0x0369") {
+                                                        // Tag already exists occur when concurrent exec same alter
+                                                        log::warn!(
+                                                            "alter table err: {}, will be ignored",
+                                                            err.to_string()
+                                                        );
+                                                    } else {
+                                                        log::warn!(
+                                                            "alter table err: {}",
+                                                            err.to_string()
+                                                        );
+                                                        break 'outer;
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        } else if errstr.contains("[0x2653]") {
-                            // column or tag length not enough
-                            let desc = taos.describe(&stable_name.as_str()).await?;
-                            desc.into_iter().for_each(|column_meta| {
-                                let column_type;
-                                let length;
-                                if column_meta.field() == "point_id"
-                                    && id.len() > column_meta.length()
-                                {
-                                    column_type = "tag";
-                                    length = id.len();
-                                } else if column_meta.field() == "point_name"
-                                    && point_name.len() > column_meta.length()
-                                {
-                                    column_type = "tag";
-                                    length = point_name.len();
-                                } else if (column_meta.ty == Ty::VarChar
-                                    || column_meta.ty == Ty::NChar)
-                                    && column_meta.field() == value_cloumn_name
-                                    && value_cloumn_length > column_meta.length()
-                                {
-                                    column_type = "column";
-                                    length = value_cloumn_length;
-                                } else {
-                                    return;
+                            } else if errstr.contains("[0x2653]") {
+                                // column or tag length not enough
+                                let desc = taos.describe(&stable_name.as_str()).await?;
+                                let mut tags_for_diff = Vec::new();
+                                tags_for_diff.push(("point_id".to_string(), IpcDataType::from_str(format!("varchar({})", modify_message.id.len()).as_str()).unwrap()));
+                                tags_for_diff.push(("point_name".to_string(), IpcDataType::from_str(format!("varchar({})", modify_message.point_name.len()).as_str()).unwrap()));
+                                if table_config.tag_configs.is_some() {
+                                    for tag_conf in table_config.tag_configs.clone().unwrap() {
+                                        tags_for_diff.push((tag_conf.column_name, tag_conf.column_type));
+                                    }
                                 }
-                                let sql = format!(
-                                    "alter table `{stable_name}` modify {column_type} `{}` {}({})",
-                                    column_meta.field(),
-                                    column_meta.ty(),
-                                    length,
-                                );
-                                log::info!("add execute sql: {}", &sql);
-                                taos.exec_sync(sql).unwrap();
-                            });
-                        } else {
-                            break;
+                                let sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &tags_for_diff, true);
+                                if sqls.is_some() {
+                                    let sqls = sqls.unwrap();
+                                    for sql in sqls {
+                                        log::info!("add execute sql: {}", &sql);
+                                        taos.exec_sync(sql).unwrap();
+                                    }
+                                }
+                                desc.into_iter().for_each(|column_meta| {
+                                    if (column_meta.ty == Ty::VarChar
+                                        || column_meta.ty == Ty::NChar)
+                                        && column_meta.field() == modify_message.value_cloumn_name
+                                        && modify_message.value_cloumn_length > column_meta.length()
+                                    {
+                                        let sql = format!(
+                                            "alter table `{stable_name}` modify column `{}` {}({})",
+                                            column_meta.field(),
+                                            column_meta.ty(),
+                                            modify_message.value_cloumn_length,
+                                        );
+                                        log::info!("add execute sql: {}", &sql);
+                                        taos.exec_sync(sql).unwrap();
+                                    }
+                                });
+                            } else {
+                                break;
+                            }
+                            retry += 1;
                         }
                     }
                 }
             }
+            
         }
     }
     Ok(points)
