@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
+#include "mndIndexComm.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
@@ -822,7 +823,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     return -1;
   }
 
-  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+  if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -857,11 +858,36 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   SStbObj stbObj = {0};
   int32_t code = -1;
 
+  char fullIdxName[TSDB_INDEX_FNAME_LEN * 2] = {0};
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stb");
   if (pTrans == NULL) goto _OVER;
 
   mInfo("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
   if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
+
+  SSchema *pSchema = &(stbObj.pTags[0]);
+  sprintf(fullIdxName, "%s.%s_default", pDb->name, pSchema->name);
+
+  SSIdx idx = {0};
+  if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0) {
+    terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+    mndReleaseIdx(pMnode, idx.pIdx);
+    goto _OVER;
+  }
+
+  SIdxObj idxObj;
+  memcpy(idxObj.name, fullIdxName, TSDB_INDEX_FNAME_LEN);
+  memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
+  memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
+  memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
+  idxObj.createdTime = taosGetTimestampMs();
+  idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
+  idxObj.stbUid = stbObj.uid;
+  idxObj.dbUid = stbObj.dbUid;
+
+  if (mndSetCreateIdxCommitLogs(pMnode, pTrans, &idxObj) < 0) goto _OVER;
+
   if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
@@ -956,7 +982,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     return -1;
   }
 
-  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+  if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -1188,7 +1214,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
     return -1;
   }
 
-  if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags){
+  if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -1478,7 +1504,8 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
 
   SSchema *pTag = pNew->pTags + tag;
 
-  if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR || pTag->type == TSDB_DATA_TYPE_GEOMETRY)) {
+  if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR ||
+        pTag->type == TSDB_DATA_TYPE_GEOMETRY)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
@@ -1506,7 +1533,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     return -1;
   }
 
-  if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols){
+  if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -1598,7 +1625,8 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
   }
 
   SSchema *pCol = pNew->pColumns + col;
-  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR || pCol->type == TSDB_DATA_TYPE_GEOMETRY)) {
+  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR ||
+        pCol->type == TSDB_DATA_TYPE_GEOMETRY)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
@@ -3182,7 +3210,6 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
 
-
   int32_t numOfRows = 0;
   if (!pShow->sysDbRsp) {
     numOfRows = buildSysDbColsInfo(pBlock, pShow->db, pShow->filterTb);
@@ -3206,7 +3233,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       if (pShow->pIter == NULL) break;
     } else {
       fetch = true;
-      void  *pKey = taosHashGetKey(pShow->pIter, NULL);
+      void *pKey = taosHashGetKey(pShow->pIter, NULL);
       pStb = sdbAcquire(pSdb, SDB_STB, pKey);
       if (!pStb) continue;
     }
