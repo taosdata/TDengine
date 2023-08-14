@@ -401,8 +401,6 @@ int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
 
   pTask->status.appendTranstateBlock = true;
   qDebug("s-task:%s set sched-status:%d, prev:%d", pTask->id.idStr, TASK_SCHED_STATUS__INACTIVE, pTask->status.schedStatus);
-  streamSchedExec(pTask);
-
   return TSDB_CODE_SUCCESS;
 }
 
