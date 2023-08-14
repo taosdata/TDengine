@@ -954,6 +954,7 @@ export default {
     primarykey:'主键',
     usingtip:'请输入超级表名称',
     name:'子表命名规则',
+    normalname:'普通表命名规则',
     using:'超级表名',
     targetdb:'目标数据库',
     expired:'已过期',

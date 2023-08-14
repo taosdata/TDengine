@@ -687,7 +687,7 @@
           @handleDbBtn="handleDbBtn"
         ></CsvData>
       </section>
-      <section class="choose-db" v-else>
+      <section class="choose-db">
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
         <el-select v-model="dbname" placeholder="" style="margin-right: 8px;">
           <el-option
@@ -1403,7 +1403,8 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if (this.tagName == "csv") {
-          this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
+          console.log(this.dbname,'当前的数据库0000000');
+          // this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
         }
         if (!this.dbname) {
           Message({
@@ -1561,7 +1562,7 @@ export default {
            if(this.$store.state.app.csvtags.length>0&&!model.tags){
             model['tags']=this.$store.state.app.csvtags
            }
-          if (model.tags.length > 0) {
+          if (model.tags&&model.tags.length > 0) {
             model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
             model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
             piParams["parser"] = this.$store.state.app.csvParser;
@@ -1581,7 +1582,7 @@ export default {
             Message.error(this.$t("datasource.csvwholeinfo"));
             return;
           }
-          let flag = [...model.columns, ...model.tags].some(
+          let flag = (model.tags?[...model.columns, ...model.tags]:[...model.columns]).some(
             (item) => parse[item].as == ""
           );
           if (flag) {

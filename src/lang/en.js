@@ -1178,6 +1178,7 @@ export default {
     coltype: 'Column Type(Target)',
     primarykey:'Primary Key',
     name: 'Child Table Naming Rule',
+    normalname:'Normal Table Naming Rule',
     using: 'SuperTable Name',
     targetdb: 'Target Database',
     expired: 'Expired',

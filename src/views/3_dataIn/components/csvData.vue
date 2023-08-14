@@ -121,7 +121,7 @@ export default {
   },
   provide() {
     return {
-      currentKey: this.currentKey,
+      currentKey: this.currentKey
     };
   },
   filter: {},
@@ -265,16 +265,11 @@ export default {
           Message.error(this.$t("datasource.uploadcsvtip"));
           return;
         }
-console.log('下一步',this.activeName,this.fileList);
         this.$refs.param.submit();
         
         if (this.isEditable) {
           this.$parent.$parent.isEditable = false;
-          // this.isEditable=false
-          console.log(this.$parent, "编辑状态");
         }
-        console.log("请求接口获取csv列", this.activeName);
-        // await this.getDBColumns();
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
@@ -302,12 +297,6 @@ console.log('下一步',this.activeName,this.fileList);
           );
           this.csvColumns = result.file_header.column_names;
         }
-        // this.dbOptions = this.dbOptions.concat(
-        //   this.csvColumns.map((item) => {
-        //     return Object.assign(item, { disabled: true });
-        //   })
-        // );
-        console.log(this.dbOptions, "有头无头的db列");
         if (result && result.message) {
           Message.error(result.message);
           return;
@@ -366,7 +355,7 @@ console.log('下一步',this.activeName,this.fileList);
 <style lang="scss" scoped>
 .csv-data {
   // width: 600px;
-  padding: 20px;
+  padding: 5px;
   box-sizing: border-box;
   .upload-file {
     display: flex;
@@ -374,10 +363,10 @@ console.log('下一步',this.activeName,this.fileList);
     align-items: center;
     .label {
       padding-right: 40px;
-      color: #4d6992;
-      width: 225px;
+      color: #4259ce;
+      width: 150px;
       font-weight: 500;
-      font-size: 16px;
+      font-size: 14px;
       text-align: right;
       position: relative;
       &.required {
@@ -388,6 +377,9 @@ console.log('下一步',this.activeName,this.fileList);
           line-height: 25px;
           right: 110px;
           position: absolute;
+        }
+        &.en{
+          width:225px;
         }
       }
     }
