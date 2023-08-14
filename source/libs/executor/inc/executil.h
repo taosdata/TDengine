@@ -190,4 +190,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
+TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
+void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t  delta);
+
 #endif  // TDENGINE_EXECUTIL_H

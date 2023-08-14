@@ -695,6 +695,13 @@ uint64_t calcGroupId(char* pData, int32_t len);
 void streamOpReleaseState(struct SOperatorInfo* pOperator);
 void streamOpReloadState(struct SOperatorInfo* pOperator);
 
+bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
+bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
+bool compareVal(const char* v, const SStateKeys* pKey);
+
+int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                      TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
+
 #ifdef __cplusplus
 }
 #endif

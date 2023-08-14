@@ -2187,3 +2187,14 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
   qDebug("%s", dumpBlockData(pBlock, flag, &pBuf, taskIdStr));
   taosMemoryFree(pBuf);
 }
+
+TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NULL ? win->skey : tsCols[0]; }
+
+void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t  delta) {
+  int64_t* ts = (int64_t*)pColData->pData;
+
+  int64_t duration = pWin->ekey - pWin->skey + delta;
+  ts[2] = duration;            // set the duration
+  ts[3] = pWin->skey;          // window start key
+  ts[4] = pWin->ekey + delta;  // window end key
+}
