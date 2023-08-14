@@ -534,16 +534,21 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       } else {
         streamFreeQitem((SStreamQueueItem*)pBlock);
       }
+    } else {  // level == TASK_LEVEL__SINK
+      streamFreeQitem((SStreamQueueItem*)pBlock);
     }
   } else { // non-dispatch task, do task state transfer directly
-    qDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
-
     streamFreeQitem((SStreamQueueItem*)pBlock);
-    ASSERT(pTask->info.fillHistory == 1);
-    code = streamTransferStateToStreamTask(pTask);
+    if (level != TASK_LEVEL__SINK) {
+      qDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
+      ASSERT(pTask->info.fillHistory == 1);
+      code = streamTransferStateToStreamTask(pTask);
 
-    if (code != TSDB_CODE_SUCCESS) {
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      if (code != TSDB_CODE_SUCCESS) {
+        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      }
+    } else {
+      qDebug("s-task:%d sink task does not transfer state", id);
     }
   }
 

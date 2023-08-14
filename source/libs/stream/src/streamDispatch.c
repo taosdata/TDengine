@@ -757,10 +757,10 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     qDebug("s-task:%s dispatch transtate msg to downstream successfully, start to transfer state", id);
     ASSERT(pTask->info.fillHistory == 1);
     code = streamTransferStateToStreamTask(pTask);
-
     if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
-//      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     }
+
+    streamFreeQitem(pTask->msgInfo.pData);
     return TSDB_CODE_SUCCESS;
   }
 
