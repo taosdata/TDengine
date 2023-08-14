@@ -754,6 +754,7 @@ int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pPa
         if (TSDB_CODE_SUCCESS != code) {
           break;
         }
+        pOperator->pDownstreamNotifyParams[i] = NULL;
       }
     }
   }

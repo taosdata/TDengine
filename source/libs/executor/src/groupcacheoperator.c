@@ -121,8 +121,8 @@ static void freeGcBlockInList(void* p) {
 
 static void freeSGcDownstreamCtx(SGcDownstreamCtx* pCtx) {
   taosArrayDestroy(pCtx->pNewGrpList);
-  tSimpleHashCleanup(pCtx->pVgTbHash);
   taosHashCleanup(pCtx->pGrpHash);
+  tSimpleHashCleanup(pCtx->pVgTbHash);
 
   taosArrayDestroyEx(pCtx->pFreeBlock, freeGcBlockInList);
   taosHashCleanup(pCtx->pSessions);
@@ -1180,7 +1180,7 @@ static int32_t initGroupCacheExecInfo(SOperatorInfo*        pOperator) {
 
 static void freeRemoveGroupCacheData(void* p) {
   SGroupCacheData* pGroup = p;
-  if (pGroup->vgId > 0) {
+  if (pGroup->vgId > 0 && pGroup->needCache) {
     SGcFileCacheCtx* pFileCtx = &pGroup->pVgCtx->fileCtx;
     if (pGroup->fileId >= 0) {
       SGroupCacheFileInfo* pFileInfo = taosHashGet(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));

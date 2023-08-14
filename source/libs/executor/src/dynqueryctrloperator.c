@@ -373,6 +373,7 @@ static int32_t buildSingleTableScanOperatorParam(SOperatorParam** ppRes, int32_t
   taosArrayPush(pUidList, pUid);
 
   int32_t code = buildTableScanOperatorParam(ppRes, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, true);
+  taosArrayDestroy(pUidList);
   if (code) {
     return code;
   }

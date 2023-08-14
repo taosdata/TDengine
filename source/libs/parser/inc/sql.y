@@ -1026,7 +1026,7 @@ query_specification(A) ::=
 %type hint_opt                                                                    { SQueryHint }
 %destructor hint_opt                                                              { }
 hint_opt(A) ::= .                                                                 { A.withHint = false; }
-hint_opt(A) ::= NO_BATCH_SCAN.                                                    { A.withHint = true; A.batchScan = false; }
+hint_opt(A) ::= NO_BATCH_SCAN NK_LP NK_RP.                                        { A.withHint = true; A.batchScan = false; }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }
