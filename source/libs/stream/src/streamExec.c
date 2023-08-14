@@ -646,16 +646,6 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
           pTask->status.taskStatus == TASK_STATUS__DROPPING);
 }
 
-int32_t streamTaskEndScanWAL(SStreamTask* pTask) {
-  const char* id = pTask->id.idStr;
-  double      el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
-  qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
-
-  // 1. notify all downstream tasks to transfer executor state after handle all history blocks.
-  appendTranstateIntoInputQ(pTask);
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t streamTryExec(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
   int8_t schedStatus =
