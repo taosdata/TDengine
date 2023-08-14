@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ANCHOR: connect
-import taosrest
+import taosws
 import os
 
 url = os.environ["TDENGINE_CLOUD_URL"]
