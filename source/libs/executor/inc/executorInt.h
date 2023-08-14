@@ -456,7 +456,6 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pPullWins;  // SPullWindowInfo
   int32_t            pullIndex;
   SSDataBlock*       pPullDataRes;
-  bool               isFinal;
   SArray*            pChildren;
   int32_t            numOfChild;
   SStreamState*      pState;        // void
@@ -507,7 +506,6 @@ typedef struct SStreamSessionAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result; final stream operator
   SPhysiNode*         pPhyNode;   // create new child
-  bool                isFinal;
   bool                ignoreExpiredData;
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
