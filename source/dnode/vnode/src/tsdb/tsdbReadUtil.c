@@ -430,7 +430,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
     STableBlockScanInfo *pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
-    if (pTableScanInfo->pBlockIdxList = NULL) {
+    if (pTableScanInfo->pBlockIdxList == NULL) {
       size_t szTableDataBlocks = taosArrayGetSize(pTableScanInfo->pBlockList);
       pTableScanInfo->pBlockIdxList = taosArrayInit(szTableDataBlocks, sizeof(STableDataBlockIdx));
     }
