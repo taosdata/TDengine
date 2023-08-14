@@ -122,6 +122,7 @@ typedef struct {
   int8_t type;
 
   int32_t srcVgId;
+  int32_t srcTaskId;
   int32_t childId;
   int64_t sourceVer;
   int64_t reqId;
@@ -251,6 +252,7 @@ typedef struct SStreamChildEpInfo {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
+  int8_t  dataAllowed;
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
@@ -272,6 +274,7 @@ typedef struct SStreamStatus {
   int8_t schedStatus;
   int8_t keepTaskStatus;
   bool   transferState;
+  bool   appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
   int8_t timerActive;   // timer is active
   int8_t pauseAllowed;  // allowed task status to be set to be paused
 } SStreamStatus;
@@ -399,8 +402,9 @@ typedef struct {
 
 typedef struct {
   int64_t streamId;
+  int32_t type;
   int32_t taskId;
-  int32_t dataSrcVgId;
+  int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
@@ -570,8 +574,6 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
 void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
 
-int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId, int32_t numOfBlocks,
-                               int64_t dstTaskId);
 void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
@@ -579,6 +581,8 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
+void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
+void streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 
@@ -626,7 +630,7 @@ int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* p
 int32_t streamSourceScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
-int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
+int32_t appendTranstateIntoInputQ(SStreamTask* pTask);
 
 // agg level
 int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask);

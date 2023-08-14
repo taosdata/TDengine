@@ -36,7 +36,7 @@ class TDTestCase:
         # tdDnodes[1].cfgDir
         
         cfgFile = f"%s/taos.cfg"%(cfgDir)
-        shellCmd = 'echo "tmqMaxTopicNum    %d" >> %s'%(tmqMaxTopicNum, cfgFile)
+        shellCmd = 'echo tmqMaxTopicNum    %d >> %s'%(tmqMaxTopicNum, cfgFile)
         tdLog.info(" shell cmd: %s"%(shellCmd))
         os.system(shellCmd)       
         tdDnodes.stoptaosd(1)
