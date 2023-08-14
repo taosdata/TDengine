@@ -387,7 +387,9 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
   // since there is only one table qualified, blocks are not sorted
   if (sup.numOfTables == 1) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, 0);
-    taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
+    if (pTableScanInfo->pBlockIdxList == NULL) {
+      pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
+    }
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[0][i].uid, .tbBlockIdx = i};
       blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
