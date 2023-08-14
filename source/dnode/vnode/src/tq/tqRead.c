@@ -1088,6 +1088,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         if(ret != TDB_CODE_SUCCESS) {
           tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey, pTqHandle->consumerId);
           taosArrayDestroy(list);
+          taosHashCancelIterate(pTq->pHandle, pIter);
           return ret;
         }
         tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
