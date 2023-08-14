@@ -331,10 +331,9 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData);
 int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateWriter** ppWriter);
 int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback);
 int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData);
-int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, char* path, int64_t chkpId);
+int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId);
 
 int32_t streamStateLoadTasks(SStreamStateWriter* pWriter);
-
 
 // SStreamTaskReader ======================================
 // SStreamStateWriter =====================================
