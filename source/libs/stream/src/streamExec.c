@@ -548,7 +548,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       }
     } else {
-      qDebug("s-task:%d sink task does not transfer state", id);
+      qDebug("s-task:%s sink task does not transfer state", id);
     }
   }
 
