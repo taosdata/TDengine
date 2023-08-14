@@ -184,70 +184,63 @@ end:
   return tbSuid == realTbSuid;
 }
 
-int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead, uint64_t reqId) {
-  int32_t code = 0;
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId) {
+  int32_t code = -1;
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
+  int64_t lastVer = walGetLastVer(pHandle->pWalReader->pWal);
+  int64_t committedVer = walGetCommittedVer(pHandle->pWalReader->pWal);
+  int64_t appliedVer = walGetAppliedVer(pHandle->pWalReader->pWal);
 
-  while (1) {
-    if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
+  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64 ", applied index:%" PRId64,
+         vgId, offset, lastVer, committedVer, appliedVer);
+
+  while (offset <= appliedVer) {
+    if (walFetchHead(pHandle->pWalReader, offset) < 0) {
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
               ", no more log to return, reqId:0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId);
-      *fetchOffset = offset;
-      code = -1;
       goto END;
     }
 
     tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, reqId:0x%" PRIx64, vgId,
-            pHandle->consumerId, offset, TMSG_INFO((*ppCkHead)->head.msgType), reqId);
+            pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId);
 
-    if ((*ppCkHead)->head.msgType == TDMT_VND_SUBMIT) {
-      code = walFetchBody(pHandle->pWalReader, ppCkHead);
-
-      if (code < 0) {
-        *fetchOffset = offset;
-        code = -1;
-        goto END;
-      }
-      *fetchOffset = offset;
-      code = 0;
+    if (pHandle->pWalReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
+      code = walFetchBody(pHandle->pWalReader);
       goto END;
     } else {
       if (pHandle->fetchMeta != WITH_DATA) {
-        SWalCont* pHead = &((*ppCkHead)->head);
+        SWalCont* pHead = &(pHandle->pWalReader->pHead->head);
         if (IS_META_MSG(pHead->msgType) && !(pHead->msgType == TDMT_VND_DELETE && pHandle->fetchMeta == ONLY_META)) {
-          code = walFetchBody(pHandle->pWalReader, ppCkHead);
+          code = walFetchBody(pHandle->pWalReader);
           if (code < 0) {
-            *fetchOffset = offset;
-            code = -1;
             goto END;
           }
 
+          pHead = &(pHandle->pWalReader->pHead->head);
           if (isValValidForTable(pHandle, pHead)) {
-            *fetchOffset = offset;
             code = 0;
             goto END;
           } else {
             offset++;
+            code = -1;
             continue;
           }
         }
       }
-      code = walSkipFetchBody(pHandle->pWalReader, *ppCkHead);
+      code = walSkipFetchBody(pHandle->pWalReader);
       if (code < 0) {
-        *fetchOffset = offset;
-        code = -1;
         goto END;
       }
       offset++;
     }
+    code = -1;
   }
 
 END:
-  taosThreadMutexUnlock(&pHandle->pWalReader->mutex);
+  *fetchOffset = offset;
   return code;
 }
 
