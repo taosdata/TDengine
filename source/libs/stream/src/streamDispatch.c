@@ -731,7 +731,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     // happened too fast.
     // todo handle the shuffle dispatch failure
     if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) { // destination task does not exist, not retry anymore
-      qWarn("s-task:%s failed to dispatch msg to task:0x%x, no retry, since it is destroyed already", id);
+      qWarn("s-task:%s failed to dispatch msg to task:0x%x, no retry, since it is destroyed already", id, pRsp->downstreamTaskId);
     } else {
       qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", id, pRsp->downstreamTaskId,
              tstrerror(code), ++pTask->msgInfo.retryCount);
