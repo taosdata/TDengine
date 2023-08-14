@@ -684,11 +684,12 @@
           :echoData="echoData"
           ref="csvdata"
           :dbName="dbName"
+          @handleDbBtn="handleDbBtn"
         ></CsvData>
       </section>
       <section class="choose-db">
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
-        <el-select v-model="dbname" placeholder="">
+        <el-select v-model="dbname" placeholder="" style="margin-right: 8px;">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -696,6 +697,9 @@
             :value="db.name"
           ></el-option>
         </el-select>
+        <el-button size="medium" type="primary" plain  @click="handleDbBtn">
+          {{ $t('data.createDatabase') }}
+        </el-button>
       </section>
       <section class="bottom">
         <el-button @click="cancel" class="cancel-btn">{{
@@ -714,6 +718,7 @@
         :subfield="false"
       />
     </div>
+    <DialogCreateDb></DialogCreateDb>
   </div>
 </template>
 <script>
@@ -728,6 +733,7 @@ import { validPath } from "@/utils/validate";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
+import DialogCreateDb from '../components/addDbDialog.vue';
 export default {
   name: "DbSourceUI",
   components: {
@@ -735,6 +741,7 @@ export default {
     MqttConnector,
     opcConnector,
     CsvData,
+    DialogCreateDb
   },
   props: {
     echoData: {
@@ -976,8 +983,15 @@ export default {
         if (this.tagName == "kafka") {
           this.getdbprecision();
         }
-      },
+      }
     },
+    "$store.state.dbs.dialogDbVisible": {
+      handler(val) {
+        if (!val) {
+          this.getDatabases()
+        }
+      }
+    }
   },
   methods: {
     //处理空值和‘undefined’字符值
@@ -1618,6 +1632,12 @@ export default {
       this.$parent.currentName = "dbsource";
     },
 
+    handleDbBtn() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
+      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
+    },
+
     handleClick(tab, event) {
       this.isShowConfiguration = false;
       this.configurationdata = [];
@@ -1967,6 +1987,15 @@ export default {
         }
       }
     }
+    :deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 38px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  }
   }
   .right-ui {
     margin-left: 20px;
@@ -1983,15 +2012,6 @@ export default {
     color: #acaab2;
     margin-bottom: 0px !important;
     white-space: normal !important;
-  }
-  :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 38px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
   }
 
   .target {
