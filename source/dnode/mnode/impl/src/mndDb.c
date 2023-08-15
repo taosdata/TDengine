@@ -668,7 +668,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 #ifdef WINDOWS
   if (taosArrayGetSize(createReq.pRetensions) > 0) {
-    code = TSDB_CODE_PAR_INVALID_PLATFORM;
+    terrno = TSDB_CODE_MND_INVALID_PLATFORM;
     goto _OVER;
   }
 #endif

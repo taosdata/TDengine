@@ -360,7 +360,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 #ifdef WINDOWS
-  terrno = TSDB_CODE_PAR_INVALID_PLATFORM;
+  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
 #endif
   mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);

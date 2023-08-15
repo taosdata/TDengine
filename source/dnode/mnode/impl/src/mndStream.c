@@ -693,7 +693,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 #ifdef WINDOWS
-  terrno = TSDB_CODE_PAR_INVALID_PLATFORM;
+  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
 #endif
   mInfo("stream:%s, start to create, sql:%s", createStreamReq.name, createStreamReq.sql);

@@ -151,6 +151,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         "Invalid query id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          "Invalid connection id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PLATFORM,         "Unsupported feature on this platform")
 
 // mnode-sdb
 TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_ALREADY_THERE,        "Object already there")
@@ -570,7 +571,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GET_META_ERROR,             "Fail to get table i
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,     "Not unique table/alias")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC,  "System table not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED,       "System table not allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PLATFORM,           "Unsupported feature on this platformXX")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
