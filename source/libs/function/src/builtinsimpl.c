@@ -5819,6 +5819,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     if (INT64_MIN == pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey = tsList[i];
+      pRateInfo->hasResult = 1;
       continue;
     }
 
@@ -5870,36 +5871,50 @@ static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
   return (duration > 0) ? ((double)diff) / (duration / tickPerSec) : 0.0;
 }
 
-static void irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput) {
+static void irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
   if (inputKey > pOutput->lastKey) {
-    pOutput->firstKey = pOutput->lastKey;
-    pOutput->lastKey  = pInput->firstKey;
+    pOutput->firstKey   = pOutput->lastKey;
+    pOutput->firstValue = pOutput->lastValue;
 
-    pOutput->firstValue = pOutput->lastValue;
-    pOutput->lastValue  = pInput->firstValue;
+    pOutput->lastKey    = isFirstKey ? pInput->firstKey : pInput->lastKey;
+    pOutput->lastValue  = isFirstKey ? pInput->firstValue : pInput->lastValue;
   } else if ((inputKey < pOutput->lastKey) && (inputKey > pOutput->firstKey)) {
-    pOutput->firstKey = pOutput->lastKey;
-    pOutput->firstValue = pOutput->lastValue;
+    pOutput->firstKey   = isFirstKey ? pInput->firstKey : pInput->lastKey;
+    pOutput->firstValue = isFirstKey ? pInput->firstValue : pInput->lastValue;
   } else {
     // inputKey < pOutput->firstKey
   }
 }
 
+static void irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
+  pOutput->firstKey = pInput->firstKey;
+  pOutput->lastKey  = pInput->lastKey;
+
+  pOutput->firstValue = pInput->firstValue;
+  pOutput->lastValue  = pInput->lastValue;
+}
+
 static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
-  pOutput->hasResult = pInput->hasResult;
   if (pInput->firstKey == pOutput->firstKey || pInput->firstKey == pOutput->lastKey ||
       pInput->lastKey  == pOutput->firstKey || pInput->lastKey  == pOutput->lastKey) {
     return TSDB_CODE_FUNC_DUP_TIMESTAMP;
   }
 
+  if (pOutput->hasResult == 0) {
+    irateCopyInfo(pInput, pOutput);
+    pOutput->hasResult = pInput->hasResult;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pInput->firstKey != INT64_MIN) {
-    irateTransferInfoImpl(pInput->firstKey, pInput, pOutput);
+    irateTransferInfoImpl(pInput->firstKey, pInput, pOutput, true);
   }
 
   if (pInput->lastKey != INT64_MIN) {
-    irateTransferInfoImpl(pInput->lastKey, pInput, pOutput);
+    irateTransferInfoImpl(pInput->lastKey, pInput, pOutput, false);
   }
 
+  pOutput->hasResult = pInput->hasResult;
   return TSDB_CODE_SUCCESS;
 }
 
