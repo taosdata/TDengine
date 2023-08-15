@@ -367,6 +367,9 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 }
 
 static int32_t setTagScanExecutionMode(SScanLogicNode* pScan) {
+  if (pScan->node.pConditions == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
   SNode* pCond = nodesCloneNode(pScan->node.pConditions);
   SNode* pTagCond = NULL;
   SNode* pTagIndexCond = NULL;
