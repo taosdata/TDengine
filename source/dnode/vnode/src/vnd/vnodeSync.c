@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tq.h"
 #include "vnd.h"
 
 #define BATCH_ENABLE 0
@@ -588,6 +589,9 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq);
+  }
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
 }
 

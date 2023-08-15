@@ -212,7 +212,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
            pTask->id.idStr, upstreamTaskId, vgId, stage, pInfo->stage);
   }
 
-  return ((pTask->status.downstreamReady == 1) && (pInfo->stage == upstreamTaskId))? 1:0;
+  return ((pTask->status.downstreamReady == 1) && (pInfo->stage == stage))? 1:0;
 }
 
 static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {

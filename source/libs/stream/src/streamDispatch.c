@@ -47,14 +47,38 @@ void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
   pMsg->contLen = contLen;
 }
 
+int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->stage) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->srcVgId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->type) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
+  ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
+  ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
+  for (int32_t i = 0; i < pReq->blockNum; i++) {
+    int32_t len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
+    void*   data = taosArrayGetP(pReq->data, i);
+    if (tEncodeI32(pEncoder, len) < 0) return -1;
+    if (tEncodeBinary(pEncoder, data, len) < 0) return -1;
+  }
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->stage) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->srcVgId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->type) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->type) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->srcVgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
@@ -581,30 +605,6 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->stage) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->srcVgId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->type) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
-  ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
-  ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
-  for (int32_t i = 0; i < pReq->blockNum; i++) {
-    int32_t len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
-    void*   data = taosArrayGetP(pReq->data, i);
-    if (tEncodeI32(pEncoder, len) < 0) return -1;
-    if (tEncodeBinary(pEncoder, data, len) < 0) return -1;
-  }
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
 int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
@@ -827,10 +827,15 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     // flag. here we need to retry dispatch this message to downstream task immediately. handle the case the failure
     // happened too fast.
     // todo handle the shuffle dispatch failure
-    qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
-           pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
-    int32_t ret = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
-    if (ret != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) { // no retry
+      qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, no retry", pTask->id.idStr,
+             pRsp->downstreamTaskId, tstrerror(code));
+    } else {
+      qError("s-task:%s failed to dispatch msg to task:0x%x, code:%s, retry cnt:%d", pTask->id.idStr,
+             pRsp->downstreamTaskId, tstrerror(code), ++pTask->msgInfo.retryCount);
+      int32_t ret = doDispatchAllBlocks(pTask, pTask->msgInfo.pData);
+      if (ret != TSDB_CODE_SUCCESS) {
+      }
     }
 
     return TSDB_CODE_SUCCESS;

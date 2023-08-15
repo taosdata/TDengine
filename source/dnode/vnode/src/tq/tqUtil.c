@@ -35,6 +35,11 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq) {
   return 0;
 }
 
+void tqUpdateNodeStage(STQ* pTq) {
+  SSyncState state = syncGetState(pTq->pVnode->sync);
+  pTq->pStreamMeta->stage = state.term;
+}
+
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, const SMqPollReq* pReq) {
   pRsp->reqOffset = pReq->reqOffset;
 

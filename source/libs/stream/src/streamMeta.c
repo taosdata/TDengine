@@ -124,7 +124,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
-  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64, vgId, chkpId);
+  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%"PRId64", stage:%" PRId64, vgId, chkpId, stage);
   return pMeta;
 
 _err:

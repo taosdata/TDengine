@@ -417,10 +417,10 @@ typedef struct {
 } SStreamTaskRunReq;
 
 typedef struct {
-  int64_t streamId;
-  int32_t taskId;
   int32_t type;
   int64_t stage; //nodeId from upstream task
+  int64_t streamId;
+  int32_t taskId;
   int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;

@@ -412,11 +412,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   // open tq
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
-  pVnode->pTq = tqOpen(tdir, pVnode);
-  if (pVnode->pTq == NULL) {
-    vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
 
   // open sma
   if (smaOpen(pVnode, rollback)) {
@@ -441,6 +436,12 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  pVnode->pTq = tqOpen(tdir, pVnode);
+  if (pVnode->pTq == NULL) {
+    vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 

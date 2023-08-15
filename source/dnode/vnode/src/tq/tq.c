@@ -128,8 +128,7 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  int64_t stage = tqGetNodeStage(pTq);
-  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId, stage);
+  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId, -1);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }
@@ -1531,7 +1530,8 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, taskId);
-    return TSDB_CODE_INVALID_MSG;
+    terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+    return terrno;
   }
 }
 
@@ -1929,9 +1929,4 @@ int32_t tqProcessTaskStopReq(STQ* pTq, SRpcMsg* pMsg) {
   streamMetaReleaseTask(pMeta, pTask);
   tmsgSendRsp(&rsp);
   return 0;
-}
-
-int64_t tqGetNodeStage(STQ* pTq) {
-  SSyncState state = syncGetState(pTq->pVnode->sync);
-  return state.term;
 }

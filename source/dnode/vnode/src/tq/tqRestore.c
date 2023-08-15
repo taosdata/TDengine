@@ -26,12 +26,6 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int64_t      st = taosGetTimestampMs();
 
-  // update the cached nodeId when reading data from WAL files.
-  int64_t nodeStage = tqGetNodeStage(pTq);
-  if (pMeta->stage != nodeStage) {
-    pMeta->stage = nodeStage;
-  }
-
   while (1) {
     int32_t scan = pMeta->walScanCounter;
     tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, scan);
