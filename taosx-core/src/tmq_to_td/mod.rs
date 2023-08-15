@@ -28,10 +28,18 @@ async fn write_data(
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let mut has_blocks = false;
     if target_is_v3 && actions.is_empty() {
-        let raw = data.as_raw_data().await?;
+        let raw = data
+            .as_raw_data()
+            .await
+            .context("Data source raw data error")?;
         taos.write_raw_meta(&unsafe { std::mem::transmute(raw) })
-            .await?;
-        while let Some(raw) = data.fetch_raw_block().await? {
+            .await
+            .context("Write raw data into target error")?;
+        while let Some(raw) = data
+            .fetch_raw_block()
+            .await
+            .context("Fetch raw block error")?
+        {
             *rows += raw.nrows();
             metrics
                 .blocks
@@ -46,7 +54,11 @@ async fn write_data(
         }
         return Ok(0);
     }
-    while let Some(mut raw) = data.fetch_raw_block().await? {
+    while let Some(mut raw) = data
+        .fetch_raw_block()
+        .await
+        .context("Fetch raw block error")?
+    {
         has_blocks = true;
         if let Some(name) = table {
             if actions.is_empty() {
@@ -116,7 +128,9 @@ async fn write_data(
                                 bail!("create table error: {err}");
                             }
                         };
-                        taos.write_raw_block(&raw).await?;
+                        taos.write_raw_block(&raw)
+                            .await
+                            .context("Write raw block into target error")?;
                     } else {
                         bail!(
                             "write table failed: {err}, with block: {}",
@@ -131,15 +145,18 @@ async fn write_data(
                 }
             };
         } else {
-            let mut stmt = Stmt::init(taos)?;
+            let mut stmt = Stmt::init(taos).context("Write with stmt init error")?;
             let fields = raw.fields();
             let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
             let table = raw.table_name().unwrap();
-            stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))?;
+            stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))
+                .context("Write with stmt prepare error")?;
 
-            stmt.bind(raw.column_views())?;
-            stmt.add_batch()?;
-            stmt.execute()?;
+            stmt.bind(raw.column_views())
+                .context("Write with stmt bind error")?;
+            stmt.add_batch()
+                .context("Write with stmt add_batch error")?;
+            stmt.execute().context("Write with stmt execute error")?;
         }
         metrics
             .blocks
@@ -167,7 +184,7 @@ async fn write_data(
                     {
                         log::warn!("[{id}] {errstr}");
                     } else {
-                        bail!("write raw meta error: {err}");
+                        bail!("write raw data error: {err}");
                     }
                 }
             } else {
