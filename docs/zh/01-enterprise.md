@@ -40,12 +40,12 @@ TDengine 中的权限管理分为用户管理、数据库授权管理以及消�
 创建用户的操作只能由 root 用户进行，语法如下
 
 ```sql
-CREATE USER use_name PASS 'password' [SYSINFO {1\|0}]; 
+CREATE USER user_name PASS 'password' [SYSINFO {1\|0}]; 
 ```
 
 说明：
 
--   use_name 最长为 23 字节。
+-   user_name 最长为 23 字节。
 -   password 最长为 128 字节，合法字符包括"a-zA-Z0-9!?\$%\^&\*()_–+={[}]:;@\~\#\|\<,\>.?/"，不可以出现单双引号、撇号、反斜杠和空格，且不可以为空。
 -   SYSINFO 表示用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息（如 DNODE、QNODE等）、存储相关的信息等。默认为可以查看系统信息。
 
@@ -132,7 +132,7 @@ GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type 
 GRANT privileges ON priv_level TO user_name  privileges : {  ALL  | priv_type [, priv_type] ... }   priv_type : {  SUBSCRIBE }   priv_level : {  topic_name } 
 ```
 
-#### 基于标签的授权
+#### 基于标签的授权（表级授权）
 
 从 TDengine 3.0.5.0 开始，我们支持按标签授权某个超级表中部分特定的子表。具体的 SQL 语法如下。
 
@@ -216,7 +216,7 @@ REVOKE privileges ON priv_level FROM user_name   privileges : {  ALL  \| priv_ty
 
 ### 数据重整
 
-TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存储会导致数据存储的放大或数据文件的空洞等。这一方面影响数据的存储效率，另一方面也会影响查询效率。为了解决上述问题，TDengine 企业版提供了对数据的重整功能，即 DATA COMPACT 功能，将存储的数据文件重新整理，删除文件空洞和无效数据，提高数据的组织度，从而提高存储和查询的效率。
+TDengine 面向多种写入场景，在有些写入场景下，TDengine 的存储会导致数据存储的放大或数据文件的空洞等。这一方面影响数据的存储效率，另一方面也会影响查询效率。为了解决上述问题，TDengine 企业版提供了对数据的重整功能，即 DATA COMPACT 功能，将存储的数据文件重新整理，删除文件空洞和无效数据，提高数据的组织度，从而提高存储和查询的效率。
 
 **语法**
 
@@ -278,6 +278,22 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 ```sql
 alter {dnode <dnode_id>|all dnodes} {'activeCode'|'cActiveCode'} ['value']；# 设置指定数据节点或全部数据节点的授权码。
 ```
+
 **注意**
 - activeCode 为 TDengine cluster 的授权码，其 value 的有效长度为：0 或 108；cActiveCode 为 TDengine connectors 的授权码，其 value 的有效长度为： 0 或 [108,254]。
 - 集群的授权信息是所有数据节点授权信息的并集：如果任意一项指标变大，则授权信息在 1 分钟内生效；如果授权指标减少，则在 1 小时内生效。集群授权信息通过 `show grants` 命令查看。
+
+### 虚拟组分裂
+
+当一个 vgroup 因为子表数过多而导致 CPU 或 Disk 资源使用量负载过高时，增加 dnode 节点后，可通过 `split vgroup` 命令把该 vgroup 分裂为两个虚拟组。分裂完成后，新产生的两个 vgroup 承担原来由一个 vgroup 提供的读写服务。
+
+```sql
+split vgroup <vgroup_id>
+```
+
+**注意**
+- 单副本库虚拟组，在分裂完成后，历史时序数据总磁盘空间使用量，可能会翻倍。所以，在执行该操作之前，通过增加 dnode 节点方式，确保集群中有足够的 CPU 和磁盘资源，避免资源不足现象发生。
+- 该命令为 DB 级事务；执行过程，当前DB的其它管理事务将会被拒绝。集群中，其它DB不受影响。
+- 分裂任务执行过程中，可持续提供读写服务；期间，可能存在可感知的短暂的读写业务中断。
+- 在分裂过程中，不支持流和订阅。分裂结束后，历史 WAL 会清空。
+- 分裂过程中，可支持节点宕机重启容错；但不支持节点磁盘故障容错。
