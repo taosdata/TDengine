@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sync.h"
 #include "tstream.h"
 #include "executor.h"
 #include "streamInt.h"
