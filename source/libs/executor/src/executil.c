@@ -2180,39 +2180,30 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
 char* getStreamOpName(uint16_t opType) {
   switch (opType) {
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return "stream scan";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL: {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return "project";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return "interval single";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
       return "interval final";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return "interval semi";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return "stream fill";
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return "session single";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
       return "session semi";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
       return "session final";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       return "state single";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       return "stream partitionby";
-    };
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       return "stream event";
-    };
   }
   return "";
 }
