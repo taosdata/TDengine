@@ -375,34 +375,32 @@ do
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
         #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
-        if [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]; then
-            if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
-                logger "INFO" "begin to check test db existed or not"
-                dbs=`taos -s "show databases;"`
-                if [ $? -eq 0 ]; then
-                    echo $dbs | grep -w -q -o "test"
-                    if [ $? -eq 1 ]; then
-                        logger "INFO" "check stable meters existed in test db or not"
-                        testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
-                        if [ $? -eq 0 ]; then
-                            echo $testStables | grep -q -w -o meters
-                            if [ $? -eq 1 ]; then
-                                taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y -Q
-                                taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
-                                TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                                logger "INFO" "taosBenchmark executed to generate test database"
-                            else 
-                                logger "INFO" "stable meters existed in test database"
-                            fi
+        if [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
+            logger "INFO" "begin to check test db existed or not"
+            dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
+            if [ $? -eq 0 ]; then
+                echo $dbs | grep -w -q -o "test"
+                if [ $? -eq 1 ]; then
+                    logger "INFO" "check stable meters existed in test db or not"
+                    testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
+                    if [ $? -eq 0 ]; then
+                        echo $testStables | grep -q -w -o meters
+                        if [ $? -eq 1 ]; then
+                            taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y -Q
+                            taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
+                            TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
+                            logger "INFO" "taosBenchmark executed to generate test database"
                         else 
-                            logger "ERROR" "failed to query meters stable from information_schema"
+                            logger "INFO" "stable meters existed in test database"
                         fi
-                    else
-                        logger "INFO" "$? test database found and no need to recreate again"
+                    else 
+                        logger "ERROR" "failed to query meters stable from information_schema"
                     fi
-                else 
-                    logger "ERROR" "failed to show all databases"
+                else
+                    logger "INFO" "$? test database found and no need to recreate again"
                 fi
+            else 
+                logger "ERROR" "failed to show all databases"
             fi
         fi
     fi
