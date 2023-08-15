@@ -1426,35 +1426,36 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
   int     nData = 0;
   int     lock = 0;
 
-  metaRLock(pMeta);
+  if (pReader && !(pReader->flags & META_READER_NOLOCK)) {
+    lock = 1;
+  }
+
+  if(!lock) metaRLock(pMeta);
 
   // search cache
   if (metaCacheGet(pMeta, uid, pInfo) == 0) {
-    metaULock(pMeta);
+    if(!lock) metaULock(pMeta);
     goto _exit;
   }
 
   // search TDB
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
     // not found
-    metaULock(pMeta);
+    if(!lock) metaULock(pMeta);
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 
-  metaULock(pMeta);
+  if(!lock) metaULock(pMeta);
 
   pInfo->uid = uid;
   pInfo->suid = ((SUidIdxVal *)pData)->suid;
   pInfo->version = ((SUidIdxVal *)pData)->version;
   pInfo->skmVer = ((SUidIdxVal *)pData)->skmVer;
 
-  if (pReader != NULL) {
-    lock = !(pReader->flags & META_READER_NOLOCK);
-    if (lock) {
-      metaULock(pReader->pMeta);
-      // metaReaderReleaseLock(pReader);
-    }
+  if (lock) {
+    metaULock(pReader->pMeta);
+    // metaReaderReleaseLock(pReader);
   }
   // upsert the cache
   metaWLock(pMeta);

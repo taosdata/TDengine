@@ -197,8 +197,10 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowDnodesStmt";
     case QUERY_NODE_SHOW_MNODES_STMT:
       return "ShowMnodesStmt";
+/*
     case QUERY_NODE_SHOW_MODULES_STMT:
       return "ShowModulesStmt";
+*/
     case QUERY_NODE_SHOW_QNODES_STMT:
       return "ShowQnodesStmt";
     case QUERY_NODE_SHOW_SNODES_STMT:

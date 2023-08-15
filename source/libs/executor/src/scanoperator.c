@@ -504,7 +504,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
-    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_NOLOCK, &pHandle->api.metaFn);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0, &pHandle->api.metaFn);
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
@@ -3181,8 +3181,9 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                               pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
-                                          
+
     tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
+    tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
   }
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
@@ -3202,7 +3203,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (numOfTable == 1) {
-    setSingleTableMerge(pInfo->pSortHandle);
+    tsortSetSingleTableMerge(pInfo->pSortHandle);
   } else {
     code = tsortOpen(pInfo->pSortHandle);
   }
