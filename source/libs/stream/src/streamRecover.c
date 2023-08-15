@@ -209,7 +209,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
 
   if (pInfo->stage < stage) {
     qError("s-task:%s receive msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64 ", prev:%" PRId64,
-           pTask->id.idStr, vgId, stage, pInfo->stage);
+           pTask->id.idStr, upstreamTaskId, vgId, stage, pInfo->stage);
   }
 
   return ((pTask->status.downstreamReady == 1) && (pInfo->stage == upstreamTaskId))? 1:0;
