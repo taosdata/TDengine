@@ -379,13 +379,13 @@ do
             logger "INFO" "begin to check test db existed or not"
             dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
             if [ $? -eq 0 ]; then
-                echo $dbs | grep -w -q -o "test"
-                if [ $? -eq 1 ]; then
+                testDB=`echo "$dbs" | grep -w -q -o "test"`
+                if [ "$testDB"x = ""x ]; then
                     logger "INFO" "check stable meters existed in test db or not"
                     testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
                     if [ $? -eq 0 ]; then
-                        echo $testStables | grep -q -w -o meters
-                        if [ $? -eq 1 ]; then
+                        testStable=`echo $testStables | grep -q -w -o meters`
+                        if [ "$testStable"x = ""x ]; then
                             taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y -Q
                             taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
                             TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
