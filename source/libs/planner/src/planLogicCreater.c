@@ -14,7 +14,7 @@
  */
 
 #include "planInt.h"
-
+#include "filter.h"
 #include "functionMgt.h"
 
 typedef struct SLogicPlanContext {
@@ -344,6 +344,45 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
 
 static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
 
+static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool tagScanNodeListHasTbname(SNodeList* pCols) {
+  bool hasTbname = false;
+  nodesWalkExprs(pCols, tagScanNodeHasTbnameFunc, &hasTbname);
+  return hasTbname;
+}
+
+static bool tagScanNodeHasTbname(SNode* pKeys) {
+  bool hasTbname = false;
+  nodesWalkExpr(pKeys, tagScanNodeHasTbnameFunc, &hasTbname);
+  return hasTbname;
+}
+
+static int32_t setTagScanOnlyMetaCtbIdx(SScanLogicNode* pScan) {
+  SNode* pCond = nodesCloneNode(pScan->node.pConditions);
+  SNode* pTagCond = NULL;
+  SNode* pTagIndexCond = NULL;
+  bool bOnlyMetaCtbIdx = false;
+  filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
+  if (pTagIndexCond || tagScanNodeListHasTbname(pScan->pScanPseudoCols) || tagScanNodeHasTbname(pTagCond)) {
+    bOnlyMetaCtbIdx = false;
+  } else {
+    bOnlyMetaCtbIdx = true;
+  }
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTagIndexCond);
+  nodesDestroyNode(pTagCond);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -409,6 +448,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
+  }
+
+  if (pSelect->tagScan) {
+    code = setTagScanOnlyMetaCtbIdx(pScan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

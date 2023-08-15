@@ -1013,7 +1013,7 @@ query_specification(A) ::=
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
   fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
                                                                                     A = createSelectStmt(pCxt, B, C, D);
-                                                                                    A = setSelectStmtTagMode(pCtxt, A, M);
+                                                                                    A = setSelectStmtTagMode(pCxt, A, M);
                                                                                     A = addWhereClause(pCxt, A, E);
                                                                                     A = addPartitionByClause(pCxt, A, F);
                                                                                     A = addWindowClauseClause(pCxt, A, G);
