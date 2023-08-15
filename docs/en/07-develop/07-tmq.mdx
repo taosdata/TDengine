@@ -23,7 +23,20 @@ By subscribing to a topic, a consumer can obtain the latest data in that topic i
 
 To implement these features, TDengine indexes its write-ahead log (WAL) file for fast random access and provides configurable methods for replacing and retaining this file. You can define a retention period and size for this file. For information, see the CREATE DATABASE statement. In this way, the WAL file is transformed into a persistent storage engine that remembers the order in which events occur. However, note that configuring an overly long retention period for your WAL files makes database compression inefficient. TDengine then uses the WAL file instead of the time-series database as its storage engine for queries in the form of topics. TDengine reads the data from the WAL file; uses a unified query engine instance to perform filtering, transformations, and other operations; and finally pushes the data to consumers.
 
-Tips: Data subscription is to consume data from the wal. If some wal files are deleted according to WAL retention policy, the deleted data can't be consumed any more. So you need to set a reasonable value for parameter `WAL_RETENTION_PERIOD` or `WAL_RETENTION_SIZE` when creating the database and make sure your application consume the data in a timely way to make sure there is no data loss. This behavior is similar to Kafka and other widely used message queue products.
+Tips:(c interface for example)
+1. A consumption group consumes all data under the same topic, and different consumption groups are independent of each other;
+2. A consumption group consumes all vgroups of the same topic, which can be composed of multiple consumers, but a vgroup is only consumed by one consumer. If the number of consumers exceeds the number of vgroups, the excess consumers do not consume data;
+3. On the server side, only one offset is saved for each vgroup, and the offsets for each vgroup are monotonically increasing, but not necessarily continuous. There is no correlation between the offsets of various vgroups;
+4. Each poll server will return a result block, which belongs to a vgroup and may contain data from multiple versions of wal. This block can be accessed through tmq_get_vgroup_offset. The offset interface obtains the offset of the first record in the block;
+5. If a consumer group has never committed an offset, when its member consumers restart and pull data again, they start consuming from the set value of the parameter auto.offset.reset; In a consumer lifecycle, the client locally records the offset of the most recent pull data and will not pull duplicate data;
+6. If a consumer terminates abnormally (without calling tmq_close), they need to wait for about 12 seconds to trigger their consumer group rebalance. The consumer's status on the server will change to LOST, and after about 1 day, the consumer will be automatically deleted; Exit normally, and after exiting, the consumer will be deleted; Add a new consumer, wait for about 2 seconds to trigger Rebalance, and the consumer's status on the server will change to ready;
+7. The consumer group Rebalance will reassign Vgroups to all consumer members in the ready state of the group, and consumers can only assign/see/commit/poll operations to the Vgroups they are responsible for;
+8. Consumers can tmq_position to obtain the offset of the current consumption, seek to the specified offset, and consume again;
+9. Seek points the position to the specified offset without executing the commit operation. Once the seek is successful, it can poll the specified offset and subsequent data;
+10. Before the seek operation, tmq must be call tmq_get_topic_assignment, The assignment interface obtains the vgroup ID and offset range of the consumer. The seek operation will detect whether the vgroup ID and offset are legal, and if they are illegal, an error will be reported;
+11. Due to the existence of a WAL expiration deletion mechanism, even if the seek operation is successful, it is possible that the offset has expired when polling data. If the offset of poll is less than the WAL minimum version number, it will be consumed from the WAL minimum version number;
+12. The tmq_get_vgroup_offset interface obtains the offset of the first data in the result block where the record is located. When seeking to this offset, it will consume all the data in this block. Refer to point four;
+13. Data subscription is to consume data from the wal. If some wal files are deleted according to WAL retention policy, the deleted data can't be consumed any more. So you need to set a reasonable value for parameter `WAL_RETENTION_PERIOD` or `WAL_RETENTION_SIZE` when creating the database and make sure your application consume the data in a timely way to make sure there is no data loss. This behavior is similar to Kafka and other widely used message queue products.
 
 ## Data Schema and API
 
@@ -33,39 +46,58 @@ The related schemas and APIs in various languages are described as follows:
 <TabItem value="c" label="C">
 
 ```c
-typedef struct tmq_t      tmq_t;
-typedef struct tmq_conf_t tmq_conf_t;
-typedef struct tmq_list_t tmq_list_t;
+    typedef struct tmq_t      tmq_t;
+    typedef struct tmq_conf_t tmq_conf_t;
+    typedef struct tmq_list_t tmq_list_t;
 
-typedef void(tmq_commit_cb(tmq_t *, int32_t code, void *param));
+    typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
-DLL_EXPORT tmq_list_t *tmq_list_new();
-DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
-DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
-DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
-DLL_EXPORT const char *tmq_err2str(int32_t code);
+    typedef enum tmq_conf_res_t {
+    TMQ_CONF_UNKNOWN = -2,
+    TMQ_CONF_INVALID = -1,
+    TMQ_CONF_OK = 0,
+} tmq_conf_res_t;
 
-DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
-DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
-DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
-DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
-DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
-DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
+    typedef struct tmq_topic_assignment {
+    int32_t vgId;
+    int64_t currentOffset;
+    int64_t begin;
+    int64_t end;
+} tmq_topic_assignment;
 
-enum tmq_conf_res_t {
-  TMQ_CONF_UNKNOWN = -2,
-  TMQ_CONF_INVALID = -1,
-  TMQ_CONF_OK = 0,
-};
-typedef enum tmq_conf_res_t tmq_conf_res_t;
+    DLL_EXPORT tmq_conf_t    *tmq_conf_new();
+    DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
+    DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
+    DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 
-DLL_EXPORT tmq_conf_t    *tmq_conf_new();
-DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
-DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
-DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT tmq_list_t *tmq_list_new();
+    DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
+    DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
+    DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
+    DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
+
+    DLL_EXPORT tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+    DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
+    DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
+    DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
+    DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
+    DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
+    DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
+    DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+    DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,int32_t *numOfAssignment);
+    DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
+    DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+    DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);
+    DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
+
+    DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
+    DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
+    DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
+    DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
+    DLL_EXPORT const char *tmq_err2str(int32_t code);DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 ```
-
-For more information, see [C/C++ Connector](/reference/connector/cpp).
 
 The following example is based on the smart meter table described in Data Models. For complete sample code, see the C language section below.
 
