@@ -1630,28 +1630,8 @@ static const char* jkTagScanPhysiOnlyMetaCtbIdx = "OnlyMetaCtbIdx";
 static int32_t physiTagScanNodeToJson(const void* pObj, SJson* pJson) {
   const STagScanPhysiNode* pNode = (const STagScanPhysiNode*)pObj;
 
-  int32_t code = physicPlanNodeToJson(pObj, pJson);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkScanPhysiPlanScanCols, pNode->pScanCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkScanPhysiPlanScanPseudoCols, pNode->pScanPseudoCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanTableId, pNode->uid);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanSTableId, pNode->suid);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanTableType, pNode->tableType);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkScanPhysiPlanTableName, nameToJson, &pNode->tableName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkScanPhysiPlanGroupOrderScan, pNode->groupOrderScan);
-  }
+  int32_t code = physiScanNodeToJson(pObj, pJson);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkTagScanPhysiOnlyMetaCtbIdx, pNode->onlyMetaCtbIdx);
   }
@@ -1661,28 +1641,8 @@ static int32_t physiTagScanNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToPhysiTagScanNode(const SJson* pJson, void* pObj) {
   STagScanPhysiNode* pNode = (STagScanPhysiNode*)pObj;
 
-  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkScanPhysiPlanScanCols, &pNode->pScanCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkScanPhysiPlanScanPseudoCols, &pNode->pScanPseudoCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUBigIntValue(pJson, jkScanPhysiPlanTableId, &pNode->uid);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUBigIntValue(pJson, jkScanPhysiPlanSTableId, &pNode->suid);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkScanPhysiPlanTableType, &pNode->tableType);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonToObject(pJson, jkScanPhysiPlanTableName, jsonToName, &pNode->tableName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkScanPhysiPlanGroupOrderScan, &pNode->groupOrderScan);
-  }
+  int32_t code = jsonToPhysiScanNode(pObj, pJson);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTagScanPhysiOnlyMetaCtbIdx, &pNode->onlyMetaCtbIdx);
   }

@@ -251,6 +251,12 @@ typedef struct STableMergeScanInfo {
   SSortExecInfo   sortExecInfo;
 } STableMergeScanInfo;
 
+typedef struct STagScanFilterContext {
+  SHashObj* colHash;
+  int32_t   index;
+  SArray*   cInfoList;
+} STagScanFilterContext;
+
 typedef struct STagScanInfo {
   SColumnInfo*    pCols;
   SSDataBlock*    pRes;
@@ -263,6 +269,7 @@ typedef struct STagScanInfo {
   void*           pCtbCursor;
   SNode*          pTagCond;
   SNode*          pTagIndexCond;
+  STagScanFilterContext filterCtx;
   SArray*         aUidTags; // SArray<STUidTagInfo>
   SArray*         aFilterIdxs; // SArray<int32_t>
   SStorageAPI*    pStorageAPI;

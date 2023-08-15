@@ -2004,42 +2004,15 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum {
-  PHY_TAG_SCAN_CODE_BASE_NODE = 1,
-  PHY_TAG_SCAN_CODE_SCAN_COLS,
-  PHY_TAG_SCAN_CODE_SCAN_PSEUDO_COLS,
-  PHY_TAG_SCAN_CODE_BASE_UID,
-  PHY_TAG_SCAN_CODE_BASE_SUID,
-  PHY_TAG_SCAN_CODE_BASE_TABLE_TYPE,
-  PHY_TAG_SCAN_CODE_BASE_TABLE_NAME,
-  PHY_TAG_SCAN_CODE_BASE_GROUP_ORDER_SCAN,
+  PHY_TAG_SCAN_CODE_SCAN = 1,
   PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX
 };
 
 static int32_t physiTagScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const STagScanPhysiNode* pNode = (const STagScanPhysiNode*)pObj;
 
-  int32_t code = tlvEncodeObj(pEncoder, PHY_TAG_SCAN_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_TAG_SCAN_CODE_SCAN_COLS, nodeListToMsg, pNode->pScanCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_TAG_SCAN_CODE_SCAN_PSEUDO_COLS, nodeListToMsg, pNode->pScanPseudoCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeU64(pEncoder, PHY_TAG_SCAN_CODE_BASE_UID, pNode->uid);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeU64(pEncoder, PHY_TAG_SCAN_CODE_BASE_SUID, pNode->suid);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_TAG_SCAN_CODE_BASE_TABLE_TYPE, pNode->tableType);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_TAG_SCAN_CODE_BASE_TABLE_NAME, nameToMsg, &pNode->tableName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeBool(pEncoder, PHY_TAG_SCAN_CODE_BASE_GROUP_ORDER_SCAN, pNode->groupOrderScan);
-  }
+  int32_t code = tlvEncodeObj(pEncoder, PHY_TAG_SCAN_CODE_SCAN, physiScanNodeToMsg, &pNode->scan);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX, pNode->onlyMetaCtbIdx);
   }
@@ -2053,29 +2026,8 @@ static int32_t msgToPhysiTagScanNode(STlvDecoder* pDecoder, void* pObj) {
   STlv*   pTlv = NULL;
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
-      case PHY_TAG_SCAN_CODE_BASE_NODE:
-        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
-        break;
-      case PHY_TAG_SCAN_CODE_SCAN_COLS:
-        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanCols);
-        break;
-      case PHY_TAG_SCAN_CODE_SCAN_PSEUDO_COLS:
-        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanPseudoCols);
-        break;
-      case PHY_TAG_SCAN_CODE_BASE_UID:
-        code = tlvDecodeU64(pTlv, &pNode->uid);
-        break;
-      case PHY_TAG_SCAN_CODE_BASE_SUID:
-        code = tlvDecodeU64(pTlv, &pNode->suid);
-        break;
-      case PHY_TAG_SCAN_CODE_BASE_TABLE_TYPE:
-        code = tlvDecodeI8(pTlv, &pNode->tableType);
-        break;
-      case PHY_TAG_SCAN_CODE_BASE_TABLE_NAME:
-        code = tlvDecodeObjFromTlv(pTlv, msgToName, &pNode->tableName);
-        break;
-      case PHY_TAG_SCAN_CODE_BASE_GROUP_ORDER_SCAN:
-        code = tlvDecodeBool(pTlv, &pNode->groupOrderScan);
+      case PHY_TAG_SCAN_CODE_SCAN:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiScanNode, &pNode->scan);
         break;
       case PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX:
         code = tlvDecodeBool(pTlv, &pNode->onlyMetaCtbIdx);

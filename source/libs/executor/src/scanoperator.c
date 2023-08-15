@@ -2719,12 +2719,6 @@ static int32_t tagScanCreateResultData(SDataType* pType, int32_t numOfRows, SSca
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct STagScanFilterContext {
-  SHashObj* colHash;
-  int32_t   index;
-  SArray*   cInfoList;
-} STagScanFilterContext;
-
 static EDealRes tagScanRewriteTagColumn(SNode** pNode, void* pContext) {
   SColumnNode* pSColumnNode = NULL;
   if (QUERY_NODE_COLUMN == nodeType((*pNode))) {
@@ -2767,17 +2761,11 @@ static EDealRes tagScanRewriteTagColumn(SNode** pNode, void* pContext) {
 }
 
 
-static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aFilterIdxs, void* pVnode, SStorageAPI* pAPI) {
+static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aFilterIdxs, void* pVnode, SStorageAPI* pAPI, STagScanInfo* pInfo) {
   int32_t code = 0;
   int32_t numOfTables = taosArrayGetSize(aUidTags);
 
-  STagScanFilterContext ctx = {0};
-  ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
-  ctx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
-
-  nodesRewriteExprPostOrder(&pTagCond, tagScanRewriteTagColumn, (void*)&ctx);
-
-  SSDataBlock* pResBlock = createTagValBlockForFilter(ctx.cInfoList, numOfTables, aUidTags, pVnode, pAPI);
+  SSDataBlock* pResBlock = createTagValBlockForFilter(pInfo->filterCtx.cInfoList, numOfTables, aUidTags, pVnode, pAPI);
 
   SArray* pBlockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(pBlockList, &pResBlock);
@@ -2801,8 +2789,7 @@ static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aF
   blockDataDestroy(pResBlock);
   taosArrayDestroy(pBlockList);
 
-  taosHashCleanup(ctx.colHash);
-  taosArrayDestroy(ctx.cInfoList);
+
 }
 
 static void tagScanFillOneCellWithTag(const STUidTagInfo* pUidTagInfo, SExprInfo* pExprInfo, SColumnInfoData* pColInfo, int rowIndex, const SStorageAPI* pAPI, void* pVnode) {
@@ -2911,7 +2898,7 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
     bool ignoreFilterIdx = true;
     if (pInfo->pTagCond != NULL) {
       ignoreFilterIdx = false;
-      tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI);
+      tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI, pInfo);
     } else {
       ignoreFilterIdx = true;
     }
@@ -2991,7 +2978,8 @@ static void destroyTagScanOperatorInfo(void* param) {
   if (pInfo->pCtbCursor != NULL) {
     pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor, 1);
   }
-
+  taosHashCleanup(pInfo->filterCtx.colHash);
+  taosArrayDestroy(pInfo->filterCtx.cInfoList);
   taosArrayDestroy(pInfo->aFilterIdxs);
   taosArrayDestroyEx(pInfo->aUidTags, tagScanFreeUidTag);
 
@@ -3001,8 +2989,9 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
+SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pTagScanNode,
                                          STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo) {
+  SScanPhysiNode* pPhyNode = (STagScanPhysiNode*)pTagScanNode;
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -3040,11 +3029,16 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
-  if (pPhyNode->onlyMetaCtbIdx) {
+  if (pTagScanNode->onlyMetaCtbIdx) {
     pInfo->aUidTags = taosArrayInit(pOperator->resultInfo.capacity, sizeof(STUidTagInfo));
     pInfo->aFilterIdxs = taosArrayInit(pOperator->resultInfo.capacity, sizeof(int32_t));
+    pInfo->filterCtx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+    pInfo->filterCtx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
+    if (pInfo->pTagCond != NULL) {
+      nodesRewriteExprPostOrder(&pTagCond, tagScanRewriteTagColumn, (void*)&pInfo->filterCtx);
+    }
   }
-  __optr_fn_t tagScanNextFn = (pPhyNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdx : doTagScanFromMetaEntry;
+  __optr_fn_t tagScanNextFn = (pTagScanNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdx : doTagScanFromMetaEntry;
   pOperator->fpSet =
       createOperatorFpSet(optrDummyOpenFn, tagScanNextFn, NULL, destroyTagScanOperatorInfo, optrDefaultBufFn, NULL);
 

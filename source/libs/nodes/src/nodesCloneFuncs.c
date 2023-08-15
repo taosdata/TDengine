@@ -564,14 +564,7 @@ static int32_t physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
 }
 
 static int32_t physiTagScanCopy(const STagScanPhysiNode* pSrc, STagScanPhysiNode* pDst) {
-  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
-  CLONE_NODE_LIST_FIELD(pScanCols);
-  CLONE_NODE_LIST_FIELD(pScanPseudoCols);
-  COPY_SCALAR_FIELD(uid);
-  COPY_SCALAR_FIELD(suid);
-  COPY_SCALAR_FIELD(tableType);
-  COPY_OBJECT_FIELD(tableName, sizeof(SName));
-  COPY_SCALAR_FIELD(groupOrderScan);
+  COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_SCALAR_FIELD(onlyMetaCtbIdx);
   return TSDB_CODE_SUCCESS;
 }
