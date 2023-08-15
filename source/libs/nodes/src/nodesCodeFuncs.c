@@ -1641,7 +1641,7 @@ static int32_t physiTagScanNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToPhysiTagScanNode(const SJson* pJson, void* pObj) {
   STagScanPhysiNode* pNode = (STagScanPhysiNode*)pObj;
 
-  int32_t code = jsonToPhysiScanNode(pObj, pJson);
+  int32_t code = jsonToPhysiScanNode(pJson, pObj);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTagScanPhysiOnlyMetaCtbIdx, &pNode->onlyMetaCtbIdx);
