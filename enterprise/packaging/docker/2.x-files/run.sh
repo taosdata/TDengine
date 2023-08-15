@@ -374,7 +374,7 @@ do
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
-        logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
+        #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
         if [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]; then
             if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
                 logger "INFO" "begin to check test db existed or not"
