@@ -212,19 +212,20 @@ static int32_t evictFileCompareAsce(const void *pLeft, const void *pRight) {
 
 void s3EvictCache(const char *path, long object_size) {
   SDiskSize disk_size = {0};
-  if (taosGetDiskSize((char *)path, &disk_size) < 0) {
+  char      dir_name[TSDB_FILENAME_LEN] = "\0";
+
+  tstrncpy(dir_name, path, TSDB_FILENAME_LEN);
+  taosDirName(dir_name);
+
+  if (taosGetDiskSize((char *)dir_name, &disk_size) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     vError("failed to get disk:%s size since %s", path, terrstr());
     return;
   }
 
-  if (object_size >= disk_size.avail + 1 << 30) {
+  if (object_size >= disk_size.avail - (1 << 30)) {
     // evict too old files
     // 1, list data files' atime under dir(path)
-    char dir_name[TSDB_FILENAME_LEN] = "\0";
-    tstrncpy(dir_name, path, TSDB_FILENAME_LEN);
-    taosDirName(dir_name);
-
     tdbDirPtr pDir = taosOpenDir(dir_name);
     if (pDir == NULL) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -236,9 +237,14 @@ void s3EvictCache(const char *path, long object_size) {
       char *name = taosGetDirEntryName(pDirEntry);
       if (!strncmp(name + strlen(name) - 5, ".data", 5)) {
         SEvictFile e_file = {0};
+        char       entry_name[TSDB_FILENAME_LEN] = "\0";
+        int        dir_len = strlen(dir_name);
 
-        tstrncpy(e_file.name, name, TSDB_FILENAME_LEN);
-        taosStatFile(name, &e_file.size, NULL, &e_file.atime);
+        memcpy(e_file.name, dir_name, dir_len);
+        e_file.name[dir_len] = '/';
+        memcpy(e_file.name + dir_len + 1, name, strlen(name));
+
+        taosStatFile(e_file.name, &e_file.size, NULL, &e_file.atime);
 
         taosArrayPush(evict_files, &e_file);
       }
