@@ -2389,6 +2389,9 @@ typedef struct {
   int8_t  type;
   int8_t  flags;
   int32_t bytes;
+  bool    hasColComment;
+  char*   colComment;
+  int32_t colCommentLen;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
   int8_t  colModType;

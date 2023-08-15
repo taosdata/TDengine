@@ -214,6 +214,7 @@ typedef struct SAlterTableStmt {
   char           newColName[TSDB_COL_NAME_LEN];
   STableOptions* pOptions;
   SDataType      dataType;
+  char           colComment[TSDB_COL_COMMENT_LEN];
   SValueNode*    pVal;
 } SAlterTableStmt;
 

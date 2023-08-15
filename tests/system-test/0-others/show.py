@@ -215,12 +215,51 @@ class TDTestCase:
         tdSql.execute("use comment_test_db")
         tdSql.execute("create table normal_table(ts timestamp, c2 int comment 'c2 comment')")
         tdSql.execute("create stable super_table(ts timestamp comment 'ts', c2 int comment 'c2 comment') tags(tg int comment 'tg comment')")
-        tdSql.query('show create table normal_table')
+
         create_sql = "create table `normal_table` (`ts` timestamp, `c2` int)"
+        tdSql.query('show create table normal_table')
         tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
         tdSql.query('show create table super_table')
         create_sql = "create stable `super_table` (`ts` timestamp, `c2` int) tags (`tg` int)"
         tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+        tdSql.execute("drop database comment_test_db")
+
+    def alter_table_with_col_comment(self):
+        tdSql.execute("create database comment_test_db")
+        tdSql.execute("use comment_test_db")
+        tdSql.execute("create table normal_table(ts timestamp, c2 int comment 'c2 comment')")
+        tdSql.execute("create stable super_table(ts timestamp comment 'ts', c2 int comment 'c2 comment') tags(tg int comment 'tg comment')")
+
+        create_sql = "create table `normal_table` (`ts` timestamp, `c2` int, `c3` int)"
+        tdSql.execute("alter table normal_table add column c3 int comment 'c3 comment'", queryTimes=1)
+        tdSql.query("show create table normal_table")
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
+        create_sql = "create table `normal_table` (`ts` timestamp, `c2` int, `c3` int, `c4` varchar(255))"
+        tdSql.execute("alter table normal_table add column c4 varchar(255) comment 'c4 comment'", queryTimes=1)
+        tdSql.query("show create table normal_table")
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
+        create_sql = "create table `normal_table` (`ts` timestamp, `c2` int, `c3` int, `c4` varchar(255), `c5` varchar(255))"
+        tdSql.execute("alter table normal_table add column c5 varchar(255)", queryTimes=1)
+        tdSql.query("show create table normal_table")
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
+        create_sql = "create stable `super_table` (`ts` timestamp, `c2` int, `c3` int) tags (`tg` int) sma(`ts`,`c2`)"
+        tdSql.execute("alter table super_table add column c3 int comment 'c3 comment'", queryTimes=1)
+        tdSql.query("show create table super_table")
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
+        create_sql = "create stable `super_table` (`ts` timestamp, `c2` int, `c3` int, `c4` varchar(255)) tags (`tg` int) sma(`ts`,`c2`)"
+        tdSql.execute("alter table super_table add column c4 varchar(255) comment 'c4 comment'", queryTimes=1)
+        tdSql.query("show create table super_table")
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
+        create_sql = "create stable `super_table` (`ts` timestamp, `c2` int, `c3` int, `c4` varchar(256)) tags (`tg` int) sma(`ts`,`c2`)"
+        tdSql.execute("alter table super_table modify column c4 varchar(256) comment 'c4 256 comment'", queryTimes=1)
+        tdSql.query("show create table super_table")
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+        tdSql.execute("drop database comment_test_db")
 
     def run(self):
         self.check_gitinfo()
@@ -231,6 +270,7 @@ class TDTestCase:
         self.show_create_sysdb_sql()
         self.show_create_systb_sql()
         self.show_create_table_with_col_comment()
+        self.alter_table_with_col_comment()
 
     def stop(self):
         tdSql.close()

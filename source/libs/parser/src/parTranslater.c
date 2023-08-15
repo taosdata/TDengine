@@ -8863,6 +8863,15 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
+  if (pStmt->colComment[0]) {
+    pReq->colComment = taosStrdup(pStmt->colComment);
+    if (pReq->colComment == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pReq->colCommentLen = strlen(pReq->colComment);
+  } else {
+    pReq->colCommentLen = -1;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8913,6 +8922,15 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pReq->colId = pSchema->colId;
+  if (pStmt->colComment[0]) {
+    pReq->colComment = taosStrdup(pStmt->colComment);
+    if (pReq->colComment == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pReq->colCommentLen = strlen(pReq->colComment);
+  } else {
+    pReq->colCommentLen = -1;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
