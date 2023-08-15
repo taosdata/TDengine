@@ -696,8 +696,8 @@ int8_t mndCheckIndexNameByTagName(SMnode *pMnode, SIdxObj *pIdxObj) {
       continue;
     }
     if (strncmp(pIdxObj->colName, pIdx->colName, TSDB_COL_NAME_LEN) == 0) {
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pIdx);
-      sdbCancelFetch(pSdb, pIdx);
       exist = 1;
       break;
     }
@@ -854,8 +854,8 @@ int32_t mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
 
     if (pIdx->stbUid == pStb->uid) {
       if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
+        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pIdx);
-        sdbCancelFetch(pSdb, pIdx);
         return -1;
       }
     }
