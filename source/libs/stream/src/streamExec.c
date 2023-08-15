@@ -415,11 +415,11 @@ static int32_t extractMsgFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
     if (qItem == NULL) {
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(10);
-        qDebug("===stream===try again batchSize:%d, retry:%d", *numOfBlocks, retryTimes);
+        qDebug("try again batchSize:%d, retry:%d", *numOfBlocks, retryTimes);
         continue;
       }
 
-      qDebug("===stream===break batchSize:%d", *numOfBlocks);
+      qDebug("break batchSize:%d", *numOfBlocks);
       return TSDB_CODE_SUCCESS;
     }
 
