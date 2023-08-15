@@ -866,8 +866,10 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   mInfo("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
   if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
+  char randStr[16] = {0};
+  taosRandStr2(randStr, tListLen(randStr) - 1);
   SSchema *pSchema = &(stbObj.pTags[0]);
-  sprintf(fullIdxName, "%s.%s_default", pDb->name, pSchema->name);
+  sprintf(fullIdxName, "%s.%s_%s", pDb->name, pSchema->name, randStr);
 
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
