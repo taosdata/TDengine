@@ -202,7 +202,13 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage) {
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
-  ASSERT(pInfo != NULL && pInfo->stage <= stage);
+  ASSERT(pInfo != NULL);
+
+  if (stage == -1) {
+    qDebug("s-task:%s receive msg from upstream task:0x%x, invalid stageId, not ready", pTask->id.idStr, upstreamTaskId,
+           stage);
+    return 0;
+  }
 
   if (pInfo->stage == -1) {
     pInfo->stage = stage;
