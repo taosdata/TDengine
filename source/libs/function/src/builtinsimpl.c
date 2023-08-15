@@ -5895,8 +5895,8 @@ static void irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
 }
 
 static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
-  if (pInput->firstKey == pOutput->firstKey || pInput->firstKey == pOutput->lastKey ||
-      pInput->lastKey  == pOutput->firstKey || pInput->lastKey  == pOutput->lastKey) {
+  if ((pInput->firstKey != INT64_MIN && (pInput->firstKey == pOutput->firstKey || pInput->firstKey == pOutput->lastKey)) ||
+      (pInput->lastKey != INT64_MIN && (pInput->lastKey  == pOutput->firstKey || pInput->lastKey  == pOutput->lastKey))) {
     return TSDB_CODE_FUNC_DUP_TIMESTAMP;
   }
 
