@@ -125,8 +125,8 @@ $td-color: rgb(77, 105, 146);
 .el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content,
 .el-tree-node:focus > .el-tree-node__content,
 .el-tree-node__content:hover {
-  background-color: #c2c8d1 !important;
-  color: #fff;
+  background-color: #f5f7fa !important;
+  color: #333;
 }
 $step_icon_size: 48px;
 .el-step__icon {

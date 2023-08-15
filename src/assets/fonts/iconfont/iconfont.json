@@ -6,6 +6,48 @@
   "description": "taosexplorer",
   "glyphs": [
     {
+      "icon_id": "1996869",
+      "name": "search",
+      "font_class": "search-tables",
+      "unicode": "e6d6",
+      "unicode_decimal": 59094
+    },
+    {
+      "icon_id": "7195251",
+      "name": "profile",
+      "font_class": "profile",
+      "unicode": "e63f",
+      "unicode_decimal": 58943
+    },
+    {
+      "icon_id": "36484660",
+      "name": "profile-copy",
+      "font_class": "profile-copy",
+      "unicode": "ed50",
+      "unicode_decimal": 60752
+    },
+    {
+      "icon_id": "29649891",
+      "name": "files",
+      "font_class": "files1",
+      "unicode": "ed4f",
+      "unicode_decimal": 60751
+    },
+    {
+      "icon_id": "3106400",
+      "name": "files-1",
+      "font_class": "files-",
+      "unicode": "e609",
+      "unicode_decimal": 58889
+    },
+    {
+      "icon_id": "3106404",
+      "name": "files",
+      "font_class": "files",
+      "unicode": "e60a",
+      "unicode_decimal": 58890
+    },
+    {
       "icon_id": "1205913",
       "name": "file-table",
       "font_class": "file-table",

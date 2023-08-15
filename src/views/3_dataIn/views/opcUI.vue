@@ -208,7 +208,6 @@
                         <el-upload
                           class="upload-demo"
                           ref="upload"
-                          accept=".csv"
                           :limit="limit"
                           :data="uploadData"
                           :action="uploadUrl"
@@ -442,7 +441,6 @@
                       <el-upload
                         class="upload-demo"
                         ref="upload"
-                        accept=".csv"
                         :limit="limit"
                         :data="uploadData"
                         :action="uploadUrl"

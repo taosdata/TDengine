@@ -60,7 +60,9 @@
                   effect="light"
                   placement="top"
                   :content="getTooltip(data, 'view')"
-                  v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                  v-if="
+                    !['sfile', 'nfile', 'column', 'tag'].includes(data.typeName)
+                  "
                 >
                   <i
                     class="el-icon-view operate-icon"
@@ -68,6 +70,18 @@
                   ></i>
                 </el-tooltip>
                 <template v-if="!data.noOperate">
+                  <el-tooltip
+                    effect="light"
+                    placement="top"
+                    :content="getTooltip(data, 'search')"
+                    v-if="['sfile', 'nfile', 'stable'].includes(data.typeName)"
+                  >
+                    <i
+                      v-permission
+                      class="el-icon-search-tables"
+                      @click.stop="add(data, node)"
+                    ></i>
+                  </el-tooltip>
                   <el-tooltip
                     effect="light"
                     placement="top"
@@ -85,13 +99,21 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'edit')"
-                    v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                    v-if="
+                      !['sfile', 'nfile', 'column', 'tag'].includes(
+                        data.typeName
+                      )
+                    "
                   >
                     <i
                       v-permission
                       class="el-icon-edit operate-icon"
                       @click.stop="edit(data, node)"
-                      v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                      v-if="
+                        !['sfile', 'nfile', 'column', 'tag'].includes(
+                          data.typeName
+                        )
+                      "
                     ></i>
                   </el-tooltip>
                   <template v-if="isRoot === 'root'">
@@ -113,13 +135,21 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'del')"
-                    v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                    v-if="
+                      !['sfile', 'nfile', 'column', 'tag'].includes(
+                        data.typeName
+                      )
+                    "
                   >
                     <i
                       v-permission
                       class="el-icon-delete operate-icon"
                       @click.stop="del(data, node)"
-                      v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                      v-if="
+                        !['sfile', 'nfile', 'column', 'tag'].includes(
+                          data.typeName
+                        )
+                      "
                     ></i>
                   </el-tooltip>
                 </template>
@@ -294,7 +324,7 @@ export default {
     addDatabase() {
       this.$store.commit("dbs/HANDLE_ADD_DB");
       this.$store.commit("console/SET_TAB_NAME", this.$t("add"));
-      this.$store.commit("dbs/SET_ADD_DB_COMP",'explorer');
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "explorer");
       this.$store.state.console.partActive = "detail";
       this.$store.state.console.currentComponent = "DatabaseCreate";
     },
@@ -509,9 +539,9 @@ export default {
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
         "console/SET_TAB_NAME",
-        this.$t(`console.${data.typeName === 'table' 
-        ? data.type 
-        : data.typeName}Info`)
+        this.$t(
+          `console.${data.typeName === "table" ? data.type : data.typeName}Info`
+        )
       );
       this.$store.state.console.partActive = "detail";
     },
@@ -539,7 +569,7 @@ export default {
           break;
       }
       this.$store.commit("console/SET_TAB_NAME", this.$t("edit"));
-      this.$store.commit("dbs/SET_ADD_DB_COMP",'explorer');
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "explorer");
       this.$store.state.console.partActive = "detail";
     },
     async del(data, node) {
@@ -568,8 +598,8 @@ export default {
               .finally(() => {
                 this.requesting = false;
               })
-              .catch(res => {
-                this.$message.error(res?.desc)
+              .catch((res) => {
+                this.$message.error(res?.desc);
               });
           });
           break;
@@ -598,8 +628,8 @@ export default {
               .finally(() => {
                 this.requesting = false;
               })
-              .catch(res => {
-                this.$message.error(res?.desc)
+              .catch((res) => {
+                this.$message.error(res?.desc);
               });
           });
           break;
@@ -630,8 +660,8 @@ export default {
               .finally(() => {
                 this.requesting = false;
               })
-              .catch(res => {
-                this.$message.error(res?.desc)
+              .catch((res) => {
+                this.$message.error(res?.desc);
               });
           });
           break;
@@ -666,6 +696,7 @@ export default {
           edit: this.$t("data.editStable", [data.name]),
           view: this.$t("data.viewStable"),
           del: this.$t("data.delStable"),
+          search: this.$t("data.searchsp"),
         },
         nfile: {
           add: this.$t("data.createnormalTable", [data.name]),
@@ -685,12 +716,12 @@ export default {
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
         },
-        column:{
-          view:this.$t("data.viewTable"),
+        column: {
+          view: this.$t("data.viewTable"),
         },
-        tag:{
-          view:this.$t("data.viewTable"),
-        }
+        tag: {
+          view: this.$t("data.viewTable"),
+        },
       };
       return obj[data.typeName][operate];
     },
