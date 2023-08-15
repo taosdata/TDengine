@@ -1009,10 +1009,11 @@ join_type(A) ::= INNER.                                                         
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
-  SELECT set_quantifier_opt(B) select_list(C) from_clause_opt(D) 
-  where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K) 
-  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  { 
+  SELECT tag_mode_opt(M) set_quantifier_opt(B) select_list(C) from_clause_opt(D)
+  where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
+  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
                                                                                     A = createSelectStmt(pCxt, B, C, D);
+                                                                                    A = setSelectStmtTagMode(pCtxt, A, M);
                                                                                     A = addWhereClause(pCxt, A, E);
                                                                                     A = addPartitionByClause(pCxt, A, F);
                                                                                     A = addWindowClauseClause(pCxt, A, G);
@@ -1022,6 +1023,11 @@ query_specification(A) ::=
                                                                                     A = addEveryClause(pCxt, A, K);
                                                                                     A = addFillClause(pCxt, A, L);
                                                                                   }
+
+%type tag_mode_opt                                                                { bool }
+%destructor tag_mode_opt                                                          { }
+tag_mode_opt(A) ::= .                                                             { A = false; }
+tag_mode_opt(A) ::= TAGS.                                                         { A = true; }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }
