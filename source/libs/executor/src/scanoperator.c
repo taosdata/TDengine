@@ -2991,7 +2991,7 @@ static void destroyTagScanOperatorInfo(void* param) {
 
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pTagScanNode,
                                          STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo) {
-  SScanPhysiNode* pPhyNode = (STagScanPhysiNode*)pTagScanNode;
+  SScanPhysiNode* pPhyNode = (SScanPhysiNode*)pTagScanNode;
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
