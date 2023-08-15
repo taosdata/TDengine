@@ -79,7 +79,7 @@ pub(crate) struct GlobalOpts {
     debug: bool,
 
     /// Log keep days.
-    #[clap(short, long, global = true)]
+    #[clap(long, global = true)]
     log_keep_days: Option<i64>,
 
     /// Be careful to use this, we suggest only use it when failed at first time.
