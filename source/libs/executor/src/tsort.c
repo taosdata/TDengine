@@ -71,10 +71,18 @@ struct SSortHandle {
   SMultiwayMergeTreeInfo* pMergeTree;
 
   bool singleTableMerge;
+
+  bool (*abortCheckFn)(void* param);
+  void* abortCheckParam;
 };
 
-void setSingleTableMerge(SSortHandle* pHandle) {
+void tsortSetSingleTableMerge(SSortHandle* pHandle) {
   pHandle->singleTableMerge = true;
+}
+
+void tsortSetAbortCheckFn(SSortHandle *pHandle, bool (*checkFn)(void *), void* param) {
+  pHandle->abortCheckFn = checkFn;
+  pHandle->abortCheckParam = param;
 }
 
 static int32_t msortComparFn(const void* pLeft, const void* pRight, void* param);
@@ -726,11 +734,10 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
       SArray* pPageIdList = taosArrayInit(4, sizeof(int32_t));
       while (1) {
-        if (tsortIsClosed(pHandle)) {
+        if (tsortIsClosed(pHandle) || (pHandle->abortCheckFn && pHandle->abortCheckFn(pHandle->abortCheckParam))) {
           code = terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
           return code;
         }
-
         SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
           break;
