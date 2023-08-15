@@ -575,7 +575,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     if (pInput->type == STREAM_INPUT__TRANS_STATE) {
       streamProcessTranstateBlock(pTask, (SStreamDataBlock*)pInput);
-      return 0;
+      continue;
     }
 
     if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
