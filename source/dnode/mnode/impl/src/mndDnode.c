@@ -496,11 +496,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;
       }
-      bool roleChanged = false;
+      bool stateChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
         SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
         if (pGid->dnodeId == statusReq.dnodeId) {
-          roleChanged =
+          bool roleChanged =
               pGid->syncState != pVload->syncState || (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm);
           if (reboot || roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead) {
             mInfo(
@@ -513,6 +513,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             pGid->syncRestore = pVload->syncRestore;
             pGid->syncCanRead = pVload->syncCanRead;
             pGid->startTimeMs = (pVload->startTimeMs != 0) ? pVload->startTimeMs : statusReq.rebootTime;
+            stateChanged = true;
           }
           if (roleChanged) {
             pGid->roleTimeMs = (pVload->roleTimeMs != 0) ? pVload->roleTimeMs : taosGetTimestampMs();
@@ -520,7 +521,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
           break;
         }
       }
-      if (roleChanged) {
+      if (stateChanged) {
         SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
         if (pDb != NULL && pDb->stateTs != curMs) {
           mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name,
