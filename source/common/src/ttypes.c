@@ -135,6 +135,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       *((int64_t *)val) = GET_INT64_VAL(src);
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       varDataCopy(val, src);
       break;

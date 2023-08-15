@@ -44,7 +44,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
     }
 
     // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         return false;
       }
@@ -300,6 +300,8 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
       break;
 
+    case TSDB_DATA_TYPE_VARBINARY:
+      sd;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {

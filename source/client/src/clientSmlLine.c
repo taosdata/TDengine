@@ -390,7 +390,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           SSmlKv   kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type};
           if (tag->type == TSDB_DATA_TYPE_NCHAR) {
             kv.length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-          } else if (tag->type == TSDB_DATA_TYPE_BINARY) {
+          } else if (tag->type == TSDB_DATA_TYPE_BINARY || tag->type == TSDB_DATA_TYPE_VARBINARY) {
             kv.length = tag->bytes - VARSTR_HEADER_SIZE;
           }
           taosArrayPush((*tmp)->cols, &kv);

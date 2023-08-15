@@ -190,55 +190,6 @@ _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
   return p;
 }
 
-typedef void *(*_getValueAddr_fn_t)(void *src, int32_t index);
-
-void *getVectorValueAddr_TINYINT(void *src, int32_t index) { return (void *)((int8_t *)src + index); }
-void *getVectorValueAddr_UTINYINT(void *src, int32_t index) { return (void *)((uint8_t *)src + index); }
-void *getVectorValueAddr_SMALLINT(void *src, int32_t index) { return (void *)((int16_t *)src + index); }
-void *getVectorValueAddr_USMALLINT(void *src, int32_t index) { return (void *)((uint16_t *)src + index); }
-void *getVectorValueAddr_INT(void *src, int32_t index) { return (void *)((int32_t *)src + index); }
-void *getVectorValueAddr_UINT(void *src, int32_t index) { return (void *)((uint32_t *)src + index); }
-void *getVectorValueAddr_BIGINT(void *src, int32_t index) { return (void *)((int64_t *)src + index); }
-void *getVectorValueAddr_UBIGINT(void *src, int32_t index) { return (void *)((uint64_t *)src + index); }
-void *getVectorValueAddr_FLOAT(void *src, int32_t index) { return (void *)((float *)src + index); }
-void *getVectorValueAddr_DOUBLE(void *src, int32_t index) { return (void *)((double *)src + index); }
-void *getVectorValueAddr_default(void *src, int32_t index) { return src; }
-void *getVectorValueAddr_VAR(void *src, int32_t index) { return colDataGetData((SColumnInfoData *)src, index); }
-
-_getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
-  _getValueAddr_fn_t p = NULL;
-  if (srcType == TSDB_DATA_TYPE_TINYINT) {
-    p = getVectorValueAddr_TINYINT;
-  } else if (srcType == TSDB_DATA_TYPE_UTINYINT) {
-    p = getVectorValueAddr_UTINYINT;
-  } else if (srcType == TSDB_DATA_TYPE_SMALLINT) {
-    p = getVectorValueAddr_SMALLINT;
-  } else if (srcType == TSDB_DATA_TYPE_USMALLINT) {
-    p = getVectorValueAddr_USMALLINT;
-  } else if (srcType == TSDB_DATA_TYPE_INT) {
-    p = getVectorValueAddr_INT;
-  } else if (srcType == TSDB_DATA_TYPE_UINT) {
-    p = getVectorValueAddr_UINT;
-  } else if (srcType == TSDB_DATA_TYPE_BIGINT) {
-    p = getVectorValueAddr_BIGINT;
-  } else if (srcType == TSDB_DATA_TYPE_UBIGINT) {
-    p = getVectorValueAddr_UBIGINT;
-  } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
-    p = getVectorValueAddr_FLOAT;
-  } else if (srcType == TSDB_DATA_TYPE_DOUBLE) {
-    p = getVectorValueAddr_DOUBLE;
-  } else if (srcType == TSDB_DATA_TYPE_BINARY) {
-    p = getVectorValueAddr_VAR;
-  } else if (srcType == TSDB_DATA_TYPE_NCHAR) {
-    p = getVectorValueAddr_VAR;
-  }else if(srcType == TSDB_DATA_TYPE_GEOMETRY) {
-    p = getVectorValueAddr_VAR;
-  } else {
-    p = getVectorValueAddr_default;
-  }
-  return p;
-}
-
 static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   terrno = TSDB_CODE_SUCCESS;
 
@@ -597,7 +548,8 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
   }
 
   if (optr == OP_TYPE_LIKE || optr == OP_TYPE_NOT_LIKE || optr == OP_TYPE_MATCH || optr == OP_TYPE_NMATCH) {
-    if (typeLeft != TSDB_DATA_TYPE_NCHAR && typeLeft != TSDB_DATA_TYPE_BINARY && typeLeft != TSDB_DATA_TYPE_GEOMETRY) {
+    if (typeLeft != TSDB_DATA_TYPE_NCHAR && typeLeft != TSDB_DATA_TYPE_BINARY &&
+        typeLeft != TSDB_DATA_TYPE_GEOMETRY && typeLeft != TSDB_DATA_TYPE_VARBINARY) {
       return false;
     }
   }
@@ -636,13 +588,16 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
 
     if (typeRight == TSDB_DATA_TYPE_NCHAR ||
         typeRight == TSDB_DATA_TYPE_VARCHAR ||
+        typeRight == TSDB_DATA_TYPE_VARBINARY ||
         typeRight == TSDB_DATA_TYPE_GEOMETRY) {
       return false;
     } else if (typeRight != type) {
       convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
       *pRightData = pRightOut;
     }
-  } else if (type == TSDB_DATA_TYPE_BINARY || typeLeft == TSDB_DATA_TYPE_GEOMETRY) {
+  } else if (type == TSDB_DATA_TYPE_BINARY ||
+             type == TSDB_DATA_TYPE_VARBINARY ||
+             type == TSDB_DATA_TYPE_GEOMETRY) {
     if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       *pLeftData = ncharTobinary(*pLeftData);
       *freeLeft = true;
@@ -932,6 +887,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY: {
       return vectorConvertToVarData(&cCtx);

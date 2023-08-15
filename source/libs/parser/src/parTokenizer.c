@@ -285,6 +285,7 @@ static SKeyword keywordTable[] = {
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
     {"ALIVE",                TK_ALIVE},
+    {"VARBINARY",            TK_VARBINARY},
 };
 // clang-format on
 

@@ -76,7 +76,8 @@ char* idxInt2str(int64_t val, char* dst, int radix) {
   return dst - 1;
 }
 __compar_fn_t idxGetCompar(int8_t type) {
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY ||
+      type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return (__compar_fn_t)strcmp;
   }
   return getComparFunc(type, 0);

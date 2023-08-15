@@ -134,7 +134,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
     //    strcpy(val.colName, pTagSchema->name);
-    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY ||
+    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
         pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
@@ -237,7 +237,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     }
     pVal->value.pData = pUcs4;
     pVal->value.nData = len;
-  } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+  } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_VARBINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = (uint8_t*)kv->value;
   } else {
@@ -364,7 +364,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         }
         pVal->value.pData = pUcs4;
         pVal->value.nData = len;
-      } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+      } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_VARBINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
         pVal->value.nData = kv->length;
         pVal->value.pData = (uint8_t*)kv->value;
       } else {

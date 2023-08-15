@@ -386,6 +386,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       {
@@ -637,6 +638,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
@@ -772,6 +774,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       return TMAX(SHELL_DOUBLE_WIDTH, width);
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_GEOMETRY:
       if (field->bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);

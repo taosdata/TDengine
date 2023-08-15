@@ -400,8 +400,7 @@ static bool sysTableIsOperatorCondOnOneTable(SNode* pCond, char* condTable) {
         strcasecmp(nodesGetNameFromColumnNode(node->pLeft), "table_name") == 0 &&
         nodeType(node->pRight) == QUERY_NODE_VALUE) {
       SValueNode* pValue = (SValueNode*)node->pRight;
-      if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR ||
-          pValue->node.resType.type == TSDB_DATA_TYPE_BINARY) {
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
         char* value = nodesGetValueFromNode(pValue);
         strncpy(condTable, varDataVal(value), TSDB_TABLE_NAME_LEN);
         return true;

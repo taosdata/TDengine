@@ -477,7 +477,15 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       val->nData = pToken->n;
       break;
     }
-
+    case TSDB_DATA_TYPE_VARBINARY: {
+      // Too long values will raise the invalid sql error message
+      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+      val->pData = taosStrdup(pToken->z)
+      val->nData = pToken->n;
+      break;
+    }
     case TSDB_DATA_TYPE_GEOMETRY: {
       unsigned char* output = NULL;
       size_t         size = 0;
@@ -1362,6 +1370,19 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
+      break;
+    }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      // Too long values will raise the invalid sql error message
+      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+      pVal->value.pData = taosMemoryMalloc(pToken->n);
+      if (NULL == pVal->value.pData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pVal->value.pData, pToken->z, pToken->n);
+      pVal->value.nData = pToken->n
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
