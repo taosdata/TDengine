@@ -655,6 +655,10 @@ _OVER:
 }
 
 static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
+#ifdef WINDOWS
+  terrno = TSDB_CODE_PAR_INVALID_PLATFORM;
+  return -1;
+#endif
   terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
   if (pCreate->name[0] == 0) return -1;
   if (pCreate->stb[0] == 0) return -1;
