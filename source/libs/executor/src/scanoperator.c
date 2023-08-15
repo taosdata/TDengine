@@ -2928,8 +2928,9 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                               pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
-                                          
+
     tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
+    tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
   }
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
@@ -2949,7 +2950,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (numOfTable == 1) {
-    setSingleTableMerge(pInfo->pSortHandle);
+    tsortSetSingleTableMerge(pInfo->pSortHandle);
   } else {
     code = tsortOpen(pInfo->pSortHandle);
   }
