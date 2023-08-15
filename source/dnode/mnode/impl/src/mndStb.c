@@ -879,7 +879,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
     goto _OVER;
   }
 
-  SIdxObj idxObj;
+  SIdxObj idxObj = {0};
   memcpy(idxObj.name, fullIdxName, TSDB_INDEX_FNAME_LEN);
   memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
