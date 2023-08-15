@@ -666,14 +666,13 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-
-  mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
 #ifdef WINDOWS
   if (taosArrayGetSize(createReq.pRetensions) > 0) {
     code = TSDB_CODE_PAR_INVALID_PLATFORM;
     goto _OVER;
   }
 #endif
+  mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
     goto _OVER;
   }

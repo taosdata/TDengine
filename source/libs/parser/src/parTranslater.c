@@ -4418,10 +4418,6 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     return TSDB_CODE_SUCCESS;
   }
 
-#ifdef WINDOWS
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PLATFORM, "Unsupported feature on this platform");
-#endif
-
   if (LIST_LENGTH(pRetentions) > 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option retentions");
   }
@@ -5871,9 +5867,6 @@ static int32_t checkCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pS
 }
 
 static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
-#ifdef WINDOWS
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PLATFORM, "Unsupported feature on this platform");
-#endif
   int32_t        code = checkCreateSmaIndex(pCxt, pStmt);
   pStmt->pReq = taosMemoryCalloc(1, sizeof(SMCreateSmaReq));
   if (pStmt->pReq == NULL) code = TSDB_CODE_OUT_OF_MEMORY;
@@ -7059,9 +7052,6 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
 }
 
 static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
-#ifdef WINDOWS
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PLATFORM, "Unsupported feature on this platform");
-#endif
   SCMCreateStreamReq createReq = {0};
 
   int32_t code = checkCreateStream(pCxt, pStmt);
@@ -7211,9 +7201,6 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
 }
 
 static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionStmt* pStmt) {
-#ifdef WINDOWS
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PLATFORM, "Unsupported feature on this platform");
-#endif
   if (fmIsBuiltinFunc(pStmt->funcName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNCTION_NAME);
   }

@@ -253,10 +253,6 @@ static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
 }
 
 static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
-#ifdef WINDOWS
-  terrno = TSDB_CODE_PAR_INVALID_PLATFORM;
-  return -1;
-#endif
   if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->sourceDB[0] == 0 ||
       pCreate->targetStbFullName[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_STREAM_OPTION;
@@ -696,7 +692,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-
+#ifdef WINDOWS
+  terrno = TSDB_CODE_PAR_INVALID_PLATFORM;
+  goto _OVER;
+#endif
   mInfo("stream:%s, start to create, sql:%s", createStreamReq.name, createStreamReq.sql);
 
   if (mndCheckCreateStreamReq(&createStreamReq) != 0) {
