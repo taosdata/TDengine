@@ -366,7 +366,7 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
   return hasTbname;
 }
 
-static int32_t setTagScanOnlyMetaCtbIdx(SScanLogicNode* pScan) {
+static int32_t setTagScanExecutionMode(SScanLogicNode* pScan) {
   SNode* pCond = nodesCloneNode(pScan->node.pConditions);
   SNode* pTagCond = NULL;
   SNode* pTagIndexCond = NULL;
@@ -451,7 +451,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   if (pSelect->tagScan) {
-    code = setTagScanOnlyMetaCtbIdx(pScan);
+    code = setTagScanExecutionMode(pScan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
