@@ -364,7 +364,8 @@ static int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* p
   msg.pCont = buf;
   msg.msgType = pTask->msgInfo.msgType;
 
-  qDebug("s-task:%s dispatch msg to taskId:0x%x vgId:%d data msg", pTask->id.idStr, pReq->taskId, vgId);
+  qDebug("s-task:%s dispatch msg to taskId:0x%x vgId:%d data msg, len:%d", pTask->id.idStr, pReq->taskId, vgId,
+         msg.contLen);
   return tmsgSendReq(pEpSet, &msg);
 
 FAIL:
