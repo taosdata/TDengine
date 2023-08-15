@@ -13,7 +13,7 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 COPY ./run.sh /usr/bin/
-COPY ./taos_cluster_check /usr/bin/
+COPY ./td_cluster_check /usr/bin/
 COPY ./bin/* /usr/bin/
 
 VOLUME [ "/var/lib/taos", "/var/log/taos" ]
