@@ -179,7 +179,7 @@ export default {
     },
     //编辑状态的回显
     echoEditData() {
-      this.csvColumns = Object.keys(this.echoData[0].parse);
+      this.csvColumns = Object.keys(this.echoData[0].parse).sort();
       this.localcsv = deepClone({
         parser: this.echoData[0],
       });
@@ -283,10 +283,10 @@ export default {
                 "csv",
                 this.$refs.param.ruleForm.hasHeader
               );
-              this.csvColumns = result.file_header.column_names;
+              this.csvColumns = result.file_header.column_names.sort();
             } else {
               //无header需要自定义header
-              this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
+              this.csvColumns = this.$refs.param.ruleForm.customcol.split(",").sort();
             }
           }
         } else {
@@ -295,7 +295,7 @@ export default {
             "csv",
             this.$refs.param.ruleForm.hasHeader
           );
-          this.csvColumns = result.file_header.column_names;
+          this.csvColumns = result.file_header.column_names.sort();
         }
         if (result && result.message) {
           Message.error(result.message);
