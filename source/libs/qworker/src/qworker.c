@@ -1015,9 +1015,8 @@ _return:
   if (code) {
     if (ctx) {
       QW_UPDATE_RSP_CODE(ctx, code);
+      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
     }
-
-    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
   }
 
   if (locked) {

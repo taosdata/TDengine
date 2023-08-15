@@ -392,6 +392,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       return 1;
     }
     case '*': {
+      if (z[1] == '/') {
+        *tokenId = TK_NK_HINT_END;
+        return 2;
+      }
       *tokenId = TK_NK_STAR;
       return 1;
     }
@@ -402,12 +406,13 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
       bool isHint = false;
       if (z[2] == '+') {
-        isHint = TK_NK_HINT;
+        *tokenId = TK_NK_HINT_BEGIN;
+        return 3;
       }
       for (i = 3; z[i] && (z[i] != '/' || z[i - 1] != '*'); i++) {
       }
       if (z[i]) i++;
-      *tokenId = isHint ? TK_NK_HINT : TK_NK_COMMENT;
+      *tokenId = TK_NK_COMMENT;
       return i;
     }
     case '%': {
