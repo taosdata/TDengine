@@ -205,8 +205,8 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   ASSERT(pInfo != NULL);
 
   if (stage == -1) {
-    qDebug("s-task:%s receive msg from upstream task:0x%x, invalid stageId, not ready", pTask->id.idStr, upstreamTaskId,
-           stage);
+    qDebug("s-task:%s receive msg from upstream task:0x%x, invalid stageId:%" PRId64 ", not ready", pTask->id.idStr,
+           upstreamTaskId, stage);
     return 0;
   }
 
