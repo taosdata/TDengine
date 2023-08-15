@@ -189,6 +189,10 @@ target_include_directories(
   PUBLIC "$ENV{HOME}/.cos-local.1/include"
   )
 
+if(${BUILD_WITH_COS})
+  add_definitions(-DUSE_COS)
+endif(${BUILD_WITH_COS})
+
 endif(${TD_LINUX})
 
 IF (TD_GRANT)
