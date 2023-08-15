@@ -155,7 +155,7 @@ typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
-  char      comments[TSDB_TB_COMMENT_LEN];
+  char      comments[TSDB_COL_COMMENT_LEN];
   bool      sma;
 } SColumnDefNode;
 

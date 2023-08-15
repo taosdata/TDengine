@@ -210,6 +210,18 @@ class TDTestCase:
         licences_info = tdSql.queryResult
         tdSql.checkEqual(grants_info,licences_info)
 
+    def show_create_table_with_col_comment(self):
+        tdSql.execute("create database comment_test_db")
+        tdSql.execute("use comment_test_db")
+        tdSql.execute("create table normal_table(ts timestamp, c2 int comment 'c2 comment')")
+        tdSql.execute("create stable super_table(ts timestamp comment 'ts', c2 int comment 'c2 comment') tags(tg int comment 'tg comment')")
+        tdSql.query('show create table normal_table')
+        create_sql = "create table `normal_table` (`ts` timestamp, `c2` int)"
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+        tdSql.query('show create table super_table')
+        create_sql = "create stable `super_table` (`ts` timestamp, `c2` int) tags (`tg` int)"
+        tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
     def run(self):
         self.check_gitinfo()
         self.show_base()
@@ -218,6 +230,7 @@ class TDTestCase:
         self.show_create_sql()
         self.show_create_sysdb_sql()
         self.show_create_systb_sql()
+        self.show_create_table_with_col_comment()
 
     def stop(self):
         tdSql.close()
