@@ -387,7 +387,7 @@ do
                         if [ $? -eq 0 ]; then
                             echo $testStables | grep -q -w -o meters
                             if [ $? -eq 1 ]; then
-                                taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
+                                taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y -Q
                                 taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
                                 TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
                                 logger "INFO" "taosBenchmark executed to generate test database"
