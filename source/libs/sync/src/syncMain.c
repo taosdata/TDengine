@@ -509,6 +509,7 @@ SSyncState syncGetState(int64_t rid) {
   if (pSyncNode != NULL) {
     state.state = pSyncNode->state;
     state.roleTimeMs = pSyncNode->roleTimeMs;
+    state.startTimeMs = pSyncNode->startTime;
     state.restored = pSyncNode->restoreFinish;
     if (pSyncNode->vgId != 1) {
       state.canRead = syncNodeIsReadyForRead(pSyncNode);

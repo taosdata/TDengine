@@ -1163,6 +1163,9 @@ typedef struct {
   int32_t vgId;
   int8_t  syncState;
   int8_t  syncRestore;
+  int64_t syncTerm;
+  int64_t roleTimeMs;
+  int64_t startTimeMs;
   int8_t  syncCanRead;
   int64_t cacheUsage;
   int64_t numOfTables;
@@ -1179,9 +1182,9 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int8_t syncState;
-  int8_t syncRestore;
+  int8_t  syncState;
   int64_t syncTerm;
+  int8_t  syncRestore;
   int64_t roleTimeMs;
 } SMnodeLoad;
 
