@@ -31,27 +31,27 @@ FIRST_EP_PORT=${FIRSET_EP#*:}
 SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o|head -n1|sed 's/serverPort *//')
 SERVER_PORT=${SERVER_PORT:-6030}
 ENDPOINT=$FQDN:$SERVER_PORT
-function logging() {
+function logger() {
     logLevel=$1
     logMsg=$2
     echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [$logLevel] $logMsg" 2>&1 | tee -a /var/log/run.log
 }
-logging "INFO" "FQDN is $FQDN, FIRSTEP is $FIRST_EP_HOST and ENDPOINT is $ENDPOINT"
+logger "INFO" "FQDN is $FQDN, FIRSTEP is $FIRST_EP_HOST and ENDPOINT is $ENDPOINT"
                       
 ulimit -c unlimited
 # set core files pattern, maybe failed
 # sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 
-logging "INFO" "ADMIN_URL: ${ADMIN_URL}"
-logging "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
+logger "INFO" "ADMIN_URL: ${ADMIN_URL}"
+logger "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
 
 pid=""
 function sigterm_handler() {
-    logging "INFO" "sigterm signal received"
+    logger "INFO" "sigterm signal received"
     if [ ! -z "$pid" ]; then
-	logging "INFO" "send sigterm to $pid"
+	logger "INFO" "send sigterm to $pid"
         if [ -d "/var/log" ]; then
-            logging "INFO" "send sigterm to $pid"
+            logger "INFO" "send sigterm to $pid"
         fi
         kill -15 $pid
         wait $pid
@@ -78,7 +78,7 @@ function check_taosd() {
         fi
     fi
     if [ $ret -ne 0 ]; then
-        logging "INFO" "check taosd error $ret"
+        logger "INFO" "check taosd error $ret"
         if [ "x$1" != "xignore" ]; then
             set_service_state "error" "taosd/taosadapter check failed $ret"
         fi
@@ -87,14 +87,14 @@ function check_taosd() {
     fi
 }
 function post_error_msg() {
-    logging "ERROR" "app_name: ${app_name}"
-    logging "ERROR" "service_state: ${service_state}"
-    logging "ERROR" "service_msg: ${service_msg}"
+    logger "ERROR" "app_name: ${app_name}"
+    logger "ERROR" "service_state: ${service_state}"
+    logger "ERROR" "service_msg: ${service_msg}"
     if [ ! -z "${ADMIN_URL}" ]; then
         taos_version=`taos --version`
-        logging "ERROR" "${taos_version}"
+        logger "ERROR" "${taos_version}"
         if [ -f ${ALERT_DISABLE_FILE} ]; then
-            logging "WARN" "alert disabled"
+            logger "WARN" "alert disabled"
         else
             curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
                 -d"{\"appName\":\"${app_name}\",\
@@ -107,7 +107,7 @@ function post_error_msg() {
 }
 function check_process_exit_type() {
     local core_pattern=`cat /proc/sys/kernel/core_pattern`
-    logging "ERROR" "get the corefile patttern $core_pattern"
+    logger "ERROR" "get the corefile patttern $core_pattern"
     echo "$core_pattern" | grep -q "^/"
     if [ $? -eq 0 ]; then
         core_folder=`dirname $core_pattern`
@@ -152,7 +152,7 @@ function check_taosadapter() {
         fi
     fi
     if [ $ret -ne 0 ]; then
-        logging "ERROR" "check taosadapter error $ret"
+        logger "ERROR" "check taosadapter error $ret"
         if [ "x$1" != "xignore" ]; then
             set_adapter_state "error" "taosd/taosadapter check failed $ret"
         fi
@@ -163,12 +163,12 @@ function check_taosadapter() {
 function post_adapter_error_msg() {
     if [ ! -z "${ADMIN_URL}" ]; then
         adapter_version=`taosadapter --version`
-        logging "ERROR" "app_name: ${app_name}"
-        logging "ERROR" "adapter_state: ${adapter_state}"
-        logging "ERROR" "adapter_msg: ${adapter_msg}"
-        logging "ERROR" "adapter_version: ${adapter_version}"
+        logger "ERROR" "app_name: ${app_name}"
+        logger "ERROR" "adapter_state: ${adapter_state}"
+        logger "ERROR" "adapter_msg: ${adapter_msg}"
+        logger "ERROR" "adapter_version: ${adapter_version}"
         if [ -f ${ALERT_DISABLE_FILE} ]; then
-            logging "WARN" "alert disabled"
+            logger "WARN" "alert disabled"
         else
             curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
                 -d"{\"appName\":\"${app_name}\",\
@@ -181,7 +181,7 @@ function post_adapter_error_msg() {
 }
 function print_adapter_state_change() {
     if [ "x$1" != "x${adapter_state}" ]; then
-        logging "INFO" "adapter state: ${adapter_state}, ${adapter_msg}"
+        logger "INFO" "adapter state: ${adapter_state}, ${adapter_msg}"
     fi
 }
 disk_usage_level=(60 80 99)
@@ -192,12 +192,12 @@ get_usage_ok="yes"
 function post_disk_error_msg() {
     if [ ! -z "${ADMIN_URL}" ]; then
         taos_version=`taos --version`
-        logging "ERROR" "app_name: ${app_name}"
-        logging "ERROR" "disk_state: ${disk_state}"
-        logging "ERROR" "disk_msg: ${disk_msg}"
-        logging "ERROR" "taos_version: ${taos_version}"
+        logger "ERROR" "app_name: ${app_name}"
+        logger "ERROR" "disk_state: ${disk_state}"
+        logger "ERROR" "disk_msg: ${disk_msg}"
+        logger "ERROR" "taos_version: ${taos_version}"
         if [ -f ${ALERT_DISABLE_FILE} ]; then
-            logging "WARN" "alert disabled"
+            logger "WARN" "alert disabled"
         else
             curl --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/json" \
                 -d"{\"appName\":\"${app_name}\",\
@@ -245,7 +245,7 @@ function check_disk() {
             # hysteresis comparator
             local downgrade_usage=$(( current_disk_level - 4 ))
             if [ ${usage} -lt ${downgrade_usage} ]; then
-                logging "INFO" "disk usage reduced from ${current_disk_level} to ${current_level}"
+                logger "INFO" "disk usage reduced from ${current_disk_level} to ${current_level}"
             else
                 # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:disk usage level downgrade not ready: ${usage} still above ${downgrade_usage}"
                 current_level=${current_disk_level}
@@ -258,22 +258,22 @@ function run_taosd() {
     local count=0
     trap "echo SIGTERM; sigterm_handler; exit" SIGTERM
     if [ -d "/var/log" ]; then
-        logging "INFO" "taosd start"
+        logger "INFO" "taosd start"
     fi
     taosd &
     pid=$!
     wait $pid
     local ret=$?
-    logging "INFO" "taosd exit $ret"
+    logger "INFO" "taosd exit $ret"
     if [ -d "/var/log" ]; then
-        logging "ERROR" "taosd exit $ret"
+        logger "INFO" "taosd exit $ret"
     fi
     if [ $ret -eq 0 ]; then
-        logging "ERROR" "exit caused by sigterm"
+        logger "INFO" "exit caused by sigterm"
         return
     fi
     set_service_state "error" "taosd exit"
-    logging "ERROR" "set taosd state existed"
+    logger "ERROR" "set taosd state existed"
     # post error msg
     # check crash or OOM
     check_process_exit_type "taosd"
@@ -289,7 +289,7 @@ function run_taosadapter() {
 }
 function print_service_state_change() {
     if [ "x$1" != "x${service_state}" ]; then
-        logging "INFO" "service state: ${service_state}, ${service_msg}"
+        logger "INFO" "service state: ${service_state}, ${service_msg}"
     fi
 }
 function initDnodeAndMnode {
@@ -305,13 +305,13 @@ function initDnodeAndMnode {
             DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$DNODETmp" != "" ]]; then
                 DNODE_CREATED=1
-                logging "INFO" "Created the dnode with endpoint $ENDPOINT"
+                logger "INFO" "Created the dnode with endpoint $ENDPOINT"
             else
-                logging "ERROR" "failed to create dnode $ENDPOINT through taos"
+                logger "ERROR" "failed to create dnode $ENDPOINT through taos"
             fi
         else
             DNODE_CREATED=1
-            logging "INFO" "Dnode $ENDPOINT already created "
+            logger "INFO" "Dnode $ENDPOINT already created "
         fi    
         if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
             # second check mnode created
@@ -323,9 +323,9 @@ function initDnodeAndMnode {
                     MNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
                     if [[ "$MNODETmp" != "" ]]; then
                         MNODE_CREATED=1
-                        logging "INFO" "Created the mnode for dnode $DNODEID"
+                        logger "INFO" "Created the mnode for dnode $DNODEID"
                     else 
-                        logging "ERROR" "failed to create mnode for dnode $ENDPOINT through taos"
+                        logger "ERROR" "failed to create mnode for dnode $ENDPOINT through taos"
                     fi
                 fi
             fi
@@ -334,10 +334,10 @@ function initDnodeAndMnode {
             ADMINUSER=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "show users;" | grep -E "admin_user" -o)
             if [[ "$ADMINUSER" == "" ]]; then
                 timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"  
-                logging "INFO" "created admin_user"
+                logger "INFO" "created admin_user"
             fi
             MNODE_CREATED=1
-            logging "INFO" "This is master dnode and no need to create mnode"
+            logger "INFO" "This is master dnode and no need to create mnode"
         fi
     done
 }
@@ -349,7 +349,7 @@ do
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:outer loop: $a"
     output=`timeout $TAOS_TIMEOUT_SECOND taos -k | tail -n 1`
     if [ -z "${output}" ]; then
-        logging "ERROR" "taos -k error"
+        logger "ERROR" "taos -k error"
         status=""
     else
         status=${output:0:1}
@@ -361,9 +361,9 @@ do
         start_taosadapter_count=0
     fi
     if [ "$status"x = "0"x ];then
-        logging "INFO" "start taosd count: ${start_taosd_count}"
+        logger "INFO" "start taosd count: ${start_taosd_count}"
         if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
-            logging "ERROR" "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
+            logger "ERROR" "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
             break
         fi
         start_taosd_count=$(( start_taosd_count + 1 ))
@@ -374,25 +374,27 @@ do
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
+        logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
         if [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]; then
             if [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
-                #TODO need to check the HA cluster status first and if the HA cluster status is OK
+                logger "INFO" "begin to check test db existed or not"
                 dbs=`taos -s "show databases;"`
                 if [ $? -eq 0 ]; then
                     echo $dbs | grep -w -q -o "test"
                     if [ $? -eq 1 ]; then
+                        logger "INFO" "check stable meters existed in test db or not"
                         testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
                         if [ $? -eq 0 ]; then
                             echo $testStables | grep -q -w -o meters
                             if [ $? -eq 1 ]; then
                                 taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
-                                taos -s "GRANT ALL on test.* to admin_user;"
+                                taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
                                 TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                                logging "INFO" "taosBenchmark executed to generate test database"
+                                logger "INFO" "taosBenchmark executed to generate test database"
                             fi
                         fi
                     else
-                        logging "INFO" "$? test database found and no need to recreate again"
+                        logger "INFO" "$? test database found and no need to recreate again"
                     fi
                 fi
             fi
@@ -424,9 +426,9 @@ do
     # check taosadapter
     nc -z localhost 6041
     if [ $? -ne 0 ]; then
-        logging "INFO" "start taosadapter count: ${start_taosadapter_count}"
+        logger "INFO" "start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
-            logging "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
+            logger "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
             break
         fi
         start_taosadapter_count=$(( start_taosadapter_count + 1 ))
