@@ -494,7 +494,6 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) 
   streamMetaCommit(pTask->pMeta);
   taosWUnLockLatch(&pTask->pMeta->lock);
 
-  ASSERT(0);
 //  qDebug("s-task:%s reset downstream status and inc stage to be:%d, status:%s, start to check downstream", id,
 //         pTask->status.stage, streamGetTaskStatusStr(pTask->status.taskStatus));
 
