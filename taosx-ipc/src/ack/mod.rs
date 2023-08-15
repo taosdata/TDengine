@@ -14,6 +14,7 @@ use arrow::{
 };
 use thiserror::Error;
 
+#[derive(Debug)]
 pub struct LushAck {
     code: i32,
     message: Option<String>,
@@ -309,11 +310,14 @@ impl AckWriterBuilder {
                     Field::new("context", DataType::Binary, true),
                 ];
                 let schema = Schema::new(fields).with_metadata(self.metadata.clone());
+                let schema = Arc::new(schema);
+                let writer = StreamWriter::try_new(writer, &schema).unwrap();
+
                 AckWriter {
                     ack: self.ack,
                     writer: None,
-                    ipc_writer: Some(StreamWriter::try_new(writer, &schema).unwrap()),
-                    ipc_schema: Some(Arc::new(schema)),
+                    ipc_writer: Some(writer),
+                    ipc_schema: Some(schema),
                 }
             }
         }

@@ -493,7 +493,7 @@ impl Parser {
         let schema = batch.schema();
         let batches = vec![batch];
         let batch = &batches[0];
-        tracing::info!("Parse message {:?}", batch);
+        // tracing::info!("Parse message {:?}", batch);
 
         fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
             batches
@@ -640,9 +640,9 @@ impl Parser {
             }
         }
         let schema = Schema::new_with_metadata(new_fields, metadata);
-        tracing::info!("parsed schema: {schema:?}");
+        // tracing::info!("parsed schema: {schema:?}");
         let batch = RecordBatch::try_new(Arc::new(schema), new_data)?;
-        tracing::info!("parsed records: {batch:?}");
+        // tracing::info!("parsed records: {batch:?}");
         Ok(batch)
     }
 

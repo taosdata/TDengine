@@ -1,10 +1,17 @@
 use anyhow::{bail, Result};
+use chrono::Local;
 use clap::{Parser, Subcommand};
 use const_format::concatcp;
-use log::Level;
-use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
 use shadow_rs::shadow;
 
+use taosx_core::{
+    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_TAOSX_LOGS_KEEP_DAYS,
+};
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -16,6 +23,12 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;
+
+use time::{macros::format_description, UtcOffset};
+use tracing_subscriber::{
+    fmt::{format::FmtSpan, time::OffsetTime},
+    prelude::*,
+};
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -65,6 +78,10 @@ pub(crate) struct GlobalOpts {
     #[clap(short, long, global = true)]
     debug: bool,
 
+    /// Log keep days.
+    #[clap(short, long, global = true)]
+    log_keep_days: Option<i64>,
+
     /// Be careful to use this, we suggest only use it when failed at first time.
     ///
     /// We'll warn you various kind of risks before really running a task.
@@ -94,7 +111,13 @@ enum Commands {
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
-
+fn set_env_log_keep_days(config: Option<i64>) {
+    if let Some(log_keep_days) = config {
+        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
+            std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
+        }
+    }
+}
 #[derive(Parser, Debug)]
 #[clap(
     name = build::CUS_CLI_NAME,
@@ -144,58 +167,99 @@ fn main() -> Result<()> {
         }
     }
 
-    let mut builder = pretty_env_logger::formatted_timed_builder();
-    builder.filter_level(args.globals.verbose.log_level_filter());
-    builder.filter_module("tokio", log::LevelFilter::Warn);
-    builder.filter_module("tungstenite", log::LevelFilter::Warn);
-    builder.filter_module("tokio_tungstenite", log::LevelFilter::Warn);
-    builder.filter_module("mio", log::LevelFilter::Warn);
-    let debug = args.globals.debug;
-    builder
-        .format_module_path(true)
-        .format(
-            move |buf, record| -> std::result::Result<(), std::io::Error> {
-                fn colored_level<'a>(
-                    style: &'a mut pretty_env_logger::env_logger::fmt::Style,
-                    level: Level,
-                ) -> StyledValue<'a, &'static str> {
-                    match level {
-                        Level::Trace => style.set_color(Color::Magenta).value("TRACE"),
-                        Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
-                        Level::Info => style.set_color(Color::Green).value("INFO "),
-                        Level::Warn => style.set_color(Color::Yellow).value("WARN "),
-                        Level::Error => style.set_color(Color::Red).value("ERROR"),
-                    }
-                }
-                let mut style = buf.style();
-                let level = colored_level(&mut style, record.level());
-                let mut mod_path = buf.style();
+    set_env_log_keep_days(args.globals.log_keep_days);
 
-                let mod_path = if debug {
-                    mod_path.set_bold(true).value(format!(
-                        "{}:{}",
-                        record.file().unwrap_or("unknown"),
-                        record.line().unwrap_or(0),
-                    ))
-                } else {
-                    mod_path
-                        .set_bold(true)
-                        .value(format!("{}", record.module_path().unwrap_or_default(),))
-                };
+    let mut log_path = get_log_dir("server");
 
-                use std::io::Write;
-                writeln!(
-                    buf,
-                    "[{:29}] {: <5} {} > {}",
-                    chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
-                    level,
-                    mod_path,
-                    record.args()
-                )
-            },
-        )
-        .is_test(false)
-        .init();
+    log_path.push("server.log");
+
+    let log_keep_days = get_log_keep_days();
+
+    println!("log keep days: {}", &log_keep_days);
+
+    let log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
+
+    // let timer = LocalTime::new(format_description!(
+    //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
+    // ));
+
+    let chrono_local = Local::now();
+    let timezone_offset = (chrono_local.offset().local_minus_utc()
+        / chrono::Duration::hours(1).num_seconds() as i32) as i8;
+
+    println!("local timezone offset: {}", timezone_offset);
+
+    let timer = OffsetTime::new(
+        UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
+    );
+
+    let level_filter = args.globals.verbose.log_level_filter();
+
+    use tracing_subscriber::filter::LevelFilter;
+    let level_filter = match level_filter {
+        clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
+        clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
+        clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
+        clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
+        clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
+        clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
+    };
+
+    let mut layers = Vec::new();
+
+    layers.push(
+        tracing_subscriber::fmt::layer()
+            .with_timer(timer.clone())
+            .with_level(true)
+            .with_thread_ids(true)
+            .with_thread_names(true)
+            .with_span_events(FmtSpan::ACTIVE)
+            .with_ansi(false)
+            .with_writer(non_blocking)
+            // .compact()
+            .with_filter(level_filter)
+            .boxed(),
+    );
+    if atty::is(atty::Stream::Stderr) {
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
+                .with_level(true)
+                .with_thread_ids(true)
+                .with_writer(std::io::stderr)
+                .with_ansi(true)
+                .pretty()
+                .with_filter(level_filter)
+                .boxed(),
+        );
+    } else {
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
+                .with_level(true)
+                .with_thread_ids(true)
+                .with_writer(std::io::stderr)
+                .with_ansi(false)
+                .compact()
+                .with_filter(level_filter)
+                .boxed(),
+        );
+    }
+    tracing_subscriber::registry().with(layers).init();
 
     let worker_threads = args.globals.executor_worker_threads();
 
@@ -211,7 +275,9 @@ fn main() -> Result<()> {
         .build()?;
     if let Some(cmd) = args.commands {
         match cmd {
-            Commands::Run(cmd) => runtime.block_on(cmd.run_with(args.globals))?,
+            Commands::Run(cmd) => {
+                runtime.block_on(cmd.run_with(args.globals))?;
+            }
             Commands::Serve(cli) => {
                 // let rt = tokio::runtime::Builder::new_multi_thread()
                 //     .max_blocking_threads(4096)
@@ -232,5 +298,6 @@ fn main() -> Result<()> {
         //     .build()?;
         runtime.block_on(serve::Cli::default().run_with(args.globals, None))?;
     }
+    runtime.shutdown_background();
     Ok(())
 }
