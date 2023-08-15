@@ -391,11 +391,17 @@ do
                                 taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
                                 TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
                                 logger "INFO" "taosBenchmark executed to generate test database"
+                            else 
+                                logger "INFO" "stable meters existed in test database"
                             fi
+                        else 
+                            logger "ERROR" "failed to query meters stable from information_schema"
                         fi
                     else
                         logger "INFO" "$? test database found and no need to recreate again"
                     fi
+                else 
+                    logger "ERROR" "failed to show all databases"
                 fi
             fi
         fi
