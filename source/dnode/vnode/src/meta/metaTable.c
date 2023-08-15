@@ -932,15 +932,13 @@ int metaTtlSetExpireTime(SMeta *pMeta, int64_t timePointMs) {
   return 0;
 }
 
-int metaTtlDropTables(SMeta *pMeta, SArray *tbUids) {
+int metaTtlDropTables(SMeta *pMeta, SArray *tbUids, bool* pShallAbort) {
   int     ret = 0;
   int64_t startMs = taosGetTimestampMs();
 
-  tsem_wait(&pMeta->txnReady);
-  metaWLock(pMeta);
+  metaWaitTxnReadyAndWLock(pMeta);
   ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
-  metaULock(pMeta);
-  tsem_post(&pMeta->txnReady);
+  metaULockAndPostTxnReady(pMeta);
 
   metaRLock(pMeta);
   ret = ttlMgrFindExpired(pMeta->pTtlMgr, tbUids);
@@ -959,16 +957,15 @@ int metaTtlDropTables(SMeta *pMeta, SArray *tbUids) {
   for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
 
-    tsem_wait(&pMeta->txnReady);
-    metaWLock(pMeta);
+    if (*pShallAbort) break;
+    metaWaitTxnReadyAndWLock(pMeta);
     metaDropTableByUid(pMeta, uid, NULL);
-    metaULock(pMeta);
-    tsem_post(&pMeta->txnReady);
+    metaULockAndPostTxnReady(pMeta);
     taosUsleep(1);
   }
 
   int64_t endMs = taosGetTimestampMs();
-  metaInfo("ttl drop table finished, time consumed:%" PRId64 "ms", endMs - startMs);
+  metaInfo("ttl drop table finished, time consumed:%" PRId64 "ms, isAbort:%d", endMs - startMs, *pShallAbort);
 
   return 0;
 }

@@ -42,6 +42,8 @@ typedef struct SMetaCache SMetaCache;
 int32_t metaRLock(SMeta* pMeta);
 int32_t metaWLock(SMeta* pMeta);
 int32_t metaULock(SMeta* pMeta);
+int32_t metaWaitTxnReadyAndWLock(SMeta* pMeta);
+int32_t metaULockAndPostTxnReady(SMeta* pMeta);
 
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
@@ -77,7 +79,7 @@ int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int
 struct SMeta {
   TdThreadRwlock lock;
 
-  tsem_t txnReady; // if false, we should not write journal
+  tsem_t txnReady; // vnode-write: wait in 'metaCommit' and post in 'metaBegin'
 
   char*   path;
   SVnode* pVnode;

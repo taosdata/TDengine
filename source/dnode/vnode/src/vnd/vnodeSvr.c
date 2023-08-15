@@ -725,11 +725,11 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   code = metaTtlSetExpireTime(pVnode->pMeta, ttlExpireTimeMs);
   if (code) goto end;
 
-  if (!pVnode->hasTtlTask) {
-    pVnode->hasTtlTask = true;
+  if (!pVnode->ttlTaskProcessing) {
+    pVnode->ttlTaskProcessing = true;
     code = vnodeAsyncTtlDropTable(pVnode);
     if (code) {
-      pVnode->hasTtlTask = false;
+      pVnode->ttlTaskProcessing = false;
       goto end;
     }
   }

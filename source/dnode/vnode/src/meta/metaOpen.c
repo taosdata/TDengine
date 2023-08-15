@@ -265,6 +265,24 @@ int32_t metaULock(SMeta *pMeta) {
   return ret;
 }
 
+int32_t metaWaitTxnReadyAndWLock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  tsem_wait(&pMeta->txnReady);
+  ret = metaWLock(pMeta);
+
+  return ret;
+}
+
+int32_t metaULockAndPostTxnReady(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  ret = metaULock(pMeta);
+  tsem_post(&pMeta->txnReady);
+
+  return ret;
+}
+
 static void metaCleanup(SMeta **ppMeta) {
   SMeta *pMeta = *ppMeta;
   if (pMeta) {

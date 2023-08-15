@@ -362,7 +362,7 @@ static int32_t vnodeTtlTask(void *arg) {
   SVnode   *pVnode = pInfo->pVnode;
   SArray   *tbUids = taosArrayInit(8, sizeof(int64_t));
 
-  code = metaTtlDropTables(pVnode->pMeta, tbUids);
+  code = metaTtlDropTables(pVnode->pMeta, tbUids, &pVnode->ttlTaskShallAbort);
   if (code) {
     vFatal("vgId:%d, meta failed to drop table by ttl since %s", TD_VID(pVnode), terrstr());
     goto _exit;
@@ -373,7 +373,7 @@ static int32_t vnodeTtlTask(void *arg) {
   }
 
 _exit:
-  pVnode->hasTtlTask = false;
+  pVnode->ttlTaskProcessing = false;
   taosArrayDestroy(tbUids);
   taosMemoryFree(pInfo);
   return code;

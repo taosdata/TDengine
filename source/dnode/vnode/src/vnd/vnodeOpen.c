@@ -371,7 +371,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
-  pVnode->hasTtlTask = false;
+  pVnode->ttlTaskProcessing = false;
+  pVnode->ttlTaskShallAbort = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
@@ -476,6 +477,11 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    pVnode->ttlTaskShallAbort = true;
+    while (pVnode->ttlTaskProcessing) {
+      taosMsleep(10);
+    }
+
     tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
