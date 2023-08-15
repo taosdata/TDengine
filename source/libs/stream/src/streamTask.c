@@ -13,9 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmisce.h"
+#include "sync.h"
+#include "tstream.h"
 #include "executor.h"
 #include "streamInt.h"
+#include "tmisce.h"
 #include "tstream.h"
 #include "ttimer.h"
 #include "wal.h"
@@ -60,6 +62,7 @@ int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo)
   if (tEncodeI32(pEncoder, pInfo->childId) < 0) return -1;
   /*if (tEncodeI64(pEncoder, pInfo->processedVer) < 0) return -1;*/
   if (tEncodeSEpSet(pEncoder, &pInfo->epSet) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->stage) < 0) return -1;
   return 0;
 }
 
@@ -69,6 +72,7 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
   if (tDecodeI32(pDecoder, &pInfo->childId) < 0) return -1;
   /*if (tDecodeI64(pDecoder, &pInfo->processedVer) < 0) return -1;*/
   if (tDecodeSEpSet(pDecoder, &pInfo->epSet) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->stage) < 0) return -1;
   return 0;
 }
 
@@ -382,6 +386,7 @@ static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   pEpInfo->epSet = pTask->info.epSet;
   pEpInfo->nodeId = pTask->info.nodeId;
   pEpInfo->taskId = pTask->id.taskId;
+  pEpInfo->stage = -1;
 
   return pEpInfo;
 }
@@ -467,9 +472,10 @@ int32_t streamTaskStop(SStreamTask* pTask) {
 
 int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) {
   const char* id = pTask->id.idStr;
-  int32_t vgId = pTask->pMeta->vgId;
+  int64_t     stage = pTask->pMeta->stage;
+  int32_t     vgId = pTask->pMeta->vgId;
 
-  qDebug("s-task:%s vgId:%d restart current task, stage:%d, status:%s, sched-status:%d", id, vgId, pTask->status.stage,
+  qDebug("s-task:%s vgId:%d restart current task, stage:%"PRId64", status:%s, sched-status:%d", id, vgId, stage,
          streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
 
   // 1. stop task
@@ -482,8 +488,6 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) 
   taosArrayClear(pTask->pRspMsgList);
 
   pTask->status.downstreamReady = 0;
-  pTask->status.stage += 1;
-
   streamSetStatusNormal(pTask);
 
   taosWLockLatch(&pTask->pMeta->lock);
@@ -491,8 +495,9 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) 
   streamMetaCommit(pTask->pMeta);
   taosWUnLockLatch(&pTask->pMeta->lock);
 
-  qDebug("s-task:%s reset downstream status and inc stage to be:%d, status:%s, start to check downstream", id,
-         pTask->status.stage, streamGetTaskStatusStr(pTask->status.taskStatus));
+  ASSERT(0);
+//  qDebug("s-task:%s reset downstream status and inc stage to be:%d, status:%s, start to check downstream", id,
+//         pTask->status.stage, streamGetTaskStatusStr(pTask->status.taskStatus));
 
   // 3. start to check the downstream status
   if (startTask) {

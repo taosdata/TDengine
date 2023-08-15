@@ -26,6 +26,12 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int64_t      st = taosGetTimestampMs();
 
+  // update the cached nodeId when reading data from WAL files.
+  int64_t nodeStage = tqGetNodeStage(pTq);
+  if (pMeta->stage != nodeStage) {
+    pMeta->stage = nodeStage;
+  }
+
   while (1) {
     int32_t scan = pMeta->walScanCounter;
     tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, scan);
@@ -80,13 +86,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
       continue;
     }
 
-    if (pTask->info.fillHistory == 1) {
-      tqDebug("s-task:%s fill-history task, wait for related stream task:0x%x to launch it", pTask->id.idStr,
-              pTask->streamTaskId.taskId);
-      continue;
-    }
-
-    streamTaskDoCheckDownstreamTasks(pTask);
+    streamTaskCheckDownstreamTasks(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
 
@@ -285,6 +285,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
+    // downstream task has blocked the output, stopped for a while
     if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
       tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);

@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <tstream.h>
 #include "streamInt.h"
+#include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"
-#include "trpc.h"
 
 typedef struct SStreamTaskRetryInfo {
   SStreamMeta* pMeta;
@@ -116,7 +117,7 @@ int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask) {
       .upstreamTaskId = pTask->id.taskId,
       .upstreamNodeId = pTask->info.nodeId,
       .childId = pTask->info.selfChildId,
-      .stage = pTask->status.stage,
+      .stage = pTask->pMeta->stage,
   };
 
   // serialize
@@ -174,7 +175,7 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
       .downstreamTaskId = pRsp->downstreamTaskId,
       .downstreamNodeId = pRsp->downstreamNodeId,
       .childId = pRsp->childId,
-      .stage = pTask->status.stage,
+      .stage = pTask->pMeta->stage,
   };
 
   qDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) (recheck)", pTask->id.idStr, pTask->info.nodeId,
@@ -197,8 +198,21 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
   return 0;
 }
 
-int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t stage) {
-  return ((pTask->status.downstreamReady == 1) && (pTask->status.stage == stage))? 1:0;
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage) {
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  ASSERT(pInfo != NULL && pInfo->stage <= stage);
+
+  if (pInfo->stage == -1) {
+    pInfo->stage = stage;
+    qDebug("s-task:%s receive msg from upstream task:0x%x, init stage value:%"PRId64, pTask->id.idStr, upstreamTaskId, stage);
+  }
+
+  if (pInfo->stage < stage) {
+    qError("s-task:%s receive msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64 ", prev:%" PRId64,
+           pTask->id.idStr, vgId, stage, pInfo->stage);
+  }
+
+  return ((pTask->status.downstreamReady == 1) && (pInfo->stage == upstreamTaskId))? 1:0;
 }
 
 static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
@@ -266,7 +280,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
     }
   } else {  // not ready, wait for 100ms and retry
     qDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, wait for 100ms and retry", id,
-           pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->stage);
+           pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage);
     taosMsleep(100);
     streamRecheckDownstream(pTask, pRsp);
   }
@@ -664,7 +678,7 @@ int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq*
   if (tEncodeI32(pEncoder, pReq->downstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->stage) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->stage) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -678,7 +692,7 @@ int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq)
   if (tDecodeI32(pDecoder, &pReq->downstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->downstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->stage) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->stage) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -692,7 +706,7 @@ int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp*
   if (tEncodeI32(pEncoder, pRsp->downstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->downstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->childId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->stage) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->oldStage) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->status) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -707,7 +721,7 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   if (tDecodeI32(pDecoder, &pRsp->downstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->downstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->childId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->stage) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->oldStage) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->status) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
@@ -785,15 +799,13 @@ void launchFillHistoryTask(SStreamTask* pTask) {
   streamLaunchFillHistoryTask(pTask);
 }
 
+// only the downstream tasks are ready, set the task to be ready to work.
 void streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
   if (pTask->info.fillHistory) {
     qDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
     return;
   }
-
   ASSERT(pTask->status.downstreamReady == 0);
-
-  // check downstream tasks for itself
   streamTaskDoCheckDownstreamTasks(pTask);
 }
 

@@ -128,7 +128,8 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
+  int64_t stage = tqGetNodeStage(pTq);
+  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId, stage);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }
@@ -1064,16 +1065,14 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, taskId);
   if (pTask != NULL) {
-    rsp.status = streamTaskCheckStatus(pTask, req.stage);
-    rsp.stage = pTask->status.stage;
+    rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
     const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
     tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
-            pTask->id.idStr, pStatus, rsp.stage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+            pTask->id.idStr, pStatus, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
-    rsp.stage = 0;
     tqDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
             ") from task:0x%x (vgId:%d), rsp status %d",
             req.streamId, taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
@@ -1928,8 +1927,11 @@ int32_t tqProcessTaskStopReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMetaReleaseTask(pMeta, pTask);
-
-//  tDecoderClear(&decoder);
   tmsgSendRsp(&rsp);
   return 0;
+}
+
+int64_t tqGetNodeStage(STQ* pTq) {
+  SSyncState state = syncGetState(pTq->pVnode->sync);
+  return state.term;
 }

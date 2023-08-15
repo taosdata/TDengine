@@ -241,23 +241,31 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
   qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
-
   int32_t status = 0;
 
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
   ASSERT(pInfo != NULL);
 
-  if (!pInfo->dataAllowed) {
-    qWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr, pReq->upstreamTaskId);
+  // upstream task has restarted/leader-follower switch/transferred to other dnodes
+  if (pReq->stage > pInfo->stage) {
+    qError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
+           ", current:%" PRId64 " dispatch msg rejected",
+           pTask->id.idStr, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
     status = TASK_INPUT_STATUS__BLOCKED;
   } else {
-    // Current task has received the checkpoint req from the upstream task, from which the message should all be blocked
-    if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
-      qDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
-    }
+    if (!pInfo->dataAllowed) {
+      qWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr,
+            pReq->upstreamTaskId);
+      status = TASK_INPUT_STATUS__BLOCKED;
+    } else {
+      // Current task has received the checkpoint req from the upstream task, from which the message should all be blocked
+      if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+        streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+        qDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
+      }
 
-    status = streamTaskAppendInputBlocks(pTask, pReq);
+      status = streamTaskAppendInputBlocks(pTask, pReq);
+    }
   }
 
   {

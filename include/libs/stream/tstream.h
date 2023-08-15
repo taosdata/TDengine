@@ -119,13 +119,12 @@ typedef struct {
 } SStreamMergedSubmit;
 
 typedef struct {
-  int8_t type;
-
+  int8_t  type;
+  int64_t nodeId;  // nodeId, from SStreamMeta
   int32_t srcVgId;
   int32_t srcTaskId;
   int64_t sourceVer;
   int64_t reqId;
-
   SArray* blocks;  // SArray<SSDataBlock>
 } SStreamDataBlock;
 
@@ -250,6 +249,7 @@ typedef struct SStreamChildEpInfo {
   int32_t taskId;
   SEpSet  epSet;
   bool    dataAllowed;  // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
+  int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
 } SStreamChildEpInfo;
 
 typedef struct SStreamId {
@@ -272,7 +272,6 @@ typedef struct SStreamStatus {
   bool   transferState;
   int8_t timerActive;   // timer is active
   int8_t pauseAllowed;  // allowed task status to be set to be paused
-  int32_t       stage;   // rollback will increase this attribute one for each time
 } SStreamStatus;
 
 typedef struct SHistDataRange {
@@ -379,6 +378,7 @@ typedef struct SStreamMeta {
   TXN*          txn;
   FTaskExpand*  expandFunc;
   int32_t       vgId;
+  int64_t       stage;
   SRWLatch      lock;
   int32_t       walScanCounter;
   void*         streamBackend;
@@ -420,6 +420,7 @@ typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t type;
+  int64_t stage; //nodeId from upstream task
   int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
@@ -459,13 +460,13 @@ typedef struct {
 
 typedef struct {
   int64_t reqId;
+  int64_t stage;
   int64_t streamId;
   int32_t upstreamNodeId;
   int32_t upstreamTaskId;
   int32_t downstreamNodeId;
   int32_t downstreamTaskId;
   int32_t childId;
-  int32_t stage;
 } SStreamTaskCheckReq;
 
 typedef struct {
@@ -476,7 +477,7 @@ typedef struct {
   int32_t downstreamNodeId;
   int32_t downstreamTaskId;
   int32_t childId;
-  int32_t stage;
+  int32_t oldStage;
   int8_t  status;
 } SStreamTaskCheckRsp;
 
@@ -626,17 +627,15 @@ bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 int32_t streamTaskEndScanWAL(SStreamTask* pTask);
 
-SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
-int32_t             streamScanExec(SStreamTask* pTask, int32_t batchSize);
+int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize);
 void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 
 // recover and fill history
 void    streamTaskCheckDownstreamTasks(SStreamTask* pTask);
-int32_t streamTaskDoCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
-int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t stage);
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 int32_t streamTaskStop(SStreamTask* pTask);
@@ -681,7 +680,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask);
 // stream task meta
 void         streamMetaInit();
 void         streamMetaCleanup();
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
 // save to stream meta store
