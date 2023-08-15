@@ -92,7 +92,7 @@ pub fn get_string_content_from_param_value(
                 .collect_vec()
                 .iter()
                 .filter_map(|r| r.as_ref().ok())
-                .join("");
+                .join("\n");
             result.push_str(file_data.as_str());
         }
         index += 1;

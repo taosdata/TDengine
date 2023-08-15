@@ -534,7 +534,7 @@ impl FlightService for FlightServiceImpl {
                         AgentAction::Run(id) => {
                             let task = controller.get(id).await?;
                             if let Some(mut task) = task {
-                                // TODO handle dsn(from) params contains file(@)
+                                // handle dsn(from) params contains file(@)
                                 modify_task_dsn_params(&mut task.task).await?;
                                 let context: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     serde_json::to_string(&task).unwrap(),
@@ -714,7 +714,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
             }
         } else if v.contains("@") {
             new_value.push_str(
-                get_string_content_from_param_value(&k.as_str(), false, true)?
+                get_string_content_from_param_value(&v, false, false)?
                     .unwrap_or(String::new())
                     .as_str(),
             );
