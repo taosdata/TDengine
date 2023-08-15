@@ -179,7 +179,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int         code = 0;
   int32_t     vgId = TD_VID(pTq->pVnode);
-  SWalCkHead* pCkHead = NULL;
   SMqMetaRsp  metaRsp = {0};
   STaosxRsp   taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, *offset);
@@ -216,14 +215,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   if (offset->type == TMQ_OFFSET__LOG) {
     walReaderVerifyOffset(pHandle->pWalReader, offset);
     int64_t fetchVer = offset->version;
-    pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
-    if (pCkHead == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = -1;
-      goto end;
-    }
 
-    walSetReaderCapacity(pHandle->pWalReader, 2048);
     int totalRows = 0;
     while (1) {
       int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
@@ -234,14 +226,14 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         break;
       }
 
-      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
+      if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
 //        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       }
 
-      SWalCont* pHead = &pCkHead->head;
+      SWalCont* pHead = &pHandle->pWalReader->pHead->head;
       tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, vgId:%d offset %" PRId64 " msgType %d",
               pRequest->consumerId, pRequest->epoch, vgId, fetchVer, pHead->msgType);
 
@@ -291,7 +283,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 end:
 
   tDeleteSTaosxRsp(&taosxRsp);
-  taosMemoryFreeClear(pCkHead);
   return code;
 }
 
