@@ -59,7 +59,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return -1;
   }
 
-#ifdef WINDOWS
+#ifndef WINDOWS
   if (udfStartUdfd(pMgmt->pData->dnodeId) != 0) {
     dError("failed to start udfd");
   }

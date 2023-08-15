@@ -571,7 +571,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-vnodes", "initialized");
 
-#ifdef WINDOWS
+#ifndef WINDOWS
   if (udfcOpen() != 0) {
     dError("failed to open udfc in vnode");
     goto _OVER;
