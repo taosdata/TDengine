@@ -9,21 +9,21 @@ mod runners;
 use std::sync::Arc;
 
 use futures::TryStreamExt;
-pub use runners::opc::opc_to_taos;
-pub use runners::opc::OPCConfig;
-pub use sink::IpcStreamWorker;
-pub use runners::kafka::kafka_to_taos;
-pub use runners::influxdb::influxdb_to_taos;
 pub use runners::influxdb::influxdb_datasets;
+pub use runners::influxdb::influxdb_to_taos;
+pub use runners::kafka::kafka_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
+pub use runners::opc::opc_to_taos;
+pub use runners::opc::OPCConfig;
 pub use runners::pi::pi_to_taos;
+pub use sink::IpcStreamWorker;
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
-use crate::Transferred;
 use crate::plugins::runners::pi::pi_datasets;
+use crate::Transferred;
 pub use taosx_ipc::types::*;
 
 pub use transform::Parser;
@@ -32,7 +32,6 @@ pub use runners::{
     get_log_dir, get_log_keep_days, get_plugins_info, valid_env_log_keep_days,
     ENV_TAOSX_LOGS_KEEP_DAYS,
 };
-
 
 pub fn build_ipc(
     socket: &str,
@@ -48,8 +47,9 @@ pub fn build_ipc(
     let (sender, receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
+        let pool = builder.pool()?;
         sink::listen_tcp_socket(
-            builder.pool()?,
+            pool,
             socket,
             sender,
             None,
@@ -70,7 +70,6 @@ pub fn build_ipc(
     };
     Ok((ipc, receiver))
 }
-
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from = data.from.clone().into_dsn()?;

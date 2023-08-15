@@ -92,7 +92,6 @@ sysinfo = "0.29.0"
 
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
-tracing = "0.1"
 
 flume = "0.10"
 futures-util = "0.3"
@@ -107,6 +106,13 @@ tempfile = "3"
 bytes = "1.4.0"
 jsonwebtoken = "8.3"
 rand = "0.8"
+
+time = { version = "0.3", features = ["formatting", "macros"] }
+tracing-subscriber = { version = "0.3", features = ["time", "local-time","env-filter"] }
+tracing-appender = "0.2"
+tracing = { version = "0.1", features = ["log"] }
+atty = "*"
+file-rotate = "0.7.5"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
@@ -149,3 +155,6 @@ disable-enterprise-only-validation = [
 disable-enterprise-connector-validation = [
   "taosx-core/disable-enterprise-connector-validation",
 ]
+
+[profile.sani]
+inherits = "release"

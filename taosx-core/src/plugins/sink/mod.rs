@@ -1,3 +1,4 @@
+use anyhow::Context;
 use arrow::{
     array::{ArrayRef, TimestampMillisecondArray},
     datatypes::{Schema, SchemaRef},
@@ -7,19 +8,19 @@ use arrow::{
 use arrow_flight::{FlightClient, PutResult};
 use async_backtrace::framed;
 use bytes::Bytes;
-use futures::TryStreamExt;
+use futures::{task::SpawnExt, TryStreamExt};
 use std::{
     any::Any,
     collections::HashMap,
     io::{Read, Write},
     net::SocketAddr,
-    panic,
+    str::FromStr,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     task::Poll,
-    time::Duration, str::FromStr,
+    time::Duration,
 };
 use taos::{
     taos_query::common::Describe, AsyncFetchable, AsyncQueryable, Bindable, Dsn, Itertools,
@@ -28,7 +29,7 @@ use taos::{
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
@@ -49,7 +50,7 @@ use taosx_ipc::{
 #[instrument(skip(stream, cancel, token))]
 async fn ipc_tcp_forward(
     client: String,
-    stream: socket2::Socket,
+    stream: std::net::TcpStream, // socket2::Socket,
     cancel: CancellationToken,
     remote: String, // "http://127.0.0.1:6051"
     token: String,
@@ -118,6 +119,7 @@ async fn ipc_tcp_forward(
     // dbg!(&schema);
     let (sender, receiver) = flume::bounded(5);
 
+    info!(client, remote, "reading batches");
     tokio::spawn(async move {
         let mut batches = futures::stream::iter(ipc_reader.reader);
         while let Some(res) = batches.next().await {
@@ -218,7 +220,7 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
 async fn ipc_tcp_read(
     client: String,
     pool: TaosPool,
-    stream: socket2::Socket,
+    stream: std::net::TcpStream, //socket2::Socket,
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
     _cancel: CancellationToken,
@@ -228,19 +230,35 @@ async fn ipc_tcp_read(
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
-    let ipc_reader = IpcReader::new(&stream)?;
+
+    let ipc_reader = IpcReader::new(&stream).context("IPC reading error")?;
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    // ipc_ack_writer.ack(LushAck);
     let client = client.to_string();
-    tokio::select! {
-        // _ = cancel.cancelled() => {
-        //     log::debug!("cancel IPC worker");
-        //     Ok(())
-        // },
-        done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser, connector, transferred) => {
-            log::info!("IPC stopped");
-            done
-        }
-    }
+    ipc_process(
+        client,
+        pool,
+        ipc_reader,
+        ipc_ack_writer,
+        lock,
+        config,
+        parser,
+        connector,
+        transferred,
+    )
+    .await?;
+    log::info!("IPC stopped");
+    Ok(())
+    // tokio::select! {
+    // _ = cancel.cancelled() => {
+    //     log::debug!("cancel IPC worker");
+    //     Ok(())
+    // },
+    // done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser, connector, transferred) => {
+    //     log::info!("IPC stopped");
+    //     done
+    // }
+    // }
 }
 
 // #[cfg(unix)]
@@ -503,7 +521,10 @@ async fn consume_point_record(
             }
         }
         // stable, Vec<insert_sql, sql length overflow?, value_column_type>
-        let mut stable_insert_map :HashMap<String, Vec<(String, bool, String, ModifyStructForPointMessage)>> = HashMap::new();
+        let mut stable_insert_map: HashMap<
+            String,
+            Vec<(String, bool, String, ModifyStructForPointMessage)>,
+        > = HashMap::new();
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
@@ -640,7 +661,11 @@ async fn consume_point_record(
                     if *overflow {
                         continue;
                     } else {
-                        let sql_suffix = format!(" `{child_table_name}` {} VALUES ({}) ", tag_sql.as_str(), values);
+                        let sql_suffix = format!(
+                            " `{child_table_name}` {} VALUES ({}) ",
+                            tag_sql.as_str(),
+                            values
+                        );
                         if insert_sql.len() + sql_suffix.len() > 1000 * 1000 {
                             *overflow = true;
                             continue;
@@ -650,9 +675,13 @@ async fn consume_point_record(
                         }
                     }
                 }
-            } 
+            }
             if !insert_done {
-                let insert_sql = format!("insert into `{child_table_name}` {} VALUES ({})", tag_sql.as_str(), values);
+                let insert_sql = format!(
+                    "insert into `{child_table_name}` {} VALUES ({})",
+                    tag_sql.as_str(),
+                    values
+                );
                 let value_column_type = if point_config.value_type.is_some() {
                     // maybe should replace value column type
                     point_config.value_type.clone().unwrap().sql_repr()
@@ -660,12 +689,17 @@ async fn consume_point_record(
                     value_type.clone()
                 };
                 let mut sql_vec = Vec::new();
-                sql_vec.push((insert_sql, false, value_column_type, ModifyStructForPointMessage {
-                    id,
-                    point_name,
-                    value_cloumn_name: value_cloumn_name.to_string(),
-                    value_cloumn_length,
-                }));
+                sql_vec.push((
+                    insert_sql,
+                    false,
+                    value_column_type,
+                    ModifyStructForPointMessage {
+                        id,
+                        point_name,
+                        value_cloumn_name: value_cloumn_name.to_string(),
+                        value_cloumn_length,
+                    },
+                ));
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             }
             // insert_sql.push_str(tag_sql.as_str());
@@ -694,7 +728,8 @@ async fn consume_point_record(
                                 // stable not exists
                                 // should be some
                                 let value_column_config = value_column.as_ref().unwrap();
-                                let primary_key_column_name = value_column_config.column_name.clone();
+                                let primary_key_column_name =
+                                    value_column_config.column_name.clone();
                                 let prinmary_key_column_alias = value_column_config
                                     .column_alias
                                     .clone()
@@ -716,7 +751,10 @@ async fn consume_point_record(
                                             // Object is creating, maybe should ignore
                                             log::warn!("create stable sql encounter 0x032C");
                                         } else {
-                                            anyhow::bail!("create stable sql err: {}", err.to_string());
+                                            anyhow::bail!(
+                                                "create stable sql err: {}",
+                                                err.to_string()
+                                            );
                                         }
                                     }
                                 }
@@ -797,14 +835,33 @@ async fn consume_point_record(
                                 // column or tag length not enough
                                 let desc = taos.describe(&stable_name.as_str()).await?;
                                 let mut tags_for_diff = Vec::new();
-                                tags_for_diff.push(("point_id".to_string(), IpcDataType::from_str(format!("varchar({})", modify_message.id.len()).as_str()).unwrap()));
-                                tags_for_diff.push(("point_name".to_string(), IpcDataType::from_str(format!("varchar({})", modify_message.point_name.len()).as_str()).unwrap()));
+                                tags_for_diff.push((
+                                    "point_id".to_string(),
+                                    IpcDataType::from_str(
+                                        format!("varchar({})", modify_message.id.len()).as_str(),
+                                    )
+                                    .unwrap(),
+                                ));
+                                tags_for_diff.push((
+                                    "point_name".to_string(),
+                                    IpcDataType::from_str(
+                                        format!("varchar({})", modify_message.point_name.len())
+                                            .as_str(),
+                                    )
+                                    .unwrap(),
+                                ));
                                 if table_config.tag_configs.is_some() {
                                     for tag_conf in table_config.tag_configs.clone().unwrap() {
-                                        tags_for_diff.push((tag_conf.column_name, tag_conf.column_type));
+                                        tags_for_diff
+                                            .push((tag_conf.column_name, tag_conf.column_type));
                                     }
                                 }
-                                let sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &tags_for_diff, true);
+                                let sqls = generate_alter_sql_diff_desc(
+                                    &stable_name,
+                                    &desc,
+                                    &tags_for_diff,
+                                    true,
+                                );
                                 if sqls.is_some() {
                                     let sqls = sqls.unwrap();
                                     for sql in sqls {
@@ -836,7 +893,6 @@ async fn consume_point_record(
                     }
                 }
             }
-            
         }
     }
     Ok(points)
@@ -850,6 +906,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
         .unwrap_or(&column_config.column_name)
 }
 
+#[instrument(skip_all, fields(writer.count = count, writer.stream = "flat"))]
 async fn consume_flat_record(
     _taos: &Taos,
     record: &FlatMessage,
@@ -1050,6 +1107,7 @@ async fn consume_flat_record(
                             }
                             if let Err(err) = _taos.write_raw_block(&raw).await {
                                 // dbg!(&err);
+                                let code = err.code();
                                 let err_str = err.to_string();
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
@@ -1145,7 +1203,13 @@ async fn consume_flat_record(
                                         }
                                         index += 1;
                                     }
+                                // } else if err_str.contains("0x022D") {
+                                //     info!(table = table_name, code = %code, "write {} records failed: {err:#}, retry", records.records.num_rows());
+                                //     // panic!("{}", err);
+                                //     Err(err)?;
+                                //     break;
                                 } else {
+                                    error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                                     Err(err)?;
                                     break;
                                 }
@@ -1269,6 +1333,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
     Ok(())
 }
 
+#[instrument(skip_all, fields(stream = "flat"))]
 async fn ipc_flat_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -1286,10 +1351,11 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             .unwrap();
             consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await?;
 
-            ipc_ack_writer.write_ok()?;
+            let _ = ipc_ack_writer.write_ok().context("write ack error");
         }
     }
-    println!("finished, totally {count} rows");
+    info!("IPC processing done, written totally {count} records");
+    println!("Flat stream writing finished, totally {count} rows");
     Ok(())
 }
 
@@ -1358,19 +1424,20 @@ pub fn generate_alter_sql_diff_desc(
     }
 }
 
-#[instrument(skip(pool, ipc_reader, ipc_ack_writer, config))]
 #[framed]
+#[instrument(skip_all, fields(client, connector))]
 async fn ipc_process<R: Read, W: Write>(
     client: String,
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
-    lock: Arc<Mutex<()>>,
+    _lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
     parser: Option<Parser>,
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
+    info!(client, "IPC stream processing...");
     let taos = pool.get().await?;
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {
@@ -1409,11 +1476,12 @@ async fn ipc_process<R: Read, W: Write>(
     let stream_type = *metadata.stream_type();
 
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
-        let guard = lock.lock().await;
+        // let guard = lock.lock().await;
         let init = metadata.init().unwrap();
         handle_lush_message_init(init, &taos, &sql).await?;
-        drop(guard)
+        // drop(guard)
     }
+    info!(?stream_type, "Processing stream");
     match stream_type {
         StreamType::Line => todo!(),
         StreamType::Flat => {
@@ -1769,58 +1837,39 @@ pub fn listen_tcp_socket_with_agent(
     with_agent: (i64, String, String),
 ) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
-    use socket2::{Domain, Socket, Type};
-    let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
-    let addr: SocketAddr = addr.parse()?;
-    socket.bind(&addr.into())?;
-    socket.set_keepalive(true)?;
-    socket.set_nonblocking(false)?;
-    socket.listen(128)?;
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(16)
-        .thread_name_fn(|| {
-            static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
-            let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
-            format!("ipc-runner-{}", id)
-        })
-        .build()?;
-    // info!("listen on socket address: {tcp_addr}");
-    // let sql_lock = Arc::new(Mutex::new(()));
+    let socket = tokio::net::TcpSocket::new_v4()?;
+    let addr: SocketAddr = addr.parse()?;
+    socket.bind(addr)?;
+    let socket = socket.listen(128)?;
+    socket.set_ttl(100)?;
+
+    let executor = futures::executor::ThreadPool::new().context("Failed to build pool")?;
+
     let socket = Arc::new(socket);
-    let closer_socket = socket.clone();
 
     let (closer, receiver) = std::sync::mpsc::channel::<()>();
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
-    std::thread::spawn(move || {
-        let _ = receiver.recv();
-        tracing::debug!("shutdown socket");
-        closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = closer_socket.shutdown(std::net::Shutdown::Write);
-
-        // runtime.shutdown_background();
-    });
-
-    std::thread::spawn(move || {
+    let thread = tokio::spawn(async move {
         let mut handlers = vec![];
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
                 tracing::debug!("IPC stopped");
                 break;
             }
-            match socket.accept() {
+            match socket.accept().await {
                 Ok((stream, addr)) => {
                     log::info!("new tcp client!: {:?}", addr);
+                    let stream = stream.into_std().unwrap();
                     // let client = addr.as_socket_ipv4().unwrap().to_string();
                     let se = sender.clone();
                     let cancel = cancel.clone();
                     let (id, remote, token) = with_agent.clone();
 
-                    let h = runtime.spawn(async move {
-                        let client = addr.as_socket_ipv4().unwrap().to_string();
+                    let h = executor.spawn(async move {
+                        let client = addr.to_string();
                         let res =
                             ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
                                 .await;
@@ -1843,14 +1892,15 @@ pub fn listen_tcp_socket_with_agent(
             }
         }
         log::info!("IPC stream listener stopped");
-        for h in handlers {
-            if let Err(err) = runtime.block_on(h) {
-                log::warn!("IPC stream reader error: {err}");
-            }
-        }
-        runtime.shutdown_timeout(Duration::from_secs(1));
+        tokio::time::sleep(Duration::from_micros(1000)).await;
     });
 
+    tokio::spawn(async move {
+        let _ = receiver.recv();
+        tracing::debug!("shutdown socket");
+        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _ = thread.await;
+    });
     Ok(closer)
 }
 
@@ -1866,42 +1916,38 @@ pub fn listen_tcp_socket(
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
-    use socket2::{Domain, Socket, Type};
-    let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
+    let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
-    socket.bind(&addr.into())?;
-    socket.set_keepalive(true)?;
-    socket.set_nonblocking(false)?;
-    socket.listen(128)?;
+    socket.bind(addr)?;
+    let socket = socket.listen(128)?;
+    socket.set_ttl(100)?;
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(16)
-        .build()?;
     info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
     let socket = Arc::new(socket);
-    // let closer_socket = socket.clone();
+    let executor = futures::executor::ThreadPool::new().context("Failed to build pool")?;
 
     let (closer, receiver) = std::sync::mpsc::channel::<()>();
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
-    let thread = std::thread::spawn(move || {
+    let thread = tokio::task::spawn(async move {
         let mut handlers = vec![];
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
                 break;
             }
-            match socket.accept() {
+            match socket.accept().await {
                 Ok((stream, addr)) => {
                     log::info!("new tcp client!: {:?}", addr);
-                    let client = addr.as_socket_ipv4().unwrap().to_string();
+                    let stream = stream.into_std().unwrap();
+                    let _ = stream.set_nonblocking(false);
+                    let client = addr.to_string();
                     let se = sender.clone();
                     let cancel = cancel.clone();
 
                     if let Some((id, server, token)) = with_agent.clone() {
-                        handlers.push(runtime.spawn(async move {
+                        handlers.push(executor.spawn(async move {
                             let res =
                                 ipc_tcp_forward(client, stream, cancel, server, token, id).await;
                             if let Err(err) = res {
@@ -1917,7 +1963,10 @@ pub fn listen_tcp_socket(
                         let parser = parser.clone();
                         let connector = connector.clone();
                         let transferred = transferred.clone();
-                        handlers.push(runtime.spawn(async move {
+                        handlers.push(executor.spawn(async move {
+                            // let dsn: Dsn = "taos:///db2".parse().unwrap();
+                            // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+                            info!("Spawned IPC reader");
                             let res = ipc_tcp_read(
                                 client,
                                 pool,
@@ -1932,6 +1981,7 @@ pub fn listen_tcp_socket(
                             .await;
                             if let Err(err) = res {
                                 // panic!("{err:?}");
+                                println!("{err:?}");
                                 log::error!("ipc read err: {}", err);
                                 let _ = se.send(err.to_string()).await;
                             }
@@ -1940,29 +1990,19 @@ pub fn listen_tcp_socket(
                 }
                 Err(e) => {
                     /* connection failed */
-                    tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                    tracing::info!("IPC stream acceptation error {e}, might be stopped");
                     break;
                 }
             }
         }
-        log::info!("IPC stream listener stopped");
-        for h in handlers {
-            if let Err(err) = runtime.block_on(h) {
-                log::warn!("IPC stream reader error: {err}");
-            }
-        }
-        log::info!("IPC all workers done");
-        let _ = socket.shutdown(std::net::Shutdown::Both);
-        // runtime.shutdown_background();
+        tracing::info!("IPC stream listener stopped");
+        tokio::time::sleep(Duration::from_micros(1000)).await;
     });
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
         let _ = receiver.recv();
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        thread.join().unwrap();
-        // let _ = closer_socket.shutdown(std::net::Shutdown::Both);
-        // runtime.shutdown_background();
+        let _ = thread.await;
     });
-
     Ok(closer)
 }

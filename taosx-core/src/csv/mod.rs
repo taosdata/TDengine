@@ -18,9 +18,9 @@ use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBu
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
-use taosx_ipc::prelude::ArrowDataType;
+use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -118,21 +118,21 @@ pub async fn csv_to_taos(
             status = worker => {
                 match status? {
                     Ok(_) => {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
                         match closed.try_recv() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                port_pool.put(port);
                                 anyhow::bail!("CSV exit with IPC error: {res}");
-
                             }
                             Err(_) => {
-                                log::info!("CSV worker done successfully");
-                                let _ = abort.send(());
+                                tracing::info!("CSV worker done successfully");
                             }
                         }
                     }
                     Err(err) => {
                         let _ = abort.send(());
+                        port_pool.put(port);
                         anyhow::bail!("CSV exit with error: {:#}", err);
                     }
                 }
@@ -142,6 +142,7 @@ pub async fn csv_to_taos(
                 abort_handle.abort();
                 if let Some(err) = err {
                     let _ = abort.send(());
+                    port_pool.put(port);
                     anyhow::bail!("CSV writer error: {err:#}");
                 }
             },
@@ -150,14 +151,14 @@ pub async fn csv_to_taos(
                 abort_handle.abort();
             }
         };
+        // wait for completion
+        tokio::time::sleep(Duration::from_millis(100)).await;
         // send an empty tuple
         let _ = abort.send(());
         // stop the connector
-        log::info!("CSV task Done");
+        log::info!("CSV task finished");
         // put ipc port back to port pool.
         port_pool.put(port);
-        // wait for completion
-        tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
     })
     .await??;
@@ -329,17 +330,33 @@ impl CsvSource {
     }
 
     async fn deal_file(reader: &mut Reader<File>, port: u16, batch_size: usize) -> Result<()> {
-        let stream = TcpStream::connect(format!("localhost:{}", port))?;
+        // let stream = TcpStream::connect(format!("localhost:{}", port))?;
+
+        let stream = tokio::net::TcpStream::connect(format!("localhost:{}", port)).await?;
         let headers = reader
             .headers()?
             .iter()
             .map(String::from)
             .collect::<Vec<String>>();
         let schema = CsvSource::stream_schema(&headers);
-        let mut writer: StreamWriter<&TcpStream> = StreamWriter::try_new(&stream, &schema)?;
+        // let (ack, writer) = stream.into_split();
+        let stream = stream.into_std()?;
+        stream.set_nonblocking(false)?;
 
+        let mut writer: StreamWriter<&TcpStream> = StreamWriter::try_new(&stream, &schema)?;
+        tokio::task::yield_now().await;
+        // tokio::time::sleep(Duration::from_secs(1)).await;
+        let mut ack = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Code).open(&stream);
+        // writer.write(&RecordBatch::new_empty(Arc::new(schema)));
+        tokio::task::yield_now().await;
+
+        // let mut ack = StreamReader::try_new(&stream, None)?;
+        // dbg!(ack.schema());
         tracing::info!("CSV stream reading...");
         tokio::task::yield_now().await;
+
+        // std::thread::scope(f)
+
         let mut record = StringRecord::new();
         let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
         while reader.read_record(&mut record)? {
@@ -355,6 +372,15 @@ impl CsvSource {
             }
             if records[0].len() >= batch_size {
                 CsvSource::write_to_stream(&headers, &mut writer, &records)?;
+                if let Some(ack) = ack.next() {
+                    if !ack.success() {
+                        warn!(
+                            source = "csv",
+                            batch = batch_size,
+                            "write {batch_size} records error"
+                        );
+                    }
+                }
                 records.iter_mut().for_each(Vec::clear);
                 tokio::task::yield_now().await;
             }
@@ -362,6 +388,15 @@ impl CsvSource {
 
         if records[0].len() > 0 {
             CsvSource::write_to_stream(&headers, &mut writer, &records)?;
+            if let Some(ack) = ack.next() {
+                if !ack.success() {
+                    warn!(
+                        source = "csv",
+                        batch = batch_size,
+                        "write {batch_size} records error"
+                    );
+                }
+            }
         }
 
         tokio::task::yield_now().await;
@@ -373,6 +408,7 @@ impl CsvSource {
     fn write_to_stream(
         headers: &Vec<String>,
         writer: &mut StreamWriter<&TcpStream>,
+        // ack: &mut StreamReader<&TcpStream>,
         records: &Vec<Vec<Option<String>>>,
     ) -> Result<()> {
         let record_batch = RecordBatch::try_from_iter(
@@ -383,6 +419,8 @@ impl CsvSource {
             ),
         )?;
         writer.write(&record_batch)?;
+        // let _ = ack.next();
+        // dbg!(ack.next());
         Ok(())
     }
 
@@ -390,7 +428,7 @@ impl CsvSource {
         let mut metadata = HashMap::new();
         metadata.insert(String::from("version"), String::from("1.0"));
         metadata.insert(String::from("stream"), String::from("flat"));
-        metadata.insert(String::from("ack"), String::from("none"));
+        metadata.insert(String::from("ack"), String::from("code"));
 
         let columns = headers
             .iter()

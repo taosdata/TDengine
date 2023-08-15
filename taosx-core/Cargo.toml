@@ -27,7 +27,7 @@ config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = "5.4.0"
-futures = "0.3"
+futures = { version = "0.3", features = ["thread-pool"] }
 itertools = "0.10.4"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
@@ -71,7 +71,7 @@ sysinfo = "0.29.0"
 
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["log"] }
 
 flume = "0.10"
 futures-util = "0.3"
@@ -80,7 +80,7 @@ serde_with = "3.0.0"
 tokio-cron-scheduler = "0.9.4"
 
 bitvec = "1"
-socket2 = "0.5"
+# socket2 = "0.5"
 tempfile = "3"
 
 reqwest = "0.11.15"
