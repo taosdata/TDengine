@@ -19,7 +19,8 @@
 
 typedef struct SStreamTaskRetryInfo {
   SStreamMeta* pMeta;
-  int32_t taskId;
+  int32_t      taskId;
+  int64_t      streamId;
 } SStreamTaskRetryInfo;
 
 static int32_t streamSetParamForScanHistory(SStreamTask* pTask);
@@ -371,68 +372,35 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
   return 0;
 }
 
-static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferReq* pReq, int32_t vgId, SEpSet* pEpSet) {
-  void*   buf = NULL;
-  int32_t code = -1;
-  SRpcMsg msg = {0};
-
-  int32_t tlen;
-  tEncodeSize(tEncodeStreamScanHistoryFinishReq, pReq, tlen, code);
-  if (code < 0) {
-    return -1;
+int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
+  SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
+  if (pTranstate == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
-  if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    taosFreeQitem(pTranstate);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  ((SMsgHead*)buf)->vgId = htonl(vgId);
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  pTranstate->type = STREAM_INPUT__TRANS_STATE;
 
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamScanHistoryFinishReq(&encoder, pReq)) < 0) {
-    if (buf) {
-      rpcFreeCont(buf);
-    }
-    return code;
+  pBlock->info.type = STREAM_TRANS_STATE;
+  pBlock->info.rows = 1;
+  pBlock->info.childId = pTask->info.selfChildId;
+
+  pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));//pBlock;
+  taosArrayPush(pTranstate->blocks, pBlock);
+
+  taosMemoryFree(pBlock);
+  if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pTranstate) < 0) {
+    taosFreeQitem(pTranstate);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  tEncoderClear(&encoder);
-
-  msg.contLen = tlen + sizeof(SMsgHead);
-  msg.pCont = buf;
-  msg.msgType = TDMT_STREAM_TRANSFER_STATE;
-  msg.info.noResp = 1;
-
-  tmsgSendReq(pEpSet, &msg);
-  qDebug("s-task:%s level:%d, status:%s dispatch transfer state msg to taskId:0x%x (vgId:%d)", pTask->id.idStr,
-         pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus), pReq->downstreamTaskId, vgId);
-
-  return 0;
-}
-
-int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
-  SStreamTransferReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
-
-  // serialize
-  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
-    doDispatchTransferMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
-
-    int32_t numOfVgs = taosArrayGetSize(vgInfo);
-    for (int32_t i = 0; i < numOfVgs; i++) {
-      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-      req.downstreamTaskId = pVgInfo->taskId;
-      doDispatchTransferMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
-    }
-  }
-
-  return 0;
+  pTask->status.appendTranstateBlock = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 // agg
@@ -502,11 +470,13 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 
   taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);
+  streamMetaCommit(pMeta);
   taosWUnLockLatch(&pMeta->lock);
 
   // history data scan in the stream time window finished, now let's enable the pause
   streamTaskEnablePause(pTask);
 
+  // for source tasks, let's continue execute.
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     streamSchedExec(pTask);
   }
@@ -538,7 +508,9 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   qDebug("s-task:0x%x in timer to launch related history task", pInfo->taskId);
 
   taosWLockLatch(&pMeta->lock);
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &pInfo->taskId, sizeof(int32_t));
+  int64_t keys[2] = {pInfo->streamId, pInfo->taskId};
+
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive == 1);
 
@@ -554,12 +526,12 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   }
   taosWUnLockLatch(&pMeta->lock);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->streamId, pInfo->taskId);
   if (pTask != NULL) {
     ASSERT(pTask->status.timerActive == 1);
 
     // abort the timer if intend to stop task
-    SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
+    SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
     if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
       const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
       qWarn(
@@ -593,14 +565,16 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
   int32_t      hTaskId = pTask->historyTaskId.taskId;
 
+  int64_t keys[2] = {pTask->historyTaskId.streamId, pTask->historyTaskId.taskId};
   // Set the execute conditions, including the query time window and the version range
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &hTaskId, sizeof(hTaskId));
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (pHTask == NULL) {
     qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
           pMeta->vgId, hTaskId);
 
     SStreamTaskRetryInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTaskRetryInfo));
     pInfo->taskId = pTask->id.taskId;
+    pInfo->streamId = pTask->id.streamId;
     pInfo->pMeta = pTask->pMeta;
 
     if (pTask->launchTaskTimer == NULL) {
@@ -795,7 +769,8 @@ void launchFillHistoryTask(SStreamTask* pTask) {
   }
 
   ASSERT(pTask->status.downstreamReady == 1);
-  qDebug("s-task:%s start to launch related fill-history task:0x%x", pTask->id.idStr, tId);
+  qDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
+         pTask->historyTaskId.streamId, tId);
 
   // launch associated fill history task
   streamLaunchFillHistoryTask(pTask);
