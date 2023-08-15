@@ -1568,17 +1568,19 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
-  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
-    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (isPartial) {
+    if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
     if (!IS_NUMERIC_TYPE(colType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
+    if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
     if (TSDB_DATA_TYPE_BINARY != colType) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
@@ -2660,8 +2662,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_irate_merge",
     .type = FUNCTION_TYPE_IRATE_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateIrateMerge,
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
