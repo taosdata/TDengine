@@ -26,7 +26,7 @@ extern int8_t tsS3Enabled;
 
 int32_t s3Init();
 void    s3CleanUp();
-void    s3PutObjectFromFile(const char *file, const char *object);
+int32_t s3PutObjectFromFile(const char *file, const char *object);
 void    s3DeleteObjects(const char *object_name[], int nobject);
 bool    s3Exists(const char *object_name);
 bool    s3Get(const char *object_name, const char *path);

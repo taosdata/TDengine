@@ -51,7 +51,8 @@ static void s3InitRequestOptions(cos_request_options_t *options, int is_cname) {
   options->ctl = cos_http_controller_create(options->pool, 0);
 }
 
-void s3PutObjectFromFile(const char *file_str, const char *object_str) {
+int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
+  int32_t                code = 0;
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
   cos_status_t          *s = NULL;
@@ -76,6 +77,12 @@ void s3PutObjectFromFile(const char *file_str, const char *object_str) {
   log_status(s);
 
   cos_pool_destroy(p);
+
+  if (s->code != 200) {
+    return code = s->code;
+  }
+
+  return code;
 }
 
 void s3DeleteObjects(const char *object_name[], int nobject) {
@@ -300,7 +307,7 @@ long s3Size(const char *object_name) {
 
 int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
-void    s3PutObjectFromFile(const char *file, const char *object) {}
+int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
 bool    s3Get(const char *object_name, const char *path) { return false; }

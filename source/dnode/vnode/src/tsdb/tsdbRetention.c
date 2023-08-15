@@ -114,7 +114,8 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
   TSDB_CHECK_CODE(code, lino, _exit);
 
   char *object_name = taosDirEntryBaseName(fname);
-  s3PutObjectFromFile(from->fname, object_name);
+  code = s3PutObjectFromFile(from->fname, object_name);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   taosCloseFile(&fdFrom);
 
@@ -178,16 +179,6 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
   int32_t  lino = 0;
   STFileOp op = {0};
 
-  // remove old
-  op = (STFileOp){
-      .optype = TSDB_FOP_REMOVE,
-      .fid = fobj->f->fid,
-      .of = fobj->f[0],
-  };
-
-  code = TARRAY2_APPEND(rtner->fopArr, op);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   // create new
   op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
@@ -211,6 +202,16 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
 
   // do copy the file
   code = tsdbCopyFileS3(rtner, fobj, &op.nf);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // remove old
+  op = (STFileOp){
+      .optype = TSDB_FOP_REMOVE,
+      .fid = fobj->f->fid,
+      .of = fobj->f[0],
+  };
+
+  code = TARRAY2_APPEND(rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
