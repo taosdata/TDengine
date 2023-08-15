@@ -5768,6 +5768,8 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t getIrateInfoSize() { return (int32_t)sizeof(SRateInfo); }
+
 bool getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SRateInfo);
   return true;
@@ -5866,6 +5868,85 @@ static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
   }
 
   return (duration > 0) ? ((double)diff) / (duration / tickPerSec) : 0.0;
+}
+
+static void irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput) {
+  if (inputKey > pOutput->lastKey) {
+    pOutput->firstKey = pOutput->lastKey;
+    pOutput->lastKey  = pInput->firstKey;
+
+    pOutput->firstValue = pOutput->lastValue;
+    pOutput->lastValue  = pInput->firstValue;
+  } else if ((inputKey < pOutput->lastKey) && (inputKey > pOutput->firstKey)) {
+    pOutput->firstKey = pOutput->lastKey;
+    pOutput->firstValue = pOutput->lastValue;
+  } else {
+    // inputKey < pOutput->firstKey
+  }
+}
+
+static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
+  pOutput->hasResult = pInput->hasResult;
+  if (pInput->firstKey == pOutput->firstKey || pInput->firstKey == pOutput->lastKey ||
+      pInput->lastKey  == pOutput->firstKey || pInput->lastKey  == pOutput->lastKey) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+
+  if (pInput->firstKey != INT64_MIN) {
+    irateTransferInfoImpl(pInput->firstKey, pInput, pOutput);
+  }
+
+  if (pInput->lastKey != INT64_MIN) {
+    irateTransferInfoImpl(pInput->lastKey, pInput, pOutput);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t irateFunctionMerge(SqlFunctionCtx* pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+  if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  SRateInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char*        data = colDataGetData(pCol, i);
+    SRateInfo*   pInputInfo = (SRateInfo*)varDataVal(data);
+    if (pInputInfo->hasResult) {
+      int32_t code = irateTransferInfo(pInputInfo, pInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+
+  if (pInfo->hasResult) {
+    GET_RES_INFO(pCtx)->numOfRes = 1;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SRateInfo*           pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t              resultBytes = getIrateInfoSize();
+  char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataSetVal(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
 }
 
 int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
