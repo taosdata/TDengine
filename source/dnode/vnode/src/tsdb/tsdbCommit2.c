@@ -531,6 +531,7 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
   TARRAY2_DESTROY(committer->fopArray, NULL);
+  TARRAY2_DESTROY(committer->sttReaderArray, NULL);
   tsdbFSDestroyCopySnapshot(&committer->fsetArr);
 
 _exit:
