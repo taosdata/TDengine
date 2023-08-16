@@ -192,7 +192,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
       }
 
       if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-        qDebug("s-task:%s inputQ is blocked, wait for 5sec and retry", pTask->id.idStr);
+        qDebug("s-task:%s inputQ is blocked, wait for 10sec and retry", pTask->id.idStr);
         taosMsleep(10000);
         continue;
       }
