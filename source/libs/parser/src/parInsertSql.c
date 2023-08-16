@@ -479,11 +479,32 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
     case TSDB_DATA_TYPE_VARBINARY: {
       // Too long values will raise the invalid sql error message
-      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
+      // Too long values will raise the invalid sql error message
+      void* data = NULL;
+      uint32_t size = 0;
+      if (pToken->type == TK_NK_HEX){
+        if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else if(pToken->type == TK_NK_BIN){
+        if(taosBin2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else{
+        size = pToken->n;
+      }
+      if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
+          taosMemoryFree(data);
+        }
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      val->pData = taosStrdup(pToken->z)
-      val->nData = pToken->n;
+      if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
+        val->pData = data;
+      }else{
+        val->pData = taosStrdup(pToken->z);
+      }
+      val->nData = size;
       break;
     }
     case TSDB_DATA_TYPE_GEOMETRY: {
@@ -667,6 +688,7 @@ static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
       *(double*)&pValue->typeData = pValue->datum.d;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
       pValue->datum.p = taosMemoryCalloc(1, pVal->nData + VARSTR_HEADER_SIZE);
       if (NULL == pValue->datum.p) {
@@ -696,7 +718,6 @@ static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
       *(uint64_t*)&pValue->typeData = pValue->datum.i;
       break;
     case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -1374,15 +1395,31 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     }
     case TSDB_DATA_TYPE_VARBINARY: {
       // Too long values will raise the invalid sql error message
-      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
+      void* data = NULL;
+      uint32_t size = 0;
+      if (pToken->type == TK_NK_HEX){
+        if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else if(pToken->type == TK_NK_BIN){
+        if(taosBin2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else{
+        size = pToken->n;
+      }
+      if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
+          taosMemoryFree(data);
+        }
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      pVal->value.pData = taosMemoryMalloc(pToken->n);
-      if (NULL == pVal->value.pData) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+      if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
+        pVal->value.pData = data;
+      }else{
+        pVal->value.pData = taosStrdup(pToken->z);
       }
-      memcpy(pVal->value.pData, pToken->z, pToken->n);
-      pVal->value.nData = pToken->n
+      pVal->value.nData = size;
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {

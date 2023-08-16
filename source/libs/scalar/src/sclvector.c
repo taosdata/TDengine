@@ -588,7 +588,6 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
 
     if (typeRight == TSDB_DATA_TYPE_NCHAR ||
         typeRight == TSDB_DATA_TYPE_VARCHAR ||
-        typeRight == TSDB_DATA_TYPE_VARBINARY ||
         typeRight == TSDB_DATA_TYPE_GEOMETRY) {
       return false;
     } else if (typeRight != type) {
@@ -596,7 +595,6 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       *pRightData = pRightOut;
     }
   } else if (type == TSDB_DATA_TYPE_BINARY ||
-             type == TSDB_DATA_TYPE_VARBINARY ||
              type == TSDB_DATA_TYPE_GEOMETRY) {
     if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       *pLeftData = ncharTobinary(*pLeftData);
@@ -1078,7 +1076,7 @@ static SColumnInfoData *vectorConvertVarToDouble(SScalarParam *pInput, int32_t *
   SScalarParam     output = {0};
   SColumnInfoData *pCol = pInput->columnData;
 
-  if (IS_VAR_DATA_TYPE(pCol->info.type) && pCol->info.type != TSDB_DATA_TYPE_JSON) {
+  if (IS_VAR_DATA_TYPE(pCol->info.type) && pCol->info.type != TSDB_DATA_TYPE_JSON && pCol->info.type != TSDB_DATA_TYPE_VARBINARY) {
     int32_t code = vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, -1, -1);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;

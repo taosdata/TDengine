@@ -581,8 +581,9 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
     return;
   }
 
-  int  n;
-  char buf[TSDB_MAX_BYTES_PER_ROW];
+  int  n = 0;
+#define LENGTH  64
+  char buf[LENGTH] = {0};
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
       shellPrintString(((((int32_t)(*((char *)val))) == 1) ? "true" : "false"), width);
@@ -615,7 +616,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*.7e",width,GET_FLOAT_VAL(val));
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = snprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
 
             printf("%*.7e", width,GET_FLOAT_VAL(val));
@@ -626,10 +627,10 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       if (tsEnableScience) {
-        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15e", width,GET_DOUBLE_VAL(val));
+        snprintf(buf, LENGTH, "%*.15e", width,GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = snprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
             printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
@@ -637,8 +638,17 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         }
       }
       break;
+    case TSDB_DATA_TYPE_VARBINARY:{
+      void* data = NULL;
+      uint32_t size = 0;
+      if(taosAscii2Hex(val, length, &data, &size) < 0){
+        break;
+      }
+      shellPrintNChar(data, size, width);
+      taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);

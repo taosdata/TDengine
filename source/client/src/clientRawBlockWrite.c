@@ -292,7 +292,13 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      char* buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+      char* buf = NULL;
+      if(pTagVal->type == TSDB_DATA_TYPE_VARBINARY){
+        buf = taosMemoryCalloc(pTagVal->nData*2 + 2 + 3, 1);
+      }else{
+        buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+      }
+
       if (!buf) goto end;
       dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL);
       tvalue = cJSON_CreateString(buf);
@@ -515,7 +521,11 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
           }
           buf = parseTagDatatoJson(vAlterTbReq.pTagVal);
         } else {
-          buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+          if(vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY){
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+          }else{
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+          }
           dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
         }
 

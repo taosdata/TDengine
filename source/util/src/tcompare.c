@@ -1370,8 +1370,16 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;
+    case TSDB_DATA_TYPE_VARBINARY:
+      if (optr == OP_TYPE_IN) {
+        comparFn = compareChkInString;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        comparFn = compareChkNotInString;
+      } else { /* normal relational comparFn */
+        comparFn = compareLenBinaryVal;
+      }
+      break;
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_GEOMETRY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = comparestrRegexMatch;
@@ -1457,7 +1465,6 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
     case TSDB_DATA_TYPE_UBIGINT:
       return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_VARBINARY
     case TSDB_DATA_TYPE_GEOMETRY:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
