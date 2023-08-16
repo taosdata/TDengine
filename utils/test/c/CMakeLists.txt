@@ -31,7 +31,7 @@ target_link_libraries(
 )
 target_link_libraries(
     tmq_sim
-    PUBLIC taos
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os

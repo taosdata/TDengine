@@ -190,4 +190,6 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag);
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
+SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
+                                        SStorageAPI* pStorageAPI);
 #endif  // TDENGINE_EXECUTIL_H

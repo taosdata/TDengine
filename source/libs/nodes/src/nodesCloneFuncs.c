@@ -609,7 +609,9 @@ static int32_t physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
 }
 
 static int32_t physiTagScanCopy(const STagScanPhysiNode* pSrc, STagScanPhysiNode* pDst) {
-  return physiScanCopy(pSrc, pDst);
+  COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
+  COPY_SCALAR_FIELD(onlyMetaCtbIdx);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhysiNode* pDst) {

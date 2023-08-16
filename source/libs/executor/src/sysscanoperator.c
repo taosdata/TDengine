@@ -1601,6 +1601,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
 
+  if (isTaskKilled(pOperator->pTaskInfo)) {
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+
   blockDataCleanup(pInfo->pRes);
 
   const char* name = tNameGetTableName(&pInfo->name);
