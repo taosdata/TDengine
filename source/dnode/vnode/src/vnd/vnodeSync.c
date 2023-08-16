@@ -530,6 +530,7 @@ static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *p
 
 static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SVnode   *pVnode = pFsm->data;
+  int32_t   vgId = pVnode->config.vgId;
   SyncIndex appliedIdx = -1;
 
   do {
@@ -541,7 +542,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     } else {
       vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
             ", applied-index:%" PRId64,
-            pVnode->config.vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+            vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
       taosMsleep(10);
     }
   } while (true);
@@ -550,14 +551,19 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
 
   pVnode->restored = true;
-  vInfo("vgId:%d, sync restore finished, start to restore stream tasks by replay wal", pVnode->config.vgId);
 
-  // start to restore all stream tasks
-  if (tsDisableStream) {
-    vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", pVnode->config.vgId);
+  if (vnodeIsRoleLeader(pVnode)) {
+    vInfo("vgId:%d, sync restore finished, start to launch stream tasks", vgId);
+
+    // start to restore all stream tasks
+    if (tsDisableStream) {
+      vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", vgId);
+    } else {
+      vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
+      tqCheckStreamStatus(pVnode->pTq);
+    }
   } else {
-    vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
-    tqCheckStreamStatus(pVnode->pTq);
+    vInfo("vgId:%d, sync restore finished, no launch stream tasks since not leader", vgId);
   }
 }
 

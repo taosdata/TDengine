@@ -143,6 +143,10 @@ _err:
 
 void streamMetaClose(SStreamMeta* pMeta) {
   qDebug("start to close stream meta");
+  if (pMeta == NULL) {
+    return;
+  }
+
   tdbAbort(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);

@@ -638,6 +638,8 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
+void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
+
 int32_t streamTaskStop(SStreamTask* pTask);
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
                            SRpcHandleInfo* pRpcInfo, int32_t taskId);
