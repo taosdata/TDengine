@@ -88,8 +88,7 @@ typedef struct SCostSummary {
   double  headFileLoadTime;
   int64_t smaDataLoad;
   double  smaLoadTime;
-  int64_t lastBlockLoad;
-  double  lastBlockLoadTime;
+  SSttBlockLoadCostInfo sttCost;
   int64_t composedBlocks;
   double  buildComposedBlockTime;
   double  createScanInfoList;

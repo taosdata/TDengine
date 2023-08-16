@@ -708,20 +708,29 @@ typedef struct {
   TSDBROW row;
 } SRowInfo;
 
+typedef struct SSttBlockLoadCostInfo {
+  int64_t loadBlocks;
+  int64_t loadStatisBlocks;
+  double  blockElapsedTime;
+  double  statisElapsedTime;
+} SSttBlockLoadCostInfo;
+
 typedef struct SSttBlockLoadInfo {
-  SBlockData blockData[2];
+  SBlockData blockData[2];     // buffered block data
+  int32_t    statisBlockIndex; // buffered statistics block index
+  void      *statisBlock;      // buffered statistics block data
   void      *pSttStatisBlkArray;
   SArray    *aSttBlk;
   int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
   int32_t    currentLoadBlockIndex;
-  int32_t    loadBlocks;
-  double     elapsedTime;
   STSchema  *pSchema;
   int16_t   *colIds;
   int32_t    numOfCols;
   bool       checkRemainingRow;  // todo: no assign value?
   bool       isLast;
   bool       sttBlockLoaded;
+
+  SSttBlockLoadCostInfo cost;
 
   // keep the last access position, this position may be used to reduce the binary times for
   // starting last block data for a new table
@@ -831,9 +840,9 @@ void tMergeTreeClose(SMergeTree *pMTree);
 SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, int32_t numOfStt);
 SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
-void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
+void               getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo *pLoadCost);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
-void              *destroySttBlockReader(SArray *pLDataIterArray, int64_t *blocks, double *el);
+void              *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
 // tsdbCache ==============================================================================================
 typedef enum {

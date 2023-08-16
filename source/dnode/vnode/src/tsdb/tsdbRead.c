@@ -87,13 +87,13 @@ typedef struct SIOCostSummary {
   double  headFileLoadTime;
   int64_t smaDataLoad;
   double  smaLoadTime;
-  int64_t lastBlockLoad;
-  double  lastBlockLoadTime;
+  int64_t sttStatisBlockLoad;
+  int64_t sttBlockLoad;
+  double  sttBlockLoadTime;
   int64_t composedBlocks;
   double  buildComposedBlockTime;
   double  createScanInfoList;
-  //  double  getTbFromMemTime;
-  //  double  getTbFromIMemTime;
+  SSttBlockLoadCostInfo sttCost;
   double initDelSkylineIterTime;
 } SIOCostSummary;
 
@@ -586,8 +586,8 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  SIOCostSummary* pSum = &pReader->cost;
-  getLastBlockLoadInfo(pIter->pLastBlockReader->pInfo, &pSum->lastBlockLoad, &pReader->cost.lastBlockLoadTime);
+  SIOCostSummary* pCost = &pReader->cost;
+  getSttBlockLoadInfo(pIter->pLastBlockReader->pInfo, &pCost->sttCost);
 
   pIter->pLastBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
@@ -4697,7 +4697,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     SLastBlockReader* pLReader = pFilesetIter->pLastBlockReader;
     tMergeTreeClose(&pLReader->mergeTree);
 
-    getLastBlockLoadInfo(pLReader->pInfo, &pCost->lastBlockLoad, &pCost->lastBlockLoadTime);
+    getSttBlockLoadInfo(pLReader->pInfo, &pCost->sttCost);
 
     pLReader->pInfo = destroyLastBlockLoadInfo(pLReader->pInfo);
     taosMemoryFree(pLReader);
@@ -4711,7 +4711,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
       ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, createTime:%.2f ms,initDelSkylineIterTime:%.2f "
       "ms, %s",
       pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime, pCost->numOfBlocks,
-      pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad, pCost->lastBlockLoadTime, pCost->composedBlocks,
+      pCost->blockLoadTime, pCost->buildmemBlock, pCost->sttBlockLoad, pCost->sttBlockLoadTime, pCost->composedBlocks,
       pCost->buildComposedBlockTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList,
       pCost->initDelSkylineIterTime, pReader->idStr);
 

@@ -91,23 +91,24 @@ void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 
     taosArrayClear(pLoadInfo[i].aSttBlk);
 
-    pLoadInfo[i].elapsedTime = 0;
-    pLoadInfo[i].loadBlocks = 0;
+    pLoadInfo[i].cost.loadBlocks = 0;
+    pLoadInfo[i].cost.blockElapsedTime = 0;
+    pLoadInfo[i].cost.statisElapsedTime = 0;
+    pLoadInfo[i].cost.loadStatisBlocks = 0;
+    pLoadInfo[i].statisBlockIndex = -1;
+    tStatisBlockDestroy(pLoadInfo[i].statisBlock);
+
     pLoadInfo[i].sttBlockLoaded = false;
   }
 }
 
-void getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el) {
+void getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo* pLoadCost) {
   for (int32_t i = 0; i < 1; ++i) {
-    *el += pLoadInfo[i].elapsedTime;
-    *blocks += pLoadInfo[i].loadBlocks;
+    pLoadCost->blockElapsedTime += pLoadInfo[i].cost.blockElapsedTime;
+    pLoadCost->loadBlocks += pLoadInfo[i].cost.loadBlocks;
+    pLoadCost->loadStatisBlocks += pLoadInfo[i].cost.loadStatisBlocks;
+    pLoadCost->statisElapsedTime += pLoadInfo[i].cost.statisElapsedTime;
   }
-}
-
-static void freeTombBlock(void *param) {
-  STombBlock **pTombBlock = (STombBlock **)param;
-  tTombBlockDestroy(*pTombBlock);
-  taosMemoryFree(*pTombBlock);
 }
 
 void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
@@ -136,7 +137,7 @@ static void destroyLDataIter(SLDataIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-void *destroySttBlockReader(SArray *pLDataIterArray, int64_t *blocks, double *el) {
+void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo* pLoadCost) {
   if (pLDataIterArray == NULL) {
     return NULL;
   }
@@ -146,8 +147,13 @@ void *destroySttBlockReader(SArray *pLDataIterArray, int64_t *blocks, double *el
     SArray *pList = taosArrayGetP(pLDataIterArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
-      *el += pIter->pBlockLoadInfo->elapsedTime;
-      *blocks += pIter->pBlockLoadInfo->loadBlocks;
+      if (pLoadCost != NULL) {
+        pLoadCost->loadBlocks += pIter->pBlockLoadInfo->cost.loadBlocks;
+        pLoadCost->loadStatisBlocks += pIter->pBlockLoadInfo->cost.loadStatisBlocks;
+        pLoadCost->blockElapsedTime += pIter->pBlockLoadInfo->cost.blockElapsedTime;
+        pLoadCost->statisElapsedTime += pIter->pBlockLoadInfo->cost.statisElapsedTime;
+      }
+
       destroyLDataIter(pIter);
     }
     taosArrayDestroy(pList);
@@ -195,12 +201,12 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   }
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
-  pInfo->elapsedTime += el;
-  pInfo->loadBlocks += 1;
+  pInfo->cost.blockElapsedTime += el;
+  pInfo->cost.loadBlocks += 1;
 
-  tsdbDebug("read last block, total load:%d, trigger by uid:%" PRIu64
+  tsdbDebug("read last block, total load:%"PRId64", trigger by uid:%" PRIu64
             ", last file index:%d, last block index:%d, entry:%d, rows:%d, %p, elapsed time:%.2f ms, %s",
-            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow,
+            pInfo->cost.loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow,
             pBlock, el, idStr);
 
   pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;
@@ -363,8 +369,9 @@ static int32_t suidComparFn(const void *target, const void *p2) {
   }
 }
 
-static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint64_t suid, uint64_t uid,
+static bool existsFromSttBlkStatis(SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid, uint64_t uid,
                                    SSttFileReader *pReader) {
+  const TStatisBlkArray *pStatisBlkArray = pBlockLoadInfo->pSttStatisBlkArray;
   if (TARRAY2_SIZE(pStatisBlkArray) <= 0) {
     return true;
   }
@@ -387,23 +394,30 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
       return false;
     }
 
-    STbStatisBlock block = {0};
-    tsdbSttFileReadStatisBlock(pReader, p, &block);
+    if (pBlockLoadInfo->statisBlock == NULL) {
+      pBlockLoadInfo->statisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
+      tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
+      pBlockLoadInfo->statisBlockIndex = i;
+      pBlockLoadInfo->cost.loadStatisBlocks += 1;
+    } else if (pBlockLoadInfo->statisBlockIndex != i) {
+      tStatisBlockDestroy(pBlockLoadInfo->statisBlock);
+      tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
+      pBlockLoadInfo->statisBlockIndex = i;
+      pBlockLoadInfo->cost.loadStatisBlocks += 1;
+    }
 
-    int32_t index = tarray2SearchIdx(block.suid, &suid, sizeof(int64_t), suidComparFn, TD_EQ);
+    STbStatisBlock* pBlock = pBlockLoadInfo->statisBlock;
+    int32_t index = tarray2SearchIdx(pBlock->suid, &suid, sizeof(int64_t), suidComparFn, TD_EQ);
     if (index == -1) {
-      tStatisBlockDestroy(&block);
       return false;
     }
 
     int32_t j = index;
-    if (block.uid->data[j] == uid) {
-      tStatisBlockDestroy(&block);
+    if (pBlock->uid->data[j] == uid) {
       return true;
-    } else if (block.uid->data[j] > uid) {
-      while (j >= 0 && block.suid->data[j] == suid) {
-        if (block.uid->data[j] == uid) {
-          tStatisBlockDestroy(&block);
+    } else if (pBlock->uid->data[j] > uid) {
+      while (j >= 0 && pBlock->suid->data[j] == suid) {
+        if (pBlock->uid->data[j] == uid) {
           return true;
         } else {
           j -= 1;
@@ -411,9 +425,8 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
       }
     } else {
       j = index + 1;
-      while (j < block.suid->size && block.suid->data[j] == suid) {
-        if (block.uid->data[j] == uid) {
-          tStatisBlockDestroy(&block);
+      while (j < pBlock->suid->size && pBlock->suid->data[j] == suid) {
+        if (pBlock->uid->data[j] == uid) {
           return true;
         } else {
           j += 1;
@@ -421,14 +434,47 @@ static bool existsFromSttBlkStatis(const TStatisBlkArray *pStatisBlkArray, uint6
       }
     }
 
-    tStatisBlockDestroy(&block);
     i += 1;
   }
 
   return false;
 }
 
-int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader, int32_t iStt, int8_t backward,
+static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *pIter, int64_t suid,
+                                 _load_tomb_fn loadTombFn, void *pReader1, const char *idStr) {
+  int64_t st = taosGetTimestampUs();
+
+  const TSttBlkArray *pSttBlkArray = NULL;
+  pBlockLoadInfo->sttBlockLoaded = true;
+
+  // load the stt block info for each stt-block
+  int32_t code = tsdbSttFileReadSttBlk(pIter->pReader, &pSttBlkArray);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("load stt blk failed, code:%s, %s", tstrerror(code), idStr);
+    return code;
+  }
+
+  code = extractSttBlockInfo(pIter, pSttBlkArray, pBlockLoadInfo, suid);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("load stt block info failed, code:%s, %s", tstrerror(code), idStr);
+    return code;
+  }
+
+  // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
+  code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pBlockLoadInfo->pSttStatisBlkArray);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("failed to load stt block statistics, code:%s, %s", tstrerror(code), idStr);
+    return code;
+  }
+
+  code = loadTombFn(pReader1, pIter->pReader, pIter->pBlockLoadInfo);
+
+  double el = (taosGetTimestampUs() - st) / 1000.0;
+  tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
+  return code;
+}
+
+int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32_t iStt, int8_t backward,
                         uint64_t suid, uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange,
                         SSttBlockLoadInfo *pBlockLoadInfo, const char *idStr, bool strictTimeRange,
                         _load_tomb_fn loadTombFn, void *pReader1) {
@@ -444,6 +490,7 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
   pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
+  // open stt file failed, ignore and continue
   if (pIter->pReader == NULL) {
     tsdbError("stt file reader is null, %s", idStr);
     pIter->pSttBlk = NULL;
@@ -452,43 +499,18 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pSttFileReader
   }
 
   if (!pBlockLoadInfo->sttBlockLoaded) {
-    int64_t st = taosGetTimestampUs();
-
-    const TSttBlkArray *pSttBlkArray = NULL;
-    pBlockLoadInfo->sttBlockLoaded = true;
-
-    // load the stt block info for each stt-block
-    code = tsdbSttFileReadSttBlk(pIter->pReader, &pSttBlkArray);
+    code = doLoadSttFilesBlk(pBlockLoadInfo, pIter, suid, loadTombFn, pReader1, idStr);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("load stt blk failed, code:%s, %s", tstrerror(code), idStr);
       return code;
     }
-
-    code = extractSttBlockInfo(pIter, pSttBlkArray, pBlockLoadInfo, suid);
-    if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("load stt block info failed, code:%s, %s", tstrerror(code), idStr);
-      return code;
-    }
-
-    // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
-    code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pBlockLoadInfo->pSttStatisBlkArray);
-    if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("failed to load stt block statistics, code:%s, %s", tstrerror(code), idStr);
-      return code;
-    }
-
-    code = loadTombFn(pReader1, pIter->pReader, pIter->pBlockLoadInfo);
-
-    double el = (taosGetTimestampUs() - st) / 1000.0;
-    tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
 
-  // bool exists = existsFromSttBlkStatis(pBlockLoadInfo->pSttStatisBlkArray, suid, uid, pIter->pReader);
-  // if (!exists) {
-  //   pIter->iSttBlk = -1;
-  //   pIter->pSttBlk = NULL;
-  //   return TSDB_CODE_SUCCESS;
-  // }
+  bool exists = existsFromSttBlkStatis(pBlockLoadInfo, suid, uid, pIter->pReader);
+  if (!exists) {
+    pIter->iSttBlk = -1;
+    pIter->pSttBlk = NULL;
+    return TSDB_CODE_SUCCESS;
+   }
 
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.
