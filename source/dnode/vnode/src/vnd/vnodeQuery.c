@@ -441,7 +441,7 @@ int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
 }
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -463,7 +463,7 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   SVnode      *pVnodeObj = pVnode;
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj->pMeta, suid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -522,7 +522,7 @@ int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 }
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 0);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0);
   if (!pCur) {
     return TSDB_CODE_FAILED;
   }

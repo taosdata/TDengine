@@ -167,7 +167,7 @@ int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
-SMCtbCursor*  metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid, int lock);
+SMCtbCursor*  metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock);
 void          metaCloseCtbCursor(SMCtbCursor* pCtbCur, int lock);
 tb_uid_t      metaCtbCursorNext(SMCtbCursor* pCtbCur);
 SMStbCursor*  metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
@@ -250,7 +250,6 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqCheckLogInWal(STQ* pTq, int64_t version);

@@ -368,8 +368,8 @@ static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
 
   if (pScan->node.pParent && nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) {
     SAggLogicNode* pAgg = (SAggLogicNode*)pScan->node.pParent;
-    bool           withSlimit = pAgg->node.pSlimit != NULL || (pAgg->node.pParent && pAgg->node.pParent->pSlimit);
-    if (withSlimit && isPartTableAgg(pAgg)) {
+    bool           withSlimit = pAgg->node.pSlimit != NULL;
+    if (withSlimit && (isPartTableAgg(pAgg) || isPartTagAgg(pAgg))) {
       pScan->groupOrderScan = pAgg->node.forceCreateNonBlockingOptr = true;
     }
   }
@@ -2679,6 +2679,9 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   }
   nodesDestroyNode((SNode*)pAgg);
   tagScanOptCloneAncestorSlimit((SLogicNode*)pScanNode);
+
+  pScanNode->onlyMetaCtbIdx = false;
+  
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }
@@ -2698,38 +2701,30 @@ static void swapLimit(SLogicNode* pParent, SLogicNode* pChild) {
   pParent->pLimit = NULL;
 }
 
-static void cloneLimit(SLogicNode* pParent, SLogicNode* pChild) {
-  SLimitNode* pLimit = NULL;
-  if (pParent->pLimit) {
-    pChild->pLimit = nodesCloneNode(pParent->pLimit);
-    pLimit = (SLimitNode*)pChild->pLimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-  }
-
-  if (pParent->pSlimit) {
-    pChild->pSlimit = nodesCloneNode(pParent->pSlimit);
-    pLimit = (SLimitNode*)pChild->pSlimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-  }
-}
-
 static bool pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo);
 static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo) {
   switch (nodeType(pNodeLimitPushTo)) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
       SWindowLogicNode* pWindow = (SWindowLogicNode*)pNodeLimitPushTo;
       if (pWindow->winType != WINDOW_TYPE_INTERVAL) break;
-      cloneLimit(pNodeWithLimit, pNodeLimitPushTo);
+      cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT);
       return true;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL:
     case QUERY_NODE_LOGIC_PLAN_SORT: {
-      cloneLimit(pNodeWithLimit, pNodeLimitPushTo);
+      cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT);
       SNode* pChild = NULL;
       FOREACH(pChild, pNodeLimitPushTo->pChildren) { pushDownLimitHow(pNodeLimitPushTo, (SLogicNode*)pChild); }
       return true;
+    }
+    case QUERY_NODE_LOGIC_PLAN_AGG: {
+      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
+          (isPartTagAgg((SAggLogicNode*)pNodeLimitPushTo) || isPartTableAgg((SAggLogicNode*)pNodeLimitPushTo))) {
+        // when part by tag, slimit will be cloned to agg, and it will be pipelined.
+        // The scan below will do scanning with group order
+        return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+      }
+      break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNodeWithLimit->pLimit) {

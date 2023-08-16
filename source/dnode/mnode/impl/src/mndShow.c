@@ -58,8 +58,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_DNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_MNODE;
+/*
   } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
     type = TSDB_MGMT_TABLE_MODULE;
+*/
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
