@@ -108,7 +108,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   SStreamTask* pStreamTask = pTask;
   char         statePath[1024];
   if (!specPath) {
-    sprintf(statePath, "%s/%d", path, pStreamTask->id.taskId);
+    sprintf(statePath, "%s%s%d", path, TD_DIRSEP, pStreamTask->id.taskId);
   } else {
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
