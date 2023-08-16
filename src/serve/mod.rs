@@ -8,7 +8,7 @@ use clap::Parser;
 
 use actix_web::{
     middleware::Logger,
-    web::{Data, ServiceConfig, PayloadConfig},
+    web::{Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
 use serde::Deserialize;
@@ -29,11 +29,12 @@ use controller::*;
 use data_sources::*;
 
 use crate::serve::controller::agent::{
-    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken, AgentActivityFilter, Activity, LevelFilter, ActivityOrder,
+    Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
+    AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
 };
 
 use self::{
-    agent::{create_agent, delete_agent, get_agents, update_agent, get_agent_activities},
+    agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
     routes::cluster::get_cluster_connector_transferred,
 };
 
@@ -245,9 +246,11 @@ impl Cli {
                 .wrap(Logger::default())
                 .app_data(recorder.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
-                .app_data(MultipartFormConfig::default()
-                .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
-                .total_limit(std::usize::MAX)) // payload set to 2G
+                .app_data(
+                    MultipartFormConfig::default()
+                        .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
+                        .total_limit(std::usize::MAX),
+                ) // payload set to 2G
                 .configure(configure(store.clone()))
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")

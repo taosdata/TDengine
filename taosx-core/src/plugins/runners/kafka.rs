@@ -61,8 +61,8 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
                 topic.append_value(ms.topic());
                 partition.append_value(ms.partition());
                 offset.append_value(m.offset.clone());
-                key.append_value(m.key.clone());
-                value.append_value(m.value.clone());
+                key.append_value(m.key);
+                value.append_value(m.value);
             }
 
             let batch = RecordBatch::try_new(

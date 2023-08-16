@@ -351,7 +351,7 @@ pub async fn mqtt_to_taos(
                 log::info!("mqtt task cancelled");
             },
         };
-        ipc.send(())?;
+        ipc.send(()).await?;
         let _ = child.kill().await;
         log::info!("mqtt to taos task done");
         temp_path.close().unwrap();

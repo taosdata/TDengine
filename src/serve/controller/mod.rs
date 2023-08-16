@@ -622,9 +622,7 @@ impl TaskController {
 
         let task_handler = async move {
             // set current dir for upload files
-            let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT
-                .clone()
-                .replace("files", "");
+            let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
             let root = std::path::Path::new(path.as_str());
             let _ = env::set_current_dir(&root);
             let now = Utc::now();
@@ -919,6 +917,7 @@ impl TaskController {
             Ok(())
         };
         let handle = if let Some(rt) = self.runtime.as_ref() {
+            tracing::info!("spawn task with exist runtime");
             rt.spawn(task_handler)
         } else {
             tokio::spawn(task_handler)
