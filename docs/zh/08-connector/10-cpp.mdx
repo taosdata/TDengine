@@ -542,6 +542,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
 
 - `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  
   **功能说明**
   - 获取当前 consumer 在某个 topic 和 vgroup上的 commit 位置。
 
@@ -555,9 +556,9 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   
   **功能说明**
   
-  commit接口分为两种类型，每种类型有同步和异步接口：
-  - 第一种类型：根据消息提交，提交消息里的进度，如果消息传NULL，提交当前consumer所有消费的vgroup的当前进度 : tmq_commit_sync/tmq_commit_async
-  - 第二种类型：根据某个topic的某个vgroup的offset提交 : tmq_commit_offset_sync/tmq_commit_offset_async
+  - commit接口分为两种类型，每种类型有同步和异步接口：
+    - 第一种类型：根据消息提交，提交消息里的进度，如果消息传NULL，提交当前consumer所有消费的vgroup的当前进度 : tmq_commit_sync/tmq_commit_async
+    - 第二种类型：根据某个topic的某个vgroup的offset提交 : tmq_commit_offset_sync/tmq_commit_offset_async
   
   **参数说明**
   - msg：消费到的消息结构，如果msg传NULL，提交当前consumer所有消费的vgroup的当前进度
@@ -584,8 +585,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `int32_t   int64_t     tmq_get_vgroup_offset(TAOS_RES* res)`
 
   **功能说明**
-
-  获取 poll 消费到的数据的起始offset
+  - 获取 poll 消费到的数据的起始offset
   
   **参数说明**
   - msg：消费到的消息结构
@@ -596,8 +596,8 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `int32_t   int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics)`
 
   **功能说明**
-
-  获取消费者订阅的 topic 列表
+  - 获取消费者订阅的 topic 列表
+  
   **参数说明**
   - topics: 获取的 topic 列表存储在这个结构中，接口内分配内存，需调用tmq_list_destroy释放
 
