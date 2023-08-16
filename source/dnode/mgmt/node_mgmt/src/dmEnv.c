@@ -198,7 +198,7 @@ void dmCleanup() {
   monCleanup();
   syncCleanUp();
   walCleanUp();
-  udfcClose(); 
+  udfcClose();
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   dmDiskClose();
