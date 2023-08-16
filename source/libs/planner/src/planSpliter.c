@@ -867,8 +867,16 @@ static int32_t stbSplSplitAggNodeForPartTable(SSplitContext* pCxt, SStableSplitI
 static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartAgg = NULL;
   int32_t     code = stbSplCreatePartAggNode((SAggLogicNode*)pInfo->pSplitNode, &pPartAgg);
+
+
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
+    // if slimit was pushed down to agg, agg will be pipelined mode, add sort merge before parent agg
+    if ((SAggLogicNode*)pInfo->pSplitNode->pSlimit)
+      code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, NULL, pPartAgg, true);
+    else
+      code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
+  } else {
+    nodesDestroyNode((SNode*)pPartAgg);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,

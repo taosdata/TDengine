@@ -349,7 +349,7 @@ static bool stbHasPartTbname(SNodeList* pPartKeys) {
   return false;
 }
 
-static SNodeList* stbSplGetPartKeys(SLogicNode* pNode) {
+static SNodeList* stbGetPartKeys(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     return ((SScanLogicNode*)pNode)->pGroupTags;
   } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
@@ -367,11 +367,58 @@ bool isPartTableAgg(SAggLogicNode* pAgg) {
     return stbHasPartTbname(pAgg->pGroupKeys) &&
            stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
   }
-  return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
+  return stbHasPartTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
+}
+
+static bool stbHasPartTag(SNodeList* pPartKeys) {
+  if (NULL == pPartKeys) {
+    return false;
+  }
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pPartKeys) {
+    if (QUERY_NODE_GROUPING_SET == nodeType(pPartKey)) {
+      pPartKey = nodesListGetNode(((SGroupingSetNode*)pPartKey)->pParameterList, 0);
+    }
+    if ((QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TAGS == ((SFunctionNode*)pPartKey)->funcType) ||
+        (QUERY_NODE_COLUMN == nodeType(pPartKey) && COLUMN_TYPE_TAG == ((SColumnNode*)pPartKey)->colType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isPartTagAgg(SAggLogicNode* pAgg) {
+  if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
+    return false;
+  }
+  if (pAgg->pGroupKeys) {
+    return stbHasPartTag(pAgg->pGroupKeys) &&
+      stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
+  }
+  return stbHasPartTag(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  return stbHasPartTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
+bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
+  SLimitNode* pLimit;
+  bool cloned = false;
+  if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
+    pChild->pLimit = nodesCloneNode(pParent->pLimit);
+    pLimit = (SLimitNode*)pChild->pLimit;
+    pLimit->limit += pLimit->offset;
+    pLimit->offset = 0;
+    cloned = true;
+  }
 
+  if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
+    pChild->pSlimit = nodesCloneNode(pParent->pSlimit);
+    pLimit = (SLimitNode*)pChild->pSlimit;
+    pLimit->limit += pLimit->offset;
+    pLimit->offset = 0;
+    cloned = true;
+  }
+  return cloned;
+}
