@@ -13,31 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_RAND_H_
-#define _TD_OS_RAND_H_
+#ifndef _TD_VND_COS_H_
+#define _TD_VND_COS_H_
+
+#include "vnd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// If the error is in a third-party library, place this header file under the third-party library header file.
-// When you want to use this feature, you should find or add the same function in the following section.
-#ifndef ALLOW_FORBID_FUNC
-#define rand   RAND_FUNC_TAOS_FORBID
-#define srand  SRAND_FUNC_TAOS_FORBID
-#define rand_r RANDR_FUNC_TAOS_FORBID
-#endif
+extern int8_t tsS3Enabled;
 
-void     taosSeedRand(uint32_t seed);
-uint32_t taosRand(void);
-uint32_t taosRandR(uint32_t* pSeed);
-void     taosRandStr(char* str, int32_t size);
-void     taosRandStr2(char* str, int32_t size);
-
-uint32_t taosSafeRand(void);
+int32_t s3Init();
+void    s3CleanUp();
+int32_t s3PutObjectFromFile(const char *file, const char *object);
+void    s3DeleteObjects(const char *object_name[], int nobject);
+bool    s3Exists(const char *object_name);
+bool    s3Get(const char *object_name, const char *path);
+void    s3EvictCache(const char *path, long object_size);
+long    s3Size(const char *object_name);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_RAND_H_*/
+#endif /*_TD_VND_COS_H_*/
