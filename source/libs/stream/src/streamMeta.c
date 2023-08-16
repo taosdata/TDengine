@@ -124,7 +124,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
-  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%"PRId64", stage:%" PRId64, vgId, chkpId, stage);
+  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, chkpId, stage);
   return pMeta;
 
 _err:
@@ -142,6 +142,7 @@ _err:
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
+  qDebug("start to close stream meta");
   tdbAbort(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
@@ -167,6 +168,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosArrayDestroy(pMeta->checkpointInUse);
 
   taosMemoryFree(pMeta);
+  qDebug("end to close stream meta");
 }
 
 int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {

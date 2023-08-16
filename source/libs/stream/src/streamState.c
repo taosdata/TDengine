@@ -128,7 +128,6 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   if (uniqueId == NULL) {
     int code = streamStateOpenBackend(pMeta->streamBackend, pState);
     if (code == -1) {
-      taosReleaseRef(streamBackendId, pState->streamBackendRid);
       taosThreadMutexUnlock(&pMeta->backendMutex);
       taosMemoryFree(pState);
       return NULL;
@@ -729,7 +728,8 @@ void streamStateFreeVal(void* val) {
 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey,key->win.ekey, key->groupId);
+  qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey, key->win.ekey,
+         key->groupId);
   return streamStateSessionPut_rocksdb(pState, key, value, vLen);
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
@@ -763,7 +763,8 @@ int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVa
 
 int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
-  qDebug("===stream===delete skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey,key->win.ekey, key->groupId);
+  qDebug("===stream===delete skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey, key->win.ekey,
+         key->groupId);
   return streamStateSessionDel_rocksdb(pState, key);
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
