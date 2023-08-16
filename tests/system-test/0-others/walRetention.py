@@ -460,8 +460,7 @@ class TDTestCase:
         #self.test_db("db2", 5, 10*24*3600, 2*1024) # 2M size
         
         # period + size        
-        self.test_db("db", checkTime = 5*60, wal_period = 60, wal_size_kb=10)
-        #self.test_db("db", checkTime = 3*60, wal_period = 0, wal_size_kb=0)
+        self.test_db("db", checkTime = 3*60, wal_period = 60, wal_size_kb=500)
 
 
     def stop(self):

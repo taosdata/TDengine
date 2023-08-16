@@ -776,7 +776,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       if (field->bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
       } else {
-        return TMAX(field->bytes, width);
+        return TMAX(field->bytes + 2, width);
       }
 
     case TSDB_DATA_TYPE_NCHAR:
@@ -785,7 +785,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       if (bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
       } else {
-        return TMAX(bytes, width);
+        return TMAX(bytes + 2, width);
       }
     }
 

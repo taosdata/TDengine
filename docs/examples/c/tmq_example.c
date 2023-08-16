@@ -227,12 +227,6 @@ tmq_t* build_consumer() {
     return NULL;
   }
 
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
-  if (TMQ_CONF_OK != code) {
-    tmq_conf_destroy(conf);
-    return NULL;
-  }
-
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
