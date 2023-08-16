@@ -807,7 +807,6 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   char      *pWrite;
   int64_t    curMs = taosGetTimestampMs();
-  int64_t    dummyTimeMs = 0;
 
   pSelfObj = sdbAcquire(pSdb, SDB_MNODE, &pMnode->selfDnodeId);
   if (pSelfObj == NULL) {
@@ -858,9 +857,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
+    int64_t roleTimeMs = (isDnodeOnline) ? pObj->roleTimeMs : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (isDnodeOnline) ? (const char *)&pObj->roleTimeMs : (const char *)&dummyTimeMs,
-                  false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
