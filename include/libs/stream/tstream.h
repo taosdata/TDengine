@@ -14,13 +14,13 @@
  */
 
 #include "os.h"
-#include "ttimer.h"
 #include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
+#include "ttimer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,7 +49,7 @@ enum {
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
-  TASK_STATUS__CK,  // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
+  TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
   TASK_STATUS__CK_READY,
 };
 
@@ -324,8 +324,8 @@ struct SStreamTask {
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
   STaskTimestamp   tsInfo;
-  SArray*          pReadyMsgList;      // SArray<SStreamChkptReadyInfo*>
-  TdThreadMutex    lock;               // secure the operation of set task status and puting data into inputQ
+  SArray*          pReadyMsgList;  // SArray<SStreamChkptReadyInfo*>
+  TdThreadMutex    lock;           // secure the operation of set task status and puting data into inputQ
   SArray*          pUpstreamInfoList;
 
   // output
@@ -390,11 +390,13 @@ typedef struct SStreamMeta {
   tmr_h         hbTmr;
   SMgmtInfo     mgmtInfo;
 
-  int32_t  chkptNotReadyTasks;
-  SArray*  checkpointSaved;
-  SArray*  checkpointInUse;
-  int32_t  checkpointCap;
-  SRWLatch checkpointDirLock;
+  int32_t chkptNotReadyTasks;
+
+  int64_t  chkpId;
+  SArray*  chkpSaved;
+  SArray*  chkpInUse;
+  int32_t  chkpCap;
+  SRWLatch chkpDirLock;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -420,7 +422,7 @@ typedef struct {
 
 typedef struct {
   int32_t type;
-  int64_t stage; //nodeId from upstream task
+  int64_t stage;  // nodeId from upstream task
   int64_t streamId;
   int32_t taskId;
   int32_t srcVgId;
@@ -568,7 +570,7 @@ typedef struct SNodeUpdateInfo {
 typedef struct SStreamTaskNodeUpdateMsg {
   int64_t streamId;
   int32_t taskId;
-  SArray* pNodeList;   // SArray<SNodeUpdateInfo>
+  SArray* pNodeList;  // SArray<SNodeUpdateInfo>
 } SStreamTaskNodeUpdateMsg;
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
@@ -616,7 +618,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 
-int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
+int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 void                streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 void                streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
@@ -695,6 +697,9 @@ int32_t      streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int3
 int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);  // todo remove it
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
+
+// int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId);
+int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

@@ -248,31 +248,30 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       }
     }
   }
-  // if (!pReader->streamStateDone) {
-  //   if (pReader->pStreamStateReader == NULL) {
-  //     code =
-  //         streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver,
-  //         &pReader->pStreamStateReader);
-  //     if (code) {
-  //       pReader->streamStateDone = 1;
-  //       pReader->pStreamStateReader = NULL;
-  //       goto _err;
-  //     }
-  //   }
-  //   code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
-  //   if (code) {
-  //     goto _err;
-  //   } else {
-  //     if (*ppData) {
-  //       goto _exit;
-  //     } else {
-  //       pReader->streamStateDone = 1;
-  //       code = streamStateSnapReaderClose(pReader->pStreamStateReader);
-  //       if (code) goto _err;
-  //       pReader->pStreamStateReader = NULL;
-  //     }
-  //   }
-  // }
+  if (!pReader->streamStateDone) {
+    if (pReader->pStreamStateReader == NULL) {
+      code =
+          streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamStateReader);
+      if (code) {
+        pReader->streamStateDone = 1;
+        pReader->pStreamStateReader = NULL;
+        goto _err;
+      }
+    }
+    code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->streamStateDone = 1;
+        code = streamStateSnapReaderClose(pReader->pStreamStateReader);
+        if (code) goto _err;
+        pReader->pStreamStateReader = NULL;
+      }
+    }
+  }
 
   // RSMA ==============
   if (VND_IS_RSMA(pReader->pVnode) && !pReader->rsmaDone) {
@@ -419,6 +418,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   if (pWriter->pStreamStateWriter) {
     code = streamStateSnapWriterClose(pWriter->pStreamStateWriter, rollback);
     if (code) goto _exit;
+
+    code = streamStateRebuildFromSnap(pWriter->pStreamStateWriter, 0);
+    pWriter->pStreamStateWriter = NULL;
+    if (code) goto _exit;
   }
 
   if (pWriter->pRsmaSnapWriter) {
@@ -527,7 +530,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = streamTaskSnapWrite(pWriter->pStreamTaskWriter, pData, nData);
       if (code) goto _err;
     } break;
-    case SNAP_DATA_STREAM_STATE: {
+    case SNAP_DATA_STREAM_STATE_BACKEND: {
       if (pWriter->pStreamStateWriter == NULL) {
         code = streamStateSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pStreamStateWriter);
         if (code) goto _err;
