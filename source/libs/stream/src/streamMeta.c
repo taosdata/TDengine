@@ -153,7 +153,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
   }
 
   // close stream backend
-  streamBackendCleanup(pMeta->streamBackend);
+  // streamBackendCleanup(pMeta->streamBackend);
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
   pMeta->streamBackendRid = -1;
   pMeta->streamBackend = NULL;

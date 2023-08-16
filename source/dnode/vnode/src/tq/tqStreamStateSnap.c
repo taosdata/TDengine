@@ -159,7 +159,7 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
   int32_t code = 0;
   tqDebug("vgId:%d, vnode stream-state snapshot writer closed", TD_VID(pWriter->pTq->pVnode));
   code = streamSnapWriterClose(pWriter->pWriterImpl, rollback);
-  taosMemoryFree(pWriter);
+
   return code;
 }
 int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) {
@@ -167,6 +167,7 @@ int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) 
   if (code == 0) {
     code = streamStateLoadTasks(pWriter);
   }
+  taosMemoryFree(pWriter);
   return code;
 }
 

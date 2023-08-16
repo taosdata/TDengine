@@ -420,6 +420,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
 
     code = streamStateRebuildFromSnap(pWriter->pStreamStateWriter, 0);
+    pWriter->pStreamStateWriter = NULL;
     if (code) goto _exit;
   }
 
