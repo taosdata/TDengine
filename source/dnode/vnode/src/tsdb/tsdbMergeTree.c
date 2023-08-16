@@ -116,16 +116,17 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < 1; ++i) {
-    pLoadInfo[i].currentLoadBlockIndex = 1;
-    pLoadInfo[i].blockIndex[0] = -1;
-    pLoadInfo[i].blockIndex[1] = -1;
+  pLoadInfo->currentLoadBlockIndex = 1;
+  pLoadInfo->blockIndex[0] = -1;
+  pLoadInfo->blockIndex[1] = -1;
 
-    tBlockDataDestroy(&pLoadInfo[i].blockData[0]);
-    tBlockDataDestroy(&pLoadInfo[i].blockData[1]);
+  tStatisBlockDestroy(pLoadInfo->statisBlock);
+  TARRAY2_DESTROY((TStatisBlkArray*)pLoadInfo->pSttStatisBlkArray, NULL);
 
-    taosArrayDestroy(pLoadInfo[i].aSttBlk);
-  }
+  tBlockDataDestroy(&pLoadInfo->blockData[0]);
+  tBlockDataDestroy(&pLoadInfo->blockData[1]);
+
+  taosArrayDestroy(pLoadInfo->aSttBlk);
 
   taosMemoryFree(pLoadInfo);
   return NULL;
@@ -396,14 +397,25 @@ static bool existsFromSttBlkStatis(SSttBlockLoadInfo *pBlockLoadInfo, uint64_t s
 
     if (pBlockLoadInfo->statisBlock == NULL) {
       pBlockLoadInfo->statisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
+
+      int64_t st = taosGetTimestampMs();
       tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
       pBlockLoadInfo->statisBlockIndex = i;
+
+      double el = (taosGetTimestampMs() - st) / 1000.0;
       pBlockLoadInfo->cost.loadStatisBlocks += 1;
+      pBlockLoadInfo->cost.statisElapsedTime += el;
     } else if (pBlockLoadInfo->statisBlockIndex != i) {
       tStatisBlockDestroy(pBlockLoadInfo->statisBlock);
+
+      int64_t st = taosGetTimestampMs();
       tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
       pBlockLoadInfo->statisBlockIndex = i;
+
+
+      double el = (taosGetTimestampMs() - st) / 1000.0;
       pBlockLoadInfo->cost.loadStatisBlocks += 1;
+      pBlockLoadInfo->cost.statisElapsedTime += el;
     }
 
     STbStatisBlock* pBlock = pBlockLoadInfo->statisBlock;
