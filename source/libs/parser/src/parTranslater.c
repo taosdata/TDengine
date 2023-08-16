@@ -8054,8 +8054,6 @@ static int32_t rewriteShowVnodes(STranslateContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pShow->pDnodeId) {
       code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", pShow->pDnodeId, &pStmt->pWhere);
-    } else {
-      code = createOperatorNode(OP_TYPE_EQUAL, "dnode_ep", pShow->pDnodeEndpoint, &pStmt->pWhere);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
