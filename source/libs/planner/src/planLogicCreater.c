@@ -367,12 +367,24 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 }
 
 static int32_t setTagScanExecutionMode(SScanLogicNode* pScan) {
+  //TODO: set pScan->onlyMetaCtbIdx
+  bool bOnlyMetaCtbIdx = false;
+
+  if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
+    bOnlyMetaCtbIdx = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pScan->node.pConditions == NULL) {
+    bOnlyMetaCtbIdx = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNode* pCond = nodesCloneNode(pScan->node.pConditions);
   SNode* pTagCond = NULL;
   SNode* pTagIndexCond = NULL;
-  bool bOnlyMetaCtbIdx = false;
   filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
-  if (pTagIndexCond || tagScanNodeListHasTbname(pScan->pScanPseudoCols) || tagScanNodeHasTbname(pTagCond)) {
+  if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
     bOnlyMetaCtbIdx = false;
   } else {
     bOnlyMetaCtbIdx = true;
