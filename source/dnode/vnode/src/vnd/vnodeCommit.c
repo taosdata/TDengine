@@ -15,6 +15,7 @@
 
 #include "vnd.h"
 #include "vnodeInt.h"
+#include "sync.h"
 
 extern int32_t tsdbPreCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
@@ -286,6 +287,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   char    dir[TSDB_FILENAME_LEN] = {0};
 
   tsem_wait(&pVnode->canCommit);
+
+  pVnode->config.syncCfg = syncNodeGetConfig(pVnode->sync);
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 

@@ -272,6 +272,8 @@ SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 const char* syncStr(ESyncState state);
 
+SSyncCfg  syncNodeGetConfig(int64_t rid);
+
 #ifdef __cplusplus
 }
 #endif

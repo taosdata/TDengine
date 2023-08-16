@@ -106,6 +106,22 @@ _err:
   return -1;
 }
 
+SSyncCfg syncNodeGetConfig(int64_t rid){
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+
+  SSyncCfg cfg = {0};
+  if (pSyncNode == NULL) {
+    sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
+    return cfg;
+  }
+
+  cfg = pSyncNode->raftCfg.cfg;
+
+  syncNodeRelease(pSyncNode);
+
+  return cfg;
+}
+
 void syncStop(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
