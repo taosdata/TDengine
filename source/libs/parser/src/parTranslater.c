@@ -826,18 +826,18 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
-      SOperatorNode* pOper = (SOperatorNode*)pExpr;
-      if (OP_TYPE_ADD != pOper->opType && OP_TYPE_SUB != pOper->opType) {
-        return false;
-      }
-      if (!isPrimaryKeyImpl(pOper->pLeft)) {
-        return false;
-      }
-      if (QUERY_NODE_VALUE != nodeType(pOper->pRight)) {
-        return false;
-      }
-      return true;
+    SOperatorNode* pOper = (SOperatorNode*)pExpr;
+    if (OP_TYPE_ADD != pOper->opType && OP_TYPE_SUB != pOper->opType) {
+      return false;
     }
+    if (!isPrimaryKeyImpl(pOper->pLeft)) {
+      return false;
+    }
+    if (QUERY_NODE_VALUE != nodeType(pOper->pRight)) {
+      return false;
+    }
+    return true;
+  }
   return false;
 }
 
@@ -864,7 +864,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->tableType = pTable->pMeta->tableType;
   pCol->colId = pColSchema->colId;
   pCol->colType = (tagFlag >= 0 ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN);
-  pCol->hasIndex = ((0 == tagFlag) || (pColSchema != NULL && IS_IDX_ON(pColSchema)));
+  pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {

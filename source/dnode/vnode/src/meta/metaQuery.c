@@ -17,8 +17,8 @@
 #include "osMemory.h"
 #include "tencode.h"
 
-void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
+  SMeta *pMeta = ((SVnode *)pVnode)->pMeta;
   metaReaderDoInit(pReader, pMeta, flags);
   pReader->pAPI = pAPI;
 }
@@ -143,7 +143,7 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -195,7 +195,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
 int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
@@ -244,7 +244,7 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
     return NULL;
   }
 
-  SVnode* pVnodeObj = pVnode;
+  SVnode *pVnodeObj = pVnode;
   // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
   pTbCur->pMeta = pVnodeObj->pMeta;
   pTbCur->paused = 1;
@@ -1131,7 +1131,7 @@ int32_t metaFilterTtl(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   pCursor->type = param->type;
 
   metaRLock(pMeta);
-  //ret = tdbTbcOpen(pMeta->pTtlIdx, &pCursor->pCur, NULL);
+  // ret = tdbTbcOpen(pMeta->pTtlIdx, &pCursor->pCur, NULL);
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
@@ -1186,7 +1186,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   ret = -1;
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
-    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema) || i == 0)) {
+    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema))) {
       ret = 0;
     }
   }
