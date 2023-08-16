@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "vnodeInt.h"
 
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   if (pMsg->info.handle == NULL) return;
@@ -114,9 +115,10 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     const STraceId *trace = &pMsg->info.traceId;
     dGTrace("vgId:%d, msg:%p get from vnode-fetch queue", pVnode->vgId, pMsg);
 
+    terrno = 0;
     int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
     if (code != 0) {
-      if (terrno != 0) {
+      if (code == -1 && terrno != 0) {
         code = terrno;
       }
 
@@ -155,6 +157,15 @@ static void vmSendResponse(SRpcMsg *pMsg) {
   if (pMsg->info.handle) {
     SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
     rpcSendResponse(&rsp);
+  }
+}
+
+static bool vmDataSpaceSufficient(SVnodeObj *pVnode) {
+  STfs *pTfs = pVnode->pImpl->pTfs;
+  if (pTfs) {
+    return tfsDiskSpaceSufficient(pTfs, 0, pVnode->diskPrimary);
+  } else {
+    return osDataSpaceSufficient();
   }
 }
 
@@ -203,7 +214,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
-      if (!osDataSpaceSufficient()) {
+      if (!vmDataSpaceSufficient(pVnode)) {
         terrno = TSDB_CODE_NO_ENOUGH_DISKSPACE;
         code = terrno;
         dError("vgId:%d, msg:%p put into vnode-write queue failed since %s", pVnode->vgId, pMsg, terrstr(code));

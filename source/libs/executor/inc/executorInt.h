@@ -25,6 +25,7 @@ extern "C" {
 #include "tsort.h"
 #include "ttszip.h"
 #include "tvariant.h"
+#include "theap.h"
 
 #include "dataSinkMgt.h"
 #include "executil.h"
@@ -250,6 +251,12 @@ typedef struct STableMergeScanInfo {
   SSortExecInfo   sortExecInfo;
 } STableMergeScanInfo;
 
+typedef struct STagScanFilterContext {
+  SHashObj* colHash;
+  int32_t   index;
+  SArray*   cInfoList;
+} STagScanFilterContext;
+
 typedef struct STagScanInfo {
   SColumnInfo*    pCols;
   SSDataBlock*    pRes;
@@ -258,6 +265,14 @@ typedef struct STagScanInfo {
   SLimitNode*     pSlimit;
   SReadHandle     readHandle;
   STableListInfo* pTableListInfo;
+  uint64_t        suid;
+  void*           pCtbCursor;
+  SNode*          pTagCond;
+  SNode*          pTagIndexCond;
+  STagScanFilterContext filterCtx;
+  SArray*         aUidTags; // SArray<STUidTagInfo>
+  SArray*         aFilterIdxs; // SArray<int32_t>
+  SStorageAPI*    pStorageAPI;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -417,6 +432,14 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  // for limit optimization
+  bool          limited;
+  int64_t       limit;
+  bool          slimited;
+  int64_t       slimit;
+  uint64_t      curGroupId; // initialize to UINT64_MAX
+  uint64_t      handledGroupNum;
+  BoundedQueue* pBQ;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {

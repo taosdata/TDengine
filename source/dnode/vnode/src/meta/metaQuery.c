@@ -408,17 +408,9 @@ _err:
   return NULL;
 }
 
-struct SMCtbCursor {
-  SMeta   *pMeta;
-  TBC     *pCur;
-  tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-};
 
-SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid, int lock) {
+SMCtbCursor *metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock) {
+  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
   int          ret = 0;
@@ -435,7 +427,7 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid, int lock) {
     metaRLock(pMeta);
   }
 
-  ret = tdbTbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
+  ret = tdbTbcOpen(pMeta->pCtbIdx, (TBC**)&pCtbCur->pCur, NULL);
   if (ret < 0) {
     metaULock(pMeta);
     taosMemoryFree(pCtbCur);
@@ -1373,7 +1365,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
 }
 
 int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(((SVnode *)pVnode)->pMeta, suid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1);
 
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
@@ -1434,35 +1426,36 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
   int     nData = 0;
   int     lock = 0;
 
-  metaRLock(pMeta);
+  if (pReader && !(pReader->flags & META_READER_NOLOCK)) {
+    lock = 1;
+  }
+
+  if(!lock) metaRLock(pMeta);
 
   // search cache
   if (metaCacheGet(pMeta, uid, pInfo) == 0) {
-    metaULock(pMeta);
+    if(!lock) metaULock(pMeta);
     goto _exit;
   }
 
   // search TDB
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
     // not found
-    metaULock(pMeta);
+    if(!lock) metaULock(pMeta);
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 
-  metaULock(pMeta);
+  if(!lock) metaULock(pMeta);
 
   pInfo->uid = uid;
   pInfo->suid = ((SUidIdxVal *)pData)->suid;
   pInfo->version = ((SUidIdxVal *)pData)->version;
   pInfo->skmVer = ((SUidIdxVal *)pData)->skmVer;
 
-  if (pReader != NULL) {
-    lock = !(pReader->flags & META_READER_NOLOCK);
-    if (lock) {
-      metaULock(pReader->pMeta);
-      // metaReaderReleaseLock(pReader);
-    }
+  if (lock) {
+    metaULock(pReader->pMeta);
+    // metaReaderReleaseLock(pReader);
   }
   // upsert the cache
   metaWLock(pMeta);

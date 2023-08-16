@@ -42,7 +42,7 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   const char *file = pNode->raftStorePath;
   SRaftStore *pStore = &pNode->raftStore;
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     sInfo("vgId:%d, raft store file:%s not exist, use default value", pNode->vgId, file);
     pStore->currentTerm = 0;
     pStore->voteFor.addr = 0;

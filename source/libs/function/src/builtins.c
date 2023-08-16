@@ -2350,7 +2350,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "leastsquares",
     .type = FUNCTION_TYPE_LEASTSQUARES,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateLeastSQR,
     .getEnvFunc   = getLeastSQRFuncEnv,
     .initFunc     = leastSQRFunctionSetup,
@@ -2916,8 +2916,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "tail",
     .type = FUNCTION_TYPE_TAIL,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateTail,
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
@@ -2928,8 +2927,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "unique",
     .type = FUNCTION_TYPE_UNIQUE,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateUnique,
     .getEnvFunc   = getUniqueFuncEnv,
     .initFunc     = uniqueFunctionSetup,

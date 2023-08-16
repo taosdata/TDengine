@@ -25,6 +25,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -156,6 +157,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
@@ -453,7 +456,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 ,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
-,,n,system-test,python ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
+,,n,system-test,python3 ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
@@ -957,6 +960,7 @@
 ,,n,script,./test.sh -f tsim/query/udfpy.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/join_interval.sim
+,,y,script,./test.sh -f tsim/query/join_pk.sim
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
