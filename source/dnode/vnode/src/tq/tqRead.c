@@ -332,8 +332,12 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SMsgHead));
     int32_t len = pReader->pHead->head.bodyLen - sizeof(SMsgHead);
 
-    extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
-    tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+    code = extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("s-task:%s extract delete msg from WAL failed, code:%s", id, tstrerror(code));
+    } else {
+      tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+    }
   } else {
     ASSERT(0);
   }
@@ -1088,6 +1092,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         if(ret != TDB_CODE_SUCCESS) {
           tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey, pTqHandle->consumerId);
           taosArrayDestroy(list);
+          taosHashCancelIterate(pTq->pHandle, pIter);
           return ret;
         }
         tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);

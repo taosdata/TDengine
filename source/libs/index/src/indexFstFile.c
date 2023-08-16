@@ -162,7 +162,7 @@ static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
       return ctx->offset;
     } else {
       int64_t file_size = 0;
-      taosStatFile(ctx->file.buf, &file_size, NULL);
+      taosStatFile(ctx->file.buf, &file_size, NULL, NULL);
       return (int)file_size;
     }
   }
@@ -199,7 +199,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       code = taosFtruncateFile(ctx->file.pFile, 0);
       UNUSED(code);
 
-      code = taosStatFile(path, &ctx->file.size, NULL);
+      code = taosStatFile(path, &ctx->file.size, NULL, NULL);
       UNUSED(code);
 
       ctx->file.wBufOffset = 0;

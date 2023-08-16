@@ -359,7 +359,10 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-
+#ifdef WINDOWS
+  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
+  goto _OVER;
+#endif
   mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;

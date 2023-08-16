@@ -1073,6 +1073,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
   return 0;
 
 end:
+  taosHashCancelIterate(info->superTables, tmp);
   taosHashCleanup(hashTmp);
   taosMemoryFreeClear(pTableMeta);
   catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
@@ -1191,6 +1192,7 @@ void freeSSmlKv(void *data) {
   SSmlKv *kv = (SSmlKv *)data;
   if (kv->keyEscaped) taosMemoryFree((void *)(kv->key));
   if (kv->valueEscaped) taosMemoryFree((void *)(kv->value));
+  if (kv->type == TSDB_DATA_TYPE_GEOMETRY) geosFreeBuffer((void *)(kv->value));
 }
 
 void smlDestroyInfo(SSmlHandle *info) {
@@ -1433,6 +1435,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     code = smlCheckAuth(info, &conn, pName.tname, AUTH_TYPE_WRITE);
     if(code != TSDB_CODE_SUCCESS){
       taosMemoryFree(measure);
+      taosHashCancelIterate(info->childTables, oneTable);
       return code;
     }
 
@@ -1441,6 +1444,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " catalogGetTableHashVgroup failed. table name: %s", info->id, tableData->childTableName);
       taosMemoryFree(measure);
+      taosHashCancelIterate(info->childTables, oneTable);
       return code;
     }
     taosHashPut(info->pVgHash, (const char *)&vg.vgId, sizeof(vg.vgId), (char *)&vg, sizeof(vg));
@@ -1450,6 +1454,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     if (unlikely(NULL == pMeta || NULL == (*pMeta)->tableMeta)) {
       uError("SML:0x%" PRIx64 " NULL == pMeta. table name: %s", info->id, tableData->childTableName);
       taosMemoryFree(measure);
+      taosHashCancelIterate(info->childTables, oneTable);
       return TSDB_CODE_SML_INTERNAL_ERROR;
     }
 
@@ -1465,6 +1470,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     taosMemoryFree(measure);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlBindData failed", info->id);
+      taosHashCancelIterate(info->childTables, oneTable);
       return code;
     }
     oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);

@@ -22,7 +22,7 @@ static void clearColValArray(SArray* pCols) {
   int32_t num = taosArrayGetSize(pCols);
   for (int32_t i = 0; i < num; ++i) {
     SColVal* pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type) {
       taosMemoryFreeClear(pCol->value.pData);
     }
     pCol->flag = CV_FLAG_NONE;
@@ -240,6 +240,10 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_VARBINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = (uint8_t*)kv->value;
+  } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+    pVal->value.nData = kv->length;
+    pVal->value.pData = taosMemoryMalloc(kv->length);
+    memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
   } else {
     memcpy(&pVal->value.val, &(kv->value), kv->length);
   }
@@ -367,6 +371,10 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_VARBINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
         pVal->value.nData = kv->length;
         pVal->value.pData = (uint8_t*)kv->value;
+      } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+        pVal->value.nData = kv->length;
+        pVal->value.pData = taosMemoryMalloc(kv->length);
+        memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
       } else {
         memcpy(&pVal->value.val, &(kv->value), kv->length);
       }

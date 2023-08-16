@@ -489,7 +489,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
             SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, i);
             if(pVgEp->vgId == d1->vgId){
               jump = true;
-              mInfo("pSub->offsetRows jump, because consumer id:%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
+              mInfo("pSub->offsetRows jump, because consumer id:0x%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
               break;
             }
           }

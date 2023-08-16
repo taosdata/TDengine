@@ -2004,6 +2004,43 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum {
+  PHY_TAG_SCAN_CODE_SCAN = 1,
+  PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX
+};
+
+static int32_t physiTagScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const STagScanPhysiNode* pNode = (const STagScanPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_TAG_SCAN_CODE_SCAN, physiScanNodeToMsg, &pNode->scan);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX, pNode->onlyMetaCtbIdx);
+  }
+  return code;
+}
+
+static int32_t msgToPhysiTagScanNode(STlvDecoder* pDecoder, void* pObj) {
+  STagScanPhysiNode* pNode = (STagScanPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_TAG_SCAN_CODE_SCAN:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiScanNode, &pNode->scan);
+        break;
+      case PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX:
+        code = tlvDecodeBool(pTlv, &pNode->onlyMetaCtbIdx);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
   PHY_LAST_ROW_SCAN_CODE_SCAN = 1,
   PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS,
   PHY_LAST_ROW_SCAN_CODE_GROUP_SORT,
@@ -3538,6 +3575,12 @@ static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->showRewrite);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI32(pEncoder, pNode->rowsThreshold);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->dynamicRowThreshold);
+  }
 
   return code;
 }
@@ -3586,6 +3629,12 @@ static int32_t msgToSubplanInline(STlvDecoder* pDecoder, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->showRewrite);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI32(pDecoder, &pNode->rowsThreshold);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->dynamicRowThreshold);
   }
 
   return code;
@@ -3726,6 +3775,8 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = caseWhenNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      code = physiTagScanNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       code = physiScanNodeToMsg(pObj, pEncoder);
       break;
@@ -3869,6 +3920,8 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToCaseWhenNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      code = msgToPhysiTagScanNode(pDecoder, pObj);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       code = msgToPhysiScanNode(pDecoder, pObj);
       break;
