@@ -206,7 +206,11 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
 #endif
 
   if (taosDirExist(temp)) {
-    return chmod(temp, mode);
+    if (taosCheckAccessFile(temp, TD_FILE_ACCESS_WRITE_OK)) {
+      return code;
+    } else {
+      return chmod(temp, mode);
+    }
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
