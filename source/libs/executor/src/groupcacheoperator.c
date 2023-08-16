@@ -143,11 +143,32 @@ static void destroyGroupCacheDownstreamCtx(SGroupCacheOperatorInfo* pGrpCacheOpe
   taosMemoryFree(pGrpCacheOperator->pDownstreams);
 }
 
+
+void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    taosMemoryFreeClear(p->pData);
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      taosMemoryFreeClear(p->varmeta.offset);
+      p->varmeta.length = 0;
+      p->varmeta.allocLen = 0;
+    } else {
+      taosMemoryFreeClear(p->nullbitmap);
+    }
+  }
+  pDataBlock->info.capacity = 0;
+  pDataBlock->info.rows = 0;
+}
+
+
+
 static void destroySGcBlkCacheInfo(SGcBlkCacheInfo* pBlkCache) {
   taosHashCleanup(pBlkCache->pDirtyBlk);
 
   void* p = NULL;
   while (p = taosHashIterate(pBlkCache->pReadBlk, p)) {
+    blockDataDeepCleanup(*(SSDataBlock**)p);
     freeGcBlockInList(p);
   }
 
@@ -432,25 +453,6 @@ void blockDataDeepClear(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
 }
 
-
-void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    taosMemoryFreeClear(p->pData);
-    if (IS_VAR_DATA_TYPE(p->info.type)) {
-      taosMemoryFreeClear(p->varmeta.offset);
-      p->varmeta.length = 0;
-      p->varmeta.allocLen = 0;
-    } else {
-      taosMemoryFreeClear(p->nullbitmap);
-    }
-  }
-  pDataBlock->info.capacity = 0;
-  pDataBlock->info.rows = 0;
-}
-
-
 static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
   *ppDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *ppDst) {
@@ -708,7 +710,7 @@ static int32_t addFileRefTableNum(SGcFileCacheCtx* pFileCtx, int32_t fileId, int
     SGroupCacheFileInfo newFile = {0};
     newFile.groupNum = 1;
     taosHashPut(pFileCtx->pCacheFile, &fileId, sizeof(fileId), &newFile, sizeof(newFile));
-    pTmp = &newFile;
+    pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
   } else {
     pTmp->groupNum++;
   }

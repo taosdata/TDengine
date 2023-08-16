@@ -306,7 +306,7 @@ static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initPara
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pJoin->initDownstreamNum = initParam ? 2 : 0;
+  pJoin->initDownstream = initParam;
   
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   (*ppRes)->value = pJoin;

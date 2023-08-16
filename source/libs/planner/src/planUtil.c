@@ -108,6 +108,7 @@ int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
 }
 
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
+  pNew->stmtRoot = pOld->stmtRoot;
   if (NULL == pOld->pParent) {
     pSubplan->pNode = (SLogicNode*)pNew;
     pNew->pParent = NULL;
@@ -124,6 +125,19 @@ int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* 
   }
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
+
+SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr) {
+  while (pCurr) {
+    if (pCurr->stmtRoot || NULL == pCurr->pParent) {
+      return pCurr;
+    }
+
+    pCurr = pCurr->pParent;
+  }
+
+  return NULL;
+}
+
 
 static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel requirement) {
   if ((SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) ||
@@ -390,5 +404,31 @@ bool getBatchScanOptionFromHint(SNodeList* pList) {
 
   return batchScan;
 }
+
+int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SLogicNode* pCurr = (SLogicNode*)pNode;
+  FOREACH(pNode, pCurr->pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (NULL == *ppRes) {
+      *ppRes = tSimpleHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+      if (NULL == *ppRes) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
+  }
+  
+  FOREACH(pNode, pCurr->pChildren) {
+    code = collectTableAliasFromNodes(pNode, ppRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 

@@ -478,10 +478,34 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, NULL, COLLECT_COL_TYPE_ALL, &pColList);
+    if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pLeft)) {
+      code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((SRealTableNode*)pJoinTable->pLeft)->table.tableAlias, COLLECT_COL_TYPE_ALL, &pColList);
+    } else {
+      pJoin->node.pTargets = nodesCloneList(pLeft->pTargets);
+      if (NULL == pJoin->node.pTargets) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
-    if (TSDB_CODE_SUCCESS == code) {
+    if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
+      code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
+    }
+  }
+  
+  if (TSDB_CODE_SUCCESS == code) {
+    SNodeList* pColList = NULL;
+    if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pRight)) {
+      code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((SRealTableNode*)pJoinTable->pRight)->table.tableAlias, COLLECT_COL_TYPE_ALL, &pColList);
+    } else {
+      if (pJoin->node.pTargets) {
+        nodesListStrictAppendList(pJoin->node.pTargets, nodesCloneList(pRight->pTargets));
+      } else {
+        pJoin->node.pTargets = nodesCloneList(pRight->pTargets);
+        if (NULL == pJoin->node.pTargets) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
   }
@@ -1277,11 +1301,17 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 }
 
 static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pSelect->pFromTable) {
-    return createSelectWithoutFromLogicNode(pCxt, pSelect, pLogicNode);
+    code = createSelectWithoutFromLogicNode(pCxt, pSelect, pLogicNode);
   } else {
-    return createSelectFromLogicNode(pCxt, pSelect, pLogicNode);
+    code = createSelectFromLogicNode(pCxt, pSelect, pLogicNode);
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != *pLogicNode) {
+    (*pLogicNode)->stmtRoot = true;
+    TSWAP((*pLogicNode)->pHint, pSelect->pHint);
+  }
+  return code;
 }
 
 static int32_t createSetOpRootLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, FCreateSetOpLogicNode func,

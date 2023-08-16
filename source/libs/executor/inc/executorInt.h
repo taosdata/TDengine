@@ -162,7 +162,7 @@ typedef struct SLimitInfo {
 } SLimitInfo;
 
 typedef struct SSortMergeJoinOperatorParam {
-  int32_t initDownstreamNum;
+  bool initDownstream;
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {

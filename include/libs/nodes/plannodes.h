@@ -43,10 +43,12 @@ typedef enum EGroupAction {
 typedef struct SLogicNode {
   ENodeType          type;
   bool               dynamicOp;
+  bool               stmtRoot;
   SNodeList*         pTargets;  // SColumnNode
   SNode*             pConditions;
   SNodeList*         pChildren;
   struct SLogicNode* pParent;
+  SNodeList*         pHint;
   int32_t            optimizedFlag;
   uint8_t            precision;
   SNode*             pLimit;

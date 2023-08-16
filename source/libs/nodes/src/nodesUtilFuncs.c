@@ -610,6 +610,7 @@ static void destroyLogicNode(SLogicNode* pNode) {
   nodesDestroyList(pNode->pChildren);
   nodesDestroyNode(pNode->pLimit);
   nodesDestroyNode(pNode->pSlimit);
+  nodesDestroyList(pNode->pHint);
 }
 
 static void destroyPhysiNode(SPhysiNode* pNode) {
@@ -827,7 +828,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
-      taosMemoryFreeClear(pHint->literal);
       destroyHintValue(pHint->option, pHint->value);
       break;
     }

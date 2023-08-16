@@ -124,7 +124,6 @@ typedef enum EHintOption {
 typedef struct SHintNode {
   ENodeType   type;
   EHintOption option;
-  char*       literal;
   void*       value;
 } SHintNode;
 

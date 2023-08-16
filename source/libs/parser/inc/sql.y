@@ -1025,8 +1025,8 @@ query_specification(A) ::=
 
 %type hint_list                                                                   { SNodeList* }
 %destructor hint_list                                                             { nodesDestroyList($$); }
-hint_list(A) ::= .                                                                { createHintNodeList(pCxt, NULL); }
-hint_list(A) ::= NK_HINT(B).                                                      { createHintNodeList(pCxt, &B); }
+hint_list(A) ::= .                                                                { A = createHintNodeList(pCxt, NULL); }
+hint_list(A) ::= NK_HINT(B).                                                      { A = createHintNodeList(pCxt, &B); }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }

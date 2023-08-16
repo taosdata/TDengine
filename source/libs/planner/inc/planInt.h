@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "planner.h"
+#include "tsimplehash.h"
 #include "taoserror.h"
 
 #define planFatal(param, ...)  qFatal("PLAN: " param, ##__VA_ARGS__)
@@ -46,6 +47,8 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
 bool    isPartTableAgg(SAggLogicNode* pAgg);
 bool    isPartTableWinodw(SWindowLogicNode* pWindow);
 bool    getBatchScanOptionFromHint(SNodeList* pList);
+SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
+int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 
 #ifdef __cplusplus
 }

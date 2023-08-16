@@ -348,6 +348,24 @@ static int32_t caseWhenNodeCopy(const SCaseWhenNode* pSrc, SCaseWhenNode* pDst) 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t copyHintValue(const SHintNode* pSrc, SHintNode* pDst) {
+  if (NULL == pSrc->value) {
+    pDst->value = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  switch (pSrc->option) {
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hintNodeCopy(const SHintNode* pSrc, SHintNode* pDst) {
+  COPY_SCALAR_FIELD(type);
+  COPY_SCALAR_FIELD(option);
+  return copyHintValue(pSrc, pDst);
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -363,6 +381,7 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   COPY_SCALAR_FIELD(outputTsOrder);
   COPY_SCALAR_FIELD(dynamicOp);
   COPY_SCALAR_FIELD(forceCreateNonBlockingOptr);
+  CLONE_NODE_LIST_FIELD(pHint);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -703,6 +722,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
+  CLONE_NODE_LIST_FIELD(pHint);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -790,6 +810,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
       break;
     case QUERY_NODE_CASE_WHEN:
       code = caseWhenNodeCopy((const SCaseWhenNode*)pNode, (SCaseWhenNode*)pDst);
+      break;
+    case QUERY_NODE_HINT:
+      code = hintNodeCopy((const SHintNode*)pNode, (SHintNode*)pDst);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);
