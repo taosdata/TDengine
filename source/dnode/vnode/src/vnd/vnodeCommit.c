@@ -288,7 +288,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
 
   tsem_wait(&pVnode->canCommit);
 
-  pVnode->config.syncCfg = syncNodeGetConfig(pVnode->sync);
+  if(syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
