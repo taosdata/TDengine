@@ -194,4 +194,6 @@ void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, b
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t  delta);
 
+SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
+                                        SStorageAPI* pStorageAPI);
 #endif  // TDENGINE_EXECUTIL_H

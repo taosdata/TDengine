@@ -3,6 +3,11 @@ if(${BUILD_WITH_ROCKSDB})
     add_subdirectory(rocksdb)
 endif(${BUILD_WITH_ROCKSDB})
 
+# cos
+if(${BUILD_WITH_COS})
+    add_subdirectory(cos)
+endif(${BUILD_WITH_COS})
+
 if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)
 endif(${BUILD_WITH_LUCENE})
