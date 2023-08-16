@@ -853,7 +853,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
 }
 
 SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) {
-  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+  if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
   }
   return pStmt;
