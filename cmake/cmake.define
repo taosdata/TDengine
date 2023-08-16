@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.0)
-
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(TD_BUILD_TAOSA_INTERNAL FALSE)
 

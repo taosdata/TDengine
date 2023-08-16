@@ -332,8 +332,12 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SMsgHead));
     int32_t len = pReader->pHead->head.bodyLen - sizeof(SMsgHead);
 
-    extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
-    tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+    code = extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("s-task:%s extract delete msg from WAL failed, code:%s", id, tstrerror(code));
+    } else {
+      tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%"PRId64, id, len, ver);
+    }
   } else {
     ASSERT(0);
   }

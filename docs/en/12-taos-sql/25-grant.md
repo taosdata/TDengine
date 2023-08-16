@@ -4,7 +4,7 @@ sidebar_label: Access Control
 description: This document describes how to manage users and permissions in TDengine.
 ---
 
-This document describes how to manage permissions in TDengine.
+User and Access control is a distingguished feature of TDengine enterprise edition. In this section, only the most fundamental functionalities of user and access control are demonstrated. To get the full knowledge of user and access control, please contact the TDengine team.
 
 ## Create a User
 
