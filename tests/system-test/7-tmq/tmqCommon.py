@@ -604,6 +604,14 @@ class TMQCom:
             except Exception as err:
                 processID = ""
                 print('**** warn: ', err)
+                
+    def startProcess(self, processName, param):
+        if platform.system().lower() == 'windows':
+            cmd = f"mintty -h never %s %s > NUL 2>&1" % (processName, param)
+        else:
+            cmd = f"nohup %s %s > /dev/null 2>&1 &" % (processName, param)
+        tdLog.info("%s"%(cmd))
+        os.system(cmd)                
 
     def close(self):
         self.cursor.close()

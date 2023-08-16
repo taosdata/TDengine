@@ -176,12 +176,7 @@ class TDTestCase:
         
         # use taosBenchmark to subscribe  
         binPath = self.getPath()
-        if platform.system().lower() == 'windows':
-            cmd = f"mintty -h never %s -f ./7-tmq/tmqDropConsumer.json > NUL 2>&1" % binPath
-        else:
-            cmd = f"nohup %s -f ./7-tmq/tmqDropConsumer.json > /dev/null 2>&1 & " % binPath
-        tdLog.info("%s"%(cmd))
-        os.system(cmd)
+        tmqCom.startProcess(binPath, "-f ./7-tmq/tmqDropConsumer.json")        
                 
         expectTopicNum = len(topicNameList)
         consumerThreadNum = 2
