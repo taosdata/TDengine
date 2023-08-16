@@ -1121,7 +1121,7 @@ export default {
           let piParams = {
             from:
               this.tagName == "influxdb"
-                ? "influxdb" + dns
+                ? "influxdb" + (data.protocol ? (Object.is(data.protocol.value, "--") ? "" : "+"):'')  + dns
                 : this.tagName + dns,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
