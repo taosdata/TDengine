@@ -421,17 +421,12 @@ static int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pI
 
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-        if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
-          taosMsleep(10);
-          qDebug("===stream===try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
-          continue;
-        }
-
         qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
         return TSDB_CODE_SUCCESS;
       }
 
-      qDebug("s-task:%s sink task handle result block one-by-one", id);
+      qDebug("s-task:%s sink task handle block one-by-one, type:%d", id, qItem->type);
+
       *numOfBlocks = 1;
       *pInput = qItem;
       return TSDB_CODE_SUCCESS;
@@ -467,8 +462,7 @@ static int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pI
         return TSDB_CODE_SUCCESS;
       } else {
         // previous existed blocks needs to be handle, before handle the checkpoint msg block
-        qDebug("s-task:%s checkpoint/transtate msg extracted, handle previous block first, numOfBlocks:%d", id,
-               *numOfBlocks);
+        qDebug("s-task:%s checkpoint/transtate msg extracted, handle previous blocks, numOfBlocks:%d", id, *numOfBlocks);
         streamQueueProcessFail(pTask->inputQueue);
         return TSDB_CODE_SUCCESS;
       }
@@ -581,7 +575,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     if (pInput->type == STREAM_INPUT__TRANS_STATE) {
       streamProcessTranstateBlock(pTask, (SStreamDataBlock*)pInput);
-      return 0;
+      continue;
     }
 
     if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
