@@ -419,6 +419,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pSubtable);
   COPY_SCALAR_FIELD(igLastNull);
   COPY_SCALAR_FIELD(groupOrderScan);
+  COPY_SCALAR_FIELD(onlyMetaCtbIdx);
   return TSDB_CODE_SUCCESS;
 }
 

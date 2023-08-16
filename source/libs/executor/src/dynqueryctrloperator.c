@@ -264,7 +264,7 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
 
   int32_t iter = 0;
   void* p = NULL;
-  while (p = tSimpleHashIterate(pVg, p, &iter)) {
+  while (NULL != (p = tSimpleHashIterate(pVg, p, &iter))) {
     int32_t* pVgId = tSimpleHashGetKey(p, NULL);
     SArray* pUidList = *(SArray**)p;
     basic.vgId = *pVgId;
@@ -349,7 +349,7 @@ static int32_t buildBatchTableScanOperatorParam(SOperatorParam** ppRes, int32_t 
 
   int32_t iter = 0;
   void* p = NULL;
-  while (p = tSimpleHashIterate(pVg, p, &iter)) {
+  while (NULL != (p = tSimpleHashIterate(pVg, p, &iter))) {
     int32_t* pVgId = tSimpleHashGetKey(p, NULL);
     SArray* pUidList = *(SArray**)p;
 
@@ -692,7 +692,7 @@ static void postProcessStbJoinTableHash(SOperatorInfo* pOperator) {
 
   uint64_t* pUid = NULL;
   int32_t iter = 0;
-  while (pUid = tSimpleHashIterate(pStbJoin->ctx.prev.onceTable, pUid, &iter)) {
+  while (NULL != (pUid = tSimpleHashIterate(pStbJoin->ctx.prev.onceTable, pUid, &iter))) {
     tSimpleHashRemove(pStbJoin->ctx.prev.leftCache, pUid, sizeof(*pUid));
   }
 
@@ -702,7 +702,7 @@ static void postProcessStbJoinTableHash(SOperatorInfo* pOperator) {
   // debug only
   iter = 0;
   uint32_t* num = NULL;
-  while (num = tSimpleHashIterate(pStbJoin->ctx.prev.leftCache, num, &iter)) {
+  while (NULL != (num = tSimpleHashIterate(pStbJoin->ctx.prev.leftCache, num, &iter))) {
     ASSERT(*num > 1);
   }
 }

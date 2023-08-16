@@ -3206,6 +3206,7 @@ int32_t stbJoinOptRewriteToTagScan(SLogicNode* pJoin, SNode* pNode) {
   NODES_DESTORY_NODE(pScan->node.pConditions);
   pScan->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pScan->onlyMetaCtbIdx = true;
 
   SNodeList* pTags = nodesMakeList();
   int32_t code = nodesCollectColumnsFromNode(pJoinNode->pTagEqCond, NULL, COLLECT_COL_TYPE_TAG, &pTags);
@@ -3328,10 +3329,10 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    code = stbJoinOptAddFuncToScanNode("_tbuid", pScan);
-    if (code) {
-      break;
-    }
+    //code = stbJoinOptAddFuncToScanNode("_tbuid", pScan);
+    //if (code) {
+    //  break;
+    //}
 
     pScan->node.dynamicOp = true;
     *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;

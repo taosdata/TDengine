@@ -2903,17 +2903,23 @@ static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aF
 
 }
 
-static void tagScanFillOneCellWithTag(const STUidTagInfo* pUidTagInfo, SExprInfo* pExprInfo, SColumnInfoData* pColInfo, int rowIndex, const SStorageAPI* pAPI, void* pVnode) {
-  if (fmIsScanPseudoColumnFunc(pExprInfo->pExpr->_function.functionId)) {  // tbname
-    char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-//    if (pUidTagInfo->name != NULL) {
-//      STR_TO_VARSTR(str, pUidTagInfo->name);
-//    } else {  // name is not retrieved during filter
-//      pAPI->metaFn.getTableNameByUid(pVnode, pUidTagInfo->uid, str);
-//    }
-    STR_TO_VARSTR(str, "ctbidx");
+static void tagScanFillOneCellWithTag(SOperatorInfo* pOperator, const STUidTagInfo* pUidTagInfo, SExprInfo* pExprInfo, SColumnInfoData* pColInfo, int rowIndex, const SStorageAPI* pAPI, void* pVnode) {
+  if (QUERY_NODE_FUNCTION == pExprInfo->pExpr->nodeType) {
+    if (FUNCTION_TYPE_TBNAME == pExprInfo->pExpr->_function.functionType) {  // tbname
+      char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  //    if (pUidTagInfo->name != NULL) {
+  //      STR_TO_VARSTR(str, pUidTagInfo->name);
+  //    } else {  // name is not retrieved during filter
+  //      pAPI->metaFn.getTableNameByUid(pVnode, pUidTagInfo->uid, str);
+  //    }
+      STR_TO_VARSTR(str, "ctbidx");
 
-    colDataSetVal(pColInfo, rowIndex, str, false);
+      colDataSetVal(pColInfo, rowIndex, str, false);
+    } else if (FUNCTION_TYPE_TBUID == pExprInfo->pExpr->_function.functionType) {
+      colDataSetVal(pColInfo, rowIndex, (char*)&pUidTagInfo->uid, false);    
+    } else if (FUNCTION_TYPE_VGID == pExprInfo->pExpr->_function.functionType) {
+      colDataSetVal(pColInfo, rowIndex, (char*)&pOperator->pTaskInfo->id.vgId, false);   
+    } 
   } else {
     STagVal tagVal = {0};
     tagVal.cid = pExprInfo->base.pParam[0].pCol->colId;
@@ -2950,7 +2956,7 @@ static int32_t tagScanFillResultBlock(SOperatorInfo* pOperator, SSDataBlock* pRe
       STUidTagInfo* pUidTagInfo = taosArrayGet(aUidTags, idx);
       for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
-        tagScanFillOneCellWithTag(pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
+        tagScanFillOneCellWithTag(pOperator, pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
       }
     }
   } else {
@@ -2959,7 +2965,7 @@ static int32_t tagScanFillResultBlock(SOperatorInfo* pOperator, SSDataBlock* pRe
       STUidTagInfo* pUidTagInfo = taosArrayGet(aUidTags, i);
       for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
-        tagScanFillOneCellWithTag(pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
+        tagScanFillOneCellWithTag(pOperator, pUidTagInfo, &pExprInfo[j], pDst, i, pAPI, pInfo->readHandle.vnode);
       }
     }
   }
@@ -2978,7 +2984,7 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
   blockDataCleanup(pRes);
 
   if (pInfo->pCtbCursor == NULL) {
-    pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 1);
+    pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 0);
   }
 
   SArray* aUidTags = pInfo->aUidTags;
@@ -3087,7 +3093,7 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
 static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   if (pInfo->pCtbCursor != NULL) {
-    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor, 1);
+    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor, 0);
   }
   taosHashCleanup(pInfo->filterCtx.colHash);
   taosArrayDestroy(pInfo->filterCtx.cInfoList);

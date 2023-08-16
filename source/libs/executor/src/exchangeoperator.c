@@ -809,7 +809,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   if (pParam->multiParams) {
     SExchangeOperatorBatchParam* pBatch = (SExchangeOperatorBatchParam*)pOperator->pOperatorGetParam->value;
     int32_t iter = 0;
-    while (pBasicParam = tSimpleHashIterate(pBatch->pBatchs, pBasicParam, &iter)) {
+    while (NULL != (pBasicParam = tSimpleHashIterate(pBatch->pBatchs, pBasicParam, &iter))) {
       code = addSingleExchangeSource(pOperator, pBasicParam);
       if (code) {
         return code;
