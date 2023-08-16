@@ -454,6 +454,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - zero success,none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
 - `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
   **Function description**
   - get the committed offset
 
@@ -467,9 +468,9 @@ In addition to writing data using the SQL method or the parameter binding API, w
   
   **Function description**
 
-  The commit interface is divided into two types, each with synchronous and asynchronous interfaces:
-  - The first type: based on message submission, submit the progress in the message. If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer: tmq_commit_sync/tmq_commit_async
-  - The second type: submit based on the offset of a Vgroup in a topic: tmq_commit_offset_sync/tmq_commit_offset_async
+  - The commit interface is divided into two types, each with synchronous and asynchronous interfaces:
+    - The first type: based on message submission, submit the progress in the message. If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer: tmq_commit_sync/tmq_commit_async
+    - The second type: submit based on the offset of a Vgroup in a topic: tmq_commit_offset_sync/tmq_commit_offset_async
   
   **Parameter description**
   - msg：Message consumed, If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer
