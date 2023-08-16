@@ -198,10 +198,8 @@ void dmCleanup() {
   monCleanup();
   syncCleanUp();
   walCleanUp();
-#ifndef WINDOWS
   udfcClose(); 
   udfStopUdfd();
-#endif
   taosStopCacheRefreshWorker();
   dmDiskClose();
   dInfo("dnode env is cleaned up");

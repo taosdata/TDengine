@@ -65,13 +65,11 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("snode-worker", "initialized");
 
-#ifndef WINDOWS
   if (udfcOpen() != 0) {
     dError("failed to open udfc in snode");
     smClose(pMgmt);
     return -1;
   }
-#endif  
 
   pOutput->pMgmt = pMgmt;
   return 0;
