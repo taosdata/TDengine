@@ -287,7 +287,7 @@ _EXIT:
   taosThreadMutexDestroy(&pHandle->mutex);
   taosThreadMutexDestroy(&pHandle->cfMutex);
   taosHashCleanup(pHandle->cfInst);
-  rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
+  // rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
   tdListFree(pHandle->list);
   taosMemoryFree(backendPath);
   taosMemoryFree(pHandle);
