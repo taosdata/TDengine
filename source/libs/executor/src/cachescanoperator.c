@@ -218,7 +218,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         return NULL;
       }
 
-      pRes->info.id.groupId = getTableGroupId(pTableList, pRes->info.id.uid);
+      pRes->info.id.groupId = tableListGetTableGroupId(pTableList, pRes->info.id.uid);
       pInfo->indexOfBufferedRes += 1;
       return pRes;
     } else {

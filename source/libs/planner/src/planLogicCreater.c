@@ -253,7 +253,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     return SCAN_TYPE_SYSTEM_TABLE;
   }
 
-  if (tagScan) {
+  if (tagScan && 0 == LIST_LENGTH(pScanCols) && 0 != LIST_LENGTH(pScanPseudoCols)) {
     return SCAN_TYPE_TAG;
   }
 
@@ -366,17 +366,16 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
   return hasTbname;
 }
 
-static int32_t setTagScanExecutionMode(SScanLogicNode* pScan) {
-  //TODO: set pScan->onlyMetaCtbIdx
-  bool bOnlyMetaCtbIdx = false;
+static int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
+  pScan->onlyMetaCtbIdx = false;
 
   if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
-    bOnlyMetaCtbIdx = false;
+    pScan->onlyMetaCtbIdx = false;
     return TSDB_CODE_SUCCESS;
   }
 
   if (pScan->node.pConditions == NULL) {
-    bOnlyMetaCtbIdx = true;
+    pScan->onlyMetaCtbIdx = true;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -385,9 +384,9 @@ static int32_t setTagScanExecutionMode(SScanLogicNode* pScan) {
   SNode* pTagIndexCond = NULL;
   filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
   if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
-    bOnlyMetaCtbIdx = false;
+    pScan->onlyMetaCtbIdx = false;
   } else {
-    bOnlyMetaCtbIdx = true;
+    pScan->onlyMetaCtbIdx = true;
   }
   nodesDestroyNode(pCond);
   nodesDestroyNode(pTagIndexCond);
@@ -462,8 +461,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
   }
 
-  if (pSelect->tagScan) {
-    code = setTagScanExecutionMode(pScan);
+  if (pScan->scanType == SCAN_TYPE_TAG) {
+    code = tagScanSetExecutionMode(pScan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
