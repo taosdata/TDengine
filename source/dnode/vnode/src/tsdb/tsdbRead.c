@@ -63,7 +63,7 @@ typedef struct STableBlockScanInfo {
   SIterInfo iiter;              // imem buffer skip list iterator
   SArray*   delSkyline;         // delete info for this table
   int32_t   fileDelIndex;       // file block delete index
-  int32_t   lastBlockDelIndex;  // delete index for last block
+  int32_t   sttBlockDelIndex;  // delete index for last block
   bool      iterInit;           // whether to initialize the in-memory skip list iterator or not
 } STableBlockScanInfo;
 
@@ -1976,7 +1976,7 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     pLastBlockReader->currentKey = key;
     pScanInfo->lastKeyInStt = key;
 
-    if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->lastBlockDelIndex, key, ver, pLastBlockReader->order,
+    if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, pLastBlockReader->order,
                         pVerRange)) {
       return true;
     }
@@ -3018,7 +3018,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   pBlockScanInfo->iter.index = index;
   pBlockScanInfo->iiter.index = index;
   pBlockScanInfo->fileDelIndex = index;
-  pBlockScanInfo->lastBlockDelIndex = index;
+  pBlockScanInfo->sttBlockDelIndex = index;
 
   return code;
 
@@ -4029,7 +4029,7 @@ int32_t doMergeRowsInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockSc
       tsdbRowMergerAdd(pMerger, pRow1, NULL);
     } else {
       tsdbTrace("uid:%" PRIu64 " last del index:%d, del range:%d, lastKeyInStt:%" PRId64 ", %s", pScanInfo->uid,
-                pScanInfo->lastBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline), pScanInfo->lastKeyInStt,
+                pScanInfo->sttBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline), pScanInfo->lastKeyInStt,
                 idStr);
       break;
     }

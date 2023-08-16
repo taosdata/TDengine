@@ -1387,7 +1387,7 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     pLastBlockReader->currentKey = key;
     pScanInfo->lastKeyInStt = key;
 
-    if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->lastBlockDelIndex, key, ver, pLastBlockReader->order,
+    if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, pLastBlockReader->order,
                         pVerRange)) {
       return true;
     }
@@ -2406,7 +2406,7 @@ int32_t getInitialDelIndex(const SArray* pDelSkyline, int32_t order) {
 
 int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t order, SCostSummary* pCost) {
   int32_t code = 0;
-  int32_t newDelDataInFile = taosArrayGetSize(pBlockScanInfo->pfileDelData);
+  int32_t newDelDataInFile = taosArrayGetSize(pBlockScanInfo->pFileDelData);
   if (newDelDataInFile == 0 &&
       ((pBlockScanInfo->delSkyline != NULL) || (TARRAY_SIZE(pBlockScanInfo->pMemDelData) == 0))) {
     return code;
@@ -2420,7 +2420,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t orde
     pBlockScanInfo->delSkyline = taosArrayInit(4, sizeof(TSDBKEY));
   }
 
-  SArray* pSource = pBlockScanInfo->pfileDelData;
+  SArray* pSource = pBlockScanInfo->pFileDelData;
   if (pSource == NULL) {
     pSource = pBlockScanInfo->pMemDelData;
   } else {
@@ -2429,13 +2429,13 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t orde
 
   code = tsdbBuildDeleteSkyline(pSource, 0, taosArrayGetSize(pSource) - 1, pBlockScanInfo->delSkyline);
 
-  taosArrayClear(pBlockScanInfo->pfileDelData);
+  taosArrayClear(pBlockScanInfo->pFileDelData);
   int32_t index = getInitialDelIndex(pBlockScanInfo->delSkyline, order);
 
   pBlockScanInfo->iter.index = index;
   pBlockScanInfo->iiter.index = index;
   pBlockScanInfo->fileDelIndex = index;
-  pBlockScanInfo->lastBlockDelIndex = index;
+  pBlockScanInfo->sttBlockDelIndex = index;
 
   double el = taosGetTimestampUs() - st;
   pCost->createSkylineIterTime = el / 1000.0;
@@ -3409,7 +3409,7 @@ int32_t doMergeRowsInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockSc
       tsdbRowMergerAdd(pMerger, pRow1, NULL);
     } else {
       tsdbTrace("uid:%" PRIu64 " last del index:%d, del range:%d, lastKeyInStt:%" PRId64 ", %s", pScanInfo->uid,
-                pScanInfo->lastBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline), pScanInfo->lastKeyInStt,
+                pScanInfo->sttBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline), pScanInfo->lastKeyInStt,
                 idStr);
       break;
     }
@@ -4133,7 +4133,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
       }
 
       pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
-      pInfo->pfileDelData = taosArrayDestroy(pInfo->pfileDelData);
+      pInfo->pFileDelData = taosArrayDestroy(pInfo->pFileDelData);
     }
   } else {
     // resetDataBlockScanInfo excluding lastKey

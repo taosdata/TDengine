@@ -731,13 +731,6 @@ typedef struct SSttBlockLoadInfo {
   bool       sttBlockLoaded;
 
   SSttBlockLoadCostInfo cost;
-
-  // keep the last access position, this position may be used to reduce the binary times for
-  // starting last block data for a new table
-  struct {
-    int32_t blockIndex;
-    int32_t rowIndex;
-  } prevEndPos;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {

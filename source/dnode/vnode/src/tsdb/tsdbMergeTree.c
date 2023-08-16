@@ -120,14 +120,10 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   pLoadInfo->blockIndex[0] = -1;
   pLoadInfo->blockIndex[1] = -1;
 
-  tStatisBlockDestroy(pLoadInfo->statisBlock);
-  TARRAY2_DESTROY((TStatisBlkArray*)pLoadInfo->pSttStatisBlkArray, NULL);
-
   tBlockDataDestroy(&pLoadInfo->blockData[0]);
   tBlockDataDestroy(&pLoadInfo->blockData[1]);
 
   taosArrayDestroy(pLoadInfo->aSttBlk);
-
   taosMemoryFree(pLoadInfo);
   return NULL;
 }
@@ -395,28 +391,27 @@ static bool existsFromSttBlkStatis(SSttBlockLoadInfo *pBlockLoadInfo, uint64_t s
       return false;
     }
 
-    if (pBlockLoadInfo->statisBlock == NULL) {
-      pBlockLoadInfo->statisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
-
-      int64_t st = taosGetTimestampMs();
-      tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
-      pBlockLoadInfo->statisBlockIndex = i;
-
-      double el = (taosGetTimestampMs() - st) / 1000.0;
-      pBlockLoadInfo->cost.loadStatisBlocks += 1;
-      pBlockLoadInfo->cost.statisElapsedTime += el;
-    } else if (pBlockLoadInfo->statisBlockIndex != i) {
-      tStatisBlockDestroy(pBlockLoadInfo->statisBlock);
-
-      int64_t st = taosGetTimestampMs();
-      tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
-      pBlockLoadInfo->statisBlockIndex = i;
-
-
-      double el = (taosGetTimestampMs() - st) / 1000.0;
-      pBlockLoadInfo->cost.loadStatisBlocks += 1;
-      pBlockLoadInfo->cost.statisElapsedTime += el;
-    }
+//    if (pBlockLoadInfo->statisBlock == NULL) {
+//      pBlockLoadInfo->statisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
+//
+//      int64_t st = taosGetTimestampMs();
+//      tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
+//      pBlockLoadInfo->statisBlockIndex = i;
+//
+//      double el = (taosGetTimestampMs() - st) / 1000.0;
+//      pBlockLoadInfo->cost.loadStatisBlocks += 1;
+//      pBlockLoadInfo->cost.statisElapsedTime += el;
+//    } else if (pBlockLoadInfo->statisBlockIndex != i) {
+//      tStatisBlockDestroy(pBlockLoadInfo->statisBlock);
+//
+//      int64_t st = taosGetTimestampMs();
+//      tsdbSttFileReadStatisBlock(pReader, p, pBlockLoadInfo->statisBlock);
+//      pBlockLoadInfo->statisBlockIndex = i;
+//
+//      double el = (taosGetTimestampMs() - st) / 1000.0;
+//      pBlockLoadInfo->cost.loadStatisBlocks += 1;
+//      pBlockLoadInfo->cost.statisElapsedTime += el;
+//    }
 
     STbStatisBlock* pBlock = pBlockLoadInfo->statisBlock;
     int32_t index = tarray2SearchIdx(pBlock->suid, &suid, sizeof(int64_t), suidComparFn, TD_EQ);
@@ -517,12 +512,12 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
     }
   }
 
-  bool exists = existsFromSttBlkStatis(pBlockLoadInfo, suid, uid, pIter->pReader);
-  if (!exists) {
-    pIter->iSttBlk = -1;
-    pIter->pSttBlk = NULL;
-    return TSDB_CODE_SUCCESS;
-   }
+//  bool exists = existsFromSttBlkStatis(pBlockLoadInfo, suid, uid, pIter->pReader);
+//  if (!exists) {
+//    pIter->iSttBlk = -1;
+//    pIter->pSttBlk = NULL;
+//    return TSDB_CODE_SUCCESS;
+//   }
 
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.

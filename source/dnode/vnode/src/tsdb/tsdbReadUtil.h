@@ -65,12 +65,12 @@ typedef struct STableBlockScanInfo {
   TSKEY     lastKeyInStt;       // last accessed key in stt
   SArray*   pBlockList;         // block data index list, SArray<SBrinRecord>
   SArray*   pMemDelData;        // SArray<SDelData>
-  SArray*   pfileDelData;       // SArray<SDelData> from each file set
+  SArray*   pFileDelData;       // SArray<SDelData> from each file set
   SIterInfo iter;               // mem buffer skip list iterator
   SIterInfo iiter;              // imem buffer skip list iterator
   SArray*   delSkyline;         // delete info for this table
   int32_t   fileDelIndex;       // file block delete index
-  int32_t   lastBlockDelIndex;  // delete index for last block
+  int32_t   sttBlockDelIndex;   // delete index for last block
   bool      iterInit;           // whether to initialize the in-memory skip list iterator or not
 } STableBlockScanInfo;
 
