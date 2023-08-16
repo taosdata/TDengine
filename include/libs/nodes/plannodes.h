@@ -107,6 +107,7 @@ typedef struct SScanLogicNode {
   bool          sortPrimaryKey;
   bool          igLastNull;
   bool          groupOrderScan;
+  bool          onlyMetaCtbIdx; // for tag scan with no tbname
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -334,7 +335,11 @@ typedef struct SScanPhysiNode {
   bool       groupOrderScan;
 } SScanPhysiNode;
 
-typedef SScanPhysiNode STagScanPhysiNode;
+typedef struct STagScanPhysiNode {
+  SScanPhysiNode scan;
+  bool       onlyMetaCtbIdx; //no tbname, tag index not used.
+} STagScanPhysiNode;
+
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
