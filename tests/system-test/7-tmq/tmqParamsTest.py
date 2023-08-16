@@ -131,7 +131,7 @@ class TDTestCase:
                         if snapshot_value == "true":
                             if offset_value != "earliest" and offset_value != "":
                                 if offset_value == "latest":
-                                    offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace(offset_value, "0")), subscription_info))
+                                    offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
                                     tdSql.checkEqual(sum(offset_value_list) >= 0, True)
                                     rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                     tdSql.checkEqual(sum(rows_value_list), expected_res)
@@ -154,7 +154,7 @@ class TDTestCase:
                                     tdSql.checkEqual(rows_value_list, [None]*len(subscription_info))
                         else:
                             if offset_value != "none":
-                                offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace(offset_value, "0")), subscription_info))
+                                offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
                                 tdSql.checkEqual(sum(offset_value_list) >= 0, True)
                                 rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                 tdSql.checkEqual(sum(rows_value_list), expected_res)

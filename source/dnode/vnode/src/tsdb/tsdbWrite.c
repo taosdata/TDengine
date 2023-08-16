@@ -76,7 +76,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
   int32_t       code = 0;
   STsdbKeepCfg *pCfg = &pTsdb->keepCfg;
   TSKEY         now = taosGetTimestamp(pCfg->precision);
-  TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
+  TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep1;
   TSKEY         maxKey = tsMaxKeyByPrecision[pCfg->precision];
   int32_t       size = taosArrayGetSize(pMsg->aSubmitTbData);
 

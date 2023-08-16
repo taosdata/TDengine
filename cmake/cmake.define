@@ -78,6 +78,12 @@ ELSE ()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF ()
 
+IF (${TD_WINDOWS})
+    SET(TAOS_LIB taos_static)
+ELSE ()
+    SET(TAOS_LIB taos)
+ENDIF ()
+
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
