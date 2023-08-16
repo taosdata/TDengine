@@ -859,15 +859,8 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pObj->syncTerm != pSelfObj->syncTerm || !isDnodeOnline) {
-      // state of old term / no status report => use dummyTimeMs
-      if (pObj->syncTerm > pSelfObj->syncTerm) {
-        mError("mnode:%d has a newer term:%" PRId64 " than me:%" PRId64, pObj->id, pObj->syncTerm, pSelfObj->syncTerm);
-      }
-      colDataSetVal(pColInfo, numOfRows, (const char *)&dummyTimeMs, false);
-    } else {
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->roleTimeMs, false);
-    }
+    colDataSetVal(pColInfo, numOfRows, (isDnodeOnline) ? (const char *)&pObj->roleTimeMs : (const char *)&dummyTimeMs,
+                  false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
