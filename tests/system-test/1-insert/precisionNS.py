@@ -224,13 +224,13 @@ class TDTestCase:
         sql = f"select timediff(ts - {val}b, ts1) from st "
         self.checkExpect(sql, val)
 
-    # # init
-    # def init(self, conn, logSql, replicaVar=1):
-    #     seed = time.clock_gettime(time.CLOCK_REALTIME)
-    #     random.seed(seed)
-    #     self.replicaVar = int(replicaVar)
-    #     tdLog.debug(f"start to excute {__file__}")
-    #     tdSql.init(conn.cursor(), True)
+    # init
+    def init(self, conn, logSql, replicaVar=1):
+        seed = time.time() % 10000 
+        random.seed(seed)
+        self.replicaVar = int(replicaVar)
+        tdLog.debug(f"start to excute {__file__}")
+        tdSql.init(conn.cursor(), True)
 
     # where
     def checkWhere(self):
