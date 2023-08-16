@@ -1,6 +1,6 @@
 import { request } from "@/utils/request";
 let language=window.navigator.language.includes('en')?'en':'zh'
-export function getDatain(id,type){
+export function getTask(id,type){
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,

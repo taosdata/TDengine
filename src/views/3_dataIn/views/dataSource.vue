@@ -212,7 +212,7 @@
 </template>
 <script>
 import { Message, Switch } from "element-ui";
-import { getDatain, refreshTask, getTaskActivities } from "@/api/explorer/datain";
+import { getTask, refreshTask, getTaskActivities } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -392,7 +392,7 @@ export default {
         this.requestIng = true;
         this.topicList = [];
         let id = localStorage.getItem("local_clusterID");
-        await getDatain(id, 'datain').then((res) => {
+        await getTask(id, 'datain').then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
               (item["taskid"] = item.id), (item["localname"] = item.name);
