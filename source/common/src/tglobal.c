@@ -216,7 +216,11 @@ uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-bool tsStartUdfd = true;
+#ifdef WINDOWS
+bool tsStartUdfd = false;
+#else
+bool    tsStartUdfd = true;
+#endif
 
 // wal
 int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);

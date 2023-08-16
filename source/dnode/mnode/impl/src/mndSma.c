@@ -705,7 +705,10 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-
+#ifdef WINDOWS
+  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
+  goto _OVER;
+#endif
   mInfo("sma:%s, start to create", createReq.name);
   if (mndCheckCreateSmaReq(&createReq) != 0) {
     goto _OVER;
