@@ -125,10 +125,7 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
   pReader->pTableList = pTableIdList;
   pReader->numOfTables = numOfTables;
   pReader->lastTs = INT64_MIN;
-
-  int64_t blocks;
-  double  elapse;
-  pReader->pLDataIterArray = destroySttBlockReader(pReader->pLDataIterArray, &blocks, &elapse);
+  pReader->pLDataIterArray = destroySttBlockReader(pReader->pLDataIterArray, NULL);
   pReader->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   return TSDB_CODE_SUCCESS;
@@ -208,9 +205,7 @@ void* tsdbCacherowsReaderClose(void* pReader) {
   taosMemoryFree(p->pCurrSchema);
 
   if (p->pLDataIterArray) {
-    int64_t loadBlocks = 0;
-    double  elapse = 0;
-    destroySttBlockReader(p->pLDataIterArray, &loadBlocks, &elapse);
+    destroySttBlockReader(p->pLDataIterArray, NULL);
   }
 
   if (p->pFileReader) {
