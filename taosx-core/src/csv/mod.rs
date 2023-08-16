@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -100,7 +100,10 @@ pub async fn csv_to_taos(
 
     let mut source = CsvSource::new(&mut from, port)?;
 
+    info!("spawn CSV worker");
     let worker = tokio::spawn(async move {
+        let id = tokio::task::id();
+        info!(task.id = %id, "[{id}] Reading CSV with config: {source:?}");
         let handlers = source.read().await?;
         for handler in handlers {
             tokio::task::yield_now().await;
@@ -108,11 +111,14 @@ pub async fn csv_to_taos(
         }
         Ok::<_, anyhow::Error>(())
     });
+    info!("CSV worker spawned");
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
 
+    info!("Spawn task handler");
     tokio::spawn(async move {
+        info!("Spawned task handler");
         tokio::select! {
             // application exit with error code
             status = worker => {
@@ -243,12 +249,14 @@ impl CsvSource {
             .params
             .remove("batch_size")
             .unwrap_or("1".to_string())
-            .parse()?;
+            .parse()
+            .context("Invalid batch_size value")?;
         let concurrent: usize = dsn
             .params
             .remove("concurrent")
-            .unwrap_or("1".to_string())
-            .parse()?;
+            .unwrap_or("2".to_string())
+            .parse()
+            .context("Invalid concurrent value")?;
 
         if !has_header && headers.len() == 0 {
             return Err(anyhow!("csv header is null"));
@@ -313,11 +321,12 @@ impl CsvSource {
         let futures = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
 
-        while let Some(mut reader) = self.readers.pop() {
+        while let Some(reader) = self.readers.pop() {
             let permit = semaphore.clone().acquire_owned().await?;
 
             let future = tokio::spawn(async move {
-                let res = CsvSource::deal_file(&mut reader, port, batch_size).await?;
+                info!("Deal with csv reader");
+                let res = CsvSource::deal_file(reader, port, batch_size).await?;
 
                 drop(permit);
                 Ok(res)
@@ -329,78 +338,94 @@ impl CsvSource {
         Ok(futures)
     }
 
-    async fn deal_file(reader: &mut Reader<File>, port: u16, batch_size: usize) -> Result<()> {
-        // let stream = TcpStream::connect(format!("localhost:{}", port))?;
+    async fn deal_file(mut reader: Reader<File>, port: u16, batch_size: usize) -> Result<()> {
+        debug!("Deal with file by IPC port: {port}");
+        let stream = std::net::TcpStream::connect(format!("localhost:{}", port));
+        debug!("Connected to IPC stream");
+        let stream = stream.unwrap();
 
-        let stream = tokio::net::TcpStream::connect(format!("localhost:{}", port)).await?;
         let headers = reader
             .headers()?
             .iter()
             .map(String::from)
             .collect::<Vec<String>>();
         let schema = CsvSource::stream_schema(&headers);
-        // let (ack, writer) = stream.into_split();
-        let stream = stream.into_std()?;
         stream.set_nonblocking(false)?;
+        let ack_stream = stream.try_clone()?;
 
-        let mut writer: StreamWriter<&TcpStream> = StreamWriter::try_new(&stream, &schema)?;
-        tokio::task::yield_now().await;
-        // tokio::time::sleep(Duration::from_secs(1)).await;
-        let mut ack = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Code).open(&stream);
-        // writer.write(&RecordBatch::new_empty(Arc::new(schema)));
-        tokio::task::yield_now().await;
-
-        // let mut ack = StreamReader::try_new(&stream, None)?;
-        // dbg!(ack.schema());
-        tracing::info!("CSV stream reading...");
-        tokio::task::yield_now().await;
-
-        // std::thread::scope(f)
-
-        let mut record = StringRecord::new();
-        let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
-        while reader.read_record(&mut record)? {
-            if record.is_empty() {
-                continue;
-            }
-            for (i, s) in record.iter().enumerate() {
-                records[i].push(if !s.is_empty() {
-                    Some(s.to_string())
-                } else {
-                    None
-                });
-            }
-            if records[0].len() >= batch_size {
-                CsvSource::write_to_stream(&headers, &mut writer, &records)?;
-                if let Some(ack) = ack.next() {
-                    if !ack.success() {
-                        warn!(
-                            source = "csv",
-                            batch = batch_size,
-                            "write {batch_size} records error"
-                        );
-                    }
-                }
-                records.iter_mut().for_each(Vec::clear);
-                tokio::task::yield_now().await;
-            }
-        }
-
-        if records[0].len() > 0 {
-            CsvSource::write_to_stream(&headers, &mut writer, &records)?;
-            if let Some(ack) = ack.next() {
+        info!("CSV stream reading...");
+        let ack = tokio::task::spawn_blocking(move || {
+            let ack_reader =
+                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Code).open(&ack_stream);
+            let (mut total, mut ok) = (0usize, 0usize);
+            for ack in ack_reader {
+                total += 1;
                 if !ack.success() {
                     warn!(
                         source = "csv",
                         batch = batch_size,
                         "write {batch_size} records error"
                     );
+                } else {
+                    ok += 1;
                 }
             }
-        }
+            info!("ACK reader finished");
+            (total, ok)
+        });
+        let wrt = tokio::task::spawn_blocking(move || {
+            let stream = stream;
 
-        tokio::task::yield_now().await;
-        tracing::info!("CSV stream reading finished");
+            let mut writer: StreamWriter<_> = StreamWriter::try_new(&stream, &schema)?;
+
+            // let writer = writer;
+            let mut record = StringRecord::new();
+            let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
+            let mut batches = 0usize;
+            while reader.read_record(&mut record)? {
+                if record.is_empty() {
+                    continue;
+                }
+                for (i, s) in record.iter().enumerate() {
+                    records[i].push(if !s.is_empty() {
+                        Some(s.to_string())
+                    } else {
+                        None
+                    });
+                }
+                if records[0].len() >= batch_size {
+                    CsvSource::write_to_stream(&headers, &mut writer, &records)?;
+                    records.iter_mut().for_each(Vec::clear);
+                    batches += 1;
+                }
+            }
+
+            if records[0].len() > 0 {
+                CsvSource::write_to_stream(&headers, &mut writer, &records)?;
+                batches += 1;
+            }
+
+            let _ = writer.finish();
+            anyhow::Ok(batches)
+        });
+        let batches = wrt.await?.context("CSV writing error")?;
+        let (total, ok) = ack.await?;
+        if batches == total {
+            if total == ok {
+                tracing::info!("Current CSV stream completed");
+            } else {
+                tracing::info!(
+                    "Current CSV stream is finished, but there's some failed batches ({})",
+                    total - ok
+                );
+            }
+        } else {
+            tracing::error!(
+                csv.total = batches,
+                csv.ok = ok,
+                "Current CSV stream seems finished"
+            );
+        }
 
         Ok(())
     }

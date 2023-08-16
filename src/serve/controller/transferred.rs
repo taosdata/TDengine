@@ -135,8 +135,8 @@ impl Transferred {
         }
     }
     pub async fn get(&self, key: &(i64, String)) -> Option<Arc<ConnectorTransferred>> {
-        if let Some(t) = self.cache.get(key) {
-            Some(t.value().clone())
+        if let Some(t) = { self.cache.get(key).map(|t| t.value().clone()) } {
+            Some(t)
         } else {
             #[derive(FromRow, Default)]
             struct Used {

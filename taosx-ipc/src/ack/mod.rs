@@ -98,11 +98,7 @@ impl<R: Read> Iterator for AckReader<R> {
             }),
             AckType::Code => {
                 let mut bytes = [0u8; 4];
-                self.reader
-                    .as_mut()
-                    .unwrap()
-                    .read_exact(&mut bytes)
-                    .unwrap();
+                self.reader.as_mut().unwrap().read_exact(&mut bytes).ok()?;
                 let code = i32::from_le_bytes(bytes);
                 Some(LushAck {
                     code,

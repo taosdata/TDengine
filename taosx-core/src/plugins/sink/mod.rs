@@ -8,7 +8,7 @@ use arrow::{
 use arrow_flight::{FlightClient, PutResult};
 use async_backtrace::framed;
 use bytes::Bytes;
-use futures::{task::SpawnExt, TryStreamExt};
+use futures::TryStreamExt;
 use std::{
     any::Any,
     collections::HashMap,
@@ -1835,7 +1835,7 @@ pub fn listen_tcp_socket_with_agent(
     _config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
+) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
 
     let socket = tokio::net::TcpSocket::new_v4()?;
@@ -1844,11 +1844,9 @@ pub fn listen_tcp_socket_with_agent(
     let socket = socket.listen(128)?;
     socket.set_ttl(100)?;
 
-    let executor = futures::executor::ThreadPool::new().context("Failed to build pool")?;
-
     let socket = Arc::new(socket);
 
-    let (closer, receiver) = std::sync::mpsc::channel::<()>();
+    let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
@@ -1868,7 +1866,7 @@ pub fn listen_tcp_socket_with_agent(
                     let cancel = cancel.clone();
                     let (id, remote, token) = with_agent.clone();
 
-                    let h = executor.spawn(async move {
+                    let h = tokio::spawn(async move {
                         let client = addr.to_string();
                         let res =
                             ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
@@ -1893,10 +1891,14 @@ pub fn listen_tcp_socket_with_agent(
         }
         log::info!("IPC stream listener stopped");
         tokio::time::sleep(Duration::from_micros(1000)).await;
+
+        for h in handlers {
+            let _ = h.await;
+        }
     });
 
     tokio::spawn(async move {
-        let _ = receiver.recv();
+        let _ = receiver.recv().await;
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
         let _ = thread.await;
@@ -1914,7 +1916,7 @@ pub fn listen_tcp_socket(
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
+) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
     let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
@@ -1925,13 +1927,13 @@ pub fn listen_tcp_socket(
     info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
     let socket = Arc::new(socket);
-    let executor = futures::executor::ThreadPool::new().context("Failed to build pool")?;
-
-    let (closer, receiver) = std::sync::mpsc::channel::<()>();
+    // let executor = futures::executor::ThreadPool::new().context("Failed to build pool")?;
+    let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
     let thread = tokio::task::spawn(async move {
+        info!("waiting for IPC connections");
         let mut handlers = vec![];
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1947,7 +1949,7 @@ pub fn listen_tcp_socket(
                     let cancel = cancel.clone();
 
                     if let Some((id, server, token)) = with_agent.clone() {
-                        handlers.push(executor.spawn(async move {
+                        handlers.push(tokio::spawn(async move {
                             let res =
                                 ipc_tcp_forward(client, stream, cancel, server, token, id).await;
                             if let Err(err) = res {
@@ -1963,7 +1965,7 @@ pub fn listen_tcp_socket(
                         let parser = parser.clone();
                         let connector = connector.clone();
                         let transferred = transferred.clone();
-                        handlers.push(executor.spawn(async move {
+                        handlers.push(tokio::spawn(async move {
                             // let dsn: Dsn = "taos:///db2".parse().unwrap();
                             // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
                             info!("Spawned IPC reader");
@@ -1997,9 +1999,12 @@ pub fn listen_tcp_socket(
         }
         tracing::info!("IPC stream listener stopped");
         tokio::time::sleep(Duration::from_micros(1000)).await;
+        for h in handlers {
+            let _ = h.await;
+        }
     });
     tokio::spawn(async move {
-        let _ = receiver.recv();
+        let _ = receiver.recv().await;
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
         let _ = thread.await;

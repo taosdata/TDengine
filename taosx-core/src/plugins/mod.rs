@@ -41,7 +41,7 @@ pub fn build_ipc(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<(
-    std::sync::mpsc::Sender<()>,
+    tokio::sync::mpsc::Sender<()>,
     tokio::sync::mpsc::Receiver<String>,
 )> {
     let (sender, receiver) = tokio::sync::mpsc::channel(1);

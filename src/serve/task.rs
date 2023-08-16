@@ -581,7 +581,6 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     );
     // set current path
     let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT
-        .clone()
         .replace("files", "");
     let root = std::path::Path::new(path.as_str());
     assert!(std::env::set_current_dir(&root).is_ok());

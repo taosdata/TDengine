@@ -17,7 +17,7 @@ use file_rotate::{
 };
 
 use anyhow::{bail, Context};
-use itertools::{Itertools};
+use itertools::Itertools;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio::io::AsyncBufReadExt;
@@ -686,7 +686,7 @@ pub async fn generate_opcconfig_from_csv(
             .clone();
         let mut column_set: HashSet<&String> = HashSet::from_iter(temp_column.iter());
         for column_name in header.iter() {
-            column_map.insert(column, column_name.clone());
+            column_map.insert(column, column_name);
             if column_name.starts_with("tag") {
                 // is tag config tag::type::name e.g. tag::varchar(123)::unit
                 let split_tag = column_name.split("::").collect_vec();
@@ -695,8 +695,10 @@ pub async fn generate_opcconfig_from_csv(
                         "file {file} column {column_name} config error, pattern is tag::type::name"
                     );
                 }
-                let column_type = IpcDataType::from_str(split_tag.get(1).unwrap())
-                    .map_err(|err| anyhow::Error::msg(format!("{err} should be a valid Data Type")))?;
+                let column_type =
+                    IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| {
+                        anyhow::Error::msg(format!("{err} should be a valid Data Type"))
+                    })?;
                 let tag_name = split_tag.get(2).unwrap().to_string();
                 check_duplicated(&current_tag_names, None, &tag_name)?;
                 current_tag_names.push(tag_name.clone());
@@ -761,7 +763,11 @@ pub async fn generate_opcconfig_from_csv(
                             .get("value_col")
                             .unwrap_or(&"val".to_string())
                             .clone();
-                        check_duplicated(&current_tag_names, Some(&current_columns),&value_column_name)?;
+                        check_duplicated(
+                            &current_tag_names,
+                            Some(&current_columns),
+                            &value_column_name,
+                        )?;
                         current_columns.push(value_column_name.clone());
                         column_config.push(ColumnConfig {
                             column_name: "value".to_string(),
@@ -773,7 +779,11 @@ pub async fn generate_opcconfig_from_csv(
                             .get("quality_col")
                             .unwrap_or(&"quality".to_string())
                             .clone();
-                        check_duplicated(&current_tag_names, Some(&current_columns), &quality_col_name)?;
+                        check_duplicated(
+                            &current_tag_names,
+                            Some(&current_columns),
+                            &quality_col_name,
+                        )?;
                         current_columns.push(quality_col_name.clone());
                         column_config.push(ColumnConfig {
                             column_name: "quality".to_string(),
@@ -788,7 +798,11 @@ pub async fn generate_opcconfig_from_csv(
                                 .get("received_time_col")
                                 .unwrap_or(&"received_time".to_string())
                                 .clone();
-                            check_duplicated(&current_tag_names, Some(&current_columns), &received_time_col_name)?;
+                            check_duplicated(
+                                &current_tag_names,
+                                Some(&current_columns),
+                                &received_time_col_name,
+                            )?;
                             current_columns.push(received_time_col_name.clone());
                             has_primary_key = true;
                             column_config.push(ColumnConfig {
@@ -855,7 +869,11 @@ pub async fn generate_opcconfig_from_csv(
     ));
 }
 
-fn check_duplicated(current_tags: &Vec<String>, current_columns: Option<&Vec<String>>, column_name: &String) -> anyhow::Result<()> {
+fn check_duplicated(
+    current_tags: &Vec<String>,
+    current_columns: Option<&Vec<String>>,
+    column_name: &String,
+) -> anyhow::Result<()> {
     if current_tags.contains(column_name) {
         anyhow::bail!("duplicated column or tag: {column_name}")
     }
@@ -1131,7 +1149,7 @@ pub async fn opc_to_taos(
                     log::info!("opc task cancelled");
                 },
             };
-            ipc.send(())?;
+            ipc.send(()).await?;
             let _ = child.kill().await;
             // terminate_child_process(pid)?;
             log::info!("OPC to taos task done");

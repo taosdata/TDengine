@@ -406,7 +406,7 @@ pub async fn influxdb_to_taos(
             }
             ;
             // send an empty tuple
-            ipc.send(())?;
+            ipc.send(()).await?;
             // stop the connector
             let _ = child.kill().await;
             log::info!("InfluxDB task Done");
