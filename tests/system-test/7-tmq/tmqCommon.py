@@ -578,18 +578,32 @@ class TMQCom:
         tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
     def killProcesser(self, processerName):
-        killCmd = (
-            "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
-            % processerName
-        )
+        if platform.system().lower() == 'windows':
+            killCmd = ("wmic process where name=\"%s.exe\" call terminate > NUL 2>&1" % processerName)
+            psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
+        else:
+            killCmd = (
+                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                % processerName
+            )
+            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
 
-        psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
-        processID = subprocess.check_output(psCmd, shell=True)
-
+        processID = ""
+        
+        try: 
+            processID = subprocess.check_output(psCmd, shell=True)
+        except Exception as err:
+            processID = ""
+            print('**** warn: ', err)        
+        
         while processID:
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
+            try: 
+                processID = subprocess.check_output(psCmd, shell=True)
+            except Exception as err:
+                processID = ""
+                print('**** warn: ', err)
 
     def close(self):
         self.cursor.close()
