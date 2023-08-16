@@ -885,7 +885,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_VARBINARY
+//    case TSDB_DATA_TYPE_VARBINARY //todovar
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY: {
       return vectorConvertToVarData(&cCtx);

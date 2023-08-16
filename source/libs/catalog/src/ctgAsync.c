@@ -1051,7 +1051,6 @@ void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
 
   atomic_store_32(&pJob->jobResCode, errCode);
   qDebug("QID:0x%" PRIx64 " ctg job errCode updated to %s", pJob->queryId, tstrerror(errCode));
-  ASSERT(0);
   return;
 }
 
