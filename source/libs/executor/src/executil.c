@@ -1675,6 +1675,7 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
       .intervalUnit = pTableScanNode->intervalUnit,
       .slidingUnit = pTableScanNode->slidingUnit,
       .offset = pTableScanNode->offset,
+      .precision = pTableScanNode->scan.node.pOutputDataBlockDesc->precision,
   };
 
   return interval;
