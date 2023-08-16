@@ -143,30 +143,30 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path) {
   // current
   item.name = pFile->pCurrent;
   item.type = ROCKSDB_CURRENT_TYPE;
-  taosStatFile(pFile->pCurrent, &item.size, NULL);
+  taosStatFile(pFile->pCurrent, &item.size, NULL, NULL);
   taosArrayPush(list, &item);
   // mainfest
   item.name = pFile->pMainfest;
   item.type = ROCKSDB_MAINFEST_TYPE;
-  taosStatFile(pFile->pMainfest, &item.size, NULL);
+  taosStatFile(pFile->pMainfest, &item.size, NULL, NULL);
   taosArrayPush(list, &item);
   // options
   item.name = pFile->pOptions;
   item.type = ROCKSDB_OPTIONS_TYPE;
-  taosStatFile(pFile->pOptions, &item.size, NULL);
+  taosStatFile(pFile->pOptions, &item.size, NULL, NULL);
   taosArrayPush(list, &item);
   // sst
   for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
     char* sst = taosArrayGetP(pFile->pSst, i);
     item.name = sst;
     item.type = ROCKSDB_SST_TYPE;
-    taosStatFile(sst, &item.size, NULL);
+    taosStatFile(sst, &item.size, NULL, NULL);
     taosArrayPush(list, &item);
   }
   // meta
   item.name = pFile->pCheckpointMeta;
   item.type = ROCKSDB_CHECKPOINT_META_TYPE;
-  taosStatFile(pFile->pCheckpointMeta, &item.size, NULL);
+  taosStatFile(pFile->pCheckpointMeta, &item.size, NULL, NULL);
   taosArrayPush(list, &item);
 
   pHandle->pBackendFile = pFile;

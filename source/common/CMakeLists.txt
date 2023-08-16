@@ -16,6 +16,14 @@ ENDIF ()
 IF (TD_STORAGE)
   ADD_DEFINITIONS(-D_STORAGE)
   TARGET_LINK_LIBRARIES(common PRIVATE storage)
+
+  IF(${TD_LINUX})
+    IF(${BUILD_WITH_COS})
+      add_definitions(-DUSE_COS)
+    ENDIF(${BUILD_WITH_COS})
+
+  ENDIF(${TD_LINUX})
+
 ENDIF ()
 
 target_include_directories(

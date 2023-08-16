@@ -370,17 +370,18 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
       pOperator = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
-      STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
+      STagScanPhysiNode* pTagScanPhyNode = (STagScanPhysiNode*)pPhyNode;
       STableListInfo*    pTableListInfo = tableListCreate();
-      int32_t            code = createScanTableListInfo(pScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
-                                                        pTagIndexCond, pTaskInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        qError("failed to getTableList, code: %s", tstrerror(code));
-        return NULL;
+      if (!pTagScanPhyNode->onlyMetaCtbIdx) {
+        int32_t code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                               pTagIndexCond, pTaskInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          qError("failed to getTableList, code: %s", tstrerror(code));
+          return NULL;
+        }
       }
-
-      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+      pOperator = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       STableListInfo*          pTableListInfo = tableListCreate();

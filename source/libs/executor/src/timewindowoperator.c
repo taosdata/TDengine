@@ -1599,6 +1599,10 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   pInfo->groupResInfo.pRows = taosArrayDestroy(pInfo->groupResInfo.pRows);
   cleanupExprSupp(&pInfo->scalarSupp);
+  tSimpleHashCleanup(pInfo->pUpdatedMap);
+  pInfo->pUpdatedMap = NULL;
+  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
+
   blockDataDestroy(pInfo->pCheckpointRes);
 
   taosMemoryFreeClear(param);

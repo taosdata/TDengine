@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
+#include "mndIndexComm.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
@@ -857,11 +858,39 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   SStbObj stbObj = {0};
   int32_t code = -1;
 
+  char fullIdxName[TSDB_INDEX_FNAME_LEN * 2] = {0};
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stb");
   if (pTrans == NULL) goto _OVER;
 
   mInfo("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
   if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
+
+  char randStr[24] = {0};
+  taosRandStr2(randStr, tListLen(randStr) - 1);
+  SSchema *pSchema = &(stbObj.pTags[0]);
+  sprintf(fullIdxName, "%s.%s_%s", pDb->name, pSchema->name, randStr);
+
+  SSIdx idx = {0};
+  if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
+    terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+    mndReleaseIdx(pMnode, idx.pIdx);
+
+    goto _OVER;
+  }
+
+  SIdxObj idxObj = {0};
+  memcpy(idxObj.name, fullIdxName, TSDB_INDEX_FNAME_LEN);
+  memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
+  memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
+  memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
+  idxObj.createdTime = taosGetTimestampMs();
+  idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
+  idxObj.stbUid = stbObj.uid;
+  idxObj.dbUid = stbObj.dbUid;
+
+  if (mndSetCreateIdxCommitLogs(pMnode, pTrans, &idxObj) < 0) goto _OVER;
+
   if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;

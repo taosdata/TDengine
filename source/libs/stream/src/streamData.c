@@ -210,7 +210,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
   if (type == STREAM_INPUT__GET_RES) {
     blockDataDestroy(((SStreamTrigger*)data)->pBlock);
     taosFreeQitem(data);
-  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE) {
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE || type == STREAM_INPUT__TRANS_STATE) {
     taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__DATA_SUBMIT) {

@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "walInt.h"
 
+
 bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
 }
@@ -53,7 +54,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
 
   int64_t fileSize = 0;
-  taosStatFile(fnameStr, &fileSize, NULL);
+  taosStatFile(fnameStr, &fileSize, NULL, NULL);
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
@@ -304,7 +305,7 @@ int walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
     int32_t mtime = 0;
-    if (taosStatFile(fnameStr, NULL, &mtime) < 0) {
+    if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
       return -1;
@@ -353,7 +354,7 @@ int walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
 
   int64_t fileSize = 0;
-  taosStatFile(fnameStr, &fileSize, NULL);
+  taosStatFile(fnameStr, &fileSize, NULL, NULL);
   int64_t records = TMAX(0, pFileInfo->lastVer - pFileInfo->firstVer + 1);
   int64_t lastEndOffset = records * sizeof(SWalIdxEntry);
 
@@ -436,7 +437,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-    int32_t code = taosStatFile(fnameStr, &fileSize, NULL);
+    int32_t code = taosStatFile(fnameStr, &fileSize, NULL, NULL);
     if (code < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("failed to stat file since %s. file:%s", terrstr(), fnameStr);
@@ -522,7 +523,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   walBuildLogName(pWal, pFileInfo->firstVer, fLogNameStr);
   int64_t fileSize = 0;
 
-  if (taosStatFile(fnameStr, &fileSize, NULL) < 0 && errno != ENOENT) {
+  if (taosStatFile(fnameStr, &fileSize, NULL, NULL) < 0 && errno != ENOENT) {
     wError("vgId:%d, failed to stat file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -935,7 +936,7 @@ int walLoadMeta(SWal* pWal) {
   walBuildMetaName(pWal, metaVer, fnameStr);
   // read metafile
   int64_t fileSize = 0;
-  taosStatFile(fnameStr, &fileSize, NULL);
+  taosStatFile(fnameStr, &fileSize, NULL, NULL);
   if (fileSize == 0) {
     (void)taosRemoveFile(fnameStr);
     wDebug("vgId:%d, wal find empty meta ver %d", pWal->cfg.vgId, metaVer);

@@ -123,7 +123,7 @@ void    tqDestroyTqHandle(void* data);
 // tqRead
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset);
-int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum, uint64_t reqId);
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
@@ -171,7 +171,7 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
-int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq);
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
 void    tqUpdateNodeStage(STQ* pTq);
 
 #ifdef __cplusplus

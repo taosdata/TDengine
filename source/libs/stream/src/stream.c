@@ -238,6 +238,46 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   return 0;
 }
 
+//static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
+//  int8_t status = 0;
+//
+//  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
+//  if (pBlock == NULL) {
+//    streamTaskInputFail(pTask);
+//    status = TASK_INPUT_STATUS__FAILED;
+//    qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
+//           pTask->id.idStr);
+//  } else {
+//    if (pBlock->type == STREAM_INPUT__TRANS_STATE) {
+//      pTask->status.appendTranstateBlock = true;
+//    }
+//
+//    int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock);
+//    // input queue is full, upstream is blocked now
+//    status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
+//  }
+//
+//  return status;
+//}
+
+//static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
+//  *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
+//  if (*pBuf == NULL) {
+//    return TSDB_CODE_OUT_OF_MEMORY;
+//  }
+//
+//  ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
+//  SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT((*pBuf), sizeof(SMsgHead));
+//
+//  pDispatchRsp->inputStatus = status;
+//  pDispatchRsp->streamId = htobe64(pReq->streamId);
+//  pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
+//  pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
+//  pDispatchRsp->downstreamNodeId = htonl(pTask->info.nodeId);
+//  pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
+//
+//  return TSDB_CODE_SUCCESS;
+//}
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
   qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
@@ -338,7 +378,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
            msgLen, ver, total, size + msgLen/1048576.0);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
+    if (/*(pTask->info.taskLevel == TASK_LEVEL__SOURCE) && */(tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
@@ -351,13 +391,15 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
       return code;
     }
-  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER || type == STREAM_INPUT__TRANS_STATE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
-    qDebug("s-task:%s level:%d checkpoint(trigger) enqueue inputQ, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr,
-           pTask->info.taskLevel, total, size);
-  } else if (type == STREAM_INPUT__GET_RES) {  // use the default memory limit, refactor later.
+    qDebug("s-task:%s level:%d checkpoint(trigger)/trans-state blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+  } else if (type == STREAM_INPUT__GET_RES) {
+    // use the default memory limit, refactor later.
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     qDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
+  } else {
+    ASSERT(0);
   }
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {

@@ -698,7 +698,7 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**Description**: The linear regression function of the specified column and the timestamp column (primary key), `start_val` is the initial value and `step_val` is the step value.
+**Description**: The linear regression function of a specified column, `start_val` is the initial value and `step_val` is the step value.
 
 **Return value type**: A string in the format of "(slope, intercept)"
 

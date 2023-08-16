@@ -289,9 +289,8 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   }
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, &req);
+  tqInitDataRsp(&dataRsp, req.reqOffset);
   dataRsp.blockNum = 0;
-  dataRsp.rspOffset = dataRsp.reqOffset;
   char buf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
   tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s, reqId:0x%" PRIx64, req.consumerId, vgId, buf,
@@ -392,7 +391,6 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   tqDebug("tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s", req.consumerId, vgId, req.subKey);
-
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     tqWarn("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", req.consumerId, vgId, req.subKey);
@@ -722,7 +720,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, &req);
+  tqInitDataRsp(&dataRsp, req.reqOffset);
 
   if (req.useSnapshot == true) {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
@@ -925,6 +923,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  streamTaskOpenAllUpstreamInput(pTask);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SStreamTask* pStateTask = pTask;
@@ -1293,7 +1293,9 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     if (done) {
       pTask->tsInfo.step2Start = taosGetTimestampMs();
-      streamTaskEndScanWAL(pTask);
+      qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
+      appendTranstateIntoInputQ(pTask);
+      streamTryExec(pTask);  // exec directly
     } else {
       STimeWindow* pWindow = &pTask->dataRange.window;
       tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
@@ -1536,7 +1538,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    return 0;
+    return TSDB_CODE_SUCCESS;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, taskId);
     terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
@@ -1683,6 +1685,8 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
 // todo refactor.
 int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STQ*      pTq = pVnode->pTq;
+  int32_t vgId = pVnode->config.vgId;
+
   SMsgHead* msgStr = pMsg->pCont;
   char*     msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
   int32_t   msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -1698,8 +1702,10 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
   tDecoderClear(&decoder);
 
-  int32_t      taskId = req.taskId;
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, req.taskId);
+  int32_t taskId = req.taskId;
+  tqDebug("vgId:%d receive dispatch msg to s-task:0x%"PRIx64"-0x%x", vgId, req.streamId, taskId);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, taskId);
   if (pTask != NULL) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp, false);
@@ -1715,7 +1721,7 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
 FAIL:
   if (pMsg->info.handle == NULL) {
-    tqError("s-task:0x%x vgId:%d msg handle is null, abort enqueue dispatch msg", pTq->pStreamMeta->vgId, taskId);
+    tqError("s-task:0x%x vgId:%d msg handle is null, abort enqueue dispatch msg", vgId, taskId);
     return -1;
   }
 

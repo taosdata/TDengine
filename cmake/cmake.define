@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.0)
-
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(TD_BUILD_TAOSA_INTERNAL FALSE)
 
@@ -76,6 +75,12 @@ ELSE ()
     MESSAGE("${Green} Will build taos_tools! ${ColourReset}")
     MESSAGE("")
     SET(TD_TAOS_TOOLS TRUE)
+ENDIF ()
+
+IF (${TD_WINDOWS})
+    SET(TAOS_LIB taos_static)
+ELSE ()
+    SET(TAOS_LIB taos)
 ENDIF ()
 
 IF (TD_WINDOWS)
