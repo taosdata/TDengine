@@ -305,18 +305,11 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     return -1;
   }
 
-  int32_t numOfDropped = 0;
-  for (int32_t v = 0; v < numOfVnodes; ++v){
-    if(pCfgs[v].dropped == 1)  numOfDropped++;
-  }
-
-  dInfo("there are %d dropped vnodes", numOfDropped);
-
-  pMgmt->state.totalVnodes = numOfVnodes - numOfDropped;
+  pMgmt->state.totalVnodes = numOfVnodes;
 
   int32_t threadNum = tsNumOfCores / 2;
   if (threadNum < 1) threadNum = 1;
-  int32_t vnodesPerThread = (numOfVnodes - numOfDropped) / threadNum + 1;
+  int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
   for (int32_t t = 0; t < threadNum; ++t) {
@@ -326,13 +319,12 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   }
 
   for (int32_t v = 0; v < numOfVnodes; ++v) {
-    if(pCfgs[v].dropped == 1) continue;
     int32_t       t = v % threadNum;
     SVnodeThread *pThread = &threads[t];
     pThread->pCfgs[pThread->vnodeNum++] = pCfgs[v];
   }
 
-  dInfo("open %d vnodes with %d threads", numOfVnodes - numOfDropped, threadNum);
+  dInfo("open %d vnodes with %d threads", numOfVnodes, threadNum);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
@@ -373,7 +365,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     return -1;
   }
 
-  dInfo("successfully opened %d vnodes, %d dropped vnodes", pMgmt->state.totalVnodes, numOfDropped);
+  dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
   return 0;
 }
 
