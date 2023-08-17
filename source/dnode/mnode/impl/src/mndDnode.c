@@ -424,6 +424,47 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   return 0;
 }
 
+static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVload) {
+  bool stateChanged = false;
+  bool roleChanged = pGid->syncState != pVload->syncState ||
+                     (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm) ||
+                     pGid->roleTimeMs != pVload->roleTimeMs;
+  if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
+      pGid->startTimeMs != pVload->startTimeMs) {
+    mInfo(
+        "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
+        "canRead:%d, dnode:%d",
+        vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead, syncStr(pVload->syncState),
+        pVload->syncRestore, pVload->syncCanRead, pGid->dnodeId);
+    pGid->syncState = pVload->syncState;
+    pGid->syncTerm = pVload->syncTerm;
+    pGid->syncRestore = pVload->syncRestore;
+    pGid->syncCanRead = pVload->syncCanRead;
+    pGid->startTimeMs = pVload->startTimeMs;
+    pGid->roleTimeMs = pVload->roleTimeMs;
+    stateChanged = true;
+  }
+  return stateChanged;
+}
+
+static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
+  bool stateChanged = false;
+  bool roleChanged = pObj->syncState != pMload->syncState ||
+                     (pMload->syncTerm != -1 && pObj->syncTerm != pMload->syncTerm) ||
+                     pObj->roleTimeMs != pMload->roleTimeMs;
+  if (roleChanged || pObj->syncRestore != pMload->syncRestore) {
+    mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64 " to %" PRId64,
+          pObj->id, syncStr(pObj->syncState), syncStr(pMload->syncState), pObj->syncRestore, pMload->syncRestore,
+          pObj->syncTerm, pMload->syncTerm);
+    pObj->syncState = pMload->syncState;
+    pObj->syncTerm = pMload->syncTerm;
+    pObj->syncRestore = pMload->syncRestore;
+    pObj->roleTimeMs = pMload->roleTimeMs;
+    stateChanged = true;
+  }
+  return stateChanged;
+}
+
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatusReq statusReq = {0};
@@ -506,23 +547,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
           if (pVload->roleTimeMs == 0) {
             pVload->roleTimeMs = statusReq.rebootTime;
           }
-          bool roleChanged = pGid->syncState != pVload->syncState ||
-                             (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm) ||
-                             pGid->roleTimeMs != pVload->roleTimeMs;
-          if (reboot || roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead) {
-            mInfo(
-                "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
-                "canRead:%d, dnode:%d",
-                pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead,
-                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead, pDnode->id);
-            pGid->syncState = pVload->syncState;
-            pGid->syncTerm = pVload->syncTerm;
-            pGid->syncRestore = pVload->syncRestore;
-            pGid->syncCanRead = pVload->syncCanRead;
-            pGid->startTimeMs = pVload->startTimeMs;
-            pGid->roleTimeMs = pVload->roleTimeMs;
-            stateChanged = true;
-          }
+          stateChanged = mndUpdateVnodeState(pVgroup->vgId, pGid, pVload);
           break;
         }
       }
@@ -545,19 +570,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (statusReq.mload.roleTimeMs == 0) {
       statusReq.mload.roleTimeMs = statusReq.rebootTime;
     }
-    bool roleChanged = pObj->syncState != statusReq.mload.syncState ||
-                       (statusReq.mload.syncTerm != -1 && pObj->syncTerm != statusReq.mload.syncTerm) ||
-                       pObj->roleTimeMs != statusReq.mload.roleTimeMs;
-    if (roleChanged || pObj->syncRestore != statusReq.mload.syncRestore) {
-      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64
-            " to %" PRId64,
-            pObj->id, syncStr(pObj->syncState), syncStr(statusReq.mload.syncState), pObj->syncRestore,
-            statusReq.mload.syncRestore, pObj->syncTerm, statusReq.mload.syncTerm);
-      pObj->syncState = statusReq.mload.syncState;
-      pObj->syncTerm = statusReq.mload.syncTerm;
-      pObj->syncRestore = statusReq.mload.syncRestore;
-      pObj->roleTimeMs = statusReq.mload.roleTimeMs;
-    }
+    mndUpdateMnodeState(pObj, &statusReq.mload);
     mndReleaseMnode(pMnode, pObj);
   }
 
