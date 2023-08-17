@@ -656,7 +656,7 @@ static int32_t pushDownCondOptPushCondToChild(SOptimizeContext* pCxt, SLogicNode
   return pushDownCondOptAppendCond(&pChild->pConditions, pCond);
 }
 
-static bool pushDownCondOptIsPriKey(SNode* pNode, SNodeList* pTableCols) {
+static bool pushDownCondOptIsPriKey(SNode* pNode, SSHashObj* pTables) {
   if (QUERY_NODE_COLUMN != nodeType(pNode)) {
     return false;
   }
@@ -664,7 +664,7 @@ static bool pushDownCondOptIsPriKey(SNode* pNode, SNodeList* pTableCols) {
   if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_SYSTEM_TABLE == pCol->tableType) {
     return false;
   }
-  return pushDownCondOptBelongThisTable(pNode, pTableCols);
+  return pushDownCondOptColInTableList(pNode, pTables);
 }
 
 static bool pushDownCondOptIsPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
@@ -677,14 +677,22 @@ static bool pushDownCondOptIsPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond
     return false;
   }
 
-  SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
-  SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
-  if (pushDownCondOptIsPriKey(pOper->pLeft, pLeftCols)) {
-    return pushDownCondOptIsPriKey(pOper->pRight, pRightCols);
-  } else if (pushDownCondOptIsPriKey(pOper->pLeft, pRightCols)) {
-    return pushDownCondOptIsPriKey(pOper->pRight, pLeftCols);
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+
+  bool res = false;
+  if (pushDownCondOptIsPriKey(pOper->pLeft, pLeftTables)) {
+    res = pushDownCondOptIsPriKey(pOper->pRight, pRightTables);
+  } else if (pushDownCondOptIsPriKey(pOper->pLeft, pRightTables)) {
+    res = pushDownCondOptIsPriKey(pOper->pRight, pLeftTables);
   }
-  return false;
+
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+  
+  return res;
 }
 
 static bool pushDownCondOptContainPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
@@ -3177,7 +3185,7 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode) {
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
   if (pJoin->isSingleTableJoin || NULL == pJoin->pTagEqCond || pNode->pChildren->length != 2 
-      || pJoin->hasSubQuery || pJoin->joinAlgo != JOIN_ALGO_UNKNOWN || (pNode->pParent && nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_JOIN)) {
+      || pJoin->hasSubQuery || pJoin->joinAlgo != JOIN_ALGO_UNKNOWN || pJoin->isLowLevelJoin) {
     if (pJoin->joinAlgo == JOIN_ALGO_UNKNOWN) {
       pJoin->joinAlgo = JOIN_ALGO_MERGE;
     }

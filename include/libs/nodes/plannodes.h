@@ -124,6 +124,7 @@ typedef struct SJoinLogicNode {
   SNode*         pOtherOnCond;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
+  bool           isLowLevelJoin;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {

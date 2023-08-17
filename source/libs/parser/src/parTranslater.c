@@ -92,7 +92,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-/*  
   {
     .showType = QUERY_NODE_SHOW_MODULES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -100,7 +99,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-*/  
   {
     .showType = QUERY_NODE_SHOW_QNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -2811,6 +2809,12 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
         pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) || (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
+        if (nodeType(pJoinTable->pLeft) == QUERY_NODE_JOIN_TABLE) {
+          ((SJoinTableNode*)pJoinTable->pLeft)->isLowLevelJoin = true;
+        }
+        if (nodeType(pJoinTable->pRight) == QUERY_NODE_JOIN_TABLE) {
+          ((SJoinTableNode*)pJoinTable->pRight)->isLowLevelJoin = true;
+        }
       }
       break;
     }
@@ -9178,7 +9182,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
-//    case QUERY_NODE_SHOW_MODULES_STMT:
+    case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:

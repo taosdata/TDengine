@@ -757,6 +757,12 @@ static void seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** ppR
   return;
 }
 
+static FORCE_INLINE SSDataBlock* seqStableJoinComposeRes(SStbJoinDynCtrlInfo*        pStbJoin, SSDataBlock* pBlock) {
+  pBlock->info.id.blockId = pStbJoin->outputBlkId;
+  return pBlock;
+}
+
+
 SSDataBlock* seqStableJoin(SOperatorInfo* pOperator) {
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
@@ -792,7 +798,7 @@ _return:
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
   
-  return pRes;
+  return pRes ? seqStableJoinComposeRes(pStbJoin, pRes) : NULL;
 }
 
 int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
@@ -847,6 +853,7 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
   switch (pInfo->qType) {
     case DYN_QTYPE_STB_HASH:
       memcpy(&pInfo->stbJoin.basic, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
+      pInfo->stbJoin.outputBlkId = pPhyciNode->node.pOutputDataBlockDesc->dataBlockId;
       code = initSeqStbJoinTableHash(&pInfo->stbJoin.ctx.prev, pInfo->stbJoin.basic.batchFetch);
       if (TSDB_CODE_SUCCESS != code) {
         goto _error;

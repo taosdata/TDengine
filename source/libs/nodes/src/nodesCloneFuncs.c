@@ -259,6 +259,8 @@ static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDs
 static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
+  COPY_SCALAR_FIELD(hasSubQuery);
+  COPY_SCALAR_FIELD(isLowLevelJoin);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
   CLONE_NODE_FIELD(pOnCond);

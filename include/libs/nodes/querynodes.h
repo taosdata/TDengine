@@ -200,6 +200,7 @@ typedef struct SJoinTableNode {
   STableNode table;  // QUERY_NODE_JOIN_TABLE
   EJoinType  joinType;
   bool       hasSubQuery;
+  bool       isLowLevelJoin;
   SNode*     pLeft;
   SNode*     pRight;
   SNode*     pOnCond;

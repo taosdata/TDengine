@@ -442,7 +442,8 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-
+  pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
+  
   int32_t code = TSDB_CODE_SUCCESS;
 
   // set left and right node
@@ -478,7 +479,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pLeft)) {
+    if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pLeft) && !pJoin->isLowLevelJoin) {
       code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((SRealTableNode*)pJoinTable->pLeft)->table.tableAlias, COLLECT_COL_TYPE_ALL, &pColList);
     } else {
       pJoin->node.pTargets = nodesCloneList(pLeft->pTargets);
@@ -493,7 +494,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pRight)) {
+    if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pRight) && !pJoin->isLowLevelJoin) {
       code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((SRealTableNode*)pJoinTable->pRight)->table.tableAlias, COLLECT_COL_TYPE_ALL, &pColList);
     } else {
       if (pJoin->node.pTargets) {
