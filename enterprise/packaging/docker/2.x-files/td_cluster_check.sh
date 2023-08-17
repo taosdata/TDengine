@@ -1,8 +1,9 @@
 #!/bin/bash
 
 
+echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` td_cluster_check: td cluster check begins"
 sleep 13
-echo "td check successfully!"
+echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` td_cluster_check: td cluster check finished"
 
 exit 0
 
