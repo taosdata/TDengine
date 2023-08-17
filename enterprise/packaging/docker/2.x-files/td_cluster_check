@@ -1,9 +1,14 @@
 #!/bin/bash
 
+logging() {
+    logLevel=$1
+    logMsg=$2
+    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` td_cluster_check: [$logLevel] $logMsg" 2>&1 | tee -a /var/log/td_cluster_check.log
+}
 
-echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` td_cluster_check: td cluster check begins"
+logging "INFO" "td cluster check begins"
 sleep 7
-echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` td_cluster_check: td cluster check finished"
+logging "INFO" "td cluster check finished"
 
 exit 0
 
@@ -18,11 +23,7 @@ FIRST_EP_PORT=${FIRSET_EP#*:}
 TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-10}
 ENDPOINT=$FQDN:$SERVER_PORT
 
-logging() {
-    logLevel=$1
-    logMsg=$2
-    echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [$logLevel] $logMsg" 2>&1 | tee -a /var/log/td_cluster_check.log
-}
+
 
 
 logging "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
