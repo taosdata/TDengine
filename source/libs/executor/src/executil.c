@@ -2189,6 +2189,8 @@ char* getStreamOpName(uint16_t opType) {
       return "interval final";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return "interval semi";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+      return "interval mid";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return "stream fill";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
