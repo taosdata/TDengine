@@ -103,7 +103,11 @@ pub async fn csv_to_taos(
     info!("spawn CSV worker");
     let worker = tokio::spawn(async move {
         let id = tokio::task::id();
-        info!(task.id = %id, "[{id}] Reading CSV with config: {source:?}");
+        info!(
+            task.id = %id,
+            "[{id}] Reading CSV with config(concurrent: {}, batch_size: {})",
+            source.concurrent, source.batch_size
+        );
         let handlers = source.read().await?;
         for handler in handlers {
             tokio::task::yield_now().await;
@@ -356,7 +360,7 @@ impl CsvSource {
         info!("CSV stream reading...");
         let ack = tokio::task::spawn_blocking(move || {
             let ack_reader =
-                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Code).open(&ack_stream);
+                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             let (mut total, mut ok) = (0usize, 0usize);
             for ack in ack_reader {
                 total += 1;
@@ -364,14 +368,17 @@ impl CsvSource {
                     warn!(
                         source = "csv",
                         batch = batch_size,
-                        "write {batch_size} records error"
+                        "write {batch_size} records error: {ack:?}",
                     );
+                    if let Some(message) = ack.message() {
+                        bail!("IPC writer error: {message}")
+                    }
                 } else {
                     ok += 1;
                 }
             }
             info!("ACK reader finished");
-            (total, ok)
+            Ok((total, ok))
         });
         let wrt = tokio::task::spawn_blocking(move || {
             let stream = stream;
@@ -409,7 +416,7 @@ impl CsvSource {
             anyhow::Ok(batches)
         });
         let batches = wrt.await?.context("CSV writing error")?;
-        let (total, ok) = ack.await?;
+        let (total, ok) = ack.await??;
         if batches == total {
             if total == ok {
                 tracing::info!("Current CSV stream completed");
@@ -453,7 +460,7 @@ impl CsvSource {
         let mut metadata = HashMap::new();
         metadata.insert(String::from("version"), String::from("1.0"));
         metadata.insert(String::from("stream"), String::from("flat"));
-        metadata.insert(String::from("ack"), String::from("code"));
+        metadata.insert(String::from("ack"), String::from("lush"));
 
         let columns = headers
             .iter()
@@ -521,11 +528,6 @@ impl CsvSource {
             if !headers.is_empty() {
                 reader.set_headers(StringRecord::from(headers.clone()));
             }
-            info!(
-                path,
-                "Using headers: \"{}\"",
-                reader.headers()?.iter().join(",")
-            );
             if let Some(skip) = skip {
                 let mut record = StringRecord::new();
                 for _ in 0..skip {
@@ -570,8 +572,8 @@ impl CsvSource {
             }
             info!(
                 path,
-                "Using headers: {}",
-                reader.headers()?.iter().join(" ")
+                "Using headers: \"{}\"",
+                reader.headers()?.iter().join(",")
             );
             if let Some(skip) = skip {
                 let mut record = StringRecord::new();

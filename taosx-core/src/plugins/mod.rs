@@ -8,6 +8,7 @@ mod runners;
 
 use std::sync::Arc;
 
+use anyhow::Context;
 use futures::TryStreamExt;
 pub use runners::influxdb::influxdb_datasets;
 pub use runners::influxdb::influxdb_to_taos;
@@ -48,6 +49,7 @@ pub fn build_ipc(
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
         let pool = builder.pool()?;
+        let _ = futures::executor::block_on(pool.get()).context("Target connection error")?;
         sink::listen_tcp_socket(
             pool,
             socket,
