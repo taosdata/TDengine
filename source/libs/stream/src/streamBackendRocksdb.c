@@ -1412,7 +1412,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
 }
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
   qInfo("start to open state %p on backend %p 0x%" PRIx64 "-%d", pState, backend, pState->streamId, pState->taskId);
-  // taosAcquireRef(streamBackendId, pState->streamBackendRid);
+  taosAcquireRef(streamBackendId, pState->streamBackendRid);
   SBackendWrapper*   handle = backend;
   SBackendCfWrapper* pBackendCfWrapper = taosMemoryCalloc(1, sizeof(SBackendCfWrapper));
 
@@ -1495,6 +1495,9 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
 void streamStateCloseBackend(SStreamState* pState, bool remove) {
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
   SBackendWrapper*   pHandle = wrapper->pBackend;
+
+  qInfo("start to close state on backend: %p", pHandle);
+
   taosThreadMutexLock(&pHandle->cfMutex);
   RocksdbCfInst** ppInst = taosHashGet(pHandle->cfInst, wrapper->idstr, strlen(pState->pTdbState->idstr) + 1);
   if (ppInst != NULL && *ppInst != NULL) {
@@ -1505,7 +1508,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
   taosThreadMutexUnlock(&pHandle->cfMutex);
 
   char* status[] = {"close", "drop"};
-  qInfo("start to close %s state %p on backendWrapper %p %s", status[remove == false ? 0 : 1], pState, wrapper,
+  qInfo("start to %s state %p on backendWrapper %p %s", status[remove == false ? 0 : 1], pState, wrapper,
         wrapper->idstr);
   wrapper->remove |= remove;  // update by other pState
   taosReleaseRef(streamBackendCfWrapperId, pState->pTdbState->backendCfWrapperId);
