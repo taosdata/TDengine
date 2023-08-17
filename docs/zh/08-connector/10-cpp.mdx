@@ -467,21 +467,22 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
   **功能说明**
-  该接口将行协议的文本数据写入到 TDengine 中。
+  - 该接口将行协议的文本数据写入到 TDengine 中。
 
   **参数说明**
-  taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
-  lines：文本数据。满足解析格式要求的无模式文本字符串。
-  numLines:文本数据的行数，不能为 0 。
-  protocol: 行协议类型，用于标识文本数据格式。
-  precision：文本数据中的时间戳精度字符串。
+  - taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
+  - lines：文本数据。满足解析格式要求的无模式文本字符串。
+  - numLines:文本数据的行数，不能为 0 。
+  - protocol: 行协议类型，用于标识文本数据格式。
+  - precision：文本数据中的时间戳精度字符串。
 
   **返回值**
-  TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
+  - TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
   在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
   返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
+  
   协议类型是枚举类型，包含以下三种格式：
 
   - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
@@ -515,3 +516,90 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - 带_raw的接口通过传递的参数lines指针和长度len来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。totalRows指针返回解析出来的数据行数。
   - 带_ttl的接口可以传递ttl参数来控制建表的ttl到期时间。
   - 带_reqid的接口可以通过传递reqid参数来追踪整个的调用链。
+
+### 数据订阅 API
+
+- `int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
+- `void      tmq_free_assignment(tmq_topic_assignment* pAssignment)`
+  
+  tmq_topic_assignment结构体定义如下：
+  ```c
+  typedef struct tmq_topic_assignment {
+    int32_t vgId;
+    int64_t currentOffset;
+    int64_t begin;
+    int64_t end;
+  } tmq_topic_assignment;
+  ```
+  **功能说明**
+  - tmq_get_topic_assignment 接口返回当前consumer分配的vgroup的信息，每个vgroup的信息包括vgId，wal的最大最小offset，以及当前消费到的offset。
+
+  **参数说明**
+  - numOfAssignment ：分配给该consumer有效的vgroup个数。
+  - assignment ：分配的信息，数据大小为numOfAssignment，需要通过 tmq_free_assignment 接口释放。
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+
+- `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  **功能说明**
+  - 获取当前 consumer 在某个 topic 和 vgroup上的 commit 位置。
+
+  **返回值**
+  - 当前commit的位置，-2147467247表示没有消费进度，其他小于0的值表示失败，错误码就是返回值
+
+- `int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
+- `void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
+- `int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+- `void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
+  
+  **功能说明**
+  
+  commit接口分为两种类型，每种类型有同步和异步接口：
+  - 第一种类型：根据消息提交，提交消息里的进度，如果消息传NULL，提交当前consumer所有消费的vgroup的当前进度 : tmq_commit_sync/tmq_commit_async
+  - 第二种类型：根据某个topic的某个vgroup的offset提交 : tmq_commit_offset_sync/tmq_commit_offset_async
+  
+  **参数说明**
+  - msg：消费到的消息结构，如果msg传NULL，提交当前consumer所有消费的vgroup的当前进度
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+
+- `int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
+  **功能说明**
+  - 获取当前消费位置，为消费到的数据位置的下一个位置
+  
+  **返回值**
+  - 消费位置，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+
+- `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+
+  **功能说明**
+  - 设置 consumer 在某个topic的某个vgroup的 offset位置，开始消费
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+  
+- `int32_t   int64_t     tmq_get_vgroup_offset(TAOS_RES* res)`
+
+  **功能说明**
+
+  获取 poll 消费到的数据的起始offset
+  
+  **参数说明**
+  - msg：消费到的消息结构
+
+  **返回值**
+  - 消费到的offset，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+  
+- `int32_t   int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics)`
+
+  **功能说明**
+
+  获取消费者订阅的 topic 列表
+  **参数说明**
+  - topics: 获取的 topic 列表存储在这个结构中，接口内分配内存，需调用tmq_list_destroy释放
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息

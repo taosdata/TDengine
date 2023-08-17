@@ -260,19 +260,14 @@ typedef struct tmq_t      tmq_t;
 typedef struct tmq_conf_t tmq_conf_t;
 typedef struct tmq_list_t tmq_list_t;
 
-typedef void(tmq_commit_cb(tmq_t *, int32_t code, void *param));
+typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
-DLL_EXPORT tmq_list_t *tmq_list_new();
-DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
-DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
-DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
-DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
+typedef enum tmq_conf_res_t {
+  TMQ_CONF_UNKNOWN = -2,
+  TMQ_CONF_INVALID = -1,
+  TMQ_CONF_OK = 0,
+} tmq_conf_res_t;
 
-DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
-
-DLL_EXPORT const char *tmq_err2str(int32_t code);
-
-/* ------------------------TMQ CONSUMER INTERFACE------------------------ */
 typedef struct tmq_topic_assignment {
   int32_t vgId;
   int64_t currentOffset;
@@ -280,43 +275,38 @@ typedef struct tmq_topic_assignment {
   int64_t end;
 } tmq_topic_assignment;
 
-DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
-DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
-DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
-DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
-DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
-DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
-DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
-DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,
-                                              int32_t *numOfAssignment);
-DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
-DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-
-DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
-DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
-DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
-DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
-DLL_EXPORT int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);
-DLL_EXPORT int64_t     tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
-
-/* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
-
-enum tmq_conf_res_t {
-  TMQ_CONF_UNKNOWN = -2,
-  TMQ_CONF_INVALID = -1,
-  TMQ_CONF_OK = 0,
-};
-
-typedef enum tmq_conf_res_t tmq_conf_res_t;
-
 DLL_EXPORT tmq_conf_t    *tmq_conf_new();
 DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
 DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 
-/* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
+DLL_EXPORT tmq_list_t *tmq_list_new();
+DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
+DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
+DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
+DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
+
+DLL_EXPORT tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
+DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
+DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
+DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
+DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
+DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg); //Commit the msg’s offset + 1
+DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
+DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
+DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,int32_t *numOfAssignment);
+DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
+DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);  // The current offset is the offset of the last consumed message + 1
+DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
+
+DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
+DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
+DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
+DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------------ TAOSX -----------------------------------*/
 // note: following apis are unstable

@@ -314,7 +314,7 @@ static const SSysDbTableSchema userUserPrivilegesSchema[] = {
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
-    {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true},
+    // {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema), true},
     {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema), true},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema), true},

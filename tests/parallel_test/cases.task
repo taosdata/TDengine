@@ -1204,6 +1204,9 @@
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
+,,y,script,./test.sh -f tsim/tagindex/add_index.sim 
+,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim 
+
 
 #develop test
 ,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py

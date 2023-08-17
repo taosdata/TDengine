@@ -690,8 +690,10 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowDnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_MNODES_STMT:
       return collectMetaKeyFromShowMnodes(pCxt, (SShowStmt*)pStmt);
+/*
     case QUERY_NODE_SHOW_MODULES_STMT:
       return collectMetaKeyFromShowModules(pCxt, (SShowStmt*)pStmt);
+*/
     case QUERY_NODE_SHOW_QNODES_STMT:
       return collectMetaKeyFromShowQnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_SNODES_STMT:
