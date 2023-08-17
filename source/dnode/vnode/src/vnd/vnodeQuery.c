@@ -452,7 +452,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
     taosArrayPush(list, &info);
   }
 
-  metaCloseCtbCursor(pCur, 1);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -473,7 +473,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
     taosArrayPush(list, &id);
   }
 
-  metaCloseCtbCursor(pCur, 1);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -536,7 +536,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
     ++(*num);
   }
 
-  metaCloseCtbCursor(pCur, 0);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 

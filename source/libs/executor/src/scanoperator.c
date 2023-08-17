@@ -2863,12 +2863,14 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
 
   if (pInfo->pCtbCursor == NULL) {
     pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 1);
+  } else {
+    pAPI->metaFn.resumeCtbCursor(pInfo->pCtbCursor, 0);
   }
 
   SArray* aUidTags = pInfo->aUidTags;
   SArray* aFilterIdxs = pInfo->aFilterIdxs;
   int32_t count = 0;
-
+  bool ctbCursorFinished = false;
   while (1) {
     taosArrayClearEx(aUidTags, tagScanFreeUidTag);
     taosArrayClear(aFilterIdxs);
@@ -2878,6 +2880,7 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       SMCtbCursor* pCur = pInfo->pCtbCursor;
       tb_uid_t     uid = pAPI->metaFn.ctbCursorNext(pInfo->pCtbCursor);
       if (uid == 0) {
+        ctbCursorFinished = true;
         break;
       }
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
@@ -2906,7 +2909,15 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       break;
     }
   }
-  
+
+  if (count > 0) {
+    pAPI->metaFn.pauseCtbCursor(pInfo->pCtbCursor);
+  }
+  if (count == 0 || ctbCursorFinished) {
+    pAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
+    pInfo->pCtbCursor = NULL;
+    setOperatorCompleted(pOperator);
+  }
   pRes->info.rows = count;
   pOperator->resultInfo.totalRows += count;
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
@@ -2971,7 +2982,7 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
 static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   if (pInfo->pCtbCursor != NULL) {
-    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor, 1);
+    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
   }
   taosHashCleanup(pInfo->filterCtx.colHash);
   taosArrayDestroy(pInfo->filterCtx.cInfoList);

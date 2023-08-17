@@ -168,7 +168,9 @@ int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*  metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock);
-void          metaCloseCtbCursor(SMCtbCursor* pCtbCur, int lock);
+int32_t       metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first);
+void          metaPauseCtbCursor(SMCtbCursor* pCtbCur);
+void          metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t      metaCtbCursorNext(SMCtbCursor* pCtbCur);
 SMStbCursor*  metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
 void          metaCloseStbCursor(SMStbCursor* pStbCur);
