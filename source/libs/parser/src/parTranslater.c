@@ -7683,6 +7683,10 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
 
+  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_COMMENT_LEN;
+  strcpy((*pSchema)[4].name, "comment");
+
   return TSDB_CODE_SUCCESS;
 }
 

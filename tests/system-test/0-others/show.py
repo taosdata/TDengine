@@ -222,6 +222,15 @@ class TDTestCase:
         tdSql.query('show create table super_table')
         create_sql = "create stable `super_table` (`ts` timestamp, `c2` int) tags (`tg` int)"
         tdSql.checkEqual(tdSql.queryResult[0][1].lower(), create_sql)
+
+        tdSql.query("desc normal_table")
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 4, "")
+
+        tdSql.query("desc super_table")
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 4, "")
+
         tdSql.execute("drop database comment_test_db")
 
     def alter_table_with_col_comment(self):
