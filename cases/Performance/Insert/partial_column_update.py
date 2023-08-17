@@ -31,14 +31,14 @@ class PartialColUpdate(TDCase):
             {"type": "DOUBLE", "name": "xdouble2", "min": 1.0, "max": 9999.0, "count": 1},
             {"type": "DOUBLE", "name": "xdouble3", "min": 1.0, "max": 9999.0, "count": 1},
             {"type": "DOUBLE", "name": "xdouble4", "min": -99999.0, "max": 99999.0, "count": 1},
-            {"type": "BINARY", "name": "xbinary1", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1},
-            {"type": "BINARY", "name": "xbinary2", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1},
+            {"type": "BINARY", "name": "xbinary1", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1},
+            {"type": "BINARY", "name": "xbinary2", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1},
         ]
         self.column_info_list2 = [
             {"type": "INT", "name": "xint5", "min": -10000, "max": 10000, "count": 1},
             {"type": "DOUBLE", "name": "xdouble5", "min": -99999.0, "max": 99999.0, "count": 1},
-            {"type": "BINARY", "name": "xbinary3", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1},
-            {"type": "BINARY", "name": "xbinary4", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1}
+            {"type": "BINARY", "name": "xbinary3", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1},
+            {"type": "BINARY", "name": "xbinary4", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1}
         ]
         self.column_info_list3 = [
             {"type": "INT", "name": "xint1", "min": 1, "max": 100, "count": 1},
@@ -49,14 +49,14 @@ class PartialColUpdate(TDCase):
             {"type": "DOUBLE", "name": "xdouble2", "min": 1.0, "max": 9999.0, "count": 1},
             {"type": "DOUBLE", "name": "xdouble3", "min": 1.0, "max": 9999.0, "count": 1},
             {"type": "DOUBLE", "name": "xdouble4", "min": -99999.0, "max": 99999.0, "count": 1},
-            {"type": "BINARY", "name": "xbinary1", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1},
-            {"type": "BINARY", "name": "xbinary2", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1},
+            {"type": "BINARY", "name": "xbinary1", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1},
+            {"type": "BINARY", "name": "xbinary2", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1},
             {"type": "INT", "name": "xint5", "min": -10000, "max": 10000, "count": 1},
             {"type": "DOUBLE", "name": "xdouble5", "min": -99999.0, "max": 99999.0, "count": 1},
-            {"type": "BINARY", "name": "xbinary3", "values": ["colvalue1", "colvalue2", "colvalue3", "colvalue4", "colvalue5", "colvalue6","colvalue7", "colvalue8", "colvalue9", "colvalue10"], "len": 12, "count": 1}
+            {"type": "BINARY", "name": "xbinary3", "values": ["cv1", "cv2", "cv3", "cv4", "cv5", "cv6","cv7", "cv8", "cv9", "cv10"], "len": 4, "count": 1}
         ]
         self.tag_info_list = [
-          {"type": "BINARY", "name": "xtag", "values": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6","tag7", "tag8", "tag9", "tag10"], "len": 8, "count": 1}
+          {"type": "BINARY", "name": "xtag", "values": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6","tag7", "tag8", "tag9", "tag10"], "len": 5, "count": 1}
         ]
         self.partial_col_num = 3
         self.tdCom = TDCom(self.tdSql)
@@ -71,16 +71,17 @@ class PartialColUpdate(TDCase):
         self.file_name3 = "insert2.json"
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = 1
+        self.buffer = 4096
         self.vgroups = 40
         self.childtable_count = 10000
         self.insert_rows = 10000
         self.create_table_thread_count = 40
-        self.thread_count = 80
-        self.interlace_rows = 40
+        self.thread_count = 100
+        self.interlace_rows = 80
         self.childtable_prefix = "ctb_"
         self.start_timestamp = "2023-01-01 00:00:00"
         self.timestamp_step = 1000
-        self.num_of_records_per_req = 5000
+        self.num_of_records_per_req = 8000
         self.batch_create_tbl_num = 10000
         self.dbname = "test"
         self.stbname = "stb"
