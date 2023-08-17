@@ -145,18 +145,25 @@ async fn write_data(
                 }
             };
         } else {
-            let mut stmt = Stmt::init(taos).context("Write with stmt init error")?;
+            let mut stmt = Stmt::init(taos)
+                .await
+                .context("Write with stmt init error")?;
             let fields = raw.fields();
             let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
             let table = raw.table_name().unwrap();
-            stmt.prepare(format!("INSERT INTO `{table}` VALUES({question_masks})"))
+            stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
+                .await
                 .context("Write with stmt prepare error")?;
 
             stmt.bind(raw.column_views())
+                .await
                 .context("Write with stmt bind error")?;
             stmt.add_batch()
+                .await
                 .context("Write with stmt add_batch error")?;
-            stmt.execute().context("Write with stmt execute error")?;
+            stmt.execute()
+                .await
+                .context("Write with stmt execute error")?;
         }
         metrics
             .blocks

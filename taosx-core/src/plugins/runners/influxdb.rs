@@ -267,7 +267,7 @@ pub async fn influxdb_to_taos(
     let toml = toml::to_string(&config)?;
     // write to a temporary file
     let mut config_file = tempfile::NamedTempFile::new()?;
-    dbg!(&config_file);
+    // dbg!(&config_file);
     write!(config_file, "{}", &toml)?;
     // get the path of the temporary file
     let config_path = config_file.path().to_path_buf();
@@ -277,6 +277,7 @@ pub async fn influxdb_to_taos(
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = TaosBuilder::from_dsn(&to)?;
+        let _ = builder.build().await.context("Target connection error")?;
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         if !builder.is_enterprise_edition().await? {
             anyhow::bail!(

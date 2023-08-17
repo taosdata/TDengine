@@ -1,4 +1,4 @@
-use anyhow::{Context, bail};
+use anyhow::{bail, Context};
 use arrow::{
     array::{ArrayRef, TimestampMillisecondArray},
     datatypes::{Schema, SchemaRef},
@@ -24,7 +24,7 @@ use std::{
     time::Duration,
 };
 use taos::{
-    taos_query::common::Describe, AsyncFetchable, AsyncQueryable, Bindable, Dsn, Itertools,
+    taos_query::common::Describe, AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools,
     RawBlock, Stmt, Taos, TaosPool, Ty,
 };
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
@@ -399,11 +399,11 @@ async fn consume_lush_record(
                 } else {
                     let sql = format!("insert into ? ({names}) values({marks})");
                     info!("prepare with sql: {sql}");
-                    stmt.prepare(&sql)?;
+                    stmt.prepare(&sql).await?;
                     info!("prepare");
-                    stmt.bind(data.as_slice())?;
-                    stmt.add_batch().unwrap();
-                    let n = stmt.execute()?;
+                    stmt.bind(data.as_slice()).await?;
+                    stmt.add_batch().await?;
+                    let n = stmt.execute().await?;
                     info!("written : [{n}] records");
                     if let Some(transferred) = transferred {
                         transferred.records.fetch_add(n as _, Ordering::SeqCst);
@@ -868,10 +868,12 @@ async fn consume_point_record(
                                     let sqls = sqls.unwrap();
                                     for sql in sqls {
                                         log::info!("add execute sql: {}", &sql);
-                                        taos.exec_sync(sql).unwrap();
+                                        taos.exec(sql)
+                                            .await
+                                            .context("Writing point stream error")?;
                                     }
                                 }
-                                desc.into_iter().for_each(|column_meta| {
+                                for column_meta in desc {
                                     if (column_meta.ty == Ty::VarChar
                                         || column_meta.ty == Ty::NChar)
                                         && column_meta.field() == modify_message.value_cloumn_name
@@ -884,9 +886,11 @@ async fn consume_point_record(
                                             modify_message.value_cloumn_length,
                                         );
                                         log::info!("add execute sql: {}", &sql);
-                                        taos.exec_sync(sql).unwrap();
+                                        taos.exec(sql).await.context(
+                                            "Modify column length error while writing point stream",
+                                        )?;
                                     }
-                                });
+                                }
                             } else {
                                 break;
                             }
@@ -1263,7 +1267,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    let mut stmt = Stmt::init(taos)?;
+    let mut stmt = Stmt::init(taos).await?;
 
     let mut count = 0;
     for record in ipc_reader {
@@ -1301,7 +1305,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
-    let mut stmt = Stmt::init(taos)?;
+    let mut stmt = Stmt::init(taos).await?;
     for record in ipc_reader {
         if let Ok(record) = record {
             if let Some((_license, transferred)) = license.zip(transferred) {

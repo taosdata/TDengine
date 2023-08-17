@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use arrow::{
     array::ArrayRef,
@@ -104,7 +104,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
     let taos = builder.build().await?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !builder.is_enterprise_edition().await? {
-        bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
+        anyhow::bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 
     let mut rs = taos.query(&sql).await?;
