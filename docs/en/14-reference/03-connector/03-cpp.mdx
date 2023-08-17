@@ -135,7 +135,7 @@ The following describes the basic API, synchronous API, asynchronous API, subscr
 
 The base API is used to do things like create database connections and provide a runtime environment for the execution of other APIs.
 
-- `void taos_init()`
+- `int taos_init()`
 
   Initializes the runtime environment. If the API is not actively called, the driver will automatically call the API when `taos_connect()` is called, so the program generally does not need to call it manually.
 
