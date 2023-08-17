@@ -138,7 +138,8 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
     int64_t id = *(int64_t*)uniqueId;
     pState->pTdbState->backendCfWrapperId = id;
     pState->pTdbState->pBackendCfWrapper = taosAcquireRef(streamBackendCfWrapperId, id);
-
+    // already exist stream task for
+    qInfo("already exist stream state for %s", pState->pTdbState->idstr);
     taosAcquireRef(streamBackendId, pState->streamBackendRid);
   }
   taosThreadMutexUnlock(&pMeta->backendMutex);
@@ -148,6 +149,8 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
 
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
+  qInfo("succ to open state %p on backend %p 0x%" PRIx64 "-%d", pState, pMeta->streamBackend, pState->streamId,
+        pState->taskId);
   return pState;
 
 #else
