@@ -1899,6 +1899,7 @@ pub fn listen_tcp_socket_with_agent(
                 Ok((stream, addr)) => {
                     log::info!("new tcp client!: {:?}", addr);
                     let stream = stream.into_std().unwrap();
+                    let _ = stream.set_nonblocking(false);
                     // let client = addr.as_socket_ipv4().unwrap().to_string();
                     let se = sender.clone();
                     let cancel = cancel.clone();
