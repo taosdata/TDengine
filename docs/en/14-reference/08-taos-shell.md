@@ -81,6 +81,14 @@ For example:
 taos -h h1.taos.com -s "use db; show tables;"
 ```
 
+## Export query results to a file
+
+- You can use ">>" to export the query results to a file, the syntax is like `select * from table >> file`. If there is only file name without path, the file will be generated under the current working directory of TDegnine CLI.
+
+## Import data from CSV file
+
+- You can use `insert into table_name file 'fileName'` to import the data from the specified file into the specified table. For example, `insert into d0 file '/root/d0.csv';` means importing the data in file "/root/d0.csv" into table "d0". If there is only file name without path, that means the file is located under current working directory of TDengine CLI. 
+
 ## TDengine CLI tips
 
 - You can use the up and down keys to iterate the history of commands entered
@@ -89,3 +97,5 @@ taos -h h1.taos.com -s "use db; show tables;"
 - Execute `RESET QUERY CACHE` to clear the local cache of the table schema
 - Execute SQL statements in batches. You can store a series of shell commands (ending with ;, one line for each SQL command) in a script file and execute the command `source <file-name>` in the TDengine CLI to execute all SQL commands in that file automatically
 - Enter `q` to exit TDengine CLI
+
+  

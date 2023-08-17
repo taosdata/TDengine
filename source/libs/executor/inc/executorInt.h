@@ -521,7 +521,6 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pPullWins;  // SPullWindowInfo
   int32_t            pullIndex;
   SSDataBlock*       pPullDataRes;
-  bool               isFinal;
   SArray*            pChildren;
   int32_t            numOfChild;
   SStreamState*      pState;        // void
@@ -572,7 +571,6 @@ typedef struct SStreamSessionAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result; final stream operator
   SPhysiNode*         pPhyNode;   // create new child
-  bool                isFinal;
   bool                ignoreExpiredData;
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
@@ -768,6 +766,12 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam);
 
+bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
+bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
+bool compareVal(const char* v, const SStateKeys* pKey);
+
+int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                      TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
 
 #ifdef __cplusplus
 }

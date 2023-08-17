@@ -372,6 +372,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+  }
+
   return (p->info.rows > 0) ? p : NULL;
 }
 
