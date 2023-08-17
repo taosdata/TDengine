@@ -90,6 +90,12 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
       return 0;
     }
 
+    if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+      qWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", pTask->id.idStr);
+      taosMsleep(1000);
+      continue;
+    }
+
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if ((code = qExecTask(pExecutor, &output, &ts)) < 0) {
@@ -568,12 +574,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     if (streamTaskShouldStop(&pTask->status)) {
       qDebug("s-task:%s stream task stopped, abort", id);
       break;
-    }
-
-    if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-      qWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", pTask->id.idStr);
-      taosMsleep(1000);
-      continue;
     }
 
     // merge multiple input data if possible in the input queue.
