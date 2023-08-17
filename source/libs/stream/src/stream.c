@@ -393,7 +393,8 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     }
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER || type == STREAM_INPUT__TRANS_STATE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
-    qDebug("s-task:%s level:%d checkpoint(trigger)/trans-state blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    qDebug("s-task:%s level:%d checkpoint(trigger)/trans-state blockdata enqueue, total in queue:%d, size:%.2fMiB",
+           pTask->id.idStr, pTask->info.taskLevel, total, size);
   } else if (type == STREAM_INPUT__GET_RES) {
     // use the default memory limit, refactor later.
     taosWriteQitem(pTask->inputQueue->queue, pItem);
