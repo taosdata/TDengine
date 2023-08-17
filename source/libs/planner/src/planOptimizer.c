@@ -941,7 +941,7 @@ static int32_t pushDownCondOptAppendFilterCol(SOptimizeContext* pCxt, SJoinLogic
         }
       }
       if (!found) {
-        nodesListStrictAppend(pJoin->node.pTargets, pNode);
+        nodesListStrictAppend(pJoin->node.pTargets, nodesCloneNode(pNode));
       }
     }
   }    

@@ -42,7 +42,7 @@ static int64_t getRowsNumOfKeyHash(SSHashObj* pHash) {
   int32_t iter = 0;
   int64_t rowsNum = 0;
   
-  while (pGroup = tSimpleHashIterate(pHash, pGroup, &iter)) {
+  while (NULL != (pGroup = tSimpleHashIterate(pHash, pGroup, &iter))) {
     int32_t* pKey = tSimpleHashGetKey(pGroup, NULL);
     int64_t rows = getSingleKeyRowsNum(pGroup->rows);
     qTrace("build_key:%d, rows:%" PRId64, *pKey, rows);

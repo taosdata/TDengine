@@ -167,7 +167,7 @@ static void destroySGcBlkCacheInfo(SGcBlkCacheInfo* pBlkCache) {
   taosHashCleanup(pBlkCache->pDirtyBlk);
 
   void* p = NULL;
-  while (p = taosHashIterate(pBlkCache->pReadBlk, p)) {
+  while (NULL != (p = taosHashIterate(pBlkCache->pReadBlk, p))) {
     blockDataDeepCleanup(*(SSDataBlock**)p);
     freeGcBlockInList(p);
   }
@@ -892,14 +892,14 @@ static int32_t handleDownstreamFetchDone(struct SOperatorInfo* pOperator, SGcSes
   if (pGCache->batchFetch) {
     SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
     SGroupCacheData* pGroup = NULL;
-    while (pGroup = taosHashIterate(pGrpHash, pGroup)) {
+    while (NULL != (pGroup = taosHashIterate(pGrpHash, pGroup))) {
       handleGroupFetchDone(pGroup);
     }
   } else {
     int32_t uidNum = 0;
     SGcVgroupCtx* pVgCtx = NULL;
     int32_t iter = 0;
-    while (pVgCtx = tSimpleHashIterate(pCtx->pVgTbHash, pVgCtx, &iter)) {
+    while (NULL != (pVgCtx = tSimpleHashIterate(pCtx->pVgTbHash, pVgCtx, &iter))) {
       uidNum = taosArrayGetSize(pVgCtx->pTbList);
       for (int32_t i = 0; i < uidNum; ++i) {
         SGcNewGroupInfo* pNew = taosArrayGet(pVgCtx->pTbList, i);
