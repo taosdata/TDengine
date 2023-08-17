@@ -223,7 +223,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
 基础 API 用于完成创建数据库连接等工作，为其它 API 的执行提供运行时环境。
 
-- `void taos_init()`
+- `int taos_init()`
 
   初始化运行环境。如果没有主动调用该 API，那么调用 `taos_connect()` 时驱动将自动调用该 API，故程序一般无需手动调用。
 
