@@ -95,7 +95,7 @@ int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
   char* fullname = taosMemoryCalloc(1, strlen(path) + 32);
   sprintf(fullname, "%s%s%s", path, TD_DIRSEP, name);
 
-  ret = taosStatFile(fullname, sz, NULL);
+  ret = taosStatFile(fullname, sz, NULL, NULL);
   taosMemoryFree(fullname);
 
   return ret;
