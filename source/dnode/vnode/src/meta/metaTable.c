@@ -269,7 +269,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
   rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
   if (rc < 0) {
     tdbTbcClose(pCtbIdxc);
-    metaWLock(pMeta);
+    metaCheckTtlTaskAndWLock(pMeta);
     goto _drop_super_table;
   }
 
@@ -288,7 +288,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
 
   tdbTbcClose(pCtbIdxc);
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
 
   for (int32_t iChild = 0; iChild < taosArrayGetSize(tbUidList); iChild++) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUidList, iChild);
@@ -376,7 +376,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   // compare two entry
   if (oStbEntry.stbEntry.schemaRow.version != pReq->schemaRow.version) {
     metaSaveToSkmDb(pMeta, &nStbEntry);
@@ -519,7 +519,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
       goto _err;
     }
 
-    metaWLock(pMeta);
+    metaCheckTtlTaskAndWLock(pMeta);
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaULock(pMeta);
     metaDestroyTagIdxKey(pTagIdxKey);
@@ -532,7 +532,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   // update table.db
   metaSaveToTbDb(pMeta, &nStbEntry);
   // update uid index
@@ -649,7 +649,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
       goto _err;
     }
 
-    metaWLock(pMeta);
+    metaCheckTtlTaskAndWLock(pMeta);
     tdbTbDelete(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, pMeta->txn);
     metaULock(pMeta);
     metaDestroyTagIdxKey(pTagIdxKey);
@@ -670,7 +670,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   nStbEntry.stbEntry.schemaTag = *tag;
   nStbEntry.stbEntry.rsmaParam = oStbEntry.stbEntry.rsmaParam;
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   // update table.db
   metaSaveToTbDb(pMeta, &nStbEntry);
   // update uid index
@@ -768,7 +768,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
     ++pMeta->pVnode->config.vndStats.numOfCTables;
 
-    metaWLock(pMeta);
+    metaCheckTtlTaskAndWLock(pMeta);
     metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1);
     metaUidCacheClear(pMeta, me.ctbEntry.suid);
     metaTbGroupCacheClear(pMeta, me.ctbEntry.suid);
@@ -826,7 +826,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   }
   uid = *(tb_uid_t *)pData;
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   metaDropTableByUid(pMeta, uid, &type);
   metaULock(pMeta);
 
@@ -843,7 +843,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 }
 
 static void metaDropTables(SMeta *pMeta, SArray *tbUids) {
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
     metaDropTableByUid(pMeta, uid, NULL);
@@ -954,14 +954,19 @@ int metaTtlDropTables(SMeta *pMeta, SArray *tbUids, bool* pShallAbort) {
 
   metaInfo("ttl find expired table count: %zu", TARRAY_SIZE(tbUids));
 
+  const int releaseLockRound = 50;
   for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
 
     if (*pShallAbort) break;
-    metaWaitTxnReadyAndWLock(pMeta);
+    if (i % releaseLockRound == 0) {
+      metaWaitTxnReadyAndWLock(pMeta);
+    }
     metaDropTableByUid(pMeta, uid, NULL);
-    metaULockAndPostTxnReady(pMeta);
-    taosUsleep(1);
+    if (i % releaseLockRound == releaseLockRound - 1 || i == TARRAY_SIZE(tbUids) - 1) {
+      metaULockAndPostTxnReady(pMeta);
+      //sched_yield();
+    }
   }
 
   int64_t endMs = taosGetTimestampMs();
@@ -1336,7 +1341,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   entry.version = version;
 
   // do actual write
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
 
   metaDeleteNcolIdx(pMeta, &oldEntry);
   metaUpdateNcolIdx(pMeta, &entry);
@@ -1514,7 +1519,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     taosArrayDestroy(pTagArray);
   }
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
 
   // save to table.db
   metaSaveToTbDb(pMeta, &ctbEntry);
@@ -1624,7 +1629,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   }
 
   entry.version = version;
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   // build SMetaEntry
   if (entry.type == TSDB_CHILD_TABLE) {
     if (pAlterTbReq->updateTTL) {
@@ -1889,7 +1894,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
   }
   tdbTbcClose(pTagIdxc);
 
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tagIdxList); i++) {
     SMetaPair *pair = taosArrayGet(tagIdxList, i);
     tdbTbDelete(pMeta->pTagIdx, pair->key, pair->nkey, pMeta->txn);
@@ -2028,7 +2033,7 @@ static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs
 }
 
 int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   int ret =  metaUpdateChangeTime(pMeta,  uid,  changeTimeMs);
   metaULock(pMeta);
   return ret;
@@ -2209,7 +2214,7 @@ _exit:
 int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
   int32_t code = 0;
   int32_t line = 0;
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
 
   // save to table.db
   code = metaSaveToTbDb(pMeta, pME);

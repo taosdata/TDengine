@@ -1465,7 +1465,7 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
     }
   }
   // upsert the cache
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
   metaCacheUpsert(pMeta, pInfo);
   metaULock(pMeta);
 
@@ -1504,7 +1504,7 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables) {
   state.ctbNum = ctbNum;
 
   // upsert the cache
-  metaWLock(pVnodeObj->pMeta);
+  metaCheckTtlTaskAndWLock(pVnodeObj->pMeta);
   metaStatsCacheUpsert(pVnodeObj->pMeta, &state);
   metaULock(pVnodeObj->pMeta);
 

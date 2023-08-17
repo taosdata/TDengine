@@ -41,6 +41,7 @@ typedef struct SMetaCache SMetaCache;
 // metaOpen ==================
 int32_t metaRLock(SMeta* pMeta);
 int32_t metaWLock(SMeta* pMeta);
+int32_t metaCheckTtlTaskAndWLock(SMeta* pMeta);
 int32_t metaULock(SMeta* pMeta);
 int32_t metaWaitTxnReadyAndWLock(SMeta* pMeta);
 int32_t metaULockAndPostTxnReady(SMeta* pMeta);
@@ -79,7 +80,8 @@ int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int
 struct SMeta {
   TdThreadRwlock lock;
 
-  tsem_t txnReady; // vnode-write: wait in 'metaCommit' and post in 'metaBegin'
+  tsem_t txnReady;  // vnode-write: wait in 'metaCommit' and post in 'metaBegin'
+  tsem_t writerWaiting;
 
   char*   path;
   SVnode* pVnode;

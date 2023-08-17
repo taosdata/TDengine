@@ -147,7 +147,7 @@ static int metaUpdateSmaIdx(SMeta *pMeta, const SMetaEntry *pME) {
 }
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME) {
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
 
   // save to table.db
   if (metaSaveSmaToDB(pMeta, pME) < 0) goto _err;

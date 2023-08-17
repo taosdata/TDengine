@@ -48,7 +48,9 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
 // commit the meta txn
 TXN *metaGetTxn(SMeta *pMeta) { return pMeta->txn; }
 int  metaCommit(SMeta *pMeta, TXN *txn) {
+  tsem_wait(&pMeta->writerWaiting);
   tsem_wait(&pMeta->txnReady);
+  tsem_post(&pMeta->writerWaiting);
 
   ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
   return tdbCommit(pMeta->pEnv, txn);

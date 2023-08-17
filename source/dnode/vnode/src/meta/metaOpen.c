@@ -52,6 +52,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
 
   metaInitLock(pMeta);
   tsem_init(&(pMeta->txnReady), 0, 0);
+  tsem_init(&(pMeta->writerWaiting), 0, 1);
 
   pMeta->path = (char *)&pMeta[1];
   strcpy(pMeta->path, path);
@@ -224,7 +225,7 @@ int metaClose(SMeta **ppMeta) {
 }
 
 int metaAlterCache(SMeta *pMeta, int32_t nPage) {
-  metaWLock(pMeta);
+  metaCheckTtlTaskAndWLock(pMeta);
 
   if (tdbAlter(pMeta->pEnv, nPage) < 0) {
     metaULock(pMeta);
@@ -255,6 +256,23 @@ int32_t metaWLock(SMeta *pMeta) {
   return ret;
 }
 
+int32_t metaCheckTtlTaskAndWLock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  bool needPost = false;
+  if (pMeta->pVnode->ttlTaskProcessing) {
+    tsem_wait(&pMeta->writerWaiting);
+    needPost = true;
+  }
+
+  ret = metaWLock(pMeta);
+  if (needPost) {
+    tsem_post(&pMeta->writerWaiting);
+  }
+
+  return ret;
+}
+
 int32_t metaULock(SMeta *pMeta) {
   int32_t ret = 0;
 
@@ -267,6 +285,9 @@ int32_t metaULock(SMeta *pMeta) {
 
 int32_t metaWaitTxnReadyAndWLock(SMeta *pMeta) {
   int32_t ret = 0;
+
+  tsem_wait(&pMeta->writerWaiting);
+  tsem_post(&pMeta->writerWaiting);
 
   tsem_wait(&pMeta->txnReady);
   ret = metaWLock(pMeta);
