@@ -567,12 +567,12 @@ async fn sync_single_table_partial(
         let question_masks = std::iter::repeat('?').take(fields).join(",");
         let sql = format!("INSERT INTO `{new_table_name}` VALUES({question_masks})");
 
-        let mut stmt = Stmt::init(to).context("initialize stmt")?;
+        let mut stmt = Stmt::init(to).await.context("initialize stmt")?;
         let mut prepare = false;
         while let Some(block) = blocks.try_next().await? {
             // dbg!(res.summary());
             if !prepare {
-                stmt.prepare(&sql)
+                stmt.prepare(&sql).await
                     .with_context(|| format!("[{new_table_name}] prepare statement error"))?;
                 prepare = true;
             }
@@ -591,12 +591,12 @@ async fn sync_single_table_partial(
                             range.start,
                             range.end,
                         );
-                        stmt.bind(&params)
+                        stmt.bind(&params).await
                             .context(format!("[{new_table_name}] bind by chunk {batch_size}"))?;
-                        stmt.add_batch().context(format!(
+                        stmt.add_batch().await.context(format!(
                             "[{new_table_name}] add batch by chunk {batch_size}"
                         ))?;
-                        stmt.execute()
+                        stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
 
                         metrics.blocks.fetch_add(1, Ordering::SeqCst);
@@ -613,12 +613,12 @@ async fn sync_single_table_partial(
                     continue;
                 }
             }
-            stmt.bind(views)
+            stmt.bind(views).await
                 .with_context(|| format!("[{table}] bind error"))?;
-            stmt.add_batch()
+            stmt.add_batch().await
                 .with_context(|| format!("[{table}] add batch"))?;
 
-            let res = stmt.execute();
+            let res = stmt.execute().await;
 
             if res.is_err() {
                 let err = res.unwrap_err();
@@ -631,10 +631,10 @@ async fn sync_single_table_partial(
                     // re-bind from start of the block for each loop until success
                     for _ in 0..4 {
                         if target_is_v3 {
-                            stmt.prepare(&sql).context("re-prepare statement")?;
+                            stmt.prepare(&sql).await.context("re-prepare statement")?;
                         } else {
-                            stmt = Stmt::init(to).context("re-initialize stmt")?;
-                            stmt.prepare(&sql)
+                            stmt = Stmt::init(to).await.context("re-initialize stmt")?;
+                            stmt.prepare(&sql).await
                                 .with_context(|| format!("[{table}] re-prepare statement error"))?;
                         }
                         let mut batch_size = block.nrows() / chunks;
@@ -648,16 +648,16 @@ async fn sync_single_table_partial(
                                 .iter()
                                 .map(|view| view.slice(range.clone()).unwrap())
                                 .collect();
-                            stmt.bind(&params)
+                            stmt.bind(&params).await
                                 .context(format!("[{table}] bind by batch limit {batch_size}"))?;
-                            stmt.add_batch()
+                            stmt.add_batch().await
                                 .context(format!("[{table}] add batch with limit {batch_size}"))?;
                             // stmt.execute().context(format!(
                             //     "[{table}] execute with batch limit {batch_size}"
                             // ))?;
 
                             // if still error, go ahead to next loop.
-                            if stmt.execute().is_err() {
+                            if stmt.execute().await.is_err() {
                                 success = false;
                                 break;
                             }
@@ -684,7 +684,7 @@ async fn sync_single_table_partial(
                     }
                 } else if err_str.contains("0x0x0020") {
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    stmt.execute()
+                    stmt.execute().await
                         .with_context(|| format!("[table: {table}] insert error: {err}"))?;
                 } else {
                     Err(err)

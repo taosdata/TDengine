@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, AsyncBindable, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
 
@@ -146,7 +146,7 @@ impl PutStream {
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
                 let from = task.from.parse().unwrap();
-                let mut stmt = Stmt::init(taos).context("Initialize STMT")?;
+                let mut stmt = Stmt::init(taos).await.context("Initialize STMT")?;
                 let worker = IpcStreamWorker::new(
                     &taos,
                     from,
