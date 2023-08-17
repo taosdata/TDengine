@@ -252,7 +252,6 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqCheckLogInWal(STQ* pTq, int64_t version);

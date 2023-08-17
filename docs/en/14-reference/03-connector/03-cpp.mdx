@@ -378,7 +378,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
   **Function description**
-  This interface writes the text data of the line protocol to TDengine.
+  - This interface writes the text data of the line protocol to TDengine.
 
   **Parameter description**
   - taos: database connection, established by the `taos_connect()` function.
@@ -387,12 +387,13 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - protocol: the protocol type of the lines, used to identify the text data format.
   - precision: precision string for the timestamp in the text data.
 
-  **return value**
-  TAOS_RES structure, application can get error message by using `taos_errstr()` and also error code by using `taos_errno()`.
+  **Return value**
+  - TAOS_RES structure, application can get error message by using `taos_errstr()` and also error code by using `taos_errno()`.
   In some cases, the returned TAOS_RES is `NULL`, and it is still possible to call `taos_errno()` to safely get the error code information.
   The returned TAOS_RES needs to be freed by the caller in order to avoid memory leaks.
 
   **Description**
+  
   The protocol type is enumerated and contains the following three formats.
 
   - TSDB_SML_LINE_PROTOCOL: InfluxDB line protocol (Line Protocol)
@@ -427,3 +428,89 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - Within _raw interfaces represent data through the passed parameters lines and len. In order to solve the problem that the original interface data contains '\0' and is truncated. The totalRows pointer returns the number of parsed data rows.
   - Within _ttl interfaces can pass the ttl parameter to control the ttl expiration time of the table.
   - Within _reqid interfaces can track the entire call chain by passing the reqid parameter.
+
+### Subscription API
+
+- `int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
+- `void      tmq_free_assignment(tmq_topic_assignment* pAssignment)`
+  
+  tmq_topic_assignment defined as follows:
+  ```c
+  typedef struct tmq_topic_assignment {
+    int32_t vgId;
+    int64_t currentOffset;
+    int64_t begin;
+    int64_t end;
+  } tmq_topic_assignment;
+  ```
+  **Function description**
+  - tmq_get_topic_assignment get the current vgroup information of this consumer
+
+  **Parameter description**
+  - numOfAssignment:the num of vgroups assigned to this consumer
+  - assignment:the information of vgroups, needed to be freed by tmq_free_assignment
+
+  **Return value**
+  - zero success,none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+
+- `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  **Function description**
+  - get the committed offset
+
+  **Return value**
+  - the value of committed offset, -2147467247 means no committed value, Other values less than 0 indicate failure
+
+- `int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
+- `void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
+- `int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+- `void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
+  
+  **Function description**
+
+  The commit interface is divided into two types, each with synchronous and asynchronous interfaces:
+  - The first type: based on message submission, submit the progress in the message. If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer: tmq_commit_sync/tmq_commit_async
+  - The second type: submit based on the offset of a Vgroup in a topic: tmq_commit_offset_sync/tmq_commit_offset_async
+  
+  **Parameter description**
+  - msg：Message consumed, If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer
+
+  **Return value**
+  - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+
+- `int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
+  **Function description**
+  - Obtain the current consumption location, which is the next location of the data consumed
+  
+  **Return value**
+  - the current consumption location, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+
+- `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+
+  **Function description**
+  - Set the offset position of the consumer in a Vgroup of a certain topic to start consumption
+
+  **Return value**
+  - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  
+- `int32_t   int64_t     tmq_get_vgroup_offset(TAOS_RES* res)`
+
+  **Function description**
+  - Obtain the starting offset of the consumed data
+
+  **Parameter description**
+  - msg：Message consumed
+
+  **Return value**
+  - the starting offset of the consumed data, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  
+- `int32_t   int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics)`
+
+  **Function description**
+  - Obtain a list of topics subscribed by consumers
+
+  **Parameter description**
+  - topics: a list of topics subscribed by consumers，need to be freed by tmq_list_destroy
+
+  **Return value**
+  - zero success，none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`

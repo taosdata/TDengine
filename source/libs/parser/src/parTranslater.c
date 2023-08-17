@@ -826,18 +826,18 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
-      SOperatorNode* pOper = (SOperatorNode*)pExpr;
-      if (OP_TYPE_ADD != pOper->opType && OP_TYPE_SUB != pOper->opType) {
-        return false;
-      }
-      if (!isPrimaryKeyImpl(pOper->pLeft)) {
-        return false;
-      }
-      if (QUERY_NODE_VALUE != nodeType(pOper->pRight)) {
-        return false;
-      }
-      return true;
+    SOperatorNode* pOper = (SOperatorNode*)pExpr;
+    if (OP_TYPE_ADD != pOper->opType && OP_TYPE_SUB != pOper->opType) {
+      return false;
     }
+    if (!isPrimaryKeyImpl(pOper->pLeft)) {
+      return false;
+    }
+    if (QUERY_NODE_VALUE != nodeType(pOper->pRight)) {
+      return false;
+    }
+    return true;
+  }
   return false;
 }
 
@@ -864,7 +864,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->tableType = pTable->pMeta->tableType;
   pCol->colId = pColSchema->colId;
   pCol->colType = (tagFlag >= 0 ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN);
-  pCol->hasIndex = ((0 == tagFlag) || (pColSchema != NULL && IS_IDX_ON(pColSchema)));
+  pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
@@ -4697,6 +4697,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
+    strcpy(field.comment, pCol->comments);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
@@ -5044,6 +5045,7 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
   strcpy(pSchema->name, pCol->colName);
+  strcpy(pSchema->comment, pCol->comments);
 }
 
 typedef struct SSampleAstInfo {
@@ -7692,6 +7694,10 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
 
+  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_COMMENT_LEN;
+  strcpy((*pSchema)[4].name, "comment");
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8874,6 +8880,15 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
+  if (pStmt->colComment[0]) {
+    pReq->colComment = taosStrdup(pStmt->colComment);
+    if (pReq->colComment == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pReq->colCommentLen = strlen(pReq->colComment);
+  } else {
+    pReq->colCommentLen = -1;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8924,6 +8939,15 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pReq->colId = pSchema->colId;
+  if (pStmt->colComment[0]) {
+    pReq->colComment = taosStrdup(pStmt->colComment);
+    if (pReq->colComment == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pReq->colCommentLen = strlen(pReq->colComment);
+  } else {
+    pReq->colCommentLen = -1;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -16,7 +16,6 @@
 #ifndef _TD_COMMON_TOKEN_H_
 #define _TD_COMMON_TOKEN_H_
 
-
 #define TK_OR                               1
 #define TK_AND                              2
 #define TK_UNION                            3
@@ -131,25 +130,25 @@
 #define TK_NK_EQ                          112
 #define TK_USING                          113
 #define TK_TAGS                           114
-#define TK_BOOL                           115
-#define TK_TINYINT                        116
-#define TK_SMALLINT                       117
-#define TK_INT                            118
-#define TK_INTEGER                        119
-#define TK_BIGINT                         120
-#define TK_FLOAT                          121
-#define TK_DOUBLE                         122
-#define TK_BINARY                         123
-#define TK_NCHAR                          124
-#define TK_UNSIGNED                       125
-#define TK_JSON                           126
-#define TK_VARCHAR                        127
-#define TK_MEDIUMBLOB                     128
-#define TK_BLOB                           129
-#define TK_VARBINARY                      130
-#define TK_GEOMETRY                       131
-#define TK_DECIMAL                        132
-#define TK_COMMENT                        133
+#define TK_COMMENT                        115
+#define TK_BOOL                           116
+#define TK_TINYINT                        117
+#define TK_SMALLINT                       118
+#define TK_INT                            119
+#define TK_INTEGER                        120
+#define TK_BIGINT                         121
+#define TK_FLOAT                          122
+#define TK_DOUBLE                         123
+#define TK_BINARY                         124
+#define TK_NCHAR                          125
+#define TK_UNSIGNED                       126
+#define TK_JSON                           127
+#define TK_VARCHAR                        128
+#define TK_MEDIUMBLOB                     129
+#define TK_BLOB                           130
+#define TK_VARBINARY                      131
+#define TK_GEOMETRY                       132
+#define TK_DECIMAL                        133
 #define TK_MAX_DELAY                      134
 #define TK_WATERMARK                      135
 #define TK_ROLLUP                         136
