@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "walInt.h"
 
+
 bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
 }

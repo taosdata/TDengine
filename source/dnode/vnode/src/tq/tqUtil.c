@@ -20,8 +20,9 @@
 static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                  const SMqMetaRsp* pRsp, int32_t vgId);
 
-int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq) {
-  pRsp->reqOffset = pReq->reqOffset;
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
+  pRsp->reqOffset = pOffset;
+  pRsp->rspOffset = pOffset;
 
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
@@ -35,8 +36,9 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq) {
   return 0;
 }
 
-static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, const SMqPollReq* pReq) {
-  pRsp->reqOffset = pReq->reqOffset;
+static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
+  pRsp->reqOffset = pOffset;
+  pRsp->rspOffset = pOffset;
 
   pRsp->withTbName = 1;
   pRsp->withSchema = 1;
@@ -69,7 +71,6 @@ static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, const SMqPollReq* pReq) {
 
 static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg, bool* pBlockReturned) {
   uint64_t     consumerId = pRequest->consumerId;
-  STqOffsetVal reqOffset = pRequest->reqOffset;
   STqOffset*   pOffset = tqOffsetRead(pTq->pOffsetStore, pRequest->subKey);
   int32_t      vgId = TD_VID(pTq->pVnode);
 
@@ -86,7 +87,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
     return 0;
   } else {
     // no poll occurs in this vnode for this topic, let's seek to the right offset value.
-    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
+    if (pRequest->reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
       if (pRequest->useSnapshot) {
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey:%s, vgId:%d, (earliest) set offset to be snapshot",
                 consumerId, pHandle->subKey, vgId);
@@ -100,12 +101,12 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         walRefFirstVer(pTq->pVnode->pWal, pHandle->pRef);
         tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer);
       }
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
+    } else if (pRequest->reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       walRefLastVer(pTq->pVnode->pWal, pHandle->pRef);
       SMqDataRsp dataRsp = {0};
-      tqInitDataRsp(&dataRsp, pRequest);
+      tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer + 1);
 
-      tqOffsetResetToLog(&dataRsp.rspOffset, pHandle->pRef->refVer + 1);
+      tqInitDataRsp(&dataRsp, *pOffsetVal);
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, (latest) offset reset to %" PRId64, consumerId,
               pHandle->subKey, vgId, dataRsp.rspOffset.version);
       int32_t code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
@@ -113,7 +114,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
 
       *pBlockReturned = true;
       return code;
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
+    } else if (pRequest->reqOffset.type == TMQ_OFFSET__RESET_NONE) {
       tqError("tmq poll: subkey:%s, no offset committed for consumer:0x%" PRIx64
               " in vg %d, subkey %s, reset none failed",
               pHandle->subKey, consumerId, vgId, pRequest->subKey);
@@ -125,11 +126,11 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
-static void setRequestVersion(STqOffsetVal* offset, int64_t ver){
-  if(offset->type == TMQ_OFFSET__LOG){
-    offset->version = ver + 1;
-  }
-}
+//static void setRequestVersion(STqOffsetVal* offset, int64_t ver){
+//  if(offset->type == TMQ_OFFSET__LOG){
+//    offset->version = ver;
+//  }
+//}
 
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
@@ -138,8 +139,8 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   terrno        = 0;
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, pRequest);
-  dataRsp.reqOffset.type = pOffset->type; // stroe origin type for getting offset in tmq_get_vgroup_offset
+  tqInitDataRsp(&dataRsp, *pOffset);
+//  dataRsp.reqOffset.type = pOffset->type; // store origin type for getting offset in tmq_get_vgroup_offset
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
@@ -152,8 +153,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     // lock
     taosWLockLatch(&pTq->lock);
     int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
-    if (pOffset->version >= ver ||
-        dataRsp.rspOffset.version >= ver) {  // check if there are data again to avoid lost data
+    if (dataRsp.rspOffset.version > ver) {  // check if there are data again to avoid lost data
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
       goto end;
@@ -161,7 +161,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     taosWUnLockLatch(&pTq->lock);
   }
 
-  setRequestVersion(&dataRsp.reqOffset, pOffset->version);
+//  setRequestVersion(&dataRsp.reqOffset, pOffset->version);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
 
 end : {
@@ -179,11 +179,10 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int         code = 0;
   int32_t     vgId = TD_VID(pTq->pVnode);
-  SWalCkHead* pCkHead = NULL;
   SMqMetaRsp  metaRsp = {0};
   STaosxRsp   taosxRsp = {0};
-  tqInitTaosxRsp(&taosxRsp, pRequest);
-  taosxRsp.reqOffset.type = offset->type;   // store origin type for getting offset in tmq_get_vgroup_offset
+  tqInitTaosxRsp(&taosxRsp, *offset);
+//  taosxRsp.reqOffset.type = offset->type;   // store origin type for getting offset in tmq_get_vgroup_offset
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
@@ -216,14 +215,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   if (offset->type == TMQ_OFFSET__LOG) {
     walReaderVerifyOffset(pHandle->pWalReader, offset);
     int64_t fetchVer = offset->version;
-    pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
-    if (pCkHead == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = -1;
-      goto end;
-    }
 
-    walSetReaderCapacity(pHandle->pWalReader, 2048);
     int totalRows = 0;
     while (1) {
       int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
@@ -234,14 +226,14 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         break;
       }
 
-      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
+      if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-        setRequestVersion(&taosxRsp.reqOffset, offset->version);
+//        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       }
 
-      SWalCont* pHead = &pCkHead->head;
+      SWalCont* pHead = &pHandle->pWalReader->pHead->head;
       tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, vgId:%d offset %" PRId64 " msgType %d",
               pRequest->consumerId, pRequest->epoch, vgId, fetchVer, pHead->msgType);
 
@@ -249,7 +241,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (pHead->msgType != TDMT_VND_SUBMIT) {
         if (totalRows > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-          setRequestVersion(&taosxRsp.reqOffset, offset->version);
+//          setRequestVersion(&taosxRsp.reqOffset, offset->version);
           code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
           goto end;
         }
@@ -279,7 +271,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       if (totalRows >= 4096 || taosxRsp.createTableNum > 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
-        setRequestVersion(&taosxRsp.reqOffset, offset->version);
+//        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       } else {
@@ -291,20 +283,17 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 end:
 
   tDeleteSTaosxRsp(&taosxRsp);
-  taosMemoryFreeClear(pCkHead);
   return code;
 }
 
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg) {
-  int32_t      code = -1;
-  STqOffsetVal offset = {0};
   STqOffsetVal reqOffset = pRequest->reqOffset;
 
   // 1. reset the offset if needed
-  if (IS_OFFSET_RESET_TYPE(reqOffset.type)) {
+  if (IS_OFFSET_RESET_TYPE(pRequest->reqOffset.type)) {
     // handle the reset offset cases, according to the consumer's choice.
     bool blockReturned = false;
-    code = extractResetOffsetVal(&offset, pTq, pHandle, pRequest, pMsg, &blockReturned);
+    int32_t code = extractResetOffsetVal(&reqOffset, pTq, pHandle, pRequest, pMsg, &blockReturned);
     if (code != 0) {
       return code;
     }
@@ -313,20 +302,17 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
     if (blockReturned) {
       return 0;
     }
-  } else if(reqOffset.type != 0){  // use the consumer specified offset
-    // the offset value can not be monotonious increase??
-    offset = reqOffset;
-  } else {
+  } else if(reqOffset.type == 0){  // use the consumer specified offset
     uError("req offset type is 0");
     return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   // this is a normal subscribe requirement
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-    return extractDataAndRspForNormalSubscribe(pTq, pHandle, pRequest, pMsg, &offset);
+    return extractDataAndRspForNormalSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
   } else {  // todo handle the case where re-balance occurs.
     // for taosx
-    return extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &offset);
+    return extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
   }
 }
 

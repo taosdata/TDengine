@@ -49,7 +49,7 @@ typedef struct {
   } ctx[1];
 
   // reader
-  SSttFileReader *sttReader;
+  TSttFileReaderArray sttReaderArray[1];
 
   // iter
   TTsdbIterArray dataIterArray[1];
@@ -226,7 +226,7 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(committer->sttReader == NULL);
+  ASSERT(TARRAY2_SIZE(committer->sttReaderArray) == 0);
 
   if (committer->ctx->fset == NULL                        //
       || committer->sttTrigger > 1                        //
@@ -241,30 +241,31 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
 
   ASSERT(lvl->level == 0);
 
-  if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
-    return 0;
+  STFileObj *fobj = NULL;
+  TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+    SSttFileReader *sttReader;
+
+    SSttFileReaderConfig config = {
+        .tsdb = committer->tsdb,
+        .szPage = committer->szPage,
+        .file = fobj->f[0],
+    };
+
+    code = tsdbSttFileReaderOpen(fobj->fname, &config, &sttReader);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = TARRAY2_APPEND(committer->sttReaderArray, sttReader);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    STFileOp op = {
+        .optype = TSDB_FOP_REMOVE,
+        .fid = fobj->f->fid,
+        .of = fobj->f[0],
+    };
+
+    code = TARRAY2_APPEND(committer->fopArray, op);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  ASSERT(TARRAY2_SIZE(lvl->fobjArr) == 1);
-
-  STFileObj *fobj = TARRAY2_FIRST(lvl->fobjArr);
-
-  SSttFileReaderConfig config = {
-      .tsdb = committer->tsdb,
-      .szPage = committer->szPage,
-      .file = fobj->f[0],
-  };
-  code = tsdbSttFileReaderOpen(fobj->fname, &config, &committer->sttReader);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  STFileOp op = {
-      .optype = TSDB_FOP_REMOVE,
-      .fid = fobj->f->fid,
-      .of = fobj->f[0],
-  };
-
-  code = TARRAY2_APPEND(committer->fopArray, op);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -273,7 +274,10 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitCloseReader(SCommitter2 *committer) { return tsdbSttFileReaderClose(&committer->sttReader); }
+static int32_t tsdbCommitCloseReader(SCommitter2 *committer) {
+  TARRAY2_CLEAR(committer->sttReaderArray, tsdbSttFileReaderClose);
+  return 0;
+}
 
 static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   int32_t code = 0;
@@ -310,10 +314,11 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // STT
-  if (committer->sttReader) {
+  SSttFileReader *sttReader;
+  TARRAY2_FOREACH(committer->sttReaderArray, sttReader) {
     // data iter
     config.type = TSDB_ITER_TYPE_STT;
-    config.sttReader = committer->sttReader;
+    config.sttReader = sttReader;
 
     code = tsdbIterOpen(&config, &iter);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -323,7 +328,7 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
 
     // tomb iter
     config.type = TSDB_ITER_TYPE_STT_TOMB;
-    config.sttReader = committer->sttReader;
+    config.sttReader = sttReader;
 
     code = tsdbIterOpen(&config, &iter);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -525,7 +530,9 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   ASSERT(committer->tombIterMerger == NULL);
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
+  TARRAY2_DESTROY(committer->sttReaderArray, NULL);
   TARRAY2_DESTROY(committer->fopArray, NULL);
+  TARRAY2_DESTROY(committer->sttReaderArray, NULL);
   tsdbFSDestroyCopySnapshot(&committer->fsetArr);
 
 _exit:

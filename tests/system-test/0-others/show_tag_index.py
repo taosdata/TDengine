@@ -64,7 +64,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'idx1')
         tdSql.checkData(0, 1, 'db')
         tdSql.checkData(0, 2, 'stb')
-        tdSql.checkData(0, 3, -1)
+        tdSql.checkData(0, 3, None)
         tdSql.checkData(0, 5, 't1')
         tdSql.checkData(0, 6, 'tag_index')
 

@@ -218,11 +218,11 @@ _EXIT:
 }
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
-  RocksdbCfInst**  pIter = (RocksdbCfInst**)taosHashIterate(pHandle->cfInst, NULL);
+  void*            pIter = taosHashIterate(pHandle->cfInst, NULL);
   while (pIter != NULL) {
-    RocksdbCfInst* inst = *pIter;
+    RocksdbCfInst* inst = *(RocksdbCfInst**)pIter;
     destroyRocksdbCfInst(inst);
-    taosHashIterate(pHandle->cfInst, pIter);
+    pIter = taosHashIterate(pHandle->cfInst, pIter);
   }
   taosHashCleanup(pHandle->cfInst);
 
@@ -833,7 +833,10 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
     qDebug("succ to open rocksdb cf");
   }
   // close default cf
-  if (((rocksdb_column_family_handle_t**)cfHandle)[0] != 0) rocksdb_column_family_handle_destroy(cfHandle[0]);
+  if (((rocksdb_column_family_handle_t**)cfHandle)[0] != 0) {
+    rocksdb_column_family_handle_destroy(cfHandle[0]);
+    cfHandle[0] = NULL;
+  }
   rocksdb_options_destroy(cfOpts[0]);
   handle->db = db;
 
