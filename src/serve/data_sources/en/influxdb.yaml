@@ -5,18 +5,18 @@ name: InfluxDB
 description: |
   InfluxDB is a popular open-source time-series database that is optimized for handling large volumes of timestamped data.
 
-  TaosX can efficiently read the data in influxdb and write it to TDengine through the taosx-influxdb plugin to achieve historical data migration or real-time data synchronization.
+  TaosX can efficiently read the data in InfluxDB and write it to TDengine through the taosx-influxdb plugin to achieve historical data migration or real-time data synchronization.
 strict: false
 protocol:
   display: Protocol
   description: The protocol of the InfluxDB connection
   choices:
     - name: http
-      display: HTTP 协议
-      description: 使用 HTTP 协议连接 InfluxDB
+      display: HTTP Protocol
+      description: Connect to InfluxDB using the HTTP protocol
     - name: https
-      display: HTTPS 协议
-      description: 使用 HTTPS 协议连接 InfluxDB
+      display: HTTPS Protocol
+      description: Connect to InfluxDB using the HTTPS protocol
 options:
   host:
     display: IP address
