@@ -392,6 +392,9 @@ static int32_t tsdbSnapReadTombData(STsdbSnapReader* reader, uint8_t** data) {
     code = tTombBlockPut(reader->tombBlock, record);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    code = tsdbIterMergerNext(reader->tombIterMerger);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
     if (TOMB_BLOCK_SIZE(reader->tombBlock) >= 81920) {
       break;
     }

@@ -589,6 +589,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   int64_t st = taosGetTimestampUs();
 
   int32_t blockIndex = 0;
+  int32_t rowsThreshold = pTaskInfo->pSubplan->rowsThreshold;
+  if (!pTaskInfo->pSubplan->dynamicRowThreshold || 4096 <= pTaskInfo->pSubplan->rowsThreshold) {
+    rowsThreshold = 4096;
+  }
   while ((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
     SSDataBlock* p = NULL;
     if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
@@ -606,9 +610,12 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     ASSERT(p->info.rows > 0);
     taosArrayPush(pResList, &p);
 
-    if (current >= 4096) {
+    if (current >= rowsThreshold) {
       break;
     }
+  }
+  if (pTaskInfo->pSubplan->dynamicRowThreshold) {
+    pTaskInfo->pSubplan->rowsThreshold -= current;
   }
 
   *hasMore = (pRes != NULL);
