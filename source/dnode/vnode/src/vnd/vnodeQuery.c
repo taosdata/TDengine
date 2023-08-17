@@ -380,6 +380,9 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = state.state;
   pLoad->syncRestore = state.restored;
+  pLoad->syncTerm = state.term;
+  pLoad->roleTimeMs = state.roleTimeMs;
+  pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
