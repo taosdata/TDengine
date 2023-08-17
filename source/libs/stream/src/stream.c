@@ -171,6 +171,10 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
     qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
            pTask->id.idStr);
   } else {
+    if (pBlock->type == STREAM_INPUT__TRANS_STATE) {
+      pTask->status.appendTranstateBlock = true;
+    }
+
     int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock);
     // input queue is full, upstream is blocked now
     status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
