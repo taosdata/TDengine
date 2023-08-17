@@ -30,7 +30,7 @@ logging "INFO" "FIRST_EP_HOST: ${FIRST_EP_HOST}"
 logging "INFO" "FIRST_EP_PORT: ${FIRST_EP_PORT}"
 logging "INFO" "ENDPOINT: ${ENDPOINT}"
 
-nc -z localhost 6041
+nc -z 127.0.0.1 6041
 if [ $? -ne 0 ]; then
     logging "INFO" "taosadapter port 6041 is not ok"
     exit 1
