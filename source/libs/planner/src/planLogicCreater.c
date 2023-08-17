@@ -345,11 +345,10 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
 static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
 
 static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
-      *(bool*)pContext = true;
-      return DEAL_RES_END;
-    }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType ||
+        (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }
