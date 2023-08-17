@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
     io::{Read, Write},
     str::FromStr,
     sync::Arc,
@@ -16,9 +17,9 @@ use thiserror::Error;
 
 #[derive(Debug)]
 pub struct LushAck {
-    code: i32,
-    message: Option<String>,
-    context: Option<String>,
+    pub code: i32,
+    pub message: Option<String>,
+    pub context: Option<String>,
 }
 
 impl LushAck {
@@ -55,6 +56,12 @@ impl AckType {
             AckType::Code => "code",
             AckType::Lush => "lush",
         }
+    }
+}
+
+impl Display for AckType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -265,7 +272,7 @@ pub struct AckWriterBuilder {
 impl AckWriterBuilder {
     pub fn new(ack: AckType) -> Self {
         let mut metadata = HashMap::new();
-        metadata.insert("ack".to_string(), "".to_string());
+        metadata.insert("ack".to_string(), format!("{ack}"));
         Self { ack, metadata }
     }
 
@@ -301,7 +308,7 @@ impl AckWriterBuilder {
             },
             AckType::Lush => {
                 let fields = vec![
-                    Field::new("code", DataType::Int32, true),
+                    Field::new("code", DataType::Int32, false),
                     Field::new("message", DataType::Binary, true),
                     Field::new("context", DataType::Binary, true),
                 ];

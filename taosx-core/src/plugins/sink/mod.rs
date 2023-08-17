@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{Context, bail};
 use arrow::{
     array::{ArrayRef, TimestampMillisecondArray},
     datatypes::{Schema, SchemaRef},
@@ -9,6 +9,7 @@ use arrow_flight::{FlightClient, PutResult};
 use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
+use serde_json::json;
 use std::{
     any::Any,
     collections::HashMap,
@@ -211,6 +212,7 @@ async fn ipc_tcp_read(
     // let reader = stream.clone();
 
     let ipc_reader = IpcReader::new(&stream).context("IPC reading error")?;
+    // dbg!(ipc_reader.ack());
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
     // ipc_ack_writer.ack(LushAck);
     let client = client.to_string();
@@ -922,6 +924,10 @@ async fn consume_flat_record(
                             continue;
                         }
                         // dbg!(&records);
+
+                        if records.records.column(0).null_count() > 0 {
+                            bail!("Timestamp field contains null or invalid values");
+                        }
                         tracing::debug!("Write records with rows {}", records.records.num_rows());
                         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
                             &records.records,
@@ -1011,11 +1017,11 @@ async fn consume_flat_record(
                                                                         && f.ty().is_var_type()
                                                                 }) {
                                                                     let sql = format!(
-                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                        f.field(),
-                                                        f.ty(),
-                                                        f.length() * 2
-                                                        );
+                                                                        "alter table `{table}` modify tag `{}` {}({})",
+                                                                        f.field(),
+                                                                        f.ty(),
+                                                                        f.length() * 2
+                                                                    );
                                                                     _taos.exec(&sql).await.unwrap();
                                                                     continue;
                                                                 }
@@ -1328,9 +1334,37 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await?;
-
-            let _ = ipc_ack_writer.write_ok().context("write ack error");
+            let last = count;
+            if let Err(err) =
+                consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await
+            {
+                let written = count - last;
+                let _ = ipc_ack_writer.ack(LushAck {
+                    code: 0xFFFF,
+                    message: Some(err.to_string()),
+                    context: Some(
+                        json!({
+                            "stream": "flat",
+                            "written":  written,
+                        })
+                        .to_string(),
+                    ),
+                });
+            } else {
+                let _ = ipc_ack_writer
+                    .ack(LushAck {
+                        code: 0,
+                        message: None,
+                        context: Some(
+                            json!({
+                                "stream": "flat",
+                                "written":  count - last,
+                            })
+                            .to_string(),
+                        ),
+                    })
+                    .context("write ack error");
+            }
         }
     }
     info!("IPC processing done, written totally {count} records");
