@@ -22,6 +22,8 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "left.ts = right.ts is expected in join expression";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
       return "not support cross join";
+    case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
+      return "Not supported join conditions";
     default:
       break;
   }

@@ -578,6 +578,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal err
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_EXPECTED_TS_EQUAL,         "Expect ts equal")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN,    "Cross join not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND,     "Not supported join conditions")
 
 //function
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_ERROR,            "Function internal error")

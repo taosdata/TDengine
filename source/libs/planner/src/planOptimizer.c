@@ -543,7 +543,7 @@ static int32_t pushDownCondOptPartLogicCond(SJoinLogicNode* pJoin, SNode** pOnCo
                                             SNode** pRightChildCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pJoin->node.pConditions;
   if (LOGIC_COND_TYPE_AND != pLogicCond->condType) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND;
   }
 
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -695,16 +695,19 @@ static bool pushDownCondOptIsPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond
   return res;
 }
 
-static bool pushDownCondOptContainPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
+static bool pushDownCondOptContainPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool* errCond) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
     SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
     if (LOGIC_COND_TYPE_AND != pLogicCond->condType) {
+      if (errCond) {
+        *errCond = true;
+      }
       return false;
     }
     bool   hasPrimaryKeyEqualCond = false;
     SNode* pCond = NULL;
     FOREACH(pCond, pLogicCond->pParameterList) {
-      if (pushDownCondOptContainPriKeyEqualCond(pJoin, pCond)) {
+      if (pushDownCondOptContainPriKeyEqualCond(pJoin, pCond, NULL)) {
         hasPrimaryKeyEqualCond = true;
         break;
       }
@@ -719,7 +722,11 @@ static int32_t pushDownCondOptCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogic
   if (NULL == pJoin->pOtherOnCond) {
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
   }
-  if (!pushDownCondOptContainPriKeyEqualCond(pJoin, pJoin->pOtherOnCond)) {
+  bool errCond = false;
+  if (!pushDownCondOptContainPriKeyEqualCond(pJoin, pJoin->pOtherOnCond, &errCond)) {
+    if (errCond) {
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+    }
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
   return TSDB_CODE_SUCCESS;
