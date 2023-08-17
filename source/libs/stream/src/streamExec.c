@@ -18,7 +18,7 @@
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_EXEC_BATCH_NUM 32
 #define MIN_STREAM_EXEC_BATCH_NUM 4
-#define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
+#define STREAM_RESULT_DUMP_THRESHOLD  100
 
 static int32_t updateCheckPointInfo(SStreamTask* pTask);
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
@@ -51,7 +51,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
     }
 
     qDebug("s-task:%s dump stream result data blocks, num:%d, size:%.2fMiB", pTask->id.idStr, numOfBlocks,
-           size / 1048576.0);
+           SIZE_IN_MB(size));
 
     code = streamTaskOutputResultBlock(pTask, pStreamBlocks);
     if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {  // back pressure and record position
@@ -137,10 +137,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     taosArrayPush(pRes, &block);
 
     qDebug("s-task:%s (child %d) executed and get %d result blocks, size:%.2fMiB", pTask->id.idStr,
-           pTask->info.selfChildId, numOfBlocks, size / 1048576.0);
+           pTask->info.selfChildId, numOfBlocks, SIZE_IN_MB(size));
 
     // current output should be dispatched to down stream nodes
-    if (numOfBlocks >= MAX_STREAM_RESULT_DUMP_THRESHOLD) {
+    if (numOfBlocks >= STREAM_RESULT_DUMP_THRESHOLD) {
       ASSERT(numOfBlocks == taosArrayGetSize(pRes));
       code = doDumpResult(pTask, pItem, pRes, size, totalSize, totalBlocks);
       if (code != TSDB_CODE_SUCCESS) {
@@ -570,6 +570,12 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       break;
     }
 
+    if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+      qWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", pTask->id.idStr);
+      taosMsleep(1000);
+      continue;
+    }
+
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", id);
 
@@ -636,7 +642,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     double  el = (taosGetTimestampMs() - st) / 1000.0;
     qDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d",
-           id, el, resSize / 1048576.0, totalBlocks);
+           id, el, SIZE_IN_MB(resSize), totalBlocks);
 
     streamFreeQitem(pInput);
   }
