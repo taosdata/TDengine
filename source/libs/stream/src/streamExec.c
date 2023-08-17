@@ -450,11 +450,11 @@ static int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pI
     if (qItem == NULL) {
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(10);
-        qDebug("===stream===try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
+        qDebug("try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
         continue;
       }
 
-      qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
+      qDebug("break batchSize:%d, %s", *numOfBlocks, id);
       return TSDB_CODE_SUCCESS;
     }
 
