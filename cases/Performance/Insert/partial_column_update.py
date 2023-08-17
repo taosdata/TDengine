@@ -71,7 +71,6 @@ class PartialColUpdate(TDCase):
         self.file_name3 = "insert2.json"
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = 1
-        self.buffer = 4096
         self.vgroups = 40
         self.childtable_count = 10000
         self.insert_rows = 10000
