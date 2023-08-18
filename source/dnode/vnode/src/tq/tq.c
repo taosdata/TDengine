@@ -918,6 +918,7 @@ void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   int32_t vgId = TD_VID(pTq->pVnode);
+  tqDebug("s-task:0x%x start to expand task", pTask->id.taskId);
 
   int32_t code = streamTaskInit(pTask, pTq->pStreamMeta, &pTq->pVnode->msgCb, ver);
   if (code != TSDB_CODE_SUCCESS) {

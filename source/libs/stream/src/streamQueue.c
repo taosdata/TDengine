@@ -221,7 +221,17 @@ int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, i
     if (qItem->type == STREAM_INPUT__CHECKPOINT || qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
         qItem->type == STREAM_INPUT__TRANS_STATE) {
       if (*pInput == NULL) {
-        qDebug("s-task:%s checkpoint/transtate msg extracted, start to process immediately", id);
+
+        char* p = NULL;
+        if (qItem->type == STREAM_INPUT__CHECKPOINT) {
+          p = "checkpoint";
+        } else if (qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+          p = "checkpoint-trigger";
+        } else {
+          p = "transtate";
+        }
+
+        qDebug("s-task:%s %s msg extracted, start to process immediately", id, p);
         *numOfBlocks = 1;
         *pInput = qItem;
         return TSDB_CODE_SUCCESS;
