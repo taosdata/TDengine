@@ -151,40 +151,40 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 
 1. parser 通过 --parser 或 -p 设置，设置 transform 的 parser 生效。可以通过 Explorer 在如 CSV，MQTT，KAFKA 数据源的任务配置进行设置。
 
-配置示例：
+  配置示例：
 
-```shell
---parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
+  ```shell
+  --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
 
-```
+  ```
 
 2. transform 通过 --transform 或 -T 设置，配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 Explorer 进行设置。配置说明如下：
    
-```shell
-1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
-2.表重命名：
-    2.1 重命名表限定
-        2.1.1 RenameTable：对所有符合条件的表进行重命名。
-        2.1.2 RenameChildTable：对所有符合条件的子表进行重命名。
-        2.1.3 RenameSuperTable：对所有符合条件的超级表进行重命名。
-    2.2 重命名方式
-        2.2.1 Prefix：添加前缀。
-        2.2.2 Suffix：添加后缀。
-        2.2.3 Template：模板方式。
-        2.2.4 ReplaceWithRegex：正则替换。taosx 1.1.0 新增。
- 重命名配置方式：
-     <表限定>:<重命名方式>:<重命名值>
- 使用示例：
-     1.为所有表添加前缀 <prefix>
-     --transform rename-table:prefix:<prefix>
-     2.为符合条件的表替换前缀：prefix1 替换为 prefix2，以下示例中的 <> 为正则表达式的不再是占位符。
-     -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
+  ```shell
+  1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
+  2.表重命名：
+      2.1 重命名表限定
+          2.1.1 RenameTable：对所有符合条件的表进行重命名。
+          2.1.2 RenameChildTable：对所有符合条件的子表进行重命名。
+          2.1.3 RenameSuperTable：对所有符合条件的超级表进行重命名。
+      2.2 重命名方式
+          2.2.1 Prefix：添加前缀。
+          2.2.2 Suffix：添加后缀。
+          2.2.3 Template：模板方式。
+          2.2.4 ReplaceWithRegex：正则替换。taosx 1.1.0 新增。
+  重命名配置方式：
+      <表限定>:<重命名方式>:<重命名值>
+  使用示例：
+      1.为所有表添加前缀 <prefix>
+      --transform rename-table:prefix:<prefix>
+      2.为符合条件的表替换前缀：prefix1 替换为 prefix2，以下示例中的 <> 为正则表达式的不再是占位符。
+      -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
 
-     示例说明：^prefix1(?<old>) 为正则表达式，该表达式会匹配表名中包含以 prefix1 开始的表名并将后缀部分记录为 old，prefix2$old 则会使用 prefix2 与 old 进行替换。注意：两部分使用关键字符 :: 进行分隔，所以需要保证正则表达式中不能包含该字符。
-     若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
-```
+      示例说明：^prefix1(?<old>) 为正则表达式，该表达式会匹配表名中包含以 prefix1 开始的表名并将后缀部分记录为 old，prefix2$old 则会使用 prefix2 与 old 进行替换。注意：两部分使用关键字符 :: 进行分隔，所以需要保证正则表达式中不能包含该字符。
+      若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
+  ```
 
-3. jobs 指定任务并发数，仅支持 tmq 任务。暂无法通过 Explorer 进行设置。通过 --jobs <number> 或 -j <number> 进行设置。
+3. jobs 指定任务并发数，仅支持 tmq 任务。暂无法通过 Explorer 进行设置。通过 --jobs `<number>` 或 -j `<number>` 进行设置。
 4. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
 
 
@@ -353,7 +353,7 @@ alter database test wal_retention_period 3600;
 | certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
 | private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
 | csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效|
-| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid>::<code>，code 用于建子表。|
+| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid\>::<code\>，code 用于建子表。|
 | opc_table_config | string | OPCUA 单列模式表配置。需要与 ua.nodes 配合使用。|
 | debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。|
 | enable | bool | 原始数据存储。默认为 false|
