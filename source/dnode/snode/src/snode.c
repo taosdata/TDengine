@@ -69,6 +69,8 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   if (pTask->pState == NULL) {
     qError("s-task:%s failed to open state for task", pTask->id.idStr);
     return -1;
+  } else {
+    qDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
   }
 
   int32_t numOfChildEp = taosArrayGetSize(pTask->pUpstreamInfoList);
