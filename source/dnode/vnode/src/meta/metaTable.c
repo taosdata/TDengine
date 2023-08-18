@@ -2033,6 +2033,8 @@ static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs
 }
 
 int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs) {
+  if (!tsTtlChangeOnWrite) return 0;
+
   metaCheckTtlTaskAndWLock(pMeta);
   int ret =  metaUpdateChangeTime(pMeta,  uid,  changeTimeMs);
   metaULock(pMeta);

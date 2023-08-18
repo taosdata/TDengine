@@ -329,11 +329,10 @@ int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtime
     goto _out;
   }
 
-  if (oldData->changeTimeMs > pTtlMgr->expireTimeMs) {
+  if (oldData->changeTimeMs > pTtlMgr->expireTimeMs && pTtlMgr->expireTimeMs != TTL_EXPIRE_TIME_UNINIT) {
     // has expired => skip update ctime
-    metaInfo("%s, ttl mgr skip update ctime, entry expired. uid:%" PRId64 ", oldCtime:%" PRId64
-              ", expireTime:%" PRId64,
-              pTtlMgr->logPrefix, pUpdCtimeCtx->uid, oldData->changeTimeMs, pTtlMgr->expireTimeMs);
+    metaInfo("%s, ttl mgr skip update ctime, entry expired. uid:%" PRId64 ", oldCtime:%" PRId64 ", expireTime:%" PRId64,
+             pTtlMgr->logPrefix, pUpdCtimeCtx->uid, oldData->changeTimeMs, pTtlMgr->expireTimeMs);
     goto _out;
   }
 
