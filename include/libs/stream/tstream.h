@@ -390,6 +390,7 @@ typedef struct SStreamMeta {
   tmr_h         hbTmr;
   SMgmtInfo     mgmtInfo;
 
+  int32_t closedTask;
   int32_t chkptNotReadyTasks;
 
   int64_t  chkpId;
