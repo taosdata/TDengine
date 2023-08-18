@@ -287,6 +287,13 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
+    // downstream task has blocked the output, stopped for a while
+    if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+      tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
+      streamMetaReleaseTask(pStreamMeta, pTask);
+      continue;
+    }
+
     *pScanIdle = false;
 
     // seek the stored version and extract data from WAL

@@ -243,6 +243,7 @@ typedef struct SSyncState {
   int32_t    progress;
   SyncTerm   term;
   int64_t    roleTimeMs;
+  int64_t    startTimeMs;
 } SSyncState;
 
 int32_t syncInit();

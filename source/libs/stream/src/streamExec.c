@@ -191,6 +191,12 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
         return 0;
       }
 
+      if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+        qDebug("s-task:%s inputQ is blocked, wait for 10sec and retry", pTask->id.idStr);
+        taosMsleep(10000);
+        continue;
+      }
+
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       code = qExecTask(exec, &output, &ts);
@@ -444,11 +450,11 @@ static int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pI
     if (qItem == NULL) {
       if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(10);
-        qDebug("===stream===try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
+        qDebug("try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
         continue;
       }
 
-      qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
+      qDebug("break batchSize:%d, %s", *numOfBlocks, id);
       return TSDB_CODE_SUCCESS;
     }
 

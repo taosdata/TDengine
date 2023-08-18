@@ -232,6 +232,7 @@ typedef struct SField {
   uint8_t type;
   int8_t  flags;
   int32_t bytes;
+  char    comment[TSDB_COL_COMMENT_LEN];
 } SField;
 
 typedef struct SRetention {
@@ -310,6 +311,7 @@ struct SSchema {
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
+  char     comment[TSDB_COL_COMMENT_LEN];
 };
 
 struct SSchema2 {
@@ -1164,6 +1166,9 @@ typedef struct {
   int32_t vgId;
   int8_t  syncState;
   int8_t  syncRestore;
+  int64_t syncTerm;
+  int64_t roleTimeMs;
+  int64_t startTimeMs;
   int8_t  syncCanRead;
   int64_t cacheUsage;
   int64_t numOfTables;
@@ -1181,9 +1186,9 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int8_t syncState;
-  int8_t syncRestore;
+  int8_t  syncState;
   int64_t syncTerm;
+  int8_t  syncRestore;
   int64_t roleTimeMs;
 } SMnodeLoad;
 
@@ -2392,6 +2397,9 @@ typedef struct {
   int8_t  type;
   int8_t  flags;
   int32_t bytes;
+  bool    hasColComment;
+  char*   colComment;
+  int32_t colCommentLen;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
   int8_t  colModType;

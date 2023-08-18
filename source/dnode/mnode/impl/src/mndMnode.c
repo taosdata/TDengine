@@ -807,7 +807,6 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   char      *pWrite;
   int64_t    curMs = taosGetTimestampMs();
-  int64_t    dummyTimeMs = 0;
 
   pSelfObj = sdbAcquire(pSdb, SDB_MNODE, &pMnode->selfDnodeId);
   if (pSelfObj == NULL) {
@@ -858,16 +857,9 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
+    int64_t roleTimeMs = (isDnodeOnline) ? pObj->roleTimeMs : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pObj->syncTerm != pSelfObj->syncTerm || !isDnodeOnline) {
-      // state of old term / no status report => use dummyTimeMs
-      if (pObj->syncTerm > pSelfObj->syncTerm) {
-        mError("mnode:%d has a newer term:%" PRId64 " than me:%" PRId64, pObj->id, pObj->syncTerm, pSelfObj->syncTerm);
-      }
-      colDataSetVal(pColInfo, numOfRows, (const char *)&dummyTimeMs, false);
-    } else {
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->roleTimeMs, false);
-    }
+    colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

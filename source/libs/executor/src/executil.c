@@ -1931,7 +1931,7 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
   *type = pTableList->idInfo.tableType;
 }
 
-uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
+uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   ASSERT(pTableList->map != NULL && slot != NULL);
 
@@ -2177,12 +2177,67 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   return TSDB_CODE_SUCCESS;
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag) {
+char* getStreamOpName(uint16_t opType) {
+  switch (opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      return "stream scan";
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return "project";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+      return "interval single";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+      return "interval final";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+      return "interval semi";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
+      return "stream fill";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
+      return "session single";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+      return "session semi";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      return "session final";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+      return "state single";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
+      return "stream partitionby";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+      return "stream event";
+  }
+  return "";
+}
+
+void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===%s: Block is Null or Empty", flag);
+    qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
     return;
   }
   char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
+  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf, taskIdStr));
   taosMemoryFree(pBuf);
+}
+
+void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
+  if (!pBlock || pBlock->info.rows == 0) {
+    qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
+    return;
+  }
+  if (qDebugFlag & DEBUG_DEBUG) {
+    char* pBuf = NULL;
+    char flagBuf[64];
+    snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
+    qDebug("%s", dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr));
+    taosMemoryFree(pBuf);
+  }
+}
+
+TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NULL ? win->skey : tsCols[0]; }
+
+void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t  delta) {
+  int64_t* ts = (int64_t*)pColData->pData;
+
+  int64_t duration = pWin->ekey - pWin->skey + delta;
+  ts[2] = duration;            // set the duration
+  ts[3] = pWin->skey;          // window start key
+  ts[4] = pWin->ekey + delta;  // window end key
 }
