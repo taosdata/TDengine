@@ -67,6 +67,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
 
   pTask->pState = streamStateOpen(pSnode->path, pTask, false, -1, -1);
   if (pTask->pState == NULL) {
+    qError("s-task:%s failed to open state for task", pTask->id.idStr);
     return -1;
   }
 
