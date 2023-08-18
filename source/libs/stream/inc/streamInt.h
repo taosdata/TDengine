@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+#define ONE_MB_F       (1048576.0)
+#define SIZE_IN_MB(_v) ((_v) / ONE_MB_F)
+
 typedef struct {
   int8_t inited;
   void*  timer;

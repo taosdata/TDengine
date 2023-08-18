@@ -16,11 +16,9 @@
 #include "streamInt.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUE_CAPACITY         20480
-#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE (30)
-#define ONE_MB_F                                 (1048576.0)
-#define QUEUE_MEM_SIZE_IN_MB(_q)                 (taosQueueMemorySize(_q) / ONE_MB_F)
-
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY          20480
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE  (30)
+#define QUEUE_MEM_SIZE_IN_MB(_q)                  (taosQueueMemorySize(_q) / ONE_MB_F)
 SStreamGlobalEnv streamEnv;
 
 int32_t streamInit() {
@@ -219,7 +217,6 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 
-// todo add log
 int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   int32_t code = 0;
   int32_t type = pTask->outputInfo.type;
@@ -232,11 +229,12 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   } else {
     ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
     code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
-    if (code != 0) {  // todo failed to add it into the output queue, free it.
-      return code;
+    if (code != 0) {
+      qError("s-task:%s failed to put res into outputQ", pTask->id.idStr);
     }
 
     streamDispatchStreamBlock(pTask);
+    return code;
   }
 
   return 0;
@@ -379,7 +377,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
     // use the local variable to avoid the pItem be freed by other threads, since it has been put into queue already.
     qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           msgLen, ver, total, size + msgLen/1048576.0);
+           msgLen, ver, total, size + SIZE_IN_MB(msgLen));
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     if (/*(pTask->info.taskLevel == TASK_LEVEL__SOURCE) && */(tInputQueueIsFull(pTask))) {
