@@ -53,6 +53,17 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
       return sprintf(pKey, "%s", pCol->colName);
     }
     return sprintf(pKey, "%s.%s", pCol->tableAlias, pCol->colName);
+  } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+      SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+      if (pVal) {
+        if (NULL != pStmtName && '\0' != pStmtName[0]) {
+          return sprintf(pKey, "%s.%s", pStmtName, ((SExprNode*)pNode)->aliasName);
+        }
+        return sprintf(pKey, "%s.%s", pVal->literal, ((SExprNode*)pNode)->aliasName);
+      }
+    }
   }
 
   if (NULL != pStmtName && '\0' != pStmtName[0]) {

@@ -434,6 +434,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pNewScanPseudoCols = NULL;
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL);
+/*
     if (TSDB_CODE_SUCCESS == code && NULL != pScan->pScanPseudoCols) {
       code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pNewScanPseudoCols);
       if (TSDB_CODE_SUCCESS == code) {
@@ -441,6 +442,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
         pScan->pScanPseudoCols = pNewScanPseudoCols;
       }
     }
+*/    
   }
 
   if (NULL != pScan->pScanCols) {
