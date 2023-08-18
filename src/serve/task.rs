@@ -136,10 +136,23 @@ pub(super) async fn create_task(
             });
         }
     }
+    // validate parser
+    if let Some(parser) = task.parser.as_ref() {
+        // check TIMESTAMP Precision: all columns should have same precision
+        let parser_string = parser.to_string();
+        if !check_parser_timestamp_precision(&parser_string) {
+            return HttpResponse::InternalServerError().json(Failed {
+                code: Code::FAILED,
+                message: format!(
+                    "parser shouldn't contains different timestamp precision"
+                ),
+            });
+        }
+    }
     let controller = task_store.into_inner();
     match controller.create(task).await {
         Ok(task) => {
-            dbg!(&task.trigger);
+            // dbg!(&task.trigger);
             if let Some(trigger) = task.trigger.as_deref() {
                 let schedule = trigger.trim_start_matches("schedule:");
                 let sched = controller.scheduler.clone();
@@ -182,6 +195,15 @@ pub(super) async fn create_task(
             message: format!("{:#}", err),
         }),
     }
+}
+
+pub fn check_parser_timestamp_precision(parser_string: &str) -> bool {
+    if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#)) || 
+        (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) || 
+        (parser_string.contains(r#""TIMESTAMP(us)""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) {
+            return false;
+        }
+    true
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -245,6 +267,19 @@ pub(super) async fn update_task(
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
+    // validate parser
+    if let Some(parser) = task.parser.as_ref() {
+        // check TIMESTAMP Precision: all columns should have same precision
+        let parser_string = parser.to_string();
+        if !check_parser_timestamp_precision(&parser_string) {
+            return HttpResponse::InternalServerError().json(Failed {
+                code: Code::FAILED,
+                message: format!(
+                    "parser shouldn't contains different timestamp precision"
+                ),
+            });
+        }
+    }
     match task_store.update(id.into_inner(), task.into_inner()).await {
         Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),

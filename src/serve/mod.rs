@@ -24,6 +24,7 @@ mod metrics;
 mod routes;
 mod rpc;
 mod task;
+pub use task::check_parser_timestamp_precision;
 
 use controller::*;
 use data_sources::*;

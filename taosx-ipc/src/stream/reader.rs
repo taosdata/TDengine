@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, io::Read, ops::Deref, sync::Arc};
+use std::{any::Any, collections::HashMap, io::Read, ops::Deref, sync::Arc, str::FromStr};
 
 use arrow::{
     array::{
@@ -456,6 +456,10 @@ pub struct LushInsertAttrs {
 
 impl LushInsertAttrs {
 
+    pub fn stable_name(&self) -> &Option<String> {
+        &self.using 
+    }
+
     pub fn table_name(&self) -> &String {
         &self.name
     }
@@ -475,7 +479,7 @@ impl LushInsertAttrs {
             let names = tags.iter().map(|(name, _)| format!("`{name}`")).join(",");
             let values = tags.iter().map(|(_, value)| value.to_sql_value()).join(",");
             Some(format!(
-                "CREATE TABLE IF NOT EXISTS `{table}` USING `{using}` ({names}) TAGS({values})"
+                "CREATE TABLE IF NOT EXISTS `{table}` USING `{using}` ({names}) TAGS({values}) "
             ))
         } else {
             None
@@ -716,6 +720,14 @@ mod arrow_to_taos {
 }
 
 impl LushMessageInsert {
+    pub fn stable_name(&self) -> Option<String> {
+        if self.metadata.init().is_some() {
+            Some(self.metadata.init().unwrap().name().to_string())
+        } else {
+            None
+        }
+    }
+
     pub fn num_rows(&self) -> usize {
         self.records.record.num_rows()
     }
@@ -746,7 +758,8 @@ impl LushMessageInsert {
         parse_column_view_with_types(&self.records.record, &ty)
     }
 
-    pub fn generate_insert_sql_from_tablename(&self, data: &Vec<ColumnView>, columns: &Vec<String>,) -> Option<Vec<String>> {
+    /// return (sqls to executes, )
+    pub fn generate_insert_sql_from_tablename(&self, data: &Vec<ColumnView>, columns: &Vec<String>,) -> Option<(Vec<String>, HashMap<String, IpcDataType>)> {
         let mut index = None;
         for (i, f) in self.records.record.schema().fields().iter().enumerate() {
             if f.name() == __TABLE_NAME__ {
@@ -761,6 +774,7 @@ impl LushMessageInsert {
                 let c = data.get(i).unwrap();
                 debug_assert!(columns.len() == data.len() - 1);
                 let mut sqls = Vec::new();
+                let mut field_map = HashMap::new();
                 for (j, bv) in c.into_iter().enumerate() {
                     let table_name = bv.to_string().unwrap();
                     // sql.push_str(format!("{} VALUES (", &table_name, ).as_str());
@@ -774,12 +788,32 @@ impl LushMessageInsert {
                         }
                         let temp_cv = cv.slice(j..j+1).unwrap();
                         if let Some(v) = temp_cv.get(0) {
+                            let column_name = columns[index].clone();
+                            let sql_value = v.to_sql_value();
                             if !v.is_null() {
-                                insert_columns.push_str(format!("`{}`,", columns[index]).as_str());
-                                insert_values.push_str(format!("{},", v.to_sql_value()).as_str());
+                                let v_ty = v.ty();
+                                if v_ty.is_var_type() {
+                                    let field_ipc_type = field_map.get_mut(&column_name);
+                                    if field_ipc_type.is_some() {
+                                        let field_ipc_type = field_ipc_type.unwrap();
+                                        match field_ipc_type {
+                                            IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                                                if *len < sql_value.len() as u32 {
+                                                    *len = sql_value.len() as u32;
+                                                }
+                                            }
+                                            _ => (),
+                                        }
+                                    } else {
+                                        field_map.insert(column_name.clone(), IpcDataType::from_str(format!("{}({})", v_ty.name(), sql_value.len()).as_str()).unwrap());
+                                    }
+                                }
+
+                                insert_columns.push_str(format!("`{}`,", column_name).as_str());
+                                insert_values.push_str(format!("{},", sql_value).as_str());
                             } else {
                                 // ignore null columnview
-                                log::trace!("column view {} is null", columns[index]);
+                                log::trace!("column view {} is null", column_name);
                             }
                         }
                         index += 1;
@@ -796,7 +830,7 @@ impl LushMessageInsert {
                     }
                 }
                 sqls.push(sql);
-                Some(sqls)
+                Some((sqls, field_map))
             }
         }
     }

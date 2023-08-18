@@ -25,7 +25,7 @@ use std::{
 };
 use taos::{
     taos_query::common::Describe, AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools,
-    RawBlock, Stmt, Taos, TaosPool, Ty,
+    RawBlock, Stmt, Taos, TaosPool, Ty, Value,
 };
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -287,6 +287,11 @@ async fn ipc_tcp_read(
 //     .await
 // }
 
+struct LushMessageTagModify {
+    sqls: Vec<(String, bool)>,
+    tags: Vec<(String, Value)>,
+}
+
 // #[instrument(skip(taos, record, names, marks))]
 async fn consume_lush_record(
     taos: &Taos,
@@ -312,7 +317,9 @@ async fn consume_lush_record(
     }
     match record {
         LushMessage::Tables(tables) => {
-            let mut sql = format!("CREATE TABLE ");
+            // let mut sql = format!("CREATE TABLE ");
+            // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
+            let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
             for table in tables {
                 let table_name = table.table_name();
                 let tags = table.tags();
@@ -352,12 +359,47 @@ async fn consume_lush_record(
                         }
                     }
                     Err(err) => {
-                        log::info!("query_tags_sql err: {}", err.to_string());
+                        log::debug!("query_tags_sql err: {}", err.to_string());
                         if err.to_string().contains("0x2603") || err.to_string().contains("0x2662")
                         {
                             // table not exists
-                            let table_sql = table.to_sql(None).unwrap();
-                            sql.push_str(table_sql.replace("CREATE TABLE", "").as_str());
+                            let table_sql = table.to_sql(None);
+                            if table_sql.is_some() {
+                                let stable_name = table.stable_name().clone().unwrap();
+                                let table_sql = table_sql.unwrap();
+                                let sql_vec = create_sql_map.get_mut(&stable_name);
+                                let mut insert_done = false;
+                                if sql_vec.is_some() {
+                                    let tag_modify = sql_vec.unwrap();
+                                    for index in 0..tag_modify.sqls.len() {
+                                        let (create_sql, overflow) = tag_modify.sqls.get_mut(index).unwrap();
+                                        if *overflow {
+                                            continue;
+                                        } else {
+                                            let sql_suffix = table_sql.replace("CREATE TABLE ", "");
+                                            if create_sql.len() + sql_suffix.len() > 1000 * 1000 {
+                                                *overflow = true;
+                                                continue;
+                                            } else {
+                                                create_sql.push_str(sql_suffix.as_str());
+                                                insert_done = true;
+                                            }
+                                        }
+                                    }
+                                    if !insert_done {
+                                        // init sql shouldn't overflow
+                                        tag_modify.sqls.push((table_sql, false));
+                                    }
+                                } else {
+                                    let mut sql_vec = Vec::new();
+                                    sql_vec.push(( table_sql, false,));
+                                    let tag_modify_message = LushMessageTagModify {
+                                        sqls: sql_vec,
+                                        tags: table.tags().clone().unwrap(),
+                                    };
+                                    create_sql_map.insert(stable_name.clone(), tag_modify_message);
+                                }
+                            }
                         }
                     }
                 }
@@ -366,32 +408,94 @@ async fn consume_lush_record(
                     transferred.tables.fetch_add(1, Ordering::SeqCst);
                 }
             }
-            if sql != "CREATE TABLE " {
-                info!("Tables: {sql}");
-                taos.exec(&sql).await?;
+
+            for (stable_name, message_modify) in create_sql_map {
+                for sql in message_modify.sqls {
+                    info!("Tables: {}", sql.0);
+                    match taos.exec(&sql.0).await {
+                        Ok(_) => (),
+                        Err(err) => {
+                            let err_str = err.to_string();
+                            tracing::warn!("create table error: {err:#}");
+                            if err_str.contains("0x2653") {
+                                // column or tag length not enough
+                                let desc = taos.describe(&stable_name.as_str()).await?;
+                                let fields = message_modify.tags.iter().filter(|(_, value)| matches!(value, Value::VarChar(_)) || matches!(value, Value::NChar(_))).map(|(tag_name, value)| { 
+                                    match value {
+                                        Value::VarChar(v) => {
+                                            (tag_name.clone(), IpcDataType::VarChar(v.len() as u32))
+                                        }
+                                        Value::NChar(v) => {
+                                            (tag_name.clone(), IpcDataType::NChar(v.len() as u32))
+                                        }
+                                        _ => unimplemented!()
+                                    }
+                                }).collect_vec();
+                                let alter_sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &fields, true);
+                                if alter_sqls.is_some() {
+                                    for alter_sql in alter_sqls.unwrap() {
+                                        info!("lush table alter sql: {alter_sql}");
+                                        taos.exec(alter_sql).await?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         LushMessage::Insert(record) => {
             // let guard = mutex.lock().await;
             for record in record {
                 *records += record.num_rows();
-
                 let data = record.to_column_views();
                 // RawBlock
                 // taos.write_raw_block()
                 // dbg!(&map_data);
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
-                if let Some(sqls) = sqls {
+                if let Some((sqls, field_map)) = sqls {
                     for sql in sqls {
                         log::debug!("insert sql: {sql}");
-                        let res = taos.exec(sql).await;
+                        let mut retry = 0;
                         let mut count = 0;
-                        match res {
-                            Ok(num) => {
-                                count = count + num;
-                            }
-                            Err(err) => {
-                                log::error!("written err cause: {}", err);
+                        loop {
+                            let res = taos.exec(sql.clone()).await;
+                            match res {
+                                Ok(num) => {
+                                    count = count + num;
+                                    break;
+                                }
+                                Err(err) => {
+                                    if retry > 2 {
+                                        log::warn!("retry 3 faild continue: {err:#}");
+                                        break;
+                                    }
+                                    log::error!("written err cause: {err:#}");
+                                    let errstr = err.to_string();
+                                    if errstr.contains("[0x2653]") {
+                                        // column or tag length not enough
+                                        let fields = Vec::from_iter(field_map.clone());
+                                        // get stable name
+                                        let stable_name = record.stable_name();
+                                        if stable_name.is_none() {
+                                            tracing::error!("record should contains init message for stable name");
+                                            break;
+                                        }
+                                        let stable_name = stable_name.unwrap();
+                                        let desc = taos.describe(&stable_name).await?;
+                                        let alter_sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &fields.clone(), false);
+                                        if alter_sqls.is_some() {
+                                            let alter_sqls = alter_sqls.unwrap();
+                                            for alter_sql in alter_sqls {
+                                                tracing::info!("alter sql: {alter_sql}");
+                                                if let Err(err) = taos.exec(alter_sql).await {
+                                                    tracing::info!("alter sql error: {err:#}");
+                                                }
+                                            }
+                                        }
+                                    }
+                                    retry += 1;
+                                }
                             }
                         }
                         info!("written [{count}] records");
@@ -677,8 +781,31 @@ async fn consume_point_record(
                         }
                     }
                 }
-            }
-            if !insert_done {
+                if !insert_done {
+                    // let insert_sql = ;
+                    let value_column_type = if point_config.value_type.is_some() {
+                        // maybe should replace value column type
+                        point_config.value_type.clone().unwrap().sql_repr()
+                    } else {
+                        value_type.clone()
+                    };
+                    sql_vec.push((
+                        format!(
+                            "insert into `{child_table_name}` {} VALUES ({})",
+                            tag_sql.as_str(),
+                            values
+                        ),
+                        false,
+                        value_column_type,
+                        ModifyStructForPointMessage {
+                            id,
+                            point_name,
+                            value_cloumn_name: value_cloumn_name.to_string(),
+                            value_cloumn_length,
+                        },
+                    ));
+                }
+            } else {
                 let insert_sql = format!(
                     "insert into `{child_table_name}` {} VALUES ({})",
                     tag_sql.as_str(),
@@ -704,6 +831,7 @@ async fn consume_point_record(
                 ));
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             }
+
             // insert_sql.push_str(tag_sql.as_str());
             // insert_sql.push_str(format!(" VALUES ({})", values).as_str());
         }
@@ -1571,7 +1699,7 @@ async fn handle_lush_message_init(
         let desc = taos.describe(stable_name).await;
         match desc {
             Ok(desc) => {
-                log::info!("table {stable_name} exists");
+                tracing::debug!("table {stable_name} exists");
                 let sql = generate_alter_sql_diff_desc(
                     stable_name,
                     &desc,
