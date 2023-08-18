@@ -69,8 +69,10 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         SFunctionNode* pFunc = (SFunctionNode*)pNode;
         if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
           SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
-          strcpy(pCol->tableAlias, pVal->literal);
-          strcpy(pCol->tableName, pVal->literal);
+          if (NULL != pVal) {
+            strcpy(pCol->tableAlias, pVal->literal);
+            strcpy(pCol->tableName, pVal->literal);
+          }
         }
       }
       return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
