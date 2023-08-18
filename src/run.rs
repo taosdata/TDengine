@@ -91,7 +91,7 @@ impl Cli {
             if !check_parser_timestamp_precision(&parser) {
                 bail!("parser should have same timestamp precision");
             }
-        }        
+        }
         let task_opt = taosx_core::TaskOpts {
             from: args.from,
             transform: args.transform,

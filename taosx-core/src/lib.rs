@@ -12,6 +12,7 @@ mod transform;
 pub mod utils;
 
 mod plugins;
+mod tmq_to_kafka;
 
 use anyhow::Context;
 use chrono::NaiveDate;
@@ -35,6 +36,7 @@ pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::PortPool;
+pub use crate::tmq_to_kafka::tmq_to_kafka;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -275,6 +277,9 @@ impl TaskOpts {
                         transferred.clone(),
                     )
                     .await?;
+                }
+                ("tmq", "kafka") => {
+                    tmq_to_kafka(from.clone(), to.clone()).await?;
                 }
                 ("kafka", "taos") => {
                     kafka_to_taos(
