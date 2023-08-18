@@ -67,11 +67,11 @@ Database changed.
 taos> SHOW STABLES;
               name              |
 =================================
- meters.current                 |
- meters.voltage                 |
+ meters_current                 |
+ meters_voltage                 |
 Query OK, 2 row(s) in set (0.002544s)
 
-taos> SELECT TBNAME, * FROM `meters.current`;
+taos> SELECT TBNAME, * FROM `meters_current`;
              tbname             |           _ts            |           _value           | groupid |            location            |
 ==================================================================================================================================
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LosAngeles                |
@@ -83,10 +83,10 @@ Query OK, 4 row(s) in set (0.005399s)
 
 ## SQL 查询示例
 
-`meters.current` 是插入数据的超级表名。
+`meters_current` 是插入数据的超级表名。
 
 可以通过超级表的 TAG 来过滤数据，比如查询 `location=California.LosAngeles groupid=3` 可以通过如下 SQL：
 
 ```sql
-SELECT * FROM `meters.current` WHERE location = "California.LosAngeles" AND groupid = 3;
+SELECT * FROM `meters_current` WHERE location = "California.LosAngeles" AND groupid = 3;
 ```

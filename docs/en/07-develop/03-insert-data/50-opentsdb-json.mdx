@@ -49,6 +49,7 @@ Please refer to [OpenTSDB HTTP API](http://opentsdb.net/docs/build/html/api_http
 
 - In JSON protocol, strings will be converted to NCHAR type and numeric values will be converted to double type.
 - The child table name is created automatically in a rule to guarantee its uniqueness. But you can configure `smlChildTableName` in taos.cfg to specify a tag value as the table names if the tag value is unique globally. For example, if a tag is called `tname` and you set `smlChildTableName=tname` in taos.cfg, when you insert `st,tname=cpu1,t1=4 c1=3 1626006833639000000`, the child table `cpu1` will be automatically created. Note that if multiple rows have the same tname but different tag_set values, the tag_set of the first row is used to create the table and the others are ignored.
+
 :::
 
 ## Examples
@@ -83,11 +84,11 @@ Database changed.
 taos> show stables;
               name              |
 =================================
- meters.current                 |
- meters.voltage                 |
+ meters_current                 |
+ meters_voltage                 |
 Query OK, 2 row(s) in set (0.001954s)
 
-taos> select * from `meters.current`;
+taos> select * from `meters_current`;
            _ts            |           _value           |          groupid          |            location            |
 ===================================================================================================================
  2022-03-28 09:56:51.249 |              10.300000000 |               2.000000000 | California.SanFrancisco               |
@@ -100,5 +101,5 @@ Query OK, 2 row(s) in set (0.004076s)
 If you want query the data of "tags": {"location": "California.LosAngeles", "groupid": 1}, here is the query SQL:
 
 ```sql
-SELECT * FROM `meters.current` WHERE location = "California.LosAngeles" AND groupid = 3;
+SELECT * FROM `meters_current` WHERE location = "California.LosAngeles" AND groupid = 3;
 ```
