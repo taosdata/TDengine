@@ -852,6 +852,13 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   return select;  
 }
 
+SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) {
+  if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
+  }
+  return pStmt;
+}
+
 static void setSubquery(SNode* pStmt) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->isSubquery = true;

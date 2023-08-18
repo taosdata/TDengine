@@ -693,7 +693,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     }
 
     if (pBlock->info.id.uid) {
-      pBlock->info.id.groupId = getTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+      pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
     }
 
     uint32_t status = 0;
@@ -1088,7 +1088,7 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
   if (hasNext) {
     /*SSDataBlock* p = */ pAPI->tsdReader.tsdReaderRetrieveDataBlock(pReader, NULL);
     doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
-    pBlock->info.id.groupId = getTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+    pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
   }
 
   pAPI->tsdReader.tsdReaderClose(pReader);
@@ -1110,7 +1110,7 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
 
 static uint64_t getGroupIdByUid(SStreamScanInfo* pInfo, uint64_t uid) {
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  return getTableGroupId(pTableScanInfo->base.pTableListInfo, uid);
+  return tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, uid);
 }
 
 static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion) {
@@ -1651,7 +1651,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pBlockInfo->version = pBlock->info.version;
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  pBlockInfo->id.groupId = getTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+  pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
 
   // todo extract method
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
@@ -2761,11 +2761,6 @@ static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aF
 static void tagScanFillOneCellWithTag(const STUidTagInfo* pUidTagInfo, SExprInfo* pExprInfo, SColumnInfoData* pColInfo, int rowIndex, const SStorageAPI* pAPI, void* pVnode) {
   if (fmIsScanPseudoColumnFunc(pExprInfo->pExpr->_function.functionId)) {  // tbname
     char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-//    if (pUidTagInfo->name != NULL) {
-//      STR_TO_VARSTR(str, pUidTagInfo->name);
-//    } else {  // name is not retrieved during filter
-//      pAPI->metaFn.getTableNameByUid(pVnode, pUidTagInfo->uid, str);
-//    }
     STR_TO_VARSTR(str, "ctbidx");
 
     colDataSetVal(pColInfo, rowIndex, str, false);
@@ -2834,12 +2829,14 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
 
   if (pInfo->pCtbCursor == NULL) {
     pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 1);
+  } else {
+    pAPI->metaFn.resumeCtbCursor(pInfo->pCtbCursor, 0);
   }
 
   SArray* aUidTags = pInfo->aUidTags;
   SArray* aFilterIdxs = pInfo->aFilterIdxs;
   int32_t count = 0;
-
+  bool ctbCursorFinished = false;
   while (1) {
     taosArrayClearEx(aUidTags, tagScanFreeUidTag);
     taosArrayClear(aFilterIdxs);
@@ -2849,6 +2846,7 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       SMCtbCursor* pCur = pInfo->pCtbCursor;
       tb_uid_t     uid = pAPI->metaFn.ctbCursorNext(pInfo->pCtbCursor);
       if (uid == 0) {
+        ctbCursorFinished = true;
         break;
       }
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
@@ -2877,7 +2875,15 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
       break;
     }
   }
-  
+
+  if (count > 0) {
+    pAPI->metaFn.pauseCtbCursor(pInfo->pCtbCursor);
+  }
+  if (count == 0 || ctbCursorFinished) {
+    pAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
+    pInfo->pCtbCursor = NULL;
+    setOperatorCompleted(pOperator);
+  }
   pRes->info.rows = count;
   pOperator->resultInfo.totalRows += count;
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
@@ -2942,7 +2948,7 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
 static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   if (pInfo->pCtbCursor != NULL) {
-    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor, 1);
+    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
   }
   taosHashCleanup(pInfo->filterCtx.colHash);
   taosArrayDestroy(pInfo->filterCtx.cInfoList);
@@ -3072,7 +3078,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
       continue;
     }
 
-    pBlock->info.id.groupId = getTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid);
+    pBlock->info.id.groupId = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid);
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
