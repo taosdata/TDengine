@@ -1974,7 +1974,7 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
   int32_t          vLen = 0;
 
   code = streamStateSessionGetKVByCur_rocksdb(pCur, &resKey, &tmp, &vLen);
-  if (code == 0 && key->win.skey != resKey.win.skey) {
+  if (code == 0 && key->win.skey == resKey.win.skey) {
     *key = resKey;
 
     if (pVal) {
