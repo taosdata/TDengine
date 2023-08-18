@@ -2226,7 +2226,7 @@ FETCH_NEXT_BLOCK:
     if (pBlock->info.type == STREAM_CHECKPOINT) {
       streamScanOperatorSaveCheckpoint(pInfo);
     }
-    printDataBlock(pBlock, "stream scan ck");
+    // printDataBlock(pBlock, "stream scan ck");
     return pInfo->pCheckpointRes;
   }
 
