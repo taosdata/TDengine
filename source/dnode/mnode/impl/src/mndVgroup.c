@@ -33,6 +33,7 @@
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
+static int32_t  mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj);
 
 static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
@@ -53,6 +54,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndVgroupActionInsert,
       .updateFp = (SdbUpdateFp)mndVgroupActionUpdate,
       .deleteFp = (SdbDeleteFp)mndVgroupActionDelete,
+      .validateFp = (SdbValidateFp)mndNewVgActionValidate,
   };
 
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndTransProcessRsp);
@@ -169,6 +171,17 @@ _OVER:
 
   mTrace("vgId:%d, decode from raw:%p, row:%p", pVgroup->vgId, pRaw, pVgroup);
   return pRow;
+}
+
+static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj) {
+  SVgObj *pVgroup = pObj;
+
+  int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  if (maxVgId > pVgroup->vgId) {
+    mError("trans:%d, vgroup id %d already in use. maxVgId:%d", pTrans->id, pVgroup->vgId, maxVgId);
+    return -1;
+  }
+  return 0;
 }
 
 static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup) {
