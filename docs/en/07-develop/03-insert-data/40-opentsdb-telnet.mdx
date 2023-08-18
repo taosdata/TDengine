@@ -34,6 +34,7 @@ meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 ```
 
 - The child table name is created automatically in a rule to guarantee its uniqueness. But you can configure `smlChildTableName` in taos.cfg to specify a tag value as the table names if the tag value is unique globally. For example, if a tag is called `tname` and you set `smlChildTableName=tname` in taos.cfg, when you insert `st,tname=cpu1,t1=4 c1=3 1626006833639000000`, the child table `cpu1` will be automatically created. Note that if multiple rows have the same tname but different tag_set values, the tag_set of the first row is used to create the table and the others are ignored.
+
   Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_telnet/put.html) for more details.
 
 ## Examples
@@ -68,11 +69,11 @@ Database changed.
 taos> show stables;
               name              |
 =================================
- meters.current                 |
- meters.voltage                 |
+ meters_current                 |
+ meters_voltage                 |
 Query OK, 2 row(s) in set (0.002544s)
 
-taos> select tbname, * from `meters.current`;
+taos> select tbname, * from `meters_current`;
              tbname             |           _ts            |           _value           | groupid |            location            |
 ==================================================================================================================================
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LosAngeles                |
@@ -87,5 +88,5 @@ Query OK, 4 row(s) in set (0.005399s)
 If you want query the data of `location=California.LosAngeles groupid=3`, here is the query SQL:
 
 ```sql
-SELECT * FROM `meters.current` WHERE location = "California.LosAngeles" AND groupid = 3;
+SELECT * FROM `meters_current` WHERE location = "California.LosAngeles" AND groupid = 3;
 ```

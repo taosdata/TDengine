@@ -32,8 +32,8 @@ All data in tag_set is automatically converted to the NCHAR data type and does n
 
 In the schemaless writing data line protocol, each data item in the field_set needs to be described with its data type. Let's explain in detail:
 
-- If there are English double quotes on both sides, it indicates the BINARY(32) type. For example, `"abc"`.
-- If there are double quotes on both sides and an L prefix, it means NCHAR(32) type. For example, `L"error message"`.
+- If there are English double quotes on both sides, it indicates the VARCHAR(N) type. For example, `"abc"`.
+- If there are double quotes on both sides and an L prefix, it means NCHAR(N) type. For example, `L"error message"`.
 - Spaces, equals sign (=), comma (,), double quote ("), and backslash (\\) need to be escaped with a backslash (\\) in front. (All refer to the ASCII character). The rules are as follows:
 
 | **Serial number** | **Element**    | **Escape characters**   |
