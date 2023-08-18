@@ -140,7 +140,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
     pState->pTdbState->pBackendCfWrapper = taosAcquireRef(streamBackendCfWrapperId, id);
     // already exist stream task for
     qInfo("already exist stream state for %s", pState->pTdbState->idstr);
-    taosAcquireRef(streamBackendId, pState->streamBackendRid);
+    // taosAcquireRef(streamBackendId, pState->streamBackendRid);
   }
   taosThreadMutexUnlock(&pMeta->backendMutex);
 
