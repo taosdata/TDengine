@@ -3236,7 +3236,7 @@ static void doStreamMidIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pS
         .ts = pResult->win.skey,
         .groupId = groupId,
     };
-    if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdatedMap) {
+    if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
       saveWinResult(&key, pResPos, pUpdatedMap);
     }
 
