@@ -196,8 +196,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
     return false;
   }
-  tDebug("head version: %d 2", pHead->version);
-
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
