@@ -2013,7 +2013,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (FUNCTION_TYPE_TBNAME == pFunc->funcType && pCxt->tableAlias) {
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
-      if (strcmp(pVal->literal, pCxt->tableAlias)) {
+      if (pVal && strcmp(pVal->literal, pCxt->tableAlias)) {
         return DEAL_RES_CONTINUE;
       }
     }
