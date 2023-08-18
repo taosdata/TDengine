@@ -208,7 +208,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
-    vnodeDestroy(path, pMgmt->pTfs);
+    vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs);
   }
 
   taosMemoryFree(pVnode->path);
