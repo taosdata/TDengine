@@ -437,7 +437,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       taosMkDir(state);
       code = copyFiles(chkp, state);
       if (code != 0) {
-        qError("failed to restart stream backend from  %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+        qError("failed to restart stream backend from %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       } else {
         qInfo("succ to restart stream backend at checkpoint path: %s", chkp);
       }
@@ -457,7 +457,7 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId) {
   char*   backendPath = NULL;
   int32_t code = rebuildDirFromCheckpoint(streamPath, chkpId, &backendPath);
 
-  qDebug("start to init stream backend at %s", backendPath);
+  qDebug("start to init stream backend at %s, checkpointid: %" PRId64 "", backendPath, chkpId);
 
   uint32_t         dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
   SBackendWrapper* pHandle = taosMemoryCalloc(1, sizeof(SBackendWrapper));
@@ -481,7 +481,7 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId) {
   rocksdb_options_set_max_total_wal_size(opts, dbMemLimit);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
-  rocksdb_options_set_info_log_level(opts, 0);
+  rocksdb_options_set_info_log_level(opts, 1);
   rocksdb_options_set_db_write_buffer_size(opts, dbMemLimit);
   rocksdb_options_set_write_buffer_size(opts, dbMemLimit / 2);
 
@@ -789,9 +789,19 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
     return -1;
   }
 
-  qDebug("stream backend:%p start to do checkpoint at:%s ", pHandle, path);
+  qDebug("stream backend:%p start to do checkpoint at:%s ", pHandle, checkpointDir);
+
   if (pHandle->db != NULL) {
-    char*                 err = NULL;
+    char* err = NULL;
+
+    rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
+    rocksdb_flush(pHandle->db, flushOpt, &err);
+    if (err != NULL) {
+      qError("failed to flush db before streamBackend clean up, reason:%s", err);
+      taosMemoryFree(err);
+    }
+    rocksdb_flushoptions_destroy(flushOpt);
+
     rocksdb_checkpoint_t* cp = rocksdb_checkpoint_object_create(pHandle->db, &err);
     if (cp == NULL || err != NULL) {
       qError("stream backend:%p failed to do checkpoint at:%s, reason:%s", pHandle, path, err);
@@ -1361,7 +1371,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
         inst->pCompares = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t*));
 
         inst->dbOpt = handle->dbOpt;
-        rocksdb_writeoptions_disable_WAL(inst->wOpt, 1);
+        // rocksdb_writeoptions_disable_WAL(inst->wOpt, 1);
         taosHashPut(handle->cfInst, idstr, strlen(idstr) + 1, &inst, sizeof(void*));
       } else {
         inst = *pInst;
@@ -1482,7 +1492,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   taosThreadRwlockInit(&pBackendCfWrapper->rwLock, NULL);
   SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
   pBackendCfWrapper->pComparNode = streamBackendAddCompare(handle, &compare);
-  rocksdb_writeoptions_disable_WAL(pBackendCfWrapper->writeOpts, 1);
+  // rocksdb_writeoptions_disable_WAL(pBackendCfWrapper->writeOpts, 1);
   memcpy(pBackendCfWrapper->idstr, pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr));
 
   int64_t id = taosAddRef(streamBackendCfWrapperId, pBackendCfWrapper);
@@ -1655,7 +1665,6 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
       taosMemoryFree(val);                                                                                            \
       if (vLen != NULL) *vLen = tlen;                                                                                 \
     }                                                                                                                 \
-    if (code == 0) qDebug("streamState str: %s succ to read from %s_%s", toString, wrapper->idstr, funcname);         \
   } while (0);
 
 #define STREAM_STATE_DEL_ROCKSDB(pState, funcname, key)                                                               \
@@ -2659,7 +2668,7 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb
   {
     char tbuf[256] = {0};
     ginitDict[i].toStrFunc((void*)key, tbuf);
-    qDebug("streamState str: %s succ to write to %s_%s", tbuf, wrapper->idstr, ginitDict[i].key);
+    qDebug("streamState str: %s succ to write to %s_%s, len: %d", tbuf, wrapper->idstr, ginitDict[i].key, vlen);
   }
   return 0;
 }
@@ -2694,6 +2703,8 @@ int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
     qError("streamState failed to write batch, err:%s", err);
     taosMemoryFree(err);
     return -1;
+  } else {
+    qDebug("write batch to backend opt: %p", wrapper->pBackend);
   }
   return 0;
 }

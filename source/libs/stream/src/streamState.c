@@ -422,14 +422,18 @@ void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number
 int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen) {
 #ifdef USE_ROCKSDB
   int32_t code = 0;
-  void*   batch = streamStateCreateBatch();
+  // void*   batch = streamStateCreateBatch();
 
-  code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen, 0);
-  if (code != 0) {
-    return code;
-  }
-  code = streamStatePutBatch_rocksdb(pState, batch);
-  streamStateDestroyBatch(batch);
+  // code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen, 0);
+  // if (code != 0) {
+  //   return code;
+  // }
+  // code = streamStatePutBatch_rocksdb(pState, batch);
+  // streamStateDestroyBatch(batch);
+  code = streamDefaultPut_rocksdb(pState, pKey, pVal, vLen);
+  char*   Val = NULL;
+  int32_t len = 0;
+  code = streamDefaultGet_rocksdb(pState, pKey, (void**)&Val, &len);
   return code;
 #else
   return 0;
