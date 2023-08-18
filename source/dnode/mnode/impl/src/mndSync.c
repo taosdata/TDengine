@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndSync.h"
 #include "mndCluster.h"
+#include "mndDb.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
 
@@ -74,28 +75,58 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
-  SSdbRow *pRow = NULL;
-  int32_t  code = -1;
+static int32_t mndValidateNewVgPrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  int      code = -1;
+  SSdbRow *pRow = (pMnode->pSdb->decodeFps[SDB_VGROUP])(pAction->pRaw);
+  if (pRow == NULL) goto _OUT;
+  SVgObj *pVgroup = sdbGetRowObj(pRow);
+  if (pVgroup == NULL) goto _OUT;
 
-  if (pAction->msgType == TDMT_MND_CREATE_VG) {
-    pRow = mndVgroupActionDecode(pAction->pRaw);
-    if (pRow == NULL) goto _OUT;
-
-    SVgObj *pVgroup = sdbGetRowObj(pRow);
-    if (pVgroup == NULL) goto _OUT;
-
-    int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
-    if (maxVgId > pVgroup->vgId) {
-      mError("trans:%d, failed to satisfy vgroup id %d of prepare action. maxVgId:%d", pTrans->id, pVgroup->vgId,
-             maxVgId);
-      goto _OUT;
-    }
+  int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  if (maxVgId > pVgroup->vgId) {
+    mError("trans:%d, vgroup id %d already in use. maxVgId:%d", pTrans->id, pVgroup->vgId, maxVgId);
+    goto _OUT;
   }
 
   code = 0;
 _OUT:
   taosMemoryFreeClear(pRow);
+  return code;
+}
+
+static int32_t mndValidateCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  int      code = -1;
+  SSdbRow *pRow = (pMnode->pSdb->decodeFps[SDB_DB])(pAction->pRaw);
+  if (pRow == NULL) goto _OUT;
+  SDbObj *pNewDb = sdbGetRowObj(pRow);
+  if (pNewDb == NULL) goto _OUT;
+
+  SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
+  if (pOldDb != NULL) {
+    mError("trans:%d, db name already in use. name: %s", pTrans->id, pNewDb->name);
+    sdbRelease(pMnode->pSdb, pOldDb);
+    goto _OUT;
+  }
+
+  code = 0;
+_OUT:
+  taosMemoryFreeClear(pRow);
+  return code;
+}
+
+static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  int32_t code = 0;
+
+  switch (pAction->pRaw->type) {
+    case SDB_VGROUP:
+      code = mndValidateNewVgPrepareAction(pMnode, pTrans, pAction);
+      break;
+    case SDB_DB:
+      code = mndValidateCreateDbPrepareAction(pMnode, pTrans, pAction);
+      break;
+    default:
+  }
+
   return code;
 }
 
