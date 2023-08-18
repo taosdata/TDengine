@@ -13,10 +13,11 @@ pub mod utils;
 
 mod plugins;
 
+use anyhow::Context;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::Dsn;
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 
 pub use csv::*;
 use dashmap::DashMap;
@@ -118,6 +119,63 @@ impl TaskOpts {
             transferred,
         } = self;
 
+        // Check if enterprise available
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        match (from.driver.as_str(), to.driver.as_str()) {
+            ("tmq" | "taos", "tmq" | "taos") => {
+                let mut from = from.clone();
+                from.subject.take();
+                let from = TaosBuilder::from_dsn(from)?;
+                let mut to = to.clone();
+                to.subject.take();
+                let to = TaosBuilder::from_dsn(to)?;
+
+                if !from
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check source edition")?
+                    && !to
+                        .is_enterprise_edition()
+                        .await
+                        .context("Failed to check target edition")?
+                {
+                    anyhow::bail!(
+                        "Source or target should be enterprise edition. If it's not your case, please contact us."
+                    )
+                }
+            }
+            ("tmq" | "taos", _) => {
+                let mut from = from.clone();
+                from.subject.take();
+                let builder = TaosBuilder::from_dsn(from)?;
+                if !builder
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check source edition")?
+                {
+                    anyhow::bail!(
+                        "Only enterprise edition is supported. If it's not your case, please contact us."
+                    )
+                }
+            }
+            (_, "tmq" | "taos") => {
+                let mut to = to.clone();
+                to.subject.take();
+                let builder = TaosBuilder::from_dsn(to)?;
+                if !builder
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check target edition")?
+                {
+                    anyhow::bail!(
+                        "Only enterprise edition is supported. If it's not your case, please contact us."
+                    )
+                }
+            }
+            _ => (),
+        }
+
+        // Run task
         {
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
@@ -229,7 +287,8 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

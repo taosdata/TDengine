@@ -26,11 +26,6 @@ pub fn stop_thread<T>(handle: JoinHandle<T>) {
     };
 }
 
-// /// Check enterprise edition
-// pub async fn is_available_enterprise_edition(taos: &TaosBuilder) -> bool {
-//     taos.is_enterprise_edition().await
-// }
-
 /// Clear database stables and tables.
 pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
     let taos = TaosBuilder::from_dsn(dsn)?.build().await?;

@@ -176,7 +176,7 @@ async fn backup(
                 } else {
                     vec![]
                 };
-                
+
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     if assignment.is_empty() {
@@ -298,12 +298,6 @@ pub async fn tmq_to_local(
 
     let version = builder.server_version().await?.to_owned();
 
-    #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !builder.is_enterprise_edition().await? {
-        anyhow::bail!(
-            "Only enterprise edition is supported. If it's not your case, please contact us."
-        )
-    }
     let mut from_params = from.drain_params();
 
     let stop_at = if let Some(stop_at) = from_params.remove("stopAt") {
