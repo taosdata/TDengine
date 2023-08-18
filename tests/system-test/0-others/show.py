@@ -128,7 +128,7 @@ class TDTestCase:
                     continue
                 else:
                     tdLog.exit(f"show create database check failed with {key} {value}")
-        tdSql.query('show vnodes 1')
+        tdSql.query('show vnodes on dnode 1')
         tdSql.checkRows(self.vgroups)
         tdSql.execute(f'use {self.dbname}')
 

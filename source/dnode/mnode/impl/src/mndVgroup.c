@@ -961,27 +961,24 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
+  int64_t curMs = taosGetTimestampMs();
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
-      SVnodeGid       *pVgid = &pVgroup->vnodeGid[i];
+      SVnodeGid       *pGid = &pVgroup->vnodeGid[i];
       SColumnInfoData *pColInfo = NULL;
       cols = 0;
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
-
-      char buf[20] = {0};
-      STR_TO_VARSTR(buf, syncStr(pVgid->syncState));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-
+      // db_name
       const char *dbname = mndGetDbStr(pVgroup->dbName);
       char        b1[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       if (dbname != NULL) {
@@ -992,20 +989,33 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
 
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgid->dnodeId, false);
-
-      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-      char       b2[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
-      if (pDnode != NULL) {
-        STR_WITH_MAXSIZE_TO_VARSTR(b2, pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
-      } else {
-        STR_WITH_MAXSIZE_TO_VARSTR(b2, "NULL", TSDB_EP_LEN + VARSTR_HEADER_SIZE);
+      // dnode is online?
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pGid->dnodeId);
+      if (pDnode == NULL) {
+        mError("failed to acquire dnode. dnodeId:%d", pGid->dnodeId);
+        break;
       }
+      bool isDnodeOnline = mndIsDnodeOnline(pDnode, curMs);
+
+      char       buf[20] = {0};
+      ESyncState syncState = (isDnodeOnline) ? pGid->syncState : TAOS_SYNC_STATE_OFFLINE;
+      STR_TO_VARSTR(buf, syncStr(syncState));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+
+      int64_t roleTimeMs = (isDnodeOnline) ? pGid->roleTimeMs : 0;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+
+      int64_t startTimeMs = (isDnodeOnline) ? pGid->startTimeMs : 0;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
 
       numOfRows++;
+      sdbRelease(pSdb, pDnode);
     }
 
     sdbRelease(pSdb, pVgroup);
