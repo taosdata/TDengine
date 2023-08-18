@@ -1,5 +1,7 @@
-use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, Parser, Transferred};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+
 use anyhow::Context;
 use arrow::array::{
     BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
@@ -10,12 +12,13 @@ use arrow::record_batch::RecordBatch;
 use kafka::client::{KafkaClient, SecurityConfig};
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, MessageSet};
 use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 use taos::Dsn;
-use taosx_ipc::prelude::ArrowDataType;
 use tokio_util::sync::CancellationToken;
+
+use taosx_ipc::prelude::ArrowDataType;
+
+use crate::{Action, build_ipc, Parser, Transferred};
+use crate::utils::port_pool::PortPool;
 
 async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
@@ -25,7 +28,7 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
 
     let mut consumer = build_consumer(&mut from)?;
-    let timeout = parse_timeout(&from);
+    let timeout = parse_timeout(&from)?;
     let mut start = chrono::Utc::now().timestamp_millis();
     loop {
         let message_sets = consumer.poll().context("Kafka polling error")?;
@@ -52,7 +55,7 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos();
                 let default_print_value = String::from("false");
-                let print_value: bool = from.params.get("print_value").unwrap_or(&default_print_value).parse().unwrap();
+                let print_value: bool = from.params.get("print_value").unwrap_or(&default_print_value).parse()?;
                 if print_value {
                     print_message(&ms, &m, &ts);
                 }
@@ -171,6 +174,11 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
+pub async fn is_kafka_available(dsn: &Dsn) -> anyhow::Result<bool> {
+    build_consumer(dsn)?;
+    Ok(true)
+}
+
 fn build_schema() -> Schema {
     let mut metadata = HashMap::new();
     metadata.insert(String::from("version"), String::from("1.0"));
@@ -192,7 +200,7 @@ fn build_schema() -> Schema {
     schema
 }
 
-fn build_consumer(dsn: &mut Dsn) -> Result<Consumer, KafkaConfigError> {
+fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
     let use_ssl_default = String::from("false");
     let use_ssl = dsn.params.get("use_ssl").unwrap_or(&use_ssl_default);
     let use_ssl = use_ssl.parse().unwrap_or(false);
@@ -223,15 +231,16 @@ fn build_consumer(dsn: &mut Dsn) -> Result<Consumer, KafkaConfigError> {
                 let partition = topic_partition[1];
                 if partition.contains("..") {
                     let partition_range = partition.split("..").collect::<Vec<&str>>();
-                    let start = partition_range[0].parse::<i32>().unwrap();
-                    let end = partition_range[1].parse::<i32>().unwrap();
+                    let start = partition_range[0].parse::<i32>()?;
+                    let end = partition_range[1].parse::<i32>()?;
                     if start > end {
-                        panic!("invalid partition range: {}", partition);
+                        let msg = format!("invalid partition range: {}", partition);
+                        return Err(KafkaSourceError::InvalidParameterError(msg))?;
                     }
                     let partitions = (start..=end).collect::<Vec<i32>>();
                     builder = builder.with_topic_partitions(topic.to_string(), &partitions);
                 } else {
-                    let partition = partition.parse::<i32>().unwrap();
+                    let partition = partition.parse::<i32>()?;
                     builder = builder.with_topic_partitions(topic.to_string(), &[partition]);
                 }
             } else {
@@ -240,10 +249,10 @@ fn build_consumer(dsn: &mut Dsn) -> Result<Consumer, KafkaConfigError> {
         }
     }
 
-    let fallback_offset = parse_fallback_offset(dsn.params.get("fallback_offset"));
+    let fallback_offset = parse_fallback_offset(dsn.params.get("fallback_offset").map(String::as_str))?;
     builder = builder.with_fallback_offset(fallback_offset);
 
-    let offset_storage = parse_offset_storage(dsn.params.get("offset_storage"));
+    let offset_storage = parse_offset_storage(dsn.params.get("offset_storage").map(String::as_str))?;
     builder = builder.with_offset_storage(offset_storage);
 
     let consumer = builder.create()?;
@@ -257,48 +266,38 @@ fn build_builder(dsn: &Dsn) -> kafka::consumer::Builder {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum KafkaConfigError {
+enum KafkaSourceError {
+    #[error("invalid parameter error, cause: {0}")]
+    InvalidParameterError(String),
+
     #[error("Kafka source CA config read error, cause: {0}")]
     CAConfigReadError(String),
+
     #[error(transparent)]
-    KafkaConsumerError(#[from] kafka::Error),
-    // #[error("Kafka source config parse error, cause: {0}")]
-    // KafkaSourceConfigParseError(String),
+    KafkaError(#[from] kafka::Error),
 }
 
-fn build_ssl_builder(dsn: &mut Dsn) -> Result<kafka::consumer::Builder, KafkaConfigError> {
+fn build_ssl_builder(dsn: &Dsn) -> anyhow::Result<kafka::consumer::Builder> {
     let bootstrap_servers = parse_bootstrap_servers(dsn);
 
-    let cert_key = super::mqtt::get_string_from_param_or_file(dsn, "cert_key", true, None)
-        .map_err(|s| KafkaConfigError::CAConfigReadError(s))?;
-    let cert = super::mqtt::get_string_from_param_or_file(dsn, "cert", true, None)
-        .map_err(|s| KafkaConfigError::CAConfigReadError(s))?;
+    let mut dsn_copy = dsn.clone();
 
-    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_cipher_list("DEFAULT").unwrap();
-    builder
-        .set_certificate_file(cert.unwrap(), SslFiletype::PEM)
-        .unwrap();
-    builder
-        .set_private_key_file(cert_key.unwrap(), SslFiletype::PEM)
-        .unwrap();
-    builder.check_private_key().unwrap();
-    builder.set_default_verify_paths().unwrap();
+    let cert_key = super::mqtt::get_string_from_param_or_file(&mut dsn_copy, "cert_key", true, None)
+        .map_err(|s| KafkaSourceError::CAConfigReadError(s))?;
+    let cert = super::mqtt::get_string_from_param_or_file(&mut dsn_copy, "cert", true, None)
+        .map_err(|s| KafkaSourceError::CAConfigReadError(s))?;
+
+    let mut builder = SslConnector::builder(SslMethod::tls())?;
+    builder.set_cipher_list("DEFAULT")?;
+    builder.set_certificate_file(cert.unwrap(), SslFiletype::PEM)?;
+    builder.set_private_key_file(cert_key.unwrap(), SslFiletype::PEM)?;
+    builder.check_private_key()?;
+    builder.set_default_verify_paths()?;
     builder.set_verify(SslVerifyMode::PEER);
     let connector = builder.build();
 
     let mut client = KafkaClient::new_secure(bootstrap_servers, SecurityConfig::new(connector));
-    match client.load_metadata_all() {
-        Err(e) => {
-            //TODO: handle error
-            println!("Error: {:?}", e);
-        }
-        Ok(_) => {
-            if client.topics().len() == 0 {
-                println!("No topics available");
-            }
-        }
-    }
+    client.load_metadata_all()?;
 
     let builder = Consumer::from_client(client);
     Ok(builder)
@@ -329,61 +328,60 @@ fn print_message(ms: &MessageSet, m: &Message, ts: &i64) {
     );
 }
 
-fn parse_timeout(dsn: &Dsn) -> i64 {
+fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
     let default_timeout = String::from("500");
     let timeout = dsn.params.get("timeout").unwrap_or(&default_timeout);
     if timeout == "never" {
-        return -1;
+        return Ok(-1);
     }
-    timeout.parse::<i64>().unwrap()
+    timeout.parse::<i64>().map_err(|e| anyhow::anyhow!("invalid timeout: {}, cause: {}",timeout, e))
 }
 
-fn parse_fallback_offset(fallback_offset: Option<&String>) -> FetchOffset {
-    if fallback_offset.is_none() {
-        return FetchOffset::Earliest;
+fn parse_fallback_offset(fallback_offset: Option<&str>) -> anyhow::Result<FetchOffset> {
+    match fallback_offset {
+        Some("Earliest") | None => Ok(FetchOffset::Earliest),
+        Some("Latest") => Ok(FetchOffset::Latest),
+        Some(s) => {
+            s.parse::<i64>().map(FetchOffset::ByTime)
+                .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}",s, e))
+        }
     }
-
-    let fallback_offset = fallback_offset.unwrap();
-    if fallback_offset.eq(&String::from("Earliest")) {
-        return FetchOffset::Earliest;
-    }
-
-    if fallback_offset.eq(&String::from("Latest")) {
-        return FetchOffset::Latest;
-    }
-
-    if fallback_offset.parse::<i64>().is_ok() {
-        return FetchOffset::ByTime(fallback_offset.parse::<i64>().unwrap());
-    }
-
-    panic!("invalid fallback_offset: {}", fallback_offset);
 }
 
-fn parse_offset_storage(offset_storage: Option<&String>) -> GroupOffsetStorage {
-    if offset_storage.is_none() {
-        return GroupOffsetStorage::Kafka;
+fn parse_offset_storage(offset_storage: Option<&str>) -> anyhow::Result<GroupOffsetStorage> {
+    match offset_storage {
+        Some("Kafka") | None => Ok(GroupOffsetStorage::Kafka),
+        Some("Zookeeper") => Ok(GroupOffsetStorage::Zookeeper),
+        Some(s) => Err(anyhow::anyhow!("invalid offset_storage: {}", s)),
     }
 
-    let offset_storage = offset_storage.unwrap();
-    if offset_storage.eq(&String::from("Kafka")) {
-        return GroupOffsetStorage::Kafka;
-    }
-
-    if offset_storage.eq(&String::from("Zookeeper")) {
-        return GroupOffsetStorage::Zookeeper;
-    }
-
-    panic!("invalid offset_storage: {}", offset_storage);
+    // if offset_storage.is_none() {
+    //     return GroupOffsetStorage::Kafka;
+    // }
+    //
+    // let offset_storage = offset_storage.unwrap();
+    // if offset_storage.eq(&String::from("Kafka")) {
+    //     return GroupOffsetStorage::Kafka;
+    // }
+    //
+    // if offset_storage.eq(&String::from("")) {
+    //     return GroupOffsetStorage::Zookeeper;
+    // }
+    //
+    // panic!("invalid offset_storage: {}", offset_storage);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use arrow::datatypes::{DataType, Field, Schema};
     use std::collections::HashMap;
     use std::fmt::Debug;
     use std::str::FromStr;
+
+    use arrow::datatypes::{DataType, Field, Schema};
+
     use taosx_ipc::prelude::ArrowDataType;
+
+    use super::*;
 
     #[test]
     fn test_arrow() {
@@ -421,10 +419,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_topics_invalid() {
         let mut dsn = Dsn::from_str("kafka://192.168.1.92:9092/?topics=invalid").unwrap();
         let consumer = build_consumer(&mut dsn);
+        assert!(consumer.is_err());
     }
 
     #[test]
@@ -434,7 +432,6 @@ mod tests {
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(5, subscriptions.get("tp1").unwrap().len());
-        println!("{:?}", subscriptions);
 
         let mut dsn =
             Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:1,tp2").unwrap();
@@ -442,7 +439,6 @@ mod tests {
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(1, subscriptions.get("tp1").unwrap().len());
-        println!("{:?}", subscriptions);
 
         let mut dsn =
             Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:0..2,tp2&group=test")
@@ -452,79 +448,78 @@ mod tests {
         let subscriptions = consumer.subscriptions();
         assert_eq!(2, subscriptions.len());
         assert_eq!(3, subscriptions.get("tp1").unwrap().len());
-        println!("{:?}", subscriptions);
     }
 
     #[test]
-    #[should_panic]
     fn test_topic_partitions_invalid() {
         let mut dsn =
             Dsn::from_str("kafka://192.168.1.92:9092/?topic_partitions=tp1:2..1,tp2").unwrap();
         let consumer = build_consumer(&mut dsn);
+        assert!(consumer.is_err());
     }
 
     #[test]
     fn test_parse_timeout() {
         let dsn = Dsn::from_str("kafka://localhost:9092?timeout=99999").unwrap();
-        let result = parse_timeout(&dsn);
+        let result = parse_timeout(&dsn).unwrap();
         assert_eq!(99999, result);
 
         let dsn = Dsn::from_str("kafka://localhost:9092?timeout=never").unwrap();
-        let result = parse_timeout(&dsn);
+        let result = parse_timeout(&dsn).unwrap();
         assert_eq!(-1, result);
     }
 
     #[test]
-    #[should_panic]
     fn test_parse_timeout_invalid() {
         let dsn = Dsn::from_str("kafka://localhost:9092?timeout=invalid").unwrap();
         let result = parse_timeout(&dsn);
+        assert!(result.is_err());
     }
 
     #[test]
     fn test_parse_fallback_offset() {
         // Earliest
         let fallback_offset = Some(String::from("Earliest"));
-        let result = parse_fallback_offset(fallback_offset.as_ref());
+        let result = parse_fallback_offset(fallback_offset.as_deref()).unwrap();
         assert_eq!("Earliest", format!("{result:?}"));
 
         // Latest
         let fallback_offset = Some(String::from("Latest"));
-        let result = parse_fallback_offset(fallback_offset.as_ref());
+        let result = parse_fallback_offset(fallback_offset.as_deref()).unwrap();
         assert_eq!("Latest", format!("{result:?}"));
 
         // ByTime
         let fallback_offset = Some(String::from("1600000000000"));
-        let result = parse_fallback_offset(fallback_offset.as_ref());
+        let result = parse_fallback_offset(fallback_offset.as_deref()).unwrap();
         assert_eq!("ByTime(1600000000000)", format!("{result:?}"));
     }
 
     #[test]
-    #[should_panic]
     fn test_parse_fallback_offset_invalid() {
         // invalid
         let fallback_offset = Some(String::from("invalid"));
-        let result = parse_fallback_offset(fallback_offset.as_ref());
+        let result = parse_fallback_offset(fallback_offset.as_deref());
+        assert!(result.is_err())
     }
 
     #[test]
     fn test_parse_offset_storage() {
         // Kafka
         let offset_storage = Some(String::from("Kafka"));
-        let result = parse_offset_storage(offset_storage.as_ref());
+        let result = parse_offset_storage(offset_storage.as_deref()).unwrap();
         assert_eq!("Kafka", format!("{result:?}"));
 
         // Zookeeper
         let offset_storage = Some(String::from("Zookeeper"));
-        let result = parse_offset_storage(offset_storage.as_ref());
+        let result = parse_offset_storage(offset_storage.as_deref()).unwrap();
         assert_eq!("Zookeeper", format!("{result:?}"));
     }
 
     #[test]
-    #[should_panic]
     fn test_parse_offset_storage_invalid() {
         // invalid
         let offset_storage = Some(String::from("invalid"));
-        let result = parse_offset_storage(offset_storage.as_ref());
+        let result = parse_offset_storage(offset_storage.as_deref());
+        assert!(result.is_err());
     }
 }
