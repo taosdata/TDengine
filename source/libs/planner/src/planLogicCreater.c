@@ -44,6 +44,9 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
   switch (pFunc->funcType) {
     case FUNCTION_TYPE_TBNAME:
       pCol->colType = COLUMN_TYPE_TBNAME;
+      SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+      strcpy(pCol->tableName, pVal->literal);
+      strcpy(pCol->tableAlias, pVal->literal);
       break;
     case FUNCTION_TYPE_WSTART:
       if (!isPartitionBy) {
