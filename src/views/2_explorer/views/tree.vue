@@ -77,9 +77,10 @@
                     v-if="['sfile', 'nfile', 'stable'].includes(data.typeName)"
                   >
                     <i
+                      style="margin-right: 10px"
                       v-permission
-                      class="el-icon-search-tables"
-                      @click.stop="add(data, node)"
+                      class="el-icon-query"
+                      @click.stop="search(data, node)"
                     ></i>
                   </el-tooltip>
                   <el-tooltip
@@ -196,6 +197,51 @@
         </el-tooltip>
       </VueEasyTree>
     </div>
+    <el-dialog
+      :title="dialogtitle"
+      :visible.sync="searchdialog"
+      width="30%"
+      :destroy-on-close="true"
+      @close="closeDialog"
+    >
+      <div class="tag-list">
+        <!-- <span class="title">Tags</span> -->
+        <div class="open-tag" v-if="showtag">
+          <span class="label">{{$t('data.enabletag')}}</span>
+          <el-switch v-model="switchtag"> </el-switch>
+        </div>
+        <template v-if="switchtag">
+          <TagColumn
+            v-for="(item, index) in tagList"
+            :key="index"
+            :tagColumnData="item"
+          ></TagColumn>
+        </template>
+      </div>
+      <el-form :model="serachForm" ref="searchForm" label-width="90px">
+        <!-- <el-form-item label="Tag" prop="tagname" v-if="showtag">
+          <div class="tag-column">
+             <el-select v-model="tagCondition" placeholder="请选择">
+              <el-option
+                v-for="item in conditionList"
+                :key="item"
+                :label="item"
+                :value="item"
+              >
+              </el-option>
+            </el-select>
+             
+          </div>
+        </el-form-item> -->
+        <el-form-item :label="$t('datasource.csvtable')  " prop="tablename" :rules="tablerule">
+          <el-input v-model="serachForm.tablename" size="small"></el-input>
+        </el-form-item>
+      </el-form>
+      <div class="footer">
+        <el-button @click="closeDialog" size="small">{{$t('cancel')}}</el-button>
+        <el-button type="primary" @click="searchTables">{{$t('confirm')}}</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -211,12 +257,37 @@ import {
   getMatrixStructReq,
   getTableStructReq,
 } from "@/api/gateway/data/tables.js";
+import { sendSQLReq } from "@/api/gateway/console";
 import PanelHeader from "./components/panelHeader.vue";
 import VueEasyTree from "@/components/Tree";
 import { deepClone } from "@/utils";
 import moment from "moment";
 import { Message } from "element-ui";
+import TagColumn from "./components/tagColumn.vue";
+import {
+  CompareOperator,
+  JsonOperator,
+  GeneralOperator,
+  RegularOperator,
+} from "@/const";
 const clickNoChange = ["sql", "xterm"];
+const getGeneralFn = (type) => {
+  return GeneralOperator.filter((item) => !type.includes(item.label)).map(
+    (item) => item.label
+  );
+};
+const conditionMap = {
+  TIMESTAMP: CompareOperator.concat(getGeneralFn(["TIMESTAMP"])),
+  NUMBER: CompareOperator.concat(getGeneralFn(["NUMBER"])),
+  STRING: RegularOperator.concat(getGeneralFn(["STRING"])),
+  JSON: JsonOperator,
+  BOOL: CompareOperator.concat(
+    getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
+  ),
+};
+const conditionList = CompareOperator.concat(
+  getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
+);
 export default {
   props: {
     addSql: {
@@ -224,7 +295,7 @@ export default {
       default: "",
     },
   },
-  components: { PanelHeader, VueEasyTree },
+  components: { PanelHeader, VueEasyTree, TagColumn },
   data() {
     this.icon = {
       database: "database_icon",
@@ -237,6 +308,31 @@ export default {
     };
     this.notAdd = ["column", "tag"];
     return {
+      switchtag: false,
+      tagList: [],
+      conditionList,
+      dialogtitle: "",
+      searchdialog: false,
+      showtag: false,
+      currentSearch: "",
+      serachForm: {
+        tagname: "",
+        tablename: "",
+      },
+      tagrule: [
+        {
+          required: false,
+          message: this.$t("data.searchtbtip"),
+          trigger: "blur",
+        },
+      ],
+      tablerule: [
+        {
+          required: true,
+          message: this.$t("data.searchtbtip"),
+          trigger: "blur",
+        },
+      ],
       isRoot: localStorage.getItem("username"),
       defaultProps: {
         children: "children",
@@ -266,8 +362,15 @@ export default {
   },
   mounted() {
     this.height = this.$el.clientHeight - 70 + "px";
+    console.log(conditionMap, "条件集00000---===");
   },
   methods: {
+    closeDialog() {
+      console.log("关闭弹窗999");
+      this.serachForm.tagname = "";
+      this.serachForm.tablename = "";
+      this.searchdialog = false;
+    },
     refersh() {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
@@ -682,7 +785,136 @@ export default {
       );
       this.$store.state.console.partActive = "detail";
     },
+    async search(data, node) {
+      this.searchdialog = true;
+      this.currentSearch = data;
+      switch (data.typeName) {
+        case "sfile":
+          this.showtag = false;
+          this.switchtag=false
+          this.dialogtitle = this.$t("data.searchsp");
+          break;
+        case "stable":
+          let result = await sendSQLReq(
+            `describe ${data.db_name}.${data.name}`
+          );
+          this.tagList = result.data.map((db) => {
+            return Object.fromEntries(
+              result.column_meta.map((item, index) => {
+                return [item[0], db[index]];
+              })
+            );
+          });
+          this.tagList = this.tagList
+            .map((item) => {
+              console.log(item, "循环");
+              return Object.assign(
+                item,
+                {
+                  conditionList: conditionMap["NUMBER"],
+                },
+                {
+                  value: "",
+                },
+                {
+                  condition: "",
+                }
+              );
+            })
+            .filter((val) => val.note == "TAG");
+
+          console.log(data, node, "查询---9999", result, this.tagList);
+          this.showtag = true;
+          this.dialogtitle = this.$t("data.searchsub");
+          break;
+        case "nfile":
+          this.showtag = false;
+          this.switchtag=false
+          this.dialogtitle = this.$t("data.searchnt");
+          break;
+      }
+    },
+    async searchTables() {
+      try {
+        let flag = true;
+        this.$refs.searchForm.validate((valid) => {
+          if (valid) {
+            console.log("验证通过", this.tagList);
+            flag = true;
+            return true;
+          } else {
+            console.log("验证不通过", this.tagList);
+            flag = false;
+            return false;
+          }
+        });
+        if (!flag) {
+          return;
+        }
+        console.log(this.switchtag, this.currentSearch.typeName, "switch");
+        switch (this.currentSearch.typeName) {
+          case "sfile": //查询超级表
+            await this.$store
+              .dispatch(
+                "console/sendConsoleSQL",
+                `select stable_name from information_schema.ins_stables where db_name='${this.currentSearch.db_name}' and  stable_name like '%${this.serachForm.tablename}%'`
+              )
+              .catch(() => false);
+
+            break;
+          case "stable":
+            if (this.switchtag) {
+              for (let i = 0; i < this.tagList.length; i++) {
+                if (!this.tagList[i].condition || !this.tagList[i].value) {
+                  Message.warning(this.$t("data.fulltagtip"));
+                  return;
+                }
+              }
+              let wherestr = "";
+              this.tagList.forEach((item, index) => {
+                wherestr +=
+                  " " +
+                  (index == 0 ? "" : "and") +
+                  " " +
+                  `${item.field}` +
+                  " " +
+                  `${item.condition}` +
+                  " " +
+                  `${item.value}`;
+              });
+              console.log("是否跳出循环", wherestr);
+              await this.$store
+                .dispatch(
+                  "console/sendConsoleSQL",
+                  `select distinct tbname from \`${this.currentSearch.db_name}\`.\`${this.currentSearch.stable_name}\` where ${wherestr}`
+                )
+                .catch(() => false);
+            } else {
+              await this.$store
+                .dispatch(
+                  "console/sendConsoleSQL",
+                  `select table_name from information_schema.ins_tables where db_name='${this.currentSearch.db_name}' and  stable_name='${this.currentSearch.stable_name}' and table_name like '%${this.serachForm.tablename}%'`
+                )
+                .catch(() => false);
+            }
+
+            break;
+          case "nfile":
+            await this.$store
+              .dispatch(
+                "console/sendConsoleSQL",
+                `select table_name from information_schema.ins_tables where db_name='${this.currentSearch.db_name}' and  stable_name is null and table_name like '%${this.serachForm.tablename}%'`
+              )
+              .catch(() => false);
+            break;
+        }
+        this.searchdialog = false;
+      } catch (error) {
+        console.log(error, "查询表格");
+      }
+    },
     getTooltip(data, operate) {
+      console.log(data, operate, "tooltip");
       let obj = {
         database: {
           add: this.$t("data.createStable", [data.name]),
@@ -703,6 +935,7 @@ export default {
           edit: this.$t("data.editTable", [data.name]),
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
+          search: this.$t("data.searchnt"),
         },
         table: {
           add: this.$t("data.createnormalTable", [data.name]),
@@ -715,6 +948,7 @@ export default {
           edit: this.$t("data.editTable", [data.name]),
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
+          search: this.$t("data.searchsub"),
         },
         column: {
           view: this.$t("data.viewTable"),
@@ -893,5 +1127,33 @@ export default {
 .el-tooltip__popper.el-tree-popper[x-placement^="right"] .popper__arrow,
 .el-tooltip__popper[x-placement^="right"] .popper__arrow::after {
   border-right-color: $color-primary !important;
+}
+.footer {
+  display: flex;
+  justify-content: center;
+  .el-button {
+    height: 36px;
+    padding: 8px 20px;
+    font-size: 14px;
+  }
+}
+.tag-column {
+  display: flex;
+  .el-select {
+    margin-right: 10px;
+  }
+}
+.tag-list {
+  .open-tag {
+    display: flex;
+  }
+  .label {
+    color: #4d6992;
+    font-size: 16px;
+    display: block;
+    font-weight: 500;
+    margin-bottom: 15px;
+    margin-right: 10px;
+  }
 }
 </style>
