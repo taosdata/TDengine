@@ -184,8 +184,8 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
      若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
 ```
 
-3. jobs 指定任务并发数，仅支持 tmq 任务。暂无法通过 Explorer 进行设置。通过 --jobs <number> 或 -j <number> 进行设置。
-4. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
+1. jobs 指定任务并发数，仅支持 tmq 任务。暂无法通过 Explorer 进行设置。通过 --jobs `<number>` 或 -j `<number>` 进行设置。
+2. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
 
 
 ### 从 TDengine 到 TDengine 的数据同步
@@ -353,7 +353,7 @@ alter database test wal_retention_period 3600;
 | certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
 | private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
 | csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效|
-| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid>::<code>，code 用于建子表。|
+| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid\>::<code\>，code 用于建子表。|
 | opc_table_config | string | OPCUA 单列模式表配置。需要与 ua.nodes 配合使用。|
 | debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。|
 | enable | bool | 原始数据存储。默认为 false|
