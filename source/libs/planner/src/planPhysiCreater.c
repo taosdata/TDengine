@@ -136,7 +136,7 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   int16_t slotId = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pList) {
-    char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+    char name[TSDB_COL_FNAME_LEN] = {0};
     getSlotKey(pNode, NULL, name);
     code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, false));
     if (TSDB_CODE_SUCCESS == code) {

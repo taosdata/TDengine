@@ -308,7 +308,7 @@ struct SSchema {
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
-  char     name[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN];
+  char     name[TSDB_COL_FNAME_LEN];
 };
 
 struct SSchema2 {
@@ -316,8 +316,8 @@ struct SSchema2 {
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
-  char     name[TSDB_COL_NAME_LEN];
-  char     alias[TSDB_COL_NAME_LEN];
+  char     name[TSDB_COL_FNAME_LEN];
+  char     alias[TSDB_COL_FNAME_LEN];
 };
 
 typedef struct {

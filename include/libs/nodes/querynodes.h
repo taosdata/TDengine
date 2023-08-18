@@ -47,8 +47,8 @@ typedef struct SDataType {
 typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
-  char      aliasName[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN];
-  char      userAlias[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN];
+  char      aliasName[TSDB_COL_FNAME_LEN];
+  char      userAlias[TSDB_COL_FNAME_LEN];
   SArray*   pAssociation;
   bool      orderAlias;
   bool      asAlias;
@@ -76,7 +76,7 @@ typedef struct SColumnNode {
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
-  char        colName[TSDB_COL_NAME_LEN];
+  char        colName[TSDB_COL_FNAME_LEN];
   int16_t     dataBlockId;
   int16_t     slotId;
 } SColumnNode;
