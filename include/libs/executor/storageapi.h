@@ -106,6 +106,8 @@ typedef struct SMCtbCursor {
   void    *pVal;
   int      kLen;
   int      vLen;
+  int8_t     paused;
+  int      lock;
 } SMCtbCursor;
 
 typedef struct SRowBuffPos {
@@ -295,7 +297,9 @@ int32_t vnodeGetCtbIdListByFilter(void *pVnode, int64_t suid, SArray *list, bool
 int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
  */
   SMCtbCursor* (*openCtbCursor)(void *pVnode, tb_uid_t uid, int lock);
-  void         (*closeCtbCursor)(SMCtbCursor *pCtbCur, int lock);
+  int32_t      (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
+  void         (*pauseCtbCursor)(SMCtbCursor* pCtbCur);
+  void         (*closeCtbCursor)(SMCtbCursor *pCtbCur);
   tb_uid_t     (*ctbCursorNext)(SMCtbCursor* pCur);
 } SStoreMeta;
 

@@ -241,6 +241,7 @@ typedef struct SSyncState {
   bool       canRead;
   SyncTerm   term;
   int64_t    roleTimeMs;
+  int64_t    startTimeMs;
 } SSyncState;
 
 int32_t   syncInit();

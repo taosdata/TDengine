@@ -117,7 +117,7 @@ void*           tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
-uint64_t        getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
@@ -183,12 +183,16 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
-int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI *pAPI);
-
-void printDataBlock(SSDataBlock* pBlock, const char* flag);
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI);
+char*   getStreamOpName(uint16_t opType);
+void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
+void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
 
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+
+TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
+void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t  delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);

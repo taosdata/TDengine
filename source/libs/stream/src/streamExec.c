@@ -16,9 +16,9 @@
 #include "streamInt.h"
 
 // maximum allowed processed block batches. One block may include several submit blocks
-#define MAX_STREAM_EXEC_BATCH_NUM 32
-#define MIN_STREAM_EXEC_BATCH_NUM 4
-#define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
+#define MAX_STREAM_EXEC_BATCH_NUM        32
+#define MIN_STREAM_EXEC_BATCH_NUM        4
+#define MAX_STREAM_RESULT_DUMP_THRESHOLD 100
 
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
@@ -61,7 +61,8 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
+static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize,
+                                  int32_t* totalBlocks) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
 
@@ -118,7 +119,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
       }
       continue;
     } else if (output->info.type == STREAM_CHECKPOINT) {
-      continue; // checkpoint block not dispatch to downstream tasks
+      continue;  // checkpoint block not dispatch to downstream tasks
     }
 
     SSDataBlock block = {0};
@@ -354,7 +355,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 7. pause allowed.
   streamTaskEnablePause(pStreamTask);
   if (taosQueueEmpty(pStreamTask->inputQueue->queue)) {
-    SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);;
+    SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
+    ;
     SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
     pDelBlock->info.rows = 0;
     pDelBlock->info.version = 0;
@@ -473,7 +475,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     } else {  // level == TASK_LEVEL__SINK
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
-  } else { // non-dispatch task, do task state transfer directly
+  } else {  // non-dispatch task, do task state transfer directly
     streamFreeQitem((SStreamQueueItem*)pBlock);
     if (level != TASK_LEVEL__SINK) {
       qDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
@@ -495,7 +497,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 // * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
 // * appropriate batch of blocks should be handled in 5 to 10 sec.
 // */
-//int32_t streamExecForAll(SStreamTask* pTask) {
+// int32_t streamExecForAll(SStreamTask* pTask) {
 //  const char* id = pTask->id.idStr;
 //
 //  while (1) {
@@ -554,7 +556,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", id);
 
-    /*int32_t code = */extractBlocksFromInputQ(pTask, &pInput, &numOfBlocks);
+    /*int32_t code = */ extractBlocksFromInputQ(pTask, &pInput, &numOfBlocks);
     if (pInput == NULL) {
       ASSERT(numOfBlocks == 0);
       return 0;

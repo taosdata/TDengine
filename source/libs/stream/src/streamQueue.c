@@ -136,11 +136,11 @@ SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* 
       if (pReader->taskLevel == TASK_LEVEL__SOURCE && numOfBlocks < MIN_STREAM_EXEC_BATCH_NUM && tryCount < pReader->waitDuration) {
         tryCount++;
         taosMsleep(1);
-        qDebug("===stream===try again batchSize:%d", numOfBlocks);
+        qDebug("try again batchSize:%d", numOfBlocks);
         continue;
       }
 
-      qDebug("===stream===break batchSize:%d", numOfBlocks);
+      qDebug("break batchSize:%d", numOfBlocks);
       break;
     }
 

@@ -956,7 +956,8 @@ static bool hasRemainPartion(SStreamPartitionOperatorInfo* pInfo) { return pInfo
 static bool hasRemainTbName(SStreamPartitionOperatorInfo* pInfo) { return pInfo->pTbNameIte != NULL; }
 
 static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
+  SStorageAPI*   pAPI = &pOperator->pTaskInfo->storageAPI;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pDest = pInfo->binfo.pRes;
@@ -994,7 +995,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   pOperator->resultInfo.totalRows += pDest->info.rows;
   pInfo->parIte = taosHashIterate(pInfo->pPartitions, pInfo->parIte);
   ASSERT(pDest->info.rows > 0);
-  printDataBlock(pDest, "stream partitionby");
+  printDataBlock(pDest, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
   return pDest;
 }
 
@@ -1115,7 +1116,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
-    printDataBlock(pBlock, "stream partitionby recv");
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
       case STREAM_PULL_DATA:
@@ -1125,7 +1126,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
       case STREAM_DELETE_DATA: {
         copyDataBlock(pInfo->pDelRes, pBlock);
         pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
-        printDataBlock(pInfo->pDelRes, "stream partitionby delete");
+        printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
         return pInfo->pDelRes;
       } break;
       case STREAM_CREATE_CHILD_TABLE:

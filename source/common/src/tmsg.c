@@ -534,6 +534,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI8(&encoder, pField->flags) < 0) return -1;
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+    if (tEncodeCStr(&encoder, pField->comment) < 0) return -1;
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
@@ -542,6 +543,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI8(&encoder, pField->flags) < 0) return -1;
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+    if (tEncodeCStr(&encoder, pField->comment) < 0) return -1;
   }
 
   for (int32_t i = 0; i < pReq->numOfFuncs; ++i) {
@@ -608,6 +610,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (tDecodeI8(&decoder, &field.flags) < 0) return -1;
     if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
     if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+    if (tDecodeCStrTo(&decoder, field.comment) < 0) return -1;
     if (taosArrayPush(pReq->pColumns, &field) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -620,6 +623,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (tDecodeI8(&decoder, &field.flags) < 0) return -1;
     if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
     if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+    if (tDecodeCStrTo(&decoder, field.comment) < 0) return -1;
     if (taosArrayPush(pReq->pTags, &field) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -1079,8 +1083,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, pload->pointsWritten) < 0) return -1;
     if (tEncodeI32(&encoder, pload->numOfCachedTables) < 0) return -1;
     if (tEncodeI32(&encoder, reserved) < 0) return -1;
-    if (tEncodeI64(&encoder, reserved) < 0) return -1;
-    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI64(&encoder, pload->roleTimeMs) < 0) return -1;
+    if (tEncodeI64(&encoder, pload->startTimeMs) < 0) return -1;
   }
 
   // mnode loads
@@ -1104,6 +1108,16 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI64(&encoder, pReq->mload.syncTerm) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->mload.roleTimeMs) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->clusterCfg.ttlChangeOnWrite) < 0) return -1;
+
+  // vnode extra
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    int64_t     reserved = 0;
+    if (tEncodeI64(&encoder, pload->syncTerm) < 0) return -1;
+    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1148,7 +1162,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad vload = {0};
-    int64_t    reserved64 = 0;
+    vload.syncTerm = -1;
     int32_t    reserved32 = 0;
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
     if (tDecodeI8(&decoder, &vload.syncState) < 0) return -1;
@@ -1162,14 +1176,15 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.numOfCachedTables) < 0) return -1;
     if (tDecodeI32(&decoder, (int32_t *)&reserved32) < 0) return -1;
-    if (tDecodeI64(&decoder, &reserved64) < 0) return -1;
-    if (tDecodeI64(&decoder, &reserved64) < 0) return -1;
+    if (tDecodeI64(&decoder, &vload.roleTimeMs) < 0) return -1;
+    if (tDecodeI64(&decoder, &vload.startTimeMs) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
   }
 
+  // mnode loads
   if (tDecodeI8(&decoder, &pReq->mload.syncState) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->mload.syncRestore) < 0) return -1;
 
@@ -1200,6 +1215,17 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI8(&decoder, &pReq->clusterCfg.ttlChangeOnWrite) < 0) return -1;
   }
 
+  // vnode extra
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *pLoad = taosArrayGet(pReq->pVloads, i);
+      int64_t     reserved = 0;
+      if (tDecodeI64(&decoder, &pLoad->syncTerm) < 0) return -1;
+      if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+      if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+      if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+    }
+  }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -2301,7 +2327,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   }
 
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;
-  pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
+  pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) return -1;
 
   for (int32_t i = 0; i < totalCols; ++i) {
@@ -3684,7 +3710,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
 
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;
   if (totalCols > 0) {
-    pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
+    pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
     if (pRsp->pSchemas == NULL) return -1;
 
     for (int32_t i = 0; i < totalCols; ++i) {

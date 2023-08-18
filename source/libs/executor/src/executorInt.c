@@ -1070,3 +1070,15 @@ void streamOpReloadState(SOperatorInfo* pOperator) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
 }
+
+bool compareVal(const char* v, const SStateKeys* pKey) {
+  if (IS_VAR_DATA_TYPE(pKey->type)) {
+    if (varDataLen(v) != varDataLen(pKey->pData)) {
+      return false;
+    } else {
+      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+    }
+  } else {
+    return memcmp(pKey->pData, v, pKey->bytes) == 0;
+  }
+}

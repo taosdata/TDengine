@@ -1771,7 +1771,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 }
 
 // for debug
-char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {
+char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
   int32_t size = 2048 * 1024;
   *pDataBuf = taosMemoryCalloc(size, 1);
   char*   dumpBuf = *pDataBuf;
@@ -1780,9 +1780,9 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
   len += snprintf(dumpBuf + len, size - len,
-                  "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64 "|rows:%" PRId64
-                  "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
-                  flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
+                  "%s===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
+                  "|rows:%" PRId64 "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
+                  taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
                   pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
                   pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
   if (len >= size - 1) return dumpBuf;

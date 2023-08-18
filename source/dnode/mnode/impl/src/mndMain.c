@@ -187,7 +187,7 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    bool roleChanged = false;
+    bool stateChanged = false;
     for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
       SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
       if (pGid->dnodeId == dnodeId) {
@@ -199,13 +199,14 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
-          roleChanged = true;
+          pGid->startTimeMs = 0;
+          stateChanged = true;
         }
         break;
       }
     }
 
-    if (roleChanged) {
+    if (stateChanged) {
       SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
       if (pDb != NULL && pDb->stateTs != curMs) {
         mInfo("db:%s, stateTs changed by offline check, old newTs:%" PRId64 " newTs:%" PRId64, pDb->name, pDb->stateTs,

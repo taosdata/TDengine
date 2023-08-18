@@ -347,8 +347,11 @@ typedef struct {
 typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
+  int64_t    syncTerm;
   bool       syncRestore;
   bool       syncCanRead;
+  int64_t    roleTimeMs;
+  int64_t    startTimeMs;
   ESyncRole  nodeRole;
 } SVnodeGid;
 
