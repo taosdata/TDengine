@@ -16,6 +16,7 @@
 #include "tencode.h"
 #include "tmsg.h"
 #include "vnd.h"
+#include "vndCos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 
@@ -190,7 +191,18 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   } else if (pVnode->config.tsdbCfg.precision == TSDB_TIME_PRECISION_NANO) {
     now *= 1000000;
   }
-  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+
+  int32_t nlevel = tfsGetLevel(pVnode->pTfs);
+  int32_t keep = pVnode->config.tsdbCfg.keep2;
+  if (nlevel > 1 && tsS3Enabled) {
+    if (nlevel == 3) {
+      keep = pVnode->config.tsdbCfg.keep1;
+    } else if (nlevel == 2) {
+      keep = pVnode->config.tsdbCfg.keep0;
+    }
+  }
+
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * keep;
   TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
   if (submitTbData.flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     uint64_t nColData;
