@@ -256,7 +256,7 @@ static void freeUpstreamItem(void* p) {
 void tFreeStreamTask(SStreamTask* pTask) {
   int32_t taskId = pTask->id.taskId;
 
-  qDebug("free s-task:0x%x, %p", taskId, pTask);
+  qDebug("free s-task:0x%x, %p, state:%p", taskId, pTask, pTask->pState);
 
   // remove the ref by timer
   while(pTask->status.timerActive > 0) {

@@ -939,6 +939,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
       return -1;
+    } else {
+      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
     }
 
     SReadHandle handle = {
@@ -971,6 +973,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
       return -1;
+    } else {
+      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
     }
 
     int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->pUpstreamInfoList);
