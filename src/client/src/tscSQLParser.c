@@ -149,6 +149,8 @@ static bool isLogicalOperator(tSqlExpr* pExpr);
 static bool isComparisonOperator(tSqlExpr* pExpr);
 int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded);
 
+static int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t timePrecision);
+
 static bool isTimeWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0;
 }
@@ -4238,9 +4240,30 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
   return TSDB_CODE_SUCCESS;
 }
 static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+  const char* msg1 = "start timestamp error";
+  const char* msg2 = "end timestamp error";
+
   SSqlCmd* pCmd = &pSql->cmd;
   pCmd->command = pInfo->type;
 
+  // save the compact range to range of query info
+  SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd);
+
+  if (pInfo->pCompactRange->start) {
+    if (getTimeRange(&pQueryInfo->range, pInfo->pCompactRange->start, TK_GE, TSDB_TIME_PRECISION_NANO) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+  } else {
+    pQueryInfo->range.skey = INT64_MIN;
+  }
+
+  if (pInfo->pCompactRange->end) {
+    if (getTimeRange(&pQueryInfo->range, pInfo->pCompactRange->end, TK_LE, TSDB_TIME_PRECISION_NANO) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    } else {
+      pQueryInfo->range.ekey = INT64_MAX;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4415,10 +4438,6 @@ bool groupbyTbname(SQueryInfo* pQueryInfo) {
 
   return false;
 }
-
-
-
-
 
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery) {
   int32_t startIdx = 0;

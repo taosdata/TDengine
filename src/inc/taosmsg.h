@@ -426,7 +426,13 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
+} SDropVnodeMsg, SSyncVnodeMsg;
+
+typedef struct {
+  int32_t vgId;
+  int64_t skey;
+  int64_t ekey;
+} SCompactVnodeMsg;
 
 typedef struct {
   int32_t     contLen;
@@ -887,6 +893,8 @@ typedef struct {
 typedef struct {
   int8_t     extend;
   char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int64_t skey;
+  int64_t ekey;
   int32_t numOfVgroup;
   int32_t vgid[];
 } SCompactMsg;

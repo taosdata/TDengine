@@ -1114,6 +1114,18 @@ static SSyncVnodeMsg *mnodeBuildSyncVnodeMsg(int32_t vgId) {
   return pSyncVnode;
 }
 
+static SCompactVnodeMsg *mnodeBuildCompactVnodeMsg(int32_t vgId, int64_t skey, int64_t ekey) {
+  SCompactVnodeMsg *pCompactVnode = rpcMallocCont(sizeof(SCompactVnodeMsg));
+  if (pCompactVnode == NULL) {
+    return NULL;
+  }
+
+  pCompactVnode->vgId = htonl(vgId);
+  pCompactVnode->skey = htobe64(skey);
+  pCompactVnode->ekey = htobe64(ekey);
+
+  return pCompactVnode;
+}
 
 static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
   SSyncVnodeMsg *pSyncVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
@@ -1127,8 +1139,8 @@ static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
 
   dnodeSendMsgToDnode(epSet, &rpcMsg);
 }
-static void mnodeSendCompactVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
-  SCompactVnodeMsg *pCompactVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
+static void mnodeSendCompactVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, int64_t skey, int64_t ekey) {
+  SCompactVnodeMsg *pCompactVnode = mnodeBuildCompactVnodeMsg(pVgroup->vgId, skey, ekey);
   SRpcMsg rpcMsg = {
     .ahandle = NULL,
     .pCont   = pCompactVnode,
@@ -1152,14 +1164,14 @@ void mnodeSendSyncVgroupMsg(SVgObj *pVgroup) {
   }
 }
 
-void mnodeSendCompactVgroupMsg(SVgObj *pVgroup) {
+void mnodeSendCompactVgroupMsg(SVgObj *pVgroup, int64_t skey, int64_t ekey) {
   mDebug("vgId:%d, send compact all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes, pVgroup->dbName);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     //if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue; //TODO(yihaoDeng): compact slave or not ? 
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
     mDebug("vgId:%d, index:%d, send compact vnode msg to dnode %s", pVgroup->vgId, i,
            pVgroup->vnodeGid[i].pDnode->dnodeEp);
-    mnodeSendCompactVnodeMsg(pVgroup, &epSet);
+    mnodeSendCompactVnodeMsg(pVgroup, &epSet, skey, ekey);
   }
 
 }

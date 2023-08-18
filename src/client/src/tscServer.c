@@ -1995,6 +1995,7 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   return TSDB_CODE_SUCCESS;
 }
+
 int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pInfo->list == NULL || taosArrayGetSize(pInfo->list) <= 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -2040,7 +2041,11 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   } else {
     tNameGetFullDbName(&pTableMetaInfo->name, pCompactMsg->db);
   } 
- 
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  pCompactMsg->skey = htobe64(pQueryInfo->range.skey);
+  pCompactMsg->ekey = htobe64(pQueryInfo->range.ekey);
+
   pCompactMsg->numOfVgroup = htons(count);
   for (int32_t i = 0; i < count; i++) {
     pCompactMsg->vgid[i] = htons(result[i]);   

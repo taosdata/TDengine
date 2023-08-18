@@ -272,6 +272,7 @@ typedef struct SSqlInfo {
     SAlterTableInfo *pAlterInfo;
     SMiscInfo       *pMiscInfo;
     SDelData        *pDelData;
+    SRangeVal       *pCompactRange; // for compact vnode time range
   };
 } SSqlInfo;
 
@@ -363,7 +364,7 @@ void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd, SSt
 void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege, SStrToken *pTags);
 
-void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam);
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam, SRangeVal* range);
 
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
 void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);

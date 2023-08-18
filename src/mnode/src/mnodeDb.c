@@ -1296,6 +1296,9 @@ static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
 
 
 static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
+  int64_t skey = htobe64(pCompactMsg->skey);
+  int64_t ekey = htobe64(pCompactMsg->ekey);
+
   int32_t count = ntohs(pCompactMsg->numOfVgroup);
   int32_t *buf  = malloc(sizeof(int32_t) * count);
   if (buf == NULL) {
@@ -1314,7 +1317,9 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       pIter = mnodeGetNextVgroup(pIter, &pVgroup);
       if (pVgroup == NULL) break;
       if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
-        mnodeSendCompactVgroupMsg(pVgroup);
+        skey = convertTimePrecision(skey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
+        ekey = convertTimePrecision(skey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
+        mnodeSendCompactVgroupMsg(pVgroup, skey, ekey);
         mnodeDecVgroupRef(pVgroup);
         valid = true;
         break;

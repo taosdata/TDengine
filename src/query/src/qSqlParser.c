@@ -1298,7 +1298,9 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
     taosArrayDestroy(&pInfo->pAlterInfo->pAddColumns);
     tfree(pInfo->pAlterInfo);
   } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
-    tSqlExprListDestroy(pInfo->list); 
+    tSqlExprListDestroy(pInfo->list);
+    tSqlExprDestroy(pInfo->pCompactRange->start);
+    tSqlExprDestroy(pInfo->pCompactRange->end); 
   } else {
     if (pInfo->pMiscInfo != NULL) {
       taosArrayDestroy(&pInfo->pMiscInfo->a);
@@ -1468,9 +1470,10 @@ void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken
     pInfo->pMiscInfo->user.passwd = *pPwd;
   }
 }
-void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam, SRangeVal* pRange) {
  pInfo->type = type;  
- pInfo->list = pParam; 
+ pInfo->list = pParam;
+ pInfo->pCompactRange = pRange;
 }
 
 bool removeSingleQuota(SStrToken* pStr) {
