@@ -362,11 +362,9 @@ export default {
   },
   mounted() {
     this.height = this.$el.clientHeight - 70 + "px";
-    console.log(conditionMap, "条件集00000---===");
   },
   methods: {
     closeDialog() {
-      console.log("关闭弹窗999");
       this.serachForm.tagname = "";
       this.serachForm.tablename = "";
       this.searchdialog = false;
@@ -567,11 +565,6 @@ export default {
           this.$store.commit("tables/SET_SELECTED_TB", "");
           break;
         case "sfile":
-          //操作数据库时，获取数据库配置
-          // if (!Object.prototype.hasOwnProperty.call(data, "minrows")) {
-          //   console.log(await getDBStruct(data.parent),'为啥assign-----');
-          //   Object.assign(data, await getDBStruct(data.name));
-          // }
           this.$store.commit("dbs/SET_SELECTED_DB", node.parent.data.name);
           this.$store.commit("stables/SET_SELECTED_STB", node.parent.data.name);
           this.$store.commit("tables/SET_SELECTED_TB", "");
@@ -807,7 +800,6 @@ export default {
           });
           this.tagList = this.tagList
             .map((item) => {
-              console.log(item, "循环");
               return Object.assign(
                 item,
                 {
@@ -823,7 +815,7 @@ export default {
             })
             .filter((val) => val.note == "TAG");
 
-          console.log(data, node, "查询---9999", result, this.tagList);
+          
           this.showtag = true;
           this.dialogtitle = this.$t("data.searchsub");
           break;
@@ -839,11 +831,9 @@ export default {
         let flag = true;
         this.$refs.searchForm.validate((valid) => {
           if (valid) {
-            console.log("验证通过", this.tagList);
             flag = true;
             return true;
           } else {
-            console.log("验证不通过", this.tagList);
             flag = false;
             return false;
           }
@@ -851,7 +841,6 @@ export default {
         if (!flag) {
           return;
         }
-        console.log(this.switchtag, this.currentSearch.typeName, "switch");
         switch (this.currentSearch.typeName) {
           case "sfile": //查询超级表
             await this.$store
@@ -882,7 +871,6 @@ export default {
                   " " +
                   `${item.value}`;
               });
-              console.log("是否跳出循环", wherestr);
               await this.$store
                 .dispatch(
                   "console/sendConsoleSQL",
@@ -914,7 +902,6 @@ export default {
       }
     },
     getTooltip(data, operate) {
-      console.log(data, operate, "tooltip");
       let obj = {
         database: {
           add: this.$t("data.createStable", [data.name]),
