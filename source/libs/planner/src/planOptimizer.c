@@ -1689,7 +1689,8 @@ static bool planOptNodeListHasTbname(SNodeList* pKeys) {
 
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
   bool ret = 1 == LIST_LENGTH(pNode->pChildren) &&
-             QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0));
+             QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
+             SCAN_TYPE_TAG != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType;
   if (!ret) return ret;
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {

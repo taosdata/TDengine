@@ -6,6 +6,10 @@
 ,,y,unit-test,bash test.sh
 
 #system test
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
