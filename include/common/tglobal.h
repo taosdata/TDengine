@@ -130,6 +130,7 @@ extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
 extern bool    tsTtlChangeOnWrite;
+extern int32_t tsTtlFlushThreshold;
 extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
@@ -185,7 +186,9 @@ extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointTickInterval;
 extern int32_t tsTtlUnit;
-extern int32_t tsTtlPushInterval;
+extern int32_t tsTtlPushIntervalSec;
+extern int32_t tsTtlBatchDropNum;
+extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 

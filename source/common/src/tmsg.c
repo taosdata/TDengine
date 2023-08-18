@@ -3179,6 +3179,12 @@ int32_t tSerializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableReq
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->timestampSec) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->ttlDropMaxCount) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->nUids) < 0) return -1;
+  for (int32_t i = 0; i < pReq->nUids; ++i) {
+    tb_uid_t *pTbUid = taosArrayGet(pReq->pTbUids, i);
+    if (tEncodeI64(&encoder, *pTbUid) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3192,6 +3198,30 @@ int32_t tDeserializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableR
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->timestampSec) < 0) return -1;
+  pReq->ttlDropMaxCount = INT32_MAX;
+  pReq->nUids = 0;
+  pReq->pTbUids = NULL;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->ttlDropMaxCount) < 0) return -1;
+    if (tDecodeI32(&decoder, &pReq->nUids) < 0) return -1;
+
+    if (pReq->nUids > 0) {
+      pReq->pTbUids = taosArrayInit(pReq->nUids, sizeof(tb_uid_t));
+      if (pReq->pTbUids == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+
+    tb_uid_t tbUid = 0;
+    for (int32_t i = 0; i < pReq->nUids; ++i) {
+      if (tDecodeI64(&decoder, &tbUid) < 0) return -1;
+      if (taosArrayPush(pReq->pTbUids, &tbUid) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
