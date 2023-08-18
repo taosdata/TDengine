@@ -40,7 +40,6 @@ typedef struct SNodeEntry {
 } SNodeEntry;
 
 typedef struct SStreamVnodeRevertIndex {
-  SArray *pDBList;
   SArray *pNodeEntryList;
   int64_t ts;  // snapshot ts
 } SStreamVnodeRevertIndex;
