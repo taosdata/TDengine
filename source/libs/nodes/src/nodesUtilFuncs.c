@@ -22,6 +22,7 @@
 #include "tdatablock.h"
 #include "thash.h"
 #include "tref.h"
+#include "functionMgt.h"
 
 typedef struct SNodeMemChunk {
   int32_t               availableSize;
@@ -1920,7 +1921,7 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
 static bool isCollectType(ECollectColType collectType, EColumnType colType) {
   return COLLECT_COL_TYPE_ALL == collectType
              ? true
-             : (COLLECT_COL_TYPE_TAG == collectType ? COLUMN_TYPE_TAG == colType : COLUMN_TYPE_TAG != colType);
+             : (COLLECT_COL_TYPE_TAG == collectType ? COLUMN_TYPE_TAG == colType : (COLUMN_TYPE_TAG != colType && COLUMN_TYPE_TBNAME != colType));
 }
 
 static EDealRes collectColumns(SNode* pNode, void* pContext) {
@@ -1999,6 +2000,7 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
 
 typedef struct SCollectFuncsCxt {
   int32_t         errCode;
+  char*           tableAlias;
   FFuncClassifier classifier;
   SNodeList*      pFuncs;
   SHashObj*       pFuncsSet;
@@ -2008,6 +2010,13 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
       !(((SExprNode*)pNode)->orderAlias)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TBNAME == pFunc->funcType && pCxt->tableAlias) {
+      SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+      if (strcmp(pVal->literal, pCxt->tableAlias)) {
+        return DEAL_RES_CONTINUE;
+      }
+    }
     SExprNode* pExpr = (SExprNode*)pNode;
     if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, sizeof(SExprNode*))) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
@@ -2030,13 +2039,14 @@ static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) 
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 
-int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifier classifier, SNodeList** pFuncs) {
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
     return TSDB_CODE_FAILED;
   }
 
   SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
                           .classifier = classifier,
+                          .tableAlias = tableAlias,
                           .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs),
                           .pFuncsSet = taosHashInit(4, funcNodeHash, false, false)};
   if (NULL == cxt.pFuncs || NULL == cxt.pFuncsSet) {

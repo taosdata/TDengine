@@ -374,15 +374,23 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, fmIsScanPseudoColumnFunc, &pScan->pScanPseudoCols);
-  }
-
-  // rewrite the expression in subsequent clauses
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL);
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc, &pScan->pScanPseudoCols);
   }
 
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
+
+  // rewrite the expression in subsequent clauses
+  if (TSDB_CODE_SUCCESS == code) {
+    SNodeList* pNewScanPseudoCols = NULL;
+    code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL);
+    if (TSDB_CODE_SUCCESS == code && NULL != pScan->pScanPseudoCols) {
+      code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pNewScanPseudoCols);
+      if (TSDB_CODE_SUCCESS == code) {
+        nodesDestroyList(pScan->pScanPseudoCols);
+        pScan->pScanPseudoCols = pNewScanPseudoCols;
+      }
+    }
+  }
 
   if (NULL != pScan->pScanCols) {
     pScan->hasNormalCols = true;
@@ -619,7 +627,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // set grouyp keys, agg funcs and having conditions
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses
@@ -690,7 +698,7 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   pIdfRowsFunc->node.resultDataOrder = pIdfRowsFunc->node.requireDataOrder;
 
   // indefinite rows functions and _select_values functions
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pIdfRowsFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
@@ -728,7 +736,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
   // interp functions and _group_key functions
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, isInterpFunc, &pInterpFunc->pFuncs);
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isInterpFunc, &pInterpFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
@@ -774,7 +782,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   pWindow->node.inputTsOrder = ORDER_ASC;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL);
   }
