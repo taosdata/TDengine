@@ -244,3 +244,16 @@ void streamFreeQitem(SStreamQueueItem* data) {
     taosFreeQitem(pBlock);
   }
 }
+
+const char* streamGetBlockTypeStr(int32_t type) {
+  switch (type) {
+    case STREAM_INPUT__CHECKPOINT:
+      return "checkpoint";
+    case STREAM_INPUT__CHECKPOINT_TRIGGER:
+      return "checkpoint-triggre";
+    case STREAM_INPUT__TRANS_STATE:
+      return "trans-state";
+    default:
+      return "";
+  }
+}
