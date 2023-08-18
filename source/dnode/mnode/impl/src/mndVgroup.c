@@ -1276,8 +1276,7 @@ int32_t mndAddNewVgPrepareAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVg) {
   SSdbRaw *pRaw = mndVgroupActionEncode(pVg);
   if (pRaw == NULL) goto _err;
 
-  STransAction action = {.pRaw = pRaw, .msgType = TDMT_MND_CREATE_VG};
-  if (mndTransAppendPrepareAction(pTrans, &action) != 0) goto _err;
+  if (mndTransAppendPrepareLog(pTrans, pRaw) != 0) goto _err;
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
   pRaw = NULL;
   return 0;
