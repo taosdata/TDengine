@@ -6,6 +6,20 @@
   "description": "taosexplorer",
   "glyphs": [
     {
+      "icon_id": "1322281",
+      "name": "icon_query",
+      "font_class": "chaxun",
+      "unicode": "e66b",
+      "unicode_decimal": 58987
+    },
+    {
+      "icon_id": "8980489",
+      "name": "query",
+      "font_class": "query",
+      "unicode": "e601",
+      "unicode_decimal": 58881
+    },
+    {
       "icon_id": "1996869",
       "name": "search",
       "font_class": "search-tables",

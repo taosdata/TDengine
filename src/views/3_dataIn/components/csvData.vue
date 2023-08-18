@@ -4,7 +4,10 @@
       <el-tabs v-model="activeName" @tab-click="handleClick">
         <el-tab-pane :label="$t('datasource.uploadcsv')" name="first">
           <div class="upload-file">
-            <span :class="['label required',language.includes('en')?'en':'zh']">{{ $t("datasource.upfile") }}</span>
+            <span
+              :class="['label required', language.includes('en') ? 'en' : 'zh']"
+              >{{ $t("datasource.upfile") }}</span
+            >
             <el-upload
               class="upload-demo"
               ref="upload"
@@ -121,13 +124,13 @@ export default {
   },
   provide() {
     return {
-      currentKey: this.currentKey
+      currentKey: this.currentKey,
     };
   },
   filter: {},
   data() {
     return {
-      language:window.navigator.language,
+      language: window.navigator.language,
       showConfig: false,
       csvParserConf: {},
       uploadData: {
@@ -147,7 +150,7 @@ export default {
       dbOptions: [],
     };
   },
-  mounted() {
+  async mounted() {
     if (this.isEditable) {
       //编辑状态直接从返回值去csv 的parser
       this.activeName = "second";
@@ -170,16 +173,24 @@ export default {
           return item.response[0];
         })
         .join("");
+      let result = await getCSVColumns(
+        this.fileurl,
+        "csv",
+        this.$refs.param.ruleForm.hasHeader
+      );
+      this.csvColumns = result.file_header.column_names;
+      console.log(result, "编辑回显999------====");
       this.echoEditData();
     }
   },
   methods: {
-    handleRemove(file,filelist){
-      this.fileList=filelist
+    handleRemove(file, filelist) {
+      this.fileList = filelist;
     },
     //编辑状态的回显
     echoEditData() {
-      this.csvColumns = Object.keys(this.echoData[0].parse).sort();
+      console.log(this.echoData, "回显的数据000");
+      // this.csvColumns = Object.keys(this.echoData[0].parse).sort();
       this.localcsv = deepClone({
         parser: this.echoData[0],
       });
@@ -254,7 +265,7 @@ export default {
     submitUpload() {
       this.$refs.upload.submit();
     },
-   
+
     async getCsvColumnsData() {
       try {
         if (this.activeName == "first" && this.fileList.length == 0) {
@@ -266,7 +277,7 @@ export default {
           return;
         }
         this.$refs.param.submit();
-        
+
         if (this.isEditable) {
           this.$parent.$parent.isEditable = false;
         }
@@ -283,10 +294,19 @@ export default {
                 "csv",
                 this.$refs.param.ruleForm.hasHeader
               );
-              this.csvColumns = result.file_header.column_names.sort();
+              if (result && result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.csvColumns = result.file_header.column_names;
             } else {
               //无header需要自定义header
-              this.csvColumns = this.$refs.param.ruleForm.customcol.split(",").sort();
+              if (result && result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.csvColumns = this.$refs.param.ruleForm.customcol
+                .split(",");
             }
           }
         } else {
@@ -295,12 +315,13 @@ export default {
             "csv",
             this.$refs.param.ruleForm.hasHeader
           );
-          this.csvColumns = result.file_header.column_names.sort();
+          if (result && result.message) {
+            Message.error(result.message);
+            return;
+          }
+          this.csvColumns = result.file_header.column_names;
         }
-        if (result && result.message) {
-          Message.error(result.message);
-          return;
-        }
+
         this.csvParserConf = {
           parser: {
             parse: {},
@@ -378,8 +399,8 @@ export default {
           right: 110px;
           position: absolute;
         }
-        &.en{
-          width:225px;
+        &.en {
+          width: 225px;
         }
       }
     }
@@ -388,12 +409,12 @@ export default {
     }
   }
   .nextbtn {
-    width:100%;
-    margin-top:20px;
-    margin-bottom:20px;
+    width: 100%;
+    margin-top: 20px;
+    margin-bottom: 20px;
   }
   .csv-config {
-    margin-bottom:20px;
+    margin-bottom: 20px;
     .csv-tableheader {
       display: grid;
       grid-template-columns: 1fr 1.5fr 1.5fr 1fr 1fr 1fr;
