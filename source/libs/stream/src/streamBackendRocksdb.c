@@ -1987,6 +1987,7 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
   }
 
   taosMemoryFree(tmp);
+  streamStateFreeCur(pCur);
   return code;
 }
 
