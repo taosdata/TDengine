@@ -402,14 +402,6 @@ pub async fn tmq_to_td(
 
     let target_builder = TaosBuilder::from_dsn(&to)?;
 
-    #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    {
-        if !builder.is_enterprise_edition().await?
-            && !target_builder.is_enterprise_edition().await?
-        {
-            bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
-        }
-    }
     let target = target_builder.pool()?;
     let target_taos = target.get().await?;
 
@@ -424,21 +416,6 @@ pub async fn tmq_to_td(
                 }
                 let _ = target_taos.exec(sql).await;
             }
-            // target_taos.database_exists(&target);
-            // if !target_taos.database_exists(&target).await? {
-            //     if let Some(sql) = topic.database_sql.as_deref() {
-            //         log::info!(
-            //             "target database not exist, try create database `{target}` with the same parameter from the source"
-            //         );
-            //         let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
-            //         if &topic.database != target {
-            //             sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
-            //         }
-            //         target_taos.exec(sql).await?;
-            //     } else {
-            //         anyhow::bail!("can not get database params to create a same one");
-            //     }
-            // }
             target
         } else {
             if let Some(sql) = topic.database_sql.as_deref() {
@@ -446,15 +423,6 @@ pub async fn tmq_to_td(
                     .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
                     .await;
             }
-            // if !target_taos.database_exists(&topic.database).await? {
-            //     if let Some(sql) = topic.database_sql.as_deref() {
-            //         target_taos
-            //             .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
-            //             .await?;
-            //     } else {
-            //         anyhow::bail!("can not get database params to create a same one");
-            //     }
-            // }
             &topic.database
         };
 

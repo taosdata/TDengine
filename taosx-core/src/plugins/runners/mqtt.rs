@@ -202,10 +202,6 @@ pub async fn mqtt_to_taos(
     if to.subject.is_none() {
         Err(MqttConfigError::DatabaseIsRequired(to.clone()))?;
     }
-    // let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    // let taos = target_pool.get().await?;
-    // let target_pool_for_ipc = target_pool.clone();
-
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for MQTT connection"))?;
@@ -225,12 +221,6 @@ pub async fn mqtt_to_taos(
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = TaosBuilder::from_dsn(&to)?;
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if !builder.is_enterprise_edition().await? {
-            anyhow::bail!(
-                "Only enterprise edition is supported. If it's not your case, please contact us."
-            )
-        }
         sink::listen_tcp_socket(
             builder.pool()?,
             config.remote,

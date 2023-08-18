@@ -45,12 +45,6 @@ impl PutStream {
         // dbg!(&task);
 
         let builder = TaosBuilder::from_dsn(&task.to)?;
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if !builder.is_enterprise_edition().await? {
-            anyhow::bail!(
-                "Only enterprise edition is supported. If it's not your case, please contact us."
-            )
-        }
         let pool = builder.pool()?;
 
         let cluster_id: i64 = if let Some(cluster_id) = task.task.labels.find("to_cluster") {

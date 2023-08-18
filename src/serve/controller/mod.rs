@@ -951,7 +951,14 @@ impl TaskController {
     pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
         let builder = TaosBuilder::from_dsn(to)?;
         let taos = builder.build().await?;
+        let is_enterprise = builder.is_enterprise_edition().await?;
 
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !is_enterprise {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
         // is cloud?
         if to
             .protocol
@@ -961,7 +968,7 @@ impl TaskController {
                 _ => false,
             })
             .unwrap_or(false)
-            && builder.is_enterprise_edition().await?
+            && is_enterprise
         {
             return Ok(());
         }

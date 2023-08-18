@@ -156,11 +156,6 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build().await?;
 
-    #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !target.is_enterprise_edition().await? {
-        bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
-    }
-
     let mut handles = Vec::new();
     let jobs = if jobs == 0 { 16 } else { jobs };
     let task_sem = Arc::new(Semaphore::new(jobs));

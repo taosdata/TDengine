@@ -276,14 +276,6 @@ pub async fn influxdb_to_taos(
     // create socket channel
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
-        let builder = TaosBuilder::from_dsn(&to)?;
-        let _ = builder.build().await.context("Target connection error")?;
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if !builder.is_enterprise_edition().await? {
-            anyhow::bail!(
-                "Only enterprise edition is supported. If it's not your case, please contact us."
-            )
-        }
         sink::listen_tcp_socket(
             target_pool_for_ipc,
             config.ipc_stream,

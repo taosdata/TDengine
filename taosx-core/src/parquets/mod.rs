@@ -102,10 +102,6 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
     let sql = from.params.remove("query").unwrap();
     let builder = TaosBuilder::from_dsn(from)?;
     let taos = builder.build().await?;
-    #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !builder.is_enterprise_edition().await? {
-        anyhow::bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
-    }
 
     let mut rs = taos.query(&sql).await?;
 

@@ -987,10 +987,10 @@ pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<
     })
 }
 
-#[instrument(skip(port_pool))]
+#[instrument(skip_all, fields(taosx.task.from = "opc", taosx.task.jobs = jobs, taosx.task.id = with_agent.as_ref().map(|v| v.0)))]
 pub async fn opc_to_taos(
     from: Dsn,
-    actions: Vec<Action>,
+    _actions: Vec<Action>,
     to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
@@ -1039,12 +1039,6 @@ pub async fn opc_to_taos(
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = TaosBuilder::from_dsn(&to)?;
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if !builder.is_enterprise_edition().await? {
-            anyhow::bail!(
-                "Only enterprise edition is supported. If it's not your case, please contact us."
-            )
-        }
         let target_pool = builder.pool()?;
         let taos = target_pool.get().await?;
         let target_pool_for_ipc = target_pool.clone();
