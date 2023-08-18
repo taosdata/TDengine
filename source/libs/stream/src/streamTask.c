@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstream.h"
 #include "executor.h"
 #include "streamInt.h"
 #include "tmisce.h"
@@ -140,6 +139,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
 }
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo) {
+  int64_t ver;
   int64_t skip64;
   int8_t  skip8;
   int32_t skip32;
@@ -147,6 +147,10 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
   SEpSet  epSet;
 
   if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &ver) < 0) return -1;
+
+  if (ver != SSTREAM_TASK_VER) return -1;
+
   if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
@@ -259,7 +263,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:0x%x, %p, state:%p", taskId, pTask, pTask->pState);
 
   // remove the ref by timer
-  while(pTask->status.timerActive > 0) {
+  while (pTask->status.timerActive > 0) {
     qDebug("s-task:%s wait for task stop timer activities", pTask->id.idStr);
     taosMsleep(10);
   }
@@ -414,7 +418,7 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
   EPSET_TO_STR(pEpSet, buf);
 
   int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
-  for(int32_t i = 0; i < numOfUpstream; ++i) {
+  for (int32_t i = 0; i < numOfUpstream; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
     if (pInfo->nodeId == nodeId) {
       epsetAssign(&pInfo->epSet, pEpSet);
@@ -486,7 +490,7 @@ int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) 
   int64_t     stage = pTask->pMeta->stage;
   int32_t     vgId = pTask->pMeta->vgId;
 
-  qDebug("s-task:%s vgId:%d restart current task, stage:%"PRId64", status:%s, sched-status:%d", id, vgId, stage,
+  qDebug("s-task:%s vgId:%d restart current task, stage:%" PRId64 ", status:%s, sched-status:%d", id, vgId, stage,
          streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
 
   // 1. stop task
@@ -544,7 +548,7 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
 }
 
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
-  for(int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
     doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp);
   }
@@ -557,7 +561,7 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
   }
 
   int32_t size = taosArrayGetSize(pTask->pUpstreamInfoList);
-  for(int32_t i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     pInfo->stage = -1;
   }

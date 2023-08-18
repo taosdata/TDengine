@@ -446,7 +446,7 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    if (pVal != NULL && vLen != 0) {
+    if (pVal == NULL || vLen == 0) {
       break;
     }
     SCheckpointInfo info;
@@ -458,7 +458,7 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
 
     chkpId = TMAX(chkpId, info.checkpointId);
   }
-
+  qDebug("get max chkp id: %" PRId64 "", chkpId);
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
