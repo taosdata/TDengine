@@ -179,7 +179,6 @@ export default {
         this.$refs.param.ruleForm.hasHeader
       );
       this.csvColumns = result.file_header.column_names;
-      console.log(result, "编辑回显999------====");
       this.echoEditData();
     }
   },
@@ -189,8 +188,6 @@ export default {
     },
     //编辑状态的回显
     echoEditData() {
-      console.log(this.echoData, "回显的数据000");
-      // this.csvColumns = Object.keys(this.echoData[0].parse).sort();
       this.localcsv = deepClone({
         parser: this.echoData[0],
       });
