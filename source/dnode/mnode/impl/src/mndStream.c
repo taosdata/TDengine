@@ -29,9 +29,10 @@
 #include "tname.h"
 #include "tmisce.h"
 
-#define MND_STREAM_VER_NUMBER   3
-#define MND_STREAM_RESERVE_SIZE 64
-#define MND_STREAM_MAX_NUM      60
+#define MND_STREAM_VER_NUMBER      3
+#define MND_STREAM_RESERVE_SIZE    64
+#define MND_STREAM_MAX_NUM         60
+#define MND_STREAM_CHECKPOINT_NAME "stream-checkpoint"
 
 typedef struct SNodeEntry {
   int32_t nodeId;
@@ -52,7 +53,6 @@ typedef struct SVgroupChangeInfo {
 static int32_t                 mndNodeCheckSentinel = 0;
 static SStreamVnodeRevertIndex execNodeList;
 
-#define MND_STREAM_CHECKPOINT_NAME "stream-checkpoint"
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream);
@@ -1827,7 +1827,7 @@ void initTransAction(STransAction* pAction, void* pCont, int32_t contLen, int32_
 // todo extract method: traverse stream tasks
 // build trans to update the epset
 static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo* pInfo) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-task-update");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, NULL, "stream-task-update");
   if (pTrans == NULL) {
     mError("failed to build stream task DAG update, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return -1;

@@ -89,7 +89,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
         resetTaskInfo(pExecutor);
       }
 
-      qError("unexpected stream execution, s-task:%s since %s", pTask->id.idStr, terrstr());
+      qError("unexpected stream execution, s-task:%s since %s", pTask->id.idStr, tstrerror(code));
       continue;
     }
 
@@ -547,7 +547,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
     if (streamTaskShouldStop(&pTask->status)) {
-      qDebug("s-task:%s stream task stopped, abort", id);
+      qDebug("s-task:%s stream task is stopped", id);
       break;
     }
 

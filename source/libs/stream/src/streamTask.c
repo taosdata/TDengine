@@ -254,7 +254,9 @@ static void freeUpstreamItem(void* p) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  qDebug("free s-task:0x%x, %p", pTask->id.taskId, pTask);
+  int32_t taskId = pTask->id.taskId;
+
+  qDebug("free s-task:0x%x, %p", taskId, pTask);
 
   // remove the ref by timer
   while(pTask->status.timerActive > 0) {
@@ -304,6 +306,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->pState) {
+    qDebug("s-task:0x%x start to free task state", taskId);
     streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
   }
 
@@ -330,6 +333,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   taosThreadMutexDestroy(&pTask->lock);
   taosMemoryFree(pTask);
+
+  qDebug("s-task:0x%x free task completed", taskId);
 }
 
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver) {

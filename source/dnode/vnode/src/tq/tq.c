@@ -1902,6 +1902,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 _end:
   tDecoderClear(&decoder);
   tmsgSendRsp(&rsp);
+
+  tqDebug("s-task:%s task nodeEp update completed", pTask->id.idStr);
   return code;
 }
 
