@@ -139,7 +139,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
     pState->pTdbState->backendCfWrapperId = id;
     pState->pTdbState->pBackendCfWrapper = taosAcquireRef(streamBackendCfWrapperId, id);
     // already exist stream task for
-    qInfo("already exist stream state for %s", pState->pTdbState->idstr);
+    qInfo("already exist stream-state for %s", pState->pTdbState->idstr);
     // taosAcquireRef(streamBackendId, pState->streamBackendRid);
   }
   taosThreadMutexUnlock(&pMeta->backendMutex);
@@ -431,9 +431,9 @@ int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, vo
   // code = streamStatePutBatch_rocksdb(pState, batch);
   // streamStateDestroyBatch(batch);
   code = streamDefaultPut_rocksdb(pState, pKey, pVal, vLen);
-  char*   Val = NULL;
-  int32_t len = 0;
-  code = streamDefaultGet_rocksdb(pState, pKey, (void**)&Val, &len);
+  // char*   Val = NULL;
+  // int32_t len = 0;
+  // code = streamDefaultGet_rocksdb(pState, pKey, (void**)&Val, &len);
   return code;
 #else
   return 0;
