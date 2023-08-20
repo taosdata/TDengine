@@ -256,6 +256,12 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
   :::
 
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`  
+
+  功能同 taos_connect。除 pass 参数替换为 auth 外，其他参数同 taos_connect
+  
+  - auth: 密码取 32 位小写 md5. e.g. 默认密码 taosdata 取 md5 为 dcc5bed04851fec854c035b2e40263b6 
+
 - `char *taos_get_server_info(TAOS *taos)`
 
   获取服务端版本信息。
@@ -271,6 +277,14 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   - 如果，database == NULL 或者 len<=0 返回错误，required里保存存储db需要的空间（包含最后的'\0'）
   - 如果，len 小于 存储db需要的空间（包含最后的'\0'），返回错误，database里赋值截断的数据，以'\0'结尾。
   - 如果，len 大于等于 存储db需要的空间（包含最后的'\0'），返回正常0，database里赋值以'\0‘结尾的db名。
+
+- `int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)`
+
+   设置事件通知回调函数。
+
+  - fp 事件通知回调函数指针。函数声明：typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type)；其中， param 为用户自定义参数，ext 为扩展参数(依赖事件通知类型，针对TAOS_NOTIFY_PASSVER 返回用户密码版本)，type 为事件通知类型。
+  - param 用户自定义参数。
+  - type 事件通知类型。取值：1）TAOS_NOTIFY_PASSVER： 用户密码改变。
 
 - `void taos_close(TAOS *taos)`
 
@@ -446,6 +460,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
   执行准备好的语句。目前，一条语句只能执行一次。
+
+- `int taos_stmt_affected_rows(TAOS_STMT *stmt)`
+ 
+  获取被所执行的 SQL 语句影响的行数。
+
+- `int taos_stmt_affected_rows_once(TAOS_STMT *stmt)`
+
+  获取被所执行的 SQL 语句影响的行数。
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
