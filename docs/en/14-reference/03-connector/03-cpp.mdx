@@ -307,21 +307,20 @@ The specific functions related to the interface are as follows (see also the [pr
 
   Parse a SQL command, and bind the parsed result and parameter information to `stmt`. If the parameter length is greater than 0, use this parameter as the length of the SQL command. If it is equal to 0, the length of the SQL command will be determined automatically.
 
-- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
+- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind)`
 
   Not as efficient as `taos_stmt_bind_param_batch()`, but can support non-INSERT type SQL statements.
   To bind parameters, bind points to an array (representing the row of data to be bound), making sure that the number and order of the elements in this array are the same as the parameters in the SQL statement. taos_bind is used similarly to MYSQL_BIND in MySQL, as defined below.
 
   ```c
-  typedef struct TAOS_BIND {
+  typedef struct TAOS_MULTI_BIND {
     int            buffer_type;
-    void *         buffer;
-    uintptr_t      buffer_length;  // not in use
-    uintptr_t *    length;
-    int *          is_null;
-    int            is_unsigned;    // not in use
-    int *          error;          // not in use
-  } TAOS_BIND;
+    void          *buffer;
+    uintptr_t      buffer_length;
+    uint32_t      *length;
+    char          *is_null;
+    int            num;
+  } TAOS_MULTI_BIND;
   ```
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
@@ -329,7 +328,7 @@ The specific functions related to the interface are as follows (see also the [pr
   (Available in 2.1.1.0 and later versions, only supported for replacing parameter values in INSERT statements)
   When the table name in the SQL command uses `? ` placeholder, you can use this function to bind a specific table name.
 
-- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
+- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_MULTI_BIND* tags)`
 
   (Available in 2.1.2.0 and later versions, only supported for replacing parameter values in INSERT statements)
   When the table name and TAGS in the SQL command both use `? `, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL command.
