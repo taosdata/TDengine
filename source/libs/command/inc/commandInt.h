@@ -67,6 +67,8 @@ extern "C" {
 #define EXPLAIN_EVENT_FORMAT "Event"
 #define EXPLAIN_EVENT_START_FORMAT "Start Cond: "
 #define EXPLAIN_EVENT_END_FORMAT "End Cond: "
+#define EXPLAIN_GROUP_CACHE_FORMAT "Group Cache"
+#define EXPLAIN_DYN_QRY_CTRL_FORMAT "Dynamic Query Control for %s"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
@@ -96,6 +98,12 @@ extern "C" {
 #define EXPLAIN_OFFSET_FORMAT "offset=%" PRId64
 #define EXPLAIN_SOFFSET_FORMAT "soffset=%" PRId64
 #define EXPLAIN_PARTITIONS_FORMAT "partitions=%d"
+#define EXPLAIN_GLOBAL_GROUP_FORMAT "global_group=%d"
+#define EXPLAIN_GROUP_BY_UID_FORMAT "group_by_uid=%d"
+#define EXPLAIN_BATCH_SCAN_FORMAT "batch_scan=%d"
+#define EXPLAIN_VGROUP_SLOT_FORMAT "vgroup_slot=%d,%d"
+#define EXPLAIN_UID_SLOT_FORMAT "uid_slot=%d,%d"
+#define EXPLAIN_SRC_SCAN_FORMAT "src_scan=%d,%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

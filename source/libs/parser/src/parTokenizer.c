@@ -42,6 +42,7 @@ static SKeyword keywordTable[] = {
     {"ASC",                  TK_ASC},
     {"AT_ONCE",              TK_AT_ONCE},
     {"BALANCE",              TK_BALANCE},
+    {"BATCH_SCAN",           TK_BATCH_SCAN},
     {"BETWEEN",              TK_BETWEEN},
     {"BIGINT",               TK_BIGINT},
     {"BINARY",               TK_BINARY},
@@ -153,6 +154,7 @@ static SKeyword keywordTable[] = {
     {"NONE",                 TK_NONE},
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
+    {"NO_BATCH_SCAN",        TK_NO_BATCH_SCAN},
     {"NULL",                 TK_NULL},
     {"NULL_F",               TK_NULL_F},
     {"NULLS",                TK_NULLS},
@@ -398,10 +400,14 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_SLASH;
         return 1;
       }
+      bool isHint = false;
+      if (z[2] == '+') {
+        isHint = true;
+      }
       for (i = 3; z[i] && (z[i] != '/' || z[i - 1] != '*'); i++) {
       }
       if (z[i]) i++;
-      *tokenId = TK_NK_COMMENT;
+      *tokenId = isHint ? TK_NK_HINT : TK_NK_COMMENT;
       return i;
     }
     case '%': {

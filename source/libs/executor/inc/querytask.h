@@ -39,6 +39,7 @@ typedef struct STaskIdInfo {
   uint64_t templateId;
   char*    str;
   int32_t  vgId;
+  uint64_t taskId;
 } STaskIdInfo;
 
 typedef struct STaskCostInfo {
@@ -83,6 +84,7 @@ struct SExecTaskInfo {
   int32_t               qbufQuota;  // total available buffer (in KB) during execution query
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
+  SArray*               schemaInfos;
   SSchemaInfo           schemaInfo;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.
@@ -94,6 +96,9 @@ struct SExecTaskInfo {
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo
   SStorageAPI           storageAPI;
+  int8_t                dynamicTask;
+  SOperatorParam*       pOpParam;
+  bool                  paramSet;
 };
 
 void           buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

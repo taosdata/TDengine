@@ -1009,11 +1009,11 @@ join_type(A) ::= INNER.                                                         
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
-  SELECT tag_mode_opt(M) set_quantifier_opt(B) select_list(C) from_clause_opt(D)
+  SELECT hint_list(M) tag_mode_opt(N) set_quantifier_opt(B) select_list(C) from_clause_opt(D)
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
   fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
-                                                                                    A = createSelectStmt(pCxt, B, C, D);
-                                                                                    A = setSelectStmtTagMode(pCxt, A, M);
+                                                                                    A = createSelectStmt(pCxt, B, C, D, M);
+                                                                                    A = setSelectStmtTagMode(pCxt, A, N);
                                                                                     A = addWhereClause(pCxt, A, E);
                                                                                     A = addPartitionByClause(pCxt, A, F);
                                                                                     A = addWindowClauseClause(pCxt, A, G);
@@ -1023,6 +1023,11 @@ query_specification(A) ::=
                                                                                     A = addEveryClause(pCxt, A, K);
                                                                                     A = addFillClause(pCxt, A, L);
                                                                                   }
+
+%type hint_list                                                                   { SNodeList* }
+%destructor hint_list                                                             { nodesDestroyList($$); }
+hint_list(A) ::= .                                                                { A = createHintNodeList(pCxt, NULL); }
+hint_list(A) ::= NK_HINT(B).                                                      { A = createHintNodeList(pCxt, &B); }
 
 %type tag_mode_opt                                                                { bool }
 %destructor tag_mode_opt                                                          { }
