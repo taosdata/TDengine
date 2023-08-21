@@ -25,8 +25,8 @@ int32_t             streamBackendId = 0;
 int32_t             streamBackendCfWrapperId = 0;
 
 static int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
-static void metaHbToMnode(void* param, void* tmrId);
-static void streamMetaClear(SStreamMeta* pMeta);
+static void    metaHbToMnode(void* param, void* tmrId);
+static void    streamMetaClear(SStreamMeta* pMeta);
 
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
@@ -100,9 +100,16 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->chkpId = chkpId;
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, chkpId);
-  if (pMeta->streamBackend == NULL) {
-    goto _err;
+  while (pMeta->streamBackend == NULL) {
+    taosMsleep(2 * 1000);
+    pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
+    if (pMeta->streamBackend == NULL) {
+      qError("vgId:%d failed to init stream backend", pMeta->vgId);
+    }
   }
+  // if (pMeta->streamBackend == NULL) {
+  //   goto _err;
+  // }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   code = streamBackendLoadCheckpointInfo(pMeta);
@@ -158,9 +165,13 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
   }
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-  if (pMeta->streamBackend == NULL) {
-    qError("vgId:%d failed to init stream backend", pMeta->vgId);
-    return -1;
+  while (pMeta->streamBackend == NULL) {
+    taosMsleep(2 * 1000);
+    pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
+    if (pMeta->streamBackend == NULL) {
+      qError("vgId:%d failed to init stream backend", pMeta->vgId);
+      // return -1;
+    }
   }
 
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
@@ -523,7 +534,6 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     } else {
       tdbFree(pKey);
       tdbFree(pVal);
-      tdbTbcClose(pCur);
       taosMemoryFree(pTask);
       continue;
     }

@@ -1691,7 +1691,7 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 // todo refactor.
 int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
-  STQ*      pTq = pVnode->pTq;
+  STQ*    pTq = pVnode->pTq;
   int32_t vgId = pVnode->config.vgId;
 
   SMsgHead* msgStr = pMsg->pCont;
@@ -1710,7 +1710,7 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   int32_t taskId = req.taskId;
-  tqDebug("vgId:%d receive dispatch msg to s-task:0x%"PRIx64"-0x%x", vgId, req.streamId, taskId);
+  tqDebug("vgId:%d receive dispatch msg to s-task:0x%" PRIx64 "-0x%x", vgId, req.streamId, taskId);
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, taskId);
   if (pTask != NULL) {
@@ -1883,7 +1883,11 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tqDebug("s-task:%s receive task nodeEp update msg from mnode", pTask->id.idStr);
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
-  streamMetaSaveTask(pMeta, pTask);
+  {
+    taosWLockLatch(&pMeta->lock);
+    streamMetaSaveTask(pMeta, pTask);
+    taosWUnLockLatch(&pMeta->lock);
+  }
   streamTaskStop(pTask);
 
   taosWLockLatch(&pMeta->lock);
