@@ -24,9 +24,9 @@ static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
 int32_t             streamBackendCfWrapperId = 0;
 
-int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
-
+static int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
 static void metaHbToMnode(void* param, void* tmrId);
+static void streamMetaClear(SStreamMeta* pMeta);
 
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
@@ -130,31 +130,8 @@ _err:
 }
 
 int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
-  // stop all running tasking and reopen later
-  void* pIter = NULL;
-  while (1) {
-    pIter = taosHashIterate(pMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
+  streamMetaClear(pMeta);
 
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->schedTimer) {
-      taosTmrStop(pTask->schedTimer);
-      pTask->schedTimer = NULL;
-    }
-
-    if (pTask->launchTaskTimer) {
-      taosTmrStop(pTask->launchTaskTimer);
-      pTask->launchTaskTimer = NULL;
-    }
-
-    tFreeStreamTask(pTask);
-  }
-
-  // close stream backend
-  // streamBackendCleanup(pMeta->streamBackend);
-  taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
   pMeta->streamBackendRid = -1;
   pMeta->streamBackend = NULL;
 
@@ -165,59 +142,69 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
   char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
   sprintf(newPath, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
 
-  if (taosRenameFile(newPath, defaultPath) < 0) {
-    taosMemoryFree(defaultPath);
-    taosMemoryFree(newPath);
-    return -1;
+  int32_t code = taosStatFile(newPath, NULL, NULL, NULL);
+  if (code == 0) {
+    // directory exists
+    code = taosRenameFile(newPath, defaultPath);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(code);
+      qError("vgId:%d failed to rename file, from %s to %s, code:%s", newPath, defaultPath, pMeta->vgId,
+             tstrerror(terrno));
+
+      taosMemoryFree(defaultPath);
+      taosMemoryFree(newPath);
+      return -1;
+    }
   }
 
-  pMeta->streamBackend = streamBackendInit(pMeta->path, 0);
+  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   if (pMeta->streamBackend == NULL) {
+    qError("vgId:%d failed to init stream backend", pMeta->vgId);
     return -1;
   }
+
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
-
-  taosHashClear(pMeta->pTasks);
-
-  taosArrayClear(pMeta->pTaskList);
-
-  taosHashClear(pMeta->pTaskBackendUnique);
-
-  taosArrayClear(pMeta->chkpSaved);
-
-  taosArrayClear(pMeta->chkpInUse);
-
   return 0;
 }
+
+void streamMetaClear(SStreamMeta* pMeta) {
+  void* pIter = NULL;
+  while ((pIter = taosHashIterate(pMeta->pTasks, pIter)) != NULL) {
+    streamMetaReleaseTask(pMeta, *(SStreamTask**)pIter);
+  }
+
+  taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
+
+  taosHashClear(pMeta->pTasks);
+  taosHashClear(pMeta->pTaskBackendUnique);
+
+  taosArrayClear(pMeta->pTaskList);
+  taosArrayClear(pMeta->chkpSaved);
+  taosArrayClear(pMeta->chkpInUse);
+}
+
 void streamMetaClose(SStreamMeta* pMeta) {
   qDebug("start to close stream meta");
   if (pMeta == NULL) {
     return;
   }
 
+  streamMetaClear(pMeta);
+
   tdbAbort(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
 
-  void* pIter = NULL;
-  while (1) {
-    pIter = taosHashIterate(pMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-    tFreeStreamTask(*(SStreamTask**)pIter);
-  }
-
-  taosHashCleanup(pMeta->pTasks);
-  taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
-  pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
-  taosMemoryFree(pMeta->path);
-  taosThreadMutexDestroy(&pMeta->backendMutex);
-  taosHashCleanup(pMeta->pTaskBackendUnique);
-
+  taosArrayDestroy(pMeta->pTaskList);
   taosArrayDestroy(pMeta->chkpSaved);
   taosArrayDestroy(pMeta->chkpInUse);
+
+  taosHashCleanup(pMeta->pTasks);
+  taosHashCleanup(pMeta->pTaskBackendUnique);
+
+  taosMemoryFree(pMeta->path);
+  taosThreadMutexDestroy(&pMeta->backendMutex);
 
   taosMemoryFree(pMeta);
   qDebug("end to close stream meta");
@@ -318,7 +305,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t
   return NULL;
 }
 
-void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
   int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
   if (ref > 0) {
     qTrace("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
@@ -458,12 +445,21 @@ int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
 
     chkpId = TMAX(chkpId, info.checkpointId);
   }
+
   qDebug("get max chkp id: %" PRId64 "", chkpId);
+
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
 
   return chkpId;
+}
+
+static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  taosArrayDestroy(pRecycleList);
 }
 
 int32_t streamLoadTasks(SStreamMeta* pMeta) {
@@ -486,19 +482,14 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
     if (pTask == NULL) {
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
-      taosArrayDestroy(pRecycleList);
+      doClear(pKey, pVal, pCur, pRecycleList);
       return -1;
     }
+
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTask(&decoder, pTask) < 0) {
       tDecoderClear(&decoder);
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
-      taosArrayDestroy(pRecycleList);
+      doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
       qError(
           "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
@@ -513,7 +504,6 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
 
       taosArrayPush(pRecycleList, &taskId);
-
       int32_t total = taosArrayGetSize(pRecycleList);
       qDebug("s-task:0x%x is already dropped, add into recycle list, total:%d", taskId, total);
       continue;
@@ -524,11 +514,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if (p == NULL) {
       if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
-        tdbFree(pKey);
-        tdbFree(pVal);
-        tdbTbcClose(pCur);
+        doClear(pKey, pVal, pCur, pRecycleList);
         tFreeStreamTask(pTask);
-        taosArrayDestroy(pRecycleList);
         return -1;
       }
 
@@ -542,11 +529,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     }
 
     if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
+      doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
-      taosArrayDestroy(pRecycleList);
       return -1;
     }
 

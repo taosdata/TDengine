@@ -75,6 +75,9 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq);
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 
+static SArray *doExtractNodeListFromStream(SMnode *pMnode);
+static SArray *mndTakeVgroupSnapshot(SMnode *pMnode);
+static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
 static int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans);
 static void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset);
 
@@ -1097,12 +1100,59 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
   return 0;
 }
 
+static const char *mndGetStreamDB(SMnode *pMnode) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+
+  pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+  if (pIter == NULL) {
+    return NULL;
+  }
+
+  const char *p = taosStrdup(pStream->sourceDb);
+  mndReleaseStream(pMnode, pStream);
+  sdbCancelFetch(pSdb, pIter);
+  return p;
+}
+
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   void       *pIter = NULL;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+
+  {
+    int64_t ts = taosGetTimestampSec();
+
+    if (execNodeList.pNodeEntryList == NULL || (taosArrayGetSize(execNodeList.pNodeEntryList) == 0)) {
+      if (execNodeList.pNodeEntryList != NULL) {
+        execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
+      }
+      execNodeList.pNodeEntryList = doExtractNodeListFromStream(pMnode);
+    }
+
+    if (taosArrayGetSize(execNodeList.pNodeEntryList) == 0) {
+      mDebug("end to do stream task node change checking, no vgroup exists, do nothing");
+      execNodeList.ts = ts;
+      atomic_store_32(&mndNodeCheckSentinel, 0);
+      return 0;
+    }
+
+    SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode);
+
+    SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
+    bool nodeUpdated = (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0);
+    taosArrayDestroy(changeInfo.pUpdateNodeList);
+    taosHashCleanup(changeInfo.pDBMap);
+    taosArrayDestroy(pNodeSnapshot);
+
+    if (nodeUpdated) {
+      mDebug("stream task not ready due to node update, not generate checkpoint");
+      return 0;
+    }
+  }
 
   SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
   int64_t                  checkpointId = pMsg->checkpointId;
@@ -1114,7 +1164,10 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   }
   mDebug("start to trigger checkpoint, checkpointId: %" PRId64 "", checkpointId);
 
-  mndTransSetDbName(pTrans, "checkpoint", "checkpoint");
+  const char* pDb = mndGetStreamDB(pMnode);
+  mndTransSetDbName(pTrans, pDb, "checkpoint");
+  taosMemoryFree((void*)pDb);
+
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mError("failed to trigger checkpoint, checkpointId: %" PRId64 ", reason:%s", checkpointId,
            tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
@@ -1132,11 +1185,13 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
       break;
     }
   }
+
   if (code == 0) {
     if (mndTransPrepare(pMnode, pTrans) != 0) {
       mError("failed to prepre trans rebalance since %s", terrstr());
     }
   }
+
   mndTransDrop(pTrans);
   return code;
 }
