@@ -1,11 +1,8 @@
 import sys
-import time
 import threading
-from taos.tmq import Consumer
 from util.log import *
 from util.sql import *
 from util.cases import *
-from util.dnodes import *
 from util.common import *
 
 class TDTestCase:
@@ -17,7 +14,7 @@ class TDTestCase:
         self.tdCom = tdCom
 
     def scalar_function(self, partition="tbname", fill_history_value=None):
-        tdLog.info(f"testing stream scalar funtion partition: {partition}, fill_history_value: {fill_history_value}")
+        tdLog.info(f"*** testing stream scalar funtion partition: {partition}, fill_history_value: {fill_history_value} ***")
         self.tdCom.case_name = sys._getframe().f_code.co_name
         tdLog.info("preparing data ...")
         self.tdCom.prepare_data(fill_history_value=fill_history_value)
