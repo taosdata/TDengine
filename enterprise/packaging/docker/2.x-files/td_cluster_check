@@ -7,10 +7,6 @@ logging() {
 }
 
 logging "INFO" "td cluster check begins"
-sleep 7
-logging "INFO" "td cluster check finished"
-
-exit 0
 
 
 FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
@@ -38,7 +34,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # get dnode id
-DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}' | awk '{gsub(/ /,"")}1' )
 if [[ "$DNODETmp" == "" ]]; then
     logging "INFO" "Could not get dnode number"
     exit 1
@@ -56,3 +52,4 @@ else
     exit 1
 fi
 
+logging "INFO" "td cluster check finished"
