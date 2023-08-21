@@ -1588,10 +1588,10 @@ export default {
             return;
           }
           piParams["from"] =
-            `csv:` +
+            `csv:` + (this.$refs.csvdata.activeName=='first'?
             this.$refs.csvdata.fileList.map((item, index) => {
               return item.response[0];
-            }) +
+            }):this.$refs.csvdata.fileurl) +
             dns.substring(3) +
             `&has_header=` +
             this.$refs.csvdata.$refs.param.ruleForm.hasHeader +
