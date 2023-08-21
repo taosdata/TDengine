@@ -1610,9 +1610,11 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
     return -1;
   }
 
+  col_id_t colId = pOld->pColumns[col].colId;
+
   uint32_t nLen = 0;
   for (int32_t i = 0; i < pOld->numOfColumns; ++i) {
-    nLen += (pOld->pColumns[i].colId == col) ? pField->bytes : pOld->pColumns[i].bytes;
+    nLen += (pOld->pColumns[i].colId == colId) ? pField->bytes : pOld->pColumns[i].bytes;
   }
 
   if (nLen > TSDB_MAX_BYTES_PER_ROW) {
@@ -1620,7 +1622,6 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
     return -1;
   }
 
-  col_id_t colId = pOld->pColumns[col].colId;
   if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }

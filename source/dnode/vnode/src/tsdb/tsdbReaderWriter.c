@@ -44,7 +44,7 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
       pFD->pFD = taosOpenFile(path, flag);
 
       if (pFD->pFD == NULL) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ENOENT);
         taosMemoryFree(pFD);
         goto _exit;
       }

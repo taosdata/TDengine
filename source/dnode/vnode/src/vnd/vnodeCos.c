@@ -85,6 +85,25 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   return code;
 }
 
+void s3DeleteObjectsByPrefix(const char *prefix_str) {
+  cos_pool_t            *p = NULL;
+  cos_request_options_t *options = NULL;
+  int                    is_cname = 0;
+  cos_string_t           bucket;
+  cos_status_t          *s = NULL;
+  cos_string_t           prefix;
+
+  cos_pool_create(&p, NULL);
+  options = cos_request_options_create(p);
+  s3InitRequestOptions(options, is_cname);
+  cos_str_set(&bucket, tsS3BucketName);
+  cos_str_set(&prefix, prefix_str);
+
+  s = cos_delete_objects_by_prefix(options, &bucket, &prefix);
+  log_status(s);
+  cos_pool_destroy(p);
+}
+
 void s3DeleteObjects(const char *object_name[], int nobject) {
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
@@ -314,6 +333,7 @@ long s3Size(const char *object_name) {
 int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
+void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
 bool    s3Get(const char *object_name, const char *path) { return false; }

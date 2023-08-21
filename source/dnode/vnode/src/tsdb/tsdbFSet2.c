@@ -86,7 +86,7 @@ static int32_t tsdbSttLvlApplyEdit(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl *l
         // create a file obj
         code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj2);
         if (code) return code;
-        code = TARRAY2_APPEND(lvl2->fobjArr, fobj2);
+        code = TARRAY2_INSERT_PTR(lvl2->fobjArr, i2, &fobj2);
         if (code) return code;
         i1++;
         i2++;
@@ -112,7 +112,7 @@ static int32_t tsdbSttLvlApplyEdit(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl *l
       // create a file obj
       code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj2);
       if (code) return code;
-      code = TARRAY2_APPEND(lvl2->fobjArr, fobj2);
+      code = TARRAY2_INSERT_PTR(lvl2->fobjArr, i2, &fobj2);
       if (code) return code;
       i1++;
       i2++;

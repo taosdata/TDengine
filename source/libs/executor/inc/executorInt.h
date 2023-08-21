@@ -48,6 +48,14 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct STsdbReader STsdbReader;
 typedef struct STqReader  STqReader;
 
+
+typedef enum SOperatorParamType{
+  OP_GET_PARAM = 1,
+  OP_NOTIFY_PARAM
+} SOperatorParamType;
+
+
+
 #define IS_VALID_SESSION_WIN(winInfo)        ((winInfo).sessionWin.win.skey > 0)
 #define SET_SESSION_WIN_INVALID(winInfo)     ((winInfo).sessionWin.win.skey = INT64_MIN)
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
@@ -105,6 +113,20 @@ typedef struct SExchangeOpStopInfo {
   int64_t refId;
 } SExchangeOpStopInfo;
 
+typedef struct SGcOperatorParam {
+  int64_t             sessionId;
+  int32_t             downstreamIdx;
+  int32_t             vgId;
+  int64_t             tbUid;
+  bool                needCache;
+} SGcOperatorParam;
+
+typedef struct SGcNotifyOperatorParam {
+  int32_t             downstreamIdx;
+  int32_t             vgId;
+  int64_t             tbUid;
+} SGcNotifyOperatorParam;
+
 typedef struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator
@@ -115,8 +137,9 @@ typedef struct SExprSupp {
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
-  EX_SOURCE_DATA_READY = 0x2,
-  EX_SOURCE_DATA_EXHAUSTED = 0x3,
+  EX_SOURCE_DATA_STARTED,
+  EX_SOURCE_DATA_READY,
+  EX_SOURCE_DATA_EXHAUSTED,
 } EX_SOURCE_STATUS;
 
 #define COL_MATCH_FROM_COL_ID  0x1
@@ -138,11 +161,38 @@ typedef struct SLimitInfo {
   int64_t  numOfOutputRows;
 } SLimitInfo;
 
+typedef struct SSortMergeJoinOperatorParam {
+  bool initDownstream;
+} SSortMergeJoinOperatorParam;
+
+typedef struct SExchangeOperatorBasicParam {
+  int32_t         vgId;
+  int32_t         srcOpType;
+  bool            tableSeq;
+  SArray*         uidList;
+} SExchangeOperatorBasicParam;
+
+typedef struct SExchangeOperatorBatchParam {
+  bool            multiParams;
+  SSHashObj*      pBatchs; // SExchangeOperatorBasicParam
+} SExchangeOperatorBatchParam;
+
+typedef struct SExchangeOperatorParam {
+  bool                        multiParams;
+  SExchangeOperatorBasicParam basic;
+} SExchangeOperatorParam;
+
+typedef struct SExchangeSrcIndex {
+  int32_t srcIdx;
+  int32_t inUseIdx;
+} SExchangeSrcIndex;
+
 typedef struct SExchangeInfo {
-  SArray* pSources;
-  SArray* pSourceDataInfo;
-  tsem_t  ready;
-  void*   pTransporter;
+  SArray*    pSources;
+  SSHashObj* pHashSources;
+  SArray*    pSourceDataInfo;
+  tsem_t     ready;
+  void*      pTransporter;
 
   // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
   // passed by downstream operator
@@ -150,6 +200,7 @@ typedef struct SExchangeInfo {
   SArray*      pRecycledBlocks;  // build a pool for small data block to avoid to repeatly create and then destroy.
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
+  bool         dynamicOp;
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
@@ -602,7 +653,7 @@ typedef struct SStreamFillOperatorInfo {
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo);
-void    cleanupQueriedTableScanInfo(SSchemaInfo* pSchemaInfo);
+void    cleanupQueriedTableScanInfo(void* p);
 
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void cleanupBasicInfo(SOptrBasicInfo* pInfo);
@@ -706,6 +757,14 @@ void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 uint64_t calcGroupId(char* pData, int32_t len);
 void streamOpReleaseState(struct SOperatorInfo* pOperator);
 void streamOpReloadState(struct SOperatorInfo* pOperator);
+
+void destroyOperatorParamValue(void* pValues);
+int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
+int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
+void freeExchangeGetBasicOperatorParam(void* pParam);
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
+void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
+SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam);
 
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
