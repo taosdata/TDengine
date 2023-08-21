@@ -1296,16 +1296,44 @@ static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
 
 
 static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
-  int64_t skey = htobe64(pCompactMsg->skey);
-  int64_t ekey = htobe64(pCompactMsg->ekey);
+  int64_t skey = INT64_MIN;
+  int64_t ekey = INT64_MAX;
 
   int32_t count = ntohs(pCompactMsg->numOfVgroup);
   int32_t *buf  = malloc(sizeof(int32_t) * count);
   if (buf == NULL) {
     return  TSDB_CODE_MND_OUT_OF_MEMORY;
   }
+
   for (int32_t i = 0; i < count; i++) {
     buf[i] = ntohs(pCompactMsg->vgid[i]);
+  }
+
+  if (pCompactMsg->extend) {
+    char* p = (char*)pCompactMsg + sizeof(SCompactMsg) + count * sizeof(int32_t);
+
+    STLV* tlv = NULL;
+    while (1) {
+      tlv = (STLV*)p;
+      tlv->type = ntohs(tlv->type);
+      tlv->len = ntohl(tlv->len);
+      if (tlv->type == TLV_TYPE_END_MARK) {
+        break;
+      }
+      switch (tlv->type) {
+        case TLV_TYPE_COMPACT_VNODES_TIME_RANGE: {
+          assert(tlv->len == 2 * sizeof(int64_t));
+          skey = htobe64(*(int64_t*)tlv->value);
+          ekey = htobe64(*(int64_t*)(tlv->value + sizeof(int64_t)));
+          p += sizeof(*tlv) + tlv->len;
+          break;
+        }
+        default: {
+          p += sizeof(*tlv) + tlv->len;
+          break;
+        }
+      }
+    }
   }
 
   // copy from mnodeSyncDb, so ugly
