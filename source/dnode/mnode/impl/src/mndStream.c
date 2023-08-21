@@ -1830,7 +1830,7 @@ void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_
 
 // todo extract method: traverse stream tasks
 // build trans to update the epset
-static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo* pInfo) {
+static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, NULL, "stream-task-update");
   if (pTrans == NULL) {
     mError("failed to build stream task DAG update, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
@@ -2100,6 +2100,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
 }
 
 typedef struct SMStreamNodeCheckMsg {
+  int8_t holder;  // // to fix windows compile error, define place holder
 } SMStreamNodeCheckMsg;
 
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
