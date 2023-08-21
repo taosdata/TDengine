@@ -149,7 +149,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
    setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -280,7 +280,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       blockDataCleanup(pRes);
 
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
-      SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+      SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
         qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status, pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
@@ -440,7 +440,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -525,7 +525,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     if (pInfo->pRes->info.rows < pOperator->resultInfo.threshold) {
       while (1) {
         // The downstream exec may change the value of the newgroup, so use a local variable instead.
-        SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+        SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
         if (pBlock == NULL) {
           setOperatorCompleted(pOperator);
           break;

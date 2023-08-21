@@ -471,28 +471,48 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
 }
 
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion) {
+                                    int32_t* tversion, int32_t idx) {
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  if (pTaskInfo->schemaInfo.sw == NULL) {
-    return TSDB_CODE_SUCCESS;
+  if (taosArrayGetSize(pTaskInfo->schemaInfos) <= idx) {
+    return -1;
   }
 
-  *sversion = pTaskInfo->schemaInfo.sw->version;
-  *tversion = pTaskInfo->schemaInfo.tversion;
-  if (pTaskInfo->schemaInfo.dbname) {
-    strcpy(dbName, pTaskInfo->schemaInfo.dbname);
+  SSchemaInfo* pSchemaInfo = taosArrayGet(pTaskInfo->schemaInfos, idx);
+
+  *sversion = pSchemaInfo->sw->version;
+  *tversion = pSchemaInfo->tversion;
+  if (pSchemaInfo->dbname) {
+    strcpy(dbName, pSchemaInfo->dbname);
   } else {
     dbName[0] = 0;
   }
-  if (pTaskInfo->schemaInfo.tablename) {
-    strcpy(tableName, pTaskInfo->schemaInfo.tablename);
+  if (pSchemaInfo->tablename) {
+    strcpy(tableName, pSchemaInfo->tablename);
   } else {
     tableName[0] = 0;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool qIsDynamicExecTask(qTaskInfo_t tinfo) {
+  return ((SExecTaskInfo*)tinfo)->dynamicTask;
+}
+
+void destroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
+
+  //TODO
+}
+
+void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+  destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
+  ((SExecTaskInfo*)tinfo)->pOpParam = pParam;
+  ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
@@ -503,7 +523,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code: %s", tstrerror(code));
     goto _error;
   }
@@ -585,12 +605,19 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   int64_t st = taosGetTimestampUs();
 
-  int32_t blockIndex = 0;
+  if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
+    pTaskInfo->paramSet = true;
+    pRes = pTaskInfo->pRoot->fpSet.getNextExtFn(pTaskInfo->pRoot, pTaskInfo->pOpParam);
+  } else {
+    pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+  }
+  
   int32_t rowsThreshold = pTaskInfo->pSubplan->rowsThreshold;
   if (!pTaskInfo->pSubplan->dynamicRowThreshold || 4096 <= pTaskInfo->pSubplan->rowsThreshold) {
     rowsThreshold = 4096;
   }
-  while ((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
+  int32_t blockIndex = 0;
+  while (pRes != NULL) {
     SSDataBlock* p = NULL;
     if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
       SSDataBlock* p1 = createOneDataBlock(pRes, true);
@@ -610,6 +637,8 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     if (current >= rowsThreshold) {
       break;
     }
+
+    pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   }
   if (pTaskInfo->pSubplan->dynamicRowThreshold) {
     pTaskInfo->pSubplan->rowsThreshold -= current;

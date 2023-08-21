@@ -312,7 +312,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 _OVER:
   if (code != 0) {
     vnodeClose(pImpl);
-    vnodeDestroy(path, pMgmt->pTfs);
+    vnodeDestroy(0, path, pMgmt->pTfs);
   } else {
     dInfo("vgId:%d, vnode management handle msgType:%s, end to create vnode, vnode is created", req.vgId,
           TMSG_INFO(pMsg->msgType));
@@ -409,7 +409,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   vmCloseVnode(pMgmt, pVnode, false);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
-  char path[TSDB_FILENAME_LEN] = {0};
+  char    path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
 
   dInfo("vgId:%d, start to alter vnode replica at %s", vgId, path);
@@ -507,8 +507,8 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   vmCloseVnode(pMgmt, pVnode, true);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
-  char srcPath[TSDB_FILENAME_LEN] = {0};
-  char dstPath[TSDB_FILENAME_LEN] = {0};
+  char    srcPath[TSDB_FILENAME_LEN] = {0};
+  char    dstPath[TSDB_FILENAME_LEN] = {0};
   snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
   snprintf(dstPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, dstVgId);
 
@@ -611,7 +611,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   vmCloseVnode(pMgmt, pVnode, false);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
-  char path[TSDB_FILENAME_LEN] = {0};
+  char    path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
 
   dInfo("vgId:%d, start to alter vnode replica at %s", vgId, path);

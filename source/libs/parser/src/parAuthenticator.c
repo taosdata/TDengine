@@ -263,7 +263,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
-//    case QUERY_NODE_SHOW_MODULES_STMT:
+    case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
