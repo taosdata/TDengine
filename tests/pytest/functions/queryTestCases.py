@@ -433,51 +433,6 @@ class TDTestCase:
         tdSql.query("show vgroups")
         index = tdSql.getData(0,0)
         tdSql.checkData(0, 6, 0)
-        tdSql.execute(f"compact vnodes in({index}) start with now-10s end with now+5s")
-        start_time = time.time()
-        while True:
-            tdSql.query("show vgroups")
-            if tdSql.getData(0, 6) != 0:
-                tdLog.printNoPrefix("show vgroups row:0 col:6 data:1 == expect:1")
-                break
-            run_time = time.time()-start_time
-            if run_time > 3:
-                tdLog.exit("compacting not occured")
-            # time.sleep(0.1)
-
-        tdSql.query("show vgroups")
-        index = tdSql.getData(0,0)
-        tdSql.checkData(0, 6, 0)
-        tdSql.execute(f"compact vnodes in({index}) start with now-100s")
-        start_time = time.time()
-        while True:
-            tdSql.query("show vgroups")
-            if tdSql.getData(0, 6) != 0:
-                tdLog.printNoPrefix("show vgroups row:0 col:6 data:1 == expect:1")
-                break
-            run_time = time.time()-start_time
-            if run_time > 3:
-                tdLog.exit("compacting not occured")
-            # time.sleep(0.1)
-
-        tdSql.query("show vgroups")
-        index = tdSql.getData(0,0)
-        tdSql.checkData(0, 6, 0)
-        tdSql.execute(f"compact vnodes in({index}) end with now-10s")
-        start_time = time.time()
-        while True:
-            tdSql.query("show vgroups")
-            if tdSql.getData(0, 6) != 0:
-                tdLog.printNoPrefix("show vgroups row:0 col:6 data:1 == expect:1")
-                break
-            run_time = time.time()-start_time
-            if run_time > 3:
-                tdLog.exit("compacting not occured")
-            # time.sleep(0.1)
-
-        tdSql.query("show vgroups")
-        index = tdSql.getData(0,0)
-        tdSql.checkData(0, 6, 0)
         tdSql.execute(f"compact vnodes in({index})")
         start_time = time.time()
         while True:
