@@ -199,7 +199,7 @@ if __name__ == "__main__":
             createDnodeNums = value
 
         if key in ['-i', '--independentMnode']:
-            independentMnode = value
+            independentMnode = False
 
         if key in ['-R', '--restful']:
             restful = True
