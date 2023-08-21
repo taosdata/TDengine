@@ -1,7 +1,7 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: taosX
-title: 数据接入、同步、备份、导出和迁移
+title: 数据接入、同步和备份
 description:  "为了能够方便地将各种数据源中的数据导入 TDengine 3.0，TDengine 3.0 企业版提供了一个全新的工具 taosX 用于帮助用户快速将其它数据源中的数据传输到 TDengine 中"
 ---
 
@@ -13,11 +13,7 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 ## 安装与配置
 
-有两种安装 taosX 的方式：
-
-1. 使用 TDengine 安装包，在安装了 TDengine 企业版之后，您的系统中就已经拥有了 taosX，请使用 Linux 系统命令 which 来确认它存在于系统中。TDengine 企业版中自带的 taosX 可以进行从 TDengine 到 TDengine 的数据复制和同步，可以进行备份数据到本地文件和从本地文件恢复。
-2. 使用独立的 taosX 安装包，其中除了 taosX 之外，还包含 Pi 连接器（限 Windows）， OPC 连接器， InfluxDB 连接器， MQTT 连接器，以及必要的 Agent 组件，taosX + Agent + 某个连接器可以用于将相应数据源的数据同步到 TDengine。
-3. taosX 安装包也包含 taos-explorer 这个可视化管理组件
+安装 taosX 需要使用独立的 taosX 安装包，其中除了 taosX 之外，还包含 Pi 连接器（限 Windows）， OPC 连接器， InfluxDB 连接器， MQTT 连接器，以及必要的 Agent 组件，taosX + Agent + 某个连接器可以用于将相应数据源的数据同步到 TDengine。taosX 安装包中还包含了 taos-explorer 这个可视化管理组件
 
 ### Linux 安装
 
@@ -102,6 +98,18 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 可以直接在命令行上添加必要的参数直接启动 taosX 即为命令行模式运行。当命令行参数所指定的任务完成后 taosX 会自动停止。taosX 在运行中如果出现错误也会自动停止。也可以在任意时刻使用 ctrl+c 停止 taosX 的运行。本节介绍如何使用 taosX 的各种使用场景下的命令行。
 
+### 命令行参数说明
+
+**注意：部分参数暂无法通过 explorer设置【见：其他参数说明】，之后会逐步开放） **
+
+命令行执行示例：
+
+```shell
+taosx -f <from-DSN> -t <to-DSN> <其他参数>
+```
+
+以下参数说明及示例中若无特殊说明 `<content>` 的格式均为占位符，使用时需要使用实际参数进行替换。
+
 ### DSN (Data Source Name)
 
 taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源），典型的 DSN 如下：
@@ -124,7 +132,10 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - local：数据备份或恢复
 - pi: 启用 pi-connector从 pi 数据库中获取数据
 - opc：启用 opc-connector 从 opc-server 中获取数据
-- mqtt: 启动 mqtt-connector 获取 mqtt-broker 中的数据
+- mqtt: 启用 mqtt-connector 获取 mqtt-broker 中的数据
+- kafka: 启用 Kafka 连接器从 Kafka Topics 中订阅消息写入
+- influxdb:  启用 influxdb 连接器从 InfluxDB 获取数据
+- csv：从 CSV 文件解析数据
 
 2. +protocol 包含如下选项：
 - +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
@@ -135,6 +146,46 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 4. object 表示具体的数据源，可以是TDengine的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
 5. username 和 password 表示该数据源的用户名和密码。
 6. params 代表了 dsn 的参数。
+
+### 其它参数说明
+
+1. parser 通过 --parser 或 -p 设置，设置 transform 的 parser 生效。可以通过 Explorer 在如 CSV，MQTT，KAFKA 数据源的任务配置进行设置。
+
+  配置示例：
+
+  ```shell
+  --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
+
+  ```
+
+2. transform 通过 --transform 或 -T 设置，配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 Explorer 进行设置。配置说明如下：
+   
+  ```shell
+  1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
+  2.表重命名：
+      2.1 重命名表限定
+          2.1.1 RenameTable：对所有符合条件的表进行重命名。
+          2.1.2 RenameChildTable：对所有符合条件的子表进行重命名。
+          2.1.3 RenameSuperTable：对所有符合条件的超级表进行重命名。
+      2.2 重命名方式
+          2.2.1 Prefix：添加前缀。
+          2.2.2 Suffix：添加后缀。
+          2.2.3 Template：模板方式。
+          2.2.4 ReplaceWithRegex：正则替换。taosx 1.1.0 新增。
+  重命名配置方式：
+      <表限定>:<重命名方式>:<重命名值>
+  使用示例：
+      1.为所有表添加前缀 <prefix>
+      --transform rename-table:prefix:<prefix>
+      2.为符合条件的表替换前缀：prefix1 替换为 prefix2，以下示例中的 <> 为正则表达式的不再是占位符。
+      -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
+
+      示例说明：^prefix1(?<old>) 为正则表达式，该表达式会匹配表名中包含以 prefix1 开始的表名并将后缀部分记录为 old，prefix2$old 则会使用 prefix2 与 old 进行替换。注意：两部分使用关键字符 :: 进行分隔，所以需要保证正则表达式中不能包含该字符。
+      若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
+  ```
+
+3. jobs 指定任务并发数，仅支持 tmq 任务。暂无法通过 Explorer 进行设置。通过 --jobs `<number>` 或 -j `<number>` 进行设置。
+4. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
 
 
 ### 从 TDengine 到 TDengine 的数据同步
@@ -151,6 +202,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 | client.id | 订阅使用的客户端ID                                               | taosx                      |
 | timeout   | 监听数据的超时时间，当设置为 never 表示 taosx 不会停止持续监听。 | 500ms                      |
 | offset    | 从指定的 offset 开始订阅，格式为 `<vgroup_id>:<offset>`，若有多个 vgroup 则用半角逗号隔开 | 若为空则从 0 开始订阅  |
+| token     | 目标源参数。 认证使用参数。                              | 无                                     |
 
 示例：
 ```shell
@@ -165,7 +217,7 @@ taosx run \
 
 将 2.6 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
 
-命令行模式下支持的参数如下：
+#### 命令行参数
 
 | 参数名称           | 说明                                                                                                                                                                                                                                      | 默认值                                 |
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
@@ -187,11 +239,23 @@ taosx run \
 | timeout-per-table  | 目标源参数。 为子表或普通表同步任务添加超时。                                                                                                                                                                                             | 无                                     |
 | update-tags        | 目标源参数。 检查子表存在与否，不存在时正常建表，存在时检查标签值是否一致，不一致则更新。                                                                                                                                                 | 无                                     |
 
-示例：
+#### 示例
+
+1.使用原生连接同步数据
+
 ```shell
 taosx run \
-  -f 'taos://td1:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all&assert' \
-  -t 'taos://td2:6030/db2?libraryPath=./libtaos.so.3.0.1.8' \
+  -f 'taos://td1:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' \
+  -t 'taos://td2:6030/db2?libraryPath=./libtaos.so.3.0.1.8&assert \
+  -v
+```
+
+2.使用 WebSocket 同步数据超级表 stable1 和 stable2 的数据
+
+```shell
+taosx run \
+  -f 'taos+ws://<username>:<password>@td1:6041/db1?stables=stable1,stable2' \
+  -t 'taos+wss://td2:6041/db2?assert&token=<token> \
   -v
 ```
 
@@ -211,7 +275,7 @@ taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
 
 ### 从本地数据文件恢复到 TDengine
 
-示例：
+#### 示例
 ```shell
 taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
 ```
@@ -223,7 +287,7 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 目标源(-t 参数的 DSN)中的 object 支持配置为数据库(dbname)、超级表(dbname.stablename)、子表/普通表(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级，前提是备份的数据文件也是对应的数据库级、超级表级、子表/普通表级数据。
 
 
-常见错误排查：
+#### 常见错误排查
 
 (1) 如果使用原生连接，任务启动失败并报以下错误：
 
@@ -274,7 +338,7 @@ alter database test wal_retention_period 3600;
 
 ### 从 OPC-UA 同步数据到 TDengine
 
-可配置参数如下：
+#### 配置参数
 
 | 参数名称 | 类型    | 描述                                   |  
 |-----------------|--------|-----------------------------------------------------------------------------|
@@ -288,22 +352,75 @@ alter database test wal_retention_period 3600;
 | security_mode   | string | OPC-UA连接模式（可配置为None/Sign/SignAndEncrypt）                                                    |
 | certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
 | private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
+| csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效|
+| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid\>::<code\>，code 用于建子表。|
+| opc_table_config | string | OPCUA 单列模式表配置。需要与 ua.nodes 配合使用。|
+| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。|
+| enable | bool | 原始数据存储。默认为 false|
+| path | string | 原始数据存储路径。enable 为 true 时必须配置。|
+| keep | int | 原始数据保存天数。enable 为 true 时必须配置。|
 
-示例：
+补充：
+1. opc_table_config 说明：
+
+```json
+{
+    "stable_prefix": "meters", // 超级表前缀
+    "column_configs":
+    [
+        {
+            "column_name": "received_time", // 存储接收时间
+            "column_type": "timestamp",
+            "column_alias": "ts", // 接收时间建表列用列名为 ts
+            "is_primary_key": true // 接收时间时间戳作为主键
+        },
+        {
+            "column_name": "original_time",
+            "column_type": "timestamp",
+            "column_alias": "ts_2",
+            "is_primary_key": false
+        },
+        {
+            "column_name": "value", // 数据列
+            "column_alias": "valueaa", // 数据列别名
+            "is_primary_key": false
+        },
+        {
+            "column_name": "quality", // 质量位列
+            "column_type": "int",
+            "column_alias": "quality11", // 质量位列别名
+            "is_primary_key": false
+        }
+    ]
+}
+```
+
+#### 示例
+
+1. 使用 ua.nodes 和 opc_table_config 的配置示例：
+采集 nodeid 为 ns=2;i=2 和 ns=2;i=3 的点位，将其写入到集群 tdengine 的 opc 库中超级表前缀为 meters，如果 ns=2;i=2 的点位类型为 float 则会创建 meters_float 的超级表，超级表使用 opc 接收的数据作为时间戳索引列，并且保留原始时间戳列，原始时间戳列名为 ts_2,数据列存储为 valueaa，同时存储质量数据到 quality11 列。
 
 ```shell
 taosx run \
-    -f "opc+ua://uauser:uapass@localhost:4840?ua.nodes=ns=2;i=2::meters::current::double" \
+    -f "opcua://uauser:uapass@localhost:4840?ua.nodes=ns=2;i=2::DSF1312,ns=2;i=3::DSF1313&opc_table_config={\"stable_prefix\": \"meters\", \"column_configs\": [{\"column_name\": \"received_time\", \"column_type\": \"timestamp\", \"column_alias\": \"ts\", \"is_primary_key\": true }, {\"column_name\": \"original_time\", \"column_type\": \"timestamp\", \"column_alias\": \"ts_2\", \"is_primary_key\": false }, {\"column_name\": \"value\", \"column_alias\": \"valueaa\", \"is_primary_key\": false }, {\"column_name\": \"quality\", \"column_type\": \"int\", \"column_alias\": \"quality11\", \"is_primary_key\": false } ] }" \
     -t "taos://tdengine:6030/opc"
-```
-以上示例的执行结果：
+ 
 
-采集 localhost 的 opc-server 中 nodeid 为 ns=2;i=2 测点的数据，将其写入到集群 tdengine 的 opc 库中，并以 meters 为表名，current 为列名，double 为列类型的 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
+
+```
+
+2. 使用 CSV 配置文件
+
+```shell
+taosx run -f "opcua://<server-info>?csv_config_file=@<file_path>" -t "taos+ws://tdengine:6041/opc"
+```
+
+#### CSV 配置文件模板
 
 
 ### 从 OPC-DA 同步数据到 TDengine (Windows)
 
-可配置参数如下：
+#### 配置参数
 
 | 参数名称 | 类型    | 描述                                   |
 |-----------------|--------|-----------------------------------------------------------------------------|
@@ -313,8 +430,15 @@ taosx run \
 | batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
 | connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
 | request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
+| csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与 ua.nodes 两者之间需要配置一个。CSV 的配置模版参考：OPC 需求汇总及完成现状 |
+| da.tags | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。|
+| opc_table_config | string | OPCUA 单列模式表配置。需要与 da.tags 配合使用|
+| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。|
+| enable | bool | 原始数据存储。默认为 false|
+| path | string | 原始数据存储路径。enable 为 true 时必须配置。|
+| keep | int | 原始数据保存天数。enable 为 true 时必须配置。|
 
-应用示例如下：
+#### 应用示例
 
 ```shell
 taosx run \
@@ -326,7 +450,7 @@ taosx run \
 
 采集 Matrikon.OPC.Simulation.1 服务器上 OPC DA 中 da.tags 为 Random.Real8的数据，数据类型为int，对应在 TDengine 中以表名为 tb3 ，列名为c1，列类型为 int 型 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
 
-常见错误排查：
+#### 常见错误排查
 
 (1) 如果使用原生连接，任务启动失败并打印如下错误：
 ```text
@@ -359,12 +483,26 @@ Caused by:
 
 ### 从 PI 同步数据到 TDengine (Windows)
 
-在 taosX CLI 运行时支持的参数如下：
-- PISystemName：连接配置 PI 系统服务名，默认值与 PIServerName 一致
-- MaxWaitLen：数据最大缓冲条数，默认值为 1000 ,有效取值范围为 [1,10000]
-- UpdateInterval：PI System 取数据频率，默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]
+#### PI DSN 配置
 
-应用示例：
+PI DSN 的完整配置如下：
+
+```shell
+pi://[<username>:<password>@]PIServerName/AFDatabaseName?[TemplateForPIPoint][&TemplateForAFElement][&PointList][&<PISystemName=pisys>][&<MaxWaitLen>][&UpdateInterval]
+```
+
+在 taosX CLI 运行时支持的参数如下，其中 TemplateForPIPoint、TemplateForAFElement、PointList 三个参数至少配置一项：
+- PISystemName：选填，连接配置 PI 系统服务名，默认值与 PIServerName 一致
+- MaxWaitLen：选填，数据最大缓冲条数，默认值为 1000 ,有效取值范围为 [1,10000]
+- UpdateInterval：选填，PI System 取数据频率，默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]
+- TemplateForPIPoint：选填，使用 PI Point 模式将模板按照 element 的每个 Arrtribution 作为子表导入到 TDengine 
+- TemplateForAFElement：选填，使用 AF Point 模式将模板按照 element 的 Attribution 集合作为一个子表导入到 TDengine 
+- PointList：选填，使用 PointList 模式将指定csv文件中描述的点位信息在 PI 数据库中的数据导入到 TDengine
+
+
+#### 应用示例
+
+将位于服务器 WIN-2OA23UM12TN 中的 PI 数据库 Met1，模板 template1、template2配置为 TemplateForPIPoint模式，模板 template3、template4 配置为 TemplateForAFElement 模式，服务器 /home/ 路径下的点位文件 points.csv 配置为 PointList 模式，连接配置 PI 系统服务名为 PI，数据最大缓冲条数为1000，PI System 取数据频率为10000ms，将该库中的数据同步到 服务器 tdengine 的 pi 库中。完整的示例如下：
 
 ```shell
 taosx run \
@@ -372,13 +510,8 @@ taosx run \
     -t "taos://tdengine:6030/pi"
 ```
 
-以上示例的PI参数：
-- PIServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
-- AFDatabaseName：指定连接的 PI 数据库，此示例中为 Met1
-- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个 Arrtribution 作为子表导入到 TDengine 服务器 tdengine 的 pi 库中（如果对应表已存在，则直接采集数据并写入）
-- TemplateForAFElement：使用 AF Point 模式将模板 template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中（如果对应表已存在，则直接采集数据并写入）
 
-常见错误排查：
+#### 常见错误排查
 
 (1) 如果使用原生连接，任务启动失败并打印如下错误：
 ```text
@@ -413,6 +546,8 @@ Caused by:
 
 ### 从 InfluxDB 同步数据到 TDengine
 
+#### 命令行参数
+
 将数据从 InfluxDB 同步至 TDengine 的命令，如下所示：
 
 ```bash
@@ -426,7 +561,7 @@ taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 - beginTime: 必填，格式为：YYYY-MM-DD HH:MM:SS, 时区采用 UTC 时区，例如：2023-06-01 00:00:00, 即北京时间2023-06-01 08:00:00;
 - endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步。
 
-**举例说明**
+#### 示例
 
 将位于 192.168.1.10 的 InfluxDB 中, Bucket 名称为 test_bucket, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
 
@@ -596,6 +731,95 @@ taosx run \
   --verbose
 ```
 
+### 从 Kafka 同步数据到 TDengine
+
+#### 命令行参数
+
+taosx 支持从 Kafka 消费数据，写入 TDengine。命令如下所示：
+```sehll
+taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>"
+```
+或
+```shell
+taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>" --parser "@<parser-config-file-path>"
+```
+其中：
+- -f或--from： Kafka 的 DSN
+- -t或--to ：TDengine 的 DSN
+- --parser ：一个 JSON 格式的配置文件，或JSON格式的字符串。
+  
+#### Kafka DSN 配置的配置
+
+| 参数 | 说明 | 必填? | 缺省值 | 适用于 | 示例 | 
+|-----|---------------|----------|---------|---------|----------|
+| group| 消费者的group。允许组为空字符串，在这种情况下，生成的消费者将是无组的 | 否 | "" | 源端 | |
+| topics | 指定要使用的主题。指定主题的所有可用分区都将被使用，除非在指定 topic_partitions 时被覆盖。| 该参数或topic_partitions必须至少指定一个，以便将主题分配给消费者。| None | 源端 |  topics=tp1,tp2 | 
+| topic_partitions | 显式指定要使用的主题分区。只使用已标识主题的指定分区。 | 该参数或topics必须至少指定一个，以便将主题分配给消费者。 | None | 源端 | topic_partitions=tp1:0..2,tp2:1 |
+| fallback_offset | topic偏移量时可能的值：- Earliest：接收最早的可用偏移量; - Latest：接收最近的偏移量; - ByTime(i64):用于请求在某一特定时间(ms)之前的所有消息;Unix时间戳(毫秒) | 否 | Earliest | 源端 | fallback_offset=Earliest | 
+| offset_storage | 定义在获取或提交组偏移量时，要使用的可用存储：- Zookeeper：基于Zookeeper的存储(从kafka 0.8.1开始可用)；- Kafka：基于Kafka的存储(从Kafka 0.8.2开始可用)。这是组存储其偏移量的首选方法。  | 否 | Kafka | 源端  | offset_storage=Kafka |
+| timeout | 从kafka订阅数据时，如果超时后没有获取到有效数据，退出 | 否 | 500 | 源端  | timeout=never | 
+| use_ssl | 是否使用SSL认证 | 否 |  | 源端  | |
+| cert | SSL证书的文件路径 | 否 | | | 源端  | |
+| cert_key | SSL证书key的文件路径 | 否 | | 源端  ||
+
+
+#### 示例一
+
+从192.168.1.92服务器的Kafka实例中消费数据，同步到192.168.1.92上的TDengine，不使用parser。
+
+1. kafka
+
+```shell
+#!/bin/bash
+KAFKA_HOME=/root/zyyang/kafka_2.13-3.1.0
+$KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp1 --delete
+$KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp2 --delete
+$KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp1 --partitions 5 --replication-factor 1 --create
+$KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp2 --partitions 1 --replication-factor 1 --create
+$KAFKA_HOME/bin/kafka-console-producer.sh --bootstrap-server 127.0.0.1:9092 --topic tp1 << EOF
+{"id": 1, "message": "hello"}
+{"id": 2, "message": "hello"}
+{"id": 3, "message": "hello"}
+{"id": 4, "message": "hello"}
+{"id": 5, "message": "hello"}
+EOF
+$KAFKA_HOME/bin/kafka-console-producer.sh --bootstrap-server 127.0.0.1:9092 --topic tp2 << EOF
+{"id": 1, "message": "aaa"}
+{"id": 2, "message": "aaa"}
+{"id": 3, "message": "aaa"}
+{"id": 4, "message": "aaa"}
+{"id": 5, "message": "aaa"}
+EOF
+$KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp1 --describe
+$KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp2 --describe
+```
+
+2. TDengine
+
+```shell
+drop database if exists kafka_to_taos;
+create database if not exists kafka_to_taos precision 'ms';
+use kafka_to_taos;
+```
+
+3. taosx
+
+```shell
+taosx run -f "kafka://192.168.1.92:9092/?topics=tp1,tp2&timeout=5000" -t "taos://192.168.1.92:6030/kafka_to_taos" --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
+```
+
+#### 示例2
+
+从192.168.1.92服务器的Kafka实例中消费数据，同步到192.168.1.92上的TDengine，使用parser解析value中的JSON数据。
+
+1. kafka，同“示例1”
+2. TDengine，同“示例1”
+3. Taosx
+   
+```shell
+taosx run -f "kafka://192.168.1.92:9092/?topics=tp1,tp2&timeout=5000" -t "taos://192.168.0.201:6030/kafka_to_taos" --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"value\":{\"json\":[\"id::int\",\"message::binary\"]}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"id\",\"message\"]}]}"
+``````
+
 ## 服务模式
 
 在服务模式下， taosX，Agent 以及 taosExplorer 均已服务态运行，各种操作通过 taosExplorer 的图形界面进行。
@@ -625,11 +849,13 @@ systemctl restart taosx
 
 #### 启动
 
-以 Systemd 的方式启动 taosX 的命令如下：
+Linux 系统上以 Systemd 的方式启动 taosX 的命令如下：
 
-```
+```shell
 systemctl start taosx
 ```
+
+Windows 系统上，请在 "Services" 系统管理工具中找到 "taosX" 服务，然后点击 "启动这个服务"。
 
 #### 问题排查
 
@@ -661,18 +887,28 @@ Agent 默认的配置文件位于`/etc/taos/agent.toml`, 包含以下配置项�
 
 如下所示：
 
-```
+```TOML
 endpoint = "grpc://<taosx-ip>:6055"
 token = "<token>"
+log_level = "debug"
+```
+
+日志保存时间设置
+日志保存的天数可以通过环境变量进行设置 TAOSX_LOGS_KEEP_DAYS， 默认为 30 天。
+
+```shell
+export TAOSX_LOGS_KEEP_DAYS=7
 ```
 
 #### 启动
 
-Agent 可以通过 Systemd 命令启动：
+Linux 系统上 Agent 可以通过 Systemd 命令启动：
 
 ```
 systemctl start taosx-agent
 ```
+
+Windows 系统上通过系统管理工具 "Services" 找到 taosx-agent 服务，然后启动它。
 
 #### 问题排查
 
