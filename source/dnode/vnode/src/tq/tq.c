@@ -1033,6 +1033,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->status.taskStatus = TASK_STATUS__NORMAL;
   }
 
+  streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
 
