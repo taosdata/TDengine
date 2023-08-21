@@ -104,7 +104,7 @@ export function getAgentActivities(agentId){
 export function getTaskActivities(taskId){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/tasks/${taskId}`,
+        url:`/tasks/${taskId}/activities`,
         method:'get'
     })
 }
