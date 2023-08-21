@@ -168,6 +168,12 @@ The base API is used to do things like create database connections and provide a
 
   :::
 
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`  
+
+  The function is the same as taos_connect. Except that the pass parameter is replaced by auth, other parameters are the same as taos_connect.
+  
+  - auth: the 32-bit lowercase md5 of the raw password
+
 - `char *taos_get_server_info(TAOS *taos)`
 
   Get server-side version information.
@@ -183,6 +189,14 @@ The base API is used to do things like create database connections and provide a
   - If database==NULL or len<=0, returns an error, the space required to store the db (including the last '\0') in the variable required
   - If len is less than the space required to store the db (including the last '\0'), an error is returned. The truncated data assigned in the database ends with '\0'.
   - If len is greater than or equal to the space required to store the db (including the last '\0'), return normal 0, and assign the db name ending with '\0' in the database.
+
+- `int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)`
+
+   Set the event callback function.
+
+  - fp: event callback function pointer. Declaration：typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type)；Param is a user-defined parameter, ext is an extended parameter (depending on the event type, and returns the user password version for TAOS_NOTIFY_PASSVER), and type is the event type
+  - param: user-defined parameter
+  - type: event type. Value range: 1) TAOS_NOTIFY_PASSVER: User password changed
 
 - `void taos_close(TAOS *taos)`
 
@@ -356,6 +370,14 @@ The specific functions related to the interface are as follows (see also the [pr
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
   Execute the prepared statement. Currently, a statement can only be executed once.
+
+- `int taos_stmt_affected_rows(TAOS_STMT *stmt)`
+ 
+  Gets the number of rows affected by executing bind statements multiple times.
+
+- `int taos_stmt_affected_rows_once(TAOS_STMT *stmt)`
+
+  Gets the number of rows affected by executing a bind statement once.
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
