@@ -101,10 +101,11 @@ export function getAgentActivities(agentId){
     })
 }
 
-export function getTaskActivities(taskId){
+export function getTask(taskId){
+    console.log('gettask接口---0000');
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/tasks/${taskId}/activities`,
+        url:`/tasks/${taskId}`,
         method:'get'
     })
 }

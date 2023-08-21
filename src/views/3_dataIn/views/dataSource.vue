@@ -32,14 +32,35 @@
         @expand-change="expandChange"
       >
         <el-table-column type="expand">
-          <template >
+          <template>
             <div>
-              <el-table :data="taskActivities" size="mini" class="tabel-expand">
-                <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
-                  <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
-                    <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
-                    <i class="el-icon-error" v-if="scope.row.level == 'error'"></i>
-                    <i class="el-icon-info" v-if="scope.row.level == 'info'"></i>
+              <el-table
+                :data="taskActivities"
+                size="mini"
+                class="tabel-expand"
+                max-height="160"
+              >
+                <el-table-column
+                  prop="level"
+                  :label="$t('dataIn.level')"
+                  width="100"
+                >
+                  <span
+                    slot-scope="scope"
+                    :style="getLevelStyle(scope.row.level)"
+                  >
+                    <i
+                      class="el-icon-warning"
+                      v-if="scope.row.level == 'warn'"
+                    ></i>
+                    <i
+                      class="el-icon-error"
+                      v-if="scope.row.level == 'error'"
+                    ></i>
+                    <i
+                      class="el-icon-info"
+                      v-if="scope.row.level == 'info'"
+                    ></i>
                     {{ scope.row.level }}
                   </span>
                 </el-table-column>
@@ -48,8 +69,14 @@
                     parsinginZone(scope.row.at)
                   }}</span>
                 </el-table-column>
-                <el-table-column prop="activity" :label="$t('dataIn.activity')"></el-table-column>
-                <el-table-column prop="context" :label="$t('dataIn.context')"></el-table-column>
+                <el-table-column
+                  prop="activity"
+                  :label="$t('dataIn.activity')"
+                ></el-table-column>
+                <el-table-column
+                  prop="context"
+                  :label="$t('dataIn.context')"
+                ></el-table-column>
               </el-table>
             </div>
           </template>
@@ -71,7 +98,11 @@
           :label="$t('datasource.target')"
           prop="target"
         ></el-table-column>
-        <el-table-column :label="$t('datasource.createat')" prop="created_at" width="220">
+        <el-table-column
+          :label="$t('datasource.createat')"
+          prop="created_at"
+          width="220"
+        >
           <span slot-scope="scope">{{
             parsinginZone(scope.row.created_at)
           }}</span>
@@ -79,15 +110,10 @@
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
-          width="150"
         ></el-table-column>
         <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
-        <el-table-column
-          :label="$t('datasource.status')"
-          prop="status"
-          width="250"
-        >
+        <el-table-column :label="$t('datasource.status')" prop="status">
           <template slot-scope="scope">
             <div class="status-operation">
               <el-tooltip
@@ -164,7 +190,7 @@
         </el-table-column>
         <el-table-column
           :label="$t('datasource.operation')"
-          width="100"
+          width="150"
           class="action"
         >
           <template slot-scope="scope">
@@ -183,6 +209,12 @@
               size="small"
               @click="del(scope.row)"
               icon="el-icon-delete"
+            ></el-button>
+            <el-button
+              plain
+              size="small"
+              @click="copyTask(scope.row)"
+              icon="el-icon-copy-document"
             ></el-button>
           </template>
         </el-table-column>
@@ -212,7 +244,7 @@
 </template>
 <script>
 import { Message, Switch } from "element-ui";
-import { getDatain, refreshTask, getTaskActivities } from "@/api/explorer/datain";
+import { getTask, refreshTask, getTaskActivities } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -247,7 +279,7 @@ export default {
       requestIng: false,
       parsinginZone,
       taskActivities: [],
-      expandRowKeys:[],
+      expandRowKeys: [],
     };
   },
   methods: {
@@ -294,44 +326,40 @@ export default {
     edit(data, status) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
-      this.$parent.agentID = data?.via
+      this.$parent.agentID = data?.via;
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
-          let caindex=dnsarr.findIndex((item) =>
-            item.includes("ca=")
-          );
-          let certindex=dnsarr.findIndex((item) =>
-            item.includes("cert=")
-          );
-          let certkeyindex=dnsarr.findIndex((item) =>
+          let caindex = dnsarr.findIndex((item) => item.includes("ca="));
+          let certindex = dnsarr.findIndex((item) => item.includes("cert="));
+          let certkeyindex = dnsarr.findIndex((item) =>
             item.includes("cert_key=")
           );
-          if(caindex>-1){
-           let file = dnsarr[caindex].split("=")[1].replace('@','')
+          if (caindex > -1) {
+            let file = dnsarr[caindex].split("=")[1].replace("@", "");
             this.$store.commit("app/SET_MQTT_CAFILE", [].concat(file));
           }
-          if(certindex>-1){
-            let file = dnsarr[certindex].split("=")[1].replace('@','')
+          if (certindex > -1) {
+            let file = dnsarr[certindex].split("=")[1].replace("@", "");
             this.$store.commit("app/SET_MQTT_CERTFILE", [].concat(file));
           }
-          if(certkeyindex>-1){
-            let file = dnsarr[certkeyindex].split("=")[1].replace('@','')
+          if (certkeyindex > -1) {
+            let file = dnsarr[certkeyindex].split("=")[1].replace("@", "");
             this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
           }
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
-          console.log('mqtt的编辑',this.$store.state.app);
+          console.log("mqtt的编辑", this.$store.state.app);
           this.$parent.parserobj = deepClone(data.parser);
         }
         if (data.from_expand && data.from_expand.id == "kafka") {
-          let payload = deepClone(data.parser.parse.value)
+          let payload = deepClone(data.parser.parse.value);
           let parser = {
             ...data.parser,
-            parse:{
-              payload
-            }
-          }
+            parse: {
+              payload,
+            },
+          };
           this.$store.commit("app/SET_MQTT_PARSER", parser);
           this.$parent.parserobj = deepClone(parser);
         }
@@ -343,18 +371,21 @@ export default {
           if (fileindex > -1) {
             let file = dnsarr
               .filter((item) => item.includes("csv_config_file="))[0]
-              .split("=")[1].replace('@','');
+              .split("=")[1]
+              .replace("@", "");
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
           }
 
           let certfile = dnsarr
             .filter((item) => item.includes("certificate="))[0]
-            ?.split("=")[1].replace('@','');
+            ?.split("=")[1]
+            .replace("@", "");
           let privatefile = dnsarr
             .filter((item) => item.includes("private_key="))[0]
-            ?.split("=")[1].replace('@','');
+            ?.split("=")[1]
+            .replace("@", "");
           // console.log(certfile, privatefile, file, "opc的文件---======");
-          
+
           this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));
           this.$store.commit(
             "app/SET_OPC_PRIVATEFILES",
@@ -383,6 +414,10 @@ export default {
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
+    //copy一个新的task
+    copyTask(data) {
+      console.log(data, "拷贝一个新任务");
+    },
     addDbSource() {
       this.dialog = true;
       this.$parent.currentTaskStatus = "";
@@ -392,21 +427,24 @@ export default {
         this.requestIng = true;
         this.topicList = [];
         let id = localStorage.getItem("local_clusterID");
-        await getDatain(id).then((res) => {
-          if (res) {
-            this.topicList = res.map((item) => {
-              (item["taskid"] = item.id), (item["localname"] = item.name);
-              item["localtype"] = item.from_detail ? item.from_detail.name : "";
-              item["target"] = item.to_expand ? item.to_expand.subject : "";
-              item["created_at"] = item.created_at
-                ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
-                  "Z"
-                : "";
-              return item;
-            });
-            this.requestIng = false;
-          }
-        });
+        let result = await getTask(id, "datain");
+        if (result.desc || result.message) {
+          Message.error(result.desc || result.message);
+          return;
+        }
+        if (result) {
+          this.topicList = result.map((item) => {
+            (item["taskid"] = item.id), (item["localname"] = item.name);
+            item["localtype"] = item.from_detail ? item.from_detail.name : "";
+            item["target"] = item.to_expand ? item.to_expand.subject : "";
+            item["created_at"] = item.created_at
+              ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
+                "Z"
+              : "";
+            return item;
+          });
+          this.requestIng = false;
+        }
       } catch (err) {
         this.requestIng = false;
         return Promise.reject(err);
@@ -495,45 +533,48 @@ export default {
     addAgent() {
       this.$refs.agents.add();
     },
-    async expandChange(row,expandedRows) {
+    async expandChange(row, expandedRows) {
       if (row.taskid == this.expandRowKeys[0]) {
-        this.expandRowKeys = []
-        return 
-      } 
-      let res =  await getTaskActivities(row.taskid)
-      this.expandRowKeys = [row.taskid]
+        this.expandRowKeys = [];
+        return;
+      }
+      this.taskActivities = [];
+      let res = await getTaskActivities(row.taskid);
+      this.expandRowKeys = [row.taskid];
       if (res && res.code && res.code != 0) {
         Message({
           type: "error",
           message: res && res.message,
-        }); 
-        return
+        });
+        return;
       }
-      let activitList = res.map(item => {
-        if (item.status == 'failed') {
-          item.context = item.context.message
+      let activitList = res.map((item) => {
+        if (item.status == "failed") {
+          item.context = item.context.message;
         }
-        if (typeof item.context == 'object') {
-          item.context = null
+        if (typeof item.context == "object") {
+          item.context = null;
         }
-        return item
-      })
-      this.taskActivities = activitList
-      console.log('res',res);
-
+        return item;
+      });
+      this.taskActivities = activitList;
+      console.log("res", res);
     },
     getLevelStyle(level) {
-      let style = ''
+      let style = "";
       switch (level) {
-        case 'info': style = 'color: #67c23a'
-        break;
-        case 'warn': style = 'color: #e6a23c'
-        break;
-        case 'error': style = 'color: #fe6c6c'
-        break;
+        case "info":
+          style = "color: #67c23a";
+          break;
+        case "warn":
+          style = "color: #e6a23c";
+          break;
+        case "error":
+          style = "color: #fe6c6c";
+          break;
       }
-      return style
-    }
+      return style;
+    },
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
@@ -588,16 +629,20 @@ export default {
   }
 }
 
-  .tabel-expand {
-   width: 64%;
-   margin-left: 40px;
-   padding: 10px 5px;
-   ::v-deep.el-table th.el-table__cell.is-leaf {
+.tabel-expand {
+  width: 64%;
+  margin-left: 40px;
+  padding: 0px 5px;
+  ::v-deep.el-table th.el-table__cell.is-leaf {
     border: none !important;
-   }
-   ::v-deep.el-table td.el-table__cell {
+  }
+  ::v-deep.el-table td.el-table__cell {
     border: none !important;
-   }
   }
 
+  ::v-deep.el-table td.el-table__cell div {
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+}
 </style>
