@@ -102,8 +102,8 @@ class TDCom:
         self.smlChildTableName_value = None
         self.defaultJSONStrType_value = None
         self.smlTagNullName_value = None
-        self.default_varchar_length = 256
-        self.default_nchar_length = 256
+        self.default_varchar_length = 6
+        self.default_nchar_length = 6
         self.default_varchar_datatype = "letters"
         self.default_nchar_datatype = "letters"
         self.default_tagname_prefix = "t"
@@ -122,6 +122,7 @@ class TDCom:
         self.stb_name = "stb"
         self.ctb_name = "ctb"
         self.tb_name = "tb"
+        self.tbname = str()
         self.need_tagts = False
         self.tag_type_str = ""
         self.column_type_str = ""
@@ -139,6 +140,38 @@ class TDCom:
         self.range_count = 5
         self.default_interval = 5
         self.stream_timeout = 12
+        self.record_history_ts = str()
+        self.subtable = True
+        self.partition_tbname_alias = "ptn_alias" if self.subtable else ""
+        self.partition_col_alias = "pcol_alias" if self.subtable else ""
+        self.partition_tag_alias = "ptag_alias" if self.subtable else ""
+        self.partition_expression_alias = "pexp_alias" if self.subtable else ""
+        self.des_table_suffix = "_output"
+        self.stream_suffix = "_stream"
+        self.subtable_prefix = "prefix_" if self.subtable else ""
+        self.subtable_suffix = "_suffix" if self.subtable else ""
+        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
+            "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
+            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
+        self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:15])))
+        self.stb_source_select_str = ','.join(self.downsampling_function_list)
+        self.tb_source_select_str = ','.join(self.downsampling_function_list[0:15])
+        self.fill_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
+            "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
+            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        self.fill_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list)))
+        self.fill_stb_source_select_str = ','.join(self.fill_function_list)
+        self.fill_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list[0:13])))
+        self.fill_tb_source_select_str = ','.join(self.fill_function_list[0:13])
+        self.stream_case_when_tbname = "tbname"
+
+        self.update = True
+        self.disorder = True
+        if self.disorder:
+            self.update = False
+        self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
+        "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
 
@@ -1148,10 +1181,10 @@ class TDCom:
         if dbname is not None:
             self.dbname = dbname
             if tbname is not None:
-                self.tb_name = f'{self.dbname}.{tbname}'
+                self.tbname = f'{self.dbname}.{tbname}'
         else:
             if tbname is not None:
-                self.tb_name = tbname
+                self.tbname = tbname
 
         self.sgen_column_value_list(column_ele_list, need_null, ts_value)
         # column_value_str = ", ".join(str(v) for v in self.column_value_list)
@@ -1165,7 +1198,7 @@ class TDCom:
                 column_value_str += f'{column_value}, '
         column_value_str = column_value_str.rstrip()[:-1]
         if int(count) <= 1:
-            insert_sql = f'insert into {self.tb_name} values ({column_value_str});'
+            insert_sql = f'insert into {self.tbname} values ({column_value_str});'
             tdSql.execute(insert_sql)
         else:
             for num in range(count):
@@ -1180,24 +1213,23 @@ class TDCom:
                     else:
                         column_value_str += f'{column_value}, '
                 column_value_str = column_value_str.rstrip()[:-1]
-                insert_sql = f'insert into {self.tb_name} values ({column_value_str});'
-                print(insert_sql)
+                insert_sql = f'insert into {self.tbname} values ({column_value_str});'
                 tdSql.execute(insert_sql)
 
     def sdelete_rows(self, dbname=None, tbname=None, start_ts=None, end_ts=None, ts_key=None):
         if dbname is not None:
             self.dbname = dbname
             if tbname is not None:
-                self.tb_name = f'{self.dbname}.{tbname}'
+                self.tbname = f'{self.dbname}.{tbname}'
         else:
             if tbname is not None:
-                self.tb_name = tbname
+                self.tbname = tbname
         if ts_key is None:
             ts_col_name = self.default_colts_name
         else:
             ts_col_name = ts_key
 
-        base_del_sql = f'delete from {self.tb_name} '
+        base_del_sql = f'delete from {self.tbname} '
         if end_ts is not None:
             if ":" in start_ts and "-" in start_ts:
                 start_ts = f"{start_ts}"
@@ -1266,6 +1298,10 @@ class TDCom:
             final_list.append(tuple(tmpl))
         return final_list
 
+    def str_ts_trans_bigint(self, str_ts):
+        tdSql.query(f'select cast({str_ts} as bigint)')
+        return tdSql.queryResult[0][0]
+
     def cast_query_data(self, query_data):
         tdLog.info("cast query data ...")
         col_type_list = self.column_type_str.split(',')
@@ -1276,8 +1312,8 @@ class TDCom:
             query_data_l = list(query_data_t)
             for i,v in enumerate(query_data_l):
                 if v is not None:
-                    if " ".join(col_tag_type_list[i].strip().split(" ")[1:]) == "nchar(256)":
-                        tdSql.query(f'select cast("{v}" as binary(256))')
+                    if " ".join(col_tag_type_list[i].strip().split(" ")[1:]) == "nchar(6)":
+                        tdSql.query(f'select cast("{v}" as binary(6))')
                     else:
                         tdSql.query(f'select cast("{v}" as {" ".join(col_tag_type_list[i].strip().split(" ")[1:])})')
                     query_data_l[i] = tdSql.queryResult[0][0]
@@ -1404,6 +1440,63 @@ class TDCom:
                     tdSql.checkNotEqual(res1, res2)
                     # tdSql.checkEqual(res1, res2) if not reverse_check else tdSql.checkNotEqual(res1, res2)
 
+    def check_stream_res(self, sql, expected_res, max_delay):
+        tdSql.query(sql)
+        latency = 0
+
+        while tdSql.queryRows != expected_res:
+            tdSql.query(sql)
+            if latency < self.stream_timeout:
+                latency += 0.2
+                time.sleep(0.2)
+            else:
+                if max_delay is not None:
+                    if latency == 0:
+                        return False
+                tdSql.checkEqual(tdSql.queryRows, expected_res)
+
+    def check_stream(self, sql1, sql2, expected_count, max_delay=None):
+        self.check_stream_res(sql1, expected_count, max_delay)
+        self.check_query_data(sql1, sql2)
+
+    def cal_watermark_window_close_session_endts(self, start_ts, watermark=None, session=None):
+        """cal endts for close window
+
+        :param start_ts: [start timestamp: self.date_time]
+        :type start_ts: [epoch time]
+        :param watermark: [second level and > session]
+        :type watermark: [s]
+        :param precision: [default "ms" and only support "ms" now]
+        :type precision: str, optional
+        """
+        if watermark is not None:
+            return start_ts + watermark*self.offset + 1
+        else:
+            return start_ts + session*self.offset + 1
+
+    def cal_watermark_window_close_interval_endts(self, start_ts, interval, watermark=None):
+        """cal endts for close window
+
+        :param start_ts: [start timestamp: self.date_time]
+        :type start_ts: [epoch time]
+        :param interval: [second level]
+        :type interval: [s]
+        :param watermark: [second level and > interval]
+        :type watermark: [s]
+        :param precision: [default "ms" and only support "ms" now]
+        :type precision: str, optional
+        """
+        if watermark is not None:
+            return int(start_ts/self.offset)*self.offset + (interval - (int(start_ts/self.offset))%interval)*self.offset + watermark*self.offset
+        else:
+            return int(start_ts/self.offset)*self.offset + (interval - (int(start_ts/self.offset))%interval)*self.offset
+
+    def update_delete_history_data(self, delete):
+        self.sinsert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
+        self.sinsert_rows(tbname=self.tb_name, ts_value=self.record_history_ts)
+        if delete:
+            self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
+            self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
 
     def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None):
         self.clean_env()
