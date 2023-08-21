@@ -475,7 +475,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   pTask->status.taskStatus = TASK_STATUS__STOP;
   qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
 
-  while (!streamTaskIsIdle(pTask)) {
+  while (pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE) {
     qDebug("s-task:%s level:%d wait for task to be idle, check again in 100ms", id, pTask->info.taskLevel);
     taosMsleep(100);
   }
