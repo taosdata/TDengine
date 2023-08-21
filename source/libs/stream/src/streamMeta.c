@@ -538,6 +538,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
       continue;
     }
 
+    streamTaskResetUpstreamStageInfo(pTask);
     if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
       doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
