@@ -29,7 +29,7 @@ from util.constant import *
 from dataclasses import dataclass,field
 from typing import List
 from datetime import datetime
-
+import re
 @dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
@@ -141,6 +141,8 @@ class TDCom:
         self.default_interval = 5
         self.stream_timeout = 12
         self.record_history_ts = str()
+        self.precision = "ms"
+        self.date_time = self.genTs(precision=self.precision)[0]
         self.subtable = True
         self.partition_tbname_alias = "ptn_alias" if self.subtable else ""
         self.partition_col_alias = "pcol_alias" if self.subtable else ""
@@ -172,6 +174,31 @@ class TDCom:
             self.update = False
         self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
         "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
+
+        self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
+                c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
+                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 < 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
+                and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
+                or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
+                and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
+        self.tb_data_filter_sql = self.stb_data_filter_sql.partition(" and t1")[0]
+
+        self.filter_source_select_elm = "*"
+        self.stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
+        self.partitial_stb_filter_des_select_elm = ",".join(self.stb_filter_des_select_elm.split(",")[:3])
+        self.exchange_stb_filter_des_select_elm = ",".join([self.stb_filter_des_select_elm.split(",")[0], self.stb_filter_des_select_elm.split(",")[2], self.stb_filter_des_select_elm.split(",")[1]])
+        self.partitial_ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:2])
+        self.tb_filter_des_select_elm = self.stb_filter_des_select_elm.partition(", t1")[0]
+        self.tag_filter_des_select_elm = self.stb_filter_des_select_elm.partition("c13, ")[2]
+        self.partition_by_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.partition_by_downsampling_function_list)))
+        self.partition_by_stb_source_select_str = ','.join(self.partition_by_downsampling_function_list)
+        self.exchange_tag_filter_des_select_elm = ",".join([self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[0], self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[2], self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[1]])
+        self.partitial_tag_filter_des_select_elm = ",".join(self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[:3])
+        self.partitial_tag_stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t3, t2, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
+        self.cast_tag_filter_des_select_elm = "t5,t11,t13"
+        self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
+        self.tag_count = len(self.tag_filter_des_select_elm.split(","))
+        self.state_window_range = list()
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
 
@@ -1321,6 +1348,22 @@ class TDCom:
                     query_data_l[i] = v
             nl.append(tuple(query_data_l))
         return nl
+
+    def trans_time_to_s(self, runtime):
+        if "d" in str(runtime).lower():
+            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = float(d_num) * 24 * 60 * 60
+        elif "h" in str(runtime).lower():
+            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = float(h_num) * 60 * 60
+        elif "m" in str(runtime).lower():
+            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = float(m_num) * 60
+        elif "s" in str(runtime).lower():
+            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+        else:
+            s_num = 60
+        return int(s_num)
 
     def check_query_data(self, sql1, sql2, sorted=False, fill_value=None, tag_value_list=None, defined_tag_count=None, partition=True, use_exist_stb=False, subtable=None, reverse_check=False):
         tdLog.info("checking query data ...")

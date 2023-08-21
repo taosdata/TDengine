@@ -12,34 +12,6 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self.tdCom = tdCom
-        self.tdCom.subtable = True
-        self.tdCom.update = True
-        self.tdCom.disorder = True
-        if self.tdCom.disorder:
-            self.tdCom.update = False
-        self.tdCom.partition_tbname_alias = "ptn_alias" if self.tdCom.subtable else ""
-        self.tdCom.partition_col_alias = "pcol_alias" if self.tdCom.subtable else ""
-        self.tdCom.partition_tag_alias = "ptag_alias" if self.tdCom.subtable else ""
-        self.tdCom.partition_expression_alias = "pexp_alias" if self.tdCom.subtable else ""
-        self.stb_name = str()
-        self.ctb_name = str()
-        self.tb_name = str()
-        self.tdCom.des_table_suffix = "_output"
-        self.tdCom.stream_suffix = "_stream"
-        self.tdCom.stream_case_when_tbname = "tbname"
-        self.tdCom.subtable_prefix = "prefix_" if self.tdCom.subtable else ""
-        self.tdCom.subtable_suffix = "_suffix" if self.tdCom.subtable else ""
-        self.stb_stream_des_table = str()
-        self.ctb_stream_des_table = str()
-        self.tb_stream_des_table = str()
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
-            "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
-            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        self.tdCom.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
-        self.tdCom.stb_source_select_str = ','.join(self.downsampling_function_list)
-        self.tdCom.tb_source_select_str = ','.join(self.downsampling_function_list[0:15])
-        self.tdCom.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
-        "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
 
     def watermark_window_close_session(self, session, watermark, fill_history_value=None, delete=True):
         tdLog.info(f"*** testing stream window_close+session: session: {session}, watermark: {watermark}, fill_history: {fill_history_value}, delete: {delete} ***")
@@ -53,7 +25,6 @@ class TDTestCase:
         self.stb_stream_des_table = f'{self.stb_name}{self.tdCom.des_table_suffix}'
         self.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
         self.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:15])))
         self.tdCom.date_time = self.tdCom.dataDict["start_ts"]
         if watermark is not None:
             watermark_value = f'{self.tdCom.dataDict["watermark"]}s'
