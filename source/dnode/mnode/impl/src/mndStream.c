@@ -1146,6 +1146,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     bool nodeUpdated = (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0);
     taosArrayDestroy(changeInfo.pUpdateNodeList);
     taosHashCleanup(changeInfo.pDBMap);
+    taosArrayDestroy(pNodeSnapshot);
 
     if (nodeUpdated) {
       mDebug("stream task not ready due to node update, not generate checkpoint");
