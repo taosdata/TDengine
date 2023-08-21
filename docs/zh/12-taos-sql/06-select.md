@@ -7,7 +7,7 @@ description: 查询数据的详细语法
 ## 查询语法
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [DISTINCT] select_list
     from_clause
@@ -298,6 +298,12 @@ SELECT TODAY();
 
 ```sql
 SELECT TIMEZONE();
+```
+
+### 获取当前用户
+
+```sql
+SELECT CURRENT_USER();
 ```
 
 ## 正则表达式过滤
