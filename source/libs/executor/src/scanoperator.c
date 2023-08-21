@@ -1986,7 +1986,10 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
   }
   void* buf = pBuff;
   buf = decodeSTimeWindowAggSupp(buf, &pInfo->twAggSup);
-  int32_t tlen = len - ((char *)pBuff - (char *)buf); // fix windows compile error
+  int32_t tlen = len - encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
+  if (tlen == 0) {
+    return;
+  }
 
   void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   int32_t code = pInfo->stateStore.updateInfoDeserialize(buf, tlen, pUpInfo);
