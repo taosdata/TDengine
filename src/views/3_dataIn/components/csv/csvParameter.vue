@@ -29,6 +29,7 @@
       :label-width="language.includes('en') ? '200px' : '120px'"
       :rules="rules"
     >
+
       <el-form-item
         :label="
           showStable ? $t('datasource.name') : $t('datasource.normalname')
@@ -36,6 +37,7 @@
         prop="subname"
         :rules="showStable ? rules.subname : normaltable"
       >
+
         <el-input v-model="ruleForm2.subname"></el-input>
       </el-form-item>
       <el-form-item
@@ -149,6 +151,21 @@ export default {
       ],
     };
   },
+  watch: {
+    "$store.state.app.showcsvStable": {
+      deep: true,
+      handler(val) {
+        this.showStable = val;
+      },
+    },
+    "$store.state.dbs.dialogDbVisible": {
+      handler(val) {
+        if (!val) {
+          this.getDatabases()
+        }
+      }
+    }
+  },
   mounted() {
     if (this.isEditable) {
       // this.ruleForm2.dbName = this.targetName;
@@ -164,6 +181,11 @@ export default {
     this.getDatabases();
   },
   methods: {
+    handleDbBtn() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
+      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
+    },
     changeHeader() {
       this.showcustom = !this.ruleForm.hasHeader;
     },
@@ -193,14 +215,6 @@ export default {
           return false;
         }
       });
-    },
-  },
-  watch: {
-    "$store.state.app.showcsvStable": {
-      deep: true,
-      handler(val) {
-        this.showStable = val;
-      },
     },
   },
 };

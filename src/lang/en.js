@@ -401,6 +401,12 @@ export default {
     viewTable: "View Table Config",
     createnormalTable: 'Create Normal Table',
     createsubTable: 'Create Sub Table',
+    searchsp:'Search Super Table',
+    searchnt:'Search Normal Table',
+    searchsub:'Search Sub Table',
+    searchtbtip:'Please enter the table name',
+    fulltagtip:'Please enter full tag information',
+    enabletag:'Enable TAG query',
     name: "Name",
     keep: "Keep",
     update: "Update",
@@ -482,7 +488,7 @@ export default {
     subTables: "SubTables",
     tableName: "Table Name",
     showData: "Show Data",
-    createTableUse: "Create Table Using {}",
+    createTableUse: "Create Super Table",
     fields: "Fields",
     pageSize: "Page Size",
     selectAll: "Select All",
@@ -762,8 +768,10 @@ export default {
     endTime: 'End time',
     cols: 'Cols',
     tags: 'Tags',
-    kafka: 'Kafka',
-    kafkaTopic: 'Kafka Topic'
+    kafka: 'Kafka Server',
+    kafkaTopic: 'Topics',
+    kafkaAckTimeout: 'Timeout',
+    kafkaBatchSize: 'Batch Size'
   },
   dataout: {
     dump: {

@@ -495,6 +495,9 @@
       formTitle() {
         return this.isEdit ? this.$t("data.editDatabase") : this.$t("data.createDatabase");
       },
+      isExplorerComp() {
+        return this.$store.state.dbs.curComp == 'explorer'
+      },
       rules() {
         return {
           name: [
@@ -545,6 +548,7 @@
                   type: "success",
                   message: this.$t("createSucc"),
                 });
+                this.cancel()
             })
             .catch((err) => {
               this.$message({
@@ -557,7 +561,12 @@
         });
       },
       cancel() {
-        this.$store.commit("console/CANCEL_DETAIL");
+        if (this.isExplorerComp) {
+          this.$store.commit("console/CANCEL_DETAIL");
+        } else {
+          // 关闭数据写入弹框
+          this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', false)
+        }
       },
       checkKeep(_, value, callback) {
         if (!validUnit(value)) {
@@ -643,5 +652,6 @@
 
   .confirm_line {
     margin-top: 30px;
+    text-align: right;
   }
 </style>

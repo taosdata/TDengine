@@ -19,7 +19,14 @@
       <!--数据源-->
 
       <template v-if="head.length">
-        <el-table-column v-for="(field, index) in head" :key="index" :prop="field" min-width="170px" :show-overflow-tooltip="true" :label="field">
+        <el-table-column
+          v-for="(field, index) of head"
+          :key="field"
+          :prop="index + ''"
+          min-width="170px"
+          :show-overflow-tooltip="true"
+          :label="field"
+        >
         </el-table-column>
       </template>
     </el-table>
@@ -40,15 +47,30 @@ export default {
   components: {},
   computed: {
     ...mapState({
-      dataSource: state => state.console.result,
-      head: state => state.console.head,
+      dataSource: (state) => state.console.result,
+      head: (state) => state.console.head,
     }),
+    headMap() {
+      if (Array.isArray(this.head)) {
+        return this.head.reduce((map, key, index) => {
+          map[key] = index;
+          return map;
+        }, {});
+      }
+      return {};
+    },
   },
   watch: {
     dataSource: {
       handler(val) {
         this.key++;
-        this.currentTableData = val.slice(0, this.pageSize);
+        this.currentTableData = val.slice(0, this.pageSize).map((item) => {
+          const obj = {};
+          for (const key in item) {
+            obj[this.headMap[key]] = item[key];
+          }
+          return obj;
+        });
         this.currentPage = 1;
       },
       immediate: true,
@@ -59,7 +81,20 @@ export default {
     load() {
       if (this.currentTableData.length === this.dataSource.length) return;
       this.currentPage++;
-      this.currentTableData.push(...this.dataSource.slice(this.pageSize * (this.currentPage - 1), this.pageSize * this.currentPage));
+      this.currentTableData.push(
+        ...this.dataSource
+          .slice(
+            this.pageSize * (this.currentPage - 1),
+            this.pageSize * this.currentPage
+          )
+          .map((item) => {
+            const obj = {};
+            for (const key in item) {
+              obj[this.headMap[key]] = item[key];
+            }
+            return obj;
+          })
+      );
     },
   },
 };

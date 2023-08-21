@@ -338,6 +338,12 @@ export default {
     viewDatabase: "查看数据库配置",
     createnormalTable: '创建普通表',
     createsubTable: '创建子表',
+    searchsp:'查询超级表',
+    searchnt:'查询普通表',
+    searchsub:'查询子表',
+    searchtbtip:'请输入表名',
+    fulltagtip:'请输入完整的TAG信息',
+    enabletag:'是否开启TAG查询',
     dbName: "数据库名称",
     createAt: "创建时间",
     showTable: "展示表",
@@ -431,7 +437,7 @@ export default {
     subTables: "子表",
     tableName: "表名",
     showData: "展示数据",
-    createTableUse: "使用{}创建表",
+    createTableUse: "创建超级表",
     fields: "字段",
     pageSize: "每页条数",
     selectAll: "全选",
@@ -1032,8 +1038,10 @@ export default {
     endTime: '结束时间',
     cols: '列',
     tags: '标签',
-    kafka: 'Kafka',
-    kafkaTopic: 'Kafka Topic'
+    kafka: 'Kafka Server',
+    kafkaTopic: 'Topics',
+    kafkaAckTimeout: 'Timeout',
+    kafkaBatchSize: '批量发送 kafka 条数'
   },
   docs: {
     connector: {
