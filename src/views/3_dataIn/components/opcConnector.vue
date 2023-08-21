@@ -90,6 +90,7 @@ export default {
         return null;
       },
     },
+    
     isEditable: {
       type: Boolean,
       default: false,

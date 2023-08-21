@@ -1139,7 +1139,7 @@ export default {
           if (this.$parent.agentID) {
             piParams["via"] = this.$parent.agentID;
           }
-          if (this.isEditable) {
+          if (this.isEditable&&this.editId) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);

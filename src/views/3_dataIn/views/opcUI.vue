@@ -775,6 +775,7 @@ export default {
         return [];
       },
     },
+    
     isEditable: {
       type: Boolean,
       default: false,
@@ -1588,7 +1589,7 @@ export default {
               : "");
         }
 
-        if (this.isEditable) {
+        if (this.isEditable&&this.editId) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);

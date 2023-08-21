@@ -213,7 +213,7 @@
             <el-button
               plain
               size="small"
-              @click="copyTask(scope.row)"
+              @click="copyTask(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-copy-document"
             ></el-button>
           </template>
@@ -323,7 +323,7 @@ export default {
           });
       });
     },
-    edit(data, status) {
+    edit(data, status, iscopy) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
@@ -349,7 +349,6 @@ export default {
             this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
           }
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
-          console.log("mqtt的编辑", this.$store.state.app);
           this.$parent.parserobj = deepClone(data.parser);
         }
         if (data.from_expand && data.from_expand.id == "kafka") {
@@ -384,7 +383,6 @@ export default {
             .filter((item) => item.includes("private_key="))[0]
             ?.split("=")[1]
             .replace("@", "");
-          // console.log(certfile, privatefile, file, "opc的文件---======");
 
           this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));
           this.$store.commit(
@@ -407,16 +405,12 @@ export default {
             : "";
         this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
-        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname);
+        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname,iscopy);
       }
-
-      // this.$router.push({
-      //   path: `/dataIn/source/${data.data_source_name}`
-      // });
     },
     //copy一个新的task
-    copyTask(data) {
-      console.log(data, "拷贝一个新任务");
+    copyTask(data, status) {
+      this.edit(data, status, true);
     },
     addDbSource() {
       this.dialog = true;
