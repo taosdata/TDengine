@@ -780,6 +780,7 @@ export default {
         return [];
       },
     },
+    
     isEditable: {
       type: Boolean,
       default: false,
@@ -1601,7 +1602,7 @@ export default {
               console.log('csv最新代码');
         }
 
-        if (this.isEditable) {
+        if (this.isEditable&&this.editId) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
