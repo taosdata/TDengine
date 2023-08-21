@@ -419,7 +419,7 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
 
   int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
   for (int32_t i = 0; i < numOfUpstream; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGet(pTask->pUpstreamInfoList, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     if (pInfo->nodeId == nodeId) {
       epsetAssign(&pInfo->epSet, pEpSet);
       qDebug("s-task:0x%x update the upstreamInfo, nodeId:%d newEpset:%s", pTask->id.taskId, nodeId, buf);

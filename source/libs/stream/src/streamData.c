@@ -250,7 +250,7 @@ const char* streamGetBlockTypeStr(int32_t type) {
     case STREAM_INPUT__CHECKPOINT:
       return "checkpoint";
     case STREAM_INPUT__CHECKPOINT_TRIGGER:
-      return "checkpoint-triggre";
+      return "checkpoint-trigger";
     case STREAM_INPUT__TRANS_STATE:
       return "trans-state";
     default:

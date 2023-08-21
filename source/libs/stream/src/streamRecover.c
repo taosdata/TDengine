@@ -178,10 +178,9 @@ int32_t streamRecheckDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp* p
       .stage = pTask->pMeta->stage,
   };
 
-  qDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) stage:%" PRId64 " (recheck)", pTask->id.idStr,
-         pTask->info.nodeId, req.downstreamTaskId, req.downstreamNodeId, req.stage);
-
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    qDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) stage:%" PRId64 " (recheck)", pTask->id.idStr,
+           pTask->info.nodeId, req.downstreamTaskId, req.downstreamNodeId, req.stage);
     streamDispatchCheckMsg(pTask, &req, pRsp->downstreamNodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
