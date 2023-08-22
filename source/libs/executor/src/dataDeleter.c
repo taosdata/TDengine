@@ -281,6 +281,8 @@ _end:
   if (deleter != NULL) {
     destroyDataSinker((SDataSinkHandle*)deleter);
     taosMemoryFree(deleter);
+  } else {
+    taosMemoryFree(pManager);
   }
   return code;
 }

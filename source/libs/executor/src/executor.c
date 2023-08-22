@@ -511,19 +511,20 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     goto _error;
   }
 
-  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50};
-  void* pSinkManager = NULL;
-  code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
-    goto _error;
-  }
-
   if (handle) {
+    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50};
+    void* pSinkManager = NULL;
+    code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+      goto _error;
+    }
+
     void* pSinkParam = NULL;
     code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, (*pTask), readHandle);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to createDataSinkParam, vgId:%d, code:%s, %s", vgId, tstrerror(code), (*pTask)->id.str);
+      taosMemoryFree(pSinkManager);
       goto _error;
     }
 

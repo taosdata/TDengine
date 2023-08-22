@@ -49,8 +49,11 @@ int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, D
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       return createDataInserter(pManager, pDataSink, pHandle, pParam);
     }
+    default:
+      break;
   }
 
+  taosMemoryFree(pSinkManager);
   qError("invalid input node type:%d, %s", nodeType(pDataSink), id);
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
