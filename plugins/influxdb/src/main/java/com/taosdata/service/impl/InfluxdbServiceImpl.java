@@ -459,7 +459,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 根据bucket与measurement获取内存中的表结构
             InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(bucket + ":" + measurement);
             // 查询语句
-            String sql = "select * from " + measurement + " where time >= '" + startTime + "' and time <= '" + stopTime + "' limit " + batch + " offset " + offset;
+            String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' limit " + batch + " offset " + offset;
             // 执行查询
             QueryResult queryResult = influxDB.query(new Query(sql, bucket));
             // 结果空则返回空列表
@@ -694,7 +694,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 返回结果
         Map<String, String> fieldMap = new HashMap<>();
         // 查询所有field
-        QueryResult queryResult = influxDB.query(new Query("show field keys from " + measurement, bucket));
+        QueryResult queryResult = influxDB.query(new Query("show field keys from \"" + measurement + "\"", bucket));
         // 结果空则返回空map
         if (queryResult == null) {
             return fieldMap;
@@ -733,7 +733,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 返回结果
         Map<String, String> fieldMap = new HashMap<>();
         // 查询所有field
-        InfluxQLQuery showFieldSql = new InfluxQLQuery("show field keys from " + measurement, bucket);
+        InfluxQLQuery showFieldSql = new InfluxQLQuery("show field keys from \"" + measurement + "\"", bucket);
         InfluxQLQueryResult showFieldResult = influxDBClient.getInfluxQLQueryApi().query(showFieldSql);
         // 结果空则返回空map
         if (showFieldResult == null) {
@@ -774,7 +774,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 返回结果
         Set<String> tagSet = new HashSet<>();
         // 查询所有tag
-        QueryResult queryResult = influxDB.query(new Query("show tag keys from " + measurement, bucket));
+        QueryResult queryResult = influxDB.query(new Query("show tag keys from \"" + measurement + "\"", bucket));
         // 结果空则返回空set
         if (queryResult == null) {
             return tagSet;
@@ -813,7 +813,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 返回结果
         Set<String> tagSet = new HashSet<>();
         // 查询所有tag
-        InfluxQLQuery showTagSql = new InfluxQLQuery("show tag keys from " + measurement, bucket);
+        InfluxQLQuery showTagSql = new InfluxQLQuery("show tag keys from \"" + measurement + "\"", bucket);
         InfluxQLQueryResult showTagResult = influxDBClient.getInfluxQLQueryApi().query(showTagSql);
         // 结果空则返回空set
         if (showTagResult == null) {
