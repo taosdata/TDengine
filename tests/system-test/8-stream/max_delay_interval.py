@@ -16,7 +16,7 @@ class TDTestCase:
     def watermark_max_delay_interval(self, interval, max_delay, watermark=None, fill_value=None, delete=False):
         tdLog.info(f"*** testing stream max_delay+interval: interval: {interval}, watermark: {watermark}, fill_value: {fill_value}, delete: {delete} ***")
         self.delete = delete
-        self.case_name = sys._getframe().f_code.co_name
+        self.tdCom.case_name = sys._getframe().f_code.co_name
         if watermark is not None:
             self.case_name = "watermark" + sys._getframe().f_code.co_name
         self.tdCom.prepare_data(interval=interval, watermark=watermark)
@@ -24,8 +24,8 @@ class TDTestCase:
         self.ctb_name = self.tdCom.ctb_name.replace(f"{self.tdCom.dbname}.", "")
         self.tb_name = self.tdCom.tb_name.replace(f"{self.tdCom.dbname}.", "")
         self.stb_stream_des_table = f'{self.stb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
+        self.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
+        self.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
         self.tdCom.date_time = 1658921623245
         if watermark is not None:
             watermark_value = f'{self.tdCom.dataDict["watermark"]}s'
@@ -40,11 +40,11 @@ class TDTestCase:
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
         # create stb/ctb/tb stream
         self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.tdCom.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.stb_name} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.tdCom.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
         if fill_value:
             if "value" in fill_value.lower():
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tdCom.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.tb_source_select_str}  from {self.tb_name} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.tb_source_select_str}  from {self.tb_name} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_value=fill_value)
         init_num = 0
         start_time = self.tdCom.date_time
         for i in range(self.tdCom.range_count):
@@ -63,8 +63,8 @@ class TDTestCase:
                     self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=self.tdCom.date_time+num*self.tdCom.offset)
                     self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=self.tdCom.date_time+num*self.tdCom.offset)
                 if not fill_value:
-                    for tbname in [self.stb_stream_des_table, self.tdCom.ctb_stream_des_table, self.tdCom.tb_stream_des_table]:
-                        if tbname != self.tdCom.tb_stream_des_table:
+                    for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                        if tbname != self.tb_stream_des_table:
                             tdSql.query(f'select wstart, {self.tdCom.stb_output_select_str} from {tbname}')
                         else:
                             tdSql.query(f'select wstart, {self.tdCom.tb_output_select_str} from {tbname}')
