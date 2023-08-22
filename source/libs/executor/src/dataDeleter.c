@@ -224,6 +224,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDeleter->pDataBlocks);
   taosThreadMutexDestroy(&pDeleter->mutex);
+  
+  taosMemoryFree(pDeleter->pManager);
   return TSDB_CODE_SUCCESS;
 }
 

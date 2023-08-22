@@ -395,6 +395,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   taosThreadMutexDestroy(&pInserter->mutex);
+  
+  taosMemoryFree(pInserter->pManager);
   return TSDB_CODE_SUCCESS;
 }
 

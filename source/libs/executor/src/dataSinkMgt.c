@@ -18,12 +18,17 @@
 #include "planner.h"
 #include "tarray.h"
 
-static SDataSinkManager gDataSinkManager = {0};
 SDataSinkStat           gDataSinkStat = {0};
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI) {
-  gDataSinkManager.cfg = *cfg;
-  gDataSinkManager.pAPI = pAPI;
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager) {
+  SDataSinkManager* pSinkManager = taosMemoryMalloc(sizeof(SDataSinkManager));
+  if (NULL == pSinkManager) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pSinkManager->cfg = *cfg;
+  pSinkManager->pAPI = pAPI;
+
+  *ppSinkManager = pSinkManager;
   return 0;  // to avoid compiler eror
 }
 
@@ -33,15 +38,16 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   return 0;
 }
 
-int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
+int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
+  SDataSinkManager* pManager = pSinkManager;
   switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
+      return createDataDispatcher(pManager, pDataSink, pHandle);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
-      return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
+      return createDataDeleter(pManager, pDataSink, pHandle, pParam);
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
-      return createDataInserter(&gDataSinkManager, pDataSink, pHandle, pParam);
+      return createDataInserter(pManager, pDataSink, pHandle, pParam);
     }
   }
 
