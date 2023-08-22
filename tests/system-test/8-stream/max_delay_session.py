@@ -23,8 +23,8 @@ class TDTestCase:
         self.ctb_name = self.tdCom.ctb_name.replace(f"{self.tdCom.dbname}.", "")
         self.tb_name = self.tdCom.tb_name.replace(f"{self.tdCom.dbname}.", "")
         self.stb_stream_des_table = f'{self.stb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
+        self.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
+        self.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
         self.tdCom.date_time = self.tdCom.dataDict["start_ts"]
 
         if watermark is not None:
@@ -32,8 +32,8 @@ class TDTestCase:
         else:
             watermark_value = None
         max_delay_value = f'{self.tdCom.trans_time_to_s(max_delay)}s'
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.tdCom.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tdCom.stb_source_select_str}  from {self.ctb_name} session(ts, {self.tdCom.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tdCom.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tdCom.tb_source_select_str}  from {self.tb_name} session(ts, {self.tdCom.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tdCom.stb_source_select_str}  from {self.ctb_name} session(ts, {self.tdCom.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tdCom.tb_source_select_str}  from {self.tb_name} session(ts, {self.tdCom.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
         init_num = 0
         for i in range(self.tdCom.range_count):
             if i == 0:
@@ -49,8 +49,8 @@ class TDTestCase:
                     if self.tdCom.update and i%2 == 0:
                         self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
                         self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
-                    for tbname in [self.tdCom.ctb_stream_des_table, self.tdCom.tb_stream_des_table]:
-                        if tbname != self.tdCom.tb_stream_des_table:
+                    for tbname in [self.ctb_stream_des_table, self.tb_stream_des_table]:
+                        if tbname != self.tb_stream_des_table:
                             tdSql.query(f'select wstart, {self.tdCom.stb_output_select_str} from {tbname}')
                         else:
                             tdSql.query(f'select wstart, {self.tdCom.tb_output_select_str} from {tbname}')

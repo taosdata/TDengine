@@ -21,8 +21,8 @@ class TDTestCase:
         self.ctb_name = self.tdCom.ctb_name.replace(f"{self.tdCom.dbname}.", "")
         self.tb_name = self.tdCom.tb_name.replace(f"{self.tdCom.dbname}.", "")
         self.stb_stream_des_table = f'{self.stb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
-        self.tdCom.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
+        self.ctb_stream_des_table = f'{self.ctb_name}{self.tdCom.des_table_suffix}'
+        self.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
         ctb_name_list = list()
         for i in range(1, self.tdCom.range_count):
             ctb_name = self.tdCom.get_long_name()

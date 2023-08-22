@@ -166,6 +166,7 @@ class TDCom:
         self.fill_stb_source_select_str = ','.join(self.fill_function_list)
         self.fill_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list[0:13])))
         self.fill_tb_source_select_str = ','.join(self.fill_function_list[0:13])
+        self.ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:13])
         self.stream_case_when_tbname = "tbname"
 
         self.update = True
@@ -1101,11 +1102,11 @@ class TDCom:
         self.sgen_column_type_str(column_elm_list)
         self.sgen_tag_type_str(tag_elm_list)
         if self.dbname is not None:
-            self.stb_name = f'{self.dbname}.{stbname}'
+            stb_name = f'{self.dbname}.{stbname}'
         else:
-            self.stb_name = stbname
+            stb_name = stbname
         if int(count) <= 1:
-            create_stable_sql = f'create {use_name} {self.stb_name} ({self.column_type_str}) tags ({self.tag_type_str}) {stb_params};'
+            create_stable_sql = f'create {use_name} {stb_name} ({self.column_type_str}) tags ({self.tag_type_str}) {stb_params};'
             tdSql.execute(create_stable_sql)
         else:
             for _ in range(count):
@@ -1134,13 +1135,13 @@ class TDCom:
         tag_value_str = tag_value_str.rstrip()[:-1]
         if dbname is not None:
             self.dbname = dbname
-            self.ctb_name = f'{self.dbname}.{ctbname}'
+            ctb_name = f'{self.dbname}.{ctbname}'
         else:
-            self.ctb_name = ctbname
+            ctb_name = ctbname
         if stbname is not None:
-            self.stb_name = stbname
+            stb_name = stbname
         if int(count) <= 1:
-            create_ctable_sql = f'create {use_name} {self.ctb_name} using {self.stb_name} tags ({tag_value_str}) {ctb_params};'
+            create_ctable_sql = f'create {use_name} {ctb_name} using {stb_name} tags ({tag_value_str}) {ctb_params};'
             tdSql.execute(create_ctable_sql)
         else:
             for _ in range(count):
@@ -1191,11 +1192,11 @@ class TDCom:
                 tb_params += f'{param} "{value}" '
         self.sgen_column_type_str(column_elm_list)
         if self.dbname is not None:
-            self.tb_name = f'{self.dbname}.{tbname}'
+            tb_name = f'{self.dbname}.{tbname}'
         else:
-            self.tb_name = tbname
+            tb_name = tbname
         if int(count) <= 1:
-            create_table_sql = f'create {use_name} {self.tb_name} ({self.column_type_str}) {tb_params};'
+            create_table_sql = f'create {use_name} {tb_name} ({self.column_type_str}) {tb_params};'
             tdSql.execute(create_table_sql)
         else:
             for _ in range(count):
@@ -1580,6 +1581,10 @@ class TDCom:
         self.date_time = self.genTs(precision=self.precision)[0]
 
         self.screateDb(dbname=self.dbname, precision=self.precision)
+        if ext_stb:
+            self.screate_stable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table)
+            self.screate_ctable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table, ctbname=self.ext_ctb_stream_des_table)
+            self.screate_table(dbname=self.dbname, tbname=self.ext_tb_stream_des_table)
         self.screate_stable(dbname=self.dbname, stbname=self.stb_name)
         self.screate_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
         self.screate_table(dbname=self.dbname, tbname=self.tb_name)
@@ -1590,9 +1595,6 @@ class TDCom:
                 self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
                 if i == 1:
                     self.record_history_ts = ts_value
-        if ext_stb:
-            self.screate_stable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table)
-            self.screate_ctable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table, ctbname=self.ext_ctb_stream_des_table)
-            self.screate_table(dbname=self.dbname, tbname=self.ext_tb_stream_des_table)
+        
 
 tdCom = TDCom()
