@@ -128,7 +128,7 @@ class TDTestQuery(TDTestQuery):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
         
-        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts group by b.tbname limit %d" %(dbname,dbnamejoin,num)
+        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts group by a.tbname limit %d" %(dbname,dbnamejoin,num)
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)        
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
@@ -150,7 +150,7 @@ class TDTestQuery(TDTestQuery):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
         
-        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts partition by b.tbname limit %d" %(dbname,dbnamejoin,num)
+        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts partition by a.tbname limit %d" %(dbname,dbnamejoin,num)
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
@@ -171,7 +171,7 @@ class TDTestQuery(TDTestQuery):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
         
-        sql_join  = "select count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts group by b.tbname order by cc limit %d" %(dbname,dbnamejoin,num)
+        sql_join  = "select count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts group by a.tbname order by cc limit %d" %(dbname,dbnamejoin,num)
         self.sql_limit_retun_n_slimit_return_tables(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_tables(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
@@ -192,7 +192,7 @@ class TDTestQuery(TDTestQuery):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
         
-        sql_join = "select count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts partition by b.tbname order by cc limit %d" %(dbname,dbnamejoin,num)
+        sql_join = "select count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts partition by a.tbname order by cc limit %d" %(dbname,dbnamejoin,num)
         self.sql_limit_retun_n_slimit_return_tables(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_tables(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
@@ -276,7 +276,7 @@ class TDTestQuery(TDTestQuery):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
         
-        sql_join = "select a.tbname,count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts interval(1a) group by b.tbname limit %d" %(dbname,dbnamejoin,num)
+        sql_join = "select a.tbname,count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts interval(1a) group by a.tbname limit %d" %(dbname,dbnamejoin,num)
         self.sql_retun_error(sql_join,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_retun_error(sql_join,base_fun,replace_fun)
@@ -297,7 +297,7 @@ class TDTestQuery(TDTestQuery):
         sql_union_all = "(%s) union all (%s)" %(sql,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
         
-        sql_join = "select a.tbname,count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts interval(1a) partition by b.tbname limit %d" %(dbname,dbnamejoin,num)
+        sql_join = "select a.tbname,count(*) cc from %s.meters a,%s.meters b where a.ts is not null and a.ts = b.ts interval(1a) partition by a.tbname limit %d" %(dbname,dbnamejoin,num)
         self.sql_retun_error(sql_join,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_retun_error(sql_join,base_fun,replace_fun)
