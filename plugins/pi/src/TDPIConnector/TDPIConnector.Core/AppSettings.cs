@@ -35,8 +35,8 @@ namespace TDPIConnector.Core
             public string PIServerDomain { get; internal set; }
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
-            public DateTime BackfillStartTime { get; set; } = DateTime.MinValue;
-            public DateTime BackfillEndTime { get; set; } = DateTime.MaxValue;
+            public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;
+            public DateTimeOffset BackfillEndTime { get; set; } = DateTimeOffset.MaxValue;
 
             public string ConfigString()
             {
@@ -149,7 +149,7 @@ namespace TDPIConnector.Core
             WebMaxPIEvents = GetIntegerFromAppSettings("WebMaxPIEvents", 5);
             WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses", 5);
             WebMonitoringEventsEnabled = GetBooleanFromAppSettings("WebMonitoringEventsEnabled", false);
-
+            BackfillQuitWait = GetIntegerFromAppSettings("BackfillQuitWait", 60);
 
             if (TDEnginePITablesPrefix == null)
             {
@@ -167,6 +167,7 @@ namespace TDPIConnector.Core
         public static int WebMaxTDEngineHttpResponses { get; internal set; }
         public static int WebMaxPIEvents { get; internal set; }
         public static bool WebMonitoringEventsEnabled { get; private set; }
+        public static int BackfillQuitWait { get; internal set; }
 
         public static bool TaosXEnabled { get; private set; } = true;
         public static TomlConfig tomlConfig { get; private set; }

@@ -361,6 +361,17 @@ namespace TDPIConnector.TDEngine
             return;
         }
 
+        public bool isBusy()
+        {
+            lock (taosxClientsLock)
+            {
+                foreach (var taosxClient in taosxClients)
+                {
+                    if (taosxClient.Value.isBusy()) return true;
+                }
+                return false;
+            }
+        }
 
         private static string prefix = "pitag_";
         public static string GetPIPointSTableNameByTDVType(TDValueType ValueType)

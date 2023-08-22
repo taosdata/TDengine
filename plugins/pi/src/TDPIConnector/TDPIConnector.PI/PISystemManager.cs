@@ -173,7 +173,7 @@ namespace TDPIConnector.PI
 
             if (values.Count == 0)
             {
-            startTime.Value = DateTime.MaxValue;
+                startTime.Value = DateTime.MaxValue;
             }
             else
             {
