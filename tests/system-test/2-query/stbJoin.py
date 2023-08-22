@@ -103,6 +103,8 @@ class TDTestCase:
         tdSql.query(f"select /*+ no_batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
         tdSql.checkRows(3)
 
+        tdSql.query(f"select a.ts, b.ts from sta a, stb b where a.ts=b.ts and (a.t0=b.t0 and a.t0 > b.t0);")
+        tdSql.checkRows(0)
 
 #        tdSql.checkData(0,1,10)
 
