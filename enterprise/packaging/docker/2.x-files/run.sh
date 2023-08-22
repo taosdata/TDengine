@@ -376,7 +376,7 @@ do
         initDnodeAndMnode
         td_cluster_check
         #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
-        if [ $? == 0 && "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
+        if [ $? -eq 0 ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
             logger "INFO" "begin to check test db existed or not"
             dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
             if [ $? -eq 0 ]; then
