@@ -1,6 +1,7 @@
 package com.taosdata;
 
 import com.alibaba.fastjson.JSONObject;
+import com.influxdb.client.domain.HealthCheck;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
@@ -19,6 +20,7 @@ import com.taosdata.service.InfluxdbService;
 import com.taosdata.threads.*;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
+import com.taosdata.utils.HttpUtils;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
@@ -87,7 +89,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setDescription(StatusEnums.LOADING.getDesc());
             // 判断是否存在参数且参数是否为-v
             if (args == null || args.length == 0) {
-                logger.info("Parameters error, startup failed.");
+                logger.error("Parameters error, startup failed.");
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
                 System.exit(0);
@@ -110,7 +112,7 @@ public class PreLoading implements CommandLineRunner {
                     System.out.println(influxdbService.fetchSchemaInfo(url, token, orgId));
                     System.exit(0);
                 } else {
-                    logger.info("Parameters error, query failed.");
+                    logger.error("Parameters error, query failed.");
                     System.exit(1);
                 }
             } else {
@@ -147,6 +149,11 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.noteThread(threadInfo);
             // 处理工作模式：普通、恢复
             initMode();
+            // 检查连通性
+            if (!checkInfluxdb()) {
+                logger.error("Parameters error, failed to check the connectivity of InfluxDB.");
+                System.exit(3);
+            }
             // Influxdb信息，创建Influxdb连接并启动BucketThread、ScheduleThread与PushPrepareThread线程
             initInfluxdb();
             // 记录Netty连接信息
@@ -165,7 +172,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
             // 启动失败
-            System.exit(1);
+            System.exit(9);
         }
     }
 
@@ -221,7 +228,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
             // 启动失败
-            System.exit(1);
+            System.exit(2);
         }
     }
 
@@ -255,6 +262,47 @@ public class PreLoading implements CommandLineRunner {
                 logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
+    }
+
+    /**
+     * 检查influxdb连通性
+     */
+    private boolean checkInfluxdb() {
+        // 本地部署的健康检查接口
+        String healthUrl = "health";
+        // 云服务的接口列表（因为它是公开访问的）
+        String cloudApi = "api/v2";
+        // 拼接请求url
+        if (influxdbConfig.getUrl().endsWith("/")) {
+            healthUrl = influxdbConfig.getUrl() + healthUrl;
+            cloudApi = influxdbConfig.getUrl() + cloudApi;
+        } else {
+            healthUrl = influxdbConfig.getUrl() + "/" + healthUrl;
+            cloudApi = influxdbConfig.getUrl() + "/" + cloudApi;
+        }
+        try {
+            // 一般情况下使用health接口获取服务状态
+            String result = HttpUtils.sendGet(healthUrl, "");
+            // 解析JSON结果
+            JSONObject object = JSONObject.parseObject(result);
+            // 判断数据库状态是否正常
+            return HealthCheck.StatusEnum.PASS.getValue().equals(object.getString("status"));
+        } catch (Exception e) {
+            try {
+                // 判断它是否是云服务
+                String result = HttpUtils.sendGet(cloudApi, "");
+                // 解析JSON结果
+                JSONObject object = JSONObject.parseObject(result);
+                // 判断是否包含authorizations（随便找一个，只需要证明接口访问正常）
+                if (object.containsKey("authorizations")) {
+                    LocalConfig.isInfluxDBCloud = true;
+                    return true;
+                }
+            } catch (Exception ex) {
+                logger.error("Check connectivity failed, normal exception: {}, cloud exception: {}", e.getMessage(), ex.getMessage());
+            }
+        }
+        return false;
     }
 
     /**
