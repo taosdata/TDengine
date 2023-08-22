@@ -404,13 +404,32 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 		return nil, nil, fmt.Errorf("subscribe failed: %w", err)
 	}
 
+	var wait sync.WaitGroup
+	errCh := make(chan error, len(r.nodes))
+
 	for i, node := range r.nodes {
-		if _, err = sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
-			node.nodeID, ua.AttributeIDValue, uint32(i))); err != nil {
-			logger.Error("## subscribe monitor failed", "error", err)
+		wait.Add(1)
+		go func(idx int, n *uaNode, w *sync.WaitGroup) {
+			defer w.Done()
+			if _, err = sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
+				n.nodeID, ua.AttributeIDValue, uint32(idx))); err != nil {
+				logger.Error("## subscribe monitor for node failed", "node", n.nodeID.String(), "error", err)
+				errCh <- err
+
+			}
+		}(i, node, &wait)
+	}
+	go func() {
+		wait.Wait()
+		close(errCh)
+	}()
+
+	for err = range errCh {
+		if err != nil {
 			return nil, nil, fmt.Errorf("subscribe monitor failed: %w", err)
 		}
 	}
+
 	return
 }
 

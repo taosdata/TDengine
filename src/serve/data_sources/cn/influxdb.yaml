@@ -5,19 +5,18 @@ name: InfluxDB
 description: |
   InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。
 
-  TaosX 可以通过 `taosx-influxdb` 插件高效地读取 influxdb 中的数据，并将其写入TDengine，以实现历史数据迁移或实时数据同步。
-
+  TaosX 可以通过 `taosx-influxdb` 插件高效地读取 InfluxDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
 strict: false
 protocol:
   display: 连接协议
   description: InfluxDB 数据库连接的协议
   choices:
     - name: http
-      display: HTTP Protocol
-      description: Connect to InfluxDB using the HTTP protocol
+      display: HTTP 协议
+      description: 使用 HTTP 协议连接 InfluxDB
     - name: https
-      display: HTTPS Protocol
-      description: Connect to InfluxDB using the HTTPS protocol
+      display: HTTPS 协议
+      description: 使用 HTTPS 协议连接 InfluxDB
 options:
   host:
     display: 服务器地址
@@ -26,7 +25,7 @@ options:
     required: true
   port:
     display: 端口
-    description: InfluxDB 服务器端口，默认情况下，InfluxDB 监听 8086 端口的 HTTP 请求和 8088 端口的 HTTPS 请求。
+    description: InfluxDB 服务器端口。
     placeholder: "8086"
     required: true
 authentication:

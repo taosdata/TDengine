@@ -197,6 +197,13 @@ public class PreLoading implements CommandLineRunner {
             this.taskConfig.setMeasurements(measurements);
             this.taskConfig.setBeginTime(tomlParseResult.getString("task.beginTime", String::new));
             this.taskConfig.setEndTime(tomlParseResult.getString("task.endTime", String::new));
+            // 判断时间配置，错误则退出
+            if (StringUtils.isEmpty(this.taskConfig.getBeginTime()) || !this.taskConfig.getBeginTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
+                throw new Exception("parameter beginTime configuration error.");
+            }
+            if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
+                throw new Exception("parameter endTime configuration error.");
+            }
             this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.limitConnect") != null) {

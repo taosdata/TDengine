@@ -2,11 +2,10 @@ package version
 
 import (
 	"fmt"
-	"time"
 )
 
 var Version = "1.0.0"
-var BuildAt = time.Now().Format("2006-01-02 15:04:05")
+var BuildAt = ""
 var CommitID = ""
 
 func GetVersion() string {

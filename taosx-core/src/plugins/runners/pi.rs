@@ -95,6 +95,8 @@ pub enum PiError {
     ParseError(&'static str, String, String),
     #[error("plugin not found: {0}")]
     ExeNotFound(String),
+    #[error("pi config error: {0}")]
+    ConfigError(String),
 }
 
 impl PiConfig {
@@ -162,7 +164,9 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
-
+        if point_list.is_empty() && template_for_af_element.is_empty() && template_for_pi_point.is_empty() {
+            return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
+        }
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
         let from_tdengine_last_time = if let Some(v) = dsn

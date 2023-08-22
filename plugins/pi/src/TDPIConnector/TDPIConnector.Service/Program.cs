@@ -128,6 +128,7 @@ namespace TDPIConnector.Service
 
             if (workMode == WorkMode.PrintPIInfo) {
                 service.PrintPIInfo(pointFilter);
+                return;
             }
             // console mode
             else if (Environment.UserInteractive)

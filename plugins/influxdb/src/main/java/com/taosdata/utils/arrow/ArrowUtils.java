@@ -74,7 +74,8 @@ public class ArrowUtils {
     private ArrowInitDto getArrowInit(InfluxdbMeasurementEntity influxdbMeasurementEntity) {
         ArrowInitDto arrowInitDto = new ArrowInitDto();
         // name
-        arrowInitDto.setName(influxdbMeasurementEntity.getMeasurement());
+        // edit at 2023.08.16 replace `.` to `_`
+        arrowInitDto.setName(influxdbMeasurementEntity.getMeasurement().replaceAll("\\.", "_"));
         // columns
         List<ArrowInitDto.Column> columns = new ArrayList<>();
         columns.add(arrowInitDto.new Column("time", "timestamp"));
@@ -199,7 +200,8 @@ public class ArrowUtils {
                     StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
                     // 2023.04.17 使用setIndexDefined解决了StructVector=null的问题！！！
                     tableDataVector.setIndexDefined(i);
-                    setData(tableDataVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
+                    // edit at 2023.08.16 replace `.` to `_`
+                    setData(tableDataVector, "__table_name__", influxdbBucketDataEntity.getTable().replaceAll("\\.", "_"), "string", i);
                     for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
                         setData(tableDataVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
                     }
@@ -235,7 +237,8 @@ public class ArrowUtils {
                 /* __records__ */
                 StructVector recordDataVector = (StructVector) recordVector.getChildrenFromFields().get(0);
                 recordDataVector.setIndexDefined(i);
-                setData(recordDataVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
+                // edit at 2023.08.16 replace `.` to `_`
+                setData(recordDataVector, "__table_name__", influxdbBucketDataEntity.getTable().replaceAll("\\.", "_"), "string", i);
                 setData(recordDataVector, "time", influxdbBucketDataEntity.getTime(), "timestamp", i);
                 setData(recordDataVector, influxdbBucketDataEntity.getField(), influxdbBucketDataEntity.getValue(), influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getFieldMap().get(influxdbBucketDataEntity.getField()), i);
             }
@@ -294,7 +297,7 @@ public class ArrowUtils {
             case "timestamp":
                 return new ArrowType.Timestamp(TimeUnit.NANOSECOND, null);
             case "string":
-            case "nchar(1000)":
+            case "binary(256)":
             default: {
                 return new ArrowType.Binary();
             }
@@ -339,7 +342,7 @@ public class ArrowUtils {
                 break;
             }
             case "string":
-            case "nchar(1000)":
+            case "binary(256)":
             default: {
                 VarBinaryVector varBinaryVector = (VarBinaryVector) structVector.getChild(dataName);
                 varBinaryVector.setSafe(index, dataValue.toString().getBytes());
