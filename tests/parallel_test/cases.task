@@ -132,6 +132,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5

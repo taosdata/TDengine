@@ -812,6 +812,15 @@ class TDDnodes:
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
+            psCmd = "for /f %a in ('wmic process where \"name='tmq_sim'\" get processId ^| xargs echo ^| awk '{print $2}' ^&^& echo aa') do @(ps | grep %a | awk '{print $1}' | xargs)"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):
+                print(processID)
+                killCmd = "kill -9 %s > nul 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
         else:
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
