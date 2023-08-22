@@ -473,8 +473,8 @@ _err:
 }
 
 void vnodePreClose(SVnode *pVnode) {
-  vnodeQueryPreClose(pVnode);
   vnodeSyncPreClose(pVnode);
+  vnodeQueryPreClose(pVnode);
 }
 
 void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
