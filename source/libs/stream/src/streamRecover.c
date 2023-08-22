@@ -445,8 +445,11 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
     streamNotifyUpstreamContinue(pTask);
 
     // mnode will not send the pause/resume message to the sink task, so no need to enable the pause for sink tasks.
-    if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
+    if (taskLevel == TASK_LEVEL__AGG) {
       streamTaskEnablePause(pTask);
+      int32_t code = streamTaskScanHistoryDataComplete(pTask);
+    } else {  // for sink task, set normal
+      streamSetStatusNormal(pTask);
     }
   } else {
     qDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d",
