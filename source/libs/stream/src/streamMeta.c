@@ -13,12 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <common/tmisce.h>
 #include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 #include "tref.h"
-#include "ttimer.h"
 #include "tstream.h"
+#include "ttimer.h"
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
@@ -608,10 +609,26 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   taosRLockLatch(&pMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  taosRUnLockLatch(&pMeta->lock);
+
+  SEpSet epset = {0};
 
   hbMsg.numOfTasks = numOfTasks;
   hbMsg.vgId = pMeta->vgId;
+  hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamId* pId = taosArrayGet(pMeta->pTaskList, i);
+
+    int64_t          keys[2] = {pId->streamId, pId->taskId};
+    SStreamTask**    pTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    STaskStatusEntry entry = {.streamId = pId->streamId, .taskId = pId->taskId, .status = (*pTask)->status.taskStatus};
+
+    taosArrayPush(hbMsg.pTaskStatus, &entry);
+    if (i == 0) {
+      epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
+    }
+  }
+
+  taosRUnLockLatch(&pMeta->lock);
 
   int32_t code = 0;
   int32_t tlen = 0;
@@ -622,17 +639,14 @@ void metaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
-  void* buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
+  void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return;
   }
 
-  ((SMsgHead*)buf)->vgId = htonl(pMeta->mgmtInfo.mnodeId);
-  void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-
   SEncoder encoder;
-  tEncoderInit(&encoder, pBuf, tlen);
+  tEncoderInit(&encoder, buf, tlen);
   if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
     rpcFreeCont(buf);
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
@@ -641,11 +655,11 @@ void metaHbToMnode(void* param, void* tmrId) {
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};
-  initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen + sizeof(SMsgHead));
-  qDebug("vgId:%d, build and send hb to mnode", pMeta->mgmtInfo.mnodeId);
+  initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
+  msg.info.noResp = 1;
 
-  tmsgSendReq(&pMeta->mgmtInfo.epset, &msg);
+  qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
 
-  // next hb will be issued in 20sec.
-  taosTmrReset(metaHbToMnode, 5000, pMeta, streamEnv.timer, pMeta->hbTmr);
+  tmsgSendReq(&epset, &msg);
+  taosTmrReset(metaHbToMnode, 5000, pMeta, streamEnv.timer, &pMeta->hbTmr);
 }

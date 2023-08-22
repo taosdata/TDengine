@@ -284,6 +284,7 @@ typedef struct SHistDataRange {
 typedef struct SSTaskBasicInfo {
   int32_t nodeId;  // vgroup id or snode id
   SEpSet  epSet;
+  SEpSet  mnodeEpset;   // mnode epset for send heartbeat
   int32_t selfChildId;
   int32_t totalLevel;
   int8_t  taskLevel;
@@ -388,7 +389,7 @@ typedef struct SStreamMeta {
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
   tmr_h         hbTmr;
-  SMgmtInfo     mgmtInfo;
+//  SMgmtInfo     mgmtInfo;
 
   int32_t closedTask;
   int32_t chkptNotReadyTasks;

@@ -110,7 +110,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
-    mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_NODECHANGE_CHECK, mndProcessNodeCheckReq);
 
@@ -861,7 +861,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   mndTransDrop(pTrans);
 
-  keepStreamTasksInBuf(pStream, &execNodeList);
+  taosThreadMutexLock(&execNodeList.lock);
+  keepStreamTasksInBuf(&streamObj, &execNodeList);
+  taosThreadMutexUnlock(&execNodeList.lock);
+
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -2139,6 +2142,22 @@ static SArray *doExtractNodeListFromStream(SMnode *pMnode) {
   return plist;
 }
 
+static void doExtractTasksFromStream(SMnode *pMnode) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    keepStreamTasksInBuf(pStream, &execNodeList);
+    sdbRelease(pSdb, pStream);
+  }
+}
+
 // this function runs by only one thread, so it is not multi-thread safe
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   int32_t old = atomic_val_compare_exchange_32(&mndNodeCheckSentinel, 0, 1);
@@ -2229,15 +2248,13 @@ static void keepStreamTasksInBuf(SStreamObj* pStream, SStreamVnodeRevertIndex* p
 
 // todo: this process should be executed by the write queue worker of the mnode
  int32_t mndProcessStreamHb(SRpcMsg *pReq) {
-  SMnode      *pMnode = pReq->info.node;
-  SSdb        *pSdb = pMnode->pSdb;
+  SMnode *pMnode = pReq->info.node;
+
   SStreamHbMsg req = {0};
   int32_t      code = TSDB_CODE_SUCCESS;
 
   SDecoder     decoder = {0};
-  tDecoderInit(&decoder, (uint8_t *)pReq->pCont, pReq->contLen);
-
-  if (tStartDecode(&decoder) < 0) return -1;
+  tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
   if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -2248,6 +2265,11 @@ static void keepStreamTasksInBuf(SStreamObj* pStream, SStreamVnodeRevertIndex* p
   mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
 
   taosThreadMutexLock(&execNodeList.lock);
+  int32_t numOfExisted = taosHashGetSize(execNodeList.pTaskMap);
+  if (numOfExisted == 0) {
+    doExtractTasksFromStream(pMnode);
+  }
+
   for(int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry* p = taosArrayGet(req.pTaskStatus, i);
     int64_t k[2] = {p->streamId, p->taskId};
@@ -2255,6 +2277,9 @@ static void keepStreamTasksInBuf(SStreamObj* pStream, SStreamVnodeRevertIndex* p
 
     STaskStatusEntry* pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
     pStatusEntry->status = p->status;
+    if (p->status != TASK_STATUS__NORMAL) {
+      mDebug("received s-task:0x%x no in ready stat:%s", p->taskId, streamGetTaskStatusStr(p->status));
+    }
   }
   taosThreadMutexUnlock(&execNodeList.lock);
 
