@@ -1446,8 +1446,8 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   }
   // close default cf
   if (((rocksdb_column_family_handle_t**)cfHandle)[0] != 0) {
-    // rocksdb_column_family_handle_destroy(cfHandle[0]);
-    // cfHandle[0] = NULL;
+    rocksdb_column_family_handle_destroy(cfHandle[0]);
+    cfHandle[0] = NULL;
   }
   rocksdb_options_destroy(cfOpts[0]);
 
