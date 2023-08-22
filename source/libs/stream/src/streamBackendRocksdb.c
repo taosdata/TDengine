@@ -916,10 +916,10 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
     qError("stream backend:%p failed to flush db at:%s", pHandle, pChkpIdDir);
   }
   // release all ref to cfWrapper;
-  // for (int i = 0; i < taosArrayGetSize(refs); i++) {
-  //   int64_t id = *(int64_t*)taosArrayGet(refs, i);
-  //   taosReleaseRef(streamBackendCfWrapperId, id);
-  // }
+  for (int i = 0; i < taosArrayGetSize(refs); i++) {
+    int64_t id = *(int64_t*)taosArrayGet(refs, i);
+    taosReleaseRef(streamBackendCfWrapperId, id);
+  }
   if (code == 0) {
     taosWLockLatch(&pMeta->chkpDirLock);
     taosArrayPush(pMeta->chkpSaved, &checkpointId);
