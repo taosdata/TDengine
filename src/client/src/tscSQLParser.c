@@ -4242,6 +4242,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
 static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg1 = "start timestamp error";
   const char* msg2 = "end timestamp error";
+  const char* msg3 = "compact range start timestamp is less than or equal to end timestamp";
 
   SSqlCmd* pCmd = &pSql->cmd;
   pCmd->command = pInfo->type;
@@ -4263,6 +4264,10 @@ static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   } else {
     pQueryInfo->range.ekey = INT64_MAX;
+  }
+
+  if (pQueryInfo->range.skey >= pQueryInfo->range.ekey) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
   return TSDB_CODE_SUCCESS;
 }
