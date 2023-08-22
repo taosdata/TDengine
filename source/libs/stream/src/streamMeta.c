@@ -94,7 +94,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
   pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
-  pMeta->chkpCap = 2;
+  pMeta->chkpCap = 8;
   taosInitRWLatch(&pMeta->chkpDirLock);
 
   int64_t chkpId = streamGetLatestCheckpointId(pMeta);
@@ -574,7 +574,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
   if (tEncodeI32(pEncoder, pReq->vgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->numOfTasks) < 0) return -1;
 
-  for(int32_t i = 0; i < pReq->numOfTasks; ++i) {
+  for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry* ps = taosArrayGet(pReq->pTaskStatus, i);
     if (tEncodeI64(pEncoder, ps->streamId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->taskId) < 0) return -1;
@@ -590,7 +590,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   if (tDecodeI32(pDecoder, &pReq->numOfTasks) < 0) return -1;
 
   pReq->pTaskStatus = taosArrayInit(pReq->numOfTasks, sizeof(STaskStatusEntry));
-  for(int32_t i = 0; i < pReq->numOfTasks; ++i) {
+  for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry hb = {0};
     if (tDecodeI64(pDecoder, &hb.streamId) < 0) return -1;
     if (tDecodeI32(pDecoder, &hb.taskId) < 0) return -1;

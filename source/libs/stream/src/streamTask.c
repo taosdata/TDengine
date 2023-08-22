@@ -165,6 +165,7 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pChkpInfo->checkpointId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pChkpInfo->checkpointVer) < 0) return -1;
