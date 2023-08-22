@@ -543,9 +543,16 @@ typedef struct {
 int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pRsp);
 int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp);
 
-typedef struct {
+typedef struct STaskStatusEntry {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t status;
+} STaskStatusEntry;
+
+typedef struct SStreamHbMsg {
   int32_t vgId;
   int32_t numOfTasks;
+  SArray* pTaskStatus;   // SArray<SStreamTaskStatusEntry>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);

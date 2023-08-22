@@ -411,13 +411,13 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return sndProcessTaskRetrieveReq(pSnode, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return sndProcessTaskRetrieveRsp(pSnode, pMsg);
-    case TDMT_STREAM_SCAN_HISTORY_FINISH:
+    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
       return sndProcessStreamTaskScanHistoryFinishReq(pSnode, pMsg);
-    case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
+    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
       return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
-    case TDMT_STREAM_TASK_CHECK:
+    case TDMT_VND_STREAM_TASK_CHECK:
       return sndProcessStreamTaskCheckReq(pSnode, pMsg);
-    case TDMT_STREAM_TASK_CHECK_RSP:
+    case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return sndProcessStreamTaskCheckRsp(pSnode, pMsg);
     default:
       ASSERT(0);

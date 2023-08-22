@@ -423,7 +423,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   int32_t taskLevel = pTask->info.taskLevel;
   ASSERT(taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__SINK);
 
-  // sink node do not send end of scan history msg to its upstream, which is agg task.
+  // sink tasks do not send end of scan history msg to its upstream, which is agg task.
   streamAddEndScanHistoryMsg(pTask, pRpcInfo, pReq);
 
   int32_t left = atomic_sub_fetch_32(&pTask->numOfWaitingUpstream, 1);
@@ -440,9 +440,11 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
       streamAggUpstreamScanHistoryFinish(pTask);
     }
 
+    // all upstream tasks have completed the scan-history task in the stream time window, let's start to extract data
+    // from the WAL files, which contains the real time stream data.
     streamNotifyUpstreamContinue(pTask);
 
-    // sink node does not receive the pause msg from mnode, so does not need enable it
+    // mnode will not send the pause/resume message to the sink task, so no need to enable the pause for sink tasks.
     if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
       streamTaskEnablePause(pTask);
     }

@@ -664,9 +664,9 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECK:
+    case TDMT_VND_STREAM_TASK_CHECK:
       return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECK_RSP:
+    case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return tqProcessStreamTaskCheckRsp(pVnode->pTq, 0, pMsg);
     case TDMT_STREAM_RETRIEVE:
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
@@ -674,9 +674,9 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_STREAM_SCAN_HISTORY_FINISH:
+    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
       return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
+    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
       return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
       return tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg);
