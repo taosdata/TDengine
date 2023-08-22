@@ -362,7 +362,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskEnablePause(pStreamTask);
   if (taosQueueEmpty(pStreamTask->inputQueue->queue)) {
     SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-    ;
+
     SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
     pDelBlock->info.rows = 0;
     pDelBlock->info.version = 0;

@@ -607,6 +607,12 @@ void metaHbToMnode(void* param, void* tmrId) {
   SStreamMeta* pMeta = param;
   SStreamHbMsg hbMsg = {0};
 
+  if (pMeta->killed == STREAM_META_WILL_STOP) {
+    pMeta->killed = STREAM_META_OK_TO_STOP;
+    qDebug("vgId:%d jump out of meta timer", pMeta->vgId);
+    return;
+  }
+
   taosRLockLatch(&pMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
 

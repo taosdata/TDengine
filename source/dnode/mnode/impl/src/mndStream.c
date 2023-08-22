@@ -2088,7 +2088,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     mDebug("stream:0x%" PRIx64 " involved node changed, create update trans", pStream->uid);
     int32_t code = createStreamUpdateTrans(pMnode, pStream, pChangeInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      // todo
+      return code;
     }
   }
 
@@ -2160,6 +2160,7 @@ static void doExtractTasksFromStream(SMnode *pMnode) {
 
 // this function runs by only one thread, so it is not multi-thread safe
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
+  int32_t code = 0;
   int32_t old = atomic_val_compare_exchange_32(&mndNodeCheckSentinel, 0, 1);
   if (old != 0) {
     mDebug("still in checking node change");
@@ -2189,16 +2190,18 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
 
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
   if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
-    mndProcessVgroupChange(pMnode, &changeInfo);
+    code = mndProcessVgroupChange(pMnode, &changeInfo);
   }
 
   taosArrayDestroy(changeInfo.pUpdateNodeList);
   taosHashCleanup(changeInfo.pDBMap);
 
   // keep the new vnode snapshot
-  taosArrayDestroy(execNodeList.pNodeEntryList);
-  execNodeList.pNodeEntryList = pNodeSnapshot;
-  execNodeList.ts = ts;
+  if (code == TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(execNodeList.pNodeEntryList);
+    execNodeList.pNodeEntryList = pNodeSnapshot;
+    execNodeList.ts = ts;
+  }
 
   mDebug("end to do stream task node change checking");
   atomic_store_32(&mndNodeCheckSentinel, 0);

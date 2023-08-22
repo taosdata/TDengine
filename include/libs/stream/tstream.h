@@ -97,6 +97,11 @@ enum {
   STREAM_QUEUE__PROCESSING,
 };
 
+enum {
+  STREAM_META_WILL_STOP = 1,
+  STREAM_META_OK_TO_STOP = 2,
+};
+
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -389,8 +394,8 @@ typedef struct SStreamMeta {
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
   tmr_h         hbTmr;
-//  SMgmtInfo     mgmtInfo;
 
+  int32_t killed;
   int32_t closedTask;
   int32_t chkptNotReadyTasks;
 

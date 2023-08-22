@@ -190,7 +190,6 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
   }
 
   taosWUnLockLatch(&pMeta->lock);
-
   return inTimer;
 }
 
@@ -218,6 +217,12 @@ void tqNotifyClose(STQ* pTq) {
   }
 
   taosWUnLockLatch(&pMeta->lock);
+
+  pMeta->killed = STREAM_META_WILL_STOP;
+  while(pMeta->killed != STREAM_META_OK_TO_STOP) {
+    taosMsleep(100);
+    tqDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+  }
 
   tqDebug("vgId:%d start to check all tasks", vgId);
   int64_t st = taosGetTimestampMs();
@@ -1432,7 +1437,6 @@ int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
-// NOTE: the rsp msg should be kept in WAL file.
 int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -1461,20 +1465,6 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
         "s-task:%s scan-history finish rsp received from downstream task:0x%x, all downstream tasks rsp scan-history "
         "completed msg",
         pTask->id.idStr, req.downstreamId);
-
-    // the scan-history finish status should be recorded in the WAL files. So the transfer of the task status from
-    // scan-history
-    // to normal should be executed by write thread of each vnode.
-
-//    void*   buf = NULL;
-//    int32_t tlen = 0;
-//    //    encodeCreateChildTableForRPC(pReqs, TD_VID(pVnode), &buf, &tlen);
-//
-//    SRpcMsg msg = {.msgType = TDMT_VND_CREATE_TABLE, .pCont = buf, .contLen = tlen};
-//    if (tmsgPutToQueue(&pTq->pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-//      tqError("failed to put into write-queue since %s", terrstr());
-//    }
-
     streamProcessScanHistoryFinishRsp(pTask);
   }
 
