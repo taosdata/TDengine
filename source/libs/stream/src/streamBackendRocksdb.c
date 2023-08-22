@@ -967,13 +967,8 @@ static rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const cha
                                                  rocksdb_snapshot_t** snapshot, rocksdb_readoptions_t** readOpt);
 
 int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  int ret = 0;
-  // qError("alen: %d, blen:%d", (int)aLen, (int)bLen);
-  if (aLen < bLen) {
-    ret = memcmp(aBuf, bBuf, aLen);
-  } else {
-    ret = memcmp(aBuf, bBuf, bLen);
-  }
+  int len = aLen < bLen ? aLen : bLen;
+  int ret = memcmp(aBuf, bBuf, len);
   if (ret == 0) {
     if (aLen < bLen)
       return -1;
