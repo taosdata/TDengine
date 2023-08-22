@@ -230,6 +230,8 @@ fn main() -> Result<()> {
             .with_span_events(FmtSpan::ACTIVE)
             .with_ansi(false)
             .with_writer(non_blocking)
+            .with_file(true)
+            .with_line_number(true)
             // .compact()
             .with_filter(level_filter)
             .boxed(),

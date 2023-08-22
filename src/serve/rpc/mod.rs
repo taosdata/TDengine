@@ -359,7 +359,7 @@ impl FlightService for FlightServiceImpl {
                                             ("context", context),
                                         ])
                                         .map_err(FlightError::Arrow);
-                                        log::info!("Send heartbeat response");
+                                        // log::info!("Send heartbeat response");
                                         let _ = resp_tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }

@@ -113,7 +113,12 @@ async fn ipc_tcp_forward(
                 })
         }
     }
-    let ipc_reader = IpcReader::new(stream.try_clone()?)?;
+    let reader_stream = stream
+        .try_clone()
+        .context("Try clone IPC stream as reader error")?;
+    let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
+        .await?
+        .context("Build IPC stream reader error")?;
     let mut ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
 
     let schema = ipc_reader.schema.clone();
@@ -163,9 +168,7 @@ async fn ipc_tcp_forward(
                 return Poll::Pending;
             }
             let recv = self.receiver.recv();
-            // dbg!(&recv);
-            // cx.waker().wake_by_ref();
-            Poll::Ready(dbg!(recv.ok()))
+            Poll::Ready(recv.ok())
         }
     }
 
@@ -232,11 +235,20 @@ async fn ipc_tcp_read(
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
 
-    let ipc_reader = IpcReader::new(&stream).context("IPC reading error")?;
+    info!(client, "Prepare IPC stream reader");
+    let reader_stream = stream.try_clone().unwrap();
+    let ipc_reader = tokio::task::spawn_blocking(move || {
+        IpcReader::new(reader_stream).context("IPC reading error")
+    })
+    .await??;
+    info!(client, "Prepare IPC ACK writer");
     // dbg!(ipc_reader.ack());
-    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    let ack = ipc_reader.ack();
+    let ipc_ack_writer =
+        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
     // ipc_ack_writer.ack(LushAck);
     let client = client.to_string();
+    info!(client, "Processing IPC stream");
     ipc_process(
         client,
         pool,
@@ -766,9 +778,21 @@ async fn consume_point_record(
                 tag_values.pop();
             }
             if tag_names.is_empty() {
-                child_table_create_sql_map.insert(child_table_name.clone(), format!("(`point_id`, `point_name`) TAGS (\"{id}\", {})", &point_name));
+                child_table_create_sql_map.insert(
+                    child_table_name.clone(),
+                    format!(
+                        "(`point_id`, `point_name`) TAGS (\"{id}\", {})",
+                        &point_name
+                    ),
+                );
             } else {
-                child_table_create_sql_map.insert(child_table_name.clone(), format!("(`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values})", &point_name));
+                child_table_create_sql_map.insert(
+                    child_table_name.clone(),
+                    format!(
+                        "(`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values})",
+                        &point_name
+                    ),
+                );
             }
             let sql_vec = stable_insert_map.get_mut(stable_name);
             let mut insert_done = false;
@@ -900,7 +924,9 @@ async fn consume_point_record(
                                 // batch create child table
                                 let mut child_table_create_sqls = Vec::new();
                                 let mut sql_prefix = "create table".to_string();
-                                for (child_table_name, child_table_create_sql) in &child_table_create_sql_map {
+                                for (child_table_name, child_table_create_sql) in
+                                    &child_table_create_sql_map
+                                {
                                     let suffix_sql = format!(" IF NOT EXISTS `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
@@ -1288,7 +1314,9 @@ async fn consume_flat_record(
                                         if let Err(err) = _taos.exec(&sql).await {
                                             if err.to_string().contains("0x032C") {
                                                 // Object is creating
-                                                tracing::warn!("error code [0x032C] encountered, ignore");
+                                                tracing::warn!(
+                                                    "error code [0x032C] encountered, ignore"
+                                                );
                                                 continue;
                                             } else {
                                                 anyhow::bail!(

@@ -20,6 +20,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 
+pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 use dashmap::DashMap;
 pub use legacy::*;
@@ -36,7 +37,6 @@ pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::PortPool;
-pub use crate::tmq_to_kafka::tmq_to_kafka;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {

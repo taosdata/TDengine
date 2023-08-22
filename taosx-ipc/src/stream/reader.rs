@@ -457,7 +457,7 @@ pub struct LushInsertAttrs {
 impl LushInsertAttrs {
 
     pub fn stable_name(&self) -> &Option<String> {
-        &self.using 
+        &self.using
     }
 
     pub fn table_name(&self) -> &String {

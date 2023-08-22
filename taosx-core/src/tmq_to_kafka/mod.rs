@@ -6,8 +6,8 @@ use itertools::Itertools;
 use kafka::client::RequiredAcks;
 use kafka::producer::{Producer, Record};
 use serde_json::{Map, Value};
-use taos::{AsAsyncConsumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
 use taos::sync::{Queryable, TBuilder};
+use taos::{AsAsyncConsumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
@@ -21,7 +21,8 @@ pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
 pub async fn clean_task(from: Dsn, task_id: String) -> Result<()> {
     let taos = TaosBuilder::from_dsn(from)?.build()?;
     let topic = tmq_topic_name(task_id);
-    taos.exec(format!("drop topic if exists {}", topic)).unwrap();
+    taos.exec(format!("drop topic if exists {}", topic))
+        .unwrap();
     Ok(())
 }
 
@@ -54,16 +55,30 @@ impl TMQSource {
 
         let taos = TaosBuilder::from_dsn(&dsn)?.build()?;
         let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
-        let table = dsn.params.remove("table").ok_or(anyhow!("table in dsn is null"))?;
-        let task_id = dsn.params.remove("task_id").ok_or(anyhow!("task id is null"))?;
+        let table = dsn
+            .params
+            .remove("table")
+            .ok_or(anyhow!("table in dsn is null"))?;
+        let task_id = dsn
+            .params
+            .remove("task_id")
+            .ok_or(anyhow!("task id is null"))?;
         let ts_field = dsn.params.remove("ts").unwrap_or("ts".to_string());
         let start = dsn.params.remove("start");
         let end = dsn.params.remove("end");
-        let concurrent: usize = dsn.params.remove("concurrent").unwrap_or("1".to_string()).parse()?;
+        let concurrent: usize = dsn
+            .params
+            .remove("concurrent")
+            .unwrap_or("1".to_string())
+            .parse()?;
 
-        let cols = dsn.params.remove("cols")
+        let cols = dsn
+            .params
+            .remove("cols")
             .map(|cols| cols.split(",").map(String::from).collect::<Vec<String>>());
-        let tags = dsn.params.remove("tags")
+        let tags = dsn
+            .params
+            .remove("tags")
             .map(|tags| tags.split(",").map(String::from).collect::<Vec<String>>());
 
         if cols.is_none() && !tags.is_none() {
@@ -71,31 +86,42 @@ impl TMQSource {
         }
         let topic = tmq_topic_name(task_id);
 
-        let topic_sql = TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
+        let topic_sql =
+            TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
         taos.exec(&topic_sql)?;
 
-        Ok(TMQSource { consumer_dsn, topic, sender, concurrent })
+        Ok(TMQSource {
+            consumer_dsn,
+            topic,
+            sender,
+            concurrent,
+        })
     }
 
-    fn tmq_sql(cols: &Option<Vec<String>>,
-               tags: &Option<Vec<String>>,
-               db: &String,
-               table: &String,
-               topic: &String,
-               ts_field: &String,
-               start: &Option<String>,
-               end: &Option<String>) -> String {
+    fn tmq_sql(
+        cols: &Option<Vec<String>>,
+        tags: &Option<Vec<String>>,
+        db: &String,
+        table: &String,
+        topic: &String,
+        ts_field: &String,
+        start: &Option<String>,
+        end: &Option<String>,
+    ) -> String {
         let mut columns = String::from("*");
         if let Some(cols) = cols {
             columns = cols.join(", ");
         };
-        if let Some(tags) = tags { // tags is not allow to exist without cols
+        if let Some(tags) = tags {
+            // tags is not allow to exist without cols
             columns.push_str(", ");
             columns.push_str(tags.join(", ").as_str());
         }
 
-        let mut sql = format!("create topic {} as select {} from {}.{} ", topic, columns,
-                              db, table);
+        let mut sql = format!(
+            "create topic {} as select {} from {}.{} ",
+            topic, columns, db, table
+        );
         let mut conditions = Vec::with_capacity(2);
         if let Some(start) = start {
             conditions.push(format!(" {} >= '{}' ", ts_field, start))
@@ -118,12 +144,10 @@ impl TMQSource {
             let dsn = self.consumer_dsn.clone();
             let topic = self.topic.to_string();
             let sender = self.sender.clone();
-            let future = tokio::spawn(
-                async move {
-                    TMQSource::consume(dsn, topic, sender).await.unwrap();
-                    Ok(())
-                }
-            );
+            let future = tokio::spawn(async move {
+                TMQSource::consume(dsn, topic, sender).await.unwrap();
+                Ok(())
+            });
             futures.push(future);
         }
 
@@ -157,17 +181,36 @@ impl TMQSource {
 impl KafkaProducer {
     // create kafka producer from dsn, the dsn: kafka://host:port/topic?ack_timeout=1&batch_size=1
     fn new(mut dsn: Dsn, receiver: Receiver<String>) -> Result<KafkaProducer> {
-        let kafka_server: Vec<String> = dsn.addresses
+        let kafka_server: Vec<String> = dsn
+            .addresses
             .into_iter()
-            .map(|address| format!("{}:{}",
-                                   address.host.ok_or(anyhow!("host in dsn is null")).unwrap(),
-                                   address.port.ok_or(anyhow!("port in dsn is null")).unwrap()))
+            .map(|address| {
+                format!(
+                    "{}:{}",
+                    address.host.ok_or(anyhow!("host in dsn is null")).unwrap(),
+                    address.port.ok_or(anyhow!("port in dsn is null")).unwrap()
+                )
+            })
             .collect::<Vec<String>>();
         let topic = dsn.subject.ok_or(anyhow!("db in from dsn is null"))?;
-        let batch_size: usize = dsn.params.remove("batch_size").unwrap_or("1".to_string()).parse()?;
-        let ack_timeout: u64 = dsn.params.remove("ack_timeout").unwrap_or("1".to_string()).parse()?;
+        let batch_size: usize = dsn
+            .params
+            .remove("batch_size")
+            .unwrap_or("1".to_string())
+            .parse()?;
+        let ack_timeout: u64 = dsn
+            .params
+            .remove("ack_timeout")
+            .unwrap_or("1".to_string())
+            .parse()?;
 
-        Ok(KafkaProducer { topic, kafka_server, ack_timeout, receiver, batch_size })
+        Ok(KafkaProducer {
+            topic,
+            kafka_server,
+            ack_timeout,
+            receiver,
+            batch_size,
+        })
     }
 
     async fn sink(self) -> Result<JoinHandle<Result<()>>> {
@@ -177,19 +220,20 @@ impl KafkaProducer {
         let ack_timeout = self.ack_timeout;
         let batch_size = self.batch_size;
 
-        let handler = tokio::spawn(
-            async move {
-                KafkaProducer::deal_message(receiver, kafka_server, topic, ack_timeout, batch_size).await
-            }
-        );
+        let handler = tokio::spawn(async move {
+            KafkaProducer::deal_message(receiver, kafka_server, topic, ack_timeout, batch_size)
+                .await
+        });
         Ok(handler)
     }
 
-    async fn deal_message(mut receiver: Receiver<String>,
-                          kafka_server: Vec<String>,
-                          topic: String,
-                          ack_timeout: u64,
-                          batch_size: usize) -> Result<()> {
+    async fn deal_message(
+        mut receiver: Receiver<String>,
+        kafka_server: Vec<String>,
+        topic: String,
+        ack_timeout: u64,
+        batch_size: usize,
+    ) -> Result<()> {
         let mut producer = Producer::from_hosts(kafka_server)
             .with_required_acks(RequiredAcks::One)
             .with_ack_timeout(Duration::from_secs(ack_timeout))
@@ -197,20 +241,19 @@ impl KafkaProducer {
 
         let mut messages = Vec::with_capacity(batch_size + 2);
 
-        while let message = receiver.recv().await {
-            if let Some(message) = message {
-                messages.push(message);
+        while let Some(message) = receiver.recv().await {
+            messages.push(message);
 
-                if messages.len() >= batch_size {
-                    let records = messages.into_iter()
-                        .map(|r| Record::from_value(topic.as_str(), r))
-                        .collect::<Vec<Record<_, _>>>();
+            if messages.len() >= batch_size {
+                let records = messages
+                    .into_iter()
+                    .map(|r| Record::from_value(topic.as_str(), r))
+                    .collect::<Vec<Record<_, _>>>();
 
-                    producer.send_all(&records)?;
-                    messages = Vec::with_capacity(batch_size + 2);
-                }
-            };
-        };
+                producer.send_all(&records)?;
+                messages = Vec::with_capacity(batch_size + 2);
+            }
+        }
 
         Ok(())
     }
