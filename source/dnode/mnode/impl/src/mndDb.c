@@ -37,6 +37,8 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
+static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj);
+
 static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
@@ -59,6 +61,7 @@ int32_t mndInitDb(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndDbActionInsert,
       .updateFp = (SdbUpdateFp)mndDbActionUpdate,
       .deleteFp = (SdbDeleteFp)mndDbActionDelete,
+      .validateFp = (SdbValidateFp)mndNewDbActionValidate,
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DB, mndProcessCreateDbReq);
@@ -245,6 +248,19 @@ _OVER:
 
   mTrace("db:%s, decode from raw:%p, row:%p", pDb->name, pRaw, pDb);
   return pRow;
+}
+
+static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj) {
+  SDbObj *pNewDb = pObj;
+
+  SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
+  if (pOldDb != NULL) {
+    mError("trans:%d, db name already in use. name: %s", pTrans->id, pNewDb->name);
+    sdbRelease(pMnode->pSdb, pOldDb);
+    return -1;
+  }
+
+  return 0;
 }
 
 static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
@@ -448,9 +464,18 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
 }
 
-static int32_t mndSetPrepareNewVgActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
+  if (pDbRaw == NULL) return -1;
+
+  if (mndTransAppendPrepareLog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
+  return 0;
+}
+
+static int32_t mndSetNewVgPrepareActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
-    if (mndAddPrepareNewVgAction(pMnode, pTrans, (pVgroups + v)) != 0) return -1;
+    if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgroups + v)) != 0) return -1;
   }
   return 0;
 }
@@ -459,7 +484,7 @@ static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pDbRaw) != 0) return -1;
-  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_UPDATE) != 0) return -1;
 
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
@@ -633,8 +658,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
-  if (mndSetPrepareNewVgActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
+  if (mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj) != 0) goto _OVER;
+  if (mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped) != 0) goto _OVER;
   if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
