@@ -30,7 +30,7 @@ url <- "<jdbcURL>"
 
 ```r
 # Load the JDBC driver
-drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
+drv <- JDBC("com.taosdata.jdbc.rs.RestfulDriver", driverPath)
 ```
 
 4. Create a connection to the TDengine database:
