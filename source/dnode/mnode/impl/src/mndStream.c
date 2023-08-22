@@ -2197,7 +2197,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   taosHashCleanup(changeInfo.pDBMap);
 
   // keep the new vnode snapshot
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
     taosArrayDestroy(execNodeList.pNodeEntryList);
     execNodeList.pNodeEntryList = pNodeSnapshot;
     execNodeList.ts = ts;
