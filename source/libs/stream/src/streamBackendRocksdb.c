@@ -544,16 +544,16 @@ void streamBackendCleanup(void* arg) {
   taosHashCleanup(pHandle->cfInst);
 
   if (pHandle->db) {
-    char*                   err = NULL;
-    rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
-    rocksdb_flushoptions_set_wait(flushOpt, 1);
-    rocksdb_flush(pHandle->db, flushOpt, &err);
+    // char*                   err = NULL;
+    //  rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
+    //  rocksdb_flushoptions_set_wait(flushOpt, 1);
+    //  rocksdb_flush(pHandle->db, flushOpt, &err);
 
-    if (err != NULL) {
-      qError("failed to flush db before streamBackend clean up, reason:%s", err);
-      taosMemoryFree(err);
-    }
-    rocksdb_flushoptions_destroy(flushOpt);
+    // if (err != NULL) {
+    //   qError("failed to flush db before streamBackend clean up, reason:%s", err);
+    //   taosMemoryFree(err);
+    // }
+    // rocksdb_flushoptions_destroy(flushOpt);
     rocksdb_close(pHandle->db);
   }
   rocksdb_options_destroy(pHandle->dbOpt);
@@ -617,6 +617,7 @@ void streamBackendHandleCleanup(void* arg) {
     }
   }
   taosMemoryFreeClear(wrapper->pHandle);
+
   for (int i = 0; i < cfLen; i++) {
     rocksdb_options_destroy(wrapper->cfOpts[i]);
     rocksdb_block_based_options_destroy(((RocksdbCfParam*)wrapper->param)[i].tableOpt);
