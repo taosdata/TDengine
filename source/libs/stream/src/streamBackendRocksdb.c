@@ -790,10 +790,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
         rocksdb_column_family_handle_t* p = wrapper->pHandle[i];
         size_t                          len = 0;
         char*                           name = rocksdb_column_family_handle_get_name(p, &len);
-        char                            buf[64] = {0};
-        memcpy(buf, name, len);
-        qError("column name: name: %s, len: %d", buf, (int)len);
-        taosMemoryFree(name);
+        // char                            buf[64] = {0};
+        // memcpy(buf, name, len);
+        // qError("column name: name: %s, len: %d", buf, (int)len);
+        // taosMemoryFree(name);
 
         taosArrayPush(pHandle, &p);
       }
