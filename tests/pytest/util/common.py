@@ -824,23 +824,22 @@ class TDCom:
             return False
 
     def get_path(tool="taosd"):
-            selfPath = os.path.dirname(os.path.realpath(__file__))
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
 
-            if ("community" in selfPath):
-                projPath = selfPath[:selfPath.find("community")]
-            else:
-                projPath = selfPath[:selfPath.find("tests")]
-
-            paths = []
-            for root, dirs, files in os.walk(projPath):
-                if ((tool) in files or ("%s.exe"%tool) in files):
-                    rootRealPath = os.path.dirname(os.path.realpath(root))
-                    if ("packaging" not in rootRealPath):
-                        paths.append(os.path.join(root, tool))
-                        break
-            if (len(paths) == 0):
-                    return ""
-            return paths[0]
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files or ("%s.exe"%tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+                return ""
+        return paths[0]
 
     def dict2toml(in_dict: dict, file:str):
         if not isinstance(in_dict, dict):
