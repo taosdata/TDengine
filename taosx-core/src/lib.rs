@@ -1,3 +1,5 @@
+#![feature(result_option_inspect)]
+
 mod csv;
 mod legacy;
 mod local_to_taos;

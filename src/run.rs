@@ -1,13 +1,9 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use clap::Parser;
-use std::time::Duration;
 use taos::*;
-use taosx_core::{
-    csv_to_taos, influxdb_to_taos, kafka_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos,
-    opc_to_taos, pi_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td,
-    utils::{self, port_pool::PortPool},
-    Action,
-};
+use taosx_core::Action;
+use taosx_core::utils::{self, };
+use crate::serve::check_parser_timestamp_precision;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -90,6 +86,12 @@ impl Cli {
             let content = content.map(|p| serde_json::from_str(&p).unwrap()).unwrap();
             content
         });
+        // validate parser
+        if let Some(parser) = args.parser.as_ref() {
+            if !check_parser_timestamp_precision(&parser) {
+                bail!("parser should have same timestamp precision");
+            }
+        }        
         let task_opt = taosx_core::TaskOpts {
             from: args.from,
             transform: args.transform,
