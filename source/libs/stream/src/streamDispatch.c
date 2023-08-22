@@ -269,55 +269,11 @@ int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pR
   }
   tEncoderClear(&encoder);
 
-  initRpcMsg(&msg, TDMT_STREAM_TASK_CHECK, buf, tlen + sizeof(SMsgHead));
+  initRpcMsg(&msg, TDMT_VND_STREAM_TASK_CHECK, buf, tlen + sizeof(SMsgHead));
   qDebug("s-task:%s (level:%d) dispatch check msg to s-task:0x%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
          pTask->info.taskLevel, pReq->streamId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
-  return 0;
-}
-
-int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHistoryFinishReq* pReq, int32_t vgId,
-                                             SEpSet* pEpSet) {
-  void*   buf = NULL;
-  int32_t code = -1;
-  SRpcMsg msg = {0};
-
-  int32_t tlen;
-  tEncodeSize(tEncodeStreamScanHistoryFinishReq, pReq, tlen, code);
-  if (code < 0) {
-    return -1;
-  }
-
-  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
-  if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  ((SMsgHead*)buf)->vgId = htonl(vgId);
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamScanHistoryFinishReq(&encoder, pReq)) < 0) {
-    if (buf) {
-      rpcFreeCont(buf);
-    }
-    return code;
-  }
-
-  tEncoderClear(&encoder);
-
-  msg.contLen = tlen + sizeof(SMsgHead);
-  msg.pCont = buf;
-  msg.msgType = TDMT_STREAM_SCAN_HISTORY_FINISH;
-
-  tmsgSendReq(pEpSet, &msg);
-
-  const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-  qDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pStatus,
-         pReq->downstreamTaskId, vgId);
   return 0;
 }
 
@@ -718,7 +674,7 @@ int32_t doDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHist
 
   tEncoderClear(&encoder);
 
-  initRpcMsg(&msg, TDMT_STREAM_SCAN_HISTORY_FINISH, buf, tlen + sizeof(SMsgHead));
+  initRpcMsg(&msg, TDMT_VND_STREAM_SCAN_HISTORY_FINISH, buf, tlen + sizeof(SMsgHead));
 
   tmsgSendReq(pEpSet, &msg);
   const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);

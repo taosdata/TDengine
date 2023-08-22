@@ -1045,9 +1045,10 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " currentVer:%" PRId64
-         " child id:%d, level:%d, fill-history:%d, trigger:%" PRId64 " ms",
+         " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
          vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer,
-         pTask->info.selfChildId, pTask->info.taskLevel, pTask->info.fillHistory, pTask->triggerParam);
+         pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
+         pTask->info.fillHistory, pTask->triggerParam);
 
   return 0;
 }
@@ -1335,9 +1336,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamMetaReleaseTask(pMeta, pTask);
     streamMetaReleaseTask(pMeta, pStreamTask);
   } else {
-    // todo update the chkInfo version for current task.
-    // this task has an associated history stream task, so we need to scan wal from the end version of
-    // history scan. The current version of chkInfo.current is not updated during the history scan
     STimeWindow* pWindow = &pTask->dataRange.window;
 
     if (pTask->historyTaskId.taskId == 0) {
@@ -1356,7 +1354,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
           id, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
     }
 
-    // notify the downstream agg tasks that upstream tasks are ready to processing the WAL data, update the
     code = streamTaskScanHistoryDataComplete(pTask);
     streamMetaReleaseTask(pMeta, pTask);
 
@@ -1408,6 +1405,7 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
+// only the agg tasks and the sink tasks will receive this message from upstream tasks
 int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg) {
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -1434,6 +1432,7 @@ int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
+// NOTE: the rsp msg should be kept in WAL file.
 int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
@@ -1462,6 +1461,20 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
         "s-task:%s scan-history finish rsp received from downstream task:0x%x, all downstream tasks rsp scan-history "
         "completed msg",
         pTask->id.idStr, req.downstreamId);
+
+    // the scan-history finish status should be recorded in the WAL files. So the transfer of the task status from
+    // scan-history
+    // to normal should be executed by write thread of each vnode.
+
+//    void*   buf = NULL;
+//    int32_t tlen = 0;
+//    //    encodeCreateChildTableForRPC(pReqs, TD_VID(pVnode), &buf, &tlen);
+//
+//    SRpcMsg msg = {.msgType = TDMT_VND_CREATE_TABLE, .pCont = buf, .contLen = tlen};
+//    if (tmsgPutToQueue(&pTq->pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+//      tqError("failed to put into write-queue since %s", terrstr());
+//    }
+
     streamProcessScanHistoryFinishRsp(pTask);
   }
 

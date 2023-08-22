@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <libs/sync/sync.h>
 #include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 #include "tref.h"
 #include "ttimer.h"
+#include "tstream.h"
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
@@ -86,8 +86,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->expandFunc = expandFunc;
   pMeta->stage = stage;
 
-  // send heartbeat every 20sec.
-  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 20000, pMeta, streamEnv.timer);
+  // send heartbeat every 5sec.
+  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 5000, pMeta, streamEnv.timer);
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -572,6 +572,13 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->vgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->numOfTasks) < 0) return -1;
+
+  for(int32_t i = 0; i < pReq->numOfTasks; ++i) {
+    STaskStatusEntry* ps = taosArrayGet(pReq->pTaskStatus, i);
+    if (tEncodeI64(pEncoder, ps->streamId) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->taskId) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
+  }
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -580,12 +587,22 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->vgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->numOfTasks) < 0) return -1;
+
+  pReq->pTaskStatus = taosArrayInit(pReq->numOfTasks, sizeof(STaskStatusEntry));
+  for(int32_t i = 0; i < pReq->numOfTasks; ++i) {
+    STaskStatusEntry hb = {0};
+    if (tDecodeI64(pDecoder, &hb.streamId) < 0) return -1;
+    if (tDecodeI32(pDecoder, &hb.taskId) < 0) return -1;
+    if (tDecodeI32(pDecoder, &hb.status) < 0) return -1;
+
+    taosArrayPush(pReq->pTaskStatus, &hb);
+  }
+
   tEndDecode(pDecoder);
   return 0;
 }
 
 void metaHbToMnode(void* param, void* tmrId) {
-#if 0
   SStreamMeta* pMeta = param;
   SStreamHbMsg hbMsg = {0};
 
@@ -630,6 +647,5 @@ void metaHbToMnode(void* param, void* tmrId) {
   tmsgSendReq(&pMeta->mgmtInfo.epset, &msg);
 
   // next hb will be issued in 20sec.
-  taosTmrReset(metaHbToMnode, 20000, pMeta, streamEnv.timer, pMeta->hbTmr);
-#endif
+  taosTmrReset(metaHbToMnode, 5000, pMeta, streamEnv.timer, pMeta->hbTmr);
 }
