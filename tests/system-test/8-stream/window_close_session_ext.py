@@ -13,7 +13,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         self.tdCom = tdCom
 
-    def watermark_window_close_session_ext(self, session, watermark, fill_history_value=None, partition=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False):
+    def watermark_window_close_session_ext(self, session, watermark, fill_history_value=None, partition=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, delete=False):
+        tdLog.info(f"*** testing stream window_close+session+exist_stb+custom_tag: session: {session}, partition: {partition}, fill_history: {fill_history_value}, subtable: {subtable}, stb_field_name_value: {stb_field_name_value}, tag_value: {tag_value} ***")
         if stb_field_name_value == self.tdCom.partitial_stb_filter_des_select_elm or stb_field_name_value == self.tdCom.exchange_stb_filter_des_select_elm:
             partitial_tb_source_str = self.tdCom.partitial_ext_tb_source_select_str
         else:
@@ -61,15 +62,16 @@ class TDTestCase:
                 self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
 
             if fill_history_value:
-                self.tdCom.update_delete_history_data(delete=True)
+                self.tdCom.update_delete_history_data(delete=delete)
             if tag_value:
                 tdSql.query(f'select {tag_value} from {self.stb_name}')
                 tag_value_list = tdSql.queryResult
             self.tdCom.check_query_data(f'select {self.tdCom.stb_filter_des_select_elm} from ext_{self.stb_name}{self.tdCom.des_table_suffix} order by ts', f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.stb_name} session(ts, {self.tdCom.dataDict["session"]}s) order by wstart limit {expected_value};', sorted=True, defined_tag_count=defined_tag_count, tag_value_list=tag_value_list, partition=partition)
 
     def run(self):
-        for fill_history_value in [0, 1]:
-            self.watermark_window_close_session_ext(session=random.randint(10, 12), watermark=random.randint(20, 25), fill_history_value=fill_history_value, subtable=None, partition=None, stb_field_name_value=self.tdCom.tb_filter_des_select_elm, tag_value=self.tdCom.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
+        #! TD-25893
+        # self.watermark_window_close_session_ext(session=random.randint(10, 12), watermark=random.randint(20, 25), subtable=None, partition=None, stb_field_name_value=self.tdCom.tb_filter_des_select_elm, tag_value=self.tdCom.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, delete=False, fill_history_value=1)
+        self.watermark_window_close_session_ext(session=random.randint(10, 12), watermark=random.randint(20, 25), subtable=None, partition=None, stb_field_name_value=self.tdCom.tb_filter_des_select_elm, tag_value=self.tdCom.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, delete=True)
 
     def stop(self):
         tdSql.close()

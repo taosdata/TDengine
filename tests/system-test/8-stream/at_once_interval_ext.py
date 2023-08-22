@@ -13,7 +13,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         self.tdCom = tdCom
 
-    def at_once_interval_ext(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, subtable=None, case_when=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, use_except=False):
+    def at_once_interval_ext(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, subtable=None, case_when=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, use_except=False):
+        tdLog.info(f"*** testing stream at_once+interval+exist_stb+custom_tag: interval: {interval}, partition: {partition}, fill_history: {fill_history_value}, delete: {delete}, subtable: {subtable}, stb_field_name_value: {stb_field_name_value}, tag_value: {tag_value} ***")
         if use_except:
             if stb_field_name_value == self.tdCom.partitial_stb_filter_des_select_elm or stb_field_name_value == self.tdCom.exchange_stb_filter_des_select_elm or len(stb_field_name_value.split(",")) == len(self.tdCom.partitial_stb_filter_des_select_elm.split(",")):
                 partitial_tb_source_str = self.tdCom.partitial_ext_tb_source_select_str
@@ -33,8 +34,6 @@ class TDTestCase:
         self.delete = delete
         self.tdCom.case_name = sys._getframe().f_code.co_name
         defined_tag_count = len(tag_value.split()) if tag_value is not None else 0
-        # if interval_value is None:
-        #     interval_value = f'{self.tdCom.dataDict["interval"]}s'
         self.tdCom.prepare_data(interval=interval, fill_history_value=fill_history_value, ext_stb=use_exist_stb)
         self.stb_name = self.tdCom.stb_name.replace(f"{self.tdCom.dbname}.", "")
         self.ctb_name = self.tdCom.ctb_name.replace(f"{self.tdCom.dbname}.", "")
@@ -60,8 +59,6 @@ class TDTestCase:
             partition_elm_alias = self.tdCom.partition_expression_alias
         elif partition == "tbname,t1,c1":
             partition_elm_alias = f'{self.tdCom.partition_tbname_alias},t1,c1'
-            partiton_tb = "tbname,c1"
-            partition_elm_alias_tb = f'{self.tdCom.partition_tbname_alias},c1'
         else:
             partition_elm_alias = self.tdCom.partition_tag_alias
         if subtable:
