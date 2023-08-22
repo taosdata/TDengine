@@ -631,6 +631,7 @@ async fn consume_point_record(
             String,
             Vec<(String, bool, String, ModifyStructForPointMessage)>,
         > = HashMap::new();
+        let mut child_table_create_sql_map = HashMap::new();
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
@@ -747,17 +748,11 @@ async fn consume_point_record(
                 tag_names.pop();
                 tag_values.pop();
             }
-            let tag_sql = if tag_names.is_empty() {
-                format!(
-                    " USING `{stable_name}` (`point_id`, `point_name`) TAGS (\"{id}\", {}) ({columns_in_insert})",
-                    &point_name
-                )
+            if tag_names.is_empty() {
+                child_table_create_sql_map.insert(child_table_name.clone(), format!("(`point_id`, `point_name`) TAGS (\"{id}\", {})", &point_name));
             } else {
-                format!(
-                    " USING `{stable_name}` (`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values}) ({columns_in_insert})",
-                    &point_name
-                )
-            };
+                child_table_create_sql_map.insert(child_table_name.clone(), format!("(`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values})", &point_name));
+            }
             let sql_vec = stable_insert_map.get_mut(stable_name);
             let mut insert_done = false;
             if sql_vec.is_some() {
@@ -768,8 +763,8 @@ async fn consume_point_record(
                         continue;
                     } else {
                         let sql_suffix = format!(
-                            " `{child_table_name}` {} VALUES ({}) ",
-                            tag_sql.as_str(),
+                            " `{child_table_name}` ({}) VALUES ({}) ",
+                            columns_in_insert.as_str(),
                             values
                         );
                         if insert_sql.len() + sql_suffix.len() > 1000 * 1000 {
@@ -791,8 +786,8 @@ async fn consume_point_record(
                     };
                     sql_vec.push((
                         format!(
-                            "insert into `{child_table_name}` {} VALUES ({})",
-                            tag_sql.as_str(),
+                            "insert into `{child_table_name}` ({}) VALUES ({})",
+                            columns_in_insert.as_str(),
                             values
                         ),
                         false,
@@ -807,8 +802,8 @@ async fn consume_point_record(
                 }
             } else {
                 let insert_sql = format!(
-                    "insert into `{child_table_name}` {} VALUES ({})",
-                    tag_sql.as_str(),
+                    "insert into `{child_table_name}` ({}) VALUES ({})",
+                    columns_in_insert.as_str(),
                     values
                 );
                 let value_column_type = if point_config.value_type.is_some() {
@@ -870,21 +865,44 @@ async fn consume_point_record(
                                         .as_str(),
                                 );
                                 let stable_sql = format!(
-                                    "create table if not exists `{}` ({}) tags ({})",
+                                    "create stable if not exists `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
                                 );
-                                log::info!("create stable sql: {}", &stable_sql);
+                                tracing::info!("create stable sql: {}", &stable_sql);
                                 match taos.exec(&stable_sql).await {
                                     Ok(_) => (),
                                     Err(err) => {
                                         if err.to_string().contains("0x032C") {
                                             // Object is creating, maybe should ignore
-                                            log::warn!("create stable sql encounter 0x032C");
+                                            tracing::warn!("create stable sql encounter 0x032C");
                                         } else {
-                                            anyhow::bail!(
-                                                "create stable sql err: {}",
-                                                err.to_string()
-                                            );
+                                            tracing::error!("create stable sql error: {err:#}");
+                                        }
+                                    }
+                                }
+                                // batch create child table
+                                let mut child_table_create_sqls = Vec::new();
+                                let mut sql_prefix = "create table".to_string();
+                                for (child_table_name, child_table_create_sql) in &child_table_create_sql_map {
+                                    let suffix_sql = format!(" IF NOT EXISTS `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
+                                    if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
+                                        child_table_create_sqls.push(sql_prefix);
+                                        sql_prefix = "create table".to_string();
+                                    }
+                                    sql_prefix.push_str(&suffix_sql);
+                                }
+                                child_table_create_sqls.push(sql_prefix);
+                                for create_child_sql in child_table_create_sqls {
+                                    tracing::info!("create child sql: {create_child_sql}");
+                                    match taos.exec(&create_child_sql).await {
+                                        Ok(_) => (),
+                                        Err(err) => {
+                                            if err.to_string().contains("0x032C") {
+                                                // Object is creating, maybe should ignore
+                                                tracing::warn!("create table sql encounter 0x032C");
+                                            } else {
+                                                tracing::error!("create table sql error: {err:#}");
+                                            }
                                         }
                                     }
                                 }
