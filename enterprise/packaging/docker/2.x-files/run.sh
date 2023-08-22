@@ -380,12 +380,12 @@ do
             logger "INFO" "begin to check test db existed or not"
             dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
             if [ $? -eq 0 ]; then
-                testDB=`echo "$dbs" | grep -w -q -o "test"`
+                testDB=`echo "$dbs" | grep -w -o " test"`
                 createTest=""
                 if [ "$testDB"x != ""x ]; then
                     testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
                     if [ $? -eq 0 ]; then
-                        testStable=`echo $testStables | grep -q -w -o meters`
+                        testStable=`echo $testStables | grep -w -o meters`
                         if [ "$testStable"x = ""x ]; then
                             createTest="0"
                             logger "INFO" "test database existed but meters stable does not exist"
