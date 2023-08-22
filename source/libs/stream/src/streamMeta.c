@@ -94,7 +94,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
   pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
-  pMeta->chkpCap = 8;
+  pMeta->chkpCap = 2;
   taosInitRWLatch(&pMeta->chkpDirLock);
 
   int64_t chkpId = streamGetLatestCheckpointId(pMeta);
@@ -143,11 +143,11 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
   pMeta->streamBackendRid = -1;
   pMeta->streamBackend = NULL;
 
-  char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
+  char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
   sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
   taosRemoveDir(defaultPath);
 
-  char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 64);
+  char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
   sprintf(newPath, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
 
   int32_t code = taosStatFile(newPath, NULL, NULL, NULL);
@@ -156,7 +156,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
     code = taosRenameFile(newPath, defaultPath);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(code);
-      qError("vgId:%d failed to rename file, from %s to %s, code:%s", newPath, defaultPath, pMeta->vgId,
+      qError("vgId:%d failed to rename file, from %s to %s, code:%s", pMeta->vgId, newPath, defaultPath,
              tstrerror(terrno));
 
       taosMemoryFree(defaultPath);
