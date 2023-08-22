@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 pub mod influxdb;
+pub mod opentsdb;
 pub mod mqtt;
 pub mod opc;
 pub mod pi;
@@ -83,6 +84,9 @@ pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
         plugins.push(info)
     }
     if let Ok(info) = influxdb::info() {
+        plugins.push(info)
+    }
+    if let Ok(info) = opentsdb::info() {
         plugins.push(info)
     }
     plugins

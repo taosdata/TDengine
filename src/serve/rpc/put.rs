@@ -83,6 +83,7 @@ impl PutStream {
                 "opcua" => Some("opc_ua"),
                 "mqtt" => Some("mqtt"),
                 "influxdb" => Some("influxdb"),
+                "opentsdb" => Some("opentsdb"),
                 "kafka" => Some("kafka"),
                 "pi" => Some("pi"),
                 _ => None,

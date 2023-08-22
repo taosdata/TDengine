@@ -554,7 +554,7 @@ impl TaskController {
         let pool = self.pool.clone();
 
         let transferred = match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
                 let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
                 let cluster_id: Option<i64> = taos
                     .query_one("select id from information_schema.ins_cluster")
@@ -566,6 +566,7 @@ impl TaskController {
                     "opcua" => "opc_ua",
                     "opcda" => "opc_da",
                     "influxdb" => "influxdb",
+                    "opentsdb" => "opentsdb",
                     "pi" => "pi",
                     "kafka" => "kafka",
                     "mqtt" => "mqtt",
@@ -1009,6 +1010,7 @@ impl TaskController {
             "opcua" => "opc_ua",
             "opcda" => "opc_da",
             "influxdb" => "influxdb",
+            "opentsdb" => "opentsdb",
             "pi" => "pi",
             "kafka" => "kafka",
             "mqtt" => "mqtt",
@@ -1057,7 +1059,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -2038,6 +2040,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opentsdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
@@ -2055,6 +2058,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opentsdb.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());

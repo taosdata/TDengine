@@ -1,0 +1,68 @@
+---
+id: opentsdb
+type: uri
+name: OpenTSDB
+description: |
+  OpenTSDB is a real-time monitoring information collection and display platform based on the HBase system.
+
+  TaosX can efficiently read the data in OpenTSDB and write it to TDengine through the taosx-opentsdb plugin to achieve historical data migration or real-time data synchronization.
+strict: false
+protocol:
+  display: Protocol
+  description: The protocol of the OpenTSDB connection
+  choices:
+    - name: http
+      display: HTTP Protocol
+      description: Connect to OpenTSDB using the HTTP protocol
+    - name: https
+      display: HTTPS Protocol
+      description: Connect to OpenTSDB using the HTTPS protocol
+options:
+  host:
+    display: IP address
+    description: The access address of OpenTSDB
+    placeholder: 127.0.0.1
+    required: true
+  port:
+    display: Port
+    description: The port of OpenTSDB
+    placeholder: "4242"
+    required: true
+groups:
+  - name: task
+    display: Task
+    display_order: 1
+    description: Configure the data migration task
+    params:
+      - name: metrics
+        display: Metrics
+        description: Select one or more specified Metrics to migrate, if empty, migrate all
+        placeholder: Please select the Metrics
+        multiple: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
+      - name: beginTime
+        display: Data Begin Time
+        description: Set a data start time
+        placeholder: YYYY-MM-DD HH:mm:ss
+        hint: time
+        required: true
+      - name: endTime
+        display: Data End Time
+        description: Set a data end time, if empty, the latest data will always be transmitted
+        placeholder: YYYY-MM-DD HH:mm:ss
+        hint: time
+      - name: readWindow
+        display: Read Window
+        description: Select a type of read window(D-Day, H-Hour, M-Minute), if empty, it defaults to "M-Minute"
+        placeholder: Please select the type of read window
+        value: 'M'
+        hint:
+          type: str
+          choices:
+            - D
+            - H
+            - M

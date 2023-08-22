@@ -12,6 +12,8 @@ use anyhow::Context;
 use futures::TryStreamExt;
 pub use runners::influxdb::influxdb_datasets;
 pub use runners::influxdb::influxdb_to_taos;
+pub use runners::opentsdb::opentsdb_datasets;
+pub use runners::opentsdb::opentsdb_to_taos;
 pub use runners::kafka::kafka_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
@@ -122,6 +124,10 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
         "influxdb" => {
             // influxdb
             return influxdb_datasets(from).await;
+        }
+        "opentsdb" => {
+            // opentsdb
+            return opentsdb_datasets(from).await;
         }
         _ => Ok(vec![]),
     }

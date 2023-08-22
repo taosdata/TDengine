@@ -266,6 +266,19 @@ impl TaskOpts {
                     )
                     .await?;
                 }
+                ("opentsdb", "taos") => {
+                    plugins::opentsdb_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                    )
+                    .await?;
+                }
                 ("csv", "taos") => {
                     csv_to_taos(
                         from.clone(),
