@@ -423,9 +423,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
       if (ref == 1) {
         // If it is the last ref, remove it from trashcan linked-list first, and then destroy it.Otherwise, it may be
         // destroyed by refresh worker if decrease ref count before removing it from linked-list.
-        assert(pNode->pTNodeHeader->pData == pNode);
-
         __cache_wr_lock(pCacheObj);
+        assert(pNode->pTNodeHeader->pData == pNode);
         doRemoveElemInTrashcan(pCacheObj, pNode->pTNodeHeader);
         __cache_unlock(pCacheObj);
 
