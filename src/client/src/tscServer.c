@@ -2060,8 +2060,8 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tlv->len  = htonl(sizeof(int64_t) * 2);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-  *(int16_t*)tlv->value = htobe64(pQueryInfo->range.skey);
-  *(int16_t*)(tlv->value+sizeof(int64_t)) = htobe64(pQueryInfo->range.ekey);
+  *(int64_t*)tlv->value = htobe64(pQueryInfo->range.skey);
+  *(int64_t*)(tlv->value+sizeof(int64_t)) = htobe64(pQueryInfo->range.ekey);
 
   p += sizeof(*tlv) + sizeof(int64_t) * 2;
 

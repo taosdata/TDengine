@@ -1346,7 +1346,8 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       if (pVgroup == NULL) break;
       if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
         skey = convertTimePrecision(skey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
-        ekey = convertTimePrecision(skey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
+        ekey = convertTimePrecision(ekey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
+        mInfo("vgId: %d send compact msg. start %"PRId64 " end %"PRId64, pVgroup->vgId, skey, ekey);
         mnodeSendCompactVgroupMsg(pVgroup, skey, ekey);
         mnodeDecVgroupRef(pVgroup);
         valid = true;

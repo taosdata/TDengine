@@ -4260,9 +4260,9 @@ static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo->pCompactRange->end) {
     if (getTimeRange(&pQueryInfo->range, pInfo->pCompactRange->end, TK_LE, TSDB_TIME_PRECISION_NANO) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    } else {
-      pQueryInfo->range.ekey = INT64_MAX;
     }
+  } else {
+    pQueryInfo->range.ekey = INT64_MAX;
   }
   return TSDB_CODE_SUCCESS;
 }
