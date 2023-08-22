@@ -22,6 +22,14 @@ SHOW CLUSTER;
 
 Shows information about the current cluster.
 
+## SHOW CLUSTER ALIVE
+
+```sql
+SHOW CLUSTER ALIVE;
+```
+
+It is used to check whether the cluster is available or not. Return value: 0 means unavailable, 1 means available, 2 means partially available (some dnodes are offline, the other dnodes are available)
+
 ## SHOW CONNECTIONS
 
 ```sql
