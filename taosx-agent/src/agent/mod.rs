@@ -176,8 +176,7 @@ impl Client {
         tracing::info!("Push status {status:?} to server");
         let status_bytes = serde_json::to_vec(status)?;
         let action = FlightAction::new("TaskStatus", status_bytes);
-        let resp: Vec<_> = self.client.do_action(action).await?.try_collect().await?;
-        dbg!(&resp);
+        let _resp: Vec<_> = self.client.do_action(action).await?.try_collect().await?;
         Ok(())
     }
 

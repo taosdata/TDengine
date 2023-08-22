@@ -198,8 +198,8 @@ pub(super) async fn create_task(
 }
 
 pub fn check_parser_timestamp_precision(parser_string: &str) -> bool {
-    if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#)) || 
-        (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) || 
+    if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#)) ||
+        (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) ||
         (parser_string.contains(r#""TIMESTAMP(us)""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) {
             return false;
         }
@@ -651,7 +651,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct DownloadParams {
     file_path: String,
 }
@@ -661,6 +661,9 @@ pub struct DownloadParams {
         (status = 200, description = "success", body = NamedFile),
         (status = 500, description = "file download error", body = Failed)
     ),
+    params(
+        DownloadParams
+    )
 )]
 #[get("/download")]
 pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
