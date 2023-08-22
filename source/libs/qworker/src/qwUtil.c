@@ -314,7 +314,6 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   }
 
   taosArrayDestroy(ctx->tbInfo);
-  ctx->tbInfo = NULL;
 }
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
@@ -341,6 +340,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   }
 
   qwFreeTaskCtx(&octx);
+  ctx->tbInfo = NULL;
 
   QW_TASK_DLOG_E("task ctx dropped");
 
