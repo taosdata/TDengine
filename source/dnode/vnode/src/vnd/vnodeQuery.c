@@ -384,6 +384,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->roleTimeMs = state.roleTimeMs;
   pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
+  pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);

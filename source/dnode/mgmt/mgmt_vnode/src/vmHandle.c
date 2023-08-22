@@ -133,6 +133,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->standby = 0;
   pCfg->syncCfg.replicaNum = 0;
   pCfg->syncCfg.totalReplicaNum = 0;
+  pCfg->syncCfg.changeVersion = pCreate->changeVersion;
 
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));
   for (int32_t i = 0; i < pCreate->replica; ++i) {
@@ -211,14 +212,15 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       ", days:%d keep0:%d keep1:%d keep2:%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
-      "learnerReplica:%d learnerSelfIndex:%d strict:%d",
+      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d",
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
       req.isTsma, req.precision, req.compression, req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel,
       req.walRetentionPeriod, req.walRetentionSize, req.walRollPeriod, req.walSegmentSize, req.hashMethod,
       req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix, req.replica, req.selfIndex, req.learnerReplica,
-      req.learnerSelfIndex, req.strict);
+      req.learnerSelfIndex, req.strict, req.changeVersion);
+
   for (int32_t i = 0; i < req.replica; ++i) {
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port,
           req.replicas[i].id);
@@ -323,6 +325,7 @@ _OVER:
   return code;
 }
 
+//alter replica doesn't use this, but restore dnode still use this
 int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SAlterVnodeTypeReq req = {0};
   if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
@@ -363,8 +366,8 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
 
   int32_t vgId = req.vgId;
-  dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d", vgId, req.replica, req.selfIndex,
-        req.strict);
+  dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d", 
+        vgId, req.replica, req.selfIndex, req.strict, req.changeVersion);
   for (int32_t i = 0; i < req.replica; ++i) {
     SReplica *pReplica = &req.replicas[i];
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
@@ -424,7 +427,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
   }
-
+  
   if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
     dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
     return -1;
@@ -437,6 +440,53 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dInfo("vgId:%d, vnode management handle msgType:%s, end to process alter-node-type-request, vnode config is altered",
         req.vgId, TMSG_INFO(pMsg->msgType));
+  return 0;
+}
+
+int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SCheckLearnCatchupReq req = {0};
+  if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if(req.learnerReplicas == 0){
+    req.learnerSelfIndex = -1;
+  }
+
+  dInfo("vgId:%d, vnode management handle msgType:%s, start to process check-learner-catchup-request",
+          req.vgId, TMSG_INFO(pMsg->msgType));
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
+  if (pVnode == NULL) {
+    dError("vgId:%d, failed to alter vnode type since %s", req.vgId, terrstr());
+    terrno = TSDB_CODE_VND_NOT_EXIST;
+    return -1;
+  }
+
+  ESyncRole role = vnodeGetRole(pVnode->pImpl);
+  dInfo("vgId:%d, checking node role:%d", req.vgId, role);
+  if(role == TAOS_SYNC_ROLE_VOTER){
+    dError("vgId:%d, failed to alter vnode type since node already is role:%d", req.vgId, role);
+    terrno = TSDB_CODE_VND_ALREADY_IS_VOTER;
+    vmReleaseVnode(pMgmt, pVnode);
+    return -1;
+  }
+
+  dInfo("vgId:%d, checking node catch up", req.vgId);
+  if(vnodeIsCatchUp(pVnode->pImpl) != 1){
+    terrno = TSDB_CODE_VND_NOT_CATCH_UP;
+    vmReleaseVnode(pMgmt, pVnode);
+    return -1;
+  }
+
+  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
+
+  vmReleaseVnode(pMgmt, pVnode);
+
+  dInfo("vgId:%d, vnode management handle msgType:%s, end to process check-learner-catchup-request",
+          req.vgId, TMSG_INFO(pMsg->msgType));
+  
   return 0;
 }
 
@@ -520,6 +570,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dInfo("vgId:%d, open vnode", dstVgId);
   SVnode *pImpl = vnodeOpen(dstPath, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
     return -1;
@@ -559,9 +610,10 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t vgId = alterReq.vgId;
   dInfo(
       "vgId:%d,vnode management handle msgType:%s, start to alter vnode replica:%d selfIndex:%d leanerReplica:%d "
-      "learnerSelfIndex:%d strict:%d",
+      "learnerSelfIndex:%d strict:%d changeVersion:%d",
       vgId, TMSG_INFO(pMsg->msgType), alterReq.replica, alterReq.selfIndex, alterReq.learnerReplica,
-      alterReq.learnerSelfIndex, alterReq.strict);
+      alterReq.learnerSelfIndex, alterReq.strict, alterReq.changeVersion);
+
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     SReplica *pReplica = &alterReq.replicas[i];
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
@@ -755,6 +807,8 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT_ELECTION, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
