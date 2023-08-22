@@ -1421,6 +1421,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
+            let last = count;
             let res = consume_lush_record(
                 &taos,
                 &mut stmt,
@@ -1495,6 +1496,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
+            let last = count;
             let res = consume_point_record(
                 taos,
                 &mut stmt,
