@@ -16,6 +16,7 @@
 #include "streamSnapshot.h"
 #include "query.h"
 #include "rocksdb/c.h"
+#include "streamBackendRocksdb.h"
 #include "tcommon.h"
 
 enum SBackendFileType {
@@ -79,7 +80,7 @@ const char*    ROCKSDB_CURRENT = "CURRENT";
 const char*    ROCKSDB_CHECKPOINT_META = "CHECKPOINT";
 static int64_t kBlockSize = 64 * 1024;
 
-int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, int64_t chkpId);
+int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, int64_t chkpId, void* pMeta);
 void    streamSnapHandleDestroy(SStreamSnapHandle* handle);
 
 // static void streamBuildFname(char* path, char* file, char* fullname)
@@ -107,19 +108,33 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   return taosOpenFile(fullname, opt);
 }
 
-int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chkpId) {
+int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chkpId, void* pMeta) {
   // impl later
   int   len = strlen(path);
   char* tdir = taosMemoryCalloc(1, len + 128);
   memcpy(tdir, path, len);
 
+  int32_t code = 0;
+
   if (chkpId != 0) {
     sprintf(tdir, "%s%s%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "stream", TD_DIRSEP, "checkpoints", TD_DIRSEP,
             chkpId);
+
   } else {
     sprintf(tdir, "%s%s%s%s%s", path, TD_DIRSEP, "stream", TD_DIRSEP, "state");
+    char* chkpdir = taosMemoryCalloc(1, len + 256);
+    sprintf(chkpdir, "%s%s%s", tdir, TD_DIRSEP, "tmp");
+    taosMemoryFree(tdir);
+
+    tdir = chkpdir;
+    code = streamBackendTriggerChkp(pMeta, tdir);
+    if (code != 0) {
+      qError("failed to trigger chekckpoint at %s", tdir);
+      taosMemoryFree(tdir);
+      return code;
+    }
   }
-  int32_t code = 0;
+  qInfo("start to read dir: %s", tdir);
 
   TdDirPtr pDir = taosOpenDir(tdir);
   if (NULL == pDir) {
@@ -156,11 +171,25 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       continue;
     }
     if (strlen(name) >= strlen(ROCKSDB_SST) &&
-        0 == strncmp(name - strlen(ROCKSDB_SST), ROCKSDB_SST, strlen(ROCKSDB_SST))) {
+        0 == strncmp(name + strlen(name) - strlen(ROCKSDB_SST), ROCKSDB_SST, strlen(ROCKSDB_SST))) {
       char* sst = taosStrdup(name);
       taosArrayPush(pFile->pSst, &sst);
     }
   }
+  {
+    char* buf = taosMemoryCalloc(1, 512);
+    sprintf(buf, "current: %s", pFile->pCurrent);
+    sprintf(buf + strlen(buf), "MANIFEST: %s", pFile->pMainfest);
+    sprintf(buf + strlen(buf), "options: %s", pFile->pOptions);
+
+    for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
+      char* name = taosArrayGetP(pFile->pSst, i);
+      sprintf(buf + strlen(buf), "sst: %s", name);
+    }
+    qInfo("get file list: %s", buf);
+    taosMemoryFree(buf);
+  }
+
   taosCloseDir(&pDir);
 
   if (pFile->pCurrent == NULL) {
@@ -221,6 +250,12 @@ _err:
 
 void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   SBanckendFile* pFile = handle->pBackendFile;
+
+  if (handle->checkpointId == 0) {
+    if (taosIsDir(pFile->path)) {
+      taosRemoveDir(pFile->path);
+    }
+  }
   if (pFile) {
     taosMemoryFree(pFile->pCheckpointMeta);
     taosMemoryFree(pFile->pCurrent);
@@ -234,7 +269,6 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
     taosArrayDestroy(pFile->pSst);
     taosMemoryFree(pFile);
   }
-
   taosArrayDestroy(handle->pFileList);
   taosCloseFile(&handle->fd);
   return;
@@ -247,7 +281,7 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t chkpId, char* pa
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (streamSnapHandleInit(&pReader->handle, (char*)path, chkpId) < 0) {
+  if (streamSnapHandleInit(&pReader->handle, (char*)path, chkpId, pMeta) < 0) {
     taosMemoryFree(pReader);
     return -1;
   }

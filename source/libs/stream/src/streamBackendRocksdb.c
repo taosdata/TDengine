@@ -738,6 +738,7 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
     taosMemoryFree(chkpPath);
     return 0;
   }
+  taosArrayClear(pMeta->chkpSaved);
 
   TdDirPtr pDir = taosOpenDir(chkpPath);
 
@@ -878,6 +879,49 @@ int32_t chkpPreCheckDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 
   return 0;
 }
+
+int32_t streamBackendTriggerChkp(void* arg, char* dst) {
+  SStreamMeta* pMeta = arg;
+  int64_t      backendRid = pMeta->streamBackendRid;
+  int32_t      code = -1;
+
+  SArray*                          refs = taosArrayInit(16, sizeof(int64_t));
+  rocksdb_column_family_handle_t** ppCf = NULL;
+
+  int64_t          st = taosGetTimestampMs();
+  SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
+
+  if (pHandle == NULL || pHandle->db == NULL) {
+    goto _ERROR;
+  }
+  int32_t nCf = chkpGetAllDbCfHandle(pMeta, &ppCf, refs);
+  qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pHandle, dst, nCf);
+
+  code = chkpPreFlushDb(pHandle->db, ppCf, nCf);
+  if (code == 0) {
+    code = chkpDoDbCheckpoint(pHandle->db, dst);
+    if (code != 0) {
+      qError("stream backend:%p failed to do checkpoint at:%s", pHandle, dst);
+    } else {
+      qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, dst,
+             taosGetTimestampMs() - st);
+    }
+  } else {
+    qError("stream backend:%p failed to flush db at:%s", pHandle, dst);
+  }
+
+  // release all ref to cfWrapper;
+  for (int i = 0; i < taosArrayGetSize(refs); i++) {
+    int64_t id = *(int64_t*)taosArrayGet(refs, i);
+    taosReleaseRef(streamBackendCfWrapperId, id);
+  }
+
+_ERROR:
+  taosReleaseRef(streamBackendId, backendRid);
+  taosArrayDestroy(refs);
+  return code;
+}
+
 int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
   SStreamMeta* pMeta = arg;
   int64_t      backendRid = pMeta->streamBackendRid;
@@ -902,7 +946,7 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
 
   // Get all cf and acquire cfWrappter
   int32_t nCf = chkpGetAllDbCfHandle(pMeta, &ppCf, refs);
-  qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pHandle, pChkpIdDir, 0);
+  qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pHandle, pChkpIdDir, nCf);
 
   code = chkpPreFlushDb(pHandle->db, ppCf, nCf);
   if (code == 0) {
@@ -928,6 +972,8 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
 
     // delete obsolte checkpoint
     delObsoleteCheckpoint(arg, pChkpDir);
+
+    // pMeta->chkpId = checkpointId;
   }
 
 _ERROR:

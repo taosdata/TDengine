@@ -137,5 +137,6 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
                                     void* val, int32_t vlen, int64_t ttl, void* tmpBuf);
 
 int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
+int32_t streamBackendTriggerChkp(void* pMeta, char* dst);
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif

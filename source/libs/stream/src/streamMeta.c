@@ -175,8 +175,9 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
       // return -1;
     }
   }
-
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
+  streamBackendLoadCheckpointInfo(pMeta);
+
   return 0;
 }
 
