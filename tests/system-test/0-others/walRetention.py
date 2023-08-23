@@ -161,9 +161,18 @@ class VNode :
     # get log size
     def getWalsSize(self):
         size = 0
+        lastSize = 0
+        max = -1
         for walFile in self.walFiles:
-            size += walFile.fsize
-        
+            if self.canDelete(walFile) == False:
+                tdLog.info(f"  calc vnode size {walFile.pathFile} size={walFile.fsize}")
+                size += walFile.fsize
+                if max < walFile.startVer:
+                    max = walFile.startVer
+                    lastSize = walFile.fsize
+
+        size -= lastSize
+        tdLog.info(f" last file size need reduct . lastSize={lastSize}")    
         return size
     
     # vnode
@@ -183,7 +192,7 @@ class VNode :
         delTs = delTsLine.timestamp()
         for walFile in self.walFiles:
             mt = datetime.fromtimestamp(walFile.mtime)
-            info = f" {walFile.pathFile} mt={mt} line={delTsLine}  start={walFile.startVer} snap={self.snapVer} end= {walFile.endVer}"
+            info = f" {walFile.pathFile} size={walFile.fsize} mt={mt} line={delTsLine}  start={walFile.startVer} snap={self.snapVer} end= {walFile.endVer}"
             tdLog.info(info) 
             if walFile.mtime < delTs and self.canDelete(walFile):
                 # wait a moment then check file exist
@@ -199,25 +208,16 @@ class VNode :
         if self.walSize == 0:
             return True
         
+        time.sleep(2)
         vnodeSize = self.getWalsSize()
-        if vnodeSize < self.walSize:
-            tdLog.info(f" wal size valid. {self.path} real = {vnodeSize} set = {self.walSize} ")
+        # need over 20%
+        if vnodeSize < self.walSize * 1.2:
+            tdLog.info(f" wal size valid. {self.path} real = {vnodeSize} set = {self.walSize} need over 20%")
             return True
         
-        # check valid
-        tdLog.info(f" wal size over set. {self.path} real = {vnodeSize} set = {self.walSize} ")
-        for walFile in self.walFiles:
-            if self.canDelete(walFile):
-                # wait a moment then check file exist
-                time.sleep(1) 
-                if os.path.exists(walFile.pathFile):
-                    tdLog.exit(f"  wal file size over .\
-                           \n   wal file = {walFile.pathFile}\
-                           \n   snapVer  = {self.snapVer}\
-                           \n   real     = {vnodeSize} bytes\
-                           \n   set      = {self.walSize} bytes")
-                return False
-        return True
+        # check over
+        tdLog.exit(f" wal size over set. {self.path} real = {vnodeSize} set = {self.walSize} ")
+        return False
 
 
 # insert by async

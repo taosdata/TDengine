@@ -278,7 +278,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
       }
       if (code == TSDB_CODE_WS_SEND_TIMEOUT
                 || code == TSDB_CODE_WS_RECV_TIMEOUT) {
-        fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
+        fprintf(stderr, "Hint: use -T to increase the timeout in seconds\n");
       } else if (code == TSDB_CODE_WS_INTERNAL_ERRO
                     || code == TSDB_CODE_WS_CLOSED) {
         shell.ws_conn = NULL;
