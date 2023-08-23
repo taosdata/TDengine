@@ -101,6 +101,7 @@ sleep 3000
 
 print ======== step7
 sleep 6000
+sql reset query cache
 sql select count(*) from db.tb
 if $data00 <= $lastRows then
   sql reset query cache
