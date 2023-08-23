@@ -37,7 +37,6 @@ static const char *mndConsumerStatusName(int status);
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer);
-static int32_t mndProcessConsumerMetaMsg(SRpcMsg *pMsg);
 static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
@@ -45,7 +44,6 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg);
 static int32_t mndProcessAskEpReq(SRpcMsg *pMsg);
 static int32_t mndProcessMqHbReq(SRpcMsg *pMsg);
 static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg);
-static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg);
 static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg);
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg);
 
@@ -64,7 +62,6 @@ int32_t mndInitConsumer(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_HB, mndProcessMqHbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_ASK_EP, mndProcessAskEpReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_TIMER, mndProcessMqTimerMsg);
-//  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_RECOVER, mndProcessConsumerRecoverMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, mndProcessConsumerClearMsg);
 
@@ -122,49 +119,6 @@ void mndRebCntDec() {
   }
 }
 
-//static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
-//  SMnode             *pMnode = pMsg->info.node;
-//  SMqConsumerLostMsg *pLostMsg = pMsg->pCont;
-//  SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
-//  if (pConsumer == NULL) {
-//    return 0;
-//  }
-//
-//  mInfo("process consumer lost msg, consumer:0x%" PRIx64 " status:%d(%s)", pLostMsg->consumerId, pConsumer->status,
-//        mndConsumerStatusName(pConsumer->status));
-//
-//  if (pConsumer->status != MQ_CONSUMER_STATUS_READY) {
-//    mndReleaseConsumer(pMnode, pConsumer);
-//    return -1;
-//  }
-//
-//  SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
-//  pConsumerNew->updateType = CONSUMER_UPDATE_TIMER_LOST;
-//
-//  mndReleaseConsumer(pMnode, pConsumer);
-//
-//  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "lost-csm");
-//  if (pTrans == NULL) {
-//    goto FAIL;
-//  }
-//
-//  if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
-//    goto FAIL;
-//  }
-//
-//  if (mndTransPrepare(pMnode, pTrans) != 0) {
-//    goto FAIL;
-//  }
-//
-//  tDeleteSMqConsumerObj(pConsumerNew, true);
-//  mndTransDrop(pTrans);
-//  return 0;
-//FAIL:
-//  tDeleteSMqConsumerObj(pConsumerNew, true);
-//  mndTransDrop(pTrans);
-//  return -1;
-//}
-
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMnode                *pMnode = pMsg->info.node;
   SMqConsumerRecoverMsg *pRecoverMsg = pMsg->pCont;
@@ -221,13 +175,7 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
-//  if (pConsumer->status != MQ_CONSUMER_STATUS_LOST) {
-//    mndReleaseConsumer(pMnode, pConsumer);
-//    return -1;
-//  }
-
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
-//  pConsumerNew->updateType = CONSUMER_UPDATE_TIMER_LOST;
 
   mndReleaseConsumer(pMnode, pConsumer);
 
@@ -629,7 +577,7 @@ int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj 
   return 0;
 }
 
-static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const char *pUser) {
+static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser) {
   int32_t numOfTopics = taosArrayGetSize(pTopicList);
 
   for (int32_t i = 0; i < numOfTopics; i++) {
@@ -722,7 +670,6 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto _over;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto _over;
-
   } else {
     int32_t status = atomic_load_32(&pExistedConsumer->status);
 
@@ -802,7 +749,6 @@ _over:
 
   tDeleteSMqConsumerObj(pConsumerNew, true);
 
-  // TODO: replace with destroy subscribe msg
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
   return code;
 }

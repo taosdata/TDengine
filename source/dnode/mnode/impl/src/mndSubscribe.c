@@ -553,7 +553,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     }
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pMsg, "tmq-reb");
   if (pTrans == NULL) {
     nodesDestroyNode((SNode*)pPlan);
     return -1;
@@ -1019,8 +1019,8 @@ int32_t mndGetGroupNumByTopic(SMnode *pMnode, const char *topicName) {
     if (pIter == NULL) break;
 
 
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
+    char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    char cgroup[TSDB_CGROUP_LEN] = {0};
     mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
     if (strcmp(topic, topicName) != 0) {
       sdbRelease(pSdb, pSub);
@@ -1084,7 +1084,6 @@ int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 }
 
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName) {
-  int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
 
   void            *pIter = NULL;
@@ -1093,8 +1092,8 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
     if (pIter == NULL) break;
 
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
+    char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    char cgroup[TSDB_CGROUP_LEN] = {0};
     mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
     if (strcmp(topic, topicName) != 0) {
       sdbRelease(pSdb, pSub);
@@ -1132,15 +1131,13 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
       sdbCancelFetch(pSdb, pIter);
-      goto END;
+      return -1;
     }
 
     sdbRelease(pSdb, pSub);
   }
 
-  code = 0;
-END:
-  return code;
+  return 0;
 }
 
 static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t consumerId, const char* topic, const char* cgroup, SArray* vgs, SArray *offsetRows){
