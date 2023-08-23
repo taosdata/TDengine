@@ -373,8 +373,6 @@ void shellRunSingleCommandWebsocketImp(char *command) {
     } else {
       printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows,
           (et - st)/1E6);
-      printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n",
-             execute_time, net_time, total_time);
     }
   }
   printf("\n");
