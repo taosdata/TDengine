@@ -100,6 +100,7 @@ system sh/exec.sh -n dnode2 -s stop
 sleep 3000
 
 print ======== step7
+sleep 6000
 sql select count(*) from db.tb
 if $data00 <= $lastRows then
   sql reset query cache
