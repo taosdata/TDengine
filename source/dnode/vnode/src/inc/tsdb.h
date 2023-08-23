@@ -672,6 +672,9 @@ struct SDelFWriter {
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
+typedef struct STSnapRange STSnapRange;
+typedef TARRAY2(STSnapRange *) TSnapRangeArray;  // disjoint snap ranges
+
 struct STsdbReadSnap {
   SMemTable     *pMem;
   SQueryNode    *pNode;
