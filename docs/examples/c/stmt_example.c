@@ -58,7 +58,7 @@ void insertData(TAOS *taos) {
   int code = taos_stmt_prepare(stmt, sql, 0);
   checkErrorCode(stmt, code, "failed to execute taos_stmt_prepare");
   // bind table name and tags
-  TAOS_BIND tags[2];
+  TAOS_MULTI_BIND tags[2];
   char* location = "California.SanFrancisco";
   int groupId = 2;
   tags[0].buffer_type = TSDB_DATA_TYPE_BINARY;
@@ -82,7 +82,7 @@ void insertData(TAOS *taos) {
     {1648432611749, 12.6, 218, 0.33},
   };
 
-  TAOS_BIND values[4];
+  TAOS_MULTI_BIND values[4];
   values[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   values[0].buffer_length = sizeof(int64_t);
   values[0].length = &values[0].buffer_length;

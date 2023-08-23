@@ -935,7 +935,7 @@ function updateProduct() {
     fi
     echo
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
+    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation or explorer features, please install ${clientName2}Explorer ${NC}"
   else
     install_bin
     install_config
@@ -1028,7 +1028,7 @@ function installProduct() {
     fi
 
     echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
+    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation or explorer features, please install ${clientName2}Explorer ${NC}"
     echo
   else # Only install client
     install_bin

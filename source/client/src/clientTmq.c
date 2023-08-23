@@ -985,6 +985,10 @@ int32_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
 
 int32_t tmq_unsubscribe(tmq_t* tmq) {
   if(tmq == NULL) return TSDB_CODE_INVALID_PARA;
+  if (tmq->status != TMQ_CONSUMER_STATUS__READY) {
+    tscInfo("consumer:0x%" PRIx64 " not in ready state, unsubscribe it directly", tmq->consumerId);
+    return 0;
+  }
   if (tmq->autoCommit) {
     int32_t rsp = tmq_commit_sync(tmq, NULL);
     if (rsp != 0) {

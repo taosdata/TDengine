@@ -35,18 +35,17 @@ FAIL:
   return NULL;
 }
 
-void streamQueueClose(SStreamQueue* queue) {
-  while (1) {
-    void* qItem = streamQueueNextItem(queue);
-    if (qItem) {
-      streamFreeQitem(qItem);
-    } else {
-      break;
-    }
+void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
+  qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->queue, taosQueueItemSize(pQueue->queue));
+
+  void* qItem = NULL;
+  while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
+    streamFreeQitem(qItem);
   }
-  taosFreeQall(queue->qall);
-  taosCloseQueue(queue->queue);
-  taosMemoryFree(queue);
+
+  taosFreeQall(pQueue->qall);
+  taosCloseQueue(pQueue->queue);
+  taosMemoryFree(pQueue);
 }
 
 #if 0
