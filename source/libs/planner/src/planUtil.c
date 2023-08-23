@@ -374,4 +374,17 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
+int32_t createMD5HashFromName(char *pName, int32_t len) {
+  T_MD5_CTX ctx;
+  tMD5Init(&ctx);
+  tMD5Update(&ctx, (uint8_t*)pName, len);
+  tMD5Final(&ctx);
+  char* p = pName;
+  int32_t resLen = 0;
+  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
+    resLen += snprintf(p, 3, "%02x", ctx.digest[i]);
+    p += 2;
+  }
 
+  return resLen;
+}

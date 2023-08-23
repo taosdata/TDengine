@@ -1610,8 +1610,12 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 }
 
 // todo refact: just to mask compilation warnings
-static void partTagsSetAlias(char* pAlias, int32_t len, const char* pTableAlias, const char* pColName) {
-  snprintf(pAlias, len, "%s.%s", pTableAlias, pColName);
+static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
+  char    name[TSDB_COL_FNAME_LEN + 1] = {0};
+  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+
+  createMD5HashFromName(name, len);
+  strcpy(pAlias, name);
 }
 
 static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
@@ -1623,7 +1627,7 @@ static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
   snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pFuncName);
   if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    partTagsSetAlias(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), pCol->tableAlias, pCol->colName);
+    partTagsSetAlias(pFunc->node.aliasName, pCol->tableAlias, pCol->colName);
   } else {
     strcpy(pFunc->node.aliasName, ((SExprNode*)pNode)->aliasName);
   }
