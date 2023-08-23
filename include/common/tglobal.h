@@ -161,6 +161,7 @@ extern char     tsCompressor[];
 // tfs
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
+extern int64_t  tsMinDiskFreeSize;
 
 // udf
 extern bool tsStartUdfd;

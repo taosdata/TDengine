@@ -186,6 +186,7 @@ int32_t tsCacheLazyLoadThreshold = 500;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
+int64_t  tsMinDiskFreeSize = TFS_MIN_DISK_FREE_SIZE;
 
 // stream scheduler
 bool tsDeployOnSnode = true;
@@ -239,8 +240,8 @@ bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 bool    tsFilterScalarMode = false;
-int32_t tsKeepTimeOffset = 0;  // latency of data migration
-int     tsResolveFQDNRetryTime = 100; //seconds
+int32_t tsKeepTimeOffset = 0;          // latency of data migration
+int     tsResolveFQDNRetryTime = 100;  // seconds
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
@@ -305,9 +306,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -634,6 +633,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
+
+  // min free disk space used to check if the disk is full [50MB, 1GB]
+  if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024,
+                  CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -1034,6 +1038,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
+  tsMinDiskFreeSize = cfgGetItem(pCfg, "minDiskFreeSize")->i64;
 
   GRANT_CFG_GET;
   return 0;
