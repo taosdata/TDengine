@@ -813,40 +813,6 @@ class TDCom:
         """
         return ','.join(map(lambda i: f'{gen_type}{i} {data_type}', range(count)))
 
-    def is_json(msg):
-        if isinstance(msg, str):
-            try:
-                json.loads(msg)
-                return True
-            except:
-                return False
-        else:
-            return False
-
-    def get_path(tool="taosd"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        paths = []
-        for root, dirs, files in os.walk(projPath):
-            if ((tool) in files or ("%s.exe"%tool) in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, tool))
-                    break
-        if (len(paths) == 0):
-                return ""
-        return paths[0]
-
-    def dict2toml(in_dict: dict, file:str):
-        if not isinstance(in_dict, dict):
-            return ""
-        with open(file, 'w') as f:
-            toml.dump(in_dict, f)
-
     # stream
     def create_stream(self, stream_name, des_table, source_sql, trigger_mode=None, watermark=None, max_delay=None, ignore_expired=None, ignore_update=None, subtable_value=None, fill_value=None, fill_history_value=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, use_except=False):
         """create_stream
@@ -1858,5 +1824,39 @@ class TDCom:
                 self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
                 if i == 1:
                     self.record_history_ts = ts_value
+
+def is_json(msg):
+    if isinstance(msg, str):
+        try:
+            json.loads(msg)
+            return True
+        except:
+            return False
+    else:
+        return False
+
+def get_path(tool="taosd"):
+    selfPath = os.path.dirname(os.path.realpath(__file__))
+    if ("community" in selfPath):
+        projPath = selfPath[:selfPath.find("community")]
+    else:
+        projPath = selfPath[:selfPath.find("tests")]
+
+    paths = []
+    for root, dirs, files in os.walk(projPath):
+        if ((tool) in files or ("%s.exe"%tool) in files):
+            rootRealPath = os.path.dirname(os.path.realpath(root))
+            if ("packaging" not in rootRealPath):
+                paths.append(os.path.join(root, tool))
+                break
+    if (len(paths) == 0):
+            return ""
+    return paths[0]
+
+def dict2toml(in_dict: dict, file:str):
+    if not isinstance(in_dict, dict):
+        return ""
+    with open(file, 'w') as f:
+        toml.dump(in_dict, f)
 
 tdCom = TDCom()
