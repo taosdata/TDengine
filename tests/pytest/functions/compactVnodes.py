@@ -100,6 +100,20 @@ class TDTestCase:
         tdSql.query("show vgroups")
         index = tdSql.getData(0,0)
         tdSql.checkData(0, 6, 0)
+        tdSql.execute(f"compact vnodes in({index}) start with 1000 end with now+5b")
+        start_time = time.time()
+        while True:
+            tdSql.query("show vgroups")
+            if tdSql.getData(0, 6) == 0:
+                break
+            else:
+                time.sleep(0.1)
+        run_time = time.time()-start_time
+        printf(f"it takes ${run_time} seconds")
+
+        tdSql.query("show vgroups")
+        index = tdSql.getData(0,0)
+        tdSql.checkData(0, 6, 0)
         tdSql.execute(f"compact vnodes in({index}) start with now-100s")
         start_time = time.time()
         while True:

@@ -1298,6 +1298,8 @@ static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
 static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
   int64_t skey = INT64_MIN;
   int64_t ekey = INT64_MAX;
+  int8_t nanoSkey = 1;
+  int8_t nanoEkey = 1;
 
   int32_t count = ntohs(pCompactMsg->numOfVgroup);
   int32_t *buf  = malloc(sizeof(int32_t) * count);
@@ -1322,10 +1324,16 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       }
       switch (tlv->type) {
         case TLV_TYPE_COMPACT_VNODES_TIME_RANGE: {
-          assert(tlv->len == 2 * sizeof(int64_t));
-          skey = htobe64(*(int64_t*)tlv->value);
-          ekey = htobe64(*(int64_t*)(tlv->value + sizeof(int64_t)));
-          p += sizeof(*tlv) + tlv->len;
+          assert(tlv->len == 2 * sizeof(int64_t) + 2);
+          p = tlv->value;
+          skey = htobe64(*(int64_t*)(p));
+          p += sizeof(int64_t);
+          ekey = htobe64(*(int64_t*)(p));
+          p += sizeof(int64_t);
+          nanoSkey = *(int8_t*)p;
+          p += sizeof(int8_t);
+          nanoEkey = *(int8_t*)p;
+          p += sizeof(int8_t);
           break;
         }
         default: {
@@ -1345,10 +1353,10 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       pIter = mnodeGetNextVgroup(pIter, &pVgroup);
       if (pVgroup == NULL) break;
       if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
-        if (skey != INT64_MIN) {          
+        if (nanoSkey) {          
           skey = convertTimePrecision(skey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
         }
-        if (ekey != INT64_MAX) {
+        if (nanoEkey) {
           ekey = convertTimePrecision(ekey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
         }
         mInfo("vgId: %d send compact msg. start %"PRId64 " end %"PRId64, pVgroup->vgId, skey, ekey);

@@ -4239,6 +4239,44 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
   
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t compactVnodeGetTimestamp(tSqlExpr* pExpr, int64_t* tsKey) {
+
+  int64_t val = 0;
+  bool    parsed = false;
+  if (pExpr->value.nType == TSDB_DATA_TYPE_BINARY) {
+    pExpr->value.nLen = stringProcess(pExpr->value.pz, pExpr->value.nLen);
+
+    char* seg = strnchr(pExpr->value.pz, '-', pExpr->value.nLen, false);
+    if (seg != NULL) {
+      if (taosParseTime(pExpr->value.pz, &val, pExpr->value.nLen, TSDB_TIME_PRECISION_NANO, tsDaylight) == TSDB_CODE_SUCCESS) {
+        pExpr->flags |= (1 << EXPR_FLAG_NS_TIMESTAMP);
+        parsed = true;
+      } else {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    } else {
+      SStrToken token = {.z = pExpr->value.pz, .n = pExpr->value.nLen, .type = TK_ID};
+      int32_t   len = tGetToken(pExpr->value.pz, &token.type);
+
+      if ((token.type != TK_INTEGER && token.type != TK_FLOAT) || len != pExpr->value.nLen) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    }
+  }
+
+  if (!parsed) {
+    if (pExpr->value.nType == -1) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    tVariantDump(&pExpr->value, (char*)&val, TSDB_DATA_TYPE_BIGINT, true);
+  }
+
+  *tsKey = val;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg1 = "start timestamp error";
   const char* msg2 = "end timestamp error";
@@ -4247,11 +4285,12 @@ static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlCmd* pCmd = &pSql->cmd;
   pCmd->command = pInfo->type;
 
-  // save the compact range to range of query info
+  // save the compact range to range of query info and 
+  // the flags of pInfo->pCompactRange->start/end indicate whether the ts is nano precsion or not
   SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd);
 
   if (pInfo->pCompactRange->start) {
-    if (getTimeRange(&pQueryInfo->range, pInfo->pCompactRange->start, TK_GE, TSDB_TIME_PRECISION_NANO) != TSDB_CODE_SUCCESS) {
+    if (compactVnodeGetTimestamp(pInfo->pCompactRange->start, &pQueryInfo->range.skey) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   } else {
@@ -4259,7 +4298,7 @@ static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   if (pInfo->pCompactRange->end) {
-    if (getTimeRange(&pQueryInfo->range, pInfo->pCompactRange->end, TK_LE, TSDB_TIME_PRECISION_NANO) != TSDB_CODE_SUCCESS) {
+    if (compactVnodeGetTimestamp(pInfo->pCompactRange->end, &pQueryInfo->range.ekey) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
