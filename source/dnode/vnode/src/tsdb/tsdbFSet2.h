@@ -45,6 +45,10 @@ int32_t tsdbTFileSetInitDup(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetClear(STFileSet **fset);
 int32_t tsdbTFileSetRemove(STFileSet **fset);
+
+int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, STSnapRange **fsr);
+int32_t tsdbTSnapRangeClear(STSnapRange **fsr);
+
 // to/from json
 int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json);
 int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
@@ -76,6 +80,13 @@ struct STFileSet {
   int32_t      fid;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
+};
+
+struct STSnapRange {
+  int32_t    fid;
+  int64_t    sver;
+  int64_t    ever;
+  STFileSet *fset;
 };
 
 #ifdef __cplusplus

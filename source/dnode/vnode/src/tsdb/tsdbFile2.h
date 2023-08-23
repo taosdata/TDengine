@@ -61,6 +61,8 @@ struct STFile {
   int32_t      fid;  // file id
   int64_t      cid;  // commit id
   int64_t      size;
+  int64_t      minVer;
+  int64_t      maxVer;
   union {
     struct {
       int32_t level;
