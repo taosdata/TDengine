@@ -848,7 +848,7 @@ int32_t tDecodeCompleteHistoryDataMsg(SDecoder* pDecoder, SStreamCompleteHistory
   return 0;
 }
 
-int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq) {
+int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer, int32_t* pLen) {
   int32_t  len = 0;
   int32_t  code = 0;
   SEncoder encoder;
@@ -879,6 +879,16 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   tEncodeCompleteHistoryDataMsg(&encoder, &msg);
   tEncoderClear(&encoder);
 
+  *pBuffer = pBuf;
+  *pLen = len;
+  return 0;
+}
+
+int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq) {
+  void*   pBuf = NULL;
+  int32_t len = 0;
+
+  streamTaskBuildScanhistoryRspMsg(pTask, pReq, &pBuf, &len);
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
 
   SStreamContinueExecInfo info = {.taskId = pReq->upstreamTaskId, .epset = pInfo->epSet};
