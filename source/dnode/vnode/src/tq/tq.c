@@ -1888,6 +1888,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   {
     taosWLockLatch(&pMeta->lock);
+    streamSetStatusNormal(pTask);
     streamMetaSaveTask(pMeta, pTask);
     taosWUnLockLatch(&pMeta->lock);
   }

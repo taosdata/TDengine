@@ -423,6 +423,23 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   int32_t taskLevel = pTask->info.taskLevel;
   ASSERT(taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__SINK);
 
+  if (pTask->status.taskStatus != TASK_STATUS__SCAN_HISTORY) {
+    qError("s-task:%s not in scan-history status, return upstream:0x%x scan-history finish directly", pTask->id.idStr,
+           pReq->upstreamTaskId);
+
+    void*   pBuf = NULL;
+    int32_t len = 0;
+    SRpcMsg msg = {0};
+
+    streamTaskBuildScanhistoryRspMsg(pTask, pReq, &pBuf, &len);
+    initRpcMsg(&msg, 0, pBuf, sizeof(SMsgHead) + len);
+
+    tmsgSendRsp(&msg);
+    qDebug("s-task:%s level:%d notify upstream:0x%x(vgId:%d) to continue process data from WAL", pTask->id.idStr,
+           pTask->info.taskLevel, pReq->upstreamTaskId, pReq->upstreamNodeId);
+    return 0;
+  }
+
   // sink tasks do not send end of scan history msg to its upstream, which is agg task.
   streamAddEndScanHistoryMsg(pTask, pRpcInfo, pReq);
 
