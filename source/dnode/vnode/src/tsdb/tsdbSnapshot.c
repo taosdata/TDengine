@@ -32,12 +32,12 @@ struct STsdbSnapReader {
   uint8_t* aBuf[5];
   SSkmInfo skmTb[1];
 
-  TFileSetArray* fsetArr;
+  TSnapRangeArray* fsrArr;
 
   // context
   struct {
-    int32_t    fsetArrIdx;
-    STFileSet* fset;
+    int32_t      fsrArrIdx;
+    STSnapRange* fsr;
     bool       isDataDone;
     bool       isTombDone;
   } ctx[1];
@@ -72,10 +72,10 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
   };
   bool hasDataFile = false;
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
-    if (reader->ctx->fset->farr[ftype] != NULL) {
+    if (reader->ctx->fsr->fset->farr[ftype] != NULL) {
       hasDataFile = true;
       config.files[ftype].exist = true;
-      config.files[ftype].file = reader->ctx->fset->farr[ftype]->f[0];
+      config.files[ftype].file = reader->ctx->fsr->fset->farr[ftype]->f[0];
     }
   }
 
@@ -86,7 +86,7 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
 
   // stt
   SSttLvl* lvl;
-  TARRAY2_FOREACH(reader->ctx->fset->lvlArr, lvl) {
+  TARRAY2_FOREACH(reader->ctx->fsr->fset->lvlArr, lvl) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       SSttFileReader*      sttReader;
@@ -211,14 +211,14 @@ static int32_t tsdbSnapReadFileSetCloseIter(STsdbSnapReader* reader) {
   return 0;
 }
 
-static int32_t tsdbSnapReadFileSetBegin(STsdbSnapReader* reader) {
+static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(reader->ctx->fset == NULL);
+  ASSERT(reader->ctx->fsr == NULL);
 
-  if (reader->ctx->fsetArrIdx < TARRAY2_SIZE(reader->fsetArr)) {
-    reader->ctx->fset = TARRAY2_GET(reader->fsetArr, reader->ctx->fsetArrIdx++);
+  if (reader->ctx->fsrArrIdx < TARRAY2_SIZE(reader->fsrArr)) {
+    reader->ctx->fsr = TARRAY2_GET(reader->fsrArr, reader->ctx->fsrArrIdx++);
     reader->ctx->isDataDone = false;
     reader->ctx->isTombDone = false;
 
@@ -236,10 +236,10 @@ _exit:
   return code;
 }
 
-static int32_t tsdbSnapReadFileSetEnd(STsdbSnapReader* reader) {
+static int32_t tsdbSnapReadRangeEnd(STsdbSnapReader* reader) {
   tsdbSnapReadFileSetCloseIter(reader);
   tsdbSnapReadFileSetCloseReader(reader);
-  reader->ctx->fset = NULL;
+  reader->ctx->fsr = NULL;
   return 0;
 }
 
@@ -424,17 +424,14 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  taosThreadRwlockRdlock(&tsdb->rwLock);
-  code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
-  taosThreadRwlockUnlock(&tsdb->rwLock);
-
+  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
               __func__, lino, tstrerror(code), sver, ever, type);
-    tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
+    tsdbFSDestroyRefRangedSnapshot(&reader[0]->fsrArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -462,7 +459,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   TARRAY2_DESTROY(reader[0]->sttReaderArr, tsdbSttFileReaderClose);
   tsdbDataFileReaderClose(&reader[0]->dataReader);
 
-  tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
+  tsdbFSDestroyRefRangedSnapshot(&reader[0]->fsrArr);
   tDestroyTSchema(reader[0]->skmTb->pTSchema);
 
   for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->aBuf); ++i) {
@@ -488,11 +485,11 @@ int32_t tsdbSnapRead(STsdbSnapReader* reader, uint8_t** data) {
   data[0] = NULL;
 
   for (;;) {
-    if (reader->ctx->fset == NULL) {
-      code = tsdbSnapReadFileSetBegin(reader);
+    if (reader->ctx->fsr == NULL) {
+      code = tsdbSnapReadRangeBegin(reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      if (reader->ctx->fset == NULL) {
+      if (reader->ctx->fsr == NULL) {
         break;
       }
     }
@@ -517,7 +514,7 @@ int32_t tsdbSnapRead(STsdbSnapReader* reader, uint8_t** data) {
       }
     }
 
-    code = tsdbSnapReadFileSetEnd(reader);
+    code = tsdbSnapReadRangeEnd(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

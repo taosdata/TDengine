@@ -458,6 +458,16 @@ int32_t tsdbTFileSetInitDup(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
   return 0;
 }
 
+int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, STSnapRange **fsr) {
+  fsr[0] = taosMemoryCalloc(1, sizeof(STSnapRange));
+  if (fsr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  fsr[0]->fid = fset1->fid;
+  //  fsr[0]->sver = sver;
+  //  fsr[0]->ever = ever;
+  return tsdbTFileSetInitRef(pTsdb, fset1, &fsr[0]->fset);
+}
+
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
   int32_t code = tsdbTFileSetInit(fset1->fid, fset);
   if (code) return code;
@@ -482,6 +492,15 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
     if (code) return code;
   }
 
+  return 0;
+}
+
+int32_t tsdbTSnapRangeClear(STSnapRange **fsr) {
+  if (!fsr[0]) return 0;
+
+  tsdbTFileSetClear(&fsr[0]->fset);
+  taosMemoryFree(fsr[0]);
+  fsr[0] = NULL;
   return 0;
 }
 

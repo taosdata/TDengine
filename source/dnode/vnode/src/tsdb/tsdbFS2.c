@@ -991,6 +991,40 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, TSnapRangeArray **fsrArr) {
+  int32_t      code = 0;
+  STFileSet   *fset;
+  STSnapRange *fsr1;
+
+  fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
+  if (fsrArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    code = tsdbTSnapRangeInitRef(fs->tsdb, fset, &fsr1);
+    if (code) break;
+
+    code = TARRAY2_APPEND(fsrArr[0], fsr1);
+    if (code) break;
+  }
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+
+  if (code) {
+    TARRAY2_DESTROY(fsrArr[0], tsdbTSnapRangeClear);
+    fsrArr[0] = NULL;
+  }
+  return code;
+}
+
+int32_t tsdbFSDestroyRefRangedSnapshot(TSnapRangeArray **fsrArr) {
+  if (fsrArr[0]) {
+    TARRAY2_DESTROY(fsrArr[0], tsdbTSnapRangeClear);
+    taosMemoryFreeClear(fsrArr[0]);
+    fsrArr[0] = NULL;
+  }
+  return 0;
+}
+
 const char *gFSBgTaskName[] = {NULL, "MERGE", "RETENTION", "COMPACT"};
 
 static int32_t tsdbFSRunBgTask(void *arg) {
