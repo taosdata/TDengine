@@ -12,8 +12,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmisce.h"
+// clang-format off
 #include "transComm.h"
+#include "tmisce.h"
+// clang-format on
 
 typedef struct {
   int32_t numOfConn;
