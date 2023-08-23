@@ -1160,6 +1160,7 @@ export default {
     μs:'μs',
     ns:'ns',
     getschema:'Get Schema',
+    getmetrics:'Get Metrics',
     refreshsuccess:'Refreshed Scucessfully',
     influxdbtip:'Choose or create a TDengine database with precision of ns',
     taskid:'Task ID',
