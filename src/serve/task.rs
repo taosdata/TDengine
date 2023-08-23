@@ -160,19 +160,19 @@ pub(super) async fn create_task(
                 match Job::new_async(schedule, move |uuid, mut l| {
                     let controller = controller.clone();
                     Box::pin(async move {
-                        log::info!("waiting for next tick");
+                        tracing::info!("waiting for next tick");
                         let next_tick = l.next_tick_for_job(uuid).await;
                         match next_tick {
                             Ok(Some(ts)) => {
-                                log::info!("Next tick is {:?}", ts);
+                                tracing::info!("Next tick is {:?}", ts);
                                 let _ = controller.start(id).await;
                             }
-                            _ => log::warn!("Could not get next tick"),
+                            _ => tracing::warn!("Could not get next tick"),
                         }
                     })
                 }) {
                     Ok(job) => {
-                        log::info!("add job for task: {task:?}");
+                        tracing::info!("add job for task: {task:?}");
                         if let Err(_err) = sched.add(job).await {
                             return HttpResponse::InternalServerError().json(Failed {
                                 code: Code::FAILED,
@@ -184,7 +184,7 @@ pub(super) async fn create_task(
                         // sched.start().await.unwrap();
                     }
                     Err(err) => {
-                        log::error!("Scheduler task error: {err:?}, task:{task:?}");
+                        tracing::error!("Scheduler task error: {err:?}, task:{task:?}");
                     }
                 }
             }
@@ -530,7 +530,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
         let releative_path = format!("{req_id}/{file_name}");
-        log::info!(
+        tracing::info!(
             "saving to {}, {releative_path}",
             upload_file_save_path.as_os_str().to_str().unwrap()
         );

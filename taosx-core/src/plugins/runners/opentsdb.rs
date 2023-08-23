@@ -192,7 +192,7 @@ pub async fn opentsdb_to_taos(
 
     let exe_exists = std::path::Path::new(&opentsdb_jar_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", opentsdb_jar_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", opentsdb_jar_path().to_str().unwrap());
         Err(OpentsdbError::ExeNotFound(format!(
             "{}",
             opentsdb_jar_path().to_str().unwrap()
@@ -218,7 +218,7 @@ pub async fn opentsdb_to_taos(
     // get the path of the temporary file
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!("Using config file {}", config_path.display());
+    tracing::info!("Using config file {}", config_path.display());
     // create socket channel
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
@@ -257,11 +257,11 @@ pub async fn opentsdb_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -327,27 +327,27 @@ pub async fn opentsdb_to_taos(
             Ok::<(), std::io::Error>(())
         });
         // waiting until the end
-        log::info!("waiting for OpenTSDB connector");
+        tracing::info!("waiting for OpenTSDB connector");
         tokio::spawn(async move {
             tokio::select! {
                 // application exit with error code
                 status = child.wait() => {
                     let status = status?;
-                    log::info!("OpenTSDB exit with {}", status);
+                    tracing::info!("OpenTSDB exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
                         anyhow::bail!("OpenTSDB exit with {}", status);
                     }
                 },
                 err = receiver.recv() => {
-                    log::info!("have received worker thread panicked message, terminate child process");
+                    tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
                         let _ = ipc.send(());
                         anyhow::bail!("OpenTSDB writer error: {err}");
                     }
                 },
                 _ = cancel.cancelled() => {
-                    log::info!("OpenTSDB task cancelled");
+                    tracing::info!("OpenTSDB task cancelled");
                 }
             }
             ;
@@ -355,7 +355,7 @@ pub async fn opentsdb_to_taos(
             ipc.send(()).await?;
             // stop the connector
             let _ = child.kill().await;
-            log::info!("OpenTSDB task Done");
+            tracing::info!("OpenTSDB task Done");
             // delete the temporary file
             let _ = temp_path.close();
             // put ipc port back to port pool.

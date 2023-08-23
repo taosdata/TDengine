@@ -22,6 +22,7 @@ use serde_json::json;
 use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::utils::mask_dsn;
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::OnceCell;
@@ -29,6 +30,7 @@ use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
 use utoipa::*;
 
 pub(crate) mod agent;
@@ -179,7 +181,7 @@ impl AgentTasks {
                         }
                     }
                     Err(err) => {
-                        log::error!("err: {err}");
+                        tracing::error!("err: {err}");
                         break;
                     }
                 }
@@ -241,7 +243,7 @@ impl Debug for TaskController {
 }
 
 // pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> anyhow::Result<()> {
-//     // log::info!("")
+//     // tracing::info!("")
 //     TaskControllerRef(controller)
 //         .start_all_with_schedule()
 //         .await
@@ -323,23 +325,23 @@ impl TaskControllerRef {
                 match Job::new_async(schedule, move |uuid, mut l| {
                     let controller = controller.clone();
                     Box::pin(async move {
-                        log::info!("waiting for next tick");
+                        tracing::info!("waiting for next tick");
                         let next_tick = l.next_tick_for_job(uuid).await;
                         match next_tick {
                             Ok(Some(ts)) => {
-                                log::info!("Next tick is {:?}", ts);
+                                tracing::info!("Next tick is {:?}", ts);
                                 let _ = controller.start(id).await.unwrap();
                             }
-                            _ => log::warn!("Could not get next tick"),
+                            _ => tracing::warn!("Could not get next tick"),
                         }
                     })
                 }) {
                     Ok(job) => {
-                        log::debug!("add cron job for task: {task:?}");
+                        tracing::debug!("add cron job for task: {task:?}");
                         sched.add(job).await?;
                     }
                     Err(err) => {
-                        log::error!("Scheduler task error: {err:?}, task:{task:?}");
+                        tracing::error!("Scheduler task error: {err:?}, task:{task:?}");
                         Err(err)
                             .with_context(|| format!("Schedule task error, task:{:?}", task))?;
                     }
@@ -374,7 +376,7 @@ impl Drop for TaskController {
         if let Some(rt) = self.runtime.take() {
             // rt.block_on(self.clear()).unwrap();
             std::thread::spawn(move || {
-                log::debug!("dropping tokio runtime in another thread");
+                tracing::debug!("dropping tokio runtime in another thread");
                 std::mem::drop(rt);
             })
             .join()
@@ -475,6 +477,12 @@ impl TaskController {
     //     self
     // }
 
+    #[instrument(skip_all, name = "task::start", parent = None, fields(
+        x.task.id = task.id,
+        x.task.source = %mask_dsn(&task.from.parse().unwrap()),
+        x.task.sink = %mask_dsn(&task.to.parse().unwrap()),
+        x.task.agent = task.via,
+    ))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
         let now = Utc::now();
@@ -485,7 +493,7 @@ impl TaskController {
             // for read guard lifetime
             if let Some(h) = self.tasks.read().await.get(&id) {
                 if !h.0.is_finished() {
-                    log::info!("try start task {id} but it is running");
+                    tracing::info!("try start task {id} but it is running");
                     let context = format!("Trying to start task {id} but it is running");
                     let activity = Activity::new(
                         id,
@@ -511,7 +519,7 @@ impl TaskController {
         let from = if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut from: Dsn = task.from.parse()?;
             from.set("use.topic.name", topic);
-            log::info!("Set task from: {from}");
+            tracing::info!("Set task from: {from}");
             from
         } else {
             task.from.parse()?
@@ -597,6 +605,11 @@ impl TaskController {
             }
             _ => None,
         };
+
+        // todo! add trace id to
+        let span = tracing::info_span!("task::spawned", task.id = id, trace_id = tracing::field::Empty);
+        dbg!(tracing::Span::current().metadata());
+        // span.record("request", value)
         let opts = TaskOpts {
             transform: vec![],
             from: from.clone(),
@@ -613,6 +626,7 @@ impl TaskController {
             with_agent: None,
             offsets,
             transferred,
+            span: span.clone(),
         };
         // dbg!(&opts);
         // dbg!(&agent_task_worker);
@@ -622,6 +636,8 @@ impl TaskController {
         // }
 
         let task_handler = async move {
+            // let _ = span.clone().entered();
+            tracing::info!(x.task.id = id, "start worker");
             // set current dir for upload files
             let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
             let root = std::path::Path::new(path.as_str());
@@ -634,11 +650,15 @@ impl TaskController {
                 id
             )
             .execute(&pool)
+            .in_current_span()
             .await?;
+            // let span = opts.span.clone();
+
             // let sender2 = agent_task_worker.clone();
             let cloned_token2 = cloned_token.clone();
             tokio::select! {
                 _ = cloned_token.cancelled() => {
+                    // let _ = tr.record("action", "cancel").clone().entered();
                     let status: Status = sqlx::query_scalar("select status from tasks where id = ?")
                         .bind(id).fetch_one(&pool).await?;
                     if matches!(status, Status::Completed | Status::Stopped | Status::Failed) {
@@ -652,7 +672,7 @@ impl TaskController {
                         opts.cancel();
                         activity = "Cancel task".to_string();
                     }
-                    log::debug!("cancel task {id}");
+                    tracing::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
 
@@ -692,6 +712,7 @@ impl TaskController {
                             .await?;
                         }
                     }
+                    // span.exit();
                 }
                 result = async {
                     if agent_task_worker.is_none() && opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
@@ -711,7 +732,7 @@ impl TaskController {
                             .execute(&pool)
                             .await?;
                             if restarts > 0 {
-                                log::info!("resume task {id} as {restarts} restarts");
+                                tracing::info!("resume task {id} as {restarts} restarts");
 
                                 let activity = Activity {
                                     id,
@@ -734,7 +755,7 @@ impl TaskController {
                                 };
                                 push_task_activity(&pool, &activity).await?;
 
-                                log::info!("start task {id}");
+                                tracing::info!("start task {id}");
                             }
                             let instant = std::time::Instant::now();
                             let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
@@ -770,7 +791,7 @@ impl TaskController {
                                             // todo(@huolinhe): we got 401 Authentication failure with HTTPS, but this error with HTTP.
                                             //   Maybe you should check the websocket implementations for the low-level reason.
                                             let err = "Authentication failure";
-                                            log::error!("run task {id} failed with: {err:#}, please check the instance status or token");
+                                            tracing::error!("run task {id} failed with: {err:#}, please check the instance status or token");
                                             let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
@@ -789,7 +810,7 @@ impl TaskController {
                                             break;
                                         }
                                         e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") || e.contains("0xE002") => {
-                                            log::warn!("run task {id} failed: {err}, wait for resume...");
+                                            tracing::warn!("run task {id} failed: {err}, wait for resume...");
                                             let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
@@ -812,7 +833,7 @@ impl TaskController {
                                             push_task_activity(&pool, &activity).await?;
                                         }
                                         _ => {
-                                            log::error!("run task {id} failed with: {err}, please check the task information");
+                                            tracing::error!("run task {id} failed with: {err}, please check the task information");
                                             let err = format!("{err:#}");
                                             let now = Utc::now();
                                             let _ = sqlx::query!(
@@ -836,7 +857,7 @@ impl TaskController {
                                     }
                                 }
                             }
-                            log::info!("resume task {id} in {sleep:?}");
+                            tracing::info!("resume task {id} in {sleep:?}");
                             let running_elapsed = last_restart_time.elapsed();
                             if running_elapsed > sleep {
                                 sleep = Duration::from_millis(500);
@@ -864,7 +885,9 @@ impl TaskController {
                             cloned_token2.cancelled().await;
                         } else {
                             let instant = std::time::Instant::now();
-                            let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
+                            let result = opts
+                                .run(ONCE.get_or_init(|| async { PortPool::default() }).await)
+                                .in_current_span().await;
                             let timing = instant.elapsed();
 
                         match result {
@@ -909,20 +932,23 @@ impl TaskController {
                             }
                         }};
                     }
+                    // span.exit();
                     return Ok::<(), anyhow::Error>(())
-                } => {
+                }.in_current_span() => {
                     let _ = result?;
-                    log::info!("task {} done", id);
+                    tracing::info!("task {} done", id);
                 }
             }
             Ok(())
-        };
+        }.instrument(span.clone());
         let handle = if let Some(rt) = self.runtime.as_ref() {
             tracing::info!("spawn task with exist runtime");
             rt.spawn(task_handler)
         } else {
             tokio::spawn(task_handler)
         };
+
+        let _ = span.enter();
         self.tasks.write().await.insert(id, (handle, token));
         Ok(())
     }
@@ -1270,7 +1296,7 @@ impl TaskController {
                 token.cancel();
                 if !handle.is_finished() {
                     // token.cancel();
-                    log::info!("Cancel task {id} before deleted");
+                    tracing::info!("Cancel task {id} before deleted");
                     let _ = handle.await;
                 }
             }
@@ -1285,7 +1311,7 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         if res.rows_affected() == 1 {
-            log::info!("successfully deleted task by id {id}");
+            tracing::info!("successfully deleted task by id {id}");
         }
 
         let mut task: Task = sqlx::query_as("select * from task_with_labels where id = ?")
@@ -1301,7 +1327,7 @@ impl TaskController {
             let mut retries = 0;
             loop {
                 if retries > 20 {
-                    log::error!("can not drop topic {topic}");
+                    tracing::error!("can not drop topic {topic}");
                     break;
                 }
                 if let Err(_err) = taos.exec(format!("drop topic if exists {topic}")).await {
@@ -1373,7 +1399,7 @@ impl TaskController {
             .await?;
             // dbg!(res);
             if res.rows_affected() == 1 {
-                log::info!("successfully stop task by id {id}");
+                tracing::info!("successfully stop task by id {id}");
             }
 
             sqlx::query!(
@@ -1411,7 +1437,7 @@ impl TaskController {
         let id = status.id;
         match status.action.as_str() {
             "failed" => {
-                log::error!(
+                tracing::error!(
                     "run task {id} failed with: {:?}, please check the task information",
                     status.message
                 );
@@ -1438,13 +1464,13 @@ impl TaskController {
                 .execute(&self.pool)
                 .await?;
                 if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-                    log::error!("Cancel task by id {id}");
+                    tracing::error!("Cancel task by id {id}");
                     token.cancel();
                     let _ = handle.await?;
                     // handle.abort();
                     // if !handle.is_finished() {
                     //     // token.cancel();
-                    //     log::error!("Cancel task by id {id}");
+                    //     tracing::error!("Cancel task by id {id}");
                     //     let _ = handle.await;
                     // }
                 }
@@ -1473,7 +1499,7 @@ impl TaskController {
             token.cancel();
             if !handle.is_finished() {
                 // token.cancel();
-                log::error!("Cancel task by id {id}");
+                tracing::error!("Cancel task by id {id}");
                 let _ = handle.await;
             }
 
@@ -1503,7 +1529,7 @@ impl TaskController {
             .await?;
             // dbg!(res);
             if res.rows_affected() == 1 {
-                log::info!("successfully cancelled task by id {id}");
+                tracing::info!("successfully cancelled task by id {id}");
             }
         }
         Ok(())
@@ -1514,7 +1540,7 @@ impl TaskController {
             token.cancel();
             if !handle.is_finished() {
                 // token.cancel();
-                log::error!("Cancel task by id {id}");
+                tracing::error!("Cancel task by id {id}");
                 let _ = handle.await;
             }
 
@@ -1527,7 +1553,7 @@ impl TaskController {
             .await?;
             // dbg!(res);
             if res.rows_affected() == 1 {
-                log::info!("successfully deleted task by id {id}");
+                tracing::info!("successfully deleted task by id {id}");
             }
         }
         Ok(())
@@ -1711,7 +1737,7 @@ impl TaskController {
             .bind(agent_id)
             .execute(&mut conn)
             .await?;
-        log::info!("Deleted agent with id {agent_id}");
+        tracing::info!("Deleted agent with id {agent_id}");
 
         sqlx::query("delete from agents where id = ?")
             .bind(agent_id)
@@ -2845,7 +2871,7 @@ mod tests {
         pretty_env_logger::init();
 
         let dsn = "taos://localhost:6030".to_string();
-        log::info!("dsn: {}", dsn);
+        tracing::info!("dsn: {}", dsn);
 
         let taos = taos::TaosBuilder::from_dsn(&dsn)?.build().await?;
         taos.exec_many([

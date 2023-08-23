@@ -24,9 +24,11 @@ pub use sink::IpcStreamWorker;
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 
 use crate::plugins::runners::pi::pi_datasets;
 use crate::Transferred;
+use crate::utils::mask_dsn;
 pub use taosx_ipc::types::*;
 
 pub use transform::Parser;
@@ -36,6 +38,7 @@ pub use runners::{
     ENV_TAOSX_LOGS_KEEP_DAYS,
 };
 
+#[instrument(skip_all, fields(ipc.listen = socket, ipc.target = %mask_dsn(to)))]
 pub async fn build_ipc(
     socket: &str,
     parser: Option<Parser>,

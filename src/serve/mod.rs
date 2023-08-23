@@ -7,11 +7,12 @@ use anyhow::Result;
 use clap::Parser;
 
 use actix_web::{
-    middleware::Logger,
     web::{Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
 use serde::Deserialize;
+use tracing::info;
+use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -115,6 +116,7 @@ impl Cli {
         _opts: super::GlobalOpts,
         _rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
+        let span = tracing::info_span!("server", addr = self.listen).entered();
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -216,7 +218,7 @@ impl Cli {
         let controller = TaskControllerRef::from_sqlite(&database_url).await?;
 
         if !self.do_not_resume {
-            log::info!("resume all tasks");
+            info!("resume all tasks");
             controller.start_all_with_schedule().await?;
         }
 
@@ -244,7 +246,7 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
-                .wrap(Logger::default())
+                .wrap(TracingLogger::default())
                 .app_data(recorder.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(
@@ -266,18 +268,19 @@ impl Cli {
 
         tokio::select! {
             _ = server => {
-                log::info!("server stopped");
+                tracing::info!("server stopped");
                 // done;
             },
             _ = flight.serve_with_controller(rpc_controller_ref) => {
-                log::info!("flight RPC service stopped");
+                tracing::info!("flight RPC service stopped");
             }
             _ = tokio::signal::ctrl_c() => {
-                log::info!("Ctrl+C triggered");
+                tracing::info!("Ctrl+C triggered");
             }
         };
         store_cloned.stop_all().await?;
         drop(store_cloned);
+        span.exit();
 
         Ok(())
     }

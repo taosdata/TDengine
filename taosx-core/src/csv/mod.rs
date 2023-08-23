@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, instrument};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -77,6 +77,7 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
     })
 }
 
+#[instrument(skip_all)]
 pub async fn csv_to_taos(
     mut from: Dsn,
     parser: Option<Parser>,
@@ -97,10 +98,8 @@ pub async fn csv_to_taos(
 
     info!("spawn CSV worker");
     let worker = tokio::spawn(async move {
-        let id = tokio::task::id();
         info!(
-            task.id = %id,
-            "[{id}] Reading CSV with config(concurrent: {}, batch_size: {})",
+            "Reading CSV with config(concurrent: {}, batch_size: {})",
             source.concurrent, source.batch_size
         );
         let handlers = source.read().await?;
@@ -143,7 +142,7 @@ pub async fn csv_to_taos(
                 }
             },
             err = closed.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
+                tracing::info!("have received worker thread panicked message, terminate child process");
                 abort_handle.abort();
                 if let Some(err) = err {
                     let _ = abort.send(());
@@ -152,7 +151,7 @@ pub async fn csv_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("CSV task cancelled");
+                tracing::info!("CSV task cancelled");
                 abort_handle.abort();
             }
         };
@@ -161,7 +160,7 @@ pub async fn csv_to_taos(
         // send an empty tuple
         let _ = abort.send(());
         // stop the connector
-        log::info!("CSV task finished");
+        tracing::info!("CSV task finished");
         // put ipc port back to port pool.
         port_pool.put(port);
         Ok(())

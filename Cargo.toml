@@ -38,7 +38,7 @@ async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
 chrono = "0.4"
-clap = { version = "4.0.11", features = ["default", "derive"] }
+clap = { version = "4.3.23", features = ["default", "derive", "env"] }
 clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
 convert_case = "0.6.0"
@@ -57,7 +57,7 @@ serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
-tokio = { version = "1", features = ["full", "tracing"] }
+tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.7.2"
 zstd = "0.12.1"
@@ -113,6 +113,10 @@ tracing-appender = "0.2"
 tracing = { version = "0.1", features = ["log"] }
 atty = "*"
 file-rotate = "0.7.5"
+opentelemetry = { version = "*", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "*", features = ["rt-tokio"] }
+tracing-opentelemetry = { version = "*" }
+tracing-actix-web = "0.7"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
