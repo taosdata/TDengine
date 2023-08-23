@@ -443,7 +443,8 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       }
 
     } else {
-      qError("failed to start stream backend at %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      qError("failed to start stream backend at %s, reason: %s, restart from default state dir:%s", chkp,
+             tstrerror(TAOS_SYSTEM_ERROR(errno)), state);
       taosMkDir(state);
     }
     taosMemoryFree(chkp);

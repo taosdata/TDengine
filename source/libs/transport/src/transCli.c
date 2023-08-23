@@ -12,8 +12,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
 #include "transComm.h"
 #include "tmisce.h"
+// clang-format on
 
 typedef struct {
   int32_t numOfConn;
@@ -308,7 +310,6 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
       (epSet)->inUse = ((epSet)->inUse) % ((epSet)->numOfEps); \
     }                                                          \
   } while (0)
-
 
 static void* cliWorkThread(void* arg);
 
@@ -1257,7 +1258,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  if (status == -1) status = ENETUNREACH;
+  if (status == -1) status = UV_EADDRNOTAVAIL;
 
   if (pConn->pBatch == NULL) {
     SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);

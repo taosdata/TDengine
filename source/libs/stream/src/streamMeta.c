@@ -642,12 +642,14 @@ void metaHbToMnode(void* param, void* tmrId) {
   tEncodeSize(tEncodeStreamHbMsg, &hbMsg, tlen, code);
   if (code < 0) {
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+    taosArrayDestroy(hbMsg.pTaskStatus);
     return;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    taosArrayDestroy(hbMsg.pTaskStatus);
     return;
   }
 
@@ -656,9 +658,12 @@ void metaHbToMnode(void* param, void* tmrId) {
   if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
     rpcFreeCont(buf);
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+    taosArrayDestroy(hbMsg.pTaskStatus);
     return;
   }
   tEncoderClear(&encoder);
+
+  taosArrayDestroy(hbMsg.pTaskStatus);
 
   SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
