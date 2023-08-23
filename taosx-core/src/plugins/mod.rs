@@ -12,13 +12,13 @@ use anyhow::Context;
 use futures::TryStreamExt;
 pub use runners::influxdb::influxdb_datasets;
 pub use runners::influxdb::influxdb_to_taos;
-pub use runners::opentsdb::opentsdb_datasets;
-pub use runners::opentsdb::opentsdb_to_taos;
 pub use runners::kafka::kafka_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
 pub use runners::opc::OPCConfig;
+pub use runners::opentsdb::opentsdb_datasets;
+pub use runners::opentsdb::opentsdb_to_taos;
 pub use runners::pi::pi_to_taos;
 pub use sink::IpcStreamWorker;
 use taos::Dsn;
@@ -36,7 +36,7 @@ pub use runners::{
     ENV_TAOSX_LOGS_KEEP_DAYS,
 };
 
-pub fn build_ipc(
+pub async fn build_ipc(
     socket: &str,
     parser: Option<Parser>,
     to: &Dsn,
@@ -70,7 +70,8 @@ pub fn build_ipc(
             None,
             cancel.clone(),
             with_agent.unwrap(),
-        )?
+        )
+        .await?
     };
     Ok((ipc, receiver))
 }

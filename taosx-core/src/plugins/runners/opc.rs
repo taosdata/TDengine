@@ -1062,7 +1062,7 @@ pub async fn opc_to_taos(
             table_config,
             cancel.clone(),
             with_agent.unwrap(),
-        )?
+        ).await?
     };
 
     let port_pool = port_pool.clone();

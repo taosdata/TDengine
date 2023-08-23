@@ -30,7 +30,7 @@ use taos::{
 use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, Instrument};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
@@ -119,7 +119,9 @@ async fn ipc_tcp_forward(
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
         .await?
         .context("Build IPC stream reader error")?;
-    let mut ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    let ack = ipc_reader.ack();
+    let mut ipc_ack_writer =
+        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
 
     let schema = ipc_reader.schema.clone();
     // dbg!(&schema);
@@ -384,7 +386,8 @@ async fn consume_lush_record(
                                 if sql_vec.is_some() {
                                     let tag_modify = sql_vec.unwrap();
                                     for index in 0..tag_modify.sqls.len() {
-                                        let (create_sql, overflow) = tag_modify.sqls.get_mut(index).unwrap();
+                                        let (create_sql, overflow) =
+                                            tag_modify.sqls.get_mut(index).unwrap();
                                         if *overflow {
                                             continue;
                                         } else {
@@ -404,7 +407,7 @@ async fn consume_lush_record(
                                     }
                                 } else {
                                     let mut sql_vec = Vec::new();
-                                    sql_vec.push(( table_sql, false,));
+                                    sql_vec.push((table_sql, false));
                                     let tag_modify_message = LushMessageTagModify {
                                         sqls: sql_vec,
                                         tags: table.tags().clone().unwrap(),
@@ -432,18 +435,29 @@ async fn consume_lush_record(
                             if err_str.contains("0x2653") {
                                 // column or tag length not enough
                                 let desc = taos.describe(&stable_name.as_str()).await?;
-                                let fields = message_modify.tags.iter().filter(|(_, value)| matches!(value, Value::VarChar(_)) || matches!(value, Value::NChar(_))).map(|(tag_name, value)| { 
-                                    match value {
+                                let fields = message_modify
+                                    .tags
+                                    .iter()
+                                    .filter(|(_, value)| {
+                                        matches!(value, Value::VarChar(_))
+                                            || matches!(value, Value::NChar(_))
+                                    })
+                                    .map(|(tag_name, value)| match value {
                                         Value::VarChar(v) => {
                                             (tag_name.clone(), IpcDataType::VarChar(v.len() as u32))
                                         }
                                         Value::NChar(v) => {
                                             (tag_name.clone(), IpcDataType::NChar(v.len() as u32))
                                         }
-                                        _ => unimplemented!()
-                                    }
-                                }).collect_vec();
-                                let alter_sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &fields, true);
+                                        _ => unimplemented!(),
+                                    })
+                                    .collect_vec();
+                                let alter_sqls = generate_alter_sql_diff_desc(
+                                    &stable_name,
+                                    &desc,
+                                    &fields,
+                                    true,
+                                );
                                 if alter_sqls.is_some() {
                                     for alter_sql in alter_sqls.unwrap() {
                                         info!("lush table alter sql: {alter_sql}");
@@ -495,7 +509,12 @@ async fn consume_lush_record(
                                         }
                                         let stable_name = stable_name.unwrap();
                                         let desc = taos.describe(&stable_name).await?;
-                                        let alter_sqls = generate_alter_sql_diff_desc(&stable_name, &desc, &fields.clone(), false);
+                                        let alter_sqls = generate_alter_sql_diff_desc(
+                                            &stable_name,
+                                            &desc,
+                                            &fields.clone(),
+                                            false,
+                                        );
                                         if alter_sqls.is_some() {
                                             let alter_sqls = alter_sqls.unwrap();
                                             for alter_sql in alter_sqls {
@@ -2051,7 +2070,7 @@ impl<'a> IpcStreamWorker<'a> {
 //     }
 // }
 
-pub fn listen_tcp_socket_with_agent(
+pub async fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
     sender: Sender<String>,
     _config: Option<OpcTableConfig>,
@@ -2060,64 +2079,66 @@ pub fn listen_tcp_socket_with_agent(
 ) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
 
-    let socket = tokio::net::TcpSocket::new_v4()?;
-    let addr: SocketAddr = addr.parse()?;
-    socket.bind(addr)?;
-    let socket = socket.listen(128)?;
-    socket.set_ttl(100)?;
-
-    let socket = Arc::new(socket);
+    let socket = tokio::net::TcpListener::bind(addr).await?;
 
     let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
-    let thread = tokio::spawn(async move {
-        let mut handlers = vec![];
-        loop {
-            if closed2.load(std::sync::atomic::Ordering::SeqCst) {
-                tracing::debug!("IPC stopped");
-                break;
-            }
-            match socket.accept().await {
-                Ok((stream, addr)) => {
-                    log::info!("new tcp client!: {:?}", addr);
-                    let stream = stream.into_std().unwrap();
-                    // let client = addr.as_socket_ipv4().unwrap().to_string();
-                    let se = sender.clone();
-                    let cancel = cancel.clone();
-                    let (id, remote, token) = with_agent.clone();
-
-                    let h = tokio::spawn(async move {
-                        let client = addr.to_string();
-                        let res =
-                            ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
-                                .await;
-                        if let Err(err) = res {
-                            // panic!("{err:?}");
-                            log::error!("ipc read err: {}", err);
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                            let _ = se.send(err.to_string()).await;
-                        } else {
-                            log::info!("IPC reader stopped for client {client}",);
-                        }
-                    });
-                    handlers.push(h);
+    let thread = tokio::spawn(
+        async move {
+            let mut handlers = vec![];
+            loop {
+                if closed2.load(std::sync::atomic::Ordering::SeqCst) {
+                    tracing::debug!("IPC stopped");
+                    break;
                 }
-                Err(e) => {
+
+                if let Err(e) = socket
+                    .accept()
+                    .await
+                    .with_context(|| format!("IPC accept next connection error"))
+                    .and_then(|(stream, addr)| {
+                        log::info!("new tcp client!: {:?}", addr);
+                        let stream = stream.into_std()?;
+                        let _ = stream.set_nonblocking(false)?;
+                        // let client = addr.as_socket_ipv4().unwrap().to_string();
+                        let se = sender.clone();
+                        let cancel = cancel.clone();
+                        let (id, remote, token) = with_agent.clone();
+
+                        let h = tokio::spawn(async move {
+                            let client = addr.to_string();
+                            let res =
+                                ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
+                                    .await;
+                            if let Err(err) = res {
+                                log::error!("ipc read err: {:?}", err);
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                let _ = se.send(err.to_string()).await;
+                            } else {
+                                log::info!("IPC reader stopped for client {client}",);
+                            }
+                        });
+                        handlers.push(h);
+                        anyhow::Ok(())
+                    })
+                {
                     /* connection failed */
-                    tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                    tracing::debug!("IPC stream error: {e:#}, might be stopped");
                     break;
                 }
             }
-        }
-        log::info!("IPC stream listener stopped");
-        tokio::time::sleep(Duration::from_micros(1000)).await;
+            log::info!("IPC stream listener stopped");
+            tokio::time::sleep(Duration::from_micros(1000)).await;
 
-        for h in handlers {
-            let _ = h.await;
+            for h in handlers {
+                let _ = h.await;
+            }
+            anyhow::Ok(())
         }
-    });
+        .instrument(tracing::info_span!("agent_ipc_listener")),
+    );
 
     tokio::spawn(async move {
         let _ = receiver.recv().await;
@@ -2154,77 +2175,82 @@ pub fn listen_tcp_socket(
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
-    let thread = tokio::task::spawn(async move {
-        info!("waiting for IPC connections");
-        let mut handlers = vec![];
-        loop {
-            if closed2.load(std::sync::atomic::Ordering::SeqCst) {
-                break;
-            }
-            match socket.accept().await {
-                Ok((stream, addr)) => {
-                    log::info!("new tcp client!: {:?}", addr);
-                    let stream = stream.into_std().unwrap();
-                    let _ = stream.set_nonblocking(false);
-                    let client = addr.to_string();
-                    let se = sender.clone();
-                    let cancel = cancel.clone();
-
-                    if let Some((id, server, token)) = with_agent.clone() {
-                        handlers.push(tokio::spawn(async move {
-                            let res =
-                                ipc_tcp_forward(client, stream, cancel, server, token, id).await;
-                            if let Err(err) = res {
-                                // panic!("{err:?}");
-                                log::error!("ipc read err: {}", err);
-                                let _ = se.send(err.to_string()).await;
-                            }
-                        }));
-                    } else {
-                        let pool = target.clone();
-                        let lock = sql_lock.clone();
-                        let config = config.clone();
-                        let parser = parser.clone();
-                        let connector = connector.clone();
-                        let transferred = transferred.clone();
-                        handlers.push(tokio::spawn(async move {
-                            // let dsn: Dsn = "taos:///db2".parse().unwrap();
-                            // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
-                            info!("Spawned IPC reader");
-                            let res = ipc_tcp_read(
-                                client,
-                                pool,
-                                stream,
-                                lock,
-                                config,
-                                cancel,
-                                parser,
-                                connector,
-                                transferred,
-                            )
-                            .await;
-                            if let Err(err) = res {
-                                // panic!("{err:?}");
-                                println!("{err:?}");
-                                log::error!("ipc read err: {}", err);
-                                let _ = se.send(err.to_string()).await;
-                            }
-                        }));
-                    }
-                }
-                Err(e) => {
-                    /* connection failed */
-                    tracing::info!("IPC stream acceptation error {e}, might be stopped");
+    let thread = tokio::task::spawn(
+        async move {
+            info!("waiting for IPC connections");
+            let mut handlers = vec![];
+            loop {
+                if closed2.load(std::sync::atomic::Ordering::SeqCst) {
+                    tracing::debug!("IPC stopped");
                     break;
                 }
+                match socket.accept().await {
+                    Ok((stream, addr)) => {
+                        log::info!("new tcp client!: {:?}", addr);
+                        let stream = stream.into_std().unwrap();
+                        let _ = stream.set_nonblocking(false);
+                        let client = addr.to_string();
+                        let se = sender.clone();
+                        let cancel = cancel.clone();
+
+                        if let Some((id, server, token)) = with_agent.clone() {
+                            handlers.push(tokio::spawn(async move {
+                                let res =
+                                    ipc_tcp_forward(client, stream, cancel, server, token, id)
+                                        .await;
+                                if let Err(err) = res {
+                                    // panic!("{err:?}");
+                                    log::error!("ipc read err: {}", err);
+                                    let _ = se.send(err.to_string()).await;
+                                }
+                            }));
+                        } else {
+                            let pool = target.clone();
+                            let lock = sql_lock.clone();
+                            let config = config.clone();
+                            let parser = parser.clone();
+                            let connector = connector.clone();
+                            let transferred = transferred.clone();
+                            handlers.push(tokio::spawn(async move {
+                                // let dsn: Dsn = "taos:///db2".parse().unwrap();
+                                // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+                                info!("Spawned IPC reader");
+                                let res = ipc_tcp_read(
+                                    client,
+                                    pool,
+                                    stream,
+                                    lock,
+                                    config,
+                                    cancel,
+                                    parser,
+                                    connector,
+                                    transferred,
+                                )
+                                .await;
+                                if let Err(err) = res {
+                                    // panic!("{err:?}");
+                                    println!("{err:?}");
+                                    log::error!("ipc read err: {}", err);
+                                    let _ = se.send(err.to_string()).await;
+                                }
+                            }));
+                        }
+                    }
+                    Err(e) => {
+                        /* connection failed */
+                        tracing::info!("IPC stream acceptation error {e}, might be stopped");
+                        break;
+                    }
+                }
+            }
+            tracing::info!("IPC stream listener stopped");
+            tokio::time::sleep(Duration::from_micros(1000)).await;
+            for h in handlers {
+                let _ = h.await;
             }
         }
-        tracing::info!("IPC stream listener stopped");
-        tokio::time::sleep(Duration::from_micros(1000)).await;
-        for h in handlers {
-            let _ = h.await;
-        }
-    });
+        .instrument(tracing::info_span!("plain_ipc_listener")),
+    );
     tokio::spawn(async move {
         let _ = receiver.recv().await;
         tracing::debug!("shutdown socket");

@@ -247,7 +247,7 @@ pub async fn opentsdb_to_taos(
             None,
             cancel.clone(),
             with_agent.unwrap(),
-        )?
+        ).await?
     };
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
@@ -368,7 +368,7 @@ pub async fn opentsdb_to_taos(
     Ok(())
 }
 
-pub async fn opentsdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
+pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let host = dsn
         .addresses
         .first()

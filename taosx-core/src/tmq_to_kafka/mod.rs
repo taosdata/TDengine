@@ -18,6 +18,7 @@ pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn clean_task(from: Dsn, task_id: String) -> Result<()> {
     let taos = TaosBuilder::from_dsn(from)?.build()?;
     let topic = tmq_topic_name(task_id);

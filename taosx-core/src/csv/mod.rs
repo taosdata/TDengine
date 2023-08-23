@@ -90,7 +90,8 @@ pub async fn csv_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
     let socket = format!("127.0.0.1:{}", port);
-    let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
+    let (abort, mut closed) =
+        build_ipc(&socket, parser, &to, &cancel, with_agent, transferred).await?;
 
     let mut source = CsvSource::new(&mut from, port)?;
 

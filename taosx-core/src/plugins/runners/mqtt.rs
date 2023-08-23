@@ -239,7 +239,7 @@ pub async fn mqtt_to_taos(
             None,
             cancel.clone(),
             with_agent.unwrap(),
-        )?
+        ).await?
     };
     let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
