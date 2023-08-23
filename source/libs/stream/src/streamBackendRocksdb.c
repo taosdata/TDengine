@@ -790,14 +790,13 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
     for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
       if (wrapper->pHandle[i]) {
         rocksdb_column_family_handle_t* p = wrapper->pHandle[i];
-        size_t                          len = 0;
-        char*                           name = rocksdb_column_family_handle_get_name(p, &len);
-        // char                            buf[64] = {0};
-        // memcpy(buf, name, len);
-        // qError("column name: name: %s, len: %d", buf, (int)len);
-        // taosMemoryFree(name);
-
         taosArrayPush(pHandle, &p);
+        //  size_t                          len = 0;
+        //  char*                           name = rocksdb_column_family_handle_get_name(p, &len);
+        //   char                            buf[64] = {0};
+        //   memcpy(buf, name, len);
+        //   qError("column name: name: %s, len: %d", buf, (int)len);
+        //   taosMemoryFree(name);
       }
     }
     taosThreadRwlockUnlock(&wrapper->rwLock);
