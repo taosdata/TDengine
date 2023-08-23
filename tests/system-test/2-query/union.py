@@ -191,7 +191,7 @@ class TDTestCase:
         if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
-    def union_check(self):
+    def union_check(self, dbname = "db"):
         sqls = self.sql_list()
         for i in range(len(sqls)):
             tdSql.query(sqls[i])
