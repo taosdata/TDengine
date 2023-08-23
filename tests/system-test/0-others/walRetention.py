@@ -147,13 +147,13 @@ class VNode :
         if self.lastVer != -1 and ret:
             # first wal file ignore
             if walFile.startVer == self.firstVer:
-                tdLog.info(f"  {walFile.pathFile} can del, but is first. snapVer={self.snapVer} firstVer={self.firstVer}")
+                tdLog.info(f"    can del {walFile.pathFile}, but is first. snapVer={self.snapVer} firstVer={self.firstVer}")
                 return False
 
             # ver in stay range 
             smallVer = self.snapVer - self.walStayRange -1
             if walFile.startVer >= smallVer:
-                tdLog.info(f"  {walFile.pathFile} can del, but range not arrived. snapVer={self.snapVer} smallVer={smallVer}")
+                tdLog.info(f"    can del {walFile.pathFile}, but range not arrived. snapVer={self.snapVer} smallVer={smallVer}")
                 return False
 
         return ret
@@ -165,14 +165,16 @@ class VNode :
         max = -1
         for walFile in self.walFiles:
             if self.canDelete(walFile) == False:
-                tdLog.info(f"  calc vnode size {walFile.pathFile} size={walFile.fsize}")
+                tdLog.info(f"  calc vnode size {walFile.pathFile} size={walFile.fsize} startVer={walFile.startVer}")
                 size += walFile.fsize
                 if max < walFile.startVer:
                     max = walFile.startVer
                     lastSize = walFile.fsize
 
-        size -= lastSize
-        tdLog.info(f" last file size need reduct . lastSize={lastSize}")    
+        
+        if lastSize > 0:
+            tdLog.info(f" last file size need reduct . lastSize={lastSize}")
+            size -= lastSize
         return size
     
     # vnode
@@ -212,7 +214,7 @@ class VNode :
         vnodeSize = self.getWalsSize()
         # need over 20%
         if vnodeSize < self.walSize * 1.2:
-            tdLog.info(f" wal size valid. {self.path} real = {vnodeSize} set = {self.walSize} need over 20%")
+            tdLog.info(f" wal size valid. {self.path} real = {vnodeSize} set = {self.walSize}. allow over 20%.")
             return True
         
         # check over
