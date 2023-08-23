@@ -133,6 +133,7 @@ void mndCleanupStream(SMnode *pMnode) {
   taosArrayDestroy(execNodeList.pTaskList);
   taosHashCleanup(execNodeList.pTaskMap);
   taosThreadMutexDestroy(&execNodeList.lock);
+  mDebug("mnd stream cleanup");
 }
 
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
@@ -2282,9 +2283,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
     int64_t           k[2] = {p->streamId, p->taskId};
-    int32_t           index = *(int32_t *)taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
 
-    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
+    int32_t *pIdx = (int32_t *)taosHashGet(execNodeList.pTaskMap, k, sizeof(k));
+    if (pIdx == NULL) {
+      mDebug("s-task:0x%x not found in global execNodeList", p->taskId);
+      continue;
+    };
+    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, *pIdx);
     pStatusEntry->status = p->status;
     if (p->status != TASK_STATUS__NORMAL) {
       mDebug("received s-task:0x%x no in ready stat:%s", p->taskId, streamGetTaskStatusStr(p->status));
