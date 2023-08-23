@@ -25,8 +25,8 @@ namespace TDPIConnector.Core
             public string AFTreeTagName { get; set; } = "location";
             public int HttpMaxRetryTimes { get; set; } = 3;
             public string TDDataBase { get; set; } = "pi";
-            public List<string> TemplateForPIPoint { get; set; }
-            public List<string> TemplateForAFElement { get; set; }
+            public List<string> TemplateForPIPoint { get; set; } = new List<string>();
+            public List<string> TemplateForAFElement { get; set; } = new List<string>();
             public List<string> PointList { get; set; }
 
             // not support
