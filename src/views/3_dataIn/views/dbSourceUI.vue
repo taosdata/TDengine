@@ -3,7 +3,7 @@
     <div
       :class="[
         'left-ui',
-        this.$parent.currentTaskStatus == 'running' ? 'readable' : '',
+        (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
       ]"
     >
       <section class="header">

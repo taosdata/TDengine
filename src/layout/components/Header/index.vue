@@ -107,19 +107,6 @@ export default {
               : this.license[0].valid
               ? "License Expired"
               : "");
-          console.log(
-            this.version,
-            "this.license---header",
-            this.license[0].version,
-            this.license[0].valid,
-            this.license[0].version == "trial"
-              ? this.license[0].valid
-                ? "Expired"
-                : ""
-              : this.license[0].valid
-              ? "License Expired"
-              : ""
-          );
         });
       } catch (error) {
         console.log(error);

@@ -234,6 +234,9 @@ export default {
       return "/" + path.split("/")[1];
     },
   },
+  mounted(){
+    // console.log(process.env.VUE_APP_CUS_INFO,'可配置的彩蛋项目');
+  }
 };
 </script>
 
