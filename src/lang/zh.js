@@ -933,6 +933,7 @@ export default {
     μs:'微秒',
     ns:'纳秒',
     getschema:'获取Schema',
+    getmetrics:'获取Metrics',
     refreshsuccess:'刷新成功',
     influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
     taskid:'任务ID',

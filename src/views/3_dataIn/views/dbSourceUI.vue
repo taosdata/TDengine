@@ -11,10 +11,10 @@
       </section>
       <div class="source-name" v-if="isEditable">
         <div class="block-title">
-          <span>{{$t('datasource.sourcename')}}</span>
+          <span>{{ $t("datasource.sourcename") }}</span>
         </div>
         <div class="name">
-          <span class="label">{{$t('name')}}</span>
+          <span class="label">{{ $t("name") }}</span>
           <el-input
             v-model="sourceName"
             placeholder=""
@@ -480,27 +480,36 @@
                     p.hint?.type === 'duration'
                   "
                 >
-                  <el-input v-model="p.value" :placeholder="p.placeholder"></el-input>
+                  <el-input
+                    v-model="p.value"
+                    :placeholder="p.placeholder"
+                  ></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <div v-if="p.hint.choices" class="select-with-btn">
                     <el-select
-                      v-if="['bucket','measurements'].includes(p.name)"
+                      v-if="['bucket', 'measurements','metrics'].includes(p.name)"
                       v-model="p.value"
                       placeholder=""
                       :style="
-                        p.name === 'bucket' 
-                        ? {width: '80%', marginLeft: '-15px',marginRight: '8px'} 
-                        : {marginLeft: '-15px'}
+                        p.name === 'bucket'
+                          ? {
+                              width: '80%',
+                              marginLeft: '-15px',
+                              marginRight: '8px',
+                            }
+                          : { marginLeft: '-15px' }
                       "
                       :allow-create="true"
                       filterable
                       default-first-option
                       :multiple="p.multiple"
-                      @change="value => changeBucket(value,p.name)"
+                      @change="(value) => changeBucket(value, p.name)"
                     >
                       <el-option
-                        v-for="c in (p.name == 'bucket') ? bucketList: measurementList[0]?.children"
+                        v-for="c in p.name == 'bucket'
+                          ? bucketList
+                          : p.name=='metrics'?metricsList:measurementList[0]?.children"
                         :key="c.id || c"
                         :label="c.id || c"
                         :value="c.id || c"
@@ -510,7 +519,7 @@
                       v-else
                       v-model="p.value"
                       placeholder=""
-                      style="margin-left: -15px;"
+                      style="margin-left: -15px"
                     >
                       <el-option
                         v-for="c in p.hint.choices"
@@ -519,12 +528,31 @@
                         :value="c"
                       ></el-option>
                     </el-select>
-                    <el-button 
-                      v-if="p.name === 'bucket'" 
-                      size="medium" type="primary" plain 
+                    <template
+                      v-if="tagName == 'opentsdb' && p.name == 'metrics'"
+                    >
+                      <el-button
+                        style="margin-left: 10px"
+                        v-if="p.name == 'metrics'"
+                        size="medium"
+                        type="primary"
+                        plain
+                        :disable="btnLoading"
+                        :loading="btnLoading"
+                        @click="() => getMetrics(true)"
+                        >{{ $t("datasource.getmetrics") }}</el-button
+                      >
+                    </template>
+                    <el-button
+                      v-else-if="p.name === 'bucket'"
+                      size="medium"
+                      type="primary"
+                      plain
                       :disable="btnLoading"
                       :loading="btnLoading"
-                      @click="() => getSchema(true)">{{$t('datasource.getschema')}}</el-button>
+                      @click="() => getSchema(true)"
+                      >{{ $t("datasource.getschema") }}</el-button
+                    >
                   </div>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
@@ -556,9 +584,7 @@
                   <DatePicker
                     v-model="p.value"
                     type="datetime"
-                    v-if="
-                      p.name == 'beginTime' || p.name == 'endTime' 
-                    "
+                    v-if="p.name == 'beginTime' || p.name == 'endTime'"
                     :picker-options="
                       p.name == 'beginTime' ? startOption : endOption
                     "
@@ -569,9 +595,7 @@
                   <DatePicker
                     v-model="p.value"
                     type="datetime"
-                    v-if="
-                      p.name === 'start' || p.name == 'end'
-                    "
+                    v-if="p.name === 'start' || p.name == 'end'"
                     :picker-options="
                       p.name === 'start' ? startOption : endOption
                     "
@@ -619,7 +643,7 @@
       <section class="choose-db">
         <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
         <div class="target-db-name">
-          <el-select v-model="dbname" placeholder="" style="margin-right: 8px;">
+          <el-select v-model="dbname" placeholder="" style="margin-right: 8px">
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -629,8 +653,8 @@
           </el-select>
           <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
         </div>
-        <el-button size="medium" type="primary" plain  @click="handleDbBtn">
-          {{ $t('data.createDatabase') }}
+        <el-button size="medium" type="primary" plain @click="handleDbBtn">
+          {{ $t("data.createDatabase") }}
         </el-button>
       </section>
       <section class="bottom">
@@ -656,14 +680,14 @@
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
-import DatePicker from '@/components/date-picker'
+import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
 import { debounce, parsinginZone } from "@/utils/index";
-import DialogCreateDb from '../components/addDbDialog.vue';
+import DialogCreateDb from "../components/addDbDialog.vue";
 export default {
   name: "DbSourceUI",
-  components: {DatePicker,DialogCreateDb},
+  components: { DatePicker, DialogCreateDb },
   props: {
     // sourceName: {
     //   type: String,
@@ -695,12 +719,12 @@ export default {
 
   data() {
     const startTimeOption = (time) => {
-      let endLsit = this.dbsource[0].groups.map(g => {
+      let endLsit = this.dbsource[0].groups.map((g) => {
         return g.params.filter(
-          (item) => (item.name == "endTime" || item.name == 'end')
+          (item) => item.name == "endTime" || item.name == "end"
         );
-      })
-      let end = endLsit.filter(item => item.length > 0)[0]
+      });
+      let end = endLsit.filter((item) => item.length > 0)[0];
 
       if (end[0].value) {
         return time.getTime() > new Date(end[0].value).getTime();
@@ -709,15 +733,18 @@ export default {
       }
     };
     const endTimeOption = (time) => {
-      let startLsit = this.dbsource[0].groups.map(g => {
+      let startLsit = this.dbsource[0].groups.map((g) => {
         return g.params.filter(
-          (item) => (item.name == "beginTime" || item.name == 'start')
+          (item) => item.name == "beginTime" || item.name == "start"
         );
-      })
-      let start = startLsit.filter(item => item.length > 0)[0]
+      });
+      let start = startLsit.filter((item) => item.length > 0)[0];
 
       if (start[0].value) {
-        return time.getTime() < (new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000);
+        return (
+          time.getTime() <
+          new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000
+        );
       } else {
         return false;
       }
@@ -737,13 +764,16 @@ export default {
         .filter((val) => val.name == "Backfill")[0]
         .params.filter((item) => item.name == "BackfillStartTime");
       if (start[0].value) {
-        return time.getTime() < (new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000);
+        return (
+          time.getTime() <
+          new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000
+        );
       } else {
         return false;
       }
     };
     return {
-      sourceName:localStorage.getItem('datainName'),
+      sourceName: localStorage.getItem("datainName"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -781,7 +811,8 @@ export default {
       dbsource: [],
       btnLoading: false,
       bucketList: [],
-      measurementList: []
+      measurementList: [],
+      metricsList:[]
     };
   },
   created() {
@@ -789,8 +820,8 @@ export default {
     this.dbsource = this.dbsourceList;
     if (this.isEditable) {
       this.dbname = this.dbName;
-      this.handleEditData()
-      this.getSchema(false)
+      this.handleEditData();
+      this.getSchema(false);
     }
   },
   mounted() {
@@ -810,34 +841,37 @@ export default {
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
         if (!val) {
-          this.getDatabases()
+          this.getDatabases();
         }
-      }
-    }
+      },
+    },
   },
   methods: {
     handleEditData() {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
         group.params.map((p) => {
-          if ((p.hint === 'time' || p.hint?.type === 'time') && p.value) {
+          if ((p.hint === "time" || p.hint?.type === "time") && p.value) {
             // 时间返回值适配时区后再根据 placeholder字段 格式化
-            if (p.name == 'start' || p.name == 'end' || 
-              p.name == 'beginTime' || p.name == 'endTime') 
-            {
-              p.value = parsinginZone(p.value)
+            if (
+              p.name == "start" ||
+              p.name == "end" ||
+              p.name == "beginTime" ||
+              p.name == "endTime"
+            ) {
+              p.value = parsinginZone(p.value);
             } else {
-              p.value = parsinginZone(p.value, p.placeholder)
+              p.value = parsinginZone(p.value, p.placeholder);
             }
           }
-          if (p.multiple && p.value && typeof p.value =='string') {
+          if (p.multiple && p.value && typeof p.value == "string") {
             // 多选下拉框的返回值改为数组
-            let newVal = p.value.split()
-            p.value = newVal
+            let newVal = p.value.split();
+            p.value = newVal;
           }
-            return p
-          });
-          return group
+          return p;
         });
+        return group;
+      });
     },
     handleTime(time, name) {
       if (time) {
@@ -845,11 +879,11 @@ export default {
           group.params.map((p) => {
             if (p.name == name) {
               // RFC3339 时间格式，带时区
-              p.value = parsinginZone(time)
+              p.value = parsinginZone(time);
             }
-              return p
-            });
-              return group
+            return p;
+          });
+          return group;
         });
       }
     },
@@ -925,7 +959,7 @@ export default {
             return;
           }
         }
-        if (this.tagName === "datasource" || this.tagName === 'taos') {
+        if (this.tagName === "datasource" || this.tagName === "taos") {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "plain"
@@ -1092,7 +1126,7 @@ export default {
         }
         let apiParams = {
           from:
-            (this.tagName === "datasource" ? "tmq" : 'taos') + 
+            (this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
               ? Object.is(data.protocol.value, "--")
                 ? ""
@@ -1133,7 +1167,15 @@ export default {
           let piParams = {
             from:
               this.tagName == "influxdb"
-                ? "influxdb" + (data.protocol ? (Object.is(data.protocol.value, "--") ? "" : "+"):'')  + dns
+                ? "influxdb" +
+                  (data.protocol
+                    ? Object.is(data.protocol.value, "--")
+                      ? ""
+                      : "+"
+                    : "") +
+                  dns
+                : this.tagName == "opentsdb"
+                ? this.tagName + "+" + dns
                 : this.tagName + dns,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
@@ -1151,7 +1193,7 @@ export default {
           if (this.$parent.agentID) {
             piParams["via"] = this.$parent.agentID;
           }
-          if (this.isEditable&&this.editId) {
+          if (this.isEditable && this.editId) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);
@@ -1179,13 +1221,13 @@ export default {
     },
 
     cancel() {
-      this.$parent.currentName = 'dbsource'
+      this.$parent.currentName = "dbsource";
     },
-    
+
     handleDbBtn() {
       this.$store.commit("dbs/HANDLE_ADD_DB");
-      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
-      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "datain");
+      this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
     },
 
     handleClick(tab, event) {
@@ -1290,13 +1332,13 @@ export default {
               Message({
                 type: "error",
                 message: res && res.message,
-              }); 
+              });
             } else {
               this.configurationdata = res;
               Message({
                 type: "success",
-                message: this.$t('operateSucc'),
-              }); 
+                message: this.$t("operateSucc"),
+              });
             }
             this.loading = false;
           })
@@ -1311,22 +1353,49 @@ export default {
       }
     }, 100),
     changeBucket(value, name, choices) {
-      if(name === 'bucket') {
-        this.measurementList = this.bucketList.filter(item => item.id == value)
+      if (name === "bucket") {
+        this.measurementList = this.bucketList.filter(
+          (item) => item.id == value
+        );
         // 清空 Measurements
         this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
           group.params.map((p) => {
-            if (p.name === 'measurements') {
-              p.value = []
+            if (p.name === "measurements") {
+              p.value = [];
             }
-            return p
+            return p;
           });
-          return group
+          return group;
         });
       }
     },
+    //opentsdb获取metrics
+    async getMetrics() {
+      this.btnLoading = true;
+      let data = this.dbsource[0];
+      let obj = {
+        from:
+          "opentsdb+" +
+          data.protocol.value +
+          "://" +
+          data.options.host.value +':'+
+          data.options.port.value,
+        name: "",
+        categories: ["nodes"],
+        pattern: "api",
+        offset: 0,
+        limit: 10,
+      };
+      let result = await getUaAndDaData(obj)
+      this.btnLoading=false
+      if(result&&result.message){
+        Message.error(result.message)
+        return
+      }
+      this.metricsList=JSON.parse(result[0].id)
+    },
     getSchema(isNeedTip) {
-      this.btnLoading = true
+      this.btnLoading = true;
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1337,7 +1406,7 @@ export default {
             ? ""
             : data.protocol.value;
         }
-        
+
         for (let key of Object.keys(data.options)) {
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
@@ -1348,7 +1417,7 @@ export default {
               type: "warning",
               message: `${enterTip} ${data.options[key].display} `,
             });
-            this.btnLoading = false
+            this.btnLoading = false;
             return;
           }
         }
@@ -1385,7 +1454,7 @@ export default {
             this.changeHost(data.options.host.value);
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
-              this.btnLoading = false
+              this.btnLoading = false;
               return;
             }
           }
@@ -1394,7 +1463,7 @@ export default {
 
         if (data.options.port) {
           if (!this.isPort && this.tagName == "influxdb") {
-            this.btnLoading = false
+            this.btnLoading = false;
             Message.warning(this.$t("datasource.porttip"));
             return;
           }
@@ -1415,14 +1484,14 @@ export default {
         // groups 是否需要校验必填
         for (let index = 0; index < data.groups.length; index++) {
           for (let g of Object.keys(data.groups[index].params)) {
-              if (data.groups[index].params[g].value) {
-                querystr +=
-                  `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                  "&";
-              }
+            if (data.groups[index].params[g].value) {
+              querystr +=
+                `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                "&";
+            }
           }
         }
-        // 
+        //
         if (this.tagName == "influxdb") {
           let result = this.dbsource[0].authentication.alternatives.filter(
             (item) => item.name == this.dbsource[0].authentication.value
@@ -1457,7 +1526,7 @@ export default {
           });
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        
+
         let apiParams = {
           from:
             "tmq" +
@@ -1468,71 +1537,73 @@ export default {
               : "") +
             dns,
           name: this.sourceName,
-          categories:["nodes"],
+          categories: ["nodes"],
           pattern: "api",
-          offset:0,
-          limit:10,
+          offset: 0,
+          limit: 10,
         };
         if (this.$parent.agentID) {
           apiParams["via"] = this.$parent.agentID;
         }
         if (this.tagName === "datasource") {
           getUaAndDaData(apiParams)
-          .then((res) => {
-            console.log('apiParams',res);
-          })
-          .catch((err) => {
-            Message({
-              type: "error",
-              message: err,
+            .then((res) => {
+              console.log("apiParams", res);
+            })
+            .catch((err) => {
+              Message({
+                type: "error",
+                message: err,
+              });
             });
-          });         
         } else {
           let piParams = {
             from:
               this.tagName == "influxdb"
-                ? "influxdb" + (data.protocol
-                  ? Object.is(data.protocol.value, "--")
-                    ? ""
-                    : "+"
-                  : "") + dns
+                ? "influxdb" +
+                  (data.protocol
+                    ? Object.is(data.protocol.value, "--")
+                      ? ""
+                      : "+"
+                    : "") +
+                  dns
                 : this.tagName + dns,
-            categories:["nodes"],
+            categories: ["nodes"],
             pattern: "api",
-            offset:0,
-            limit:10,
-            };
+            offset: 0,
+            limit: 10,
+          };
           if (this.$parent.agentID) {
             piParams["via"] = this.$parent.agentID;
           }
-            getUaAndDaData(piParams)
+          getUaAndDaData(piParams)
             .then((res) => {
-              console.log('res',res);
               if (res && res.code && res.code != 0) {
                 Message({
                   type: "error",
                   message: res && res.message,
-                }); 
+                });
               } else {
-                this.bucketList = res[0].id !== '' && Object.keys(JSON.parse(res[0].id)).map(item => {
-                  return {id: item, children: JSON.parse(res[0].id)[item]}
-                }) 
+                this.bucketList =
+                  res[0].id !== "" &&
+                  Object.keys(JSON.parse(res[0].id)).map((item) => {
+                    return { id: item, children: JSON.parse(res[0].id)[item] };
+                  });
                 if (this.isEditable) {
-                  let bucketVal = this.dbsource[0].groups[0].params[0].value
-                  this.changeBucket(bucketVal,'bucket')
+                  let bucketVal = this.dbsource[0].groups[0].params[0].value;
+                  this.changeBucket(bucketVal, "bucket");
                 }
                 if (isNeedTip) {
                   Message({
                     type: "success",
-                    message: this.$t('operateSucc'),
+                    message: this.$t("operateSucc"),
                   });
                 }
               }
-              this.btnLoading = false
+              this.btnLoading = false;
             })
             .catch((err) => {
-              console.log('err',err);
-              this.btnLoading = false
+              this.btnLoading = false;
               if (isNeedTip) {
                 Message({
                   type: "error",
@@ -1542,8 +1613,7 @@ export default {
             });
         }
       } catch (err) {
-        this.btnLoading = false
-        console.log('err');
+        this.btnLoading = false;
       }
     },
   },
@@ -1575,11 +1645,11 @@ export default {
       display: block;
       background: #f2f6fc40;
       position: absolute;
-      top:0;
+      top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      z-index:100;
+      z-index: 100;
     }
   }
 
@@ -1749,15 +1819,14 @@ export default {
       }
     }
     :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 38px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      .el-input-number__increase,
+      .el-input-number__decrease {
+        height: 38px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
     }
-  }
-
   }
   .right-ui {
     margin-left: 20px;
@@ -1771,7 +1840,7 @@ export default {
   .description {
     display: initial !important;
     color: #acaab2;
-    margin-bottom: 0px !important;
+    margin-bottom: 8px !important;
     white-space: normal !important;
   }
   .target {

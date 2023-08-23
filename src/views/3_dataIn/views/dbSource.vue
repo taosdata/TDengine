@@ -151,6 +151,10 @@ export default {
             this.currentName = "ui";
             this.tagName = "influxdb";
             break;
+          case "opentsdb":
+            this.currentName = "ui";
+            this.tagName = "opentsdb";
+            break;
           case "pitable":
             this.currentName = "dbsource";
             this.tagName = "pi";
@@ -212,6 +216,10 @@ export default {
           case "influxdb":
             this.currentName = "ui";
             this.tagName = "influxdb";
+            break;
+          case "opentsdb":
+            this.currentName = "ui";
+            this.tagName = "opentsdb";
             break;
           case "mqtt":
             this.currentName = "opcui";
