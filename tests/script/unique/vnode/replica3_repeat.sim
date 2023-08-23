@@ -104,6 +104,7 @@ sql select count(*) from db.tb
 if $data00 <= $lastRows then
   sql reset query cache
   sql select count(*) from db.tb
+endi  
 print select count(*) from db.tb ==> $data00 $lastRows 
 if $data00 <= $lastRows then
   return -1
