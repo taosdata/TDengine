@@ -1890,6 +1890,9 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     taosWLockLatch(&pMeta->lock);
     streamSetStatusNormal(pTask);
     streamMetaSaveTask(pMeta, pTask);
+    if (streamMetaCommit(pMeta) < 0) {
+      //     persist to disk
+    }
     taosWUnLockLatch(&pMeta->lock);
   }
   streamTaskStop(pTask);
@@ -1905,25 +1908,27 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   // all tasks are closed, now let's restart the stream meta
   if (pMeta->closedTask == numOfCount) {
     tqDebug("vgId:%d all tasks are updated, commit the update nodeInfo", vgId);
-    if (streamMetaCommit(pMeta) < 0) {
+//    if (streamMetaCommit(pMeta) < 0) {
       //     persist to disk
-    }
+//    }
     restartTasks = true;
     pMeta->closedTask = 0;  // reset value
+  } else {
+    tqDebug("vgId:%d closed tasks:%d, not closed:%d", vgId, pMeta->closedTask, (numOfCount - pMeta->closedTask));
   }
 
   taosWUnLockLatch(&pMeta->lock);
 
 _end:
   tDecoderClear(&decoder);
-  tmsgSendRsp(&rsp);
+//  tmsgSendRsp(&rsp);
 
   if (restartTasks) {
     tqDebug("vgId:%d all tasks are stopped, restart them", vgId);
     taosWLockLatch(&pMeta->lock);
 
     terrno = 0;
-    int32_t code = streamMetaReopen(pTq->pStreamMeta, 0);
+    int32_t code = streamMetaReopen(pMeta, 0);
     if (code != 0) {
       tqError("vgId:%d failed to reopen stream meta", vgId);
       taosWUnLockLatch(&pMeta->lock);

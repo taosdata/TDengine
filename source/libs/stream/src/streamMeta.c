@@ -56,11 +56,16 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
     goto _err;
   }
+
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb, 0) < 0) {
     goto _err;
   }
 
   if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb, 0) < 0) {
+    goto _err;
+  }
+
+  if (streamMetaBegin(pMeta) < 0) {
     goto _err;
   }
 
@@ -74,10 +79,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->pTaskList = taosArrayInit(4, sizeof(SStreamId));
   if (pMeta->pTaskList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  if (streamMetaBegin(pMeta) < 0) {
     goto _err;
   }
 
@@ -618,22 +619,27 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   SEpSet epset = {0};
 
-  hbMsg.numOfTasks = numOfTasks;
   hbMsg.vgId = pMeta->vgId;
   hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
+
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamId* pId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamId*    pId = taosArrayGet(pMeta->pTaskList, i);
+    int64_t       keys[2] = {pId->streamId, pId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
 
-    int64_t          keys[2] = {pId->streamId, pId->taskId};
-    SStreamTask**    pTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if ((*pTask)->info.fillHistory == 1) {
+      continue;
+    }
+
     STaskStatusEntry entry = {.streamId = pId->streamId, .taskId = pId->taskId, .status = (*pTask)->status.taskStatus};
-
     taosArrayPush(hbMsg.pTaskStatus, &entry);
+
     if (i == 0) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
     }
   }
 
+  hbMsg.numOfTasks = taosArrayGetSize(hbMsg.pTaskStatus);
   taosRUnLockLatch(&pMeta->lock);
 
   int32_t code = 0;

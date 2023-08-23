@@ -348,6 +348,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  pTask->status.timerActive = 0;
   pTask->inputQueue = streamQueueOpen(512 << 10);
   pTask->outputInfo.queue = streamQueueOpen(512 << 10);
 
@@ -533,7 +534,7 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
     epsetAssign(&pTask->info.epSet, pEpSet);
     EPSET_TO_STR(pEpSet, buf)
-    qDebug("s-task:0x%x (vgId:%d) epset is updated %s", pTask->id.taskId, nodeId, buf);
+    qDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
   }
 
   // check for the dispath info and the upstream task info
