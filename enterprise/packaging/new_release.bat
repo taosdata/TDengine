@@ -88,6 +88,10 @@ cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .
 if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
+
+md %install_dir%\include
+xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
+
 if "%verType%" == "cluster" (
 	md  %install_dir%\connector
 	git clone --depth 1 https://github.com/taosdata/driver-go %install_dir%/connector/go

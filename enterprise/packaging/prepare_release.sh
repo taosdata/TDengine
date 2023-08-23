@@ -28,6 +28,7 @@ cd $TOP_DIR/$1/grant-lib
 git tag ver-$1
 git push origin ver-$1
 
+cd $TOP_DIR/$1
 
 if [ -d $TOP_DIR/$1/TDengine ]; then
 	cd $TOP_DIR/$1/TDengine
@@ -50,6 +51,7 @@ git push origin release/ver-$1
 git tag ver-$1
 git push origin ver-$1
 	
+cd $TOP_DIR/$1
 
 if [ -d $TOP_DIR/$1/TDinternal ]; then
 	cd $TOP_DIR/$1/TDinternal
@@ -60,7 +62,7 @@ if [ -d $TOP_DIR/$1/TDinternal ]; then
 	git push origin --delete release/ver-$1
 	git pull
 else
-	git clone -b main --depth=1 https://github.com/taosdata/TDengine.git
+	git clone -b main --depth=1 https://github.com/taosdata/TDinternal.git
 fi
 cd $TOP_DIR/$1/TDinternal
 git checkout -b release/ver-$1
