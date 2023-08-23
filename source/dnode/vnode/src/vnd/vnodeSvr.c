@@ -523,6 +523,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
+      tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg);
+      break;
+    case TDMT_VND_STREAM_TASK_UPDATE:
+      tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
+      break;
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
       goto _exit;
@@ -678,10 +684,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
       return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
-      return tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_TASK_UPDATE:
-      return tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessStreamTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     default:

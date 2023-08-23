@@ -533,7 +533,7 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
     epsetAssign(&pTask->info.epSet, pEpSet);
     EPSET_TO_STR(pEpSet, buf)
-    qDebug("s-task:0x%x (vgId:%d) epset is updated %s", pTask->id.taskId, nodeId, buf);
+    qDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
   }
 
   // check for the dispath info and the upstream task info

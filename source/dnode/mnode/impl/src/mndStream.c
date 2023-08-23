@@ -2273,6 +2273,7 @@ static void keepStreamTasksInBuf(SStreamObj* pStream, SStreamVnodeRevertIndex* p
     doExtractTasksFromStream(pMnode);
   }
 
+  // todo remove it when drop stream
   for(int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry* p = taosArrayGet(req.pTaskStatus, i);
     int64_t k[2] = {p->streamId, p->taskId};
