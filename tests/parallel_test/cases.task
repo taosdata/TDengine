@@ -6,6 +6,21 @@
 ,,y,unit-test,bash test.sh
 
 #system test
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_session.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_state_window.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_interval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_state_window.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_session.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval_ext.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval_ext.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3

@@ -111,7 +111,7 @@ class TDSql:
             return self.error_info
 
 
-    def query(self, sql, row_tag=None,queryTimes=10):
+    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
         self.sql = sql
         i=1
         while i <= queryTimes:
@@ -120,6 +120,17 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
+
+                if count_expected_res is not None:
+                    counter = 0
+                    while count_expected_res != self.queryResult[0][0]:
+                        self.cursor.execute(sql)
+                        self.queryResult = self.cursor.fetchall()
+                        if counter < queryTimes:
+                            counter += 0.5
+                            time.sleep(0.5)
+                        else:
+                            return False
                 if row_tag:
                     return self.queryResult
                 return self.queryRows
@@ -501,7 +512,8 @@ class TDSql:
 
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-        tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+        # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+        raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:
@@ -509,7 +521,8 @@ class TDSql:
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-            tdLog.exit("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
+            tdLog.info("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
+            raise Exception
 
     def get_times(self, time_str, precision="ms"):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
