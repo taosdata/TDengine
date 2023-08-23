@@ -94,8 +94,8 @@ $i = 2
 $tb = $tbPrefix . $i
 sql insert into $tb values (now + 1m , 1 ) 
 
-print sleep 8000
-sleep 8000
+print sleep 16000
+sleep 16000
 
 print =============== step6
 
