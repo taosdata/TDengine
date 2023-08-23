@@ -348,6 +348,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  pTask->status.timerActive = 0;
   pTask->inputQueue = streamQueueOpen(512 << 10);
   pTask->outputInfo.queue = streamQueueOpen(512 << 10);
 
