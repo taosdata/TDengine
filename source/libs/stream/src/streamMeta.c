@@ -663,6 +663,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
   tEncoderClear(&encoder);
 
+  taosArrayDestroy(hbMsg.pTaskStatus);
+
   SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
   msg.info.noResp = 1;
