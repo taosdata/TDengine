@@ -254,9 +254,9 @@ public class MetricThread implements Runnable {
         Date begin = DateUtils.stringWithZoneToDate(beginTime);
         Date end = DateUtils.stringWithZoneToDate(endTime);
         this.endTime = end;
-        // 默认按天拆分
+        // 默认按分钟拆分
         if (StringUtils.isEmpty(readWindow)) {
-            readWindow = "D";
+            readWindow = "M";
         }
         // 根据不同拆分方式得到相应计算结果
         if (readWindow.equalsIgnoreCase("D")) {
