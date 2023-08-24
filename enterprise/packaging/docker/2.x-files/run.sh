@@ -330,7 +330,7 @@ function initDnodeAndMnode {
                 fi
             else 
                 MNODE_CREATED=1
-                logger "INFO" "mnode $MNODETmp already existed"
+                logger "INFO" "Mnode $MNODETmp already created"
             fi
         else
             # check admin_user created or not
