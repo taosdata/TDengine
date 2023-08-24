@@ -792,12 +792,6 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
       if (wrapper->pHandle[i]) {
         rocksdb_column_family_handle_t* p = wrapper->pHandle[i];
         taosArrayPush(pHandle, &p);
-        //  size_t                          len = 0;
-        //  char*                           name = rocksdb_column_family_handle_get_name(p, &len);
-        //   char                            buf[64] = {0};
-        //   memcpy(buf, name, len);
-        //   qError("column name: name: %s, len: %d", buf, (int)len);
-        //   taosMemoryFree(name);
       }
     }
     taosThreadRwlockUnlock(&wrapper->rwLock);
@@ -972,8 +966,7 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
 
     // delete obsolte checkpoint
     delObsoleteCheckpoint(arg, pChkpDir);
-
-    // pMeta->chkpId = checkpointId;
+    pMeta->chkpId = checkpointId;
   }
 
 _ERROR:

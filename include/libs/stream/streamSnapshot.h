@@ -16,6 +16,8 @@
 #define _STREAM_BACKEDN_SNAPSHOT_H_
 #include "tcommon.h"
 
+#define STREAM_STATE_TRANSFER "stream-state-transfer"
+
 typedef struct SStreamSnapReader SStreamSnapReader;
 typedef struct SStreamSnapWriter SStreamSnapWriter;
 
