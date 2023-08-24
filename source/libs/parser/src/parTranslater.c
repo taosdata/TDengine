@@ -4702,7 +4702,6 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
-    strcpy(field.comment, pCol->comments);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
@@ -5050,7 +5049,6 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
   strcpy(pSchema->name, pCol->colName);
-  strcpy(pSchema->comment, pCol->comments);
 }
 
 typedef struct SSampleAstInfo {

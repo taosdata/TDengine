@@ -839,7 +839,6 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     pSchema->bytes = pField->bytes;
     pSchema->flags = pField->flags;
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-    memcpy(pSchema->comment, pField->comment, TSDB_COL_COMMENT_LEN);
     pSchema->colId = pDst->nextColId;
     pDst->nextColId++;
   }
@@ -853,7 +852,6 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
       SSCHMEA_SET_IDX_ON(pSchema);
     }
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-    memcpy(pSchema->comment, pField->comment, TSDB_COL_COMMENT_LEN);
     pSchema->colId = pDst->nextColId;
     pDst->nextColId++;
   }
