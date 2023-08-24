@@ -10,6 +10,8 @@ use actix_web::{
     web::{Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
+use metrics_tracing_context::TracingContextLayer;
+use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::Deserialize;
 use tracing::info;
 use tracing_actix_web::TracingLogger;
@@ -105,6 +107,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_agent_activities)
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
+            .service(get_task_metrics_by_id)
             .service(download_files)
             .service(upload_files)
             .service(filemeta);
@@ -182,6 +185,7 @@ impl Cli {
                 task::upload_files,
                 task::filemeta,
                 task::download_files,
+                task::get_task_metrics_by_id,
 
                 metrics::metrics_exporter,
 
@@ -233,7 +237,21 @@ impl Cli {
 
         let metrics_recorder = metrics::Metrics::default().init()?;
         let handle = metrics_recorder.handle();
-        ::metrics::set_boxed_recorder(Box::new(metrics_recorder))?;
+
+        let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
+        let snapshotter = Data::new(debugging_recorder.snapshotter());
+
+        let metrics_allowed_labels = ["task.id", "request_id", "client.address"];
+        let recorder =
+            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(metrics_recorder);
+        let debugging =
+            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(debugging_recorder);
+
+        let fanout = FanoutBuilder::default()
+            .add_recorder(recorder)
+            .add_recorder(debugging)
+            .build();
+        ::metrics::set_boxed_recorder(Box::new(fanout))?;
 
         let recorder = Data::new(handle);
 
@@ -248,6 +266,7 @@ impl Cli {
                 .wrap(cors)
                 .wrap(TracingLogger::default())
                 .app_data(recorder.clone())
+                .app_data(snapshotter.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(
                     MultipartFormConfig::default()

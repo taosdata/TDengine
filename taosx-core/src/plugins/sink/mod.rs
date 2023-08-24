@@ -1599,6 +1599,10 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             }
         }
     }
+    metrics::counter!("ipc.stream.records", count as u64);
+    metrics::counter!("ipc.stream.batches", batches as u64);
+
+
     tracing::Span::current()
         .record(IPC_STREAM_RECORDS, count)
         .record("ipc.stream.batches", batches)

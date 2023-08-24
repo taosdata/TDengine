@@ -7,6 +7,7 @@ use file_rotate::{
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
+use metrics_tracing_context::MetricsLayer;
 use shadow_rs::shadow;
 
 use taosx_core::{
@@ -26,7 +27,6 @@ use mimalloc::MiMalloc;
 
 use time::{macros::format_description, UtcOffset};
 use tracing_subscriber::{
-    filter,
     fmt::{format::FmtSpan, time::OffsetTime},
     prelude::*,
     EnvFilter,
@@ -294,22 +294,26 @@ fn main() -> Result<()> {
                     .boxed(),
             );
         }
+
+        let metrics_layer = MetricsLayer::new();
         if args.globals.otel.unwrap_or(false) {
             let tracer = opentelemetry_jaeger::new_agent_pipeline()
                 .with_service_name("x")
                 .install_simple()?;
-                // .with_auto_split_batch(true)
-                // .install_batch(opentelemetry::runtime::Tokio)?;
+            // .with_auto_split_batch(true)
+            // .install_batch(opentelemetry::runtime::Tokio)?;
 
             // Create a tracing layer with the configured tracer
             let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
             tracing_subscriber::registry()
+                .with(metrics_layer)
                 .with(layers)
                 .with(telemetry)
                 .init();
         } else {
             tracing_subscriber::registry()
+                .with(metrics_layer)
                 .with(layers)
                 .init();
         }

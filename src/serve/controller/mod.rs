@@ -17,6 +17,7 @@ use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::FromRow;
@@ -607,7 +608,11 @@ impl TaskController {
         };
 
         // todo! add trace id to
-        let span = tracing::info_span!("task::spawned", task.id = id, trace_id = tracing::field::Empty);
+        let span = tracing::info_span!(
+            "task::spawned",
+            task.id = id,
+            trace_id = tracing::field::Empty
+        );
         dbg!(tracing::Span::current().metadata());
         // span.record("request", value)
         let opts = TaskOpts {
@@ -965,6 +970,10 @@ impl TaskController {
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);
         }
+
+        let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
+        let _guard = span.enter();
+        counter!("tasks", tasks.len() as u64);
 
         tasks.iter_mut().for_each(|task| task.backport_labels());
         Ok(tasks.into_iter().map(TaskDetail::new).collect())
