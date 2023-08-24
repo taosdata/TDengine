@@ -23,7 +23,10 @@ create_subtable_clause: {
 }
 
 create_definition:
-    col_name column_type
+    col_name column_definition
+
+column_definition:
+    type_name [comment 'string_value']
 
 table_options:
     table_option ...
@@ -89,11 +92,14 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | ADD COLUMN col_name column_type
+  | ADD COLUMN col_name column_definition
   | DROP COLUMN col_name
-  | MODIFY COLUMN col_name column_type
+  | MODIFY COLUMN col_name column_definition
   | RENAME COLUMN old_col_name new_col_name
 }
+
+column_definition:
+    type_name [comment 'string_value']
 
 alter_table_options:
     alter_table_option ...
