@@ -228,9 +228,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
 
-#define TSDB_APP_NAME_LEN    TSDB_UNI_LEN
-#define TSDB_TB_COMMENT_LEN  1025
-#define TSDB_COL_COMMENT_LEN 1025
+#define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
+#define TSDB_TB_COMMENT_LEN 1025
 
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
