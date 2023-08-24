@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "tsdb.h"
 
 // SVSnapReader ========================================================
 struct SVSnapReader {
@@ -28,6 +29,7 @@ struct SVSnapReader {
   SMetaSnapReader *pMetaReader;
   // tsdb
   int8_t           tsdbDone;
+  TSnapRangeArray *pEx;
   STsdbSnapReader *pTsdbReader;
   // tq
   int8_t           tqHandleDone;
@@ -58,6 +60,8 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapRe
   pReader->pVnode = pVnode;
   pReader->sver = sver;
   pReader->ever = ever;
+
+  // TODO: pReader->pEx
 
   vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
@@ -175,7 +179,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB,
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pEx,
                                 &pReader->pTsdbReader);
       if (code) goto _err;
     }

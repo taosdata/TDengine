@@ -991,25 +991,29 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, TSnapRangeArray **fsrArr) {
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pEx,
+                                      TSnapRangeArray **fsrArr) {
   int32_t      code = 0;
   STFileSet   *fset;
-  STSnapRange *fsr1;
+  STSnapRange *fsr1 = NULL;
 
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    code = tsdbTSnapRangeInitRef(fs->tsdb, fset, &fsr1);
+    code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver, ever, &fsr1);
     if (code) break;
 
     code = TARRAY2_APPEND(fsrArr[0], fsr1);
     if (code) break;
+
+    fsr1 = NULL;
   }
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
   if (code) {
+    tsdbTSnapRangeClear(&fsr1);
     TARRAY2_DESTROY(fsrArr[0], tsdbTSnapRangeClear);
     fsrArr[0] = NULL;
   }
