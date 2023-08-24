@@ -3,7 +3,7 @@
       :visible.sync="$store.state.dbs.dialogDbVisible" 
       :close-on-press-escape="false" 
       :close-on-click-modal="false"
-      width="60%"
+      width="62%"
       >
       <CretedDb></CretedDb>
     </el-dialog>

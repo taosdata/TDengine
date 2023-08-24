@@ -1,7 +1,7 @@
 <template>
   <div class="timezone_wrapper">
     <div class="timezone_block">
-      <el-select v-model="timezone" @change="handChange" size="small" filterable>
+      <el-select v-model="timezone" @change="handChange" size="small" filterable popper-class="timezone-select">
         <el-option v-for="item of timezones" :value="item" :key="item">
           <div class="timezone_item">
             <span>{{ item }}</span>
@@ -38,6 +38,12 @@
     },
   };
 </script>
+
+<style lang="scss">
+  .timezone-select {
+    z-index: 99999999 !important;
+  }
+</style>
 
 <style lang="scss" scoped>
   .timezone_wrapper {
