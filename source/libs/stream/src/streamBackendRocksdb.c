@@ -439,7 +439,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       if (code != 0) {
         qError("failed to restart stream backend from %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       } else {
-        qInfo("succ to restart stream backend at checkpoint path: %s", chkp);
+        qInfo("start to restart stream backend at checkpoint path: %s", chkp);
       }
 
     } else {
@@ -510,7 +510,11 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId) {
     /*
       list all cf and get prefix
     */
-    streamStateOpenBackendCf(pHandle, (char*)backendPath, cfs, nCf);
+    code = streamStateOpenBackendCf(pHandle, (char*)backendPath, cfs, nCf);
+    if (code != 0) {
+      rocksdb_list_column_families_destroy(cfs, nCf);
+      goto _EXIT;
+    }
   }
   if (cfs != NULL) {
     rocksdb_list_column_families_destroy(cfs, nCf);
@@ -545,16 +549,6 @@ void streamBackendCleanup(void* arg) {
   taosHashCleanup(pHandle->cfInst);
 
   if (pHandle->db) {
-    // char*                   err = NULL;
-    //  rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
-    //  rocksdb_flushoptions_set_wait(flushOpt, 1);
-    //  rocksdb_flush(pHandle->db, flushOpt, &err);
-
-    // if (err != NULL) {
-    //   qError("failed to flush db before streamBackend clean up, reason:%s", err);
-    //   taosMemoryFree(err);
-    // }
-    // rocksdb_flushoptions_destroy(flushOpt);
     rocksdb_close(pHandle->db);
   }
   rocksdb_options_destroy(pHandle->dbOpt);
@@ -1480,6 +1474,12 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   if (err != NULL) {
     qError("failed to open rocksdb cf, reason:%s", err);
     taosMemoryFree(err);
+    taosMemoryFree(cfHandle);
+    taosMemoryFree(pCompare);
+    taosMemoryFree(params);
+    taosMemoryFree(cfOpts);
+    // fix other leak
+    return -1;
   } else {
     qDebug("succ to open rocksdb cf");
   }
@@ -2851,7 +2851,7 @@ int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
     taosMemoryFree(err);
     return -1;
   } else {
-    qDebug("write batch to backend opt: %p", wrapper->pBackend);
+    qDebug("write batch to backend:%p", wrapper->pBackend);
   }
   return 0;
 }

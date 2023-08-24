@@ -107,8 +107,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
       qError("vgId:%d failed to init stream backend", pMeta->vgId);
+      qInfo("vgId:%d retry to init stream backend", pMeta->vgId);
     }
   }
+
   // if (pMeta->streamBackend == NULL) {
   //   goto _err;
   // }
@@ -172,6 +174,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
       qError("vgId:%d failed to init stream backend", pMeta->vgId);
+      qInfo("vgId:%d retry to init stream backend", pMeta->vgId);
       // return -1;
     }
   }
