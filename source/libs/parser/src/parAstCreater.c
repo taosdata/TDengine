@@ -1663,7 +1663,21 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   return (SNode*)pStmt;
 }
 
-SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal) {
+SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
+  if (pIpRangesNodeList == NULL) {
+    return pCreateUserStmt;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pIpRangesNodeList) {
+    char* pStr = NULL;
+    nodesNodeToString(pNode, false, &pStr, NULL);
+    printf("%s\n", pStr);
+    taosMemoryFree(pStr);  
+  }
+  return pCreateUserStmt;
+}
+
+SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkUserName(pCxt, pUserName)) {
     return NULL;
@@ -1675,6 +1689,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   switch (alterType) {
     case TSDB_ALTER_USER_PASSWD: {
       char password[TSDB_USET_PASSWORD_LEN] = {0};
+      SToken* pVal = pAlterInfo;
       if (!checkPassword(pCxt, pVal, password)) {
         nodesDestroyNode((SNode*)pStmt);
         return NULL;
@@ -1682,12 +1697,27 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
       strcpy(pStmt->password, password);
       break;
     }
-    case TSDB_ALTER_USER_ENABLE:
+    case TSDB_ALTER_USER_ENABLE: {
+      SToken* pVal = pAlterInfo;
       pStmt->enable = taosStr2Int8(pVal->z, NULL, 10);
       break;
-    case TSDB_ALTER_USER_SYSINFO:
+    }
+    case TSDB_ALTER_USER_SYSINFO: {
+      SToken* pVal = pAlterInfo;
       pStmt->sysinfo = taosStr2Int8(pVal->z, NULL, 10);
       break;
+    }
+    case TSDB_ALTER_USER_ADD_WHITE_LIST: 
+    case TSDB_ALTER_USER_DROP_WHITE_LIST: {
+      SNodeList* pIpRangesNodeList = pAlterInfo;
+      SNode* pNode = NULL;
+      FOREACH(pNode, pIpRangesNodeList) {
+          char* pStr = NULL;
+          nodesNodeToString(pNode, false, &pStr, NULL);
+          printf("%s\n", pStr);
+          taosMemoryFree(pStr);
+      }      
+    }
     default:
       break;
   }
