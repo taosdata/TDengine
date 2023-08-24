@@ -825,6 +825,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
                                       (pFillSup->next.key == pFillInfo->nextRowKey && !hasPrevWindow(pFillSup)))) {
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
+        resetFillWindow(&pFillSup->prev);
         pFillSup->prev.key = pFillSup->cur.key;
         pFillSup->prev.pRowVal = pFillSup->cur.pRowVal;
       } else if (hasPrevWindow(pFillSup)) {
@@ -1217,8 +1218,6 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
 
     SWinKey nextKey = {.groupId = groupId, .ts = ts};
     while (pInfo->srcDelRowIndex < pBlock->info.rows) {
-      void*    nextVal = NULL;
-      int32_t  nextLen = 0;
       TSKEY    delTs = tsStarts[pInfo->srcDelRowIndex];
       uint64_t delGroupId = groupIds[pInfo->srcDelRowIndex];
       int32_t  code = TSDB_CODE_SUCCESS;
@@ -1233,7 +1232,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
       if (delTs == nextKey.ts) {
         code = pAPI->stateStore.streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
         if (code == TSDB_CODE_SUCCESS) {
-          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextLen);
+          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, NULL, NULL);
         }
         // ts will be deleted later
         if (delTs != ts) {
