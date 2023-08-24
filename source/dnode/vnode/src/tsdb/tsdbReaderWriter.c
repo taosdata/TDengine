@@ -16,23 +16,12 @@
 #include "tsdb.h"
 #include "vndCos.h"
 
-// =============== PAGE-WISE FILE ===============
-int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
-  int32_t  code = 0;
-  STsdbFD *pFD = NULL;
+static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
+  int32_t     code = 0;
+  const char *path = pFD->path;
+  int32_t     szPage = pFD->szPage;
+  int32_t     flag = pFD->flag;
 
-  *ppFD = NULL;
-
-  pFD = (STsdbFD *)taosMemoryCalloc(1, sizeof(*pFD) + strlen(path) + 1);
-  if (pFD == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  pFD->path = (char *)&pFD[1];
-  strcpy(pFD->path, path);
-  pFD->szPage = szPage;
-  pFD->flag = flag;
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
     int         errsv = errno;
@@ -55,8 +44,7 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
       goto _exit;
     }
   }
-  pFD->szPage = szPage;
-  pFD->pgno = 0;
+
   pFD->pBuf = taosMemoryCalloc(1, szPage);
   if (pFD->pBuf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -79,6 +67,30 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
     pFD->szFile = pFD->szFile / szPage;
   }
 
+_exit:
+  return code;
+}
+
+// =============== PAGE-WISE FILE ===============
+int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
+  int32_t  code = 0;
+  STsdbFD *pFD = NULL;
+
+  *ppFD = NULL;
+
+  pFD = (STsdbFD *)taosMemoryCalloc(1, sizeof(*pFD) + strlen(path) + 1);
+  if (pFD == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  pFD->path = (char *)&pFD[1];
+  strcpy(pFD->path, path);
+  pFD->szPage = szPage;
+  pFD->flag = flag;
+  pFD->szPage = szPage;
+  pFD->pgno = 0;
+
   *ppFD = pFD;
 
 _exit:
@@ -97,6 +109,13 @@ void tsdbCloseFile(STsdbFD **ppFD) {
 
 static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
   int32_t code = 0;
+
+  if (!pFD->pFD) {
+    code = tsdbOpenFileImpl(pFD);
+    if (code) {
+      goto _exit;
+    }
+  }
 
   if (pFD->pgno > 0) {
     int64_t n = taosLSeekFile(pFD->pFD, PAGE_OFFSET(pFD->pgno, pFD->szPage), SEEK_SET);
@@ -127,6 +146,12 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   int32_t code = 0;
 
   // ASSERT(pgno <= pFD->szFile);
+  if (!pFD->pFD) {
+    code = tsdbOpenFileImpl(pFD);
+    if (code) {
+      goto _exit;
+    }
+  }
 
   // seek
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
