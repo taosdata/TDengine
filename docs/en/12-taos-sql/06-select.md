@@ -9,7 +9,7 @@ description: This document describes how to query data in TDengine.
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
 
-SELECT [DISTINCT] select_list
+SELECT [hints] [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -20,6 +20,11 @@ SELECT [DISTINCT] select_list
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN   
 
 select_list:
     select_expr [, select_expr] ...
@@ -68,6 +73,29 @@ order_by_clasue:
 
 order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+```
+
+## Hints
+
+Hints are a means of user control over query optimization for individual statements. Hints will be ignore automatically if they are not applicable to the current query statement. The specific instructions are as follows:
+
+- Hints syntax starts with `/*+` and ends with `*/`,  spaces are allowed before or after.
+- Hints syntax can only follow the SELECT keyword.
+- Each hints can contain multiple hint, separated by spaces. When multiple hints conflict or are identical, whichever comes first takes effect.
+- When an error occurs with a hint in hints, the effective hint before the error is still valid, and the current and subsequent hints are ignored.
+- hint_param_list are arguments to each hint, which varies according to each hint.
+
+The list of currently supported Hints is as follows£º
+
+|    **Hint**   |    **Params**  |         **Comment**        |       **Scopt**            |  
+| :-----------: | -------------- | -------------------------- | -------------------------- |
+| BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable   |         
+| NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable   |         
+
+For example£º 
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 ```
 
 ## Lists
