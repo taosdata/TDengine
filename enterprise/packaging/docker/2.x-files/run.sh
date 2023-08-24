@@ -328,6 +328,9 @@ function initDnodeAndMnode {
                         logger "ERROR" "failed to create mnode for dnode $ENDPOINT through taos"
                     fi
                 fi
+            else 
+                MNODE_CREATED=1
+                logger "INFO" "mnode $MNODETmp already existed"
             fi
         else
             # check admin_user created or not
