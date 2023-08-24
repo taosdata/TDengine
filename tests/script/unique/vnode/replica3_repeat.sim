@@ -76,31 +76,32 @@ sleep 2000
 
 print ======== step3
 system sh/exec.sh -n dnode2 -s stop
-sleep 3000
+sleep 6000
 
 $x = 0
 loop:
 
 print ======== step4
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 6000
 system sh/exec.sh -n dnode3 -s stop
-sleep 3000
+sleep 6000
 
 print ======== step5
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 6000
 system sh/exec.sh -n dnode4 -s stop
-sleep 3000
+sleep 6000
 
 print ======== step6
 system sh/exec.sh -n dnode4 -s start
-sleep 3000
+sleep 6000
 system sh/exec.sh -n dnode2 -s stop
-sleep 3000
+sleep 6000
 
 print ======== step7
-sql select count(*) from db.tb
+sql reset query cache
+sql select count(*) from db.tb 
 print select count(*) from db.tb ==> $data00 $lastRows 
 if $data00 <= $lastRows then
   return -1

@@ -94,12 +94,22 @@ $i = 2
 $tb = $tbPrefix . $i
 sql insert into $tb values (now + 1m , 1 ) 
 
-print sleep 8000
-sleep 8000
-
 print =============== step6
 
+$j = 0
 sql select * from $mt
+while $rows != 3
+    print ====== sleep 1 second
+    sleep 1000
+    $j = $j + 1
+    if $j >= 32 then
+       print "CI, CI, CI, CI"
+       sql reset query cache
+    endi
+    sql select * from $mt
+endw
+print ==== sleeped $j seconds ===
+
 print select * from $mt ==> $rows $data00
 if $rows != 3 then 
   return -1
