@@ -212,7 +212,7 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *a
   }
 
   if (atime != NULL) {
-    *atime = fileStat.st_mtime;
+    *atime = fileStat.st_atime;
   }
 
   return 0;
