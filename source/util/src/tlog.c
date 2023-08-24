@@ -384,7 +384,7 @@ static void taosGetLogFileName(char *fn) {
 }
 
 static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
-#ifdef WINDOWS
+#ifdef WINDOWS_STASH
   /*
    * always set maxFileNum to 1
    * means client log filename is unique in windows
