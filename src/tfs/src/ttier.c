@@ -128,7 +128,7 @@ int tfsAllocDiskOnTier(STier *pTier) {
     pDisk = DISK_AT_TIER(pTier, id);
     ASSERT(pDisk != NULL);
 
-    if (DISK_FREE_SIZE(pDisk) < TFS_MIN_DISK_FREE_SIZE) {
+    if (DISK_FREE_SIZE(pDisk) < tsMinDiskFreeSize) {
       id = (id + 1) % pTier->ndisk;
       if (id == pTier->nextid) {
         tfsUnLockTier(pTier);
@@ -161,7 +161,7 @@ void tfsPosNextId(STier *pTier) {
   for (int id = 1; id < pTier->ndisk; id++) {
     SDisk *pLDisk = DISK_AT_TIER(pTier, nextid);
     SDisk *pDisk = DISK_AT_TIER(pTier, id);
-    if (DISK_FREE_SIZE(pDisk) > TFS_MIN_DISK_FREE_SIZE && DISK_FREE_SIZE(pDisk) > DISK_FREE_SIZE(pLDisk)) {
+    if (DISK_FREE_SIZE(pDisk) > tsMinDiskFreeSize && DISK_FREE_SIZE(pDisk) > DISK_FREE_SIZE(pLDisk)) {
       nextid = id;
     }
   }

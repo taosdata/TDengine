@@ -242,6 +242,7 @@ SDiskCfg tsDiskCfg[1];
 #else
 SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
 #endif
+int64_t  tsMinDiskFreeSize = 50*1024*1024;
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -1933,6 +1934,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = -1;
   cfg.maxValue = (float)INT32_MAX;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "minDiskFreeSize";
+  cfg.ptr = &tsMinDiskFreeSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 50 * 1024 * 1024; // 50MB
+  cfg.maxValue = 1024 * 1024 * 1024; // 1GB
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
