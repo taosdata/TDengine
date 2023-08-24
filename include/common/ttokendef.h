@@ -16,6 +16,7 @@
 #ifndef _TD_COMMON_TOKEN_H_
 #define _TD_COMMON_TOKEN_H_
 
+
 #define TK_OR                               1
 #define TK_AND                              2
 #define TK_UNION                            3
@@ -354,9 +355,6 @@
 #define TK_VARIABLE                       336
 #define TK_VIEW                           337
 #define TK_WAL                            338
-
-
-
 
 
 #define TK_NK_SPACE         600
