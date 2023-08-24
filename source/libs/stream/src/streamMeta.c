@@ -634,6 +634,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!readyToSendHb(&pMeta->hbInfo)) {
+    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, pMeta, streamEnv.timer, &pMeta->hbInfo.hbTmr);
     return;
   }
 
