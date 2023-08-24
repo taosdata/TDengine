@@ -345,7 +345,7 @@ function install_jemalloc() {
 }
 
 function install_header() {
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
+  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
 
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 
@@ -353,6 +353,7 @@ function install_header() {
   ${csudo}ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ${csudo}ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ${csudo}ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+  ${csudo}ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
   ${csudo}ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
 
   [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
@@ -935,7 +936,7 @@ function updateProduct() {
     fi
     echo
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
+    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation or explorer features, please install ${clientName2}Explorer ${NC}"
   else
     install_bin
     install_config
@@ -1028,7 +1029,7 @@ function installProduct() {
     fi
 
     echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
+    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation or explorer features, please install ${clientName2}Explorer ${NC}"
     echo
   else # Only install client
     install_bin

@@ -7,7 +7,7 @@ description: This document describes how to query data in TDengine.
 ## Syntax
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [DISTINCT] select_list
     from_clause
@@ -298,6 +298,12 @@ SELECT TODAY();
 
 ```sql
 SELECT TIMEZONE();
+```
+
+### Obtain Current User
+
+```sql
+SELECT CURRENT_USER();
 ```
 
 ## Regular Expression
