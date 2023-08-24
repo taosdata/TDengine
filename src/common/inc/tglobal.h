@@ -260,6 +260,7 @@ typedef struct {
 } SDiskCfg;
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
+extern int64_t  tsMinDiskFreeSize;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
