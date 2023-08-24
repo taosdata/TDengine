@@ -200,7 +200,7 @@ typedef enum ELogicConditionType {
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_PRIVILEDGE_CONDITION_LEN 48*1024
+#define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -230,7 +230,6 @@ typedef enum ELogicConditionType {
 
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
-#define TSDB_COL_COMMENT_LEN 1025
 
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
@@ -377,12 +376,12 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_STT_TRIGGER     1
 #define TSDB_DEFAULT_SST_TRIGGER 1
 #endif
-#define TSDB_MIN_HASH_PREFIX            (2 - TSDB_TABLE_NAME_LEN)
-#define TSDB_MAX_HASH_PREFIX            (TSDB_TABLE_NAME_LEN - 2)
-#define TSDB_DEFAULT_HASH_PREFIX        0
-#define TSDB_MIN_HASH_SUFFIX            (2 - TSDB_TABLE_NAME_LEN)
-#define TSDB_MAX_HASH_SUFFIX            (TSDB_TABLE_NAME_LEN - 2)
-#define TSDB_DEFAULT_HASH_SUFFIX        0
+#define TSDB_MIN_HASH_PREFIX     (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_PREFIX     (TSDB_TABLE_NAME_LEN - 2)
+#define TSDB_DEFAULT_HASH_PREFIX 0
+#define TSDB_MIN_HASH_SUFFIX     (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_SUFFIX     (TSDB_TABLE_NAME_LEN - 2)
+#define TSDB_DEFAULT_HASH_SUFFIX 0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600

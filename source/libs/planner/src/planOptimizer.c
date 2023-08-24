@@ -3192,7 +3192,7 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pJoin->isSingleTableJoin || NULL == pJoin->pTagEqCond || pNode->pChildren->length != 2 
+  if (pJoin->isSingleTableJoin || NULL == pJoin->pTagEqCond || NULL != pJoin->pTagOnCond || pNode->pChildren->length != 2 
       || pJoin->hasSubQuery || pJoin->joinAlgo != JOIN_ALGO_UNKNOWN || pJoin->isLowLevelJoin) {
     if (pJoin->joinAlgo == JOIN_ALGO_UNKNOWN) {
       pJoin->joinAlgo = JOIN_ALGO_MERGE;

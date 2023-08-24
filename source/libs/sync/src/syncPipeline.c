@@ -25,6 +25,8 @@
 #include "syncRespMgr.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
+#include "syncRaftCfg.h"
+#include "syncVoteMgr.h"
 
 static bool syncIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
@@ -428,7 +430,7 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   return 0;
 }
 
-int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm) {
+int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char *str) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
 
@@ -475,9 +477,6 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     sTrace("vgId:%d, log buffer proceed. start index:%" PRId64 ", match index:%" PRId64 ", end index:%" PRId64,
            pNode->vgId, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
 
-    // replicate on demand
-    (void)syncNodeReplicateWithoutLock(pNode);
-
     // persist
     if (syncLogStorePersist(pLogStore, pNode, pEntry) < 0) {
       sError("vgId:%d, failed to persist sync log entry from buffer since %s. index:%" PRId64, pNode->vgId, terrstr(),
@@ -485,6 +484,39 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
       taosMsleep(1);
       goto _out;
     }
+    
+    if(pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
+      if(pNode->pLogBuf->commitIndex == pEntry->index -1){
+        sInfo("vgId:%d, to change config at %s. "
+              "current entry, index:%" PRId64 ", term:%" PRId64", "
+              "node, restore:%d, commitIndex:%" PRId64 ", "
+              "cond: (pre entry index:%" PRId64 "== buf commit index:%" PRId64 ")",
+              pNode->vgId, str,
+              pEntry->index, pEntry->term, 
+              pNode->restoreFinish, pNode->commitIndex,
+              pEntry->index - 1, pNode->pLogBuf->commitIndex);
+        if(syncNodeChangeConfig(pNode, pEntry, str) != 0){
+          sError("vgId:%d, failed to change config from Append since %s. index:%" PRId64, pNode->vgId, terrstr(),
+             pEntry->index);
+          goto _out;
+        }
+      }
+      else{
+        sInfo("vgId:%d, delay change config from Node %s. "
+              "curent entry, index:%" PRId64 ", term:%" PRId64 ", "
+              "node, commitIndex:%" PRId64 ",  pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), "
+              "cond:( pre entry index:%" PRId64" != buf commit index:%" PRId64 ")",
+              pNode->vgId, str,
+              pEntry->index, pEntry->term, 
+              pNode->commitIndex, pNode->pLogBuf->startIndex, pNode->pLogBuf->commitIndex,
+              pNode->pLogBuf->matchIndex, pNode->pLogBuf->endIndex, 
+              pEntry->index - 1, pNode->pLogBuf->commitIndex);
+      }
+    }
+
+    // replicate on demand
+    (void)syncNodeReplicateWithoutLock(pNode);
+
     ASSERT(pEntry->index == pBuf->matchIndex);
 
     // update my match index
@@ -503,8 +535,16 @@ _out:
 }
 
 int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
-                          int32_t applyCode) {
-  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1) {
+                          int32_t applyCode, bool force) {
+  //learner need to execute fsm when it catch up entry log
+  //if force is true, keep all contition check to execute fsm
+  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1
+      && pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER
+      && force == false) {
+    sDebug("vgId:%d, not to execute fsm, index:%" PRId64 ", term:%" PRId64 ", type:%s code:0x%x, replicaNum:%d,"
+          "role:%d, restoreFinish:%d",
+           pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode,
+           pNode->replicaNum, pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole, pNode->restoreFinish);
     return 0;
   }
 
@@ -559,6 +599,8 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   int64_t         upperIndex = TMIN(commitIndex, pBuf->matchIndex);
   SSyncRaftEntry* pEntry = NULL;
   bool            inBuf = false;
+  SSyncRaftEntry* pNextEntry = NULL;
+  bool            nextInBuf = false;
 
   if (commitIndex <= pBuf->commitIndex) {
     sDebug("vgId:%d, stale commit index. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
@@ -584,7 +626,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
     }
 
-    if (syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0) != 0) {
+    if (syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0, false) != 0) {
       sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role:%d, current term:%" PRId64,
              vgId, pEntry->index, pEntry->term, role, currentTerm);
@@ -595,10 +637,51 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
            pEntry->index, pEntry->term, role, currentTerm);
 
+    pNextEntry = syncLogBufferGetOneEntry(pBuf, pNode, index + 1, &nextInBuf);
+    if (pNextEntry != NULL) {
+      if(pNextEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
+        sInfo("vgId:%d, to change config at Commit. "
+              "current entry, index:%" PRId64 ", term:%" PRId64", "
+              "node, role:%d, current term:%" PRId64 ", restore:%d, "
+              "cond, next entry index:%" PRId64 ", msgType:%s",
+              vgId, 
+              pEntry->index, pEntry->term, 
+              role, currentTerm, pNode->restoreFinish,
+              pNextEntry->index, TMSG_INFO(pNextEntry->originalRpcType));
+
+        if(syncNodeChangeConfig(pNode, pNextEntry, "Commit") != 0){
+          sError("vgId:%d, failed to change config from Commit. index:%" PRId64 ", term:%" PRId64
+                ", role:%d, current term:%" PRId64,
+                vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+            goto _out;
+        }
+
+        //for 2->1, need to apply config change entry in sync thread,
+        if(pNode->replicaNum == 1){
+          if (syncFsmExecute(pNode, pFsm, role, currentTerm, pNextEntry, 0, true) != 0) {
+            sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
+                ", role:%d, current term:%" PRId64,
+                vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+            goto _out;
+          }
+
+          index++;
+          pBuf->commitIndex = index;
+
+          sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
+                pNextEntry->index, pNextEntry->term, role, currentTerm);
+        }
+      }
+      if (!nextInBuf) {
+        syncEntryDestroy(pNextEntry);
+        pNextEntry = NULL;
+      }
+    } 
+    
     if (!inBuf) {
       syncEntryDestroy(pEntry);
       pEntry = NULL;
-    }
+    }  
   }
 
   // recycle
@@ -625,6 +708,10 @@ _out:
   if (!inBuf) {
     syncEntryDestroy(pEntry);
     pEntry = NULL;
+  }
+  if (!nextInBuf) {
+    syncEntryDestroy(pNextEntry);
+    pNextEntry = NULL;
   }
   syncLogBufferValidate(pBuf);
   taosThreadMutexUnlock(&pBuf->mutex);

@@ -37,6 +37,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -138,6 +139,74 @@ _exit:
     vTrace("vgId:%d %s done, table:%s ctimeMs generated:%" PRId64, TD_VID(pVnode), __func__, vAlterTbReq.tbName,
            ctimeMs);
   }
+  return code;
+}
+
+static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+  int32_t lino = 0;
+
+  SMsgHead *pContOld = pMsg->pCont;
+  int32_t   reqLenOld = pMsg->contLen - sizeof(SMsgHead);
+
+  SArray *tbUids = NULL;
+  int64_t timestampMs = 0;
+
+  SVDropTtlTableReq ttlReq = {0};
+  if (tDeserializeSVDropTtlTableReq((char *)pContOld + sizeof(SMsgHead), reqLenOld, &ttlReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  {  // find expired uids
+    tbUids = taosArrayInit(8, sizeof(int64_t));
+    if (tbUids == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    timestampMs = (int64_t)ttlReq.timestampSec * 1000;
+    code = metaTtlFindExpired(pVnode->pMeta, timestampMs, tbUids, ttlReq.ttlDropMaxCount);
+    if (code != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    ttlReq.nUids = taosArrayGetSize(tbUids);
+    ttlReq.pTbUids = tbUids;
+  }
+
+  { // prepare new content
+    int32_t reqLenNew = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
+    int32_t contLenNew = reqLenNew + sizeof(SMsgHead);
+
+    SMsgHead *pContNew = rpcMallocCont(contLenNew);
+    if (pContNew == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    tSerializeSVDropTtlTableReq((char *)pContNew + sizeof(SMsgHead), reqLenNew, &ttlReq);
+    pContNew->contLen = htonl(reqLenNew);
+    pContNew->vgId = pContOld->vgId;
+
+    rpcFreeCont(pContOld);
+    pMsg->pCont = pContNew;
+    pMsg->contLen = contLenNew;
+  }
+
+  code = 0;
+
+_exit:
+  taosArrayDestroy(tbUids);
+
+  if (code) {
+    vError("vgId:%d, %s:%d failed to preprocess drop ttl request since %s, msg type:%s", TD_VID(pVnode), __func__, lino,
+           tstrerror(code), TMSG_INFO(pMsg->msgType));
+  } else {
+    vTrace("vgId:%d, %s done, timestampSec:%d, nUids:%d", TD_VID(pVnode), __func__, ttlReq.timestampSec, ttlReq.nUids);
+  }
+
   return code;
 }
 
@@ -370,6 +439,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_ALTER_TABLE: {
       code = vnodePreProcessAlterTableMsg(pVnode, pMsg);
     } break;
+    case TDMT_VND_DROP_TTL_TABLE: {
+      code = vnodePreProcessDropTtlMsg(pVnode, pMsg);
+    } break;
     case TDMT_VND_SUBMIT: {
       code = vnodePreProcessSubmitMsg(pVnode, pMsg);
     } break;
@@ -404,10 +476,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     return -1;
   }
 
-  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver);
+  vDebug("vgId:%d, start to process write request %s, index:%" PRId64 ", applied:%" PRId64 ", state.applyTerm:%" PRId64
+         ", conn.applyTerm:%" PRId64,
+         TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied, pVnode->state.applyTerm,
+         pMsg->info.conn.applyTerm);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
-  ASSERT(pVnode->state.applied + 1 == ver);
+  ASSERTS(pVnode->state.applied + 1 == ver, "applied:%" PRId64 ", ver:%" PRId64, pVnode->state.applied, ver);
 
   atomic_store_64(&pVnode->state.applied, ver);
   atomic_store_64(&pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
@@ -532,6 +607,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
       goto _exit;
+    case TDMT_SYNC_CONFIG_CHANGE:
+      vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
+      break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -728,28 +806,27 @@ _exit:
 }
 
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
-  if (tbUids == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
   SVDropTtlTableReq ttlReq = {0};
   if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto end;
   }
 
-  vDebug("vgId:%d, drop ttl table req will be processed, time:%" PRId32, pVnode->config.vgId, ttlReq.timestampSec);
-  int32_t ret = metaTtlDropTable(pVnode->pMeta, (int64_t)ttlReq.timestampSec * 1000, tbUids);
-  if (ret != 0) {
-    goto end;
-  }
-  if (taosArrayGetSize(tbUids) > 0) {
-    tqUpdateTbUidList(pVnode->pTq, tbUids, false);
+  ASSERT(ttlReq.nUids == taosArrayGetSize(ttlReq.pTbUids));
+
+  if (ttlReq.nUids != 0) {
+    vInfo("vgId:%d, drop ttl table req will be processed, time:%d, ntbUids:%d", pVnode->config.vgId,
+          ttlReq.timestampSec, ttlReq.nUids);
   }
 
-  vnodeDoRetention(pVnode, ttlReq.timestampSec);
+  int ret = 0;
+  if (ttlReq.nUids > 0) {
+    metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
+  }
 
 end:
-  taosArrayDestroy(tbUids);
+  taosArrayDestroy(ttlReq.pTbUids);
   return ret;
 }
 
@@ -1483,7 +1560,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     code = tsdbInsertTableData(pVnode->pTsdb, ver, pSubmitTbData, &affectedRows);
     if (code) goto _exit;
 
-    code = metaUpdateChangeTime(pVnode->pMeta, pSubmitTbData->uid, pSubmitTbData->ctimeMs);
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, pSubmitTbData->uid, pSubmitTbData->ctimeMs);
     if (code) goto _exit;
 
     pSubmitRsp->affectedRows += affectedRows;
@@ -1740,7 +1817,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
              TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     }
 
-    code = metaUpdateChangeTime(pVnode->pMeta, uid, deleteReq.ctimeMs);
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, deleteReq.ctimeMs);
     if (code < 0) {
       terrno = code;
       vError("vgId:%d, update change time error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64
@@ -1779,7 +1856,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
     uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
     code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey);
     if (code) goto _err;
-    code = metaUpdateChangeTime(pVnode->pMeta, uid, pRes->ctimeMs);
+    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
     if (code) goto _err;
   }
 
@@ -1848,6 +1925,17 @@ extern int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void
 
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   return vnodeProcessCompactVnodeReqImpl(pVnode, ver, pReq, len, pRsp);
+}
+
+static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  syncCheckMember(pVnode->sync);
+
+  pRsp->msgType = TDMT_SYNC_CONFIG_CHANGE_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  return 0;
 }
 
 #ifndef TD_ENTERPRISE

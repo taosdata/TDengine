@@ -46,7 +46,7 @@ void            syncEntryDestroy(SSyncRaftEntry* pEntry);
 void            syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
 
 static FORCE_INLINE bool syncLogReplBarrier(SSyncRaftEntry* pEntry) {
-  return pEntry->originalRpcType == TDMT_SYNC_NOOP;
+  return pEntry->originalRpcType == TDMT_SYNC_NOOP || pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE;
 }
 
 #ifdef __cplusplus

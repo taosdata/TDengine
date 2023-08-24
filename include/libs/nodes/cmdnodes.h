@@ -23,11 +23,10 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
-#define DESCRIBE_RESULT_COLS            5
-#define DESCRIBE_RESULT_FIELD_LEN       (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_TYPE_LEN        (20 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_NOTE_LEN        (8 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_COL_COMMENT_LEN (TSDB_COL_COMMENT_LEN)
+#define DESCRIBE_RESULT_COLS      4
+#define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -156,7 +155,7 @@ typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
-  char      comments[TSDB_COL_COMMENT_LEN];
+  char      comments[TSDB_TB_COMMENT_LEN];
   bool      sma;
 } SColumnDefNode;
 
@@ -215,7 +214,6 @@ typedef struct SAlterTableStmt {
   char           newColName[TSDB_COL_NAME_LEN];
   STableOptions* pOptions;
   SDataType      dataType;
-  char           colComment[TSDB_COL_COMMENT_LEN];
   SValueNode*    pVal;
 } SAlterTableStmt;
 
