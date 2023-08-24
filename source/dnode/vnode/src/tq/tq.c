@@ -1800,8 +1800,8 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // set the initial value for generating check point
   // set the mgmt epset info according to the checkout source msg from mnode, todo opt perf
-//  pMeta->mgmtInfo.epset = req.mgmtEps;
-//  pMeta->mgmtInfo.mnodeId = req.mnodeId;
+  //  pMeta->mgmtInfo.epset = req.mgmtEps;
+  //  pMeta->mgmtInfo.mnodeId = req.mnodeId;
 
   if (pMeta->chkptNotReadyTasks == 0) {
     pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
@@ -1909,9 +1909,9 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   // all tasks are closed, now let's restart the stream meta
   if (pMeta->closedTask == numOfCount) {
     tqDebug("vgId:%d all tasks are updated, commit the update nodeInfo", vgId);
-//    if (streamMetaCommit(pMeta) < 0) {
-      //     persist to disk
-//    }
+    //    if (streamMetaCommit(pMeta) < 0) {
+    //     persist to disk
+    //    }
     restartTasks = true;
     pMeta->closedTask = 0;  // reset value
   } else {
@@ -1922,7 +1922,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
 _end:
   tDecoderClear(&decoder);
-//  tmsgSendRsp(&rsp);
+  //  tmsgSendRsp(&rsp);
 
   if (restartTasks) {
     tqDebug("vgId:%d all tasks are stopped, restart them", vgId);

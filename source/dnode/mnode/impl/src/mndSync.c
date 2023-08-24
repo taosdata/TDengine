@@ -475,7 +475,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
-  pMgmt->sync = syncOpen(&syncInfo);
+  pMgmt->sync = syncOpen(&syncInfo, true);
   if (pMgmt->sync <= 0) {
     mError("failed to open sync since %s", terrstr());
     return -1;

@@ -55,62 +55,29 @@ class TDTestCase:
         tdSql.execute(f"insert into stb4 values(1537146000002, 942, 9420)")
         tdSql.execute(f"insert into stb4 values(1537146000003, 943, 9430)")
 
-        tdSql.query(f"select * from sta a, stb b where a.ts=b.ts")
-        tdSql.checkRows(48)
-
-        tdSql.query(f"select * from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by a.ts;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by a.ts, a.tg1;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by a.tg1, a.ts;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by b.tg1, a.ts;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by b.ts, b.tg1;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select a.tg1,a.tg2,b.* from sta a, stb b where (a.tg1=b.tg1 or a.tg2=b.tg2) and a.ts=b.ts;")
-        tdSql.checkRows(18)
-
-        tdSql.query(f"select a.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and a.tg2=b.tg2;")
-        tdSql.checkRows(12)
-
-        tdSql.query(f"select a.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and a.tg2 > 'a';")
-        tdSql.checkRows(6)
-
-        tdSql.query(f"select a.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a';")
-        tdSql.checkRows(6)
-
-        tdSql.query(f"select count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
-        tdSql.checkRows(3)
-
         tdSql.query(f"select /*+ batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
         tdSql.checkRows(3)
 
         tdSql.query(f"select /*+ no_batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
         tdSql.checkRows(3)
 
-        tdSql.query(f"select a.ts, b.ts from sta a, stb b where a.ts=b.ts and (a.tg1=b.tg1 and a.tg1 > b.tg1);")
-        tdSql.checkRows(0)
+        tdSql.query(f"select /*+ batch_scan(a) */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
 
-#        tdSql.checkData(0,1,10)
+        tdSql.query(f"select /*+ batch_scan(a,) */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
 
-        tdSql.error(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
-        tdSql.error(f"select b.* from sta a, stb b where a.tg1=b.tg1 or a.ts=b.ts;")
-        tdSql.error(f"select a.* from sta a join stb b on a.ts=b.ts where a.tg1=b.tg1 or a.tg2=b.tg2;"); #!!!!make it work
+        tdSql.query(f"select /*+ a,a */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+*/ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ batch_scan(),no_batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ no_batch_scan() batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
 
     def stop(self):
         tdSql.close()

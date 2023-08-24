@@ -77,7 +77,8 @@ static inline bool tmsgIsValid(tmsg_t type) {
 }
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
-         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT);
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT) ||
+         (type == TDMT_SYNC_CONFIG_CHANGE);
 }
 
 static inline bool syncUtilUserCommit(tmsg_t msgType) {
@@ -440,7 +441,6 @@ typedef struct SField {
   uint8_t type;
   int8_t  flags;
   int32_t bytes;
-  char    comment[TSDB_COL_COMMENT_LEN];
 } SField;
 
 typedef struct SRetention {
@@ -519,7 +519,6 @@ struct SSchema {
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-  char     comment[TSDB_COL_COMMENT_LEN];
 };
 
 struct SSchema2 {
@@ -1160,6 +1159,9 @@ int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
   int32_t timestampSec;
+  int32_t ttlDropMaxCount;
+  int32_t nUids;
+  SArray* pTbUids;
 } SVDropTtlTableReq;
 
 int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
@@ -1400,6 +1402,7 @@ typedef struct {
   int64_t numOfBatchInsertReqs;
   int64_t numOfBatchInsertSuccessReqs;
   int32_t numOfCachedTables;
+  int32_t learnerProgress; // use one reservered
 } SVnodeLoad;
 
 typedef struct {
@@ -1541,6 +1544,7 @@ typedef struct {
   int8_t   learnerReplica;
   int8_t   learnerSelfIndex;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
+  int32_t  changeVersion;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1615,7 +1619,8 @@ typedef struct {
   int8_t   learnerSelfIndex;
   int8_t   learnerReplica;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
-} SAlterVnodeReplicaReq, SAlterVnodeTypeReq;
+  int32_t  changeVersion;
+} SAlterVnodeReplicaReq, SAlterVnodeTypeReq, SCheckLearnCatchupReq;
 
 int32_t tSerializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
 int32_t tDeserializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
@@ -1633,7 +1638,8 @@ typedef struct {
   int32_t  dstVgId;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int64_t  reserved;
+  int32_t  changeVersion;
+  int32_t  reserved;
 } SAlterVnodeHashRangeReq;
 
 int32_t tSerializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
@@ -2625,9 +2631,6 @@ typedef struct {
   int8_t  type;
   int8_t  flags;
   int32_t bytes;
-  bool    hasColComment;
-  char*   colComment;
-  int32_t colCommentLen;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
   int8_t  colModType;

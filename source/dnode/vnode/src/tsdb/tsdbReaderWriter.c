@@ -35,6 +35,7 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
   pFD->flag = flag;
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
+    int         errsv = errno;
     const char *object_name = taosDirEntryBaseName((char *)path);
     long        s3_size = s3Size(object_name);
     if (!strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
@@ -49,7 +50,7 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
         goto _exit;
       }
     } else {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(errsv);
       taosMemoryFree(pFD);
       goto _exit;
     }
