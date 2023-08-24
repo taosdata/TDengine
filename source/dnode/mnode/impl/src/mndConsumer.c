@@ -119,6 +119,27 @@ void mndRebCntDec() {
   }
 }
 
+static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode) {
+  int32_t numOfTopics = taosArrayGetSize(pTopicList);
+
+  for (int32_t i = 0; i < numOfTopics; i++) {
+    char        *pOneTopic = taosArrayGetP(pTopicList, i);
+    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOneTopic);
+    if (pTopic == NULL) {  // terrno has been set by callee function
+      return -1;
+    }
+
+    mndTransSetDbName(pTrans, pOneTopic, NULL);
+    if(mndTransCheckConflict(pMnode, pTrans) != 0){
+      mndReleaseTopic(pMnode, pTopic);
+      return -1;
+    }
+    mndReleaseTopic(pMnode, pTopic);
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMnode                *pMnode = pMsg->info.node;
   SMqConsumerRecoverMsg *pRecoverMsg = pMsg->pCont;
@@ -142,8 +163,11 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "recover-csm");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "recover-csm");
   if (pTrans == NULL) {
+    goto FAIL;
+  }
+  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode) != 0){
     goto FAIL;
   }
 
@@ -179,9 +203,11 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pMsg, "clear-csm");
   if (pTrans == NULL) goto FAIL;
-
+  if (validateTopics(pTrans, pConsumer->assignedTopics, pMnode) != 0){
+    goto FAIL;
+  }
   // this is the drop action, not the update action
   if (mndSetConsumerDropLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
@@ -577,27 +603,6 @@ int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj 
   return 0;
 }
 
-static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const char *pUser) {
-  int32_t numOfTopics = taosArrayGetSize(pTopicList);
-
-  for (int32_t i = 0; i < numOfTopics; i++) {
-    char        *pOneTopic = taosArrayGetP(pTopicList, i);
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOneTopic);
-    if (pTopic == NULL) {  // terrno has been set by callee function
-      return -1;
-    }
-
-    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
-      return -1;
-    }
-
-    mndReleaseTopic(pMnode, pTopic);
-  }
-
-  return 0;
-}
-
 static void *topicNameDup(void *p) { return taosStrdup((char *)p); }
 
 static void freeItem(void *param) {
@@ -636,12 +641,12 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
 
   // check topic existence
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }
 
-  code = validateTopics(pTopicList, pMnode, pMsg->info.conn.user);
+  code = validateTopics(pTrans, pTopicList, pMnode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }

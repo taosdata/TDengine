@@ -553,13 +553,17 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     }
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pMsg, "tmq-reb");
+  char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+  char cgroup[TSDB_CGROUP_LEN] = {0};
+  mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) {
     nodesDestroyNode((SNode*)pPlan);
     return -1;
   }
 
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
+  mndTransSetDbName(pTrans, topic, cgroup);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndTransDrop(pTrans);
     nodesDestroyNode((SNode*)pPlan);
@@ -586,10 +590,6 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     mndTransDrop(pTrans);
     return -1;
   }
-
-  char topic[TSDB_TOPIC_FNAME_LEN] = {0};
-  char cgroup[TSDB_CGROUP_LEN] = {0};
-  mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
 
   // 3. commit log: consumer to update status and epoch
   // 3.1 set touched consumer
@@ -802,6 +802,19 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto end;
   }
 
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "drop-cgroup");
+  if (pTrans == NULL) {
+    mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    code = -1;
+    goto end;
+  }
+
+  mndTransSetDbName(pTrans, dropReq.topic, dropReq.cgroup);
+  code = mndTransCheckConflict(pMnode, pTrans);
+  if (code != 0) {
+    goto end;
+  }
+
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer;
   while (1) {
@@ -814,13 +827,6 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
       mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
     }
     sdbRelease(pMnode->pSdb, pConsumer);
-  }
-
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
-  if (pTrans == NULL) {
-    mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
-    code = -1;
-    goto end;
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);

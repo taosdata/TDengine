@@ -383,14 +383,15 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   SQueryPlan *pPlan = NULL;
   SMqTopicObj topicObj = {0};
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "create-topic");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pReq, "create-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     goto _OUT;
   }
 
-  mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+  mndTransSetDbName(pTrans, pCreate->name, NULL);
+  code = mndTransCheckConflict(pMnode, pTrans);
+  if (code != 0) {
     goto _OUT;
   }
   mInfo("trans:%d to create topic:%s", pTrans->id, pCreate->name);
@@ -661,6 +662,11 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   SMqTopicObj *pTopic = NULL;
   STrans      *pTrans = NULL;
 
+  if (!mndRebTryStart()) {
+    mInfo("mq rebalance already in progress, do nothing");
+    return 0;
+  }
+
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     code = -1;
@@ -680,14 +686,14 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     }
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "drop-topic");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pReq, "drop-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     code = -1;
     goto end;
   }
 
-  mndTransSetDbName(pTrans, pTopic->db, NULL);
+  mndTransSetDbName(pTrans, pTopic->name, NULL);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto end;
