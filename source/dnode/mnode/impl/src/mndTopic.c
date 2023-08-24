@@ -664,20 +664,18 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    code = -1;
-    goto end;
+    return -1;
   }
 
   pTopic = mndAcquireTopic(pMnode, dropReq.name);
   if (pTopic == NULL) {
     if (dropReq.igNotExists) {
       mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
-      goto end;
+      return 0;
     } else {
       terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
       mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
-      code = -1;
-      goto end;
+      return -1;
     }
   }
 
