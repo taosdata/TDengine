@@ -54,7 +54,8 @@ int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsrArr);
 
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, TSnapRangeArray **fsrArr);
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pEx,
+                                      TSnapRangeArray **fsrArr);
 int32_t tsdbFSDestroyRefRangedSnapshot(TSnapRangeArray **fsrArr);
 // txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);
