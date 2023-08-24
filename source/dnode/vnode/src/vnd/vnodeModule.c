@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "vndCos.h"
 
 typedef struct SVnodeTask SVnodeTask;
 struct SVnodeTask {
@@ -81,6 +82,9 @@ int vnodeInit(int nthreads) {
   if (tqInit() < 0) {
     return -1;
   }
+  if (s3Init() < 0) {
+    return -1;
+  }
 
   return 0;
 }
@@ -112,6 +116,7 @@ void vnodeCleanup() {
   walCleanUp();
   tqCleanUp();
   smaCleanUp();
+  s3CleanUp();
 }
 
 int vnodeScheduleTaskEx(int tpid, int (*execute)(void*), void* arg) {

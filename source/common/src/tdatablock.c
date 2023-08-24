@@ -26,7 +26,7 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
     if (pColumnInfoData->reassigned) {
       int32_t totalSize = 0;
       for (int32_t row = 0; row < numOfRows; ++row) {
-        char* pColData = pColumnInfoData->pData + pColumnInfoData->varmeta.offset[row];
+        char*   pColData = pColumnInfoData->pData + pColumnInfoData->varmeta.offset[row];
         int32_t colSize = 0;
         if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pColData);
@@ -142,18 +142,10 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
   return 0;
 }
 
-int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData) {
+int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx,
+                           const char* pData) {
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
-    int32_t dataLen = 0;
-    if (type == TSDB_DATA_TYPE_JSON) {
-      dataLen = getJsonValueLen(pData);
-    } else {
-      dataLen = varDataTLen(pData);
-    }
-
-    SVarColAttr* pAttr = &pColumnInfoData->varmeta;
-
     pColumnInfoData->varmeta.offset[dstRowIdx] = pColumnInfoData->varmeta.offset[srcRowIdx];
     pColumnInfoData->reassigned = true;
   } else {
@@ -163,7 +155,6 @@ int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx,
 
   return 0;
 }
-
 
 static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
   if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -188,16 +179,17 @@ static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) 
 }
 
 static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
-                         int32_t itemLen, int32_t numOfRows, bool trimValue) {
+                            int32_t itemLen, int32_t numOfRows, bool trimValue) {
   if (pColumnInfoData->info.bytes < itemLen) {
-    uWarn("column/tag actual data len %d is bigger than schema len %d, trim it:%d", itemLen, pColumnInfoData->info.bytes, trimValue);
+    uWarn("column/tag actual data len %d is bigger than schema len %d, trim it:%d", itemLen,
+          pColumnInfoData->info.bytes, trimValue);
     if (trimValue) {
       itemLen = pColumnInfoData->info.bytes;
     } else {
       return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
     }
   }
-  
+
   size_t start = 1;
 
   // the first item
@@ -230,8 +222,8 @@ static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t cur
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
-                            uint32_t numOfRows, bool trimValue) {
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
+                         bool trimValue) {
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     len = varDataTLen(pData);
@@ -244,6 +236,82 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
   }
 
   return doCopyNItems(pColumnInfoData, currentRow, pData, len, numOfRows, trimValue);
+}
+
+void colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    memset(&pColumnInfoData->varmeta.offset[currentRow], -1, sizeof(int32_t) * numOfRows);
+  } else {
+    if (numOfRows < sizeof(char) * 2) {
+      for (int32_t i = 0; i < numOfRows; ++i) {
+        colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow + i);
+      }
+    } else {
+      int32_t i = 0;
+      for (; i < numOfRows; ++i) {
+        if (BitPos(currentRow + i)) {
+          colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow + i);
+        } else {
+          break;
+        }
+      }
+
+      memset(&BMCharPos(pColumnInfoData->nullbitmap, currentRow + i), 0xFF, (numOfRows - i) / sizeof(char));
+      i += (numOfRows - i) / sizeof(char) * sizeof(char);
+      
+      for (; i < numOfRows; ++i) {
+        colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow + i);
+      }
+    }
+  }
+}
+
+int32_t colDataCopyAndReassign(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows) {
+  int32_t code = colDataSetVal(pColumnInfoData, currentRow, pData, false);
+  if (code) {
+    return code;
+  }
+  
+  if (numOfRows > 1) {
+    int32_t* pOffset = pColumnInfoData->varmeta.offset;
+    memset(&pOffset[currentRow + 1], pOffset[currentRow], sizeof(pOffset[0]) * (numOfRows - 1));
+    pColumnInfoData->reassigned = true;  
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
+                            uint32_t numOfRows, bool isNull) {
+  int32_t len = pColumnInfoData->info.bytes;
+  if (isNull) {
+    colDataSetNItemsNull(pColumnInfoData, currentRow, numOfRows);
+    pColumnInfoData->hasNull = true;
+    return 0;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return colDataCopyAndReassign(pColumnInfoData, currentRow, pData, numOfRows);
+  } else {
+    int32_t colBytes = pColumnInfoData->info.bytes;
+    int32_t colOffset = currentRow * colBytes;
+    uint32_t num = 1;
+
+    void* pStart = pColumnInfoData->pData + colOffset;
+    memcpy(pStart, pData, colBytes);
+    colOffset += num * colBytes;
+    
+    while (num < numOfRows) {
+      int32_t maxNum = num << 1;
+      int32_t tnum = maxNum > numOfRows ? (numOfRows - num) : num;
+      
+      memcpy(pColumnInfoData->pData + colOffset, pStart, tnum * colBytes);
+      colOffset += tnum * colBytes;
+      num += tnum;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,
@@ -262,7 +330,7 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
 
   uint8_t* p = (uint8_t*)pSource->nullbitmap;
   pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] &= (0B11111111 << shiftBits);  // clear remind bits
-  pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] |= (p[0] >> remindBits);  // copy remind bits
+  pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] |= (p[0] >> remindBits);       // copy remind bits
 
   if (BitmapLen(numOfRow1) == BitmapLen(total)) {
     return;
@@ -350,7 +418,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
 
       pColumnInfoData->pData = tmp;
       if (BitmapLen(numOfRow1) < BitmapLen(finalNumOfRows)) {
-        char*    btmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(finalNumOfRows));
+        char* btmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(finalNumOfRows));
         if (btmp == NULL) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
@@ -622,7 +690,7 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
 
     if (pCol->reassigned && IS_VAR_DATA_TYPE(pCol->info.type)) {
       for (int32_t row = 0; row < numOfRows; ++row) {
-        char* pColData = pCol->pData + pCol->varmeta.offset[row];
+        char*   pColData = pCol->pData + pCol->varmeta.offset[row];
         int32_t colSize = 0;
         if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pColData);
@@ -698,8 +766,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool colDataIsNNull(const SColumnInfoData* pColumnInfoData, int32_t startIndex,
-                                          uint32_t nRows) {
+static bool colDataIsNNull(const SColumnInfoData* pColumnInfoData, int32_t startIndex, uint32_t nRows) {
   if (!pColumnInfoData->hasNull) {
     return false;
   }
@@ -880,7 +947,6 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
 }
 
 static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, const int32_t* index) {
-
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = &pCols[i];
@@ -1131,6 +1197,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    // memset(tmp, 0, numOfRows * pColumn->info.bytes);
 
     // copy back the existed data
     if (pColumn->pData != NULL) {
@@ -1474,8 +1541,8 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int
   int end = nRows;
   while (start <= end) {
     int mid = start + (end - start) / 2;
-    //data size + var data type columns offset + fixed data type columns bitmap len 
-    int midSize = rowSize * mid + numVarCols * sizeof(int32_t) * mid + numFixCols * BitmapLen(mid); 
+    // data size + var data type columns offset + fixed data type columns bitmap len
+    int midSize = rowSize * mid + numVarCols * sizeof(int32_t) * mid + numFixCols * BitmapLen(mid);
     if (midSize > payloadSize) {
       result = mid;
       end = mid - 1;
@@ -1669,7 +1736,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
 
     if (pColData->reassigned && IS_VAR_DATA_TYPE(pColData->info.type)) {
       for (int32_t row = 0; row < rows; ++row) {
-        char* pData = pColData->pData + pColData->varmeta.offset[row];
+        char*   pData = pColData->pData + pColData->varmeta.offset[row];
         int32_t colSize = 0;
         if (pColData->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pData);
@@ -1771,8 +1838,8 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 }
 
 // for debug
-char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {
-  int32_t size = 2048*1024;
+char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
+  int32_t size = 2048 * 1024;
   *pDataBuf = taosMemoryCalloc(size, 1);
   char*   dumpBuf = *pDataBuf;
   char    pBuf[128] = {0};
@@ -1780,9 +1847,9 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
   len += snprintf(dumpBuf + len, size - len,
-                  "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
+                  "%s===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
                   "|rows:%" PRId64 "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
-                  flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
+                  taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
                   pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
                   pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
   if (len >= size - 1) return dumpBuf;
@@ -2156,21 +2223,21 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     data += metaSize;
     dataLen += metaSize;
 
-     if (pColRes->reassigned && IS_VAR_DATA_TYPE(pColRes->info.type)) {
-        colSizes[col] = 0;
-        for (int32_t row = 0; row < numOfRows; ++row) {
-          char* pColData = pColRes->pData + pColRes->varmeta.offset[row];
-          int32_t colSize = 0;
-          if (pColRes->info.type == TSDB_DATA_TYPE_JSON) {
-            colSize = getJsonValueLen(pColData);
-          } else {
-            colSize = varDataTLen(pColData);
-          }
-          colSizes[col] += colSize;
-          dataLen += colSize;
-          memmove(data, pColData, colSize);
-          data += colSize;
+    if (pColRes->reassigned && IS_VAR_DATA_TYPE(pColRes->info.type)) {
+      colSizes[col] = 0;
+      for (int32_t row = 0; row < numOfRows; ++row) {
+        char*   pColData = pColRes->pData + pColRes->varmeta.offset[row];
+        int32_t colSize = 0;
+        if (pColRes->info.type == TSDB_DATA_TYPE_JSON) {
+          colSize = getJsonValueLen(pColData);
+        } else {
+          colSize = varDataTLen(pColData);
         }
+        colSizes[col] += colSize;
+        dataLen += colSize;
+        memmove(data, pColData, colSize);
+        data += colSize;
+      }
     } else {
       colSizes[col] = colDataGetLength(pColRes, numOfRows);
       dataLen += colSizes[col];
@@ -2181,7 +2248,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     }
 
     colSizes[col] = htonl(colSizes[col]);
-//    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type, htonl(colSizes[col]), colSizes[col]);
+    //    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
+    //    htonl(colSizes[col]), colSizes[col]);
   }
 
   *actualLen = dataLen;
@@ -2283,7 +2351,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 }
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
-//  int32_t totalRows = pBlock->info.rows;
+  //  int32_t totalRows = pBlock->info.rows;
   int32_t bmLen = BitmapLen(totalRows);
   char*   pBitmap = NULL;
   int32_t maxRows = 0;
@@ -2310,8 +2378,9 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
         if (colDataIsNull_var(pDst, j)) {
           colDataSetNull_var(pDst, numOfRows);
         } else {
-          // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first copy it to p2
-          char* p1 = colDataGetVarData(pDst, j);
+          // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first
+          // copy it to p2
+          char*   p1 = colDataGetVarData(pDst, j);
           int32_t len = 0;
           if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
             len = getJsonValueLen(p1);

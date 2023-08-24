@@ -16,6 +16,7 @@
 #include "tencode.h"
 #include "tmsg.h"
 #include "vnd.h"
+#include "vndCos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 
@@ -36,6 +37,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -190,7 +192,18 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   } else if (pVnode->config.tsdbCfg.precision == TSDB_TIME_PRECISION_NANO) {
     now *= 1000000;
   }
-  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+
+  int32_t nlevel = tfsGetLevel(pVnode->pTfs);
+  int32_t keep = pVnode->config.tsdbCfg.keep2;
+  if (nlevel > 1 && tsS3Enabled) {
+    if (nlevel == 3) {
+      keep = pVnode->config.tsdbCfg.keep1;
+    } else if (nlevel == 2) {
+      keep = pVnode->config.tsdbCfg.keep0;
+    }
+  }
+
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * keep;
   TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
   if (submitTbData.flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     uint64_t nColData;
@@ -392,10 +405,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     return -1;
   }
 
-  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver);
+  vDebug("vgId:%d, start to process write request %s, index:%" PRId64 ", applied:%" PRId64 
+        ", state.applyTerm:%" PRId64 ", conn.applyTerm:%" PRId64, 
+        TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied,
+        pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
-  ASSERT(pVnode->state.applied + 1 == ver);
+  ASSERTS(pVnode->state.applied + 1 == ver, "applied:%" PRId64 ", ver:%" PRId64, pVnode->state.applied, ver);
 
   atomic_store_64(&pVnode->state.applied, ver);
   atomic_store_64(&pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
@@ -513,6 +529,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
       goto _exit;
+    case TDMT_SYNC_CONFIG_CHANGE:
+      vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
+      break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -628,6 +647,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_SEEK:
       return tqProcessSeekReq(pVnode->pTq, pMsg);
+
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -660,8 +680,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TRANSFER_STATE:
-      return tqProcessTaskTransferStateReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
       return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
@@ -1829,6 +1847,17 @@ extern int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void
 
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   return vnodeProcessCompactVnodeReqImpl(pVnode, ver, pReq, len, pRsp);
+}
+
+static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  syncCheckMember(pVnode->sync);
+
+  pRsp->msgType = TDMT_SYNC_CONFIG_CHANGE_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  return 0;
 }
 
 #ifndef TD_ENTERPRISE

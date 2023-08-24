@@ -2198,6 +2198,20 @@ int tdbBtcDelete(SBTC *pBtc) {
             return -1;
           }
           tdbOsFree(pCell);
+
+          if (pPage->nOverflow > 0) {
+            tdbDebug("tdb/btc-delete: btree balance after update cell, pPage/nOverflow: %p/%d.", pPage,
+                     pPage->nOverflow);
+
+            pBtc->iPage = iPage;
+            pBtc->pPage = pPage;
+            ret = tdbBtreeBalance(pBtc);
+            if (ret < 0) {
+              tdbError("tdb/btc-delete: btree balance failed with ret: %d.", ret);
+              return -1;
+            }
+          }
+
           break;
         } else {
           pgno = TDB_PAGE_PGNO(pPage);

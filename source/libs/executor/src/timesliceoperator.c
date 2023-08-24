@@ -848,6 +848,10 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   bool                    ignoreNull = getIgoreNullRes(pSup);
   int32_t                 order = TSDB_ORDER_ASC;
 
+  if (checkWindowBoundReached(pSliceInfo)) {
+    return;
+  }
+
   int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
@@ -896,7 +900,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     }
 
     while (1) {
-      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes : downstream->fpSet.getNextFn(downstream);
+      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes : getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
         setOperatorCompleted(pOperator);
         break;
@@ -1007,7 +1011,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, optrDefaultBufFn, NULL);
+      createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 

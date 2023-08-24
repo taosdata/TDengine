@@ -208,7 +208,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
-    vnodeDestroy(path, pMgmt->pTfs);
+    vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs);
   }
 
   taosMemoryFree(pVnode->path);
@@ -267,6 +267,7 @@ static void *vmOpenVnodeInThread(void *param) {
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
 
     SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
       pThread->failed++;

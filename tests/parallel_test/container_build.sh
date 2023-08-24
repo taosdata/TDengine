@@ -60,6 +60,7 @@ docker run \
     -v /root/.cargo/git:/root/.cargo/git \
     -v /root/go/pkg/mod:/root/go/pkg/mod \
     -v /root/.cache/go-build:/root/.cache/go-build \
+    -v /root/.cos-local.1:/root/.cos-local.1 \
     -v ${REP_REAL_PATH}/enterprise/src/plugins/taosx/target:${REP_DIR}/enterprise/src/plugins/taosx/target \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
     -v ${REP_REAL_PATH}/community/contrib/cJson/:${REP_DIR}/community/contrib/cJson \
@@ -88,6 +89,7 @@ docker run \
     -v /root/.cargo/git:/root/.cargo/git \
     -v /root/go/pkg/mod:/root/go/pkg/mod \
     -v /root/.cache/go-build:/root/.cache/go-build \
+    -v /root/.cos-local.1:/root/.cos-local.1 \
     -v ${REP_REAL_PATH}/enterprise/src/plugins/taosx/target:${REP_DIR}/enterprise/src/plugins/taosx/target \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
     -v ${REP_REAL_PATH}/community/contrib/cJson/:${REP_DIR}/community/contrib/cJson \

@@ -6,6 +6,14 @@
 ,,y,unit-test,bash test.sh
 
 #system test
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
@@ -127,6 +135,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
@@ -455,7 +465,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 ,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
-,,n,system-test,python ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
+,,n,system-test,python3 ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
@@ -1203,6 +1213,9 @@
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
+,,y,script,./test.sh -f tsim/tagindex/add_index.sim 
+,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim 
+
 
 #develop test
 ,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py

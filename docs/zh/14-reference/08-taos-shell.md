@@ -89,3 +89,11 @@ taos -h h1.taos.com -s "use db; show tables;"
 - 执行 `RESET QUERY CACHE` 可清除本地表 Schema 的缓存
 - 批量执行 SQL 语句。可以将一系列的 TDengine CLI 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 TDengine CLI 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
 - 输入 `q` 或 `quit` 或 `exit` 回车，可以退出 TDengine CLI
+
+## TDengine CLI 导出查询结果到文件中
+
+- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为： sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 select * from d0 >> ‘/root/d0.csv’;  将把查询结果输出到 /root/d0.csv 中。
+
+## TDengine CLI 导入文件中的数据到表中
+
+- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 insert into d0 file '/root/d0.csv'; 表示把上面导出的数据全部再导致至 d0 表中。

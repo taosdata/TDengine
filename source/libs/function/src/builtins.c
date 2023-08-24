@@ -681,6 +681,21 @@ static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateTbUidColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateVgIdColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams) {
@@ -1565,6 +1580,45 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (isPartial) {
+    if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    if (!IS_NUMERIC_TYPE(colType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    if (TSDB_DATA_TYPE_BINARY != colType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+
+    // add database precision as param
+    uint8_t dbPrec = pFunc->node.resType.precision;
+    int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIratePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateIrateImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateIrateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateIrateImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -2604,6 +2658,31 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = irateFuncSetup,
     .processFunc  = irateFunction,
     .sprocessFunc = irateScalarFunction,
+    .finalizeFunc = irateFinalize,
+    .pPartialFunc = "_irate_partial",
+    .pMergeFunc   = "_irate_merge"
+  },
+  {
+    .name = "_irate_partial",
+    .type = FUNCTION_TYPE_IRATE_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
+    .translateFunc = translateIratePartial,
+    .getEnvFunc   = getIrateFuncEnv,
+    .initFunc     = irateFuncSetup,
+    .processFunc  = irateFunction,
+    .sprocessFunc = irateScalarFunction,
+    .finalizeFunc = iratePartialFinalize
+  },
+  {
+    .name = "_irate_merge",
+    .type = FUNCTION_TYPE_IRATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateIrateMerge,
+    .getEnvFunc   = getIrateFuncEnv,
+    .initFunc     = irateFuncSetup,
+    .processFunc  = irateFunctionMerge,
+    .sprocessFunc = irateScalarFunction,
     .finalizeFunc = irateFinalize
   },
   {
@@ -3533,6 +3612,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = containsProperlyFunction,
     .finalizeFunc = NULL
   },
+  {
+    .name = "_tbuid",
+    .type = FUNCTION_TYPE_TBUID,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateTbUidColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = qTbUidFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_vgid",
+    .type = FUNCTION_TYPE_VGID,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateVgIdColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = qVgIdFunction,
+    .finalizeFunc = NULL
+  },
+  
 };
 // clang-format on
 

@@ -197,7 +197,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   }
 
   while (1) {
-    SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
+    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       if (pInfo->totalInputRows == 0 &&
           (pInfo->pFillInfo->type != TSDB_FILL_NULL_F && pInfo->pFillInfo->type != TSDB_FILL_SET_VALUE_F)) {
@@ -444,7 +444,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL);
+      createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -1292,14 +1292,14 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
       (pInfo->pFillInfo->pos != FILL_POS_INVALID && pInfo->pFillInfo->needFill == true)) {
     doStreamFillRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
     if (pInfo->pRes->info.rows > 0) {
-      printDataBlock(pInfo->pRes, "stream fill");
+      printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pRes;
     }
   }
   if (pOperator->status == OP_RES_TO_RETURN) {
     doDeleteFillFinalize(pOperator);
     if (pInfo->pRes->info.rows > 0) {
-      printDataBlock(pInfo->pRes, "stream fill");
+      printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pRes;
     }
     setOperatorCompleted(pOperator);
@@ -1312,17 +1312,17 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   while (1) {
     if (pInfo->srcRowIndex >= pInfo->pSrcBlock->info.rows || pInfo->pSrcBlock->info.rows == 0) {
       // If there are delete datablocks, we receive  them first.
-      SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+      SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
         pOperator->status = OP_RES_TO_RETURN;
         pInfo->pFillInfo->preRowKey = INT64_MIN;
         if (pInfo->pRes->info.rows > 0) {
-          printDataBlock(pInfo->pRes, "stream fill");
+          printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
           return pInfo->pRes;
         }
         break;
       }
-      printDataBlock(pBlock, "stream fill recv");
+      printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
 
       if (pInfo->pFillInfo->curGroupId != pBlock->info.id.groupId) {
         pInfo->pFillInfo->curGroupId = pBlock->info.id.groupId;
@@ -1339,7 +1339,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           pInfo->pFillSup->hasDelete = true;
           doDeleteFillResult(pOperator);
           if (pInfo->pDelRes->info.rows > 0) {
-            printDataBlock(pInfo->pDelRes, "stream fill delete");
+            printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
             return pInfo->pDelRes;
           }
           continue;
@@ -1378,7 +1378,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   }
 
   pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
-  printDataBlock(pInfo->pRes, "stream fill");
+  printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
   return pInfo->pRes;
 }
 
@@ -1569,7 +1569,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL);
+      createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   code = appendDownstream(pOperator, &downstream, 1);

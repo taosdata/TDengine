@@ -70,6 +70,27 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, Sync
          DID(pRaftId), CID(pRaftId));
 }
 
+void syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldIndex, SRaftId *oldReplicasId){
+  for(int j = 0; j < pOldIndex->totalReplicaNum; ++j){
+    sDebug("old Index j:%d, index:%"PRId64, j, pOldIndex->index[j]);
+  }
+  
+  for (int i = 0; i < pNewIndex->totalReplicaNum; ++i) {
+    for(int j = 0; j < pOldIndex->totalReplicaNum; ++j){
+      if (syncUtilSameId(/*(const SRaftId*)*/&((oldReplicasId[j])), &((*(pNewIndex->replicas))[i]))) {
+        pNewIndex->index[i] = pOldIndex->index[j];
+        pNewIndex->privateTerm[i] = pOldIndex->privateTerm[j];
+        pNewIndex->startTimeArr[i] = pOldIndex->startTimeArr[j];
+        pNewIndex->recvTimeArr[i] = pOldIndex->recvTimeArr[j];   
+      }
+    }
+  }
+
+  for (int i = 0; i < pNewIndex->totalReplicaNum; ++i){
+    sDebug("new index i:%d, index:%"PRId64, i, pNewIndex->index[i]);
+  }
+}
+
 SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], pRaftId)) {

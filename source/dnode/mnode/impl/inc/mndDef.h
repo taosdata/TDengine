@@ -347,9 +347,13 @@ typedef struct {
 typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
+  int64_t    syncTerm;
   bool       syncRestore;
   bool       syncCanRead;
+  int64_t    roleTimeMs;
+  int64_t    startTimeMs;
   ESyncRole  nodeRole;
+  int32_t    learnerProgress;
 } SVnodeGid;
 
 typedef struct {
@@ -373,6 +377,7 @@ typedef struct {
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
   int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
 } SVgObj;
 
 typedef struct {

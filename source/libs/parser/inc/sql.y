@@ -312,17 +312,17 @@ cmd ::= ALTER STABLE alter_table_clause(A).                                     
 
 alter_table_clause(A) ::= full_table_name(B) alter_table_options(C).              { A = createAlterTableModifyOptions(pCxt, B, C); }
 alter_table_clause(A) ::=
-  full_table_name(B) ADD COLUMN column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, &C, D); }
+  full_table_name(B) ADD COLUMN column_def(C).                                    { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, C); }
 alter_table_clause(A) ::= full_table_name(B) DROP COLUMN column_name(C).          { A = createAlterTableDropCol(pCxt, B, TSDB_ALTER_TABLE_DROP_COLUMN, &C); }
 alter_table_clause(A) ::=
-  full_table_name(B) MODIFY COLUMN column_name(C) type_name(D).                   { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, &C, D); }
+  full_table_name(B) MODIFY COLUMN column_def(C).                                 { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, C); }
 alter_table_clause(A) ::=
   full_table_name(B) RENAME COLUMN column_name(C) column_name(D).                 { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) ADD TAG column_name(C) type_name(D).                         { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG, &C, D); }
+  full_table_name(B) ADD TAG column_def(C).                                       { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG, C); }
 alter_table_clause(A) ::= full_table_name(B) DROP TAG column_name(C).             { A = createAlterTableDropCol(pCxt, B, TSDB_ALTER_TABLE_DROP_TAG, &C); }
 alter_table_clause(A) ::= 
-  full_table_name(B) MODIFY TAG column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, &C, D); }
+  full_table_name(B) MODIFY TAG column_def(C).                                    { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, C); }
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
@@ -358,7 +358,7 @@ column_def_list(A) ::= column_def(B).                                           
 column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
 
 column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL); }
-//column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
+column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
 
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
@@ -475,8 +475,8 @@ cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                       
 cmd ::= SHOW TAGS FROM db_name(B) NK_DOT table_name(A).                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, createIdentifierValueNode(pCxt, &B), createIdentifierValueNode(pCxt, &A), OP_TYPE_EQUAL); }
 cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM table_name_cond(A) from_db_opt(B).   { pCxt->pRootNode = createShowTableTagsStmt(pCxt, A, B, C); }
 cmd ::= SHOW TABLE TAGS tag_list_opt(C) FROM db_name(B) NK_DOT table_name(A).     { pCxt->pRootNode = createShowTableTagsStmt(pCxt, createIdentifierValueNode(pCxt, &A), createIdentifierValueNode(pCxt, &B), C); }
-cmd ::= SHOW VNODES NK_INTEGER(A).                                                { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
-cmd ::= SHOW VNODES NK_STRING(A).                                                 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &A)); }
+cmd ::= SHOW VNODES ON DNODE NK_INTEGER(A).                                       { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
+cmd ::= SHOW VNODES.                                                              { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, NULL); }
 // show alive
 cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
 cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
@@ -1009,10 +1009,11 @@ join_type(A) ::= INNER.                                                         
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
-  SELECT set_quantifier_opt(B) select_list(C) from_clause_opt(D) 
-  where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K) 
-  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  { 
-                                                                                    A = createSelectStmt(pCxt, B, C, D);
+  SELECT hint_list(M) tag_mode_opt(N) set_quantifier_opt(B) select_list(C) from_clause_opt(D)
+  where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
+  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
+                                                                                    A = createSelectStmt(pCxt, B, C, D, M);
+                                                                                    A = setSelectStmtTagMode(pCxt, A, N);
                                                                                     A = addWhereClause(pCxt, A, E);
                                                                                     A = addPartitionByClause(pCxt, A, F);
                                                                                     A = addWindowClauseClause(pCxt, A, G);
@@ -1022,6 +1023,16 @@ query_specification(A) ::=
                                                                                     A = addEveryClause(pCxt, A, K);
                                                                                     A = addFillClause(pCxt, A, L);
                                                                                   }
+
+%type hint_list                                                                   { SNodeList* }
+%destructor hint_list                                                             { nodesDestroyList($$); }
+hint_list(A) ::= .                                                                { A = createHintNodeList(pCxt, NULL); }
+hint_list(A) ::= NK_HINT(B).                                                      { A = createHintNodeList(pCxt, &B); }
+
+%type tag_mode_opt                                                                { bool }
+%destructor tag_mode_opt                                                          { }
+tag_mode_opt(A) ::= .                                                             { A = false; }
+tag_mode_opt(A) ::= TAGS.                                                         { A = true; }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }

@@ -222,7 +222,7 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->pBlockList = taosArrayDestroy(p->pBlockList);
   p->pBlockIdxList = taosArrayDestroy(p->pBlockIdxList);
   p->pMemDelData = taosArrayDestroy(p->pMemDelData);
-  p->pfileDelData = taosArrayDestroy(p->pfileDelData);
+  p->pFileDelData = taosArrayDestroy(p->pFileDelData);
 }
 
 void destroyAllBlockScanInfo(SSHashObj* pTableMap) {
@@ -525,14 +525,14 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
 
     if (newTable) {
       (*pScanInfo) = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-      if ((*pScanInfo)->pfileDelData == NULL) {
-        (*pScanInfo)->pfileDelData = taosArrayInit(4, sizeof(SDelData));
+      if ((*pScanInfo)->pFileDelData == NULL) {
+        (*pScanInfo)->pFileDelData = taosArrayInit(4, sizeof(SDelData));
       }
     }
 
     if (record.version <= pReader->info.verRange.maxVer) {
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
-      taosArrayPush((*pScanInfo)->pfileDelData, &delData);
+      taosArrayPush((*pScanInfo)->pFileDelData, &delData);
     }
   }
 
@@ -579,8 +579,8 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
     uint64_t uid = pReader->status.uidList.tableUidList[j];
 
     STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-    if (pScanInfo->pfileDelData == NULL) {
-      pScanInfo->pfileDelData = taosArrayInit(4, sizeof(SDelData));
+    if (pScanInfo->pFileDelData == NULL) {
+      pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
     }
 
     ETombBlkCheckEnum ret = 0;
