@@ -626,12 +626,21 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
     }
 
-    if (syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0, false) != 0) {
-      sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
-             ", role:%d, current term:%" PRId64,
-             vgId, pEntry->index, pEntry->term, role, currentTerm);
+    int retryNum = 100;
+    do {
+      if ((ret = syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0, false)) != 0) {
+        sError("vgId:%d, failed to execute sync log entry since %s. index:%" PRId64 ", term:%" PRId64
+               ", role:%d, current term:%" PRId64,
+               vgId, terrstr(), pEntry->index, pEntry->term, role, currentTerm);
+        taosMsleep(10);
+        retryNum--;
+      }
+    } while (ret != 0 && terrno != TSDB_CODE_VND_INVALID_VGROUP_ID && retryNum > 0);
+
+    if (ret != 0) {
       goto _out;
     }
+
     pBuf->commitIndex = index;
 
     sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
