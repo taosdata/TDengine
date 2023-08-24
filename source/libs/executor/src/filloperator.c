@@ -177,6 +177,7 @@ static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, i
       }
 
       // todo time window chosen problem: t or prev value?
+      if (t > pInfo->pFillInfo->start) t -= pInterval->sliding;
       taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
     }
   }
