@@ -1150,7 +1150,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /* TABLE_PREFIX => nothing */
     0,  /* TABLE_SUFFIX => nothing */
     0,  /*   NK_COLON => nothing */
-    0,  /*  MAX_SPEED => nothing */
+    0,  /*  BWLIMIT => nothing */
     0,  /*      START => nothing */
     0,  /*  TIMESTAMP => nothing */
   287,  /*        END => ABORT */
@@ -1575,7 +1575,7 @@ static const char *const yyTokenName[] = {
   /*   95 */ "TABLE_PREFIX",
   /*   96 */ "TABLE_SUFFIX",
   /*   97 */ "NK_COLON",
-  /*   98 */ "MAX_SPEED",
+  /*   98 */ "BWLIMIT",
   /*   99 */ "START",
   /*  100 */ "TIMESTAMP",
   /*  101 */ "END",
@@ -2114,7 +2114,7 @@ static const char *const yyRuleName[] = {
  /* 140 */ "retention_list ::= retention_list NK_COMMA retention",
  /* 141 */ "retention ::= NK_VARIABLE NK_COLON NK_VARIABLE",
  /* 142 */ "speed_opt ::=",
- /* 143 */ "speed_opt ::= MAX_SPEED NK_INTEGER",
+ /* 143 */ "speed_opt ::= BWLIMIT NK_INTEGER",
  /* 144 */ "start_opt ::=",
  /* 145 */ "start_opt ::= START WITH NK_INTEGER",
  /* 146 */ "start_opt ::= START WITH NK_STRING",
@@ -3335,7 +3335,7 @@ static const YYCODETYPE yyRuleInfoLhs[] = {
    366,  /* (140) retention_list ::= retention_list NK_COMMA retention */
    369,  /* (141) retention ::= NK_VARIABLE NK_COLON NK_VARIABLE */
    361,  /* (142) speed_opt ::= */
-   361,  /* (143) speed_opt ::= MAX_SPEED NK_INTEGER */
+   361,  /* (143) speed_opt ::= BWLIMIT NK_INTEGER */
    362,  /* (144) start_opt ::= */
    362,  /* (145) start_opt ::= START WITH NK_INTEGER */
    362,  /* (146) start_opt ::= START WITH NK_STRING */
@@ -3940,7 +3940,7 @@ static const signed char yyRuleInfoNRhs[] = {
    -3,  /* (140) retention_list ::= retention_list NK_COMMA retention */
    -3,  /* (141) retention ::= NK_VARIABLE NK_COLON NK_VARIABLE */
     0,  /* (142) speed_opt ::= */
-   -2,  /* (143) speed_opt ::= MAX_SPEED NK_INTEGER */
+   -2,  /* (143) speed_opt ::= BWLIMIT NK_INTEGER */
     0,  /* (144) start_opt ::= */
    -3,  /* (145) start_opt ::= START WITH NK_INTEGER */
    -3,  /* (146) start_opt ::= START WITH NK_STRING */
@@ -5016,7 +5016,7 @@ static YYACTIONTYPE yy_reduce(
       case 330: /* bufsize_opt ::= */ yytestcase(yyruleno==330);
 { yymsp[1].minor.yy416 = 0; }
         break;
-      case 143: /* speed_opt ::= MAX_SPEED NK_INTEGER */
+      case 143: /* speed_opt ::= BWLIMIT NK_INTEGER */
       case 331: /* bufsize_opt ::= BUFSIZE NK_INTEGER */ yytestcase(yyruleno==331);
 { yymsp[-1].minor.yy416 = taosStr2Int32(yymsp[0].minor.yy0.z, NULL, 10); }
         break;
