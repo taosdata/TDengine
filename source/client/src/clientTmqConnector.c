@@ -590,7 +590,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommittedImp(
 
   int64_t offset = tmq_committed(tmq, topicName, vgId);
 
-  if (offset < JNI_SUCCESS) {
+  if (offset < JNI_SUCCESS && offset != -2147467247) {
     jniError("jobj:%p, tmq get committed offset error, topic:%s, vgId:%d, code:0x%" PRIx64 ", msg:%s", jobj, topicName,
              vgId, offset, tmq_err2str(offset));
   }
