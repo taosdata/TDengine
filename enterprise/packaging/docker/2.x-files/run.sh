@@ -375,12 +375,12 @@ do
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
         td_cluster_check
-        if [ $? -eq 0]; then
+        if [ $? -eq 0 ]; then
             status="6"
         fi 
     fi
             #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
-    if [ "$status" = "6" ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
+    if [ "$status"x = "6"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
         logger "INFO" "begin to check test db existed or not"
         dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
         if [ $? -eq 0 ]; then
@@ -445,7 +445,7 @@ do
     fi
     # check taosadapter
     nc -z localhost 6041
-    if [ "$status" = "6" ] && [ $? -ne 0 ]; then
+    if [ "$status"x = "6"x ] && [ $? -ne 0 ]; then
         logger "INFO" "start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
             logger "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
