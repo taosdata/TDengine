@@ -851,6 +851,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
       if (hasPrevWindow(pFillSup)) {
         setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
+        resetFillWindow(&pFillSup->next);
         pFillSup->next.key = pFillSup->cur.key;
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
         pFillInfo->preRowKey = INT64_MIN;

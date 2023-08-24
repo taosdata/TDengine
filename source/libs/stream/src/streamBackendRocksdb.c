@@ -1620,18 +1620,21 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   if (len < 0) {
     return -1;
   }
+
+  if (pVLen != NULL) *pVLen = len;
+
+  if (pKTmp->opNum != pCur->number) {
+    taosMemoryFree(val);
+    return -1;
+  }
+  if (pKey->groupId != 0 && pKey->groupId != pKTmp->key.groupId) {
+    taosMemoryFree(val);
+    return -1;
+  }
   if (pVal != NULL) {
     *pVal = (char*)val;
   } else {
     taosMemoryFree(val);
-  }
-  if (pVLen != NULL) *pVLen = len;
-
-  if (pKTmp->opNum != pCur->number) {
-    return -1;
-  }
-  if (pKey->groupId != 0 && pKey->groupId != pKTmp->key.groupId) {
-    return -1;
   }
   *pKey = pKTmp->key;
   return 0;
