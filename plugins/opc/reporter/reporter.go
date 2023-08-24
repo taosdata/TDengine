@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/arrow/go/v12/arrow"
-	"github.com/apache/arrow/go/v12/arrow/array"
-	"github.com/apache/arrow/go/v12/arrow/memory"
+	"github.com/apache/arrow/go/v13/arrow"
+	"github.com/apache/arrow/go/v13/arrow/array"
+	"github.com/apache/arrow/go/v13/arrow/memory"
 	"github.com/sunpe/gobox/logger"
 )
 
@@ -167,7 +167,7 @@ func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc append
 var meta = arrow.MetadataFrom(map[string]string{
 	"version": "1.0",
 	"stream":  "point",
-	"ack":     "none",
+	"ack":     "lush",
 })
 
 var (
