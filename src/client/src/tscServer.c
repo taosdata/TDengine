@@ -1995,6 +1995,7 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   return TSDB_CODE_SUCCESS;
 }
+
 int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pInfo->list == NULL || taosArrayGetSize(pInfo->list) <= 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -2021,7 +2022,11 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   int count = removeDupVgid(result, size);
-  pCmd->payloadLen = sizeof(SCompactMsg) + count * sizeof(int32_t);
+
+  int32_t payloadLen = sizeof(SCompactMsg) + count * sizeof(int32_t) + // compact msg(include vgroup list)
+                        sizeof(STLV) + sizeof(int64_t) * 2 + 2 + // skey, ekey, nano skey, nano ekey
+                        sizeof(STLV); //end mark
+  pCmd->payloadLen = payloadLen ;
   pCmd->msgType = TSDB_MSG_TYPE_CM_COMPACT_VNODE;  
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -2030,6 +2035,8 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   SCompactMsg *pCompactMsg = (SCompactMsg *)pCmd->payload;
+  
+  pCompactMsg->extend = 1;
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
   
@@ -2040,12 +2047,44 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   } else {
     tNameGetFullDbName(&pTableMetaInfo->name, pCompactMsg->db);
   } 
- 
+
   pCompactMsg->numOfVgroup = htons(count);
   for (int32_t i = 0; i < count; i++) {
     pCompactMsg->vgid[i] = htons(result[i]);   
   } 
   free(result);
+  
+  char* p = (char*)pCompactMsg + sizeof(SCompactMsg) + count * sizeof(int32_t);
+  STLV *tlv = (STLV *)(p);
+  tlv->type = htons(TLV_TYPE_COMPACT_VNODES_TIME_RANGE);
+  tlv->len  = htonl(sizeof(int64_t) * 2 + 2);
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  p = tlv->value;
+  *(int64_t*)p = htobe64(pQueryInfo->range.skey);
+  p += sizeof(int64_t);
+  *(int64_t*)(p) = htobe64(pQueryInfo->range.ekey);
+  p += sizeof(int64_t);
+  if (pInfo->pCompactRange->start) {
+    int8_t isNano = pInfo->pCompactRange->start->flags &= (1 << EXPR_FLAG_NS_TIMESTAMP);
+    *(int8_t*)(p) = isNano; // skey is nano precision?
+  } else {
+    *(int8_t*)(p) = 0;
+  }
+  p += sizeof(int8_t);
+
+  if (pInfo->pCompactRange->end) {
+    int8_t isNano = (pInfo->pCompactRange->end->flags &= (1 << EXPR_FLAG_NS_TIMESTAMP));
+    *(int8_t*)(p) = isNano; // ekey is nano precison
+  } else {
+    *(int8_t*)(p) = 0;
+  }
+  p += sizeof(int8_t);
+
+  tlv = (STLV *)p;
+  tlv->type = htons(TLV_TYPE_END_MARK);
+  tlv->len = 0;
+  p += sizeof(*tlv);
 
   return TSDB_CODE_SUCCESS;
 }

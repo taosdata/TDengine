@@ -51,7 +51,7 @@ void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg);
 void    mnodeSendSyncVgroupMsg(SVgObj *pVgroup);
-void    mnodeSendCompactVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendCompactVgroupMsg(SVgObj *pVgroup, int64_t skey, int64_t ekey);
 
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
 SRpcEpSet mnodeGetEpSetFromIp(char *ep);

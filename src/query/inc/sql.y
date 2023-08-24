@@ -189,7 +189,22 @@ cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSql(p
 
 ////////////////////////////// COMPACT STATEMENT //////////////////////////////////////////////
 
-cmd ::= COMPACT VNODES IN LP exprlist(Y) RP.    { setCompactVnodeSql(pInfo, TSDB_SQL_COMPACT_VNODE, Y);}
+cmd ::= COMPACT VNODES IN LP exprlist(Y) RP compact_range_option(Z).    { setCompactVnodeSql(pInfo, TSDB_SQL_COMPACT_VNODE, Y, &Z);}
+
+%type range_start_opt {tSqlExpr*}
+%destructor timestamp {tSqlExprDestroy($$);}
+
+range_start_opt(A) ::= .                                                                { A = 0; }
+range_start_opt(A) ::= START WITH timestamp(B).                                        { A = B; }
+
+%type range_end_opt {tSqlExpr*}
+%destructor timestamp {tSqlExprDestroy($$);}
+
+range_end_opt(A) ::= .                                                                  { A = 0; }
+range_end_opt(A) ::= END WITH timestamp(B).                                            { A = B; }
+
+%type compact_range_option {SRangeVal}
+compact_range_option(N) ::= range_start_opt(S) range_end_opt(E). {N.start = S; N.end = E;}
 
 // An IDENTIFIER can be a generic identifier, or one of several keywords.
 // Any non-standard keyword can also be an identifier.

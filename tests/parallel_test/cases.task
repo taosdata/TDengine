@@ -803,6 +803,7 @@
 4,,pytest,python3 test.py -f insert/alterTableAndInsert.py
 4,,pytest,python3 test.py -f import_merge/importHeadPartOverlap.py
 4,,pytest,python3 test.py -f functions/function_stddev_td2555.py
+4,,pytest,python3 test.py -f functions/compactVnodes.py
 4,,pytest,python3 test.py -f dbmgmt/nanoSecondCheck.py
 4,,pytest,python3 bug2265.py
 4,,pytest,python3 test.py -f alter/alterTabAddTagWithNULL.py

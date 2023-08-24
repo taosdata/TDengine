@@ -426,7 +426,13 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
+} SDropVnodeMsg, SSyncVnodeMsg;
+
+typedef struct {
+  int32_t vgId;
+  int64_t skey;
+  int64_t ekey;
+} SCompactVnodeMsg;
 
 typedef struct {
   int32_t     contLen;
@@ -889,6 +895,8 @@ typedef struct {
   char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
+  // tlv int64_t skey, ekey;
+  // tlv end
 } SCompactMsg;
 
 typedef struct SShowRsp {
@@ -1029,6 +1037,10 @@ enum {
   TLV_TYPE_END_MARK = -1,
   //TLV_TYPE_DUMMY = 1,
   TLV_TYPE_META_VERSION = 1,
+};
+
+enum ETlvTypeCompact {
+  TLV_TYPE_COMPACT_VNODES_TIME_RANGE = 1,
 };
 
 #pragma pack(pop)
