@@ -91,14 +91,11 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | ADD COLUMN col_name column_definition
+  | ADD COLUMN col_name column_type
   | DROP COLUMN col_name
-  | MODIFY COLUMN col_name column_definition
+  | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
 }
-
-column_definition:
-    type_name [comment 'string_value']
 
 alter_table_options:
     alter_table_option ...
