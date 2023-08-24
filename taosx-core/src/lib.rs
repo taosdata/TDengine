@@ -19,6 +19,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tracing::instrument;
 
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
@@ -76,7 +77,7 @@ impl ConnectorLicense {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
     pub transform: Vec<Action>,
@@ -90,6 +91,7 @@ pub struct TaskOpts {
     // pub port_pool: OnceCell<PortPool>
     pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
     pub transferred: Option<Arc<Transferred>>,
+    pub span: tracing::Span,
 }
 
 impl Drop for TaskOpts {
@@ -105,6 +107,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
+    #[instrument(skip_all, parent = &self.span)]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -119,6 +122,7 @@ impl TaskOpts {
             // port_pool,
             offsets,
             transferred,
+            ..
         } = self;
 
         // Check if enterprise available

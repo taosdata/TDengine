@@ -403,7 +403,7 @@ impl OPCConfig {
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                        log::info!("drop sql: {drop_sql}");
+                        tracing::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| {
                             OpcError::ConfigError("csv_config_file", err.to_string())
                         })?;
@@ -493,7 +493,7 @@ impl OPCConfig {
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                        log::info!("drop sql: {drop_sql}");
+                        tracing::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| {
                             OpcError::ConfigError("csv_config_file", err.to_string())
                         })?;
@@ -647,7 +647,7 @@ pub async fn generate_opcconfig_from_csv(
     let mut tables_to_drop = Vec::new();
     let mut current_tag_names = Vec::new();
     for mut file in files_or_strings {
-        log::info!(
+        tracing::info!(
             "current log: {}",
             std::env::current_dir().unwrap().to_str().unwrap()
         );
@@ -672,7 +672,7 @@ pub async fn generate_opcconfig_from_csv(
         let header = records.next().await;
         // skip first line(desc)
         if header.is_none() {
-            log::warn!("file {file} should have 2 lines at least");
+            tracing::warn!("file {file} should have 2 lines at least");
             continue;
         }
         let header = header.unwrap()?;
@@ -845,7 +845,7 @@ pub async fn generate_opcconfig_from_csv(
                     );
                     node_config_old.push(format!("{point_id}::{code}"))
                 }
-                Err(_e) => log::warn!("line {line} have different with other previous lines ",),
+                Err(_e) => tracing::warn!("line {line} have different with other previous lines ",),
             }
             line += 1;
         }
@@ -896,13 +896,13 @@ pub(super) fn get_string_vec_from_param_or_file(
             .partition(|v| v.starts_with("@"));
         // dbg!(&files, &node_config);
         for file in files {
-            log::info!(
+            tracing::info!(
                 "current log: {}",
                 std::env::current_dir().unwrap().to_str().unwrap()
             );
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!(
+                tracing::warn!(
                     "file: {} read error, cause: {}",
                     &file[1..],
                     f.err().unwrap()
@@ -914,7 +914,7 @@ pub(super) fn get_string_vec_from_param_or_file(
             let mut file_data = buf.lines().collect_vec();
             // remove header
             if file_data.remove(0).is_err() {
-                log::warn!("file: {} content length < 1", file);
+                tracing::warn!("file: {} content length < 1", file);
             }
 
             node_config.extend(
@@ -925,12 +925,12 @@ pub(super) fn get_string_vec_from_param_or_file(
             );
         }
         if node_config.len() == 0 {
-            log::warn!("node config is empty");
+            tracing::warn!("node config is empty");
             // return Err(format!("node config set but is empty: {nodes}"));
         }
         return Result::Ok(node_config);
     }
-    // log::warn!("node config is empty");
+    // tracing::warn!("node config is empty");
     return Err("Nodes not set".to_string());
 }
 
@@ -1002,7 +1002,7 @@ pub async fn opc_to_taos(
 
     let exe_exists = std::path::Path::new(&exe_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", exe_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", exe_path().to_str().unwrap());
         Err(OpcError::ExeNotFound(format!(
             "{}",
             exe_path().to_str().unwrap()
@@ -1028,7 +1028,7 @@ pub async fn opc_to_taos(
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using opc config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using opc config file {}", config_path.display());
 
     let mut table_config = None;
     let connector = match config.opc_type {
@@ -1062,7 +1062,8 @@ pub async fn opc_to_taos(
             table_config,
             cancel.clone(),
             with_agent.unwrap(),
-        ).await?
+        )
+        .await?
     };
 
     let port_pool = port_pool.clone();
@@ -1071,11 +1072,11 @@ pub async fn opc_to_taos(
     let mut log_path = log_path();
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -1121,7 +1122,7 @@ pub async fn opc_to_taos(
             tokio::select! {
                 status = child.wait() => {
                     let status = status?;
-                    log::info!("OPC exit with {}", status);
+                    tracing::info!("OPC exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
                         anyhow::bail!("OPC exit with {}", status);
@@ -1129,24 +1130,24 @@ pub async fn opc_to_taos(
                     }
                 },
                 // _ = tokio::signal::ctrl_c() => {
-                //     log::info!("Ctrl+C triggered, cancel tasks");
+                //     tracing::info!("Ctrl+C triggered, cancel tasks");
                 //     cancel.cancel();
                 // },
                 err = receiver.recv() => {
-                    log::info!("have received worker thread panicked message, terminate child process");
+                    tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
                         let _ = ipc.send(());
                         anyhow::bail!("OPC writer error: {err}");
                     }
                 },
                 _ = cancel.cancelled() => {
-                    log::info!("opc task cancelled");
+                    tracing::info!("opc task cancelled");
                 },
             };
             ipc.send(()).await?;
             let _ = child.kill().await;
             // terminate_child_process(pid)?;
-            log::info!("OPC to taos task done");
+            tracing::info!("OPC to taos task done");
             temp_path.close().unwrap();
             port_pool.put(ipc_port);
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1212,7 +1213,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using opc config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
     // TODO use unix socket on unix-like os
     // let ipc = if cfg!(target_os = "windows") {
@@ -1248,7 +1249,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
 
-    log::info!("OPC exit with status {}", output.status);
+    tracing::info!("OPC exit with status {}", output.status);
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         tracing::error!(
@@ -1270,7 +1271,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    log::debug!(
+    tracing::debug!(
         "opc datasets : {}",
         serde_json::to_string(&res).unwrap_or("".to_string())
     );

@@ -141,6 +141,7 @@ pub fn spawn_runner(
                                 )),
                                 offsets: Default::default(),
                                 transferred: None,
+                                span: tracing::info_span!("agent::tasks::run"),
                             };
                             let pool = port_pool.clone();
                             let status_tx = status_tx.clone();

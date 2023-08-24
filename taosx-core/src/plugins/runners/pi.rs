@@ -292,7 +292,7 @@ pub async fn pi_to_taos(
 
     let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
         Err(PiError::ExeNotFound(format!(
             "{}",
             pi_exe_path().to_str().unwrap()
@@ -323,7 +323,7 @@ pub async fn pi_to_taos(
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
@@ -370,11 +370,11 @@ pub async fn pi_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -440,14 +440,14 @@ pub async fn pi_to_taos(
     });
 
     let pid = child_command.id().unwrap();
-    log::info!("waiting for PI connector");
+    tracing::info!("waiting for PI connector");
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             status = child_command.wait() => {
                 let status = status?;
-                log::info!("PI connector or PI backfill exit with {}", status);
+                tracing::info!("PI connector or PI backfill exit with {}", status);
                 if !status.success() {
                     let _ = ipc.send(());
                     stop_thread(server);
@@ -455,26 +455,26 @@ pub async fn pi_to_taos(
                 }
             },
             _ = tokio::signal::ctrl_c() => {
-                log::info!("Ctrl+C triggered, cancel tasks");
+                tracing::info!("Ctrl+C triggered, cancel tasks");
                 cancel.cancel();
                 // panic!();
             },
             err = receiver.recv() => {
                 if let Some(err) = err {
-                    log::warn!("PI writer error occurred: {err}");
+                    tracing::warn!("PI writer error occurred: {err}");
                     let _ = ipc.send(());
                     stop_thread(server);
                     anyhow::bail!("PI writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("pi task cancelled");
+                tracing::info!("pi task cancelled");
             }
         }
         let _ = ipc.send(());
         stop_thread(server);
         terminate_child_process(pid)?;
-        log::info!("pi task Done");
+        tracing::info!("pi task Done");
         temp_path.close().unwrap();
         port_pool.put(ipc_port);
         Ok(())
@@ -483,7 +483,7 @@ pub async fn pi_to_taos(
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
-    // log::info!("pi task Done");
+    // tracing::info!("pi task Done");
     // temp_path.close().unwrap();
 
     Ok(())
@@ -515,7 +515,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = tokio::process::Command::new(pi_exe_path());
     let point_filter = if let Some(pf) = data.pattern.clone() {
@@ -528,11 +528,11 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let mut log_rotation = FileRotate::new(
         &log_path,
@@ -559,10 +559,10 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
     // .context("Start PI collector error")?;
-    log::info!("PI Connector exit with status {}", output.status);
+    tracing::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
-    log::debug!("pi dataset: {}", &json);
+    tracing::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
     data.categories.iter().for_each(|category| {

@@ -58,7 +58,7 @@ async fn ipc_tcp_forward(
     task_id: i64,
 ) -> anyhow::Result<()> {
     use md5;
-    log::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
+    tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
 
     let _ = cancel;
     use arrow_flight::{
@@ -83,7 +83,7 @@ async fn ipc_tcp_forward(
             // fut.poll_unpin(cx);
             let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
             let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-            log::info!("{item:?}");
+            tracing::info!("{item:?}");
             std::task::Poll::Ready(Some(item))
         }
     }
@@ -133,11 +133,11 @@ async fn ipc_tcp_forward(
         while let Some(res) = batches.next().await {
             // dbg!(&res);
             if let Err(err) = sender.send(res.map_err(FlightError::from)) {
-                log::warn!("sender send error: {}", err.to_string());
+                tracing::warn!("sender send error: {}", err.to_string());
                 break;
             }
         }
-        log::info!("[task:{task_id}] stopped");
+        tracing::info!("[task:{task_id}] stopped");
     });
 
     struct IpcStream {
@@ -162,7 +162,7 @@ async fn ipc_tcp_forward(
             let c = self
                 .marker
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            // log::info!("polled: {c} {cx:?}");
+            // tracing::info!("polled: {c} {cx:?}");
 
             if c % 2 == 0 {
                 // todo: why this is require?
@@ -188,9 +188,9 @@ async fn ipc_tcp_forward(
             Ok(channel) => break channel,
             Err(err) => {
                 retries += 1;
-                log::error!("Failed to establish connection: {}. Retrying...", err);
+                tracing::error!("Failed to establish connection: {}. Retrying...", err);
                 if retries >= MAX_RETRIES {
-                    log::error!("Max retries reached. Exiting...");
+                    tracing::error!("Max retries reached. Exiting...");
                     return Err(err);
                 }
                 tokio::time::sleep(RETRY_DELAY).await;
@@ -221,8 +221,8 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
     Ok(channel)
 }
 
-// #[instrument(skip_all)]
 #[framed]
+#[instrument(skip_all)]
 async fn ipc_tcp_read(
     client: String,
     pool: TaosPool,
@@ -263,15 +263,15 @@ async fn ipc_tcp_read(
         transferred,
     )
     .await?;
-    log::info!("IPC stopped");
+    tracing::info!("IPC stopped");
     Ok(())
     // tokio::select! {
     // _ = cancel.cancelled() => {
-    //     log::debug!("cancel IPC worker");
+    //     tracing::debug!("cancel IPC worker");
     //     Ok(())
     // },
     // done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser, connector, transferred) => {
-    //     log::info!("IPC stopped");
+    //     tracing::info!("IPC stopped");
     //     done
     // }
     // }
@@ -347,7 +347,7 @@ async fn consume_lush_record(
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                log::debug!("query_tags_sql: {query_tags_sql}");
+                tracing::debug!("query_tags_sql: {query_tags_sql}");
                 match taos.query(query_tags_sql).await {
                     Ok(mut rs) => {
                         let mut rows = rs.rows();
@@ -357,7 +357,7 @@ async fn consume_lush_record(
                                 if tagname == next.0
                                     && tagvalue.to_sql_value() != next.1.to_sql_value()
                                 {
-                                    log::info!(
+                                    tracing::info!(
                                         "table {table_name} tag value not match, new: {}, old:{}",
                                         tagvalue.to_sql_value(),
                                         next.1.to_sql_value()
@@ -366,14 +366,14 @@ async fn consume_lush_record(
                                         "alter table `{table_name}` set TAG `{tagname}`={}",
                                         tagvalue.to_sql_value()
                                     );
-                                    log::info!("alter_set_sql: {alter_set_sql}");
+                                    tracing::info!("alter_set_sql: {alter_set_sql}");
                                     taos.exec(alter_set_sql).await?;
                                 }
                             }
                         }
                     }
                     Err(err) => {
-                        log::debug!("query_tags_sql err: {}", err.to_string());
+                        tracing::debug!("query_tags_sql err: {}", err.to_string());
                         if err.to_string().contains("0x2603") || err.to_string().contains("0x2662")
                         {
                             // table not exists
@@ -481,7 +481,7 @@ async fn consume_lush_record(
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
                 if let Some((sqls, field_map)) = sqls {
                     for sql in sqls {
-                        log::debug!("insert sql: {sql}");
+                        tracing::debug!("insert sql: {sql}");
                         let mut retry = 0;
                         let mut count = 0;
                         loop {
@@ -493,10 +493,10 @@ async fn consume_lush_record(
                                 }
                                 Err(err) => {
                                     if retry > 2 {
-                                        log::warn!("retry 3 faild continue: {err:#}");
+                                        tracing::warn!("retry 3 faild continue: {err:#}");
                                         break;
                                     }
-                                    log::error!("written err cause: {err:#}");
+                                    tracing::error!("written err cause: {err:#}");
                                     let errstr = err.to_string();
                                     if errstr.contains("[0x2653]") {
                                         // column or tag length not enough
@@ -667,7 +667,7 @@ async fn consume_point_record(
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
             if code.is_none() {
-                log::warn!("id: {} cannot get code", id);
+                tracing::warn!("id: {} cannot get code", id);
                 continue;
             }
             let point_config = code.unwrap();
@@ -879,7 +879,7 @@ async fn consume_point_record(
                 let mut retry = 0;
                 'outer: loop {
                     if retry >= 3 {
-                        log::warn!("sql error cannot be solved, break;");
+                        tracing::warn!("sql error cannot be solved, break;");
                         break;
                     }
                     let sql_res = taos.exec(&insert_sql).await;
@@ -891,7 +891,7 @@ async fn consume_point_record(
                         }
                         Err(err) => {
                             let errstr = err.to_string();
-                            log::warn!("error: {}", errstr);
+                            tracing::warn!("error: {}", errstr);
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
                                 // stable not exists
                                 // should be some
@@ -968,7 +968,7 @@ async fn consume_point_record(
                                         if column_config.column_type.is_none() {
                                             // shouldn't happen if normal
                                             // encounter when rename value column
-                                            log::error!("column {} column_type is error, maybe stable set error", column_real_name);
+                                            tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
                                             break 'outer;
                                         }
                                         let add_column_sql = format!(
@@ -976,7 +976,7 @@ async fn consume_point_record(
                                             column_real_name,
                                             column_config.column_type.unwrap()
                                         );
-                                        log::info!("add_column_sql:{}", add_column_sql);
+                                        tracing::info!("add_column_sql:{}", add_column_sql);
                                         taos.exec(&add_column_sql).await?;
                                     }
                                 }
@@ -1002,18 +1002,18 @@ async fn consume_point_record(
                                     if sqls.is_some() {
                                         let sqls = sqls.unwrap();
                                         for alter_sql in sqls {
-                                            log::info!("alter table sql: {alter_sql}");
+                                            tracing::info!("alter table sql: {alter_sql}");
                                             match taos.exec(alter_sql).await {
                                                 Ok(_) => (),
                                                 Err(err) => {
                                                     if err.to_string().contains("0x0369") {
                                                         // Tag already exists occur when concurrent exec same alter
-                                                        log::warn!(
+                                                        tracing::warn!(
                                                             "alter table err: {}, will be ignored",
                                                             err.to_string()
                                                         );
                                                     } else {
-                                                        log::warn!(
+                                                        tracing::warn!(
                                                             "alter table err: {}",
                                                             err.to_string()
                                                         );
@@ -1058,7 +1058,7 @@ async fn consume_point_record(
                                 if sqls.is_some() {
                                     let sqls = sqls.unwrap();
                                     for sql in sqls {
-                                        log::info!("add execute sql: {}", &sql);
+                                        tracing::info!("add execute sql: {}", &sql);
                                         taos.exec(sql)
                                             .await
                                             .context("Writing point stream error")?;
@@ -1076,7 +1076,7 @@ async fn consume_point_record(
                                             column_meta.ty(),
                                             modify_message.value_cloumn_length,
                                         );
-                                        log::info!("add execute sql: {}", &sql);
+                                        tracing::info!("add execute sql: {}", &sql);
                                         taos.exec(sql).await.context(
                                             "Modify column length error while writing point stream",
                                         )?;
@@ -1277,7 +1277,7 @@ async fn consume_flat_record(
                                                                             tag_meta.field(),
                                                                             parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
                                                                             );
-                                                                        log::info!("table {table} add tag sql: {add_tag_sql}");
+                                                                        tracing::info!("table {table} add tag sql: {add_tag_sql}");
                                                                         _taos
                                                                             .exec(add_tag_sql)
                                                                             .await
@@ -1411,7 +1411,7 @@ async fn consume_flat_record(
                                                 &column_name,
                                                 ipc_data_type.unwrap(),
                                             );
-                                            log::info!("alter table column sql: {}", sql);
+                                            tracing::info!("alter table column sql: {}", sql);
                                             _taos.exec(&sql).await?;
                                         }
                                         index += 1;
@@ -1546,7 +1546,8 @@ async fn ipc_point_reader<R: Read, W: Write>(
     Ok(())
 }
 
-#[instrument(skip_all, fields(stream = "flat"))]
+const IPC_STREAM_RECORDS: &str = "ipc.stream.records";
+#[instrument(skip_all, fields(ipc.stream.item = "flat", ipc.stream.records = 0, ipc.stream.batches = 0))]
 async fn ipc_flat_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -1556,8 +1557,10 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
+    let mut batches = 0;
     for record in ipc_reader {
         if let Ok(record) = record {
+            batches += 1;
             let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
@@ -1566,6 +1569,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             if let Err(err) =
                 consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await
             {
+                tracing::error!("write batch {batches} error: {err:#}");
                 let written = count - last;
                 let _ = ipc_ack_writer.ack(LushAck {
                     code: 0xFFFF,
@@ -1595,7 +1599,16 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             }
         }
     }
-    info!("IPC processing done, written totally {count} records");
+    metrics::counter!("ipc.stream.records", count as u64);
+    metrics::counter!("ipc.stream.batches", batches as u64);
+
+
+    tracing::Span::current()
+        .record(IPC_STREAM_RECORDS, count)
+        .record("ipc.stream.batches", batches)
+        .in_scope(|| {
+            info!("IPC processing done, written totally {count} records");
+        });
     println!("Flat stream writing finished, totally {count} rows");
     Ok(())
 }
@@ -1783,7 +1796,7 @@ async fn handle_lush_message_init(
                 );
                 if sql.is_some() {
                     for sql in sql.unwrap() {
-                        log::info!("alter table sql: {}", sql.clone());
+                        tracing::info!("alter table sql: {}", sql.clone());
                         taos.exec(sql).await?;
                     }
                 }
@@ -1791,14 +1804,14 @@ async fn handle_lush_message_init(
                     generate_alter_sql_diff_desc(stable_name, &desc, init.tags().as_ref(), true);
                 if sql.is_some() {
                     for sql in sql.unwrap() {
-                        log::info!("alter table sql: {}", sql.clone());
+                        tracing::info!("alter table sql: {}", sql.clone());
                         taos.exec(sql).await?;
                     }
                 }
                 break;
             }
             Err(err) => {
-                log::warn!("describe failed: {}", err.to_string());
+                tracing::warn!("describe failed: {}", err.to_string());
                 // create table
                 info!("create sql: {sql}");
                 let res: Result<usize, taos::Error> = taos.exec(&sql).await;
@@ -2099,7 +2112,7 @@ pub async fn listen_tcp_socket_with_agent(
                     .await
                     .with_context(|| format!("IPC accept next connection error"))
                     .and_then(|(stream, addr)| {
-                        log::info!("new tcp client!: {:?}", addr);
+                        tracing::info!("new tcp client!: {:?}", addr);
                         let stream = stream.into_std()?;
                         let _ = stream.set_nonblocking(false)?;
                         // let client = addr.as_socket_ipv4().unwrap().to_string();
@@ -2113,11 +2126,11 @@ pub async fn listen_tcp_socket_with_agent(
                                 ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
                                     .await;
                             if let Err(err) = res {
-                                log::error!("ipc read err: {:?}", err);
+                                tracing::error!("ipc read err: {:?}", err);
                                 tokio::time::sleep(Duration::from_millis(100)).await;
                                 let _ = se.send(err.to_string()).await;
                             } else {
-                                log::info!("IPC reader stopped for client {client}",);
+                                tracing::info!("IPC reader stopped for client {client}",);
                             }
                         });
                         handlers.push(h);
@@ -2129,7 +2142,7 @@ pub async fn listen_tcp_socket_with_agent(
                     break;
                 }
             }
-            log::info!("IPC stream listener stopped");
+            tracing::info!("IPC stream listener stopped");
             tokio::time::sleep(Duration::from_micros(1000)).await;
 
             for h in handlers {
@@ -2174,72 +2187,85 @@ pub fn listen_tcp_socket(
     let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notified = notify.clone();
 
     let thread = tokio::task::spawn(
         async move {
             info!("waiting for IPC connections");
             let mut handlers = vec![];
+            let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
+                tracing::info!("new tcp client!: {:?}", addr);
+                let span = tracing::info_span!("ipc_reader", client.address = %addr);
+                let stream = stream.into_std().unwrap();
+                let _ = stream.set_nonblocking(false);
+                let client = addr.to_string();
+                let se = sender.clone();
+                let cancel = cancel.clone();
+
+                if let Some((id, server, token)) = with_agent.clone() {
+                    tokio::spawn(async move {
+                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id).await;
+                        if let Err(err) = res {
+                            // panic!("{err:?}");
+                            tracing::error!("ipc read err: {}", err);
+                            let _ = se.send(err.to_string()).await;
+                        }
+                    })
+                } else {
+                    let pool = target.clone();
+                    let lock = sql_lock.clone();
+                    let config = config.clone();
+                    let parser = parser.clone();
+                    let connector = connector.clone();
+                    let transferred = transferred.clone();
+                    tokio::spawn(async move {
+                        // let dsn: Dsn = "taos:///db2".parse().unwrap();
+                        // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+                        info!("Spawned IPC reader");
+                        let res = ipc_tcp_read(
+                            client,
+                            pool,
+                            stream,
+                            lock,
+                            config,
+                            cancel,
+                            parser,
+                            connector,
+                            transferred,
+                        )
+                        .in_current_span()
+                        .await;
+                        if let Err(err) = res {
+                            // panic!("{err:?}");
+                            println!("{err:?}");
+                            tracing::error!("ipc read err: {}", err);
+                            let _ = se.send(err.to_string()).await;
+                        }
+                    }.instrument(span))
+                }
+            };
             loop {
                 if closed2.load(std::sync::atomic::Ordering::SeqCst) {
                     tracing::debug!("IPC stopped");
                     break;
                 }
-                match socket.accept().await {
-                    Ok((stream, addr)) => {
-                        log::info!("new tcp client!: {:?}", addr);
-                        let stream = stream.into_std().unwrap();
-                        let _ = stream.set_nonblocking(false);
-                        let client = addr.to_string();
-                        let se = sender.clone();
-                        let cancel = cancel.clone();
-
-                        if let Some((id, server, token)) = with_agent.clone() {
-                            handlers.push(tokio::spawn(async move {
-                                let res =
-                                    ipc_tcp_forward(client, stream, cancel, server, token, id)
-                                        .await;
-                                if let Err(err) = res {
-                                    // panic!("{err:?}");
-                                    log::error!("ipc read err: {}", err);
-                                    let _ = se.send(err.to_string()).await;
-                                }
-                            }));
-                        } else {
-                            let pool = target.clone();
-                            let lock = sql_lock.clone();
-                            let config = config.clone();
-                            let parser = parser.clone();
-                            let connector = connector.clone();
-                            let transferred = transferred.clone();
-                            handlers.push(tokio::spawn(async move {
-                                // let dsn: Dsn = "taos:///db2".parse().unwrap();
-                                // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
-                                info!("Spawned IPC reader");
-                                let res = ipc_tcp_read(
-                                    client,
-                                    pool,
-                                    stream,
-                                    lock,
-                                    config,
-                                    cancel,
-                                    parser,
-                                    connector,
-                                    transferred,
-                                )
-                                .await;
-                                if let Err(err) = res {
-                                    // panic!("{err:?}");
-                                    println!("{err:?}");
-                                    log::error!("ipc read err: {}", err);
-                                    let _ = se.send(err.to_string()).await;
-                                }
-                            }));
-                        }
-                    }
-                    Err(e) => {
-                        /* connection failed */
-                        tracing::info!("IPC stream acceptation error {e}, might be stopped");
+                tokio::select! {
+                    _ = notified.notified() => {
                         break;
+                    }
+                    accept = socket.accept() => {
+                        match accept {
+                            Ok((stream, addr)) => {
+                                let h = accept_stream(stream, addr);
+                                handlers.push(h);
+                            }
+                            Err(e) => {
+                                /* connection failed */
+                                tracing::info!("IPC stream acceptation error {e}, might be stopped");
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -2249,13 +2275,18 @@ pub fn listen_tcp_socket(
                 let _ = h.await;
             }
         }
-        .instrument(tracing::info_span!("plain_ipc_listener")),
+        .instrument(tracing::info_span!("plain_ipc_listener").or_current()),
     );
-    tokio::spawn(async move {
-        let _ = receiver.recv().await;
-        tracing::debug!("shutdown socket");
-        closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = thread.await;
-    });
+    tokio::spawn(
+        async move {
+            let _ = receiver.recv().await;
+            tracing::debug!("shutdown socket");
+            notify.notify_one();
+            closed.store(true, std::sync::atomic::Ordering::SeqCst);
+            let _ = tokio::time::timeout(Duration::from_secs(60), thread).await;
+            tracing::debug!("shutdown IPC listener");
+        }
+        .instrument(tracing::info_span!("plain_ipc_listener_abort_handle").or_current()),
+    );
     Ok(closer)
 }

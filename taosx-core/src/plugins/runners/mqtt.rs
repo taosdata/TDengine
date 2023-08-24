@@ -192,7 +192,7 @@ pub async fn mqtt_to_taos(
 
     let exe_exists = std::path::Path::new(&mqtt_exe_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
         Err(MqttConfigError::ExeNotFound(format!(
             "{}",
             mqtt_exe_path().to_str().unwrap()
@@ -213,7 +213,7 @@ pub async fn mqtt_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!(
+    tracing::info!(
         "Using mqtt config file {} \n{}",
         config_path.display(),
         toml
@@ -239,7 +239,8 @@ pub async fn mqtt_to_taos(
             None,
             cancel.clone(),
             with_agent.unwrap(),
-        ).await?
+        )
+        .await?
     };
     let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
@@ -248,11 +249,11 @@ pub async fn mqtt_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -301,7 +302,7 @@ pub async fn mqtt_to_taos(
         tokio::select! {
             status = child.wait() => {
                 let status = status?;
-                log::info!("mqtt exit with {status}");
+                tracing::info!("mqtt exit with {status}");
                 if !status.success() {
                     let _ = ipc.send(());
                     temp_path.close().unwrap();
@@ -329,7 +330,7 @@ pub async fn mqtt_to_taos(
                 }
             },
             err = receiver.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
+                tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
                     let _ = ipc.send(());
                     temp_path.close().unwrap();
@@ -338,12 +339,12 @@ pub async fn mqtt_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("mqtt task cancelled");
+                tracing::info!("mqtt task cancelled");
             },
         };
         ipc.send(()).await?;
         let _ = child.kill().await;
-        log::info!("mqtt to taos task done");
+        tracing::info!("mqtt to taos task done");
         temp_path.close().unwrap();
         port_pool.put(ipc_port);
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -459,6 +460,7 @@ mod tests {
             with_agent: None,
             offsets: Default::default(),
             transferred: Some(transferred),
+            span: tracing::info_span!("test_mqtt"),
         };
         opts.run(&PortPool::default()).await.unwrap();
     }
