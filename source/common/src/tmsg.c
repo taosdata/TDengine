@@ -2327,7 +2327,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   }
 
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;
-  pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
+  pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
   if (pRsp->pSchemas == NULL) return -1;
 
   for (int32_t i = 0; i < totalCols; ++i) {
@@ -3740,7 +3740,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
 
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;
   if (totalCols > 0) {
-    pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
+    pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
     if (pRsp->pSchemas == NULL) return -1;
 
     for (int32_t i = 0; i < totalCols; ++i) {
