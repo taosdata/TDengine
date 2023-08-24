@@ -375,46 +375,49 @@ do
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
         td_cluster_check
-        #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
-        if [ $? -eq 0 ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
-            logger "INFO" "begin to check test db existed or not"
-            dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
-            if [ $? -eq 0 ]; then
-                testDB=`echo "$dbs" | grep -w -o " test"`
-                createTest=""
-                if [ "$testDB"x != ""x ]; then
-                    testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
-                    if [ $? -eq 0 ]; then
-                        testStable=`echo $testStables | grep -w -o meters`
-                        if [ "$testStable"x = ""x ]; then
-                            createTest="0"
-                            logger "INFO" "test database existed but meters stable does not exist"
-                        fi
-                    else 
-                        createTest="2"
-                        logger "ERROR" "failed to query meters stable from information_schema"
+        if [ $? -eq 0]; then
+            status="6"
+        fi 
+    fi
+            #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
+    if [ "$status" = "6" ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
+        logger "INFO" "begin to check test db existed or not"
+        dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
+        if [ $? -eq 0 ]; then
+            testDB=`echo "$dbs" | grep -w -o " test"`
+            createTest=""
+            if [ "$testDB"x != ""x ]; then
+                testStables=`taos -s "select stable_name from information_schema.ins_stables where db_name = 'test';"`
+                if [ $? -eq 0 ]; then
+                    testStable=`echo $testStables | grep -w -o meters`
+                    if [ "$testStable"x = ""x ]; then
+                        createTest="0"
+                        logger "INFO" "test database existed but meters stable does not exist"
                     fi
                 else 
-                    createTest="1"
-                fi
-                if [ "$createTest"x = "0"x ] || [ "$createTest"x = "1"x ]; then
-                    if [ "$createTest"x = "0"x ]; then
-                        taosBenchmark -Q -t 1000 -n 1000 -S 1000 -H 200 -y 
-                    else 
-                        taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
-                    fi
-                    taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
-                    TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                    logger "INFO" "taosBenchmark executed to generate test database"
-                else 
-                    if [ "$createTest"x = ""x ]; then
-                        TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
-                        logger "INFO" "test database existed and no need to check to create test database"
-                    fi
+                    createTest="2"
+                    logger "ERROR" "failed to query meters stable from information_schema"
                 fi
             else 
-                logger "ERROR" "failed to show all databases"
+                createTest="1"
             fi
+            if [ "$createTest"x = "0"x ] || [ "$createTest"x = "1"x ]; then
+                if [ "$createTest"x = "0"x ]; then
+                    taosBenchmark -Q -t 1000 -n 1000 -S 1000 -H 200 -y 
+                else 
+                    taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
+                fi
+                taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
+                TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
+                logger "INFO" "taosBenchmark executed to generate test database"
+            else 
+                if [ "$createTest"x = ""x ]; then
+                    TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
+                    logger "INFO" "test database existed and no need to check to create test database"
+                fi
+            fi
+        else 
+            logger "ERROR" "failed to show all databases"
         fi
     fi
     # check taosd status
@@ -442,7 +445,7 @@ do
     fi
     # check taosadapter
     nc -z localhost 6041
-    if [ $? -ne 0 ]; then
+    if [ "$status" = "6" ] && [ $? -ne 0 ]; then
         logger "INFO" "start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
             logger "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
