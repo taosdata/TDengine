@@ -319,11 +319,13 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     taosThreadMutexLock(&pTask->lock);
+    pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
 
     if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
       tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
       streamMetaReleaseTask(pStreamMeta, pTask);
       taosThreadMutexUnlock(&pTask->lock);
+      streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 

@@ -1535,6 +1535,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
+  cleanupExprSupp(&pInfo->scalarSupp);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -2861,6 +2862,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
+  cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
@@ -2874,6 +2876,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->historyWins);
   tSimpleHashCleanup(pInfo->pSeUpdated);
   tSimpleHashCleanup(pInfo->pSeDeleted);
+  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
   blockDataDestroy(pInfo->pCheckpointRes);
 
   taosMemoryFreeClear(param);

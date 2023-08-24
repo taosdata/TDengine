@@ -308,7 +308,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     ASSERT(status == TASK_STATUS__HALT || status == TASK_STATUS__DROPPING);
   } else {
-    ASSERT(status == TASK_STATUS__SCAN_HISTORY);
+    ASSERT(status == TASK_STATUS__NORMAL);
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
     qDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
