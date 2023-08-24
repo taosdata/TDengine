@@ -2922,6 +2922,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pUpdateRes);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
+  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
 
   taosArrayDestroy(pInfo->historyWins);
   taosMemoryFreeClear(param);
