@@ -46,7 +46,7 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
 int32_t tsdbTFileSetClear(STFileSet **fset);
 int32_t tsdbTFileSetRemove(STFileSet **fset);
 
-int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, STSnapRange **fsr);
+int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever, STSnapRange **fsr);
 int32_t tsdbTSnapRangeClear(STSnapRange **fsr);
 
 // to/from json
