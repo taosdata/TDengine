@@ -218,8 +218,9 @@ void tqNotifyClose(STQ* pTq) {
 
   taosWUnLockLatch(&pMeta->lock);
 
-  pMeta->killed = STREAM_META_WILL_STOP;
-  while(pMeta->killed != STREAM_META_OK_TO_STOP) {
+  // wait for the stream meta hb function stopping
+  pMeta->hbInfo.stopFlag = STREAM_META_WILL_STOP;
+  while(pMeta->hbInfo.stopFlag != STREAM_META_OK_TO_STOP) {
     taosMsleep(100);
     tqDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
   }

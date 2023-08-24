@@ -13,13 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <common/tmisce.h>
+#include "tmisce.h"
 #include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 #include "tref.h"
 #include "tstream.h"
 #include "ttimer.h"
+
+#define META_HB_CHECK_INTERVAL    200
+#define META_HB_SEND_IDLE_COUNTER 25  // send hb every 5 sec
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
@@ -89,7 +92,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->stage = stage;
 
   // send heartbeat every 5sec.
-  pMeta->hbTmr = taosTmrStart(metaHbToMnode, 5000, pMeta, streamEnv.timer);
+  pMeta->hbInfo.hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pMeta, streamEnv.timer);
+  pMeta->hbInfo.tickCounter = 0;
+  pMeta->hbInfo.stopFlag = 0;
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -605,13 +610,27 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   return 0;
 }
 
+static bool readyToSendHb(SMetaHbInfo* pInfo) {
+  if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) {
+    // reset the counter
+    pInfo->tickCounter = 0;
+    return true;
+  }
+  return false;
+}
+
 void metaHbToMnode(void* param, void* tmrId) {
   SStreamMeta* pMeta = param;
   SStreamHbMsg hbMsg = {0};
 
-  if (pMeta->killed == STREAM_META_WILL_STOP) {
-    pMeta->killed = STREAM_META_OK_TO_STOP;
+  // need to stop, stop now
+  if (pMeta->hbInfo.stopFlag == STREAM_META_WILL_STOP) {
+    pMeta->hbInfo.stopFlag = STREAM_META_OK_TO_STOP;
     qDebug("vgId:%d jump out of meta timer", pMeta->vgId);
+    return;
+  }
+
+  if (!readyToSendHb(&pMeta->hbInfo)) {
     return;
   }
 
@@ -679,5 +698,5 @@ void metaHbToMnode(void* param, void* tmrId) {
   qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
 
   tmsgSendReq(&epset, &msg);
-  taosTmrReset(metaHbToMnode, 5000, pMeta, streamEnv.timer, &pMeta->hbTmr);
+  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, pMeta, streamEnv.timer, &pMeta->hbInfo.hbTmr);
 }

@@ -369,10 +369,11 @@ struct SStreamTask {
   SSHashObj*          pNameMap;
 };
 
-typedef struct SMgmtInfo {
-  SEpSet  epset;
-  int32_t mnodeId;
-} SMgmtInfo;
+typedef struct SMetaHbInfo {
+  tmr_h   hbTmr;
+  int32_t stopFlag;
+  int32_t tickCounter;
+} SMetaHbInfo;
 
 // meta
 typedef struct SStreamMeta {
@@ -393,11 +394,9 @@ typedef struct SStreamMeta {
   int64_t       streamBackendRid;
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
-  tmr_h         hbTmr;
-
-  int32_t killed;
-  int32_t closedTask;
-  int32_t chkptNotReadyTasks;
+  SMetaHbInfo   hbInfo;
+  int32_t       closedTask;
+  int32_t       chkptNotReadyTasks;
 
   int64_t  chkpId;
   SArray*  chkpSaved;
