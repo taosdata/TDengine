@@ -1434,7 +1434,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
 
-  if (taosMulModeMkDir(tsLogDir, 0777, true) != 0) {
+  if (taosMulModeMkLogDir(tsLogDir, 0777) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     printf("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);

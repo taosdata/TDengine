@@ -169,7 +169,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
       sscanf(cfg, "%d\n%d\n", &szPage, &pages);
     }
   } else {
-    int32_t code = taosMulModeMkDir(statePath, 0755, false);
+    int32_t code = taosMulModeMkDir(statePath, 0755);
     if (code == 0) {
       pCfgFile = taosOpenFile(cfgPath, TD_FILE_WRITE | TD_FILE_CREATE);
       sprintf(cfg, "%d\n%d\n", szPage, pages);
