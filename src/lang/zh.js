@@ -788,6 +788,7 @@ export default {
     storage: '存储',
     streams: 'Stream 数量',
     timeseries: '时间线数量 ',
+    clusterId: '集群 ID',
     version: '版本',
     users:'用户数量',
     license:'许可证',

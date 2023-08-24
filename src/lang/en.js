@@ -944,6 +944,7 @@ export default {
     storage: 'Storage',
     streams: 'Streams',
     timeseries: 'Time Series',
+    clusterId: 'Cluster ID',
     version: 'Version',
     license: 'License',
     stables: "STables",
