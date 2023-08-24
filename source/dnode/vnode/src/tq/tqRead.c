@@ -297,7 +297,6 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
 
 int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, const char* id) {
   int32_t code = 0;
-  SWalCont* pCont = &pReader->pHead->head;
 
   while(1) {
     code = walNextValidMsg(pReader);
@@ -305,6 +304,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       return code;
     }
 
+    SWalCont* pCont = &pReader->pHead->head;
     int64_t ver = pCont->version;
     if (ver > maxVer) {
       tqDebug("maxVer in WAL:%" PRId64 " reached current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
