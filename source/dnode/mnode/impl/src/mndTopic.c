@@ -662,11 +662,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   SMqTopicObj *pTopic = NULL;
   STrans      *pTrans = NULL;
 
-  if (!mndRebTryStart()) {
-    mInfo("mq rebalance already in progress, do nothing");
-    return 0;
-  }
-
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     code = -1;
