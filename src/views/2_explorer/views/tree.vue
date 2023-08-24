@@ -450,7 +450,7 @@ export default {
       if (clickNoChange.includes(this.$store.state.console.partActive)) {
         return;
       }
-      this.$store.state.console.partActive = "sql";
+      this.$store.state.console.partActive = "wizard";
     },
     // 处理全局db和stb
     async handleVar(data, node) {

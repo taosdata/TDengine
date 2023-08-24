@@ -14,7 +14,7 @@ const state = {
   result: [],
   head: [],
   addSql: "",
-  partActive: "sql",
+  partActive: "wizard",
   currentComponent: "",
   treeKey: 0,
   currentInfoType: "database",
@@ -22,6 +22,8 @@ const state = {
   tabName: "",
   currentOutput: {},
   shellData: [],
+  fields:[],
+  previewBtn: true
 };
 
 const mutations = {
@@ -69,6 +71,12 @@ const mutations = {
   },
   SET_SHAREDFAVOURTIE(state,data){
     state.sharedFavorites=data
+  },
+  SET_FIELEDS(state,data){
+    state.fields=data
+  },
+  SET_PREVIEW_BTN(state,data){
+    state.previewBtn = data
   }
 };
 
