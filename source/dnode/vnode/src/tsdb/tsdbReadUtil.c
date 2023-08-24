@@ -240,7 +240,7 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   // reset the index in last block when handing a new file
   taosArrayClear(pScanInfo->pBlockList);
   taosArrayClear(pScanInfo->pBlockIdxList);
-  taosArrayClear(pScanInfo->pfileDelData);  // del data from each file set
+  taosArrayClear(pScanInfo->pFileDelData);  // del data from each file set
 }
 
 void cleanupInfoFoxNextFileset(SSHashObj* pTableMap) {
