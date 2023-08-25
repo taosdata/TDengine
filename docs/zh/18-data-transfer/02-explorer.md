@@ -2,7 +2,7 @@
 title: 基于可视化界面的数据迁移
 ---
 
-本节讲述使用 taos Explorer 的可视化界面进行数据迁移，使用此功能需要依赖 taosd, taosAdapter, taosX, taos-explorer 等几个服务组件。关于 taosd 和 taosAdapter 的部署请参考 [系统部署](../../deployment/deploy)，[taosX](../taosX)，以及 [部署 taos-explorer](../../operation/explorer)
+本节讲述使用 taos Explorer 的可视化界面进行数据迁移，使用此功能需要依赖 taosd, taosAdapter, taosX, taos-explorer 等几个服务组件。关于 taosd 和 taosAdapter 的部署请参考 [系统部署](../../deployment/deploy)，[taosX](../taosX)，以及 [部署 taos-explorer](../../operation/web)
 
 ## 功能入口
 
