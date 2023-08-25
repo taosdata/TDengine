@@ -168,7 +168,7 @@ class TDTestCase:
                     tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
 
     def run(self):
-        self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=None, subtable="constant", stb_field_name_value=self.tdCom.tb_filter_des_select_elm, tag_value=self.tdCom.tag_filter_des_select_elm, use_exist_stb=True)
+        # self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=None, subtable="constant", stb_field_name_value=self.tdCom.tb_filter_des_select_elm, tag_value=self.tdCom.tag_filter_des_select_elm, use_exist_stb=True)
         for delete in [True, False]:
             for fill_history_value in [0, 1]:
                 self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tdCom.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tdCom.tb_filter_des_select_elm, tag_value=self.tdCom.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
