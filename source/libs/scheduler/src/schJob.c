@@ -638,6 +638,10 @@ void schDropJobAllTasks(SSchJob *pJob) {
   //  schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
+int32_t schNotifyJobAllTasks(SSchJob *pJob, ETaskNotifyType type) {
+  SCH_RET(schNotifyTaskInHashList(pJob, pJob->execTasks, type));
+}
+
 void schFreeJobImpl(void *job) {
   if (NULL == job) {
     return;

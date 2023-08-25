@@ -702,6 +702,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     //   return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg, 0);
+    case TDMT_SCH_TASK_NOTIFY:
+      return qWorkerProcessNotifyMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TABLE_META:

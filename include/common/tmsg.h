@@ -1418,6 +1418,7 @@ typedef struct {
   int64_t numOfProcessedCQuery;
   int64_t numOfProcessedFetch;
   int64_t numOfProcessedDrop;
+  int64_t numOfProcessedNotify;
   int64_t numOfProcessedHb;
   int64_t numOfProcessedDelete;
   int64_t cacheDataSize;
@@ -2159,8 +2160,24 @@ typedef struct {
 
 int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
-int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
-int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+
+
+typedef enum {
+  TASK_NOTIFY_FINISHED = 1,
+} ETaskNotifyType;
+
+typedef struct {
+  SMsgHead        header;
+  uint64_t        sId;
+  uint64_t        queryId;
+  uint64_t        taskId;
+  int64_t         refId;
+  int32_t         execId;
+  ETaskNotifyType type;
+} STaskNotifyReq;
+
+int32_t tSerializeSTaskNotifyReq(void* buf, int32_t bufLen, STaskNotifyReq* pReq);
+int32_t tDeserializeSTaskNotifyReq(void* buf, int32_t bufLen, STaskNotifyReq* pReq);
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
