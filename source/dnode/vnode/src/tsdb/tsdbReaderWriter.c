@@ -35,12 +35,12 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
       if (pFD->pFD == NULL) {
         code = TAOS_SYSTEM_ERROR(ENOENT);
-        taosMemoryFree(pFD);
+        // taosMemoryFree(pFD);
         goto _exit;
       }
     } else {
       code = TAOS_SYSTEM_ERROR(errsv);
-      taosMemoryFree(pFD);
+      // taosMemoryFree(pFD);
       goto _exit;
     }
   }
@@ -48,8 +48,8 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   pFD->pBuf = taosMemoryCalloc(1, szPage);
   if (pFD->pBuf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    taosCloseFile(&pFD->pFD);
-    taosMemoryFree(pFD);
+    // taosCloseFile(&pFD->pFD);
+    // taosMemoryFree(pFD);
     goto _exit;
   }
 
@@ -57,9 +57,9 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   if (flag != TD_FILE_READ) {
     if (taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
-      taosMemoryFree(pFD->pBuf);
-      taosCloseFile(&pFD->pFD);
-      taosMemoryFree(pFD);
+      // taosMemoryFree(pFD->pBuf);
+      // taosCloseFile(&pFD->pFD);
+      // taosMemoryFree(pFD);
       goto _exit;
     }
 
