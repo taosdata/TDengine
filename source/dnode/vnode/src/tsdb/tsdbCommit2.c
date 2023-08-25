@@ -43,6 +43,8 @@ typedef struct {
     SDiskID    did;
     TSKEY      minKey;
     TSKEY      maxKey;
+    int64_t    minVer;
+    int64_t    maxVer;
     STFileSet *fset;
     TABLEID    tbid[1];
     bool       hasTSData;
@@ -74,6 +76,8 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
       .szPage = committer->szPage,
       .cmprAlg = committer->cmprAlg,
       .fid = committer->ctx->fid,
+      .minVer = committer->ctx->minVer,
+      .maxVer = committer->ctx->maxVer,
       .cid = committer->ctx->cid,
       .did = committer->ctx->did,
       .level = 0,
@@ -87,6 +91,8 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
         if (committer->ctx->fset->farr[ftype] != NULL) {
           config.files[ftype].exist = true;
           config.files[ftype].file = committer->ctx->fset->farr[ftype]->f[0];
+          config.files[ftype].file.minVer = TMIN(config.files[ftype].file.minVer, config.minVer);
+          config.files[ftype].file.maxVer = TMAX(config.files[ftype].file.maxVer, config.maxVer);
         }
       }
     }
@@ -463,6 +469,8 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
   committer->compactVersion = INT64_MAX;
   committer->ctx->cid = tsdbFSAllocEid(tsdb->pFS);
   committer->ctx->now = taosGetTimestampSec();
+  committer->ctx->minVer = info->vers.start;
+  committer->ctx->maxVer = info->vers.end;
 
   committer->ctx->nextKey = tsdb->imem->minKey;
   if (tsdb->imem->nDel > 0) {

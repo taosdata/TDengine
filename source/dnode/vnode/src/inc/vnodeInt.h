@@ -515,10 +515,16 @@ struct SSnapDataHdr {
   uint8_t data[];
 };
 
+typedef struct SRange {
+  int64_t start;
+  int64_t end;
+} SRange;
+
 struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  SRange     vers;
 };
 
 struct SCompactInfo {
