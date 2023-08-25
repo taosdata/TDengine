@@ -3,7 +3,15 @@ title: 部署 TDengine Pro Tools
 sidebar_label: 部署 ProTools
 ---
 
+## 简介
+
 本节讲述如何部署 TDengine Pro Tools，TDengine Pro Tools 包含的核心组件在【安装与配置】(../install)中已经做过详细说明。如果只是使用可视化工具管理 TDengine 集群并进行查询等基本操作，则只需要部署 taos-explorer。如果要使用数据接入，数据同步等功能，则需要部署 taosX 和 taos-agent，在此种情况下 taos-explorer 依赖 taosX 完成数据接入和同步，所以下面的服务部署中以 taosX, taos-agent, taos-explorer 的顺利进行。
+
+## 部署架构
+
+下图展示了整个 TDengine 产品生态的部署架构，其所有核心组件都来自于前面章节中讲述过的 TDengine server 安装包以及 TDengine Pro Tools 安装包。
+
+![TDengine 产品生态部署架构图](./deployment.png)
 
 
 ## 部署 taosX
