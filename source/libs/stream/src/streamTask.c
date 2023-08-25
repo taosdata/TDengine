@@ -283,11 +283,11 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {
-    streamQueueClose(pTask->inputQueue);
+    streamQueueClose(pTask->inputQueue, pTask->id.taskId);
   }
 
   if (pTask->outputInfo.queue) {
-    streamQueueClose(pTask->outputInfo.queue);
+    streamQueueClose(pTask->outputInfo.queue, pTask->id.taskId);
   }
 
   if (pTask->exec.qmsg) {
@@ -319,6 +319,10 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
   taosThreadMutexDestroy(&pTask->lock);
+  if (pTask->msgInfo.pData != NULL) {
+    destroyStreamDataBlock(pTask->msgInfo.pData);
+    pTask->msgInfo.pData = NULL;
+  }
 
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
