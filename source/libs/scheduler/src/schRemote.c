@@ -89,7 +89,7 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
       if (pRsp) {
         SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
       } else {
-        SCH_ERR_JRET(schNotifyJobAllTasks(pJob, TASK_NOTIFY_FINISHED));
+        SCH_ERR_JRET(schNotifyJobAllTasks(pJob, pTask, TASK_NOTIFY_FINISHED));
       }
   
       taosMemoryFreeClear(msg);

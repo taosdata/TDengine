@@ -1265,18 +1265,22 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
   }
 }
 
-int32_t schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type) {
+int32_t schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pCurrTask) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  SCH_ERR_RET(schNotifyTaskOnExecNode(pJob, pCurrTask, type));
+  
   void *pIter = taosHashIterate(list, NULL);
   while (pIter) {
     SSchTask *pTask = *(SSchTask **)pIter;
-
-    SCH_LOCK_TASK(pTask);
-    code = schNotifyTaskOnExecNode(pJob, pTask, type);
-    SCH_UNLOCK_TASK(pTask);
-
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
+    if (pTask != pCurrTask) {
+      SCH_LOCK_TASK(pTask);
+      code = schNotifyTaskOnExecNode(pJob, pTask, type);
+      SCH_UNLOCK_TASK(pTask);
+      
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
     }
 
     pIter = taosHashIterate(list, pIter);
