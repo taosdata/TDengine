@@ -205,10 +205,13 @@ async fn ipc_tcp_forward(
     // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
-    let mut stream = client.do_put(data).await.unwrap();
+    let mut stream = client
+        .do_put(data)
+        .await
+        .context("Failed to forward IPC stream to server")?;
 
     while let Some(res) = stream.next().await {
-        let _: PutResult = res?;
+        let _: PutResult = res.context("Got server response with error")?;
         ipc_ack_writer.write_ok()?;
     }
 
@@ -239,7 +242,7 @@ async fn ipc_tcp_read(
     // let reader = stream.clone();
 
     info!(client, "Prepare IPC stream reader");
-    let reader_stream = stream.try_clone().unwrap();
+    let reader_stream = stream.try_clone().context("Clone tcp stream error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || {
         IpcReader::new(reader_stream).context("IPC reading error")
     })
@@ -308,6 +311,7 @@ struct LushMessageTagModify {
 }
 
 // #[instrument(skip(taos, record, names, marks))]
+#[instrument(skip_all)]
 async fn consume_lush_record(
     taos: &Taos,
     stmt: &mut Stmt,
@@ -319,17 +323,6 @@ async fn consume_lush_record(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
-    if let Some((license, transferred)) = license.zip(transferred) {
-        let used = transferred.records.load(Ordering::SeqCst);
-        if used > license.number as _ {
-            anyhow::bail!(
-                "Connector {} out of number: {}/{}",
-                license.r#type,
-                used,
-                license.number
-            );
-        }
-    }
     match record {
         LushMessage::Tables(tables) => {
             // let mut sql = format!("CREATE TABLE ");
@@ -474,11 +467,13 @@ async fn consume_lush_record(
         LushMessage::Insert(record) => {
             // let guard = mutex.lock().await;
             for record in record {
+                if record.num_rows() == 0 {
+                    continue;
+                }
                 *records += record.num_rows();
                 let data = record.to_column_views();
                 // RawBlock
                 // taos.write_raw_block()
-                // dbg!(&map_data);
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
                 if let Some((sqls, field_map)) = sqls {
                     for sql in sqls {
@@ -1474,6 +1469,9 @@ async fn consume_flat_record(
 }
 
 // #[instrument(skip_all)]
+#[instrument(skip_all, fields(
+    ipc.stream.item = "flat", ipc.stream.records = 0, ipc.stream.batches = 0
+))]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -1619,7 +1617,6 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     }
     metrics::counter!("ipc.stream.records", count as u64);
     metrics::counter!("ipc.stream.batches", batches as u64);
-
 
     tracing::Span::current()
         .record(IPC_STREAM_RECORDS, count)

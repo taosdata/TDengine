@@ -16,9 +16,9 @@ mod tmq_to_kafka;
 
 use anyhow::Context;
 use chrono::NaiveDate;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tracing::instrument;
 
 pub use crate::tmq_to_kafka::tmq_to_kafka;
@@ -99,6 +99,64 @@ impl Drop for TaskOpts {
         if !self.cancel.is_cancelled() {
             self.cancel.cancel();
         }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ValidatedSource {
+    available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    since: Option<String>,
+}
+
+pub type ValidatedTarget = ValidatedSource;
+
+impl Default for ValidatedSource {
+    fn default() -> Self {
+        Self {
+            available: true,
+            version: None,
+            since: None,
+        }
+    }
+}
+
+pub async fn validate_source(dsn: impl IntoDsn) -> ValidatedSource {
+    let dsn = dsn.into_dsn();
+
+    match dsn {
+        Ok(dsn) if dsn.driver.as_str() == "kafka" => {
+            if let Err(err) = is_kafka_available(&dsn).await {
+                ValidatedSource {
+                    available: false,
+                    version: None,
+                    since: Some(format!("{err:#}")),
+                }
+            } else {
+                Default::default()
+            }
+        }
+        Ok(_) => Default::default(),
+        Err(err) => ValidatedSource {
+            available: false,
+            version: None,
+            since: Some(format!("DSN error: {err:#}")),
+        },
+    }
+}
+
+pub fn validate_target(dsn: impl IntoDsn) -> ValidatedTarget {
+    let dsn = dsn.into_dsn();
+
+    match dsn {
+        Ok(_) => Default::default(),
+        Err(err) => ValidatedSource {
+            available: false,
+            version: None,
+            since: Some(format!("DSN error: {err:#}")),
+        },
     }
 }
 

@@ -289,6 +289,7 @@ pub async fn influxdb_to_taos(
     // create socket channel
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
+        let _ = target_pool_for_ipc.get().await?;
         sink::listen_tcp_socket(
             target_pool_for_ipc,
             config.ipc_stream,
