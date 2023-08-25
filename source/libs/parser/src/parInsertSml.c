@@ -181,6 +181,18 @@ STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta) {
   return pTableCxt;
 }
 
+void clearColValArraySml(SArray* pCols) {
+  int32_t num = taosArrayGetSize(pCols);
+  for (int32_t i = 0; i < num; ++i) {
+    SColVal* pCol = taosArrayGet(pCols, i);
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type || TSDB_DATA_TYPE_VARBINARY == pCol->type) {
+      taosMemoryFreeClear(pCol->value.pData);
+    }
+    pCol->flag = CV_FLAG_NONE;
+    pCol->value.val = 0;
+  }
+}
+
 int32_t smlBuildRow(STableDataCxt* pTableCxt) {
   SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
   int    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
@@ -376,7 +388,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       goto end;
     }
     insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
-    clearColValArray(pTableCxt->pValues);
+    clearColValArraySml(pTableCxt->pValues);
   }
 
 end:

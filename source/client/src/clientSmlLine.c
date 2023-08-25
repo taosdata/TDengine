@@ -733,7 +733,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
       ret = smlBuildRow(info->currTableDataCtx);
     }
 
-    clearColValArray(info->currTableDataCtx->pValues);
+    clearColValArraySml(info->currTableDataCtx->pValues);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;

@@ -1508,15 +1508,13 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
   return code;
 }
 
-void clearColValArray(SArray* pCols) {
+static void clearColValArray(SArray* pCols) {
   int32_t num = taosArrayGetSize(pCols);
   for (int32_t i = 0; i < num; ++i) {
     SColVal* pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type) {
+    if (IS_VAR_DATA_TYPE(pCol->type)) {
       taosMemoryFreeClear(pCol->value.pData);
     }
-    pCol->flag = CV_FLAG_NONE;
-    pCol->value.val = 0;
   }
 }
 
