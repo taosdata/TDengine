@@ -466,11 +466,13 @@ async fn consume_lush_record(
         LushMessage::Insert(record) => {
             // let guard = mutex.lock().await;
             for record in record {
+                if record.num_rows() == 0 {
+                    continue;
+                }
                 *records += record.num_rows();
                 let data = record.to_column_views();
                 // RawBlock
                 // taos.write_raw_block()
-                // dbg!(&map_data);
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
                 if let Some((sqls, field_map)) = sqls {
                     for sql in sqls {

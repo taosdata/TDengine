@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, io::Read, ops::Deref, sync::Arc, str::FromStr};
+use std::{any::Any, collections::HashMap, io::Read, ops::Deref, str::FromStr, sync::Arc};
 
 use arrow::{
     array::{
@@ -707,7 +707,6 @@ mod arrow_to_taos {
                     TimeUnit::Microsecond => ColumnView::from_micros_timestamp(v),
                     TimeUnit::Nanosecond => ColumnView::from_nanos_timestamp(v),
                 }
-
             }
             crate::prelude::IpcDataType::VarChar(_) => {
                 ColumnView::from_varchar::<&str, _, _, _>(data)
@@ -759,7 +758,11 @@ impl LushMessageInsert {
     }
 
     /// return (sqls to executes, )
-    pub fn generate_insert_sql_from_tablename(&self, data: &Vec<ColumnView>, columns: &Vec<String>,) -> Option<(Vec<String>, HashMap<String, IpcDataType>)> {
+    pub fn generate_insert_sql_from_tablename(
+        &self,
+        data: &Vec<ColumnView>,
+        columns: &Vec<String>,
+    ) -> Option<(Vec<String>, HashMap<String, IpcDataType>)> {
         let mut index = None;
         for (i, f) in self.records.record.schema().fields().iter().enumerate() {
             if f.name() == __TABLE_NAME__ {
@@ -772,6 +775,9 @@ impl LushMessageInsert {
             Some(i) => {
                 let mut sql = format!("INSERT INTO ");
                 let c = data.get(i).unwrap();
+                if c.len() == 0 {
+                    return None;
+                }
                 debug_assert!(columns.len() == data.len() - 1);
                 let mut sqls = Vec::new();
                 let mut field_map = HashMap::new();
@@ -786,7 +792,7 @@ impl LushMessageInsert {
                             // is table_name
                             continue;
                         }
-                        let temp_cv = cv.slice(j..j+1).unwrap();
+                        let temp_cv = cv.slice(j..j + 1).unwrap();
                         if let Some(v) = temp_cv.get(0) {
                             let column_name = columns[index].clone();
                             let sql_value = v.to_sql_value();
@@ -805,7 +811,14 @@ impl LushMessageInsert {
                                             _ => (),
                                         }
                                     } else {
-                                        field_map.insert(column_name.clone(), IpcDataType::from_str(format!("{}({})", v_ty.name(), sql_value.len()).as_str()).unwrap());
+                                        field_map.insert(
+                                            column_name.clone(),
+                                            IpcDataType::from_str(
+                                                format!("{}({})", v_ty.name(), sql_value.len())
+                                                    .as_str(),
+                                            )
+                                            .unwrap(),
+                                        );
                                     }
                                 }
 
@@ -820,7 +833,8 @@ impl LushMessageInsert {
                     }
                     insert_columns.pop();
                     insert_values.pop();
-                    let sql_to_push = format!(" `{table_name}` ({insert_columns}) VALUES ({insert_values})");
+                    let sql_to_push =
+                        format!(" `{table_name}` ({insert_columns}) VALUES ({insert_values})");
                     // sql len should less than 1M
                     if sql.len() + sql_to_push.len() > 1024 * 1024 {
                         sqls.push(sql);
@@ -829,7 +843,9 @@ impl LushMessageInsert {
                         sql.push_str(sql_to_push.as_str());
                     }
                 }
-                sqls.push(sql);
+                if sql.len() > 12 {
+                    sqls.push(sql);
+                }
                 Some((sqls, field_map))
             }
         }
@@ -1339,7 +1355,7 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
                             .collect();
                         ColumnView::from_micros_timestamp(values)
                     }
-                },
+                }
                 arrow::datatypes::TimeUnit::Nanosecond => {
                     let a = column
                         .as_any()
@@ -1354,7 +1370,7 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
                             .collect();
                         ColumnView::from_millis_timestamp(values)
                     }
-                },
+                }
             },
             DataType::Date32 => todo!(),
             DataType::Date64 => todo!(),
