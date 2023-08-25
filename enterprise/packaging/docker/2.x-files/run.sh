@@ -454,7 +454,7 @@ do
     fi
     # check taosadapter
     nc -z localhost 6041
-    if [ "$status"x = "6"x ] && [ $? -ne 0 ]; then
+    if [ $? -ne 0 ] && [ "$status"x = "6"x ] ; then
         logger "INFO" "start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
             logger "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
