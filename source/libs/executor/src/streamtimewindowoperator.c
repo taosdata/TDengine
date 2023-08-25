@@ -1551,6 +1551,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pWinBlock);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
+  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
 
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
