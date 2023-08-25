@@ -212,11 +212,8 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pMsg, "clear-csm");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
   if (pTrans == NULL) goto FAIL;
-  if (validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user) != 0){
-    goto FAIL;
-  }
   // this is the drop action, not the update action
   if (mndSetConsumerDropLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
