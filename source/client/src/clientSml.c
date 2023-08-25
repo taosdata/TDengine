@@ -596,7 +596,7 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
-    if (((colField[*index].type == TSDB_DATA_TYPE_VARCHAR  || colField[*index].type == TSDB_DATA_TYPE_VARCHAR || colField[*index].type == TSDB_DATA_TYPE_GEOMETRY) &&
+    if (((colField[*index].type == TSDB_DATA_TYPE_VARCHAR  || colField[*index].type == TSDB_DATA_TYPE_VARBINARY || colField[*index].type == TSDB_DATA_TYPE_GEOMETRY) &&
          (colField[*index].bytes - VARSTR_HEADER_SIZE) < kv->length) ||
         (colField[*index].type == TSDB_DATA_TYPE_NCHAR &&
          ((colField[*index].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE < kv->length))) {
@@ -1178,21 +1178,12 @@ void smlDestroyTableInfo(void *para) {
   taosMemoryFree(tag);
 }
 
-void clearColValArray(SArray *pCols) {
-  int32_t num = taosArrayGetSize(pCols);
-  for (int32_t i = 0; i < num; ++i) {
-    SColVal *pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
-      taosMemoryFreeClear(pCol->value.pData);
-    }
-  }
-}
-
 void freeSSmlKv(void *data) {
   SSmlKv *kv = (SSmlKv *)data;
-  if (kv->keyEscaped) taosMemoryFree((void *)(kv->key));
-  if (kv->valueEscaped) taosMemoryFree((void *)(kv->value));
+  if (kv->keyEscaped) taosMemoryFreeClear(kv->key);
+  if (kv->valueEscaped) taosMemoryFreeClear(kv->value);
   if (kv->type == TSDB_DATA_TYPE_GEOMETRY) geosFreeBuffer((void *)(kv->value));
+  if (kv->type == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(kv->value);
 }
 
 void smlDestroyInfo(SSmlHandle *info) {

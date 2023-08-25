@@ -751,7 +751,6 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               sprintf(value, "%.9lf", GET_DOUBLE_VAL(row[i]));
               break;
             case TSDB_DATA_TYPE_BINARY:
-//            case TSDB_DATA_TYPE_VARBINARY  todovar
             case TSDB_DATA_TYPE_NCHAR:
             case TSDB_DATA_TYPE_GEOMETRY:
               if (length[i] < 0 || length[i] > 1 << 20) {

@@ -266,6 +266,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       } else { /* normal relational comparFn */
         comparFn = 30;
       }
+      break;
     }
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == OP_TYPE_MATCH) {
@@ -1595,7 +1596,7 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       break;
 
     case TSDB_DATA_TYPE_BINARY:
-//    case TSDB_DATA_TYPE_BINARY:// todovar
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {

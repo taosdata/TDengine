@@ -326,6 +326,38 @@ static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
   return code;
 }
 
+static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, int32_t bytes){
+  if(pToken->type != TK_NK_STRING){
+    return TSDB_CODE_PAR_INVALID_VARBINARY;
+  }
+
+  if(isHex(pToken->z, pToken->n)){
+    if(!isValidateHex(pToken->z, pToken->n)){
+      return TSDB_CODE_PAR_INVALID_VARBINARY;
+    }
+
+    void* data = NULL;
+    uint32_t size = 0;
+    if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (size + VARSTR_HEADER_SIZE > bytes) {
+      taosMemoryFree(data);
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+    *pData = data;
+    *nData = size;
+  }else{
+    if (pToken->n + VARSTR_HEADER_SIZE > bytes) {
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+    *pData = taosStrdup(pToken->z);
+    *nData = pToken->n;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
                              SMsgBuf* pMsgBuf) {
   int64_t  iv;
@@ -478,33 +510,10 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       break;
     }
     case TSDB_DATA_TYPE_VARBINARY: {
-      // Too long values will raise the invalid sql error message
-      // Too long values will raise the invalid sql error message
-      void* data = NULL;
-      uint32_t size = 0;
-      if (pToken->type == TK_NK_HEX){
-        if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }else if(pToken->type == TK_NK_BIN){
-        if(taosBin2Ascii(pToken->z, pToken->n, &data, &size) < 0){
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }else{
-        size = pToken->n;
+      code = parseVarbinary(pToken, &val->pData, &val->nData, pSchema->bytes);
+      if(code != TSDB_CODE_SUCCESS){
+        return generateSyntaxErrMsg(pMsgBuf, code, pSchema->name);
       }
-      if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
-        if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
-          taosMemoryFree(data);
-        }
-        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
-      }
-      if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
-        val->pData = data;
-      }else{
-        val->pData = taosStrdup(pToken->z);
-      }
-      val->nData = size;
       break;
     }
     case TSDB_DATA_TYPE_GEOMETRY: {
@@ -1394,32 +1403,10 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_VARBINARY: {
-      // Too long values will raise the invalid sql error message
-      void* data = NULL;
-      uint32_t size = 0;
-      if (pToken->type == TK_NK_HEX){
-        if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }else if(pToken->type == TK_NK_BIN){
-        if(taosBin2Ascii(pToken->z, pToken->n, &data, &size) < 0){
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }else{
-        size = pToken->n;
+      int32_t code = parseVarbinary(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
+      if(code != TSDB_CODE_SUCCESS){
+        return generateSyntaxErrMsg(&pCxt->msg, code, pSchema->name);
       }
-      if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
-        if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
-          taosMemoryFree(data);
-        }
-        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
-      }
-      if(pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN){
-        pVal->value.pData = data;
-      }else{
-        pVal->value.pData = taosStrdup(pToken->z);
-      }
-      pVal->value.nData = size;
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
@@ -1521,13 +1508,15 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
   return code;
 }
 
-static void clearColValArray(SArray* pCols) {
+void clearColValArray(SArray* pCols) {
   int32_t num = taosArrayGetSize(pCols);
   for (int32_t i = 0; i < num; ++i) {
     SColVal* pCol = taosArrayGet(pCols, i);
-    if (IS_VAR_DATA_TYPE(pCol->type)) {
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type) {
       taosMemoryFreeClear(pCol->value.pData);
     }
+    pCol->flag = CV_FLAG_NONE;
+    pCol->value.val = 0;
   }
 }
 

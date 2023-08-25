@@ -1231,8 +1231,41 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       *(double*)&pVal->typeData = pVal->datum.d;
       break;
     }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      if (pVal->node.resType.type != TSDB_DATA_TYPE_BINARY){
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+
+      void* data = NULL;
+      uint32_t size = 0;
+      bool isHexChar = isHex(pVal->literal, strlen(pVal->literal));
+      if(isHexChar){
+        if(!isValidateHex(pVal->literal, strlen(pVal->literal))){
+          return TSDB_CODE_PAR_INVALID_VARBINARY;
+        }
+        if(taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else{
+        size = pVal->node.resType.bytes;
+        data = pVal->literal;
+      }
+
+      if (size + VARSTR_HEADER_SIZE > targetDt.bytes) {
+        if(isHexChar) taosMemoryFree(data);
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_VALUE_TOO_LONG, pVal->literal);
+      }
+      pVal->datum.p = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+      if (NULL == pVal->datum.p) {
+        if(isHexChar) taosMemoryFree(data);
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+      }
+      varDataSetLen(pVal->datum.p, size + VARSTR_HEADER_SIZE);
+      memcpy(varDataVal(pVal->datum.p), data, size);
+      if(isHexChar)  taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
       if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
@@ -1296,7 +1329,9 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
     res = translateNormalValue(pCxt, pVal, targetDt, strict);
   }
   pVal->node.resType.type = targetDt.type;
-  pVal->node.resType.bytes = targetDt.bytes;
+  if( targetDt.type == TSDB_DATA_TYPE_VARBINARY || !strict){
+    pVal->node.resType.bytes = targetDt.bytes;
+  }
   pVal->node.resType.scale = pVal->unit;
   pVal->translate = true;
   if (!strict && TSDB_DATA_TYPE_UBIGINT == pVal->node.resType.type && pVal->datum.u <= INT64_MAX) {

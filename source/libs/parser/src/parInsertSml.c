@@ -18,18 +18,6 @@
 #include "parToken.h"
 #include "ttime.h"
 
-static void clearColValArray(SArray* pCols) {
-  int32_t num = taosArrayGetSize(pCols);
-  for (int32_t i = 0; i < num; ++i) {
-    SColVal* pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type) {
-      taosMemoryFreeClear(pCol->value.pData);
-    }
-    pCol->flag = CV_FLAG_NONE;
-    pCol->value.val = 0;
-  }
-}
-
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen) {
   SMsgBuf msg = {.buf = msgBuf, .len = msgBufLen};
@@ -237,10 +225,10 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     }
     pVal->value.pData = pUcs4;
     pVal->value.nData = len;
-  } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_VARBINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+  } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = (uint8_t*)kv->value;
-  } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+  } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = taosMemoryMalloc(kv->length);
     memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
@@ -368,10 +356,10 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         }
         pVal->value.pData = pUcs4;
         pVal->value.nData = len;
-      } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_VARBINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+      } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
         pVal->value.nData = kv->length;
         pVal->value.pData = (uint8_t*)kv->value;
-      } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+      } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
         pVal->value.nData = kv->length;
         pVal->value.pData = taosMemoryMalloc(kv->length);
         memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
