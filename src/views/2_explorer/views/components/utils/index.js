@@ -88,10 +88,10 @@ export const dataType = [
     label:'NCHAR',
     value:'NCHAR'
   },
-  {
-    label:'BINARY',
-    value:'BINARY'
-  }
+  // {
+  //   label:'BINARY',
+  //   value:'BINARY'
+  // }
 ];
 
 export const tagType = [
