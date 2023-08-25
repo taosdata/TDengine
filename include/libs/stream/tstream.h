@@ -526,6 +526,7 @@ typedef struct {
   int32_t nodeId;
   int32_t mnodeId;
   int64_t expireTime;
+  int8_t  success;
 } SStreamCheckpointSourceRsp;
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
@@ -726,8 +727,10 @@ int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 
-int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask);
-
+int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,
+                                        SStreamTask* pTask, int8_t isSucceed);
+int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
+                                 int8_t isSucceed);
 #ifdef __cplusplus
 }
 #endif

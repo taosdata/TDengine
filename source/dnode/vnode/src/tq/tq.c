@@ -1493,17 +1493,19 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
 
-  int32_t      vgId = pTq->pStreamMeta->vgId;
-  int32_t      taskId = htonl(pRsp->upstreamTaskId);
-  int64_t      streamId = htobe64(pRsp->streamId);
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, streamId, taskId);
+  int32_t vgId = pTq->pStreamMeta->vgId;
+  pRsp->upstreamTaskId = htonl(pRsp->upstreamTaskId);
+  pRsp->streamId = htobe64(pRsp->streamId);
+  pRsp->downstreamTaskId = htonl(pRsp->downstreamTaskId);
+  pRsp->downstreamNodeId = htonl(pRsp->downstreamNodeId);
 
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pRsp->streamId, pRsp->upstreamTaskId);
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return TSDB_CODE_SUCCESS;
   } else {
-    tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, taskId);
+    tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, pRsp->upstreamTaskId);
     terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return terrno;
   }
@@ -1719,6 +1721,7 @@ FAIL:
 
 int32_t tqCheckLogInWal(STQ* pTq, int64_t sversion) { return sversion <= pTq->walLogLastVer; }
 
+// todo error code cannot be return, since this is invoked by an mnode-launched transaction.
 int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
@@ -1738,7 +1741,6 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   tDecoderClear(&decoder);
 
-  // todo handle the case when the task not in ready state, and the checkpoint msg is arrived.
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId,
@@ -1746,14 +1748,22 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
+  // downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
+  if (pTask->status.downstreamReady != 1) {
+    qError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
+           ", set it failure", pTask->id.idStr, req.checkpointId);
+
+    SRpcMsg rsp = {0};
+    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
+    tmsgSendRsp(&rsp);   // error occurs
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t total = 0;
   taosWLockLatch(&pMeta->lock);
 
   // set the initial value for generating check point
-  // set the mgmt epset info according to the checkout source msg from mnode, todo opt perf
-  //  pMeta->mgmtInfo.epset = req.mgmtEps;
-  //  pMeta->mgmtInfo.mnodeId = req.mnodeId;
-
+  // set the mgmt epset info according to the checkout source msg from mnode, todo update mgmt epset if needed
   if (pMeta->chkptNotReadyTasks == 0) {
     pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
   }
@@ -1764,7 +1774,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   qDebug("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg, chkpt:%" PRId64 ", total checkpoint req:%d",
          pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, total);
 
-  code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask);
+  code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
