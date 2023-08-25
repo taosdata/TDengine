@@ -622,6 +622,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     if (type == STREAM_INPUT__CHECKPOINT) {
       ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
       pTask->status.taskStatus = TASK_STATUS__CK_READY;
+      qDebug("s-task:%s checkpoint block received, set the status:%s", pTask->id.idStr,
+             streamGetTaskStatusStr(pTask->status.taskStatus));
       return 0;
     }
   }
