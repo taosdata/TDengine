@@ -113,7 +113,7 @@
 #define TK_TABLE_PREFIX                    95
 #define TK_TABLE_SUFFIX                    96
 #define TK_NK_COLON                        97
-#define TK_MAX_SPEED                       98
+#define TK_BWLIMIT                         98
 #define TK_START                           99
 #define TK_TIMESTAMP                      100
 #define TK_END                            101

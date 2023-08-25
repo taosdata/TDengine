@@ -824,7 +824,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     }
 
     if (strcmp(dropReq.cgroup, pConsumer->cgroup) == 0) {
-      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
     }
     sdbRelease(pMnode->pSdb, pConsumer);
   }

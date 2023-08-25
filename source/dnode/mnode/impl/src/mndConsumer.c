@@ -73,7 +73,7 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 
 void mndCleanupConsumer(SMnode *pMnode) {}
 
-void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId){
+void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId, SRpcHandleInfo* info){
   SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
   if (pClearMsg == NULL) {
     mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d", consumerId, (int32_t)sizeof(SMqConsumerClearMsg));
@@ -82,7 +82,11 @@ void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId){
 
   pClearMsg->consumerId = consumerId;
   SRpcMsg rpcMsg = {
-      .msgType = TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, .pCont = pClearMsg, .contLen = sizeof(SMqConsumerClearMsg)};
+      .msgType = TDMT_MND_TMQ_LOST_CONSUMER_CLEAR,
+      .pCont = pClearMsg,
+      .contLen = sizeof(SMqConsumerClearMsg),
+      .info = *info,
+  };
 
   mInfo("consumer:0x%" PRIx64 " drop from sdb", consumerId);
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
@@ -119,13 +123,18 @@ void mndRebCntDec() {
   }
 }
 
-static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode) {
+static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser) {
   int32_t numOfTopics = taosArrayGetSize(pTopicList);
 
   for (int32_t i = 0; i < numOfTopics; i++) {
     char        *pOneTopic = taosArrayGetP(pTopicList, i);
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOneTopic);
     if (pTopic == NULL) {  // terrno has been set by callee function
+      return -1;
+    }
+
+    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
+      mndReleaseTopic(pMnode, pTopic);
       return -1;
     }
 
@@ -167,7 +176,7 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   if (pTrans == NULL) {
     goto FAIL;
   }
-  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode) != 0){
+  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user) != 0){
     goto FAIL;
   }
 
@@ -205,7 +214,7 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pMsg, "clear-csm");
   if (pTrans == NULL) goto FAIL;
-  if (validateTopics(pTrans, pConsumer->assignedTopics, pMnode) != 0){
+  if (validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user) != 0){
     goto FAIL;
   }
   // this is the drop action, not the update action
@@ -292,7 +301,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 
     if (status == MQ_CONSUMER_STATUS_READY) {
       if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {   // unsubscribe or close
-        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
       } else if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
         taosRLockLatch(&pConsumer->lock);
         int32_t topicNum = taosArrayGetSize(pConsumer->currentTopics);
@@ -307,7 +316,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
       }
     } else if (status == MQ_CONSUMER_STATUS_LOST) {
       if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {   // clear consumer if lost a day
-        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
       }
     } else {  // MQ_CONSUMER_STATUS_REBALANCE
       taosRLockLatch(&pConsumer->lock);
@@ -384,6 +393,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
         .msgType = TDMT_MND_TMQ_CONSUMER_RECOVER,
         .pCont = pRecoverMsg,
         .contLen = sizeof(SMqConsumerRecoverMsg),
+        .info = pMsg->info,
     };
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
   }
@@ -458,6 +468,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
         .msgType = TDMT_MND_TMQ_CONSUMER_RECOVER,
         .pCont = pRecoverMsg,
         .contLen = sizeof(SMqConsumerRecoverMsg),
+        .info = pMsg->info,
     };
 
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
@@ -646,7 +657,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     goto _over;
   }
 
-  code = validateTopics(pTrans, pTopicList, pMnode);
+  code = validateTopics(pTrans, pTopicList, pMnode, pMsg->info.conn.user);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }

@@ -386,6 +386,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pReq, "create-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    code = -1;
     goto _OUT;
   }
 
@@ -400,7 +401,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(topicObj.createUser, userName, TSDB_USER_LEN);
 
-  if (mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj) != 0) {
+  code = mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj);
+  if (code != 0) {
     goto _OUT;
   }
 
@@ -418,6 +420,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     if (pCreate->withMeta) {
       terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      code = terrno;
       goto _OUT;
     }
 
@@ -426,13 +429,15 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
     qDebugL("topic:%s ast %s", topicObj.name, topicObj.ast);
 
-    if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
+    code = nodesStringToNode(pCreate->ast, &pAst);
+    if (code != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       goto _OUT;
     }
 
     SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
-    if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
+    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
+    if (code != 0) {
       mError("failed to create topic:%s since %s", pCreate->name, terrstr());
       goto _OUT;
     }
@@ -440,6 +445,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     topicObj.ntbColIds = taosArrayInit(0, sizeof(int16_t));
     if (topicObj.ntbColIds == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _OUT;
     }
 
@@ -450,12 +456,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       topicObj.ntbColIds = NULL;
     }
 
-    if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
+    code = qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema);
+    if (code != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       goto _OUT;
     }
 
-    if (nodesNodeToString((SNode *)pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
+    code = nodesNodeToString((SNode *)pPlan, false, &topicObj.physicalPlan, NULL);
+    if (code != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       goto _OUT;
     }
@@ -463,6 +471,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     SStbObj *pStb = mndAcquireStb(pMnode, pCreate->subStbName);
     if (pStb == NULL) {
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+      code = terrno;
       goto _OUT;
     }
 
@@ -485,6 +494,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    code = -1;
     goto _OUT;
   }
 
@@ -510,7 +520,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
       // encoder check alter info
       int32_t len;
-      int32_t code;
       tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
@@ -525,6 +534,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
         sdbCancelFetch(pSdb, pIter);
+        code = -1;
         goto _OUT;
       }
       tEncoderClear(&encoder);
@@ -539,6 +549,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
         sdbCancelFetch(pSdb, pIter);
+        code = -1;
         goto _OUT;
       }
       buf = NULL;
@@ -548,6 +559,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    code = -1;
     goto _OUT;
   }
 
@@ -723,7 +735,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     }
     if (found){
       if (pConsumer->status == MQ_CONSUMER_STATUS_LOST) {
-        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pReq->info);
         mndReleaseConsumer(pMnode, pConsumer);
         continue;
       }
@@ -769,7 +781,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   code = mndDropSubByTopic(pMnode, pTrans, dropReq.name);
-  if ( code < 0) {
+  if (code < 0) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     goto end;
   }

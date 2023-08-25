@@ -177,6 +177,7 @@ static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, i
       }
 
       // todo time window chosen problem: t or prev value?
+      if (t > pInfo->pFillInfo->start) t -= pInterval->sliding;
       taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
     }
   }
@@ -838,6 +839,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
                                       (pFillSup->next.key == pFillInfo->nextRowKey && !hasPrevWindow(pFillSup)))) {
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
+        resetFillWindow(&pFillSup->prev);
         pFillSup->prev.key = pFillSup->cur.key;
         pFillSup->prev.pRowVal = pFillSup->cur.pRowVal;
       } else if (hasPrevWindow(pFillSup)) {
@@ -851,6 +853,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
       if (hasPrevWindow(pFillSup)) {
         setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
+        resetFillWindow(&pFillSup->next);
         pFillSup->next.key = pFillSup->cur.key;
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
         pFillInfo->preRowKey = INT64_MIN;
@@ -1229,8 +1232,6 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
 
     SWinKey nextKey = {.groupId = groupId, .ts = ts};
     while (pInfo->srcDelRowIndex < pBlock->info.rows) {
-      void*    nextVal = NULL;
-      int32_t  nextLen = 0;
       TSKEY    delTs = tsStarts[pInfo->srcDelRowIndex];
       uint64_t delGroupId = groupIds[pInfo->srcDelRowIndex];
       int32_t  code = TSDB_CODE_SUCCESS;
@@ -1245,7 +1246,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
       if (delTs == nextKey.ts) {
         code = pAPI->stateStore.streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
         if (code == TSDB_CODE_SUCCESS) {
-          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextLen);
+          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, NULL, NULL);
         }
         // ts will be deleted later
         if (delTs != ts) {
