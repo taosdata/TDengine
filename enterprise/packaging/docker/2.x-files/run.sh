@@ -378,7 +378,7 @@ do
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
         if [ "$clustercheckneeded"x = "0"x ]; then
-            td_cluster_check
+            td_cluster_check "no"
             if [ $? -eq 0 ]; then
                 status="6"
                 clustercheckneeded="1"
