@@ -78,6 +78,8 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         .fid = fset->fid,
         .cid = pDFileSet->pHeadF->commitID,
         .size = pDFileSet->pHeadF->size,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
 
     code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_HEAD]);
@@ -182,6 +184,8 @@ static int32_t tsdbUpgradeData(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
       .fid = fset->fid,
       .cid = pDFileSet->pDataF->commitID,
       .size = pDFileSet->pDataF->size,
+      .minVer = VERSION_MAX,
+      .maxVer = VERSION_MIN,
   };
 
   code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_DATA]);
@@ -208,6 +212,8 @@ static int32_t tsdbUpgradeSma(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *r
       .fid = fset->fid,
       .cid = pDFileSet->pSmaF->commitID,
       .size = pDFileSet->pSmaF->size,
+      .minVer = VERSION_MAX,
+      .maxVer = VERSION_MIN,
   };
 
   code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_SMA]);
@@ -253,6 +259,8 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
         .fid = fset->fid,
         .cid = pSttF->commitID,
         .size = pSttF->size,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
     code = tsdbTFileObjInit(tsdb, &file, &fobj);
     TSDB_CHECK_CODE(code, lino, _exit1);
@@ -382,6 +390,8 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
         .fid = fset->fid,
         .cid = 0,
         .size = 0,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
 
     code = tsdbTFileObjInit(tsdb, &file, fobj);
@@ -398,6 +408,8 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
         .fid = fset->fid,
         .cid = 0,
         .size = 0,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
 
     code = tsdbTFileObjInit(tsdb, &file, fobj);
