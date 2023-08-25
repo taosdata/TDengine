@@ -67,20 +67,19 @@ set_service_state "init" "ok"
 app_name=`hostname |cut -d\- -f1`
 
 function check_taosd() {
-    # timeout $TAOS_TIMEOUT_SECOND taos -R -E http://127.0.0.1:6041 -s "show databases;" >/dev/null
-    timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" localhost:6041/rest/sql >/tmp/taosd.json 2>&1
+    timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show databases;">/tmp/taosd.txt 2>&1
     local ret=$?
     if [ $ret -eq 0 ]; then
-        cat /tmp/taosd.json |grep -q "\"code\":0"
+        cat /tmp/taosd.txt | grep -q "Query OK"
         ret=$?
         if [ $ret -ne 0 ]; then
-            cat /tmp/taosd.json
+            cat /tmp/taosd.txt
         fi
     fi
     if [ $ret -ne 0 ]; then
         logger "INFO" "check taosd error $ret"
         if [ "x$1" != "xignore" ]; then
-            set_service_state "error" "taosd/taosadapter check failed $ret"
+            set_service_state "error" "taosd check failed $ret"
         fi
     else
         set_service_state "ready" "ok"
