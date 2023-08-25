@@ -1247,7 +1247,8 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
             SColumnInfoData* pSrcCol = taosArrayGet(tmpBlock->pDataBlock, j);
             SColumnInfoData* pDestCol = taosArrayGet(pResult->pDataBlock, j);
             bool             isNull = colDataIsNull(pSrcCol, tmpBlock->info.rows, i, NULL);
-            char*            pSrcData = colDataGetData(pSrcCol, i);
+            char*            pSrcData = NULL;
+            if (!isNull) pSrcData = colDataGetData(pSrcCol, i);
             colDataSetVal(pDestCol, pResult->info.rows, pSrcData, isNull);
           }
           pResult->info.rows++;
