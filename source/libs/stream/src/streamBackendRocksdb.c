@@ -1727,17 +1727,17 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
                                           rocksdb_readoptions_t** readOpt) {
   int idx = streamStateGetCfIdx(pState, cfKeyName);
 
-  rocksdb_readoptions_t* rOpt = rocksdb_readoptions_create();
-  *readOpt = rOpt;
+  *readOpt = rocksdb_readoptions_create();
 
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
   if (snapshot != NULL) {
     *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->rocksdb);
-    rocksdb_readoptions_set_snapshot(rOpt, *snapshot);
-    rocksdb_readoptions_set_fill_cache(rOpt, 0);
+    rocksdb_readoptions_set_snapshot(*readOpt, *snapshot);
+    rocksdb_readoptions_set_fill_cache(*readOpt, 0);
   }
 
-  return rocksdb_create_iterator_cf(wrapper->rocksdb, rOpt, ((rocksdb_column_family_handle_t**)wrapper->pHandle)[idx]);
+  return rocksdb_create_iterator_cf(wrapper->rocksdb, *readOpt,
+                                    ((rocksdb_column_family_handle_t**)wrapper->pHandle)[idx]);
 }
 
 #define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                                   \
@@ -2806,8 +2806,9 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb
   char    buf[128] = {0};
   int32_t klen = ginitDict[i].enFunc((void*)key, buf);
 
-  char*                           ttlV = NULL;
-  int32_t                         ttlVLen = ginitDict[i].enValueFunc(val, vlen, ttl, &ttlV);
+  char*   ttlV = NULL;
+  int32_t ttlVLen = ginitDict[i].enValueFunc(val, vlen, ttl, &ttlV);
+
   rocksdb_column_family_handle_t* pCf = wrapper->pHandle[ginitDict[i].idx];
   rocksdb_writebatch_put_cf((rocksdb_writebatch_t*)pBatch, pCf, buf, (size_t)klen, ttlV, (size_t)ttlVLen);
   taosMemoryFree(ttlV);

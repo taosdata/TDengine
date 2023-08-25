@@ -96,7 +96,7 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {
 int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
   int32_t     code = 0;
   const void* pKey = NULL;
-  const void* pVal = NULL;
+  void*       pVal = NULL;
   int32_t     kLen = 0;
   int32_t     vLen = 0;
   SDecoder    decoder;
@@ -110,9 +110,15 @@ int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
 NextTbl:
   except = 0;
   for (;;) {
-    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
+    const void* tVal = NULL;
+    int32_t     tLen = 0;
+    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &tVal, &tLen)) {
       except = 1;
       break;
+    } else {
+      pVal = taosMemoryCalloc(1, tLen);
+      memcpy(pVal, tVal, tLen);
+      vLen = tLen;
     }
     tdbTbcMoveToNext(pReader->pCur);
     break;
@@ -144,6 +150,7 @@ NextTbl:
   pHdr->type = pPair->type;
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
+  taosMemoryFree(pVal);
 
   tqDebug("vgId:%d, vnode stream-task snapshot read data vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
 
