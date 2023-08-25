@@ -39,6 +39,7 @@ use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
+use metrics::*;
 
 // mod rpc_client;
 
@@ -561,6 +562,16 @@ struct ModifyStructForPointMessage {
     value_cloumn_length: usize,
 }
 
+#[instrument(skip_all, 
+    fields(record_batches = 0, 
+        batch_records = 0, 
+        insert_sqls = 0, 
+        insert_sqls_error = 0, 
+        stable_created = 0,
+        child_table_created = 0,
+        records = 0,
+        points = 0,
+    ))]
 async fn consume_point_record(
     taos: &Taos,
     _: &mut Stmt,
@@ -569,6 +580,8 @@ async fn consume_point_record(
     config: &OpcTableConfig,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
+    
+    metrics::counter!("record_batch_count", 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
         // process id, name, ts, value, status
@@ -664,6 +677,7 @@ async fn consume_point_record(
         > = HashMap::new();
         let mut child_table_create_sql_map = HashMap::new();
         for i in 0..id_cv.len() {
+            metrics::counter!("batch_record_count", 1);
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
             if code.is_none() {
@@ -875,17 +889,21 @@ async fn consume_point_record(
         }
         for (stable_name, sql_vec) in stable_insert_map {
             for (insert_sql, _, value_column_type, modify_message) in sql_vec {
-                debug!("point message insert sql: {}", insert_sql);
+                debug!("point message insert sql len: {}", insert_sql.len());
                 let mut retry = 0;
                 'outer: loop {
                     if retry >= 3 {
                         tracing::warn!("sql error cannot be solved, break;");
+                        counter!("sql_insert_error_count", 1);
                         break;
                     }
                     let sql_res = taos.exec(&insert_sql).await;
                     match sql_res {
                         Ok(n) => {
                             *count += n;
+                            metrics::counter!("sql_insert_count", 1);
+                            metrics::counter!("records_count", n as u64);
+                            metrics::counter!("points_count", n as u64 * columns_insert.len() as u64);
                             points += n;
                             break;
                         }
@@ -913,7 +931,7 @@ async fn consume_point_record(
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
                                 match taos.exec(&stable_sql).await {
-                                    Ok(_) => (),
+                                    Ok(n) => counter!("stable_created_count", n as u64),
                                     Err(err) => {
                                         if err.to_string().contains("0x032C") {
                                             // Object is creating, maybe should ignore
@@ -940,7 +958,7 @@ async fn consume_point_record(
                                 for create_child_sql in child_table_create_sqls {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match taos.exec(&create_child_sql).await {
-                                        Ok(_) => (),
+                                        Ok(n) => counter!("child_table_created_count", n as u64),
                                         Err(err) => {
                                             if err.to_string().contains("0x032C") {
                                                 // Object is creating, maybe should ignore
