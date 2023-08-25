@@ -1,5 +1,5 @@
 ---
-title: TDengine 企业版
+title: 企业版特有功能
 description: 企业版特有功能和工具
 ---
 

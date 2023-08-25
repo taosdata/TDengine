@@ -1,62 +1,16 @@
 ---
 toc_max_heading_level: 4
-sidebar_label: "taosExplorer"
 title: "可视化管理"
-description: "为了易于企业版用户更容易使用和管理数据库，TDengine 3.0 企业版提供了一个全新的可视化组件 taosExplorer"
 ---
 
 ## 简介
 
 为了易于企业版用户更容易使用和管理数据库，TDengine 3.0 企业版提供了一个全新的可视化组件 taosExplorer。用户能够在其中方便地管理数据库管理系统中中各元素（数据库、超级表、子表）的生命周期，执行查询，监控系统状态，管理用户和授权，完成数据备份和恢复，与其它集群之间进行数据同步，导出数据，管理主题和流计算。
 
+
 ## 部署服务
 
-### 准备工作
-
-1.  taosExplorer 没有独立的安装包，请使用 taosX 安装包进行安装。
-2.  在启动 taosExplorer 之前，请先确认 TDengine 集群已经正确设置并运行（即 taosd 服务），taosAdapter 也已经正确设置和运行并与 TDengine 集群保持连接状态。如果想要使用数据备份和恢复或者数据同步功能，请确保 taosX 服务和 Agent 服务也已经正确设置和运行。
-
-### 配置
-
-在启动 taosExplorer 之前，请确保配置文件中的内容正确。
-
-```TOML
-listen = "0.0.0.0:6060"
-log_level = "info"
-cluster = "http://localhost:6041"
-x_api = "http://localhost:6050"
-```
-
-说明：
-
--   listen - taosExplorer 对外提供服务的地址
--   log_level - 日志级别，可选值为 "debug", "info", "warn", "error", "fatal"
--   cluster - TDengine集群的 taosadapter 地址 
--   x_api - taosX 的服务地址
-
-### 启动
-
-然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用下面的 systemctl 脚本用 systemctl 来启动 taosExplorer 服务
-
-```shell
-[Unit]
-Description=Explorer for TDengine
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/taos-explorer
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 问题排查
-
-1. 当通过浏览器打开taosExplorer站点遇到“无法访问此网站”的错误信息时，请通过命令行登录taosExplorer所在机器，并使用命令systemctl status taos-explorer.service检查服务的状态，如果返回的状态是inactive，请使用命令systemctl start taos-explorer.service启动服务。
-2. 如果需要获取taosExplorer的详细日志，可通过命令journalctl -u taos-explorer
+详情请参考 [部署服务](../taosX)
 
 ## 登录
 
