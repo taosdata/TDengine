@@ -189,8 +189,8 @@ int32_t streamInit();
 void    streamCleanUp();
 
 SStreamQueue* streamQueueOpen(int64_t cap);
-void          streamQueueClose(SStreamQueue* pQueue);
 void          streamQueueCleanup(SStreamQueue* pQueue);
+void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
 
 static FORCE_INLINE void streamQueueProcessSuccess(SStreamQueue* queue) {
   ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);

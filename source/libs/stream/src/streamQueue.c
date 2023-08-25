@@ -48,12 +48,17 @@ void streamQueueClose(SStreamQueue* pQueue) {
   taosMemoryFree(pQueue);
 }
 
-void streamQueueCleanup(SStreamQueue* pQueue) {
+void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
+  qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->queue, taosQueueItemSize(pQueue->queue));
   void* qItem = NULL;
   while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
     streamFreeQitem(qItem);
   }
+  
   pQueue->status = STREAM_QUEUE__SUCESS;
+  taosFreeQall(pQueue->qall);
+  taosCloseQueue(pQueue->queue);
+  taosMemoryFree(pQueue);
 }
 
 #if 0
