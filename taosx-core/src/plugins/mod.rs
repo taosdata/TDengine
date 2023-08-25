@@ -12,7 +12,7 @@ use anyhow::Context;
 use futures::TryStreamExt;
 pub use runners::influxdb::influxdb_datasets;
 pub use runners::influxdb::influxdb_to_taos;
-pub use runners::kafka::kafka_to_taos;
+pub use runners::kafka::*;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
@@ -27,8 +27,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::plugins::runners::pi::pi_datasets;
-use crate::Transferred;
 use crate::utils::mask_dsn;
+use crate::Transferred;
 pub use taosx_ipc::types::*;
 
 pub use transform::Parser;
@@ -54,7 +54,7 @@ pub async fn build_ipc(
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
         let pool = builder.pool()?;
-        let _ = futures::executor::block_on(pool.get()).context("Target connection error")?;
+        let _ = pool.get().await.context("Target connection error")?;
         sink::listen_tcp_socket(
             pool,
             socket,
