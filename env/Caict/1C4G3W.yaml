@@ -1,0 +1,35 @@
+settings:
+  - name: taosd
+    fqdn: [node227]
+    spec:
+      version: 3.0.6.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: node227:6030
+      dnodes:
+        - endpoint: node227:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+  - name: taospy
+    fqdn: [node227]
+    spec:
+      version: 3.0.6.0
+      client_version: 3.0.6.0
+      config:
+        firstEP: node227:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+        asyncLog: 0
+
+  - name: taosBenchmark
+    fqdn: [node227]
+    spec:
+      version: 3.0.6.0
+      taos_version: 3.0.6.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: node227:6030
+        logDir: /var/log/taos
+        debugFlag: 131

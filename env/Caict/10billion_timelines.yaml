@@ -1,0 +1,82 @@
+settings:
+  - name: taosd
+    fqdn: [u1-55, u1-56, u1-57]
+    spec:
+      version: 3.0.6.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-55:6030
+      dnodes:
+        - endpoint: u1-55:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 1024
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        - endpoint: u1-56:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 1024
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        - endpoint: u1-57:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 1024
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+
+  - name: taospy
+    fqdn: [u1-55]
+    spec:
+      version: 3.0.6.0
+      client_version: 3.0.6.0
+      config:
+        firstEP: u1-55:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 131
+        asynclog: 0
+
+
+  - name: taosBenchmark
+    fqdn: [u1-55, u1-56, u1-57]
+    spec:
+      version: 3.0.6.0
+      taos_version: 3.0.6.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: u1-55:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+
+  # - name: prometheus
+  #   fqdn: [u1-55]
+  #   spec:
+  #     server:
+  #       run_dir: /opt/prometheus
+  #       config:
+  #         global:
+  #           evaluation_interval: 1s
+  #           scrape_interval: 3s
+  #           scrape_timeout: 3s
+  #         scrape_configs:
+  #           job_name: prometheus
+  #           targets: [192.168.1.55:9090]
+  #     node_exporter:
+  #       fqdn: [u1-55, u1-56, u1-57]
+  #       run_dir: /opt/node_exporter
+  #     process_exporter:
+  #       fqdn: [u1-55, u1-56, u1-57]
+  #       run_dir: /opt/process_exporter
+  #       config:
+  #         common_process: [taosd, taosBenchmark]
+  #         custom_process:
+  #           u1-55: [taosd, taosBenchmark]
+  #           u1-56: [taosd, taosBenchmark]
+  #           u1-57: [taosd, taosBenchmark]

@@ -806,7 +806,12 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.createDb("test_point_trans")
         input_json = self.tdCom.gen_full_type_json(point_trans_tag=True, value_type=value_type)[0]
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        self.tdSql.execute("drop table `.point.trans.test`")
+        stb_name = input_json["metric"]
+        stb_name = stb_name.replace(".", "_")
+        if "smlDot2Underline" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlDot2Underline"] == 0:
+                stb_name = stb_name.replace("_", ".")
+        self.tdSql.execute(f"drop table `{stb_name}`")
         self.tdSql.execute(f"drop database test_point_trans")
         self.tdCom.createDb(dbname=self.dbname, precision="us")
 

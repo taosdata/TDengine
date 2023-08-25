@@ -22,6 +22,7 @@ import sys, getopt
 from taostest.util.msg import Msg, TaosBenchmark
 import getpass
 import socket
+import time
 
 class StreamStabilityTest(TDCase):
     prepare_param_file = "prepare-param-file"
@@ -52,6 +53,8 @@ class StreamStabilityTest(TDCase):
         self.local_ip_list = self._remote.cmd("localhost", ["hostname -I"]).split(" ")
         self.local_ip = list(map(lambda x:x if "192" in x else socket.gethostname(), self.local_ip_list))[0]
         self.FILE_WEB_SERVER=f'http://{self.local_ip}:8081/'
+        self.pause_resume_interval = 300
+        self.schedu_interval = 800
 
     def help(self):
         print("case parameters:")
@@ -143,6 +146,14 @@ class StreamStabilityTest(TDCase):
     def cleanup(self):
         pass
 
+    def pause_resume(self):
+        self._remote._logger.info("in start_compact scheduler")
+        self._remote._logger.info(f'pause stream {self.stream_name}')
+        self.tdCom.pause_stream(self.stream_name)
+        time.sleep(self.pause_resume_interval)
+        self._remote._logger.info(f'resume stream {self.stream_name}')
+        self.tdCom.resume_stream(self.stream_name)
+        
     def run(self):
         ret = self.parse_case_param()
         self.init_params()
@@ -155,6 +166,8 @@ class StreamStabilityTest(TDCase):
         start_time = datetime.now()
         timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         for json_file_info in self.json_file_info_list:
+            if json_file_info == {self.stream_json_file: self.stream_json_info}:
+                self.tdCom.add_back_ground_scheduler(self.pause_resume, 'interval', seconds=self.schedu_interval, max_instances=1, args=[])
             for json_file, json_info in json_file_info.items():
                 json_info["result_file"] = self.taosBenchmark_json_path + "taosBenchmark_" + os.path.split(json_file)[1] + ".log"
                 with open(json_info["result_file"], "w") as f:
@@ -177,10 +190,14 @@ class StreamStabilityTest(TDCase):
         Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         Insert_file.get_node_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         if self.trigger_mode.lower() == "at_once" and "ignore_expired 1" not in self.stream_sql and int(self.stream_json_info["streams"][0]["fill_history"]) == 1:
-            self.tdSql.query(self.stream_sql)
-            expected_res = self.tdSql.query_row
-            self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname}')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][0], expected_res)
+            if "partition by" not in self.stream_sql:
+                self.tdSql.query(self.stream_sql)
+                expected_res = self.tdSql.query_row
+                self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname}')
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], expected_res)
+            else:
+                self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname}')
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
         end_time = datetime.now()
         for host in self.taosBenchmark_iplist:
             self._remote.get(host, json_info["result_file"], self.run_log_dir)

@@ -506,6 +506,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_json = self.tdCom.gen_full_type_json(point_trans_tag=True)[0]
         stb_name = input_json["metric"]
+        stb_name = stb_name.replace(".", "_")
         res = self.tdRest.schemalessApiPost(json.dumps(input_json), url_type="json", precision=None, dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
         self.tdSql.execute(f"drop table {self.dbname}.`{stb_name}`")

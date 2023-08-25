@@ -26,7 +26,7 @@ class TestAlterTag(TDCase):
         '''
         alter tb tag check
         '''
-        tag_tinyint = random.randint(-127,129)
+        tag_tinyint = random.randint(-128,127)
         tag_int = random.randint(-2147483648,2147483647)
         tag_smallint = random.randint(-32768,32768)
         tag_bigint = random.randint(-2147483648,2147483647)

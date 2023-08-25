@@ -1,0 +1,21 @@
+drop stream if exists at_once_state_window_ct1_stream;
+drop database if exists dbt;
+create database if not exists dbt;
+use dbt;
+create table dbt.at_once_state_window_stb (ts timestamp, c1 tinyint) tags (t1 tinyint) ;
+create table dbt.at_once_state_window_ct1 using dbt.at_once_state_window_stb tags (10) ;
+insert into at_once_state_window_ct1 values (1689238274162-5s, 92);
+insert into at_once_state_window_ct1 values (1689238274162-10s, 75);
+insert into at_once_state_window_ct1 values (1689238274162-15s, 30);
+insert into at_once_state_window_ct1 values (1689238274162-20s, 113);
+insert into at_once_state_window_ct1 values (1689238274162-25s, -71);
+create stream if not exists at_once_state_window_ct1_stream trigger at_once fill_history 1 into at_once_state_window_ct1_output as select _wstart AS wstart, min(c1) from at_once_state_window_ct1 partition by tbname state_window(c1) ;
+insert into at_once_state_window_ct1 (ts, c1) values (1689238274162, 57);
+insert into at_once_state_window_ct1 (ts, c1) values (1689238274163, 57);
+insert into at_once_state_window_ct1 (ts, c1) values (1689238274164, 57);
+insert into at_once_state_window_ct1 (ts, c1) values (1689238274165, 83);
+insert into at_once_state_window_ct1 (ts, c1) values (1689238274166, 83);
+insert into at_once_state_window_ct1 (ts, c1) values (1689238274167, 83);
+select wstart, `min(c1)` from at_once_state_window_ct1_output order by wstart;
+select _wstart AS wstart, min(c1) from at_once_state_window_ct1 partition by tbname state_window(c1)  order by wstart,c1;
+
