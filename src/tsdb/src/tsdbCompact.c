@@ -43,7 +43,7 @@ typedef struct {
 #define TSDB_COMPACT_COMP_BUF(pComph) TSDB_READ_COMP_BUF(&((pComph)->readh))
 #define TSDB_COMPACT_EXBUF(pComph) TSDB_READ_EXBUF(&((pComph)->readh))
 
-static int  tsdbAsyncCompact(STsdbRepo *pRepo);
+static int  tsdbAsyncCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey);
 static void tsdbStartCompact(STsdbRepo *pRepo);
 static void tsdbEndCompact(STsdbRepo *pRepo, int eno);
 static int  tsdbCompactMeta(STsdbRepo *pRepo);
@@ -62,7 +62,7 @@ static int  tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCo
                                       void **ppCBuf, void **ppExBuf);
 
 enum { TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
-int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
+int tsdbCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey) { return tsdbAsyncCompact(pRepo, skey, ekey); }
 
 void *tsdbCompactImpl(STsdbRepo *pRepo) {
   // Check if there are files in TSDB FS to compact
@@ -94,7 +94,7 @@ _err:
   return NULL;
 }
 
-static int tsdbAsyncCompact(STsdbRepo *pRepo) {
+static int tsdbAsyncCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey) {
   if (pRepo->compactState != TSDB_NO_COMPACT) {
     tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
     return 0;
