@@ -36,7 +36,7 @@ class TDTestQuery(TDCase):
     tables = 150
     per_table_num = 200
     vgroups = random.randint(1,8)
-    dbname_other_local = 'other_local_db'
+    #dbname_other_local = 'other_local_db'
     
     dbnamejoin = 'meters_join'
     #比base表要大
@@ -869,6 +869,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         sql_join = "select a.* from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)  
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
@@ -877,6 +878,39 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)  
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)  
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)  
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun) 
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         
         self.logger.info("base query ---------2----------")
@@ -890,6 +924,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         sql_join = "select a.* from %s.meters a,%s.meters b where a.ts is not null and  a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -898,6 +933,38 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts is not null and  a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts is not null and  a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts is not null and  a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         
         self.logger.info("base query ---------3----------")
@@ -911,6 +978,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         sql_join = "select a.* from %s.meters a,%s.meters b where a.ts is not null  and  a.ts = b.ts order by b.ts limit %d" %(dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -919,6 +987,38 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts is not null  and  a.ts = b.ts order by b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts is not null  and  a.ts = b.ts order by b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ a.* from %s.meters a,%s.meters b where a.ts is not null  and  a.ts = b.ts order by b.ts limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
         
         self.logger.info("base query ---------4----------")
         sql = "select * from %s.meters where ts is not null order by ts desc limit %d" %(dbname,num)
@@ -931,6 +1031,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select a.* from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -938,6 +1039,40 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ a.* from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ a.* from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ a.* from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
         
         self.logger.info("base query ---------5----------")
         sql = "select %d from %s.meters where ts is not null order by ts desc limit %d" %(int_data,dbname,num)
@@ -950,6 +1085,40 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(int_data,dbname,dbnamejoin,num)
+        sql_join_base = sql_join
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -969,6 +1138,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(float_data,dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -976,6 +1146,40 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
         
         self.logger.info("base query ---------7----------")
         sql = "select '%s' from %s.meters where ts is not null order by ts desc limit %d" %(str_data,dbname,num)
@@ -988,6 +1192,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(str_data,dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -996,6 +1201,38 @@ class TDTestQuery(TDCase):
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
 
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts order by a.ts desc limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_n_slimit_return_error(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
 
         self.logger.info("base query ---------8----------")
         sql = "select %d from %s.meters where ts is not null group by tbname limit %d" %(int_data,dbname,num)
@@ -1008,6 +1245,40 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
+        sql_join_base = sql_join
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ %d from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(int_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -1027,6 +1298,40 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
+        sql_join_base = sql_join
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ %f from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(float_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -1046,6 +1351,7 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
                
         sql_join = "select '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        sql_join_base = sql_join
         self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
         sql_join = "select count(*) from (%s)" %sql_join
         self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
@@ -1053,6 +1359,40 @@ class TDTestQuery(TDCase):
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_batch_scan)
+        sql_join = sql_join_hint_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan = "select /*+ no_batch_scan()*/ '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ '%s' from %s.meters a,%s.meters b where b.ts is not null and  a.ts = b.ts group by a.tbname limit %d" %(str_data,dbname,dbnamejoin,num)
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_hint_no_batch_scan_batch_scan)
+        sql_join = sql_join_hint_no_batch_scan_batch_scan
+        self.sql_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_join = "select count(*) from (%s)" %sql_join
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_join,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union = "(%s) union (%s)" %(sql_join,sql_join)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
+        sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
+        self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
+        
         
         # # self.logger.info("base query ---------11----------")
         # # sql = "select %d from %s.meters where ts is not null partition by tbname limit %d" %(int_data,dbname,num)

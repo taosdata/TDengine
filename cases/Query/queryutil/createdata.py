@@ -2087,4 +2087,28 @@ class TDCreateData():
                 else:
                     self._set_error_msg(f"EQ（小于等于）checkEqual error, {order_3} >= {order_2}")
                     return False
-  
+
+
+    def check_sql_rows_equal(self,db,sql1,sql2,throw=True) -> bool:
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+                            
+        rows1 = self.tdSql.query(sql1).row_count 
+        rows2 = self.tdSql.query(sql2).row_count    
+        if operator.ge(rows1,rows2) and rows1 == 1:  
+            self.tdSql.query(sql1)
+            sql1_data = self.tdSql.getData(0,0)
+            self.tdSql.query(sql2)
+            sql2_data = self.tdSql.getData(0,0)
+            self.logger.debug(f"（DATA等于）Check Data Equal Success, sql:{sql1}.rows:{rows1}.data:{sql1_data} = sql:{sql2}.rows:{rows2}.data:{sql2_data}") 
+            self.explain_sql(sql2)              
+            return True 
+        elif operator.ge(rows1,rows2) and rows1 != 1:  
+            self.logger.debug(f"（ROWS等于）Check Rows Equal Success, sql:{sql1}.rows:{rows1} = sql:{sql2}.rows:{rows2}") 
+            self.explain_sql(sql2)              
+            return True 
+        else:
+            if throw:
+                raise AssertionError(f"（等于）checkEqual error, sql:{sql1}.rows:{rows1} != sql:{sql2}.rows:{rows2}")
+            else:
+                self._set_error_msg(f"（等于）checkEqual error, sql:{sql1}.rows:{rows1} != sql:{sql2}.rows:{rows2}")
+                return False
