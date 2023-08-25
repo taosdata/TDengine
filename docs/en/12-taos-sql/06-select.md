@@ -227,7 +227,7 @@ select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-0
 
 ### TAGS Query
 
-The TAGS keyword returns only tag columns from the child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
+The TAGS keyword returns only tag columns from all child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
 
 ```sql
 SELECT TAGS tag_name [, tag_name ...] FROM stb_name
