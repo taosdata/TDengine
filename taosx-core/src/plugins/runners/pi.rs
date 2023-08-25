@@ -100,7 +100,7 @@ pub enum PiError {
 }
 
 impl PiConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16) -> Result<Self, PiError> {
+    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16, is_real_run: bool) -> Result<Self, PiError> {
         let server_name = dsn
             .addresses
             .first()
@@ -164,7 +164,7 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
-        if point_list.is_empty() && template_for_af_element.is_empty() && template_for_pi_point.is_empty() {
+        if is_real_run && point_list.is_empty() && template_for_af_element.is_empty() && template_for_pi_point.is_empty() {
             return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
         }
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -313,7 +313,7 @@ pub async fn pi_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
-    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql)?;
+    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql, true)?;
 
     //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
@@ -507,7 +507,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let config = PiConfig::new(data.from.clone().into_dsn()?, String::new(), 0, 0)?;
+    let config = PiConfig::new(data.from.clone().into_dsn()?, String::new(), 0, 0, false)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
