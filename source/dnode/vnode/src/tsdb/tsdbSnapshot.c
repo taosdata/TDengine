@@ -138,8 +138,8 @@ static int32_t tsdbSnapReadFileSetOpenIter(STsdbSnapReader* reader) {
   STsdbIter*      iter;
   STsdbIterConfig config = {
       .filterByVersion = true,
-      .verRange[0] = reader->sver,
-      .verRange[1] = reader->ever,
+      .verRange[0] = reader->ctx->fsr->sver,
+      .verRange[1] = reader->ctx->fsr->ever,
   };
 
   // data file
