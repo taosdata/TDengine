@@ -2289,7 +2289,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     STaskStatusEntry* pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
     pStatusEntry->status = p->status;
     if (p->status != TASK_STATUS__NORMAL) {
-      mDebug("received s-task:0x%x no in ready stat:%s", p->taskId, streamGetTaskStatusStr(p->status));
+      mDebug("received s-task:0x%x not in ready status:%s", p->taskId, streamGetTaskStatusStr(p->status));
     }
   }
   taosThreadMutexUnlock(&execNodeList.lock);
