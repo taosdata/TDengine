@@ -193,7 +193,7 @@ int32_t taosMulMkDir(const char *dirname) {
   return code;
 }
 
-int32_t taosMulModeMkDir(const char *dirname, int mode) {
+int32_t taosMulModeMkDir(const char *dirname, int mode, bool createLogFile) {
   if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
   char    temp[TDDIRMAXLEN];
   char   *pos = temp;
@@ -206,71 +206,14 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
 #endif
 
   if (taosDirExist(temp)) {
-    return chmod(temp, mode);
-  }
-
-  if (strncmp(temp, TD_DIRSEP, 1) == 0) {
-    pos += 1;
-  } else if (strncmp(temp, "." TD_DIRSEP, 2) == 0) {
-    pos += 2;
-  }
-
-  for (; *pos != '\0'; pos++) {
-    if (*pos == TD_DIRSEP[0]) {
-      *pos = '\0';
-#ifdef WINDOWS
-      code = _mkdir(temp, mode);
-#elif defined(DARWIN)
-      code = mkdir(dirname, 0777);
-#else
-      code = mkdir(temp, mode);
-#endif
-      if (code < 0 && errno != EEXIST) {
-        // terrno = TAOS_SYSTEM_ERROR(errno);
-        return code;
+    if (createLogFile) {
+      if (!taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
+        code = -1;
       }
-      *pos = TD_DIRSEP[0];
-    }
-  }
-
-  if (*(pos - 1) != TD_DIRSEP[0]) {
-#ifdef WINDOWS
-    code = _mkdir(temp, mode);
-#elif defined(DARWIN)
-    code = mkdir(dirname, 0777);
-#else
-    code = mkdir(temp, mode);
-#endif
-    if (code < 0 && errno != EEXIST) {
-      // terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
+    } else {
+      return chmod(temp, mode);
     }
-  }
-
-  if (code < 0 && errno == EEXIST) {
-    return chmod(temp, mode);
-  }
-
-  return chmod(temp, mode);
-}
-
-int32_t taosMulModeMkLogDir(const char *dirname, int mode) {
-  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
-  char    temp[TDDIRMAXLEN];
-  char   *pos = temp;
-  int32_t code = 0;
-#ifdef WINDOWS
-  taosRealPath(dirname, temp, sizeof(temp));
-  if (temp[1] == ':') pos += 3;
-#else
-  strcpy(temp, dirname);
-#endif
-
-  if (taosDirExist(temp)) {
-    if (!taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
-      code = -1;
-    }
-    return code;
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
