@@ -40,6 +40,13 @@ SStreamQueue* streamQueueOpen(int64_t cap) {
   return pQueue;
 }
 
+void streamQueueCleanup(SStreamQueue* pQueue) {
+  void* qItem = NULL;
+  while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
+    streamFreeQitem(qItem);
+  }
+  pQueue->status = STREAM_QUEUE__SUCESS;
+}
 // void streamQueueClose(SStreamQueue* pQueue) {
 //   streamQueueCleanup(pQueue);
 
@@ -50,12 +57,8 @@ SStreamQueue* streamQueueOpen(int64_t cap) {
 
 void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
   qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->queue, taosQueueItemSize(pQueue->queue));
-  void* qItem = NULL;
-  while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
-    streamFreeQitem(qItem);
-  }
+  streamQueueCleanup(pQueue);
 
-  pQueue->status = STREAM_QUEUE__SUCESS;
   taosFreeQall(pQueue->qall);
   taosCloseQueue(pQueue->queue);
   taosMemoryFree(pQueue);
