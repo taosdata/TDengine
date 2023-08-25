@@ -193,7 +193,7 @@ int32_t taosMulMkDir(const char *dirname) {
   return code;
 }
 
-int32_t taosMulModeMkDir(const char *dirname, int mode, bool createLogFile) {
+int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
   char    temp[TDDIRMAXLEN];
   char   *pos = temp;
@@ -206,14 +206,10 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool createLogFile) {
 #endif
 
   if (taosDirExist(temp)) {
-    if (createLogFile) {
-      if (!taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
-        code = -1;
-      }
+    if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
       return code;
-    } else {
-      return chmod(temp, mode);
     }
+    return chmod(temp, mode);
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
