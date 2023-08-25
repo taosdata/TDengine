@@ -303,7 +303,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int32_t code = 0;
 
-  if (pTask->status.taskStatus == TASK_STATUS__CK_READY) {
+//  if (pTask->status.taskStatus == TASK_STATUS__CK_READY) {
     // check for all tasks, and do generate the vnode-wide checkpoint data.
     SStreamMeta* pMeta = pTask->pMeta;
     int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
@@ -333,7 +333,6 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
       qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%" PRId64 ", code:%s",
              pTask->id.idStr, pTask->checkpointingId, tstrerror(code));
     }
-  }
 
   return code;
 }

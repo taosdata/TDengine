@@ -618,12 +618,14 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     streamFreeQitem(pInput);
 
+    // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
     if (type == STREAM_INPUT__CHECKPOINT) {
-      ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
-      pTask->status.taskStatus = TASK_STATUS__CK_READY;
+//      ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
+//      pTask->status.taskStatus = TASK_STATUS__CK_READY;
       qDebug("s-task:%s checkpoint block received, set the status:%s", pTask->id.idStr,
              streamGetTaskStatusStr(pTask->status.taskStatus));
+      streamTaskBuildCheckpoint(pTask);
       return 0;
     }
   }
@@ -652,7 +654,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
       return -1;
     }
 
-    streamTaskBuildCheckpoint(pTask);
+//    streamTaskBuildCheckpoint(pTask);
 
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
