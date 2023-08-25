@@ -34,6 +34,8 @@ typedef struct {
   int32_t szPage;
   int8_t  cmprAlg;
   int32_t fid;
+  int64_t minVer;
+  int64_t maxVer;
   int64_t cid;
   SDiskID did;
   int32_t level;

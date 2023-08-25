@@ -76,6 +76,8 @@ typedef struct SDataFileWriterConfig {
   int32_t maxRow;
   int32_t szPage;
   int32_t fid;
+  int64_t minVer;
+  int64_t maxVer;
   int64_t cid;
   SDiskID did;
   int64_t compactVersion;
