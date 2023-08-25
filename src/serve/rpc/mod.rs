@@ -695,9 +695,10 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
                     "current log: {}",
                     std::env::current_dir().unwrap().to_str().unwrap()
                 );
-                let f = std::fs::File::open(&file[1..])?;
-                let buf = std::io::BufReader::new(f);
-                let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
+                // let f = std::fs::File::open(&file[1..])?;
+                let file_data = std::fs::read(&file[1..])?;
+                // let buf = std::io::BufReader::new(f);
+                // let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
                 new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());
                 new_value.push_str(",");
             }
