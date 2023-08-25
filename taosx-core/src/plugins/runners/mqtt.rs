@@ -221,6 +221,7 @@ pub async fn mqtt_to_taos(
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = TaosBuilder::from_dsn(&to)?;
+        let _ = builder.build().await?;
         sink::listen_tcp_socket(
             builder.pool()?,
             config.remote,

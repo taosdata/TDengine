@@ -223,12 +223,7 @@ pub async fn opentsdb_to_taos(
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let builder = TaosBuilder::from_dsn(&to)?;
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if !builder.is_enterprise_edition().await? {
-            anyhow::bail!(
-                "Only enterprise edition is supported. If it's not your case, please contact us."
-            )
-        }
+        let _ = builder.build().await?;
         sink::listen_tcp_socket(
             target_pool_for_ipc,
             config.ipc_stream,
