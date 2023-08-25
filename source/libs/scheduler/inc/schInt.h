@@ -613,6 +613,7 @@ int32_t  schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32
 int32_t  schChkResetJobRetry(SSchJob *pJob, int32_t rspCode);
 void     schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask);
 int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode);
+int32_t  schNotifyJobAllTasks(SSchJob *pJob, ETaskNotifyType type);
 
 extern SSchDebug gSCHDebug;
 
