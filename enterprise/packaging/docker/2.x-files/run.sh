@@ -372,14 +372,21 @@ do
         # taosd_start_time=`date +%s`
         run_taosd &
         pid=$!
+        clustercheckneeded="0"
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
         initDnodeAndMnode
-        td_cluster_check
-        if [ $? -eq 0 ]; then
-            status="6"
-        fi 
+        if [ "$clustercheckneeded"x = "0"x ]; then
+            td_cluster_check
+            if [ $? -eq 0 ]; then
+                status="6"
+                clustercheckneeded="1"
+                logger "INFO" "the cluster is ready to write/read in dnode $FQDN"
+            else 
+                logger "ERROR" "the cluster status check failed"
+            fi 
+        fi
     fi
             #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
     if [ "$status"x = "6"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then

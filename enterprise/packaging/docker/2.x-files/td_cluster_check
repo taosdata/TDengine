@@ -19,19 +19,16 @@ FIRST_EP_PORT=${FIRSET_EP#*:}
 TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-10}
 ENDPOINT=$FQDN:$SERVER_PORT
 
-
-
-
 logging "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
 logging "INFO" "FIRST_EP_HOST: ${FIRST_EP_HOST}"
 logging "INFO" "FIRST_EP_PORT: ${FIRST_EP_PORT}"
 logging "INFO" "ENDPOINT: ${ENDPOINT}"
 
-nc -z 127.0.0.1 6041
-if [ $? -ne 0 ]; then
-    logging "INFO" "taosadapter port 6041 is not ok"
-    exit 1
-fi
+# nc -z 127.0.0.1 6041
+# if [ $? -ne 0 ]; then
+#     logging "INFO" "taosadapter port 6041 is not ok"
+#     exit 1
+# fi
 
 # get dnode id
 DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}' | awk '{gsub(/ /,"")}1' )
