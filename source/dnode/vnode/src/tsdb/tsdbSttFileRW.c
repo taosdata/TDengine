@@ -694,6 +694,8 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,
+      .minVer = writer->config->minVer,
+      .maxVer = writer->config->maxVer,
       .stt[0] =
           {
               .level = writer->config->level,

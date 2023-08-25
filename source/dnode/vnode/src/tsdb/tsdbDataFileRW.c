@@ -589,6 +589,8 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,
+      .minVer = writer->config->minVer,
+      .maxVer = writer->config->maxVer,
   };
 
   // .data
@@ -602,6 +604,8 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
         .fid = writer->config->fid,
         .cid = writer->config->cid,
         .size = 0,
+        .minVer = writer->config->minVer,
+        .maxVer = writer->config->maxVer,
     };
   }
 
@@ -616,6 +620,8 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
         .fid = writer->config->fid,
         .cid = writer->config->cid,
         .size = 0,
+        .minVer = writer->config->minVer,
+        .maxVer = writer->config->maxVer,
     };
   }
 
@@ -627,6 +633,8 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,
+      .minVer = writer->config->minVer,
+      .maxVer = writer->config->maxVer,
   };
 
   writer->ctx->opened = true;
