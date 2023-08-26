@@ -210,6 +210,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   if (pMeta == NULL) {
     return;
   }
+  // TODO, add ref to resolve race: timer thread cannot stop
   taosTmrStop(pMeta->hbInfo.hbTmr);
 
   streamMetaClear(pMeta);
