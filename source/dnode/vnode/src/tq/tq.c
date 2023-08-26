@@ -1844,7 +1844,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int64_t       keys[2] = {req.streamId, req.taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
 
-  if (*ppTask == NULL) {
+  if (ppTask == NULL || *ppTask == NULL) {
     tqError("vgId:%d failed to acquire task:0x%x when handling update, it may have been dropped already", pMeta->vgId,
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
