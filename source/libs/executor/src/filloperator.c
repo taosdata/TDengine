@@ -64,6 +64,7 @@ typedef struct SFillOperatorInfo {
 static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order);
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
+static void fillResetPrevForNewGroup(SFillInfo* pFillInfo);
 
 static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOperatorInfo* pInfo,
                                                SResultInfo* pResultInfo, int32_t order) {
@@ -84,6 +85,9 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
 
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
+  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
+    fillResetPrevForNewGroup(pInfo->pFillInfo);
+  }
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
   taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
@@ -120,6 +124,15 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
 
   projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs, NULL);
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
+}
+
+static void fillResetPrevForNewGroup(SFillInfo* pFillInfo) {
+  for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
+    if (!pFillInfo->pFillCol[colIdx].notFillCol) {
+      SGroupKeys* key = taosArrayGet(pFillInfo->prev.pRowVal, colIdx);
+      key->isNull = true;
+    }
+  }
 }
 
 // todo refactor: decide the start key according to the query time range.
@@ -164,6 +177,7 @@ static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, i
       }
 
       // todo time window chosen problem: t or prev value?
+      if (t > pInfo->pFillInfo->start) t -= pInterval->sliding;
       taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
     }
   }
@@ -825,6 +839,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
                                       (pFillSup->next.key == pFillInfo->nextRowKey && !hasPrevWindow(pFillSup)))) {
         setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
+        resetFillWindow(&pFillSup->prev);
         pFillSup->prev.key = pFillSup->cur.key;
         pFillSup->prev.pRowVal = pFillSup->cur.pRowVal;
       } else if (hasPrevWindow(pFillSup)) {
@@ -838,6 +853,7 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
       if (hasPrevWindow(pFillSup)) {
         setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
+        resetFillWindow(&pFillSup->next);
         pFillSup->next.key = pFillSup->cur.key;
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
         pFillInfo->preRowKey = INT64_MIN;
@@ -1216,8 +1232,6 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
 
     SWinKey nextKey = {.groupId = groupId, .ts = ts};
     while (pInfo->srcDelRowIndex < pBlock->info.rows) {
-      void*    nextVal = NULL;
-      int32_t  nextLen = 0;
       TSKEY    delTs = tsStarts[pInfo->srcDelRowIndex];
       uint64_t delGroupId = groupIds[pInfo->srcDelRowIndex];
       int32_t  code = TSDB_CODE_SUCCESS;
@@ -1232,7 +1246,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
       if (delTs == nextKey.ts) {
         code = pAPI->stateStore.streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
         if (code == TSDB_CODE_SUCCESS) {
-          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextLen);
+          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, NULL, NULL);
         }
         // ts will be deleted later
         if (delTs != ts) {

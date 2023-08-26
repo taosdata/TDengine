@@ -395,6 +395,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   taosThreadMutexDestroy(&pInserter->mutex);
+  
+  taosMemoryFree(pInserter->pManager);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -411,7 +413,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   if (NULL == inserter) {
     taosMemoryFree(pParam);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
 
   SQueryInserterNode* pInserterNode = (SQueryInserterNode*)pDataSink;
@@ -431,23 +433,18 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   int64_t suid = 0;
   int32_t code = pManager->pAPI->metaFn.getTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
   if (code) {
-    destroyDataSinker((SDataSinkHandle*)inserter);
-    taosMemoryFree(inserter);
-    return code;
+    terrno = code;
+    goto _return;
   }
 
   if (pInserterNode->stableId != suid) {
-    destroyDataSinker((SDataSinkHandle*)inserter);
-    taosMemoryFree(inserter);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-    return terrno;
+    goto _return;
   }
 
   inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
   taosThreadMutexInit(&inserter->mutex, NULL);
   if (NULL == inserter->pDataBlocks) {
-    destroyDataSinker((SDataSinkHandle*)inserter);
-    taosMemoryFree(inserter);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -471,4 +468,15 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
 
   *pHandle = inserter;
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  if (inserter) {
+    destroyDataSinker((SDataSinkHandle*)inserter);
+    taosMemoryFree(inserter);
+  } else {
+    taosMemoryFree(pManager);
+  }
+  
+  return terrno;  
 }
