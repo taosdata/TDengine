@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmisce.h"
 #include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
+#include "tmisce.h"
 #include "tref.h"
 #include "tstream.h"
 #include "ttimer.h"
@@ -25,22 +25,67 @@
 #define META_HB_SEND_IDLE_COUNTER 25  // send hb every 5 sec
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
-int32_t             streamBackendId = 0;
-int32_t             streamBackendCfWrapperId = 0;
 
-static int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
-static void    metaHbToMnode(void* param, void* tmrId);
-static void    streamMetaClear(SStreamMeta* pMeta);
+int32_t streamBackendId = 0;
+int32_t streamBackendCfWrapperId = 0;
+int32_t streamMetaId = 0;
+
+typedef struct {
+  TdThreadMutex mutex;
+  SHashObj*     pTable;
+} SGStreamMetaMgt;
+
+SGStreamMetaMgt gStreamMetaMgt;
+static int64_t  streamGetLatestCheckpointId(SStreamMeta* pMeta);
+static void     metaHbToMnode(void* param, void* tmrId);
+static void     streamMetaClear(SStreamMeta* pMeta);
+
+void streamMetaCloseImpl(void* arg);
 
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
+
+  streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
+
+  taosThreadMutexInit(&(gStreamMetaMgt.mutex), NULL);
+  gStreamMetaMgt.pTable = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 }
 
 void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
 void streamMetaCleanup() {
   taosCloseRef(streamBackendId);
   taosCloseRef(streamBackendCfWrapperId);
+  taosCloseRef(streamMetaId);
+
+  taosThreadMutexDestroy(&gStreamMetaMgt.mutex);
+
+  void* pIter = taosHashIterate(gStreamMetaMgt.pTable, NULL);
+  while (pIter) {
+    SArray* list = *(SArray**)pIter;
+    for (int i = 0; i < taosArrayGetSize(list); i++) {
+      void* rid = taosArrayGetP(list, i);
+      taosMemoryFree(rid);
+    }
+    taosArrayDestroy(list);
+    pIter = taosHashIterate(gStreamMetaMgt.pTable, pIter);
+  }
+  taosHashCleanup(gStreamMetaMgt.pTable);
+}
+
+int32_t streamMetaAddRidToGlobalMgt(int64_t vgId, int64_t* rid) {
+  taosThreadMutexLock(&gStreamMetaMgt.mutex);
+  void* p = taosHashGet(gStreamMetaMgt.pTable, &vgId, sizeof(vgId));
+  if (p == NULL) {
+    SArray* list = taosArrayInit(8, sizeof(void*));
+    taosArrayPush(list, &rid);
+    taosHashPut(gStreamMetaMgt.pTable, &vgId, sizeof(vgId), &list, sizeof(void*));
+  } else {
+    SArray* list = *(SArray**)p;
+    taosArrayPush(list, &rid);
+  }
+  taosThreadMutexUnlock(&gStreamMetaMgt.mutex);
+  return 0;
 }
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
@@ -92,7 +137,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->stage = stage;
 
   // send heartbeat every 5sec.
-  pMeta->hbInfo.hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pMeta, streamEnv.timer);
+  pMeta->rid = taosAddRef(streamMetaId, pMeta);
+  int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  *pRid = pMeta->rid;
+
+  streamMetaAddRidToGlobalMgt(pMeta->vgId, pRid);
+
+  pMeta->hbInfo.hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamEnv.timer);
   pMeta->hbInfo.tickCounter = 0;
   pMeta->hbInfo.stopFlag = 0;
 
@@ -116,9 +167,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     }
   }
 
-  // if (pMeta->streamBackend == NULL) {
-  //   goto _err;
-  // }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   code = streamBackendLoadCheckpointInfo(pMeta);
@@ -207,6 +255,18 @@ void streamMetaClear(SStreamMeta* pMeta) {
 
 void streamMetaClose(SStreamMeta* pMeta) {
   qDebug("start to close stream meta");
+  // int64_t rid = *(int64_t*)pMeta->pRid;
+  // if (taosTmrStop(pMeta->hbInfo.hbTmr)) {
+  //   taosMemoryFree(pMeta->pRid);
+  // } else {
+  //   // do nothing, stop by timer thread
+  // }
+  taosRemoveRef(streamMetaId, pMeta->rid);
+}
+
+void streamMetaCloseImpl(void* arg) {
+  SStreamMeta* pMeta = arg;
+  qDebug("start to do-close stream meta");
   if (pMeta == NULL) {
     return;
   }
@@ -623,18 +683,26 @@ static bool readyToSendHb(SMetaHbInfo* pInfo) {
 }
 
 void metaHbToMnode(void* param, void* tmrId) {
-  SStreamMeta* pMeta = param;
+  int64_t rid = *(int64_t*)param;
+
   SStreamHbMsg hbMsg = {0};
+  SStreamMeta* pMeta = taosAcquireRef(streamMetaId, rid);
+  if (pMeta == NULL) {
+    // taosMemoryFree(param);
+    return;
+  }
 
   // need to stop, stop now
   if (pMeta->hbInfo.stopFlag == STREAM_META_WILL_STOP) {
     pMeta->hbInfo.stopFlag = STREAM_META_OK_TO_STOP;
     qDebug("vgId:%d jump out of meta timer", pMeta->vgId);
+    taosReleaseRef(streamMetaId, rid);
     return;
   }
 
   if (!readyToSendHb(&pMeta->hbInfo)) {
-    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, pMeta, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+    taosReleaseRef(streamMetaId, rid);
     return;
   }
 
@@ -673,6 +741,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   if (code < 0) {
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
     taosArrayDestroy(hbMsg.pTaskStatus);
+    taosReleaseRef(streamMetaId, rid);
     return;
   }
 
@@ -680,6 +749,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   if (buf == NULL) {
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     taosArrayDestroy(hbMsg.pTaskStatus);
+    taosReleaseRef(streamMetaId, rid);
     return;
   }
 
@@ -689,6 +759,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     rpcFreeCont(buf);
     qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
     taosArrayDestroy(hbMsg.pTaskStatus);
+    taosReleaseRef(streamMetaId, rid);
     return;
   }
   tEncoderClear(&encoder);
@@ -702,5 +773,6 @@ void metaHbToMnode(void* param, void* tmrId) {
   qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
 
   tmsgSendReq(&epset, &msg);
-  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, pMeta, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+  taosReleaseRef(streamMetaId, rid);
 }

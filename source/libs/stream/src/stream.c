@@ -16,9 +16,9 @@
 #include "streamInt.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUE_CAPACITY          20480
-#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE  (30)
-#define QUEUE_MEM_SIZE_IN_MB(_q)                  (taosQueueMemorySize(_q) / ONE_MB_F)
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY         20480
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE (30)
+#define QUEUE_MEM_SIZE_IN_MB(_q)                 (taosQueueMemorySize(_q) / ONE_MB_F)
 SStreamGlobalEnv streamEnv;
 
 int32_t streamInit() {
@@ -66,8 +66,8 @@ static void streamSchedByTimer(void* param, void* tmrId) {
   qDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", pTask->id.idStr, status, (int32_t)pTask->triggerParam);
 
   if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
-    streamMetaReleaseTask(NULL, pTask);
     qDebug("s-task:%s jump out of schedTimer", pTask->id.idStr);
+    streamMetaReleaseTask(NULL, pTask);
     return;
   }
 
@@ -141,7 +141,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
 }
 
 static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
-   *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
+  *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
   if (*pBuf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -240,46 +240,47 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   return 0;
 }
 
-//static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
-//  int8_t status = 0;
+// static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
+//   int8_t status = 0;
 //
-//  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
-//  if (pBlock == NULL) {
-//    streamTaskInputFail(pTask);
-//    status = TASK_INPUT_STATUS__FAILED;
-//    qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
-//           pTask->id.idStr);
-//  } else {
-//    if (pBlock->type == STREAM_INPUT__TRANS_STATE) {
-//      pTask->status.appendTranstateBlock = true;
-//    }
+//   SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
+//   if (pBlock == NULL) {
+//     streamTaskInputFail(pTask);
+//     status = TASK_INPUT_STATUS__FAILED;
+//     qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
+//            pTask->id.idStr);
+//   } else {
+//     if (pBlock->type == STREAM_INPUT__TRANS_STATE) {
+//       pTask->status.appendTranstateBlock = true;
+//     }
 //
-//    int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock);
-//    // input queue is full, upstream is blocked now
-//    status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
-//  }
+//     int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock);
+//     // input queue is full, upstream is blocked now
+//     status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
+//   }
 //
-//  return status;
-//}
+//   return status;
+// }
 
-//static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
-//  *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
-//  if (*pBuf == NULL) {
-//    return TSDB_CODE_OUT_OF_MEMORY;
-//  }
+// static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void**
+// pBuf) {
+//   *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
+//   if (*pBuf == NULL) {
+//     return TSDB_CODE_OUT_OF_MEMORY;
+//   }
 //
-//  ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
-//  SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT((*pBuf), sizeof(SMsgHead));
+//   ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
+//   SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT((*pBuf), sizeof(SMsgHead));
 //
-//  pDispatchRsp->inputStatus = status;
-//  pDispatchRsp->streamId = htobe64(pReq->streamId);
-//  pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
-//  pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
-//  pDispatchRsp->downstreamNodeId = htonl(pTask->info.nodeId);
-//  pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
+//   pDispatchRsp->inputStatus = status;
+//   pDispatchRsp->streamId = htobe64(pReq->streamId);
+//   pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
+//   pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
+//   pDispatchRsp->downstreamNodeId = htonl(pTask->info.nodeId);
+//   pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
 //
-//  return TSDB_CODE_SUCCESS;
-//}
+//   return TSDB_CODE_SUCCESS;
+// }
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
   qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
@@ -300,7 +301,8 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
             pReq->upstreamTaskId);
       status = TASK_INPUT_STATUS__BLOCKED;
     } else {
-      // Current task has received the checkpoint req from the upstream task, from which the message should all be blocked
+      // Current task has received the checkpoint req from the upstream task, from which the message should all be
+      // blocked
       if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
         streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
         qDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
@@ -380,7 +382,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
            msgLen, ver, total, size + SIZE_IN_MB(msgLen));
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    if (/*(pTask->info.taskLevel == TASK_LEVEL__SOURCE) && */(tInputQueueIsFull(pTask))) {
+    if (/*(pTask->info.taskLevel == TASK_LEVEL__SOURCE) && */ (tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
@@ -393,10 +395,11 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
       return code;
     }
-  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER || type == STREAM_INPUT__TRANS_STATE) {
+  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
+             type == STREAM_INPUT__TRANS_STATE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
-    qDebug("s-task:%s level:%d %s blockdata enqueue, total in queue:%d, size:%.2fMiB",
-           pTask->id.idStr, pTask->info.taskLevel, streamGetBlockTypeStr(type), total, size);
+    qDebug("s-task:%s level:%d %s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr,
+           pTask->info.taskLevel, streamGetBlockTypeStr(type), total, size);
   } else if (type == STREAM_INPUT__GET_RES) {
     // use the default memory limit, refactor later.
     taosWriteQitem(pTask->inputQueue->queue, pItem);
@@ -441,7 +444,7 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
     return;
   }
 
-  for(int32_t i = 0; i < num; ++i) {
+  for (int32_t i = 0; i < num; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     pInfo->dataAllowed = true;
   }
@@ -456,7 +459,7 @@ void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
   int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
-  for(int32_t i = 0; i < num; ++i) {
+  for (int32_t i = 0; i < num; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     if (pInfo->taskId == taskId) {
       return pInfo;

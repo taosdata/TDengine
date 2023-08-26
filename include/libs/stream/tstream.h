@@ -277,8 +277,8 @@ typedef struct SStreamStatus {
   int8_t keepTaskStatus;
   bool   transferState;
   bool   appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
-  int8_t timerActive;   // timer is active
-  int8_t pauseAllowed;  // allowed task status to be set to be paused
+  int8_t timerActive;           // timer is active
+  int8_t pauseAllowed;          // allowed task status to be set to be paused
 } SStreamStatus;
 
 typedef struct SHistDataRange {
@@ -289,7 +289,7 @@ typedef struct SHistDataRange {
 typedef struct SSTaskBasicInfo {
   int32_t nodeId;  // vgroup id or snode id
   SEpSet  epSet;
-  SEpSet  mnodeEpset;   // mnode epset for send heartbeat
+  SEpSet  mnodeEpset;  // mnode epset for send heartbeat
   int32_t selfChildId;
   int32_t totalLevel;
   int8_t  taskLevel;
@@ -397,6 +397,7 @@ typedef struct SStreamMeta {
   SMetaHbInfo   hbInfo;
   int32_t       closedTask;
   int32_t       chkptNotReadyTasks;
+  int64_t      rid;
 
   int64_t  chkpId;
   SArray*  chkpSaved;
@@ -558,7 +559,7 @@ typedef struct STaskStatusEntry {
 typedef struct SStreamHbMsg {
   int32_t vgId;
   int32_t numOfTasks;
-  SArray* pTaskStatus;   // SArray<SStreamTaskStatusEntry>
+  SArray* pTaskStatus;  // SArray<SStreamTaskStatusEntry>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);
@@ -629,8 +630,8 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
-void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
-void streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
+void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
+void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 
 int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 void                streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
@@ -727,8 +728,8 @@ int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 
-int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,
-                                        SStreamTask* pTask, int8_t isSucceed);
+int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
+                                        int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                  int8_t isSucceed);
 #ifdef __cplusplus
