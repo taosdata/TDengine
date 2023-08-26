@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmisce.h"
 #include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
+#include "tmisce.h"
 #include "tref.h"
 #include "tstream.h"
 #include "ttimer.h"
@@ -210,6 +210,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   if (pMeta == NULL) {
     return;
   }
+  taosTmrStop(pMeta->hbInfo.hbTmr);
 
   streamMetaClear(pMeta);
 
