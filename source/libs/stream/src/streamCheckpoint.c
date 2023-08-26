@@ -219,6 +219,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       qDebug("s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, send ready msg to upstream",
              id, num);
       streamFreeQitem((SStreamQueueItem*)pBlock);
+      streamTaskBuildCheckpoint(pTask);
     } else {
       qDebug(
           "s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, dispatch checkpoint msg "
