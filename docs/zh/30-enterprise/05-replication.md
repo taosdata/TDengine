@@ -5,7 +5,7 @@ title: 数据同步
 
 ## 简介
 
-本节讲述如何使用 taosX 的命令行在 TDengine 集群之间同步数据。数据同步功能的目标端必须是 TDengine 3.0，源端可以是 TDengine 3.0 或 2.6 。对于 taosX 的命令行参数解析，请参考 [taosX](../../reference/taox)。您也可以使用 taos-explorer 的可视化界面进行数据同步，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
+本节讲述如何使用 taosX 的命令行在 TDengine 集群之间同步数据。数据同步功能的目标端必须是 TDengine 3.0，源端可以是 TDengine 3.0 或 2.6 。对于 taosX 的命令行参数解析，请参考 [taosX](../../reference/taosx)。您也可以使用 taos-explorer 的可视化界面进行数据同步，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
 
 
 ## TDengine 3.0 -> TDengine 3.0
