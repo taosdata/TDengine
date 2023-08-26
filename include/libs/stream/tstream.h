@@ -397,7 +397,7 @@ typedef struct SStreamMeta {
   SMetaHbInfo   hbInfo;
   int32_t       closedTask;
   int32_t       chkptNotReadyTasks;
-  int64_t       rid;
+  int64_t      rid;
 
   int64_t  chkpId;
   SArray*  chkpSaved;
