@@ -47,13 +47,13 @@ Query OK, 1 row(s) in set (0.001976s)
 6. 通过 taos.cfg 配置文件设置：在 taos.cfg 中以 activeCode 开头添加一行，空格后部分为授权码。添加后，重启 mnode leader 所在的 dnode 立即生效，或者不重启 5 分钟内生效。
 
 
-### 示例一：配置文件
+### 配置文件
 
 ```shell
 // taos.cfg
 activeCode z9sdqG8w67fqBXlHnxWAQezQc/mabvN9N2maa6ksK6JJWl7OxrPZ2ElaXs7Gs9nYSVpezsaz2di72ZL6EAo0mcYiPlK2dDdmAt3P46xKs4Q=
 ```
-### 示例二： SQL 命令
+### SQL 命令
 
 通过 SQL 命令 `alter dnode`` 设置：在 taos 客户端执行，支持针对单个 dnode  或所有 dnode 设置。设置授权码一般在 5 秒内生效，如果集群节点较多，生效时间会长一些。
 
@@ -70,7 +70,7 @@ Query OK, 0 row(s) affected (0.003637s)
 taos> alter all dnodes 'activeCode' 'Wn8j+6KVVRnGIj5StnQ3Zs2XgtVr+h+Vue1VyrZhTL/HeS3wtya3rcYiPlK2dDdmYddxLWSWeUDGIj5StnQ3ZsYiPlK2dDdmrRsroQil5AE=';
 ```
 
-### 示例三：删除授权码
+### 删除授权码
 
 以下两种方法均有效
 
@@ -79,7 +79,7 @@ taos> alter dnode 5 'activeCode' '';
 taos> alter dnode 5 'activeCode';
 taos> alter all dnodes 'activeCode';
 ```
-### 示例四： 查看授权码
+### 查看授权码
 
 ```shell
 taos> show dnodes\G;
@@ -97,7 +97,7 @@ support_vnodes: 17
 Query OK, 1 row(s) in set (0.003062s)
 ```
 
-### 示例五：查看集群授权状态
+### 查看集群授权状态
 
 授权状态是以集群为单位的，通过在 taos 客户端执行 show grants\G; 查看。
 
