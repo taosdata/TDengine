@@ -1534,6 +1534,7 @@ int sml_ts3724_Test() {
 
   const char *sql[] = {
       "stb.2,t1=1 f1=283i32 1632299372000",
+      "stb_2,t1=1 f1=283i32 1632299372000",
       ".stb2,t1=1 f1=106i32 1632299378000",
       "stb2.,t1=1 f1=106i32 1632299378000",
   };
@@ -1546,6 +1547,12 @@ int sml_ts3724_Test() {
 
   int code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from stb_2");
+  TAOS_ROW row = taos_fetch_row(pRes);
+  int numRows = taos_affected_rows(pRes);
+  ASSERT(numRows == 1);
   taos_free_result(pRes);
 
   taos_close(taos);

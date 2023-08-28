@@ -286,7 +286,7 @@ retention(A) ::= NK_VARIABLE(B) NK_COLON NK_VARIABLE(C).                        
 %type speed_opt                                                                   { int32_t }
 %destructor speed_opt                                                             { }
 speed_opt(A) ::= .                                                                { A = 0; }
-speed_opt(A) ::= MAX_SPEED NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
+speed_opt(A) ::= BWLIMIT NK_INTEGER(B).                                           { A = taosStr2Int32(B.z, NULL, 10); }
 
 start_opt(A) ::= .                                                                { A = NULL; }
 start_opt(A) ::= START WITH NK_INTEGER(B).                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }

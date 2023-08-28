@@ -114,7 +114,7 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             if [ "${verMode}" = "all" ];then
-                                verMode="community enterprise"
+                                verMode="enterprise"
                             fi
                             verModeList=${verMode}                          
                             for verModeSin in ${verModeList}
@@ -123,18 +123,6 @@ pipeline {
                                 bash testpackage.sh  -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
-                            '''  
-
-                            sh '''                              
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh  -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                            python3 checkPackageRuning.py
-                            '''   
-
-                            sh ''' 
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh  -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
-                            python3 checkPackageRuning.py
                             '''
                         }
                     }

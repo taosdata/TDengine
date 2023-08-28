@@ -67,7 +67,7 @@ class TDTestCase:
         tdSql.query(f"select distinct tbname from {dbname}.`sys_if_bytes_out`")
         tdSql.checkRows(2)
 
-        tdSql.query(f"select * from {dbname}.t_fc70dec6677d4277c5d9799c4da806da order by times")
+        tdSql.query(f"select * from {dbname}.t_f67972b49aa8adf8bca5d0d54f0d850d order by times")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1.300000000)
         tdSql.checkData(1, 1, 13.000000000)
