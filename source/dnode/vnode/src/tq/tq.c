@@ -779,6 +779,8 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
 
+    tqUnregisterPushHandle(pTq, pHandle);
+
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
       tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
