@@ -213,7 +213,7 @@ sql use test0828
 sql create stable st (ts timestamp, c2 int) tags(tg int)
 sql insert into ct1 using st tags(1) values('2021-08-01', 0)
 sql insert into ct2 using st tags(2) values('2022-08-01', 1)
-sql select _wstart, _wend, count(*) from st where ts>='2021-01-01' and ts < now interval(1n) fill(value, 0) order by _wstart desc
+sql select _wstart, _wend, count(*) from st where ts>='2021-01-01' and ts < '2023-08-28' interval(1n) fill(value, 0) order by _wstart desc
 print $rows
 if $rows != 32 then
   return -1
