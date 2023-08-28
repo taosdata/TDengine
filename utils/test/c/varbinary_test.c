@@ -147,13 +147,70 @@ int varbinary_test() {
   ASSERT(taos_errno(pRes) != 0);
   taos_free_result(pRes);
 
-//  pRes = taos_query(taos, "select * from stb where c2 contains 'ssd'");
-//  ASSERT(taos_errno(pRes) != 0);
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(taos, "select * from stb where c2 contains 'ssd'");
-//  ASSERT(taos_errno(pRes) != 0);
-//  taos_free_result(pRes);
+
+  // math function test, not support
+  pRes = taos_query(taos, "select abs(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select floor(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  // string function test, not support
+  pRes = taos_query(taos, "select length(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select ltrim(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select upper(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+
+  pRes = taos_query(taos, "select to_json(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select TO_UNIXTIMESTAMP(c2) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select cast(c2 as varchar(16)) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select cast(c3 as varbinary(16)) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select cast(c1 as varbinary(16)) from stb");
+  ASSERT(taos_errno(pRes) != 0);
+  taos_free_result(pRes);
+
+  // support first/last/last_row/count/hyperloglog/sample/tail/mode
+  pRes = taos_query(taos, "select first(c2) from stb");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select count(c2) from stb");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select sample(c2,2) from stb");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select mode(c2) from stb");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select cast(t2 as varbinary(16)) from stb");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
 
   int numRows = 0;
 
@@ -191,7 +248,6 @@ int varbinary_test() {
   GET_ROW_NUM
   ASSERT(numRows == 2);
   taos_free_result(pRes);
-
 
   pRes = taos_query(taos, "select * from stb where c2 not between '\\x3e' and '\\x7F8290'");
   GET_ROW_NUM
