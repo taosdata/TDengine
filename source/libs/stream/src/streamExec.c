@@ -499,51 +499,6 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   return code;
 }
 
-///**
-// * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
-// * appropriate batch of blocks should be handled in 5 to 10 sec.
-// */
-// int32_t streamExecForAll(SStreamTask* pTask) {
-//  const char* id = pTask->id.idStr;
-//
-//  while (1) {
-//    int32_t batchSize = 0;
-//    SStreamQueueItem* pInput = NULL;
-//
-//    // merge multiple input data if possible in the input queue.
-//    qDebug("s-task:%s start to extract data block from inputQ", id);
-//
-//    /*int32_t code = */extractMsgFromInputQ(pTask, &pInput, &batchSize, id);
-//    if (pInput == NULL) {
-//      ASSERT(batchSize == 0);
-//      if (pTask->info.fillHistory && pTask->status.transferState) {
-//        int32_t code = streamTransferStateToStreamTask(pTask);
-//        if (code != TSDB_CODE_SUCCESS) { // todo handle this
-//          return 0;
-//        }
-//      }
-//
-//      break;
-//    }
-//
-//    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-//      ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK);
-//      qDebug("s-task:%s sink task start to sink %d blocks", id, batchSize);
-//      streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
-//      continue;
-//    }
-//
-//    int64_t st = taosGetTimestampMs();
-//    qDebug("s-task:%s start to process batch of blocks, num:%d", id, batchSize);
-//
-////    {
-//      // set input
-//    const SStreamQueueItem* pItem = pInput;
-//    qDebug("s-task:%s start to process batch of blocks, num:%d, type:%d", id, numOfBlocks, pItem->type);
-//
-//    int64_t ver = pTask->chkInfo.checkpointVer;
-//    doSetStreamInputBlock(pTask, pInput, &ver, id);
-
 /**
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
  * appropriate batch of blocks should be handled in 5 to 10 sec.

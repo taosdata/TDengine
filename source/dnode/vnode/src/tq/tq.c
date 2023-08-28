@@ -1117,6 +1117,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
         "sched-status:%d",
         id, schedStatus);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
@@ -1130,6 +1131,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el,
             TASK_SCHED_STATUS__INACTIVE);
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
@@ -1275,8 +1277,6 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   // transfer the ownership of executor state
   tqDebug("s-task:%s all upstream tasks send transfer msg, open transfer state flag", pTask->id.idStr);
   ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
-
-  pTask->status.transferState = true;
 
   streamSchedExec(pTask);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -1801,7 +1801,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 //  bool allStopped = true;
 //  int32_t numOfCount = streamMetaGetNumOfTasks(pMeta);
 //  for(int32_t i = 0; i < numOfCount; ++i) {
-//    SStreamId* pId = taosArrayGet(pMeta->pTaskList, i);
+//    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 //
 //    int64_t keys1[2] = {pId->streamId, pId->taskId};
 //    SStreamTask** p = taosHashGet(pMeta->pTasks, keys1, sizeof(keys1));

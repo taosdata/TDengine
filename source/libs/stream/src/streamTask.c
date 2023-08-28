@@ -493,45 +493,6 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask) {
-  const char* id = pTask->id.idStr;
-  int64_t     stage = pTask->pMeta->stage;
-  int32_t     vgId = pTask->pMeta->vgId;
-
-  qDebug("s-task:%s vgId:%d restart current task, stage:%" PRId64 ", status:%s, sched-status:%d", id, vgId, stage,
-         streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
-
-  // 1. stop task
-  streamTaskStop(pTask);
-
-  // 2. clear state info
-  streamQueueCleanup(pTask->inputQueue);
-  streamQueueCleanup(pTask->outputInfo.queue);
-  taosArrayClear(pTask->checkReqIds);
-  taosArrayClear(pTask->pRspMsgList);
-
-  // reset the upstream task stage info
-  streamTaskResetUpstreamStageInfo(pTask);
-
-  pTask->status.downstreamReady = 0;
-
-  // todo: handle the case when the task is in fill-history (step 1) phase
-  streamSetStatusNormal(pTask);
-
-  taosWLockLatch(&pTask->pMeta->lock);
-  streamMetaSaveTask(pTask->pMeta, pTask);
-  streamMetaCommit(pTask->pMeta);
-  taosWUnLockLatch(&pTask->pMeta->lock);
-
-  qDebug("s-task:%s vgId:%d restart completed", pTask->id.idStr, vgId);
-
-  // 3. start to check the downstream status
-  if (startTask) {
-    streamTaskCheckDownstreamTasks(pTask);
-  }
-  return 0;
-}
-
 int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
   char buf[512] = {0};
 

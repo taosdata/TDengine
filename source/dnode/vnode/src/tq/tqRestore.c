@@ -74,7 +74,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
 
   // broadcast the check downstream tasks msg
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamId*   pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
@@ -254,7 +254,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   numOfTasks = taosArrayGetSize(pTaskList);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamId*   pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
