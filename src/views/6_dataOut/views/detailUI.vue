@@ -90,7 +90,7 @@
           >
           </DatePicker>
         </el-form-item> 
-        <el-form-item label="ts" prop="ts"
+        <el-form-item label="ts" prop="sourceData.ts"
           :rules="{
             required: requiredTs,
             message: $t('pleaseSelect'),
