@@ -1,29 +1,28 @@
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
+use bytes::Buf;
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 use kafka::client::RequiredAcks;
 use kafka::producer::{Producer, Record};
 use serde_json::{Map, Value};
-use taos::sync::{Queryable, TBuilder};
-use taos::{AsAsyncConsumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
+use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
 pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
-    let sinker = KafkaSinker::new(from, to)?;
+    let sinker = KafkaSinker::new(from, to).await?;
     sinker.sink().await?;
     Ok(())
 }
 
 #[allow(dead_code)]
 pub async fn clean_task(from: Dsn, task_id: String) -> Result<()> {
-    let taos = TaosBuilder::from_dsn(from)?.build()?;
+    let taos = TaosBuilder::from_dsn(from)?.build().await?;
     let topic = tmq_topic_name(task_id);
-    taos.exec(format!("drop topic if exists {}", topic))
-        .unwrap();
+    taos.exec(format!("drop topic if exists {}", topic)).await?;
     Ok(())
 }
 
@@ -49,12 +48,12 @@ struct KafkaProducer {
 
 impl TMQSource {
     // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&task_id=task_id&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
-    fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
+    async fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
         let mut consumer_dsn = Dsn::from(dsn.clone());
         let group_id = "taosx_kafka_sink";
         consumer_dsn.set("group.id", group_id);
 
-        let taos = TaosBuilder::from_dsn(&dsn)?.build()?;
+        let taos = TaosBuilder::from_dsn(&dsn)?.build().await?;
         let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
         let table = dsn
             .params
@@ -89,7 +88,7 @@ impl TMQSource {
 
         let topic_sql =
             TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
-        taos.exec(&topic_sql)?;
+        taos.exec(&topic_sql).await?;
 
         Ok(TMQSource {
             consumer_dsn,
@@ -153,7 +152,7 @@ impl TMQSource {
     }
 
     async fn consume(dsn: Dsn, topic: String, sender: Sender<String>) -> Result<()> {
-        let mut consumer = TmqBuilder::from_dsn(dsn)?.build()?;
+        let mut consumer = TmqBuilder::from_dsn(dsn)?.build().await?;
         AsAsyncConsumer::subscribe(&mut consumer, [topic]).await?;
 
         'outer: loop {
@@ -275,9 +274,9 @@ impl KafkaProducer {
 impl KafkaSinker {
     // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&[start=start&][end=end&]cols=cols&tags=tags
     // to dsn: kafka://host:port/topic?ack_timeout=1
-    fn new(from: Dsn, to: Dsn) -> Result<KafkaSinker> {
+    async fn new(from: Dsn, to: Dsn) -> Result<KafkaSinker> {
         let (tx, rx) = mpsc::channel(10);
-        let source = TMQSource::new(from, tx)?;
+        let source = TMQSource::new(from, tx).await?;
         let producer = KafkaProducer::new(to, rx)?;
 
         let sinker = KafkaSinker { source, producer };
