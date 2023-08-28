@@ -1278,8 +1278,6 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s all upstream tasks send transfer msg, open transfer state flag", pTask->id.idStr);
   ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
 
-  pTask->status.transferState = true;
-
   streamSchedExec(pTask);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
@@ -1803,7 +1801,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 //  bool allStopped = true;
 //  int32_t numOfCount = streamMetaGetNumOfTasks(pMeta);
 //  for(int32_t i = 0; i < numOfCount; ++i) {
-//    SStreamId* pId = taosArrayGet(pMeta->pTaskList, i);
+//    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 //
 //    int64_t keys1[2] = {pId->streamId, pId->taskId};
 //    SStreamTask** p = taosHashGet(pMeta->pTasks, keys1, sizeof(keys1));

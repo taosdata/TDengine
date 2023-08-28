@@ -258,11 +258,16 @@ typedef struct SStreamChildEpInfo {
   int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
 } SStreamChildEpInfo;
 
-typedef struct SStreamId {
+typedef struct SStreamTaskKey {
+  int64_t streamId;
+  int64_t taskId;
+} SStreamTaskKey;
+
+typedef struct SStreamTaskId {
   int64_t     streamId;
   int32_t     taskId;
   const char* idStr;
-} SStreamId;
+} SStreamTaskId;
 
 typedef struct SCheckpointInfo {
   int64_t checkpointId;
@@ -275,7 +280,6 @@ typedef struct SStreamStatus {
   int8_t downstreamReady;  // downstream tasks are all ready now, if this flag is set
   int8_t schedStatus;
   int8_t keepTaskStatus;
-  bool   transferState;
   bool   appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
   int8_t timerActive;           // timer is active
   int8_t pauseAllowed;          // allowed task status to be set to be paused
@@ -317,7 +321,7 @@ typedef struct {
 
 struct SStreamTask {
   int64_t          ver;
-  SStreamId        id;
+  SStreamTaskId        id;
   SSTaskBasicInfo  info;
   STaskOutputInfo  outputInfo;
   SDispatchMsgInfo msgInfo;
@@ -325,8 +329,8 @@ struct SStreamTask {
   SCheckpointInfo  chkInfo;
   STaskExec        exec;
   SHistDataRange   dataRange;
-  SStreamId        historyTaskId;
-  SStreamId        streamTaskId;
+  SStreamTaskId        historyTaskId;
+  SStreamTaskId        streamTaskId;
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
   STaskTimestamp   tsInfo;
@@ -630,12 +634,8 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
-void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
-void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 
 int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
-void                streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
-void                streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
 
 void    streamTaskInputFail(SStreamTask* pTask);
@@ -655,7 +655,6 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 void    streamTaskCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
-int32_t streamTaskRestart(SStreamTask* pTask, const char* pDir, bool startTask);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
 
@@ -683,6 +682,10 @@ int32_t     streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUp
 void        streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 void        streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 void        streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask);
+int32_t     streamTaskReleaseState(SStreamTask* pTask);
+int32_t     streamTaskReloadState(SStreamTask* pTask);
+void        streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
+void        streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
@@ -703,36 +706,28 @@ void         streamMetaInit();
 void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage);
 void         streamMetaClose(SStreamMeta* streamMeta);
-
-// save to stream meta store
-int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);  // save to stream meta store
+int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int64_t* pKey);
 int32_t      streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);
 int32_t      streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
-int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);  // todo remove it
+int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
-
-// int32_t streamStateRebuild(SStreamMeta* pMeta, char* path, int64_t chkpId);
-int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
-
-int32_t streamMetaBegin(SStreamMeta* pMeta);
-int32_t streamMetaCommit(SStreamMeta* pMeta);
-int32_t streamLoadTasks(SStreamMeta* pMeta);
+int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
+int32_t      streamMetaCommit(SStreamMeta* pMeta);
+int32_t      streamLoadTasks(SStreamMeta* pMeta);
+void         streamMetaNotifyClose(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 
-int32_t streamTaskReleaseState(SStreamTask* pTask);
-int32_t streamTaskReloadState(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                  int8_t isSucceed);
-void    streamMetaNotifyClose(SStreamMeta* pMeta);
 
 #ifdef __cplusplus
 }

@@ -267,7 +267,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
 
   int64_t keys[2];
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
-    SStreamId* pId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
     keys[0] = pId->streamId;
     keys[1] = pId->taskId;
 
