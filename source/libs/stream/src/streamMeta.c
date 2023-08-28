@@ -776,3 +776,64 @@ void metaHbToMnode(void* param, void* tmrId) {
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
+
+static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
+  bool inTimer = false;
+
+  taosWLockLatch(&pMeta->lock);
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->status.timerActive >= 1) {
+      inTimer = true;
+    }
+  }
+
+  taosWUnLockLatch(&pMeta->lock);
+  return inTimer;
+}
+
+void streamMetaNotifyClose(SStreamMeta* pMeta) {
+  int32_t vgId = pMeta->vgId;
+
+  qDebug("vgId:%d notify all stream tasks that the vnode is closing", vgId);
+  taosWLockLatch(&pMeta->lock);
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    qDebug("vgId:%d s-task:%s set closing flag", vgId, pTask->id.idStr);
+    streamTaskStop(pTask);
+  }
+
+  taosWUnLockLatch(&pMeta->lock);
+
+  // wait for the stream meta hb function stopping
+  pMeta->hbInfo.stopFlag = STREAM_META_WILL_STOP;
+  while(pMeta->hbInfo.stopFlag != STREAM_META_OK_TO_STOP) {
+    taosMsleep(100);
+    qDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+  }
+
+  qDebug("vgId:%d start to check all tasks", vgId);
+  int64_t st = taosGetTimestampMs();
+
+  while (hasStreamTaskInTimer(pMeta)) {
+    qDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
+    taosMsleep(100);
+  }
+
+  int64_t el = taosGetTimestampMs() - st;
+  qDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
+}

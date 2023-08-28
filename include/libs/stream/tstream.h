@@ -732,6 +732,8 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                  int8_t isSucceed);
+void    streamMetaNotifyClose(SStreamMeta* pMeta);
+
 #ifdef __cplusplus
 }
 #endif
