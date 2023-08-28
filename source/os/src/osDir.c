@@ -207,7 +207,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
 
   if (taosDirExist(temp)) {
     if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
-      return code;
+      return 0;
     }
     return chmod(temp, mode);
   }
@@ -251,9 +251,15 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
   }
 
   if (code < 0 && errno == EEXIST) {
+    if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
+      return 0;
+    }
     return chmod(temp, mode);
   }
 
+  if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
+    return 0;
+  }
   return chmod(temp, mode);
 }
 
