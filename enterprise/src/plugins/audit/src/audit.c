@@ -1,0 +1,78 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "auditInt.h"
+#include "taoserror.h"
+#include "thttp.h"
+#include "ttime.h"
+#include "tjson.h"
+#include "tglobal.h"
+
+#define AUDTI_DETAIL_MAX 1000
+
+extern char *tsAuditUri;
+extern SAudit tsAudit;
+
+void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail) {
+  /*
+  if(len > AUDTI_DETAIL_MAX){
+    uError("can't record audit since detail is too long, len:%d, operation:%s, target1:%s, target2:%s", 
+            len, operation, target1, target2);
+  }
+  int32_t min = len > AUDTI_DETAIL_MAX ? AUDTI_DETAIL_MAX : len;
+  char* buf = taosMemoryMalloc(min  + 1);
+  memcpy(buf, detail, min);
+  */
+
+  char *user = pReq->info.conn.user;
+
+  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  SJson *pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return;
+  }
+
+  char   ts[40] = {0};
+  int64_t curTime = taosGetTimestampMs();
+  taosFormatUtcTime(ts, sizeof(ts), curTime, TSDB_TIME_PRECISION_MILLI);
+
+  char strClusterId[65] = {0};
+  sprintf(strClusterId, "%" PRId64, clusterId);
+
+  tjsonAddDoubleToObject(pJson, "timestamp", curTime);
+  tjsonAddStringToObject(pJson, "cluster_id", strClusterId);
+  tjsonAddStringToObject(pJson, "user", user);
+  tjsonAddStringToObject(pJson, "operation", operation);
+  tjsonAddStringToObject(pJson, "target_1", target1);
+  tjsonAddStringToObject(pJson, "target_2", target2);
+  tjsonAddStringToObject(pJson, "details", detail);
+
+  auditSend(pJson);
+
+  //taosMemoryFree(buf);
+}
+
+void auditSend(SJson *pJson) {
+  char *pCont = tjsonToString(pJson);
+  uDebug("audit record cont:%s\n", pCont);
+  if (pCont != NULL) {
+    EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if (taosSendHttpReport(tsAudit.cfg.server, tsAuditUri, tsAudit.cfg.port, pCont, strlen(pCont), flag) != 0) {
+      uError("failed to send audit msg, cont:%s", pCont);
+    }
+    taosMemoryFree(pCont);
+  }
+}
