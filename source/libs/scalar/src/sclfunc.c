@@ -654,8 +654,12 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int32_t outputLen = pInputData->varmeta.length * pInput->numOfRows;
+  uint32_t outputLen = pInputData->varmeta.length;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
+  if (outputBuf == NULL) {
+    qError("memory allocation failure. size: %u", outputLen);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   char   *output = outputBuf;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
