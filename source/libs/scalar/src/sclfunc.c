@@ -654,13 +654,12 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  uint32_t outputLen = pInputData->varmeta.length;
-  char   *outputBuf = taosMemoryCalloc(outputLen, 1);
+  int32_t outputLen = pInputData->info.bytes;
+  char *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
-    qError("memory allocation failure. size: %u", outputLen);
+    qError("substr function memory allocation failure. size: %d", outputLen);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  char   *output = outputBuf;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -680,14 +679,16 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       startPosBytes = TMAX(startPosBytes, 0);
     }
 
+    char   *output = outputBuf;
     int32_t resLen = TMIN(subLen, len - startPosBytes);
     if (resLen > 0) {
       memcpy(varDataVal(output), varDataVal(input) + startPosBytes, resLen);
+      varDataSetLen(output, resLen);
+    } else {
+      varDataSetLen(output, 0);
     }
 
-    varDataSetLen(output, resLen);
     colDataSetVal(pOutputData, i, output, false);
-    output += varDataTLen(output);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
