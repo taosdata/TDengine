@@ -56,6 +56,7 @@ class TDCreateData():
         self.tdDnodes.start(1)
         
     def drop_db(self,database):
+        self.drop_DB_index(database)
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #delete:
         table_list = ['stable_1','stable_2','stable_null_data','stable_null_childtable','stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2',\
@@ -135,7 +136,23 @@ class TDCreateData():
         self.tdSql.query('''show local variables;''')
         for i in range(self.tdSql.query_row):
             self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
-
+    
+    
+    def drop_DB_index(self,database):
+        fake = Faker('zh_CN')
+        sql = "select index_name,db_name,table_name from information_schema.ins_indexes where db_name ='%s'" %database
+        rows = self.tdSql.query(sql).row_count
+        # print(rows,self.tdSql.query_data[0][0],self.tdSql.query_data[1][0],self.tdSql.query_data[2][0],self.tdSql.query_data[3][0],self.tdSql.query_data[4][0])
+        # print(rows,self.tdSql.getData(0,0),self.tdSql.getData(2,0),self.tdSql.getData(1,0),self.tdSql.getData(3,0),self.tdSql.getData(4,0))
+        for i in range(rows):
+            self.tdSql.query(sql)
+            self.tdSql.query("drop index %s.%s" %(database,self.tdSql.getData(0,0)))
+        
+        #create_new_index
+        self.tdSql.query("select distinct db_name,stable_name,tag_name from information_schema.ins_tags where db_name ='%s';" %database)
+        self.tdSql.query("create index %s_%s_%s on %s.%s(%s)" %(self.tdSql.query_data[0][2],fake.random_int(min=0, max=9999999999, step=1),fake.pystr(),self.tdSql.query_data[0][0],self.tdSql.query_data[0][1],self.tdSql.query_data[0][2]))
+        
+        
     def dropandcreateDB_random(self,database,n):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000
@@ -328,6 +345,7 @@ class TDCreateData():
         if i ==0:
             self.logger.info("======this case test use flush database =========")
             self.tdSql.execute("flush database %s;" %database) 
+            self.drop_DB_index(database)
         elif i ==1:  
             self.logger.info("======this case test use flush database =========")
             self.tdSql.execute("flush database %s;" %database)   
@@ -338,6 +356,7 @@ class TDCreateData():
             self.tdSql.execute("flush database %s;" %database)   
             self.logger.info("======this case test keepcolumnname = 0 =========")  
             self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+            self.drop_DB_index(database)
         else:
             self.logger.info("===!!!===this case test not use flush database =====!!!====")
         
@@ -380,6 +399,7 @@ class TDCreateData():
         
     def add_data_random(self,database,n,ts):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        self.drop_DB_index(database)
         #增加数据稀疏
         self.ts = ts
         self.num_random = 100
