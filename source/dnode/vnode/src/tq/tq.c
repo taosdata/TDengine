@@ -1196,6 +1196,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
         "sched-status:%d",
         id, schedStatus);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
@@ -1209,6 +1210,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el,
             TASK_SCHED_STATUS__INACTIVE);
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
