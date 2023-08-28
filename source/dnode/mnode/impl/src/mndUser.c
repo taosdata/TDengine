@@ -22,6 +22,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
+#include "audit.h"
 
 #define USER_VER_NUMBER   4
 #define USER_RESERVE_SIZE 64
@@ -655,6 +656,8 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  auditRecord(pReq, pMnode->clusterId, "createUser", createReq.user, "", "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create since %s", createReq.user, terrstr());
@@ -970,6 +973,27 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
+    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, alterReq.objname, "");
+  }
+  else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
+          alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
+          alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
+    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, alterReq.objname, "");
+  }
+  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB||
+          alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB||
+          alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB||
+          alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC||
+          alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE||
+          alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE||
+          alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE){
+    auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, alterReq.objname, "");
+  }
+  else{
+    auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, alterReq.objname, "");
+  }
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter since %s", alterReq.user, terrstr());
@@ -1038,6 +1062,8 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
 
   code = mndDropUser(pMnode, pReq, pUser);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  auditRecord(pReq, pMnode->clusterId, "dropUser", dropReq.user, "", dropReq.sql);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

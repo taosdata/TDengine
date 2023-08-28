@@ -29,6 +29,9 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "systable.h"
+#include "tjson.h"
+#include "thttp.h"
+#include "audit.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 46
@@ -733,6 +736,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   code = mndCreateDb(pMnode, pReq, &createReq, pUser);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  auditRecord(pReq, pMnode->clusterId, "createDB", createReq.db, "", "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to create since %s", createReq.db, terrstr());
@@ -974,6 +979,8 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   } else {
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
+
+  auditRecord(pReq, pMnode->clusterId, "alterDB", alterReq.db, "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1263,6 +1270,8 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
+
+  auditRecord(pReq, pMnode->clusterId, "dropDB", dropReq.db, "", "");
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {

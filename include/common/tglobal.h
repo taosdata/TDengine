@@ -102,6 +102,11 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 
+// audit
+extern bool     tsEnableAudit;
+extern char     tsAuditFqdn[];
+extern uint16_t tsAuditPort;
+
 // telem
 extern bool     tsEnableTelem;
 extern int32_t  tsTelemInterval;

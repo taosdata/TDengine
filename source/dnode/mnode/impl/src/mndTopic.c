@@ -27,6 +27,7 @@
 #include "mndVgroup.h"
 #include "parser.h"
 #include "tname.h"
+#include "audit.h"
 
 #define MND_TOPIC_VER_NUMBER   3
 #define MND_TOPIC_RESERVE_SIZE 64
@@ -621,6 +622,8 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
+  auditRecord(pReq, pMnode->clusterId, "crateTopic", createTopicReq.name, createTopicReq.subDbName, createTopicReq.sql);
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to create topic:%s since %s", createTopicReq.name, terrstr());
@@ -811,6 +814,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
+
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", dropReq.name, "", dropReq.sql);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
