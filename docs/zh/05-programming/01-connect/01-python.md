@@ -93,7 +93,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 </TabItem>
 </Tabs>
 
-对于如何写入数据和查询输入，请参考<https://docs.taosdata.com/cloud/data-in/insert-data/>和 <https://docs.taosdata.com/cloud/data-out/query-data/>。
+对于如何写入数据和查询输入，请参考<https://docs.taosdata.com/cloud/programming/insert-data/>和 <https://docs.taosdata.com/cloud/programming/query-data/>。
 
 想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/connector/rest-api/).
 

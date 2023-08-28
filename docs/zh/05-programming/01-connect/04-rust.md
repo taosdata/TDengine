@@ -75,6 +75,6 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 {{#include docs/examples/rust/cloud-example/src/main.rs}}
 ```
 
-客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 <https://docs.taosdata.com/cloud/data-in/insert-data/> and <https://docs.taosdata.com/cloud/data-out/query-data/>.
+客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 <https://docs.taosdata.com/cloud/programming/insert-data/> and <https://docs.taosdata.com/cloud/programming/query-data/>.
 
 想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/connector/rest-api/).
