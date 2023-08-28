@@ -1990,6 +1990,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       // todo refactor the convert
       int32_t code = sclConvertValueToSclParam(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
+        colDataDestroy(out.columnData);
+        taosMemoryFree(out.columnData);
         qError("convert value to type[%d] failed", type);
         return code;
       }
@@ -4678,9 +4680,9 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
     code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
 
-    FLT_ERR_RET(code);
-
     *p = output.columnData;
+
+    FLT_ERR_RET(code);
 
     if (output.numOfQualified == output.numOfRows) {
       *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;

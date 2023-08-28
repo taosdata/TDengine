@@ -68,6 +68,7 @@ int varbinary_test() {
     }
     rowIndex++;
   }
+  taos_free_result(pRes);
 
   pRes = taos_query(taos, "insert into tb1 using stb tags (1, 'tb1_bin1', 'vart1') values (now, 'nchar1', 'varc1', 0.3)");
   taos_free_result(pRes);
