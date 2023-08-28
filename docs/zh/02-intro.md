@@ -29,15 +29,15 @@ TDengine Cloud 的主要功能如下：
    - 支持 [Promethues](../tools/prometheus/)。
    - 支持 [DBeaver](../tools/dbeaver/)。
 7. [实例管理](../instance-mgmt)
-   - 管理实例的 [用户](../instance-mgmt/user-mgmt/usrs) 和 [用户组](../instance-mgmt/user-mgmt/usrgroups)
+   - 管理实例的 [用户和用户组](../instance-mgmt/user-mgmt)
    - 支持 [数据复制](../instance-mgmt/replication)一个数据库到另外一个区域或者另外一个云。
    - 支持 [备份](../instance-mgmt/backup) 数据。
    - 支持 [IP 白名单](../instance-mgmt/ip-whites)。
    - 支持 [操作日志](../instance-mgmt/ops-logs)。
 
 8. [组织内用户管理](../user-mgmt)
-   - 管理组织的 [用户](../user-mgmt/usrs)
-   - 管理组织的 [用户组](../user-mgmt/usrgroups)
+   - 管理组织的 [用户](../user-mgmt/users)
+   - 管理组织的 [用户组](../user-mgmt/usergroups)
    - 管理组织的 [角色](../user-mgmt/roles)
 
 9. [组织管理](../orgs)：管理登录用户相关的所有组织
