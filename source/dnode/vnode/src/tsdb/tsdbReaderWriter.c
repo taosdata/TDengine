@@ -26,8 +26,8 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   if (pFD->pFD == NULL) {
     int         errsv = errno;
     const char *object_name = taosDirEntryBaseName((char *)path);
-    long        s3_size = s3Size(object_name);
-    if (!strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
+    long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
+    if (tsS3Enabled && !strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
       s3EvictCache(path, s3_size);
       s3Get(object_name, path);
 
