@@ -257,9 +257,6 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
     return chmod(temp, mode);
   }
 
-  if (checkAccess && taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
-    return 0;
-  }
   return chmod(temp, mode);
 }
 
