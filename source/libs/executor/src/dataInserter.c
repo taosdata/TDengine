@@ -213,6 +213,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_NCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           ASSERT(pColInfoData->info.type == pCol->type);
           if (colDataIsNull_s(pColInfoData, j)) {
@@ -226,7 +227,6 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           }
           break;
         }
-        case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_BLOB:
         case TSDB_DATA_TYPE_JSON:

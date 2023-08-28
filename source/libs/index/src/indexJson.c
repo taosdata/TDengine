@@ -24,7 +24,7 @@ int indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
     if (p->colType == TSDB_DATA_TYPE_BOOL) {
       p->colType = TSDB_DATA_TYPE_INT;
-    } else if (p->colType == TSDB_DATA_TYPE_VARCHAR || p->colType == TSDB_DATA_TYPE_NCHAR ||
+    } else if (p->colType == TSDB_DATA_TYPE_VARBINARY || p->colType == TSDB_DATA_TYPE_NCHAR ||
                p->colType == TSDB_DATA_TYPE_BINARY || p->colType == TSDB_DATA_TYPE_GEOMETRY) {
       // p->colType = TSDB_DATA_TYPE_NCHAR;
     } else {
@@ -42,7 +42,7 @@ int indexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *res
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
     if (p->colType == TSDB_DATA_TYPE_BOOL) {
       p->colType = TSDB_DATA_TYPE_INT;
-    } else if (p->colType == TSDB_DATA_TYPE_VARCHAR || p->colType == TSDB_DATA_TYPE_NCHAR ||
+    } else if (p->colType == TSDB_DATA_TYPE_VARBINARY || p->colType == TSDB_DATA_TYPE_NCHAR ||
                p->colType == TSDB_DATA_TYPE_BINARY || p->colType == TSDB_DATA_TYPE_GEOMETRY) {
       // p->colType = TSDB_DATA_TYPE_NCHAR;
     } else {
