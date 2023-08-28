@@ -6,6 +6,7 @@ use futures::{Stream, TryStreamExt};
 use taos::{AsyncQueryable, AsyncTBuilder, AsyncBindable, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
+use tracing::Instrument;
 
 use crate::serve::controller::{transferred::ConnectorTransferred, TaskControllerRef, TaskDetail};
 
@@ -129,7 +130,15 @@ impl PutStream {
                 _ => None,
             };
 
+            // todo! add trace id to
+            let span = tracing::info_span!(
+                "task::spawned",
+                task.id = task.id,
+                trace_id = tracing::field::Empty
+            );
+
             // let transferred = self.controller.transferred.get((cluster_id, ))
+            let span_clone = span.clone();
             async fn ipc_stream_writer(
                 task: TaskDetail,
                 taos: &taos::Taos,
@@ -138,10 +147,12 @@ impl PutStream {
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
                 license: Option<ConnectorLicense>,
                 transferred: Option<Arc<ConnectorTransferred>>,
+                span: tracing::Span,
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
                 let from = task.from.parse().unwrap();
                 let mut stmt = Stmt::init(taos).await.context("Initialize STMT")?;
+                
                 let worker = IpcStreamWorker::new(
                     &taos,
                     from,
@@ -149,6 +160,7 @@ impl PutStream {
                     schema,
                     license.as_ref(),
                     transferred.as_deref(),
+                    span.clone(),
                 )
                 .unwrap();
                 // dbg!(&task);
@@ -173,8 +185,10 @@ impl PutStream {
                 }
             }
             tokio::spawn(async move {
-                ipc_stream_writer(task, &taos, lock, schema, rx, license, transferred).await
-            });
+                ipc_stream_writer(task, &taos, lock, schema, rx, license, transferred, span).in_current_span()
+                .await
+            }.instrument(span_clone));
+            // let _ = span.enter();
         }
 
         Ok(stream
