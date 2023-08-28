@@ -610,6 +610,41 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int32_t       code = 0;
+  SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_STAT_INC(mgmt->stat.msgStat.notifyProcessed, 1);
+
+  STaskNotifyReq  msg = {0};
+  if (tDeserializeSTaskNotifyReq(pMsg->pCont, pMsg->contLen, &msg) < 0) {
+    QW_ELOG("tDeserializeSTaskNotifyReq failed, contLen:%d", pMsg->contLen);
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  uint64_t sId = msg.sId;
+  uint64_t qId = msg.queryId;
+  uint64_t tId = msg.taskId;
+  int64_t  rId = msg.refId;
+  int32_t  eId = msg.execId;
+
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info, .msgType = msg.type};
+
+  QW_SCH_TASK_DLOG("processNotify start, node:%p, handle:%p", node, pMsg->info.handle);
+
+  QW_ERR_RET(qwProcessNotify(QW_FPARAMS(), &qwMsg));
+
+  QW_SCH_TASK_DLOG("processNotify end, node:%p", node);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;

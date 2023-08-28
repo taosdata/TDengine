@@ -4,7 +4,7 @@
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- *
+ *f
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
@@ -860,7 +860,8 @@ static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
     cJSON* ctype = cJSON_CreateString(tDataTypes[s->type].name);
     cJSON_AddItemToObject(column, "type", ctype);
     int32_t length = 0;
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_VARBINARY ||
+        s->type == TSDB_DATA_TYPE_GEOMETRY) {
       length = s->bytes - VARSTR_HEADER_SIZE;
     } else if (s->type == TSDB_DATA_TYPE_NCHAR || s->type == TSDB_DATA_TYPE_JSON) {
       length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;

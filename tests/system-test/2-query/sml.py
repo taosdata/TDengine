@@ -1,18 +1,12 @@
 
-import taos
 import sys
-import time
-import socket
 import os
-import threading
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
 
 class TDTestCase:
     updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost', 'smlDot2Underline': 0}, 'fqdn': 'localhost'}
@@ -32,7 +26,7 @@ class TDTestCase:
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
         if ret != 0:
-            tdLog.info("sml_test ret != 0")
+            tdLog.exit("sml_test ret != 0")
 
         tdSql.query(f"select * from ts3303.stb2")
         tdSql.query(f"select * from ts3303.meters")
