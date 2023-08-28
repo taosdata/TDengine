@@ -1567,6 +1567,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   }
 
   if (pStream->status != STREAM_STATUS__PAUSE) {
+    sdbRelease(pMnode->pSdb, pStream);
     return 0;
   }
 

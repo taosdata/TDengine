@@ -120,7 +120,15 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         };
 
         if (dataBlk->hasDup) {
-          code = tsdbReadDataBlockEx(reader, dataBlk, ctx->blockData);
+          tBlockDataReset(ctx->blockData);
+
+          int16_t  aCid = 0;
+          STSchema tSchema = {0};
+          TABLEID  tbid = {.suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
+          code = tBlockDataInit(ctx->blockData, &tbid, &tSchema, &aCid, 0);
+          TSDB_CHECK_CODE(code, lino, _exit);
+
+          code = tsdbReadDataBlock(reader, dataBlk, ctx->blockData);
           TSDB_CHECK_CODE(code, lino, _exit);
 
           record.count = 1;
@@ -334,6 +342,8 @@ static int32_t tsdbUpgradeFileSet(STsdb *tsdb, SDFileSet *pDFileSet, TFileSetArr
   int32_t code = 0;
   int32_t lino = 0;
 
+  tsdbInfo("vgId:%d upgrade file set start, fid:%d", TD_VID(tsdb->pVnode), pDFileSet->fid);
+
   SDataFReader *reader;
   STFileSet    *fset;
 
@@ -365,6 +375,8 @@ static int32_t tsdbUpgradeFileSet(STsdb *tsdb, SDFileSet *pDFileSet, TFileSetArr
 
   code = TARRAY2_APPEND(fileSetArray, fset);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  tsdbInfo("vgId:%d upgrade file set end, fid:%d", TD_VID(tsdb->pVnode), pDFileSet->fid);
 
 _exit:
   if (code) {

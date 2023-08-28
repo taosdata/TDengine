@@ -7,7 +7,7 @@ description: 查询数据的详细语法
 ## 查询语法
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
@@ -205,7 +205,7 @@ SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tag
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。例如：
+以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。
 
 **\_QSTART/\_QEND**
 
@@ -247,8 +247,7 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 3. 对于超级表，ON 条件在时间戳主键的等值条件之外，还要求有可以一一对应的标签列等值条件，不支持 OR 条件。
 4. 参与 JOIN 计算的表只能是同一种类型，即只能都是超级表，或都是子表，或都是普通表。
 5. JOIN 两侧均支持子查询。
-6. 参与 JOIN 的表个数上限为 10 个。
-7. 不支持与 FILL 子句混合使用。
+6. 不支持与 FILL 子句混合使用。
 
 ## GROUP BY
 
@@ -339,6 +338,12 @@ SELECT TODAY();
 SELECT TIMEZONE();
 ```
 
+### 获取当前用户
+
+```sql
+SELECT CURRENT_USER();
+```
+
 ## 正则表达式过滤
 
 ### 语法
@@ -392,7 +397,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制。
+TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制，其它连接条件与主键间必须是 AND 操作。
 
 普通表与普通表之间的 JOIN 操作：
 

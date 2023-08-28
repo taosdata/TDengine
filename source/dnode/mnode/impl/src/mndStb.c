@@ -3233,136 +3233,161 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
 
   return numOfRows;
 }
+#define BUILD_COL_FOR_INFO_DB 1
+#define BUILD_COL_FOR_PERF_DB 1 << 1
+#define BUILD_COL_FOR_USER_DB 1 << 2
+#define BUILD_COL_FOR_ALL_DB  (BUILD_COL_FOR_INFO_DB | BUILD_COL_FOR_PERF_DB | BUILD_COL_FOR_USER_DB)
 
-static int32_t buildSysDbColsInfo(SSDataBlock *p, char *db, char *tb) {
+static int32_t buildSysDbColsInfo(SSDataBlock *p, int8_t buildWhichDBs, char *tb) {
   size_t               size = 0;
   const SSysTableMeta *pSysDbTableMeta = NULL;
 
-  if (db[0] && strncmp(db, TSDB_INFORMATION_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0 &&
-      strncmp(db, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0) {
-    return p->info.rows;
+  if (buildWhichDBs & BUILD_COL_FOR_INFO_DB) {
+    getInfosDbMeta(&pSysDbTableMeta, &size);
+    p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB, tb);
   }
 
-  getInfosDbMeta(&pSysDbTableMeta, &size);
-  p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB, tb);
-
-  getPerfDbMeta(&pSysDbTableMeta, &size);
-  p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB, tb);
+  if (buildWhichDBs & BUILD_COL_FOR_PERF_DB) {
+    getPerfDbMeta(&pSysDbTableMeta, &size);
+    p->info.rows = buildDbColsInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB, tb);
+  }
 
   return p->info.rows;
 }
 
+static int8_t determineBuildColForWhichDBs(const char* db) {
+  int8_t buildWhichDBs;
+  if (!db[0])
+    buildWhichDBs = BUILD_COL_FOR_ALL_DB;
+  else {
+    char *p = strchr(db, '.');
+    if (p && strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB) == 0) {
+      buildWhichDBs = BUILD_COL_FOR_INFO_DB;
+    } else if (p && strcmp(p + 1, TSDB_PERFORMANCE_SCHEMA_DB) == 0) {
+      buildWhichDBs = BUILD_COL_FOR_PERF_DB;
+    } else {
+      buildWhichDBs = BUILD_COL_FOR_USER_DB;
+    }
+  }
+  return buildWhichDBs;
+}
+
 static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  uint8_t buildWhichDBs;
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
-
   int32_t numOfRows = 0;
+
+  buildWhichDBs = determineBuildColForWhichDBs(pShow->db);
+
   if (!pShow->sysDbRsp) {
-    numOfRows = buildSysDbColsInfo(pBlock, pShow->db, pShow->filterTb);
+    numOfRows = buildSysDbColsInfo(pBlock, buildWhichDBs, pShow->filterTb);
     mDebug("mndRetrieveStbCol get system table cols, rows:%d, db:%s", numOfRows, pShow->db);
     pShow->sysDbRsp = true;
   }
 
-  SDbObj *pDb = NULL;
-  if (strlen(pShow->db) > 0) {
-    pDb = mndAcquireDb(pMnode, pShow->db);
-    if (pDb == NULL) return terrno;
-  }
-
-  char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(typeName, "SUPER_TABLE");
-  bool fetch = pShow->restore ? false : true;
-  pShow->restore = false;
-  while (numOfRows < rows) {
-    if (fetch) {
-      pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
-      if (pShow->pIter == NULL) break;
-    } else {
-      fetch = true;
-      void *pKey = taosHashGetKey(pShow->pIter, NULL);
-      pStb = sdbAcquire(pSdb, SDB_STB, pKey);
-      if (!pStb) continue;
+  if (buildWhichDBs & BUILD_COL_FOR_USER_DB) {
+    SDbObj *pDb = NULL;
+    if (strlen(pShow->db) > 0) {
+      pDb = mndAcquireDb(pMnode, pShow->db);
+      if (pDb == NULL && TSDB_CODE_MND_DB_NOT_EXIST != terrno && pBlock->info.rows == 0) return terrno;
     }
 
-    if (pDb != NULL && pStb->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pStb);
-      continue;
-    }
-
-    SName name = {0};
-    char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
-    if (pShow->filterTb[0] && strncmp(pShow->filterTb, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN) != 0) {
-      sdbRelease(pSdb, pStb);
-      continue;
-    }
-
-    if ((numOfRows + pStb->numOfColumns) > rows) {
-      pShow->restore = true;
-      if (numOfRows == 0) {
-        mError("mndRetrieveStbCol failed to get stable cols since buf:%d less than result:%d, stable name:%s, db:%s",
-               rows, pStb->numOfColumns, pStb->name, pStb->db);
+    char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(typeName, "SUPER_TABLE");
+    bool fetch = pShow->restore ? false : true;
+    pShow->restore = false;
+    while (numOfRows < rows) {
+      if (fetch) {
+        pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
+        if (pShow->pIter == NULL) break;
+      } else {
+        fetch = true;
+        void *pKey = taosHashGetKey(pShow->pIter, NULL);
+        pStb = sdbAcquire(pSdb, SDB_STB, pKey);
+        if (!pStb) continue;
       }
-      sdbRelease(pSdb, pStb);
-      break;
-    }
 
-    varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
-
-    mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pStb->name, pStb->db);
-
-    char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&name, pStb->db, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&name, varDataVal(db));
-    varDataSetLen(db, strlen(varDataVal(db)));
-
-    for (int i = 0; i < pStb->numOfColumns; i++) {
-      int32_t          cols = 0;
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)stbName, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, typeName, false);
-
-      // col name
-      char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(colName, pStb->pColumns[i].name);
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, colName, false);
-
-      // col type
-      int8_t colType = pStb->pColumns[i].type;
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      char colTypeStr[VARSTR_HEADER_SIZE + 32];
-      int  colTypeLen = sprintf(varDataVal(colTypeStr), "%s", tDataTypes[colType].name);
-      if (colType == TSDB_DATA_TYPE_VARCHAR) {
-        colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
-                              (int32_t)(pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE));
-      } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-        colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
-                              (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+      if (pDb != NULL && pStb->dbUid != pDb->uid) {
+        sdbRelease(pSdb, pStb);
+        continue;
       }
-      varDataSetLen(colTypeStr, colTypeLen);
-      colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false);
 
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false);
-      while (cols < pShow->numOfColumns) {
+      SName name = {0};
+      char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
+      if (pShow->filterTb[0] && strncmp(pShow->filterTb, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN) != 0) {
+        sdbRelease(pSdb, pStb);
+        continue;
+      }
+
+      if ((numOfRows + pStb->numOfColumns) > rows) {
+        pShow->restore = true;
+        if (numOfRows == 0) {
+          mError("mndRetrieveStbCol failed to get stable cols since buf:%d less than result:%d, stable name:%s, db:%s",
+                 rows, pStb->numOfColumns, pStb->name, pStb->db);
+        }
+        sdbRelease(pSdb, pStb);
+        break;
+      }
+
+      varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
+
+      mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pStb->name, pStb->db);
+
+      char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&name, pStb->db, T_NAME_ACCT | T_NAME_DB);
+      tNameGetDbName(&name, varDataVal(db));
+      varDataSetLen(db, strlen(varDataVal(db)));
+
+      for (int i = 0; i < pStb->numOfColumns; i++) {
+        int32_t          cols = 0;
+        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, (const char *)stbName, false);
+
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetNULL(pColInfo, numOfRows);
+        colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, typeName, false);
+
+        // col name
+        char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+        STR_TO_VARSTR(colName, pStb->pColumns[i].name);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, colName, false);
+
+        // col type
+        int8_t colType = pStb->pColumns[i].type;
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        char colTypeStr[VARSTR_HEADER_SIZE + 32];
+        int  colTypeLen = sprintf(varDataVal(colTypeStr), "%s", tDataTypes[colType].name);
+        if (colType == TSDB_DATA_TYPE_VARCHAR) {
+          colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+                                (int32_t)(pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE));
+        } else if (colType == TSDB_DATA_TYPE_NCHAR) {
+          colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+                                (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+        }
+        varDataSetLen(colTypeStr, colTypeLen);
+        colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false);
+        while (cols < pShow->numOfColumns) {
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          colDataSetNULL(pColInfo, numOfRows);
+        }
+        numOfRows++;
       }
-      numOfRows++;
+
+      sdbRelease(pSdb, pStb);
     }
 
-    sdbRelease(pSdb, pStb);
-  }
-
-  if (pDb != NULL) {
-    mndReleaseDb(pMnode, pDb);
+    if (pDb != NULL) {
+      mndReleaseDb(pMnode, pDb);
+    }
   }
 
   pShow->numOfRows += numOfRows;

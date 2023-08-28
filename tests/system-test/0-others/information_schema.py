@@ -215,7 +215,13 @@ class TDTestCase:
         for t in range (2):
             tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
             tdSql.checkEqual(20470,len(tdSql.queryResult))
-            
+
+        tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
+        tdSql.checkEqual(195, len(tdSql.queryResult))
+
+        tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
+        tdSql.checkEqual(54, len(tdSql.queryResult))
+
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
         tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
