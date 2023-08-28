@@ -19,7 +19,6 @@
 #include "mndTrans.h"
 #include "mndDnode.h"
 #include "mndStream.h"
-#include "audit.h"
 
 extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans);
 extern int32_t mndAddAlterVnodeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup);
@@ -77,8 +76,6 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
-
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", "");
 
 _OVER:
   mndTransDrop(pTrans);

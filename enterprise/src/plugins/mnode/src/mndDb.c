@@ -17,7 +17,6 @@
 #include "mndPrivilege.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
-#include "audit.h"
 
 static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
   SDbObj dbObj = {0};
@@ -102,8 +101,6 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
 
   code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-  auditRecord(pReq, pMnode->clusterId, "compactDB", compactReq.db, "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
