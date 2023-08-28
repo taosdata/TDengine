@@ -545,8 +545,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
 
     int8_t colType = tw->header.colType;
     colType = IDX_TYPE_GET_TYPE(colType);
-    if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR ||
-        colType == TSDB_DATA_TYPE_GEOMETRY) {
+    if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_VARBINARY ||
+        colType == TSDB_DATA_TYPE_NCHAR || colType == TSDB_DATA_TYPE_GEOMETRY) {
       fn = tfileStrCompare;
     } else {
       fn = getComparFunc(colType, 0);

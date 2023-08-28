@@ -242,6 +242,10 @@ int32_t compareLenBinaryVal(const void *pLeft, const void *pRight) {
   }
 }
 
+int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight) {
+  return compareLenBinaryVal(pRight, pLeft);
+}
+
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {
@@ -1301,7 +1305,8 @@ int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight) {
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
+                             type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -1324,7 +1329,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
+                                 type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -1367,6 +1373,15 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
+      break;
+    case TSDB_DATA_TYPE_VARBINARY:
+      if (optr == OP_TYPE_IN) {
+        comparFn = compareChkInString;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        comparFn = compareChkNotInString;
+      } else { /* normal relational comparFn */
+        comparFn = compareLenBinaryVal;
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
@@ -1453,6 +1468,8 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
     case TSDB_DATA_TYPE_UBIGINT:
       return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
+    case TSDB_DATA_TYPE_VARBINARY:
+      return (order == TSDB_ORDER_ASC) ? compareLenBinaryVal : compareLenBinaryValDesc;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
@@ -1462,59 +1479,5 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareJsonVal : compareJsonValDesc;
     default:
       return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-  }
-}
-
-int32_t doCompare(const char *f1, const char *f2, int32_t type, size_t size) {
-  switch (type) {
-    case TSDB_DATA_TYPE_INT:
-      DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
-    case TSDB_DATA_TYPE_DOUBLE:
-      DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
-    case TSDB_DATA_TYPE_FLOAT:
-      DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
-    case TSDB_DATA_TYPE_BIGINT:
-      DEFAULT_COMP(GET_INT64_VAL(f1), GET_INT64_VAL(f2));
-    case TSDB_DATA_TYPE_SMALLINT:
-      DEFAULT_COMP(GET_INT16_VAL(f1), GET_INT16_VAL(f2));
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_BOOL:
-      DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
-    case TSDB_DATA_TYPE_UTINYINT:
-      DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
-    case TSDB_DATA_TYPE_USMALLINT:
-      DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
-    case TSDB_DATA_TYPE_UINT:
-      DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
-    case TSDB_DATA_TYPE_UBIGINT:
-      DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
-    case TSDB_DATA_TYPE_NCHAR: {
-      tstr *t1 = (tstr *)f1;
-      tstr *t2 = (tstr *)f2;
-
-      if (t1->len != t2->len) {
-        return t1->len > t2->len ? 1 : -1;
-      }
-      int32_t ret = memcmp((TdUcs4 *)t1, (TdUcs4 *)t2, t2->len);
-      if (ret == 0) {
-        return ret;
-      }
-      return (ret < 0) ? -1 : 1;
-    }
-    default: {  // todo refactor
-      tstr *t1 = (tstr *)f1;
-      tstr *t2 = (tstr *)f2;
-
-      if (t1->len != t2->len) {
-        return t1->len > t2->len ? 1 : -1;
-      } else {
-        int32_t ret = strncmp(t1->data, t2->data, t1->len);
-        if (ret == 0) {
-          return 0;
-        } else {
-          return ret < 0 ? -1 : 1;
-        }
-      }
-    }
   }
 }
