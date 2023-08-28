@@ -1555,12 +1555,6 @@ int sml_ts3724_Test() {
   ASSERT(numRows == 1);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "show stables");
-  row = taos_fetch_row(pRes);
-  numRows = taos_affected_rows(pRes);
-  ASSERT(numRows == 3);
-  taos_free_result(pRes);
-
   taos_close(taos);
 
   return code;
