@@ -99,6 +99,8 @@ typedef enum {
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
   TRN_CONFLICT_DB_INSIDE = 3,
+  TRN_CONFLICT_TOPIC = 4,
+  TRN_CONFLICT_TOPIC_INSIDE = 5,
 } ETrnConflct;
 
 typedef enum {
