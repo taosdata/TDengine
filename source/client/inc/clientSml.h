@@ -251,7 +251,6 @@ int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
 uint8_t           smlGetTimestampLen(int64_t num);
-void              clearColValArray(SArray* pCols);
 void              smlDestroyTableInfo(void *para);
 
 void freeSSmlKv(void* data);

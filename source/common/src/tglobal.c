@@ -1647,6 +1647,13 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     return;
   }
 
+  if (strcasecmp(option, "supportVnodes") == 0) {
+    int32_t newSupportVnodes = atoi(value);
+    uInfo("supportVnodes set from %d to %d", tsNumOfSupportVnodes, newSupportVnodes);
+    tsNumOfSupportVnodes = newSupportVnodes;
+    return;
+  }
+
   const char *options[] = {
       "dDebugFlag",   "vDebugFlag",   "mDebugFlag",   "wDebugFlag",    "sDebugFlag",   "tsdbDebugFlag", "tqDebugFlag",
       "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",  "uDebugFlag",
