@@ -653,14 +653,10 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   code = mndCreateMnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[1000] = {0};
-
-  char obj[20] = {0};
+  char obj[40] = {0};
   sprintf(obj, "%d", createReq.dnodeId);
 
-  sprintf(detail, "dnodeId:%d", createReq.dnodeId);
-
-  auditRecord(pReq, pMnode->clusterId, "createMnode", obj, detail, "");
+  auditRecord(pReq, pMnode->clusterId, "createMnode", obj, "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -798,7 +794,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   code = mndDropMnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[20] = {0};
+  char obj[40] = {0};
   sprintf(obj, "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropMnode", obj, "", "");

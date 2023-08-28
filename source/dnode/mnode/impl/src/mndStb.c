@@ -1174,7 +1174,17 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", pDb->name, createReq.name, "");
+  char detail[2000] = {0};
+  sprintf(detail, "colVer:%d, delay1:%" PRId64 ", delay2:%" PRId64 ", deleteMark1:%" PRId64 ", "
+          "deleteMark2:%" PRId64 ", igExists:%d, numOfColumns:%d, numOfFuncs:%d, numOfTags:%d, "
+          "source:%d, suid:%" PRId64 ", tagVer:%d, ttl:%d, "
+          "watermark1:%" PRId64 ", watermark2:%" PRId64, 
+          createReq.colVer, createReq.delay1, createReq.delay2, createReq.deleteMark1, 
+          createReq.deleteMark2, createReq.igExists, createReq.numOfColumns, createReq.numOfFuncs, createReq.numOfTags,
+          createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
+          createReq.watermark1, createReq.watermark2);
+
+  auditRecord(pReq, pMnode->clusterId, "createStb", pDb->name, createReq.name, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2244,7 +2254,11 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", pDb->name, alterReq.name, "");
+  char detail[2000] = {0};
+  sprintf(detail, "alterType:%d, numOfFields:%d, ttl:%d" ,
+          alterReq.alterType, alterReq.numOfFields, alterReq.ttl);
+
+  auditRecord(pReq, pMnode->clusterId, "alterStb", pDb->name, alterReq.name, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2507,7 +2521,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", pDb->name, dropReq.name, "");
+  char detail[2000] = {0};
+  sprintf(detail, "igNotExists:%d, source:%d" ,
+          dropReq.igNotExists, dropReq.source);
+
+  auditRecord(pReq, pMnode->clusterId, "dropStb", pDb->name, dropReq.name, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
