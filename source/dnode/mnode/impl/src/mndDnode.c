@@ -517,7 +517,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    online = mndIsDnodeOnline(pDnode, curMs);
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
-  bool    needCheck = !online || dnodeChanged || reboot;
+  bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -1154,6 +1155,24 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, "ttlbatchdropnum");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #ifdef TD_ENTERPRISE
+  } else if (strncasecmp(cfgReq.config, "supportvnodes", 13) == 0) {
+    int32_t optLen = strlen("supportvnodes");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 4096) {
+      mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+    if (flag == 0) {
+      flag = tsNumOfCores * 2;
+    }
+    flag = TMAX(flag, 2);
+
+    strcpy(dcfgReq.config, "supportvnodes");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
     int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
