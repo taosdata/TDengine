@@ -671,13 +671,13 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   SArray* chkpDel = taosArrayInit(10, sizeof(int64_t));
   SArray* chkpDup = taosArrayInit(10, sizeof(int64_t));
 
-  int64_t minId = 0;
+  int64_t firsId = 0;
   if (taosArrayGetSize(pMeta->chkpInUse) >= 1) {
-    minId = *(int64_t*)taosArrayGet(pMeta->chkpInUse, 0);
+    firsId = *(int64_t*)taosArrayGet(pMeta->chkpInUse, 0);
 
     for (int i = 0; i < taosArrayGetSize(pMeta->chkpSaved); i++) {
       int64_t id = *(int64_t*)taosArrayGet(pMeta->chkpSaved, i);
-      if (id >= minId) {
+      if (id >= firsId) {
         taosArrayPush(chkpDup, &id);
       } else {
         taosArrayPush(chkpDel, &id);
@@ -722,6 +722,7 @@ static int32_t compareCheckpoint(const void* a, const void* b) {
 int32_t streamBackendLoadCheckpointInfo(void* arg) {
   SStreamMeta* pMeta = arg;
   int32_t      code = 0;
+  SArray*      suffix = NULL;
 
   int32_t len = strlen(pMeta->path) + 30;
   char*   chkpPath = taosMemoryCalloc(1, len);
@@ -732,17 +733,15 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
     taosMemoryFree(chkpPath);
     return 0;
   }
-  taosArrayClear(pMeta->chkpSaved);
 
   TdDirPtr pDir = taosOpenDir(chkpPath);
-
   if (pDir == NULL) {
     taosMemoryFree(chkpPath);
     return 0;
   }
 
   TdDirEntryPtr de = NULL;
-  SArray*       suffix = taosArrayInit(4, sizeof(int64_t));
+  suffix = taosArrayInit(4, sizeof(int64_t));
 
   while ((de = taosReadDir(pDir)) != NULL) {
     if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
@@ -760,7 +759,8 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
     }
   }
   taosArraySort(suffix, compareCheckpoint);
-
+  // free previous chkpSaved
+  taosArrayClear(pMeta->chkpSaved);
   for (int i = 0; i < taosArrayGetSize(suffix); i++) {
     int64_t id = *(int64_t*)taosArrayGet(suffix, i);
     taosArrayPush(pMeta->chkpSaved, &id);
@@ -908,6 +908,29 @@ _ERROR:
   taosReleaseRef(streamBackendId, backendRid);
   taosArrayDestroy(refs);
   return code;
+}
+int32_t streamBackendAddInUseChkpPos(void* arg, int64_t chkpId) {
+  if (arg == NULL) return 0;
+
+  SStreamMeta* pMeta = arg;
+  taosWLockLatch(&pMeta->chkpDirLock);
+  taosArrayPush(pMeta->chkpInUse, &chkpId);
+  taosWUnLockLatch(&pMeta->chkpDirLock);
+  return 0;
+}
+int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
+  if (arg == NULL) return 0;
+
+  SStreamMeta* pMeta = arg;
+  taosWLockLatch(&pMeta->chkpDirLock);
+  if (taosArrayGetSize(pMeta->chkpInUse) > 0) {
+    int64_t id = *(int64_t*)taosArrayGet(pMeta->chkpInUse, 0);
+    if (id == chkpId) {
+      taosArrayPopFrontBatch(pMeta->chkpInUse, 1);
+    }
+  }
+  taosWUnLockLatch(&pMeta->chkpDirLock);
+  return 0;
 }
 
 int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {

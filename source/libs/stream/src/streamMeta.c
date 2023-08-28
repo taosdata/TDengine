@@ -169,10 +169,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->chkpCap = 8;
   taosInitRWLatch(&pMeta->chkpDirLock);
 
-  int64_t chkpId = streamGetLatestCheckpointId(pMeta);
-  pMeta->chkpId = chkpId;
-
-  pMeta->streamBackend = streamBackendInit(pMeta->path, chkpId);
+  pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
+  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
     taosMsleep(2 * 1000);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
@@ -181,18 +179,15 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
       qInfo("vgId:%d retry to init stream backend", pMeta->vgId);
     }
   }
-
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   code = streamBackendLoadCheckpointInfo(pMeta);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    goto _err;
-  }
+
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
-  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, chkpId, stage);
+  qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,
+        stage);
   return pMeta;
 
 _err:
@@ -202,6 +197,10 @@ _err:
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
+
+  // taosThreadMutexDestroy(&pMeta->backendMutex);
+  //  taosThreadRwlockDestroy(&pMeta->lock);
+
   taosMemoryFree(pMeta);
 
   qError("failed to open stream meta");

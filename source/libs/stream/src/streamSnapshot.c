@@ -116,19 +116,21 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
 
   int32_t code = 0;
 
-  int8_t chkpFlag = 0;
+  int8_t validChkp = 0;
   if (chkpId != 0) {
     sprintf(tdir, "%s%s%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "stream", TD_DIRSEP, "checkpoints", TD_DIRSEP,
             chkpId);
     if (taosIsDir(tdir)) {
-      chkpFlag = 1;
+      validChkp = 1;
       qInfo("%s start to read snap %s", STREAM_STATE_TRANSFER, tdir);
+      streamBackendAddInUseChkpPos(pMeta, chkpId);
     } else {
       qWarn("%s failed to read from %s, reason: dir not exist,retry to default state dir", STREAM_STATE_TRANSFER, tdir);
     }
   }
 
-  if (chkpFlag == 0) {
+  // no checkpoint specified or not exists invalid checkpoint, do checkpoint at default path and translate it
+  if (validChkp == 0) {
     sprintf(tdir, "%s%s%s%s%s", path, TD_DIRSEP, "stream", TD_DIRSEP, "state");
     char* chkpdir = taosMemoryCalloc(1, len + 256);
     sprintf(chkpdir, "%s%s%s", tdir, TD_DIRSEP, "tmp");
@@ -143,6 +145,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       taosMemoryFree(tdir);
       return code;
     }
+    chkpId = 0;
   }
 
   qInfo("%s start to read dir: %s", STREAM_STATE_TRANSFER, tdir);
@@ -252,6 +255,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
   pHandle->pFileList = list;
   pHandle->seraial = 0;
   pHandle->offset = 0;
+  pHandle->handle = pMeta;
   return 0;
 _err:
   streamSnapHandleDestroy(pHandle);
@@ -265,9 +269,12 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   SBanckendFile* pFile = handle->pBackendFile;
 
   if (handle->checkpointId == 0) {
+    // del tmp dir
     if (taosIsDir(pFile->path)) {
       taosRemoveDir(pFile->path);
     }
+  } else {
+    streamBackendDelInUseChkp(handle->handle, handle->checkpointId);
   }
   if (pFile) {
     taosMemoryFree(pFile->pCheckpointMeta);
