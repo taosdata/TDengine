@@ -20,6 +20,7 @@
 #include "mndVgroup.h"
 #include "mndDb.h"
 #include "mndQnode.h"
+#include "audit.h"
 
 int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t restoreType) {
   int32_t  code = -1;
@@ -183,6 +184,10 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[32] = {0};
+  sprintf(obj, "%d", restoreReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "restoreDnode", obj, "", "");
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to restore, restoreType:%d,  since %s", 
