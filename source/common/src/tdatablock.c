@@ -1407,8 +1407,9 @@ SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-    void*            pData = colDataGetData(pSrc, rowIdx);
     bool             isNull = colDataIsNull(pSrc, pDataBlock->info.rows, rowIdx, NULL);
+    void*            pData = NULL;
+    if (!isNull) pData = colDataGetData(pSrc, rowIdx);
     colDataSetVal(pDst, 0, pData, isNull);
   }
 
@@ -1919,6 +1920,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, 
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_GEOMETRY: {
           memset(pBuf, 0, sizeof(pBuf));
           char*   pData = colDataGetVarData(pColInfoData, j);
@@ -2018,6 +2020,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             }
             break;
           case TSDB_DATA_TYPE_NCHAR:
+          case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
             ASSERT(pColInfoData->info.type == pCol->type);
             if (colDataIsNull_s(pColInfoData, j)) {
@@ -2031,7 +2034,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             }
             break;
           }
-          case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_DECIMAL:
           case TSDB_DATA_TYPE_BLOB:
           case TSDB_DATA_TYPE_JSON:

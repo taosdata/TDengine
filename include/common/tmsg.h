@@ -441,7 +441,6 @@ typedef struct SField {
   uint8_t type;
   int8_t  flags;
   int32_t bytes;
-  char    comment[TSDB_COL_COMMENT_LEN];
 } SField;
 
 typedef struct SRetention {
@@ -520,7 +519,6 @@ struct SSchema {
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-  char     comment[TSDB_COL_COMMENT_LEN];
 };
 
 struct SSchema2 {
@@ -1161,6 +1159,9 @@ int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
   int32_t timestampSec;
+  int32_t ttlDropMaxCount;
+  int32_t nUids;
+  SArray* pTbUids;
 } SVDropTtlTableReq;
 
 int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
@@ -1417,6 +1418,7 @@ typedef struct {
   int64_t numOfProcessedCQuery;
   int64_t numOfProcessedFetch;
   int64_t numOfProcessedDrop;
+  int64_t numOfProcessedNotify;
   int64_t numOfProcessedHb;
   int64_t numOfProcessedDelete;
   int64_t cacheDataSize;
@@ -2158,8 +2160,24 @@ typedef struct {
 
 int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
-int32_t tSerializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
-int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
+
+
+typedef enum {
+  TASK_NOTIFY_FINISHED = 1,
+} ETaskNotifyType;
+
+typedef struct {
+  SMsgHead        header;
+  uint64_t        sId;
+  uint64_t        queryId;
+  uint64_t        taskId;
+  int64_t         refId;
+  int32_t         execId;
+  ETaskNotifyType type;
+} STaskNotifyReq;
+
+int32_t tSerializeSTaskNotifyReq(void* buf, int32_t bufLen, STaskNotifyReq* pReq);
+int32_t tDeserializeSTaskNotifyReq(void* buf, int32_t bufLen, STaskNotifyReq* pReq);
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -2630,9 +2648,6 @@ typedef struct {
   int8_t  type;
   int8_t  flags;
   int32_t bytes;
-  bool    hasColComment;
-  char*   colComment;
-  int32_t colCommentLen;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
   int8_t  colModType;

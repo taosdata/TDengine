@@ -316,6 +316,45 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   taosArrayDestroy(ctx->tbInfo);
 }
 
+static void freeExplainExecItem(void *param) {
+  SExplainExecInfo *pInfo = param;
+  taosMemoryFree(pInfo->verboseInfo);
+}
+
+
+int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+  qTaskInfo_t taskHandle = ctx->taskHandle;
+
+  ctx->explainRsped = true;
+  
+  SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
+  QW_ERR_RET(qGetExplainExecInfo(taskHandle, execInfoList));
+  
+  if (ctx->localExec) {
+    SExplainLocalRsp localRsp = {0};
+    localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
+    SExplainExecInfo *pExec = taosMemoryCalloc(localRsp.rsp.numOfPlans, sizeof(SExplainExecInfo));
+    memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
+    localRsp.rsp.subplanInfo = pExec;
+    localRsp.qId = qId;
+    localRsp.tId = tId;
+    localRsp.rId = rId;
+    localRsp.eId = eId;
+    taosArrayPush(ctx->explainRes, &localRsp);
+    taosArrayDestroy(execInfoList);
+  } else {
+    SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
+    connInfo.ahandle = NULL;
+    int32_t code = qwBuildAndSendExplainRsp(&connInfo, execInfoList);
+    taosArrayDestroyEx(execInfoList, freeExplainExecItem);
+    QW_ERR_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_QTID(id, qId, tId, eId);

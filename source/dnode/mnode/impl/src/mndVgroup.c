@@ -26,6 +26,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "tmisce.h"
+#include "audit.h"
 
 #define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
@@ -2171,6 +2172,15 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[33] = {0};
+  sprintf(obj, "%d", req.vgId);
+
+  char detail[1000] = {0};
+  sprintf(detail, "dnodeId1:%d, dnodeId2:%d, dnodeId3:%d", 
+          req.dnodeId1, req.dnodeId2, req.dnodeId3);
+
+  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", obj, "", detail);
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("vgId:%d, failed to redistribute to dnode %d:%d:%d since %s", req.vgId, req.dnodeId1, req.dnodeId2,
@@ -2980,6 +2990,8 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   } else {
     code = mndBalanceVgroup(pMnode, pReq, pArray);
   }
+
+  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

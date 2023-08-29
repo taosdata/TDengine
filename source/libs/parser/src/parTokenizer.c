@@ -138,7 +138,7 @@ static SKeyword keywordTable[] = {
     {"MATCH",                TK_MATCH},
     {"MAXROWS",              TK_MAXROWS},
     {"MAX_DELAY",            TK_MAX_DELAY},
-    {"MAX_SPEED",            TK_MAX_SPEED},
+    {"BWLIMIT",              TK_BWLIMIT},
     {"MERGE",                TK_MERGE},
     {"META",                 TK_META},
     {"ONLY",                 TK_ONLY},
@@ -287,6 +287,7 @@ static SKeyword keywordTable[] = {
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
     {"ALIVE",                TK_ALIVE},
+    {"VARBINARY",            TK_VARBINARY},
 };
 // clang-format on
 
@@ -550,7 +551,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         return i;
       } else if (next == 'x') {  // hex number
         *tokenId = TK_NK_HEX;
-        for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
+        for (i = 2; isxdigit(z[i]) != 0; ++i) {
         }
 
         if (i == 2) {

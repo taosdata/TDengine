@@ -780,6 +780,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     }
 
     streamFreeQitem(pTask->msgInfo.pData);
+    pTask->msgInfo.pData = NULL;
     return TSDB_CODE_SUCCESS;
   }
 

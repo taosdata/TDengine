@@ -76,6 +76,7 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
       } break;
 
       case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_VARBINARY:
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_GEOMETRY: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);

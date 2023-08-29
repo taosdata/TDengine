@@ -180,7 +180,8 @@ __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   int8_t comparFn = 0;
 
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
+                             type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -206,7 +207,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -257,6 +258,16 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = 5;
       break;
+    case TSDB_DATA_TYPE_VARBINARY:{
+      if (optr == OP_TYPE_IN) {
+        comparFn = 8;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        comparFn = 25;
+      } else { /* normal relational comparFn */
+        comparFn = 30;
+      }
+      break;
+    }
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = 19;
@@ -466,7 +477,7 @@ static FORCE_INLINE SFilterRangeNode *filterNewRange(SFilterRangeCtx *ctx, SFilt
 
 void *filterInitRangeCtx(int32_t type, int32_t options) {
   if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL ||
-      type == TSDB_DATA_TYPE_BINARY ||
+      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY ||
       type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     qError("not supported range type:%d", type);
     return NULL;
@@ -1585,6 +1596,7 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {

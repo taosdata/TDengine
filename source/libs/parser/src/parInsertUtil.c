@@ -333,8 +333,8 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
 
 static void destroyColVal(void* p) {
   SColVal* pVal = p;
-  if (TSDB_DATA_TYPE_NCHAR == pVal->type || TSDB_DATA_TYPE_GEOMETRY == pVal->type) {
-    taosMemoryFree(pVal->value.pData);
+  if (TSDB_DATA_TYPE_NCHAR == pVal->type || TSDB_DATA_TYPE_GEOMETRY == pVal->type || TSDB_DATA_TYPE_VARBINARY == pVal->type) {
+    taosMemoryFreeClear(pVal->value.pData);
   }
 }
 

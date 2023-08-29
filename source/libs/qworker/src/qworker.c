@@ -90,11 +90,6 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
-static void freeItem(void *param) {
-  SExplainExecInfo *pInfo = param;
-  taosMemoryFree(pInfo->verboseInfo);
-}
-
 
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   qTaskInfo_t taskHandle = ctx->taskHandle;
@@ -102,29 +97,8 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   ctx->queryExecDone = true;
 
   if (TASK_TYPE_TEMP == ctx->taskType && taskHandle) {
-    if (ctx->explain) {
-      SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
-      QW_ERR_RET(qGetExplainExecInfo(taskHandle, execInfoList));
-
-      if (ctx->localExec) {
-        SExplainLocalRsp localRsp = {0};
-        localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
-        SExplainExecInfo *pExec = taosMemoryCalloc(localRsp.rsp.numOfPlans, sizeof(SExplainExecInfo));
-        memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
-        localRsp.rsp.subplanInfo = pExec;
-        localRsp.qId = qId;
-        localRsp.tId = tId;
-        localRsp.rId = rId;
-        localRsp.eId = eId;
-        taosArrayPush(ctx->explainRes, &localRsp);
-        taosArrayDestroy(execInfoList);
-      } else {
-        SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
-        connInfo.ahandle = NULL;
-        int32_t code = qwBuildAndSendExplainRsp(&connInfo, execInfoList);
-        taosArrayDestroyEx(execInfoList, freeItem);
-        QW_ERR_RET(code);
-      }
+    if (ctx->explain && !ctx->explainRsped) {
+      QW_ERR_RET(qwSendExplainResponse(QW_FPARAMS(), ctx));
     }
 
     if (!ctx->needFetch) {
@@ -1030,6 +1004,55 @@ _return:
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
+int32_t qwProcessNotify(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
+  int32_t     code = 0;
+  SQWTaskCtx *ctx = NULL;
+  bool        locked = false;
+
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  QW_LOCK(QW_WRITE, &ctx->lock);
+
+  locked = true;
+
+  if (QW_QUERY_RUNNING(ctx)) {
+    QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
+    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask);
+  }
+
+  switch (qwMsg->msgType) {
+    case TASK_NOTIFY_FINISHED:
+      if (ctx->explain && !ctx->explainRsped) {
+        QW_ERR_RET(qwSendExplainResponse(QW_FPARAMS(), ctx));
+      }
+      break;  
+    default:
+      QW_ELOG("Invalid task notify type %d", qwMsg->msgType);
+      QW_ERR_JRET(TSDB_CODE_INVALID_MSG);
+      break;
+  }
+
+_return:
+
+  if (code) {
+    if (ctx) {
+      QW_UPDATE_RSP_CODE(ctx, code);
+      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
+    }
+  }
+
+  if (locked) {
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+  }
+
+  if (ctx) {
+    qwReleaseTaskCtx(mgmt, ctx);
+  }
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
 int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
   SSchedulerHbRsp rsp = {0};
@@ -1354,6 +1377,7 @@ int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pSt
   pStat->cqueryProcessed = QW_STAT_GET(mgmt->stat.msgStat.cqueryProcessed);
   pStat->fetchProcessed = QW_STAT_GET(mgmt->stat.msgStat.fetchProcessed);
   pStat->dropProcessed = QW_STAT_GET(mgmt->stat.msgStat.dropProcessed);
+  pStat->notifyProcessed = QW_STAT_GET(mgmt->stat.msgStat.notifyProcessed);
   pStat->hbProcessed = QW_STAT_GET(mgmt->stat.msgStat.hbProcessed);
   pStat->deleteProcessed = QW_STAT_GET(mgmt->stat.msgStat.deleteProcessed);
 

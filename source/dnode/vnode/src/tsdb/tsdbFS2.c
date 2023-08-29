@@ -16,6 +16,7 @@
 #include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
+#include "vndCos.h"
 
 extern int  vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int  vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
@@ -365,6 +366,14 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
 
   // check file existence
   if (!taosCheckExistFile(fobj->fname)) {
+    if (tsS3Enabled) {
+      const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+      long        s3_size = s3Size(object_name);
+      if (s3_size > 0) {
+        return 0;
+      }
+    }
+
     code = TSDB_CODE_FILE_CORRUPTED;
     tsdbError("vgId:%d %s failed since file:%s does not exist", TD_VID(fs->tsdb->pVnode), __func__, fobj->fname);
     return code;
@@ -628,7 +637,7 @@ _exit:
   } else {
     tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
-  return 0;
+  return code;
 }
 
 static int32_t close_file_system(STFileSystem *fs) {
@@ -721,7 +730,7 @@ _exit:
   } else {
     tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
-  return 0;
+  return code;
 }
 
 static void tsdbDoWaitBgTask(STFileSystem *fs, STFSBgTask *task) {

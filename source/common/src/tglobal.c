@@ -95,6 +95,11 @@ uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
+// audit
+bool     tsEnableAudit = false;
+char     tsAuditFqdn[TSDB_FQDN_LEN] = {0};
+uint16_t tsAuditPort = 6043;
+
 // telem
 bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
@@ -124,7 +129,6 @@ int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
 bool    tsEnableScience = false;     // on taos-cli show float and doulbe with scientific notation if true
-bool    tsTtlChangeOnWrite = false;  // ttl delete time changes on last write if true
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -186,6 +190,7 @@ int32_t tsCacheLazyLoadThreshold = 500;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
+int64_t  tsMinDiskFreeSize = TFS_MIN_DISK_FREE_SIZE;
 
 // stream scheduler
 bool tsDeployOnSnode = true;
@@ -225,12 +230,20 @@ bool    tsStartUdfd = true;
 // wal
 int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
 
+// ttl
+bool    tsTtlChangeOnWrite = false;  // if true, ttl delete time changes on last write
+int32_t tsTtlFlushThreshold = 100;   /* maximum number of dirty items in memory.
+                                      * if -1, flush will not be triggered by write-ops
+                                      */
+int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
+
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointTickInterval = 1;
 int32_t tsTtlUnit = 86400;
-int32_t tsTtlPushInterval = 3600;
+int32_t tsTtlPushIntervalSec = 10;
+int32_t tsTrimVDbIntervalSec = 60 * 60; // interval of trimming db in all vgroups
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
@@ -239,8 +252,8 @@ bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 bool    tsFilterScalarMode = false;
-int32_t tsKeepTimeOffset = 0;  // latency of data migration
-int     tsResolveFQDNRetryTime = 100; //seconds
+int32_t tsKeepTimeOffset = 0;          // latency of data migration
+int     tsResolveFQDNRetryTime = 100;  // seconds
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
@@ -305,9 +318,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -594,6 +605,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorComp", tsMonitorComp, CFG_SCOPE_SERVER) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "auditFqdn", tsAuditFqdn, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "auditPort", tsAuditPort, 1, 65056, CFG_SCOPE_SERVER) != 0) return -1;
+
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, CFG_SCOPE_BOTH) != 0) return -1;
@@ -605,8 +620,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushIntervalSec, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlBatchDropNum", tsTtlBatchDropNum, 0, INT32_MAX, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "ttlChangeOnWrite", tsTtlChangeOnWrite, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlFlushThreshold", tsTtlFlushThreshold, -1, 1000000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "trimVDbIntervalSec", tsTrimVDbIntervalSec, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER) != 0) return -1;
 
@@ -634,6 +652,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
+
+  // min free disk space used to check if the disk is full [50MB, 1GB]
+  if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024,
+                  CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -987,9 +1010,14 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMonitorComp = cfgGetItem(pCfg, "monitorComp")->bval;
   tsQueryRspPolicy = cfgGetItem(pCfg, "queryRspPolicy")->i32;
 
+  tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
+  tstrncpy(tsAuditFqdn, cfgGetItem(pCfg, "auditFqdn")->str, TSDB_FQDN_LEN);
+  tsAuditPort = (uint16_t)cfgGetItem(pCfg, "auditPort")->i32;
+
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsTtlChangeOnWrite = cfgGetItem(pCfg, "ttlChangeOnWrite")->bval;
+  tsTtlFlushThreshold = cfgGetItem(pCfg, "ttlFlushThreshold")->i32;
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
@@ -999,7 +1027,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
-  tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
+  tsTtlPushIntervalSec = cfgGetItem(pCfg, "ttlPushInterval")->i32;
+  tsTtlBatchDropNum = cfgGetItem(pCfg, "ttlBatchDropNum")->i32;
+  tsTrimVDbIntervalSec = cfgGetItem(pCfg, "trimVDbIntervalSec")->i32;
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
 
@@ -1034,6 +1064,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
+  tsMinDiskFreeSize = cfgGetItem(pCfg, "minDiskFreeSize")->i64;
 
   GRANT_CFG_GET;
   return 0;
@@ -1400,13 +1431,19 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
       } else if (strcasecmp("ttlUnit", name) == 0) {
         tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
       } else if (strcasecmp("ttlPushInterval", name) == 0) {
-        tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
+        tsTtlPushIntervalSec = cfgGetItem(pCfg, "ttlPushInterval")->i32;
+      } else if (strcasecmp("ttlBatchDropNum", name) == 0) {
+        tsTtlBatchDropNum = cfgGetItem(pCfg, "ttlBatchDropNum")->i32;
+      } else if (strcasecmp("trimVDbIntervalSec", name) == 0) {
+        tsTrimVDbIntervalSec = cfgGetItem(pCfg, "trimVDbIntervalSec")->i32;
       } else if (strcasecmp("tmrDebugFlag", name) == 0) {
         tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
       } else if (strcasecmp("tsdbDebugFlag", name) == 0) {
         tsdbDebugFlag = cfgGetItem(pCfg, "tsdbDebugFlag")->i32;
       } else if (strcasecmp("tqDebugFlag", name) == 0) {
         tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
+      } else if (strcasecmp("ttlFlushThreshold", name) == 0) {
+        tsTtlFlushThreshold = cfgGetItem(pCfg, "ttlFlushThreshold")->i32;
       }
       break;
     }
@@ -1605,6 +1642,27 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t newKeepTimeOffset = atoi(value);
     uInfo("keepTimeOffset set from %d to %d", tsKeepTimeOffset, newKeepTimeOffset);
     tsKeepTimeOffset = newKeepTimeOffset;
+    return;
+  }
+
+  if (strcasecmp(option, "ttlPushInterval") == 0) {
+    int32_t newTtlPushInterval = atoi(value);
+    uInfo("ttlPushInterval set from %d to %d", tsTtlPushIntervalSec, newTtlPushInterval);
+    tsTtlPushIntervalSec = newTtlPushInterval;
+    return;
+  }
+
+  if (strcasecmp(option, "ttlBatchDropNum") == 0) {
+    int32_t newTtlBatchDropNum = atoi(value);
+    uInfo("ttlBatchDropNum set from %d to %d", tsTtlBatchDropNum, newTtlBatchDropNum);
+    tsTtlBatchDropNum = newTtlBatchDropNum;
+    return;
+  }
+
+  if (strcasecmp(option, "supportVnodes") == 0) {
+    int32_t newSupportVnodes = atoi(value);
+    uInfo("supportVnodes set from %d to %d", tsNumOfSupportVnodes, newSupportVnodes);
+    tsNumOfSupportVnodes = newSupportVnodes;
     return;
   }
 

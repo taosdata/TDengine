@@ -218,7 +218,16 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
 
   if (strlen(oneTable->childTableName) == 0) {
     SArray       *dst = taosArrayDup(oneTable->tags, NULL);
-    RandTableName rName = {dst, oneTable->sTableName, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
+    ASSERT(oneTable->sTableNameLen < TSDB_TABLE_NAME_LEN);
+    char superName[TSDB_TABLE_NAME_LEN] = {0};
+    RandTableName rName = {dst, NULL, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
+    if(tsSmlDot2Underline){
+      memcpy(superName, oneTable->sTableName, oneTable->sTableNameLen);
+      smlStrReplace(superName, oneTable->sTableNameLen);
+      rName.stbFullName = superName;
+    }else{
+      rName.stbFullName = oneTable->sTableName;
+    }
 
     buildChildTableName(&rName);
     taosArrayDestroy(dst);
@@ -230,6 +239,9 @@ void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tin
   char   key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
   size_t nLen = strlen(tinfo->childTableName);
   memcpy(key, currElement->measure, currElement->measureLen);
+  if(tsSmlDot2Underline){
+    smlStrReplace(key, currElement->measureLen);
+  }
   memcpy(key + currElement->measureLen + 1, tinfo->childTableName, nLen);
   void *uid =
       taosHashGet(info->tableUids, key,
@@ -596,7 +608,7 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
-    if (((colField[*index].type == TSDB_DATA_TYPE_VARCHAR || colField[*index].type == TSDB_DATA_TYPE_GEOMETRY) &&
+    if (((colField[*index].type == TSDB_DATA_TYPE_VARCHAR  || colField[*index].type == TSDB_DATA_TYPE_VARBINARY || colField[*index].type == TSDB_DATA_TYPE_GEOMETRY) &&
          (colField[*index].bytes - VARSTR_HEADER_SIZE) < kv->length) ||
         (colField[*index].type == TSDB_DATA_TYPE_NCHAR &&
          ((colField[*index].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE < kv->length))) {
@@ -627,7 +639,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
     }
   }
 
-  if ((type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+  if ((type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     result = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
   } else if (type == TSDB_DATA_TYPE_NCHAR && result > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
     result = (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
@@ -635,7 +647,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
 
   if (type == TSDB_DATA_TYPE_NCHAR) {
     result = result * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-  } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+  } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
     result = result + VARSTR_HEADER_SIZE;
   }
   return result;
@@ -679,7 +691,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
 }
 
 static int32_t getBytes(uint8_t type, int32_t length) {
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return smlFindNearestPowerOf2(length, type);
   } else {
     return tDataTypes[type].bytes;
@@ -1178,21 +1190,12 @@ void smlDestroyTableInfo(void *para) {
   taosMemoryFree(tag);
 }
 
-void clearColValArray(SArray *pCols) {
-  int32_t num = taosArrayGetSize(pCols);
-  for (int32_t i = 0; i < num; ++i) {
-    SColVal *pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
-      taosMemoryFreeClear(pCol->value.pData);
-    }
-  }
-}
-
 void freeSSmlKv(void *data) {
   SSmlKv *kv = (SSmlKv *)data;
-  if (kv->keyEscaped) taosMemoryFree((void *)(kv->key));
-  if (kv->valueEscaped) taosMemoryFree((void *)(kv->value));
+  if (kv->keyEscaped) taosMemoryFreeClear(kv->key);
+  if (kv->valueEscaped) taosMemoryFreeClear(kv->value);
   if (kv->type == TSDB_DATA_TYPE_GEOMETRY) geosFreeBuffer((void *)(kv->value));
+  if (kv->type == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(kv->value);
 }
 
 void smlDestroyInfo(SSmlHandle *info) {
