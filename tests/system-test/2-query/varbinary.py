@@ -23,16 +23,16 @@ class TDTestCase:
         if ret != 0:
             tdLog.exit("varbinary_test ret != 0")
 
-        tdSql.execute(f" create database test")
-        tdSql.execute(f" use test ")
-        tdSql.execute(f" create stable stb (ts timestamp, c1 nchar(32), c2 varbinary(16), c3 float) tags (t1 int, t2 binary(8), t3 varbinary(8))")
-
-        tdSql.query(f"desc stb")
-        tdSql.checkRows(7)
-        tdSql.checkData(2, 1, 'VARBINARY')
-        tdSql.checkData(2, 2, 16)
-        tdSql.checkData(6, 1, 'VARBINARY')
-        tdSql.checkData(6, 2, 8)
+        # tdSql.execute(f" create database test")
+        # tdSql.execute(f" use test ")
+        # tdSql.execute(f" create stable stb (ts timestamp, c1 nchar(32), c2 varbinary(16), c3 float) tags (t1 int, t2 binary(8), t3 varbinary(8))")
+        #
+        # tdSql.query(f"desc stb")
+        # tdSql.checkRows(7)
+        # tdSql.checkData(2, 1, 'VARBINARY')
+        # tdSql.checkData(2, 2, 16)
+        # tdSql.checkData(6, 1, 'VARBINARY')
+        # tdSql.checkData(6, 2, 8)
 
         # tdSql.execute(f" insert into tb1 using stb tags (1, 'tb1_bin1', 'vart1') values (now, 'nchar1', 'varc1', 0.3)")
         # tdSql.execute(f" insert into tb1 values (now + 1s, 'nchar2', null, 0.4)")

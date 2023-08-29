@@ -973,6 +973,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
           goto _end;
         }
+        break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
         int32_t outputCharLen = (outputLen - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
