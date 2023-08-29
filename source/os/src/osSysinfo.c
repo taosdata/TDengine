@@ -121,11 +121,11 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 static pid_t tsProcId;
 static char  tsSysNetFile[] = "/proc/net/dev";
 static char  tsSysCpuFile[] = "/proc/stat";
+static char  tsCpuPeroidFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
+static char  tsCpuQuotaFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
 static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
 static char  tsProcIOFile[25] = {0};
-static char  tsCpuCfsPeroid[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
-static char  tsCpuCfsQuota[] = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
 
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
@@ -502,7 +502,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
   return -1;
 #else
   TdFilePtr pFile = NULL;
-  if (!(pFile = taosOpenFile(tsCpuCfsQuota, TD_FILE_READ | TD_FILE_STREAM))) {
+  if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
     goto _sys;
   }
   char qline[32] = {0};
@@ -516,7 +516,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     goto _sys;
   }
 
-  if (!(pFile = taosOpenFile(tsCpuCfsPeroid, TD_FILE_READ | TD_FILE_STREAM))) {
+  if (!(pFile = taosOpenFile(tsCpuPeroidFile, TD_FILE_READ | TD_FILE_STREAM))) {
     goto _sys;
   }
   char pline[32] = {0};
