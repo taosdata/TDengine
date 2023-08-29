@@ -362,7 +362,7 @@ do
         start_taosd_count=0
         start_taosadapter_count=0
     fi
-    if [ "$status"x = "0"x ];then
+    if [ "$status"x = "0"x ]; then
         td_cluster_check "CheckClusterStatus"
         if [ $? = 0]; then
             logger "INFO" "start taosd count: ${start_taosd_count}"
@@ -457,7 +457,7 @@ do
     fi
     # check taosadapter
     nc -z localhost 6041
-    if [ $? -ne 0 ] && [ "$status"x = "6"x ] ; then
+    if [ $? -ne 0 ] && [ "$status"x = "6"x ]; then
         logger "INFO" "start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
             logger "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
