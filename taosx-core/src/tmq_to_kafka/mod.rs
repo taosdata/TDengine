@@ -18,10 +18,10 @@ pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
 }
 
 #[allow(dead_code)]
-pub async fn clean_task(from: Dsn, task_id: String) -> Result<()> {
-    let taos = TaosBuilder::from_dsn(from)?.build().await?;
-    let topic = tmq_topic_name(task_id);
-    taos.exec(format!("drop topic if exists {}", topic)).await?;
+pub async fn clean_task(from: Dsn, topic_suffix: String) -> Result<()> {
+    let conn = TaosBuilder::from_dsn(from)?.build().await?;
+    let topic = tmq_topic_name(topic_suffix);
+    conn.exec(format!("drop topic if exists {}", topic)).await?;
     Ok(())
 }
 
@@ -46,22 +46,22 @@ struct KafkaProducer {
 }
 
 impl TMQSource {
-    // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&task_id=task_id&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
+    // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&topic_suffix=topic_suffix&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
     async fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
         let mut consumer_dsn = Dsn::from(dsn.clone());
-        let group_id = "taosx_kafka_sink";
+        let group_id = "x_kafka_sink";
         consumer_dsn.set("group.id", group_id);
 
-        let taos = TaosBuilder::from_dsn(&dsn)?.build().await?;
+        let conn = TaosBuilder::from_dsn(&dsn)?.build().await?;
         let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
         let table = dsn
             .params
             .remove("table")
             .ok_or(anyhow!("table in dsn is null"))?;
-        let task_id = dsn
+        let topic_suffix = dsn
             .params
-            .remove("task_id")
-            .ok_or(anyhow!("task id is null"))?;
+            .remove("topic_suffix")
+            .ok_or(anyhow!("topic suffix is null"))?;
         let ts_field = dsn.params.remove("ts").unwrap_or("_c0".to_string());
         let start = dsn.params.remove("start");
         let end = dsn.params.remove("end");
@@ -83,11 +83,11 @@ impl TMQSource {
         if cols.is_none() && !tags.is_none() {
             return Err(anyhow!("cols is null and tags is not null"));
         }
-        let topic = tmq_topic_name(task_id);
+        let topic = tmq_topic_name(topic_suffix);
 
         let topic_sql =
             TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
-        taos.exec(&topic_sql).await?;
+        conn.exec(&topic_sql).await?;
 
         Ok(TMQSource {
             consumer_dsn,
@@ -297,6 +297,6 @@ impl KafkaSinker {
 }
 
 // tmq topic is base on task id
-fn tmq_topic_name(task_id: String) -> String {
-    format!("taosx_kafka_sink_{}", task_id)
+fn tmq_topic_name(topic_suffix: String) -> String {
+    format!("x_kafka_sink_{}", topic_suffix)
 }
