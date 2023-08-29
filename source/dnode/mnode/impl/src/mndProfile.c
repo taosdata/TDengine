@@ -309,15 +309,14 @@ _CONNECT:
 
   code = 0;
 
-  char detail[1000] = {0};
-
-  char obj[30] = {0};
+  char obj[100] = {0};
   sprintf(obj, "%s:%d", ip, pConn->port);
 
-  sprintf(detail, "user:%s, from:%s, connType%d", 
-          connReq.user, obj, connReq.connType);
+  char detail[1000] = {0};
+  sprintf(detail, "connType:%d, db:%s, pid:%d, startTime:%" PRId64 ", sVer:%s, app:%s", 
+          connReq.connType, connReq.db, connReq.pid, connReq.startTime, connReq.sVer, connReq.app);
 
-  auditRecord(pReq, pMnode->clusterId, "login", connReq.app, obj, detail);
+  auditRecord(pReq, pMnode->clusterId, "login", connReq.user, obj, detail);
 
 _OVER:
 
