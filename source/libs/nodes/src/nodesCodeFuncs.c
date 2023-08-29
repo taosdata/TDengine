@@ -2327,7 +2327,7 @@ static int32_t jsonToPhysiMergeNode(const SJson* pJson, void* pObj) {
 static const char* jkSortPhysiPlanExprs = "Exprs";
 static const char* jkSortPhysiPlanSortKeys = "SortKeys";
 static const char* jkSortPhysiPlanTargets = "Targets";
-static const char* jkSortPhysiPlanMaxRows = "MaxRows";
+static const char* jkSortPhysiPlanCalcGroupIds = "CalcGroupIds";
 
 static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
@@ -2341,6 +2341,9 @@ static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSortPhysiPlanTargets, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSortPhysiPlanCalcGroupIds, pNode->calcGroupId);
   }
 
   return code;
@@ -2358,6 +2361,9 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSortPhysiPlanTargets, &pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSortPhysiPlanCalcGroupIds, &pNode->calcGroupId);
   }
 
   return code;

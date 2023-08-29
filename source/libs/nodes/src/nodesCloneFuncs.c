@@ -531,6 +531,7 @@ static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pSortKeys);
   COPY_SCALAR_FIELD(groupSort);
+  COPY_SCALAR_FIELD(calcGroupId);
   return TSDB_CODE_SUCCESS;
 }
 

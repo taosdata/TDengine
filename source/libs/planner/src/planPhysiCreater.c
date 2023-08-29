@@ -1749,6 +1749,7 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pSortKeys = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pSortLogicNode->pSortKeys, &pPrecalcExprs, &pSortKeys);
+  pSort->calcGroupId = pSortLogicNode->calcGroupId;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   // push down expression to pOutputDataBlockDesc of child node

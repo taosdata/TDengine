@@ -279,8 +279,8 @@ typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
   bool       groupSort;
-  int64_t    maxRows;
   bool       skipPKSortOpt;
+  bool       calcGroupId;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -603,6 +603,7 @@ typedef struct SSortPhysiNode {
   SNodeList* pExprs;     // these are expression list of order_by_clause and parameter expression of aggregate function
   SNodeList* pSortKeys;  // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
   SNodeList* pTargets;
+  bool       calcGroupId;
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;

@@ -18,6 +18,7 @@ python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
 python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
+python3 ./test.py -f 2-query/partition_by_col.py -Q 4
 python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py

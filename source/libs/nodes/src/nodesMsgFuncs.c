@@ -2746,7 +2746,7 @@ static int32_t msgToPhysiMergeNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_SORT_CODE_BASE_NODE = 1, PHY_SORT_CODE_EXPR, PHY_SORT_CODE_SORT_KEYS, PHY_SORT_CODE_TARGETS };
+enum { PHY_SORT_CODE_BASE_NODE = 1, PHY_SORT_CODE_EXPR, PHY_SORT_CODE_SORT_KEYS, PHY_SORT_CODE_TARGETS, PHY_SORT_CODE_CALC_GROUPID };
 
 static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
@@ -2760,6 +2760,9 @@ static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_SORT_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_SORT_CODE_CALC_GROUPID, pNode->calcGroupId);
   }
 
   return code;
@@ -2783,6 +2786,9 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_CODE_TARGETS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
+        break;
+      case PHY_SORT_CODE_CALC_GROUPID:
+        code = tlvDecodeBool(pTlv, &pNode->calcGroupId);
         break;
       default:
         break;

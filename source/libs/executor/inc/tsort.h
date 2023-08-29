@@ -194,6 +194,8 @@ void tsortSetClosed(SSortHandle* pHandle);
 void tsortSetSingleTableMerge(SSortHandle* pHandle);
 void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
 
+int32_t tsortBuildKeys(SArray* pSortGroupCols, SArray* pColVals, STupleHandle* pTuple, char* keyBuf);
+
 #ifdef __cplusplus
 }
 #endif

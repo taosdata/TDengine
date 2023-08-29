@@ -430,6 +430,17 @@ bool getBatchScanOptionFromHint(SNodeList* pList) {
   return batchScan;
 }
 
+bool getSortForGroupOptHint(SNodeList* pList) {
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_SORT_FOR_GROUP) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   SLogicNode* pCurr = (SLogicNode*)pNode;

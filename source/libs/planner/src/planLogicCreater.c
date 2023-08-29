@@ -990,7 +990,6 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
       return createWindowLogicNodeByState(pCxt, (SStateWindowNode*)pSelect->pWindow, pSelect, pLogicNode);

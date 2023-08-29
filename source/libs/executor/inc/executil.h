@@ -196,4 +196,24 @@ void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t 
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);
+
+/**
+ * @brief extract col data according to sort/group cols
+ * @param pSortGroupCols sort keys or group keys, array of SColumnNode
+ * @param [out] pColVals col vals extracted, array of SGroupKeys
+ */
+void extractCols(SArray* pSortGroupCols, SArray* pColVals, SSDataBlock* pBlock, int32_t rowIndex);
+/**
+ * @breif build keys buffer with col values
+ * @retval key length
+ * @param [out] buf buffer to store result key
+ */
+int32_t buildKeys(char* buf, SArray* pColVals);
+
+uint64_t calcGroupId(char *pData, int32_t len);
+
+SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
+
+int32_t extractSortGroupKeysInfo(SArray** pColVals, int32_t* keyLen, char** keyBuf, const SArray* pColList);
+
 #endif  // TDENGINE_EXECUTIL_H

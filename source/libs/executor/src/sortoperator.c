@@ -19,18 +19,29 @@
 #include "querytask.h"
 #include "tdatablock.h"
 
+typedef struct SSortOpGroupIdCalc {
+  STupleHandle* pSavedTuple;
+  SArray*       pSortColsArr;
+  SArray*       pSortColVals;
+  char*         keyBuf;
+  char*         lastKeyBuf;
+  int32_t       lastKeysLen;
+  uint64_t      lastGroupId;
+} SSortOpGroupIdCalc;
+
 typedef struct SSortOperatorInfo {
-  SOptrBasicInfo binfo;
-  uint32_t       sortBufSize;  // max buffer size for in-memory sort
-  SArray*        pSortInfo;
-  SSortHandle*   pSortHandle;
-  SColMatchInfo  matchInfo;
-  int32_t        bufPageSize;
-  int64_t        startTs;      // sort start time
-  uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
-  SLimitInfo     limitInfo;
-  uint64_t       maxTupleLength;
-  int64_t        maxRows;
+  SOptrBasicInfo      binfo;
+  uint32_t            sortBufSize;  // max buffer size for in-memory sort
+  SArray*             pSortInfo;
+  SSortHandle*        pSortHandle;
+  SColMatchInfo       matchInfo;
+  int32_t             bufPageSize;
+  int64_t             startTs;      // sort start time
+  uint64_t            sortElapsed;  // sort elapsed time, time to flush to disk not included.
+  SLimitInfo          limitInfo;
+  uint64_t            maxTupleLength;
+  int64_t             maxRows;
+  SSortOpGroupIdCalc* pGroupIdCalc;
 } SSortOperatorInfo;
 
 static SSDataBlock* doSort(SOperatorInfo* pOperator);
@@ -39,6 +50,8 @@ static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain
 
 static void destroySortOperatorInfo(void* param);
 static int32_t calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeList* pSortKeys);
+
+static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
 // todo add limit/offset impl
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo) {
@@ -78,6 +91,35 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+
+  if (pSortNode->calcGroupId) {
+    SSortOpGroupIdCalc* pGroupIdCalc = taosMemoryCalloc(1, sizeof(SSortOpGroupIdCalc));
+    if (!pGroupIdCalc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    SNodeList* pSortColsNodeArr = makeColsNodeArrFromSortKeys(pSortNode->pSortKeys);
+    if (!pSortColsNodeArr) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (TSDB_CODE_SUCCESS == code) {
+      pGroupIdCalc->pSortColsArr = makeColumnArrayFromList(pSortColsNodeArr);
+      if (!pGroupIdCalc->pSortColsArr) code = TSDB_CODE_OUT_OF_MEMORY;
+      nodesClearList(pSortColsNodeArr);
+    }
+    int32_t keyLen;
+    if (TSDB_CODE_SUCCESS == code)
+      code = extractSortGroupKeysInfo(&pGroupIdCalc->pSortColVals, &keyLen, &pGroupIdCalc->keyBuf,
+                                      pGroupIdCalc->pSortColsArr);
+    if (TSDB_CODE_SUCCESS == code) {
+      pGroupIdCalc->lastKeysLen = 0;
+      pGroupIdCalc->lastKeyBuf = taosMemoryCalloc(1, keyLen);
+      if (!pGroupIdCalc->lastKeyBuf) code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pInfo->pGroupIdCalc = pGroupIdCalc;
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) goto _error;
+
   pInfo->binfo.inputTsOrder = pSortNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pSortNode->node.outputTsOrder;
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
@@ -129,6 +171,47 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   pBlock->info.rows += 1;
 }
 
+/**
+ * @brief get next tuple with group id attached, all tuples fetched from tsortNextTuple are sorted by group keys
+ * @param pBlock the output block, the group id will be saved in it
+ * @retval NULL if next group tuple arrived, the pre fetched tuple will be saved in pInfo.pSavedTuple
+ */
+static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pInfo, SSDataBlock* pBlock) {
+  STupleHandle *ret = pInfo->pGroupIdCalc->pSavedTuple;
+  pInfo->pGroupIdCalc->pSavedTuple = NULL;
+  if (!ret) {
+    ret = tsortNextTuple(pHandle);
+  }
+
+  if (ret) {
+    int32_t len = tsortBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->pSortColVals, ret,
+                                 pInfo->pGroupIdCalc->keyBuf);
+    bool    newGroup = len != pInfo->pGroupIdCalc->lastKeysLen
+                           ? true
+                           : memcmp(pInfo->pGroupIdCalc->lastKeyBuf, pInfo->pGroupIdCalc->keyBuf, len) != 0;
+    bool    emptyBlock = pBlock->info.rows == 0;
+    if (newGroup && !emptyBlock) {
+      // new group arrived, and we have already copied some tuples for cur group, save the new group tuple, return NULL
+      pInfo->pGroupIdCalc->pSavedTuple = ret;
+      ret = NULL;
+    } else {
+      if (newGroup) {
+        ASSERT(emptyBlock);
+        pInfo->pGroupIdCalc->lastKeysLen = len;
+        pInfo->pGroupIdCalc->lastGroupId = pBlock->info.id.groupId = calcGroupId(pInfo->pGroupIdCalc->keyBuf, len);
+        TSWAP(pInfo->pGroupIdCalc->keyBuf, pInfo->pGroupIdCalc->lastKeyBuf);
+      } else if (emptyBlock) {
+        // new block but not new group, assign last group id to it
+        pBlock->info.id.groupId = pInfo->pGroupIdCalc->lastGroupId;
+      } else {
+        // not new group and not empty block and ret NOT NULL, just return the tuple
+      }
+    }
+  }
+
+  return ret;
+}
+
 SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
@@ -140,8 +223,13 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
   blockDataEnsureCapacity(p, capacity);
 
+  STupleHandle* pTupleHandle;
   while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
+    if (pInfo->pGroupIdCalc) {
+      pTupleHandle = nextTupleWithGroupId(pHandle, pInfo, p);
+    } else {
+      pTupleHandle = tsortNextTuple(pHandle);
+    }
     if (pTupleHandle == NULL) {
       break;
     }
@@ -168,6 +256,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.scanFlag = p->info.scanFlag;
+    pDataBlock->info.id.groupId = p->info.id.groupId;
   }
 
   blockDataDestroy(p);
@@ -281,6 +370,7 @@ void destroySortOperatorInfo(void* param) {
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
+  destroySortOpGroupIdCalc(pInfo->pGroupIdCalc);
   taosMemoryFreeClear(param);
 }
 
@@ -307,6 +397,20 @@ static int32_t calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNod
     pSortOperInfo->maxTupleLength += ((SColumnNode*)pOrderExprNode->pExpr)->node.resType.bytes;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc) {
+  if (pCalc) {
+    for (int i = 0; i < taosArrayGetSize(pCalc->pSortColVals); i++) {
+      SGroupKeys key = *(SGroupKeys*)taosArrayGet(pCalc->pSortColVals, i);
+      taosMemoryFree(key.pData);
+    }
+    taosArrayDestroy(pCalc->pSortColVals);
+    taosArrayDestroy(pCalc->pSortColsArr);
+    taosMemoryFree(pCalc->keyBuf);
+    taosMemoryFree(pCalc->lastKeyBuf);
+    taosMemoryFree(pCalc);
+  }
 }
 
 //=====================================================================================

@@ -244,7 +244,12 @@ static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
     }
     pChild = nodesListGetNode(((SLogicNode*)pChild)->pChildren, 0);
   }
-  return (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild));
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild)) {
+    return true;
+  } else if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pChild)) {
+    return stbSplHasMultiTbScan(streamQuery, (SLogicNode*)pChild);
+  }
+  return false;
 }
 
 static bool stbSplIsMultiTbScanChild(bool streamQuery, SLogicNode* pNode) {

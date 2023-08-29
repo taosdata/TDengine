@@ -635,20 +635,6 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
   return pPage;
 }
 
-uint64_t calcGroupId(char* pData, int32_t len) {
-  T_MD5_CTX context;
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)pData, len);
-  tMD5Final(&context);
-
-  // NOTE: only extract the initial 8 bytes of the final MD5 digest
-  uint64_t id = 0;
-  memcpy(&id, context.digest, sizeof(uint64_t));
-  if (0 == id)
-    memcpy(&id, context.digest + 8, sizeof(uint64_t));
-  return id;
-}
-
 int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
   size_t   numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   int32_t* offset = taosMemoryCalloc(numOfCols, sizeof(int32_t));

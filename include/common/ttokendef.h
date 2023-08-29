@@ -365,6 +365,7 @@
 #define TK_NK_BIN           605  // bin format data 0b111
 #define TK_BATCH_SCAN       606
 #define TK_NO_BATCH_SCAN    607
+#define TK_SORT_FOR_GROUP   608
 
 
 #define TK_NK_NIL 65535

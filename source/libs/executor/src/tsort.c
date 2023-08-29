@@ -25,6 +25,7 @@
 #include "tsort.h"
 #include "tutil.h"
 #include "tsimplehash.h"
+#include "executil.h"
 
 struct STupleHandle {
   SSDataBlock* pBlock;
@@ -1552,4 +1553,9 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   }
 
   return info;
+}
+
+int32_t tsortBuildKeys(SArray* pSortGroupCols, SArray* pColVals, STupleHandle* pTuple, char* keyBuf) {
+  extractCols(pSortGroupCols, pColVals, pTuple->pBlock, pTuple->rowIndex);
+  return buildKeys(keyBuf, pColVals);
 }

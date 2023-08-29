@@ -2042,6 +2042,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
 
   int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
+  TSWAP(pProjectNode->node.pHint, pChild->pHint);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
@@ -3587,6 +3588,67 @@ static int32_t stableJoinOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   return stbJoinOptRewriteStableJoin(pCxt, pNode, pLogicSubplan);
 }
 
+static bool partColOptShouldBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
+    if (pPartition->node.pParent && nodeType(pPartition->node.pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) return false;
+    if (planOptNodeListHasCol(pPartition->pPartitionKeys)) return true;
+  }
+  return false;
+}
+
+static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
+  SNode* node;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSortLogicNode* pSort = (SSortLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT);
+  if (pSort) {
+    pSort->groupSort = false;
+    TSWAP(pSort->node.pChildren, pPartition->node.pChildren);
+    FOREACH(node, pPartition->pPartitionKeys) {
+      SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+      if (!pOrder) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
+        pOrder->order = ORDER_ASC;
+        pOrder->pExpr = nodesCloneNode(node);
+        if (!pOrder->pExpr) code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pSort->node.pTargets = nodesCloneList(((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0))->pTargets);
+    if (!pSort->node.pTargets) code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pSort);
+    pSort = NULL;
+  }
+  return pSort;
+}
+
+static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SPartitionLogicNode* pNode = (SPartitionLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, partColOptShouldBeOptimized);
+  if (NULL == pNode) return TSDB_CODE_SUCCESS;
+
+  SLogicNode* pRootNode = getLogicNodeRootNode((SLogicNode*)pNode);
+  if (!pRootNode->pHint || !getSortForGroupOptHint(pRootNode->pHint)) {
+    return code;
+  }
+
+  // replace with sort node
+  SSortLogicNode* pSort = partColOptCreateSort(pNode);
+  if (!pSort) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (code == TSDB_CODE_SUCCESS) {
+    pSort->calcGroupId = true;
+    code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pCxt->optimized = true;
+  }
+  return code;
+}
 
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
@@ -3606,6 +3668,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize},
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
+  {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
 };
 // clang-format on
 
