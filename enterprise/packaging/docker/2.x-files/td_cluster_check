@@ -11,10 +11,15 @@ logging "INFO" "td cluster check begins"
 
 FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
 FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o|head -n1|sed 's/firstEp *//')
+SECOND_EP=$(taosd -C|grep -E 'secondEp.*(\S+)' -o|head -n1|sed 's/secondEp *//')
 
 # parse first ep host and port
 FIRST_EP_HOST=${FIRSET_EP%:*}
 FIRST_EP_PORT=${FIRSET_EP#*:}
+
+SECOND_EP_HOST=${SECOND_EP%:*}
+SECOND_EP_PORT=${SECOND_EP#*:}
+
 
 TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-10}
 ENDPOINT=$FQDN:$SERVER_PORT
@@ -22,6 +27,8 @@ ENDPOINT=$FQDN:$SERVER_PORT
 logging "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
 logging "INFO" "FIRST_EP_HOST: ${FIRST_EP_HOST}"
 logging "INFO" "FIRST_EP_PORT: ${FIRST_EP_PORT}"
+logging "INFO" "SECOND_EP_HOST: ${SECOND_EP_HOST}"
+logging "INFO" "SECOND_EP_PORT: ${SECOND_EP_PORT}"
 logging "INFO" "ENDPOINT: ${ENDPOINT}"
 
 param1=$1
@@ -38,23 +45,50 @@ if [[ "$param1" == "CheckClusterStatus" ]];then
     logging "INFO" "CheckClusterStatus begin"
     # get dnode id
     output=$(timeout $TAOS_TIMEOUT_SECOND taos -w 2000 -s "show dnodes;" | grep -E "td-transport" | grep -E -v "$ENDPOINT"  | awk '{split($0,a,"|");print a[1]}' | awk '{gsub(/ /,"")}1' )
-    IFS=$'\n' read -r -d '' -a dnodesArray <<< "$output"
- 
-    for dnodeId in "${dnodesArray[@]}"
-    do
-        logging "INFO" "check dnode --$dnodeId--"
-        # get vgroup status
-        VGroupStatusTmp=$(timeout $TAOS_TIMEOUT_SECOND taos  -w 2000 -s "show vnodes on dnode $dnodeId;" | grep -i false)
-        if [[ "$VGroupStatusTmp" != "" ]]; then
-            logger "ERROR" "there is vgroup not ready ！！ $VGroupStatusTmp"
-            exit 1
-        fi
-    done
+    output=$(timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show dnodes;" $FIRST_EP_HOST:6041/rest/sql)
+    CURRENET_EP=$FIRST_EP_HOST
 
-    logging "INFO" "CheckClusterStatus OK"
-    exit 0
+    if [[ 0 = $(echo "$output" | jq -r '.code') ]] ;then
+        :
+    else
+        output=$(timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show dnodes;" $SECOND_EP_HOST:6041/rest/sql)
+        CURRENET_EP=$SECOND_EP_HOST
+    fi        
+
+    logging "INFO" "output: $output"
+
+    if [[ 0 = $(echo "$output" | jq -r '.code') ]] ;then
+        i=0
+        rows=$(echo "$output" | jq -r '.rows')
+        while [ $i -lt $rows ] 
+        do
+            name=$(echo "$output" | jq -r ".data[$i][1]")
+            dnodeId=$(echo "$output" | jq -r ".data[$i][0]")
+
+            logging "INFO" "name: $name"
+            logging "INFO" "dnodeId: $dnodeId"
+
+
+            if [[ $name == *$ENDPOINT* ]] ;then
+                :
+            else
+                logging "INFO" "check dnode --$dnodeId--"
+                # get vgroup status
+                VGroupStatusTmp=$(timeout $TAOS_TIMEOUT_SECOND curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show vnodes on dnode $dnodeId;" $CURRENET_EP:6041/rest/sql | grep -i false )
+                if [[ "$VGroupStatusTmp" != "" ]]; then
+                    logging "ERROR" "there is vgroup not ready ！！ $VGroupStatusTmp"
+                    exit 1
+                fi
+            fi
+            let i++
+        done
+        logging "INFO" "CheckClusterStatus OK"
+        exit 0
+    else
+        logging "ERROR" "CheckClusterStatus failed"
+        exit 1
+    fi
 fi
-
 
 
 # get dnode id
@@ -72,7 +106,7 @@ if [[ "$VGroupStatusTmp" == "" ]]; then
     logging "INFO" "All vgroup is ready!!"
     exit 0
 else 
-    logger "ERROR" "there is vgroup not ready ！！ $VGroupStatusTmp"
+    logging "ERROR" "there is vgroup not ready ！！ $VGroupStatusTmp"
     exit 1
 fi
 
