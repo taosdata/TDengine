@@ -1019,7 +1019,7 @@ int32_t doStreamIntervalEncodeOpState(void** buf, int32_t len, SOperatorInfo* pO
   size_t  keyLen = 0;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pInfo->aggSup.pResultRowHashTable, pIte, &iter)) != NULL) {
-    void* key = taosHashGetKey(pIte, &keyLen);
+    void* key = tSimpleHashGetKey(pIte, &keyLen);
     tlen += encodeSWinKey(buf, key);
   }
 
