@@ -111,6 +111,7 @@ class TDTestCase:
         tdSql.error(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
         tdSql.error(f"select b.* from sta a, stb b where a.tg1=b.tg1 or a.ts=b.ts;")
         tdSql.error(f"select a.* from sta a join stb b on a.ts=b.ts where a.tg1=b.tg1 or a.tg2=b.tg2;"); #!!!!make it work
+        tdSql.error(f"select mavg(col1,3) from (select a.col1 from sta a, stb b where a.ts = b.ts);")
 
     def stop(self):
         tdSql.close()
