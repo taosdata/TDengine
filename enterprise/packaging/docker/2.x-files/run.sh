@@ -363,16 +363,19 @@ do
         start_taosadapter_count=0
     fi
     if [ "$status"x = "0"x ];then
-        logger "INFO" "start taosd count: ${start_taosd_count}"
-        if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
-            logger "ERROR" "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
-            break
+        td_cluster_check "CheckClusterStatus"
+        if [ $? = 0]; then
+            logger "INFO" "start taosd count: ${start_taosd_count}"
+            if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
+                logger "ERROR" "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
+                break
+            fi
+            start_taosd_count=$(( start_taosd_count + 1 ))
+            # taosd_start_time=`date +%s`
+            run_taosd &
+            pid=$!
+            clustercheckneeded="0"
         fi
-        start_taosd_count=$(( start_taosd_count + 1 ))
-        # taosd_start_time=`date +%s`
-        run_taosd &
-        pid=$!
-        clustercheckneeded="0"
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
