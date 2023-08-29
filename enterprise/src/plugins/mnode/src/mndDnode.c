@@ -187,7 +187,10 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   char obj[32] = {0};
   sprintf(obj, "%d", restoreReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "restoreDnode", obj, "", "");
+  char detail[100] = {0};
+  sprintf(detail, "%d", restoreReq.restoreType);
+
+  auditRecord(pReq, pMnode->clusterId, "restoreDnode", obj, "", detail);
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to restore, restoreType:%d,  since %s", 
