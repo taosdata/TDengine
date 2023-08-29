@@ -123,7 +123,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
     if (taosIsDir(tdir)) {
       validChkp = 1;
       qInfo("%s start to read snap %s", STREAM_STATE_TRANSFER, tdir);
-      streamBackendAddInUseChkpPos(pMeta, chkpId);
+      streamBackendAddInUseChkp(pMeta, chkpId);
     } else {
       qWarn("%s failed to read from %s, reason: dir not exist,retry to default state dir", STREAM_STATE_TRANSFER, tdir);
     }

@@ -49,11 +49,6 @@ void    metaRefMgtInit();
 void    metaRefMgtCleanup();
 int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
 
-void metaRefMgtInit() {
-  taosThreadMutexInit(&(gMetaRefMgt.mutex), NULL);
-  gMetaRefMgt.pTable = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-}
-
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
@@ -70,6 +65,11 @@ void streamMetaCleanup() {
   taosCloseRef(streamMetaId);
 
   metaRefMgtCleanup();
+}
+
+void metaRefMgtInit() {
+  taosThreadMutexInit(&(gMetaRefMgt.mutex), NULL);
+  gMetaRefMgt.pTable = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 }
 
 void metaRefMgtCleanup() {

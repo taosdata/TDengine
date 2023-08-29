@@ -909,7 +909,7 @@ _ERROR:
   taosArrayDestroy(refs);
   return code;
 }
-int32_t streamBackendAddInUseChkpPos(void* arg, int64_t chkpId) {
+int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId) {
   if (arg == NULL) return 0;
 
   SStreamMeta* pMeta = arg;
