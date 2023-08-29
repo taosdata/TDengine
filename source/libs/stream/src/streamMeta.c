@@ -254,7 +254,16 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
 void streamMetaClear(SStreamMeta* pMeta) {
   void* pIter = NULL;
   while ((pIter = taosHashIterate(pMeta->pTasks, pIter)) != NULL) {
-    streamMetaReleaseTask(pMeta, *(SStreamTask**)pIter);
+    SStreamTask* p = *(SStreamTask**)pIter;
+
+    // release the ref by timer
+    if (p->triggerParam != 0 && p->info.fillHistory == 0) {  // one more ref in timer
+      taosTmrStop(p->schedTimer);
+      p->triggerParam = 0;
+      streamMetaReleaseTask(pMeta, p);
+    }
+
+    streamMetaReleaseTask(pMeta, p);
   }
 
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);

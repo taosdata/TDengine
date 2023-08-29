@@ -106,7 +106,7 @@ typedef struct {
   int8_t type;
 } SStreamQueueItem;
 
-typedef void    FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+typedef void    FTbSink(SStreamTask* pTask, void* vnode, void* data);
 typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
 
 typedef struct {

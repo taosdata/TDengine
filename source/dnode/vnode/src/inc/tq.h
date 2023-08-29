@@ -155,7 +155,7 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 // tqSink
 int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
-void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
