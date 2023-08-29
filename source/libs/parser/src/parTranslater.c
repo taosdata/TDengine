@@ -2796,6 +2796,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       break;
     }
     case QUERY_NODE_JOIN_TABLE: {
+      ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
       SJoinTableNode* pJoinTable = (SJoinTableNode*)pTable;
       code = translateTable(pCxt, pJoinTable->pLeft);
       if (TSDB_CODE_SUCCESS == code) {

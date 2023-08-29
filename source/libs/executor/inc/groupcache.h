@@ -33,7 +33,6 @@ typedef struct SGcBlkBufBasic {
 #pragma pack(pop)
 
 typedef struct SGroupCacheFileFd {
-  TdThreadMutex mutex;
   TdFilePtr     fd;
 } SGroupCacheFileFd;
 
@@ -53,44 +52,24 @@ typedef struct SGcFileCacheCtx {
 
 typedef struct SGcDownstreamCtx {
   int32_t         id;
-  SRWLatch        grpLock;
-  int64_t         fetchSessionId;
-  SArray*         pNewGrpList; // SArray<SGcNewGroupInfo>
-  SSHashObj*      pVgTbHash;   // SHash<SGcVgroupCtx>
   SHashObj*       pGrpHash;
-  SRWLatch        blkLock;
   SSDataBlock*    pBaseBlock;
-  SArray*         pFreeBlock;
   int64_t         lastBlkUid;
   SHashObj*       pSessions;  
-  SHashObj*       pWaitSessions; 
   SGcFileCacheCtx fileCtx;
 } SGcDownstreamCtx;
 
-typedef struct SGcVgroupCtx {
-  int32_t         id;
-  SArray*         pTbList;
-  uint64_t        lastBlkUid;
-  SGcFileCacheCtx fileCtx;
-} SGcVgroupCtx;
-
 typedef struct SGcBlkList {
-  SRWLatch         lock;
   SArray*          pList;
 } SGcBlkList;
 
 typedef struct SGroupCacheData {
-  TdThreadMutex  mutex;
-  SArray*        waitQueue;
-  bool           fetchDone;
-  bool           needCache;
-  SSDataBlock*   pBlock;
-  SGcVgroupCtx*  pVgCtx;
-  int32_t        downstreamIdx;
-  int32_t        vgId;
-  SGcBlkList     blkList;
-  int32_t        fileId;
-  int64_t        startOffset;
+  SGcDownstreamCtx* pDownstreamCtx;
+  SGcBlkList        blkList;
+  int64_t           startOffset;
+  int32_t           fileId;
+  bool              fetchDone;
+  bool              needCache;
 } SGroupCacheData;
 
 typedef struct SGroupColInfo {
@@ -109,21 +88,11 @@ typedef struct SGroupColsInfo {
   char*          pData;
 } SGroupColsInfo;
 
-typedef struct SGcNewGroupInfo {
-  int32_t          vgId;
-  int64_t          uid;
-  SGroupCacheData* pGroup;
-  SOperatorParam*  pParam;
-} SGcNewGroupInfo;
-
 typedef struct SGcSessionCtx {
   int32_t           downstreamIdx;
-  SGcOperatorParam* pParam;
+  SOperatorParam*   pParam;
   SGroupCacheData*  pGroupData;
   int64_t           lastBlkId;
-  bool              semInit;
-  tsem_t            waitSem;
-  bool              newFetch;
   int64_t           resRows;
 } SGcSessionCtx;
 
@@ -146,11 +115,9 @@ typedef struct SGcCacheFile {
 } SGcCacheFile;
 
 typedef struct SGcBlkCacheInfo {
-  SRWLatch       dirtyLock;
   SHashObj*      pDirtyBlk;
   SGcBlkBufInfo* pDirtyHead;
   SGcBlkBufInfo* pDirtyTail; 
-  SHashObj*      pReadBlk;
   int64_t        blkCacheSize;
   int32_t        writeDownstreamId;  
 } SGcBlkCacheInfo;

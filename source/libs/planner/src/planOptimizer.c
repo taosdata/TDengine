@@ -818,7 +818,7 @@ static bool pushDownCondOptIsColEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond,
   SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
   SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
 
-  *allTags = (COLUMN_TYPE_TAG == pLeft->colType) && (COLUMN_TYPE_TAG == pRight->colType);
+  *allTags = (COLUMN_TYPE_TAG == pLeft->colType || COLUMN_TYPE_TBNAME == pLeft->colType) && (COLUMN_TYPE_TAG == pRight->colType || COLUMN_TYPE_TBNAME == pRight->colType);
 
   if (OP_TYPE_EQUAL != pOper->opType) {
     return false;
