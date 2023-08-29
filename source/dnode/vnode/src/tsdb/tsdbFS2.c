@@ -637,7 +637,7 @@ _exit:
   } else {
     tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
-  return 0;
+  return code;
 }
 
 static int32_t close_file_system(STFileSystem *fs) {
@@ -730,7 +730,7 @@ _exit:
   } else {
     tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
-  return 0;
+  return code;
 }
 
 static void tsdbDoWaitBgTask(STFileSystem *fs, STFSBgTask *task) {
