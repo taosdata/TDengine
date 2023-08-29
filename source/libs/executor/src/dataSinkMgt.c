@@ -43,12 +43,12 @@ int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, D
   switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return createDataDispatcher(pManager, pDataSink, pHandle);
-    case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return createDataDeleter(pManager, pDataSink, pHandle, pParam);
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
       return createDataInserter(pManager, pDataSink, pHandle, pParam);
-    }
+    case QUERY_NODE_PHYSICAL_PLAN_SHUFFLE:
+      return createDataShuffler(pManager, pDataSink, pHandle, pParam);
     default:
       break;
   }
