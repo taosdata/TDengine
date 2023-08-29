@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -91,8 +91,17 @@ pub async fn csv_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
     let socket = format!("127.0.0.1:{}", port);
-    let (abort, mut closed) =
-        build_ipc(&socket, parser, &to, &cancel, with_agent, transferred).await?;
+    let mut ipc_handler = build_ipc(
+        &socket,
+        parser,
+        &to,
+        Some("csv"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+    )
+    .await?;
 
     let mut source = CsvSource::new(&mut from, port)?;
 
@@ -122,7 +131,7 @@ pub async fn csv_to_taos(
             status = worker => {
                 match status? {
                     Ok(_) => {
-                        match closed.try_recv() {
+                        match ipc_handler.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
                                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -135,17 +144,17 @@ pub async fn csv_to_taos(
                         }
                     }
                     Err(err) => {
-                        let _ = abort.send(());
+                        let _ = ipc_handler.close().await;
                         port_pool.put(port);
                         anyhow::bail!("CSV exit with error: {:#}", err);
                     }
                 }
             },
-            err = closed.recv() => {
+            err = ipc_handler.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 abort_handle.abort();
                 if let Some(err) = err {
-                    let _ = abort.send(());
+                    let _ = ipc_handler.close().await;
                     port_pool.put(port);
                     anyhow::bail!("CSV writer error: {err:#}");
                 }
@@ -157,10 +166,10 @@ pub async fn csv_to_taos(
         };
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
-        // send an empty tuple
-        let _ = abort.send(());
         // stop the connector
         tracing::info!("CSV task finished");
+        // wait for handler closed
+        let _ = ipc_handler.close().await;
         // put ipc port back to port pool.
         port_pool.put(port);
         Ok(())

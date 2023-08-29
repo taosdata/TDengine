@@ -20,14 +20,13 @@ use anyhow::{bail, Context};
 use itertools::Itertools;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
-use tokio::io::AsyncBufReadExt;
+use tokio::{io::AsyncBufReadExt, sync::Mutex};
 
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
-    get_log_keep_days,
-    plugins::sink,
+    build_ipc, get_log_keep_days,
     utils::{get_string_content_from_param_value, port_pool::PortPool},
     Action, DataSet, DataSetsReq, Transferred,
 };
@@ -1030,41 +1029,28 @@ pub async fn opc_to_taos(
 
     tracing::info!("Using opc config file {}", config_path.display());
 
-    let mut table_config = None;
+    let table_config = if with_agent.is_none() {
+        Some(config.parse_tables_with(&taos).await?)
+    } else {
+        None
+    };
     let connector = match config.opc_type {
         OpcType::FAKE => None,
         OpcType::OPCDA => Some("opc_da"),
         OpcType::OPCUA => Some("opc_ua"),
     };
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = TaosBuilder::from_dsn(&to)?;
-        let target_pool = builder.pool()?;
-        let taos = target_pool.get().await?;
-        let target_pool_for_ipc = target_pool.clone();
 
-        table_config.replace(config.parse_tables_with(&taos).await?);
-        sink::listen_tcp_socket(
-            target_pool_for_ipc,
-            config.report.remote,
-            sender,
-            table_config,
-            cancel.clone(),
-            with_agent,
-            None,
-            connector,
-            transferred.clone(),
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.report.remote,
-            sender,
-            table_config,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )
-        .await?
-    };
+    let mut ipc_handler = build_ipc(
+        &config.report.remote,
+        None,
+        &to,
+        connector,
+        table_config,
+        &cancel,
+        with_agent,
+        transferred,
+    )
+    .await?;
 
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path());
@@ -1098,45 +1084,61 @@ pub async fn opc_to_taos(
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
-    {
-        let mut child = child.spawn()?;
 
-        let stderr = child.stderr.take().expect("Failed to capture stderr");
-        tokio::spawn(async move {
-            let mut reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            loop {
-                // Read a line from stderr
-                let bytes_read = reader.read_line(&mut line).await.unwrap();
-                if bytes_read == 0 {
-                    break; // End of stream, exit the loop
-                }
-                // Write the line to log_rotation
-                write!(log_rotation, "{}", line).unwrap();
-                line.clear();
+    let mut child = child.spawn()?;
+    const ERROR_BUF_SIZE: usize = 2;
+    let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
+    let error_buf_producer = error_buf.clone();
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            // Read a line from stderr
+            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            if bytes_read == 0 {
+                break; // End of stream, exit the loop
             }
-            Ok::<(), std::io::Error>(())
-        });
 
-        tokio::spawn(async move {
+            if line.contains("panic") {
+                use ringbuf::Rb;
+                let mut guard = error_buf_producer.lock().await;
+                let _ = guard.push_overwrite(line.clone());
+            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line).unwrap();
+            line.clear();
+        }
+        Ok::<(), std::io::Error>(())
+    });
+
+    tokio::spawn(async move {
+            macro_rules! safe_exit {
+            () => {
+                let _ = ipc_handler.close().await;
+                temp_path.close().unwrap();
+                port_pool.put(ipc_port);
+            };
+        }
             tokio::select! {
                 status = child.wait() => {
                     let status = status?;
                     tracing::info!("OPC exit with {}", status);
                     if !status.success() {
-                        let _ = ipc.send(());
-                        anyhow::bail!("OPC exit with {}", status);
-                        // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
+                        safe_exit!();
+                        use ringbuf::Rb;
+                        let error = error_buf.lock().await.iter().join("");
+                        anyhow::bail!("OPC exit with {}\n{error}", status);
                     }
                 },
                 // _ = tokio::signal::ctrl_c() => {
                 //     tracing::info!("Ctrl+C triggered, cancel tasks");
                 //     cancel.cancel();
                 // },
-                err = receiver.recv() => {
+                err = ipc_handler.recv_error() => {
                     tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
-                        let _ = ipc.send(());
+                        let _ = ipc_handler.close().await;
                         anyhow::bail!("OPC writer error: {err}");
                     }
                 },
@@ -1144,8 +1146,8 @@ pub async fn opc_to_taos(
                     tracing::info!("opc task cancelled");
                 },
             };
-            ipc.send(()).await?;
             let _ = child.kill().await;
+            let _ = ipc_handler.close().await;
             // terminate_child_process(pid)?;
             tracing::info!("OPC to taos task done");
             temp_path.close().unwrap();
@@ -1153,7 +1155,7 @@ pub async fn opc_to_taos(
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
         }).await??;
-    }
+
     Ok(())
 }
 

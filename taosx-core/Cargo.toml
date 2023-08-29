@@ -53,6 +53,7 @@ csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
 
 file-rotate = "0.7.5"
+ringbuf = { version =  "0.3.3" }
 
 actix-cors = "0.6.4"
 actix-web = "4"

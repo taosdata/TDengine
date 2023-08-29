@@ -38,19 +38,20 @@ pub use runners::{
     ENV_TAOSX_LOGS_KEEP_DAYS,
 };
 
+use self::runners::opc::OpcTableConfig;
+use self::sink::IpcHandler;
+
 #[instrument(skip_all, fields(ipc.listen = socket, ipc.target = %mask_dsn(to)))]
 pub async fn build_ipc(
     socket: &str,
     parser: Option<Parser>,
     to: &Dsn,
+    connector: Option<&'static str>,
+    config: Option<OpcTableConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<(
-    tokio::sync::mpsc::Sender<()>,
-    tokio::sync::mpsc::Receiver<String>,
-)> {
-    let (sender, receiver) = tokio::sync::mpsc::channel(1);
+) -> anyhow::Result<IpcHandler> {
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
         let pool = builder.pool()?;
@@ -58,25 +59,18 @@ pub async fn build_ipc(
         sink::listen_tcp_socket(
             pool,
             socket,
-            sender,
-            None,
+            // sender,
+            config,
             cancel.clone(),
             with_agent,
             parser,
-            None,
+            connector,
             transferred,
         )?
     } else {
-        sink::listen_tcp_socket_with_agent(
-            socket,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )
-        .await?
+        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap()).await?
     };
-    Ok((ipc, receiver))
+    Ok(ipc)
 }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
