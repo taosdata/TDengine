@@ -1,6 +1,6 @@
 ---
-title: 基于 Web 的系统管理工具
-description: 本节描述 TDengine 的图形化管理工具， taos-explorer， 的基本功能
+title: Web 管理工具
+description: 基于 Web 的系统管理工具
 ---
 
 ## 简介
