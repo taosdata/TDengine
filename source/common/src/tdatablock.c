@@ -1407,8 +1407,9 @@ SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-    void*            pData = colDataGetData(pSrc, rowIdx);
     bool             isNull = colDataIsNull(pSrc, pDataBlock->info.rows, rowIdx, NULL);
+    void*            pData = NULL;
+    if (!isNull) pData = colDataGetData(pSrc, rowIdx);
     colDataSetVal(pDst, 0, pData, isNull);
   }
 

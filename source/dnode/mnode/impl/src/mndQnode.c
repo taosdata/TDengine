@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "audit.h"
 
 #define QNODE_VER_NUMBER   1
 #define QNODE_RESERVE_SIZE 64
@@ -306,6 +307,10 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   code = mndCreateQnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[33] = {0};
+  sprintf(obj, "%d", createReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "createQnode", obj, "", "");
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
@@ -414,6 +419,11 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
 
   code = mndDropQnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  char obj[33] = {0};
+  sprintf(obj, "%d", dropReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "createQnode", obj, "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

@@ -286,7 +286,7 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
   run("TRIM DATABASE wxy_db");
 
   setTrimDbReq("wxy_db", 100);
-  run("TRIM DATABASE wxy_db MAX_SPEED 100");
+  run("TRIM DATABASE wxy_db BWLIMIT 100");
 }
 
 TEST_F(ParserShowToUseTest, useDatabase) {

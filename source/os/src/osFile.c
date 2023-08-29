@@ -889,13 +889,16 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   char   *data = taosMemoryMalloc(compressSize);
   gzFile  dstFp = NULL;
 
-  TdFilePtr pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
+  TdFilePtr pFile = NULL;
+  TdFilePtr pSrcFile = NULL;
+
+  pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
   if (pSrcFile == NULL) {
     ret = -1;
     goto cmp_end;
   }
 
-  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     ret = -2;
     goto cmp_end;
@@ -914,6 +917,9 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   }
 
 cmp_end:
+  if (pFile) {
+     taosCloseFile(&pFile);
+  }
   if (pSrcFile) {
     taosCloseFile(&pSrcFile);
   }

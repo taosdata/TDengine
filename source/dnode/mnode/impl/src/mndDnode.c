@@ -26,6 +26,7 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "mndCluster.h"
+#include "audit.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -517,7 +518,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    online = mndIsDnodeOnline(pDnode, curMs);
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
-  bool    needCheck = !online || dnodeChanged || reboot;
+  bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -907,6 +909,13 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   tsGrantHBInterval = 5;
+
+  char detail[1000] = {0};
+  sprintf(detail, "%s:%d", 
+          createReq.fqdn, createReq.port);
+
+  auditRecord(pReq, pMnode->clusterId, "createDnode", detail, "", "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
@@ -1054,6 +1063,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj1[150] = {0};
+  sprintf(obj1, "%s:%d", dropReq.fqdn, dropReq.port);
+
+  char obj2[10] = {0};
+  sprintf(obj2, "%d", dropReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, obj2, "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
@@ -1154,6 +1171,24 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, "ttlbatchdropnum");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #ifdef TD_ENTERPRISE
+  } else if (strncasecmp(cfgReq.config, "supportvnodes", 13) == 0) {
+    int32_t optLen = strlen("supportvnodes");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 4096) {
+      mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+    if (flag == 0) {
+      flag = tsNumOfCores * 2;
+    }
+    flag = TMAX(flag, 2);
+
+    strcpy(dcfgReq.config, "supportvnodes");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
     int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
@@ -1216,6 +1251,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
   }
+
+  char detail[50] = {0};
+  sprintf(detail, "%d", cfgReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", detail, "", "");
 
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
