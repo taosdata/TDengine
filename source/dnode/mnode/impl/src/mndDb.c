@@ -751,8 +751,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
         createReq.replications, createReq.schemaless, createReq.sstTrigger, createReq.strict,
         createReq.tsdbPageSize, createReq.walFsyncPeriod, createReq.walLevel, createReq.walRetentionPeriod,
         createReq.walRetentionSize, createReq.walRollPeriod, createReq.walSegmentSize);
+  
+  SName name = {0};
+  tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "createDB", createReq.db, "", detail);
+  auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1006,7 +1009,10 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
           alterReq.replications, alterReq.sstTrigger, alterReq.strict, alterReq.walFsyncPeriod, 
           alterReq.walRetentionSize);
 
-  auditRecord(pReq, pMnode->clusterId, "alterDB", alterReq.db, "", detail);
+  SName name = {0};
+  tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1300,7 +1306,10 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   char detail[1000] = {0};
   sprintf(detail, "ignoreNotExists:%d", dropReq.ignoreNotExists);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDB", dropReq.db, "", detail);
+  SName name = {0};
+  tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", detail);
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {

@@ -1184,7 +1184,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
           createReq.watermark1, createReq.watermark2);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", pDb->name, createReq.name, detail);
+  SName name = {0};
+  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, createReq.name, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2258,7 +2261,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   sprintf(detail, "alterType:%d, numOfFields:%d, ttl:%d" ,
           alterReq.alterType, alterReq.numOfFields, alterReq.ttl);
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", pDb->name, alterReq.name, detail);
+  SName name = {0};
+  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, alterReq.name, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2524,8 +2530,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   char detail[2000] = {0};
   sprintf(detail, "igNotExists:%d, source:%d" ,
           dropReq.igNotExists, dropReq.source);
+ 
+  SName name = {0};
+  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", pDb->name, dropReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, dropReq.name, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
