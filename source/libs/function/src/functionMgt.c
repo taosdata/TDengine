@@ -391,8 +391,12 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  snprintf((*pPartialFunc)->node.aliasName, sizeof((*pPartialFunc)->node.aliasName), "%s.%p",
-           (*pPartialFunc)->functionName, pSrcFunc);
+  char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + sizeof(pSrcFunc) + 1] = {0};
+  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
+  taosCreateMD5Hash(name, len);
+  strcpy((*pPartialFunc)->node.aliasName, name);
+  //snprintf((*pPartialFunc)->node.aliasName, sizeof((*pPartialFunc)->node.aliasName), "%s.%p",
+  //         (*pPartialFunc)->functionName, pSrcFunc);
   return TSDB_CODE_SUCCESS;
 }
 

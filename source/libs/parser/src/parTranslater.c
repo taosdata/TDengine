@@ -2831,7 +2831,7 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   pFunc->funcId = pSrcFunc->funcId;
   pFunc->funcType = pSrcFunc->funcType;
   strcpy(pFunc->functionName, pSrcFunc->functionName);
-  char    buf[TSDB_FUNC_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+  char    buf[TSDB_FUNC_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN + 3] = {0};
   int32_t len = 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
@@ -2839,16 +2839,20 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
       strcpy(pFunc->node.userAlias, pCol->colName);
       strcpy(pFunc->node.aliasName, pCol->colName);
     } else {
-      len = snprintf(buf, sizeof(buf), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
-      strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
-      len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pCol->colName);
-      strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+      taosCreateMD5Hash(buf, len);
+      strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN  - 1);
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
+      taosCreateMD5Hash(buf, len);
+      strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
     }
   } else {
-    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
-    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
-    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
-    strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    taosCreateMD5Hash(buf, len);
+    strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
+    taosCreateMD5Hash(buf, len);
+    strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
   }
 
   return (SNode*)pFunc;
