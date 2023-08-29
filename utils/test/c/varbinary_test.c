@@ -404,7 +404,7 @@ void varbinary_stmt_test(){
   v.ts = 1591060628000;
   for (int i = 0; i < 10; ++i) {
     v.ts += 1;
-    for (int j = 1; j < 11; ++j) {
+    for (int j = 1; j < 3; ++j) {
       params[j].is_null = ((i == j) ? &is_null : 0);
     }
     v.b = (int8_t)i % 2;
@@ -450,7 +450,7 @@ void varbinary_stmt_test(){
   }
   ASSERT (rows == 1);
 
-  taos_free_result(result);
+//  taos_free_result(result);
   taos_stmt_close(stmt);
 
   // query the records
@@ -483,11 +483,9 @@ void varbinary_stmt_test(){
     ASSERT(strcmp(temp, "\\x090A0B0C0D") == 0);
   }
   ASSERT (rows == 1);
-
-  taos_free_result(result);
-
+//  taos_free_result(result);
   taos_stmt_close(stmt);
-
+  taos_close(taos);
   printf("%s result success\n", __FUNCTION__);
 }
 
@@ -660,6 +658,7 @@ void varbinary_tmq_test(){
     ASSERT(0);
   }
   taos_free_result(pRes);
+  taos_close(pConn);
   printf("%s result success\n", __FUNCTION__);
 }
 

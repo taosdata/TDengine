@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
     printf("expect two rows, but %d rows are fetched\n", rows);
   }
 
-  taos_free_result(result);
+//  taos_free_result(result);
   taos_stmt_close(stmt);
 
   return 0;
