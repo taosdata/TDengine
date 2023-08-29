@@ -366,7 +366,8 @@ static SVCreateTbReq* buildAutoCreateTableReq(char* stbFullName, int64_t suid, i
 
   // set tag name
   SArray* tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
-  taosArrayPush(tagName, "group_id");
+  char k[TSDB_COL_NAME_LEN] = "group_id";
+  taosArrayPush(tagName, k);
 
   pCreateTbReq->ctb.tagName = tagName;
 
