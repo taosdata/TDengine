@@ -107,7 +107,10 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   sprintf(detail, "timeRange.ekey:%" PRId64 ", timeRange.skey:%" PRId64, 
           compactReq.timeRange.ekey, compactReq.timeRange.skey);
 
-  auditRecord(pReq, pMnode->clusterId, "compactDB", compactReq.db, "", detail);
+  SName name = {0};
+  tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
