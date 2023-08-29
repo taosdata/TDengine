@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 
   // query the records
   stmt = taos_stmt_init(taos);
-  taos_stmt_prepare(stmt, "SELECT * FROM m1 WHERE varbin > ? AND v2 < ?", 0);
+  taos_stmt_prepare(stmt, "SELECT * FROM m1 WHERE v1 > ? AND v2 < ?", 0);
   v.v1 = 5;
   v.v2 = 15;
   taos_stmt_bind_param(stmt, params + 2);
