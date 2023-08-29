@@ -666,8 +666,8 @@ void varbinary_tmq_test(){
 int main(int argc, char *argv[]) {
   int ret = 0;
 
-//  varbinary_tmq_test();
-//  varbinary_stmt_test();
+  varbinary_tmq_test();
+  varbinary_stmt_test();
   varbinary_sql_test();
   return ret;
 }
