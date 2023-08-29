@@ -82,8 +82,24 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
-  qDebug("snode:%d expand stream task on snode, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d", SNODE_HANDLE,
-         pTask->id.idStr, pTask->chkInfo.checkpointVer, pTask->info.selfChildId, pTask->info.taskLevel);
+
+  SCheckpointInfo* pChkInfo = &pTask->chkInfo;
+  // checkpoint ver is the kept version, handled data should be the next version.
+  if (pTask->chkInfo.checkpointId != 0) {
+    pTask->chkInfo.currentVer = pTask->chkInfo.checkpointVer + 1;
+    qInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
+           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer);
+  } else {
+    if (pTask->chkInfo.currentVer == -1) {
+      pTask->chkInfo.currentVer = 0;
+    }
+  }
+
+  qInfo("snode:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " currentVer:%" PRId64
+         " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
+        SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer,
+         pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
+         pTask->info.fillHistory, pTask->triggerParam);
 
   return 0;
 }
@@ -106,6 +122,10 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
+
+  // todo fix it: send msg to mnode to rollback to an existed checkpoint, and broadcast the rollback msg to all other
+  // computing nodes.
+  pSnode->pMeta->stage = 0;
 
   return pSnode;
 

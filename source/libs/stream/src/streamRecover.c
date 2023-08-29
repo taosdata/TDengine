@@ -97,8 +97,9 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     if (pTask->info.fillHistory) {
       streamSetParamForScanHistory(pTask);
+      streamTaskEnablePause(pTask);
     }
-    streamTaskEnablePause(pTask);
+
     streamTaskScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     qDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
@@ -204,14 +205,15 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   ASSERT(pInfo != NULL);
 
   if (stage == -1) {
-    qDebug("s-task:%s receive msg from upstream task:0x%x, invalid stageId:%" PRId64 ", not ready", pTask->id.idStr,
+    qDebug("s-task:%s receive check msg from upstream task:0x%x, invalid stageId:%" PRId64 ", not ready", pTask->id.idStr,
            upstreamTaskId, stage);
     return 0;
   }
 
   if (pInfo->stage == -1) {
     pInfo->stage = stage;
-    qDebug("s-task:%s receive msg from upstream task:0x%x, init stage value:%"PRId64, pTask->id.idStr, upstreamTaskId, stage);
+    qDebug("s-task:%s receive check msg from upstream task:0x%x, init stage value:%" PRId64, pTask->id.idStr,
+           upstreamTaskId, stage);
   }
 
   if (pInfo->stage < stage) {
@@ -424,14 +426,14 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   ASSERT(taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__SINK);
 
   if (pTask->status.taskStatus != TASK_STATUS__SCAN_HISTORY) {
-    qError("s-task:%s not in scan-history status, return upstream:0x%x scan-history finish directly", pTask->id.idStr,
-           pReq->upstreamTaskId);
+    qError("s-task:%s not in scan-history status, status:%s return upstream:0x%x scan-history finish directly",
+           pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), pReq->upstreamTaskId);
 
     void*   pBuf = NULL;
     int32_t len = 0;
-    SRpcMsg msg = {0};
-
     streamTaskBuildScanhistoryRspMsg(pTask, pReq, &pBuf, &len);
+
+    SRpcMsg msg = {.info = *pRpcInfo};
     initRpcMsg(&msg, 0, pBuf, sizeof(SMsgHead) + len);
 
     tmsgSendRsp(&msg);
@@ -466,7 +468,10 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
       streamTaskEnablePause(pTask);
       int32_t code = streamTaskScanHistoryDataComplete(pTask);
     } else {  // for sink task, set normal
-      streamSetStatusNormal(pTask);
+      if (pTask->status.taskStatus != TASK_STATUS__PAUSE && pTask->status.taskStatus != TASK_STATUS__STOP &&
+          pTask->status.taskStatus != TASK_STATUS__DROPPING) {
+        streamSetStatusNormal(pTask);
+      }
     }
   } else {
     qDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d",
