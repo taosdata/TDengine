@@ -4,7 +4,7 @@
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- *
+ *f
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
@@ -27,6 +27,7 @@
 #include "mndVgroup.h"
 #include "parser.h"
 #include "tname.h"
+#include "audit.h"
 
 #define MND_TOPIC_VER_NUMBER   3
 #define MND_TOPIC_RESERVE_SIZE 64
@@ -621,6 +622,8 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
+  auditRecord(pReq, pMnode->clusterId, "crateTopic", createTopicReq.name, createTopicReq.subDbName, createTopicReq.sql);
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to create topic:%s since %s", createTopicReq.name, terrstr());
@@ -812,6 +815,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     return -1;
   }
 
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", dropReq.name, "", dropReq.sql);
+
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
@@ -860,7 +865,8 @@ static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
     cJSON* ctype = cJSON_CreateString(tDataTypes[s->type].name);
     cJSON_AddItemToObject(column, "type", ctype);
     int32_t length = 0;
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_VARBINARY ||
+        s->type == TSDB_DATA_TYPE_GEOMETRY) {
       length = s->bytes - VARSTR_HEADER_SIZE;
     } else if (s->type == TSDB_DATA_TYPE_NCHAR || s->type == TSDB_DATA_TYPE_JSON) {
       length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;

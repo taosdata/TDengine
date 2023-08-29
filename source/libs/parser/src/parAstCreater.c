@@ -1457,15 +1457,17 @@ SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable,
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
-SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SNode* pColDefNode) {
+SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                    SDataType dataType) {
   CHECK_PARSER_STATUS(pCxt);
-  SColumnDefNode* pCol = (SColumnDefNode*)pColDefNode;
+  if (!checkColumnName(pCxt, pColName)) {
+    return NULL;
+  }
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
-  strcpy(pStmt->colName, pCol->colName);
-  strcpy(pStmt->colComment, pCol->comments);
-  pStmt->dataType = pCol->dataType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  pStmt->dataType = dataType;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 

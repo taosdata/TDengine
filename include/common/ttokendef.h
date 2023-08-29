@@ -16,7 +16,6 @@
 #ifndef _TD_COMMON_TOKEN_H_
 #define _TD_COMMON_TOKEN_H_
 
-
 #define TK_OR                               1
 #define TK_AND                              2
 #define TK_UNION                            3
@@ -116,7 +115,7 @@
 #define TK_TABLE_PREFIX                    97
 #define TK_TABLE_SUFFIX                    98
 #define TK_NK_COLON                        99
-#define TK_MAX_SPEED                      100
+#define TK_BWLIMIT                        100
 #define TK_START                          101
 #define TK_TIMESTAMP                      102
 #define TK_END                            103
@@ -132,25 +131,25 @@
 #define TK_NK_EQ                          113
 #define TK_USING                          114
 #define TK_TAGS                           115
-#define TK_COMMENT                        116
-#define TK_BOOL                           117
-#define TK_TINYINT                        118
-#define TK_SMALLINT                       119
-#define TK_INT                            120
-#define TK_INTEGER                        121
-#define TK_BIGINT                         122
-#define TK_FLOAT                          123
-#define TK_DOUBLE                         124
-#define TK_BINARY                         125
-#define TK_NCHAR                          126
-#define TK_UNSIGNED                       127
-#define TK_JSON                           128
-#define TK_VARCHAR                        129
-#define TK_MEDIUMBLOB                     130
-#define TK_BLOB                           131
-#define TK_VARBINARY                      132
-#define TK_GEOMETRY                       133
-#define TK_DECIMAL                        134
+#define TK_BOOL                           116
+#define TK_TINYINT                        117
+#define TK_SMALLINT                       118
+#define TK_INT                            119
+#define TK_INTEGER                        120
+#define TK_BIGINT                         121
+#define TK_FLOAT                          122
+#define TK_DOUBLE                         123
+#define TK_BINARY                         124
+#define TK_NCHAR                          125
+#define TK_UNSIGNED                       126
+#define TK_JSON                           127
+#define TK_VARCHAR                        128
+#define TK_MEDIUMBLOB                     129
+#define TK_BLOB                           130
+#define TK_VARBINARY                      131
+#define TK_GEOMETRY                       132
+#define TK_DECIMAL                        133
+#define TK_COMMENT                        134
 #define TK_MAX_DELAY                      135
 #define TK_WATERMARK                      136
 #define TK_ROLLUP                         137
@@ -356,7 +355,6 @@
 #define TK_VARIABLE                       337
 #define TK_VIEW                           338
 #define TK_WAL                            339
-
 
 #define TK_NK_SPACE         600
 #define TK_NK_COMMENT       601

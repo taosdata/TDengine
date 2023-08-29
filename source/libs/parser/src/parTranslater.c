@@ -1229,8 +1229,41 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       *(double*)&pVal->typeData = pVal->datum.d;
       break;
     }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      if (pVal->node.resType.type != TSDB_DATA_TYPE_BINARY){
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+
+      void* data = NULL;
+      uint32_t size = 0;
+      bool isHexChar = isHex(pVal->literal, strlen(pVal->literal));
+      if(isHexChar){
+        if(!isValidateHex(pVal->literal, strlen(pVal->literal))){
+          return TSDB_CODE_PAR_INVALID_VARBINARY;
+        }
+        if(taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else{
+        size = pVal->node.resType.bytes;
+        data = pVal->literal;
+      }
+
+      if (size + VARSTR_HEADER_SIZE > targetDt.bytes) {
+        if(isHexChar) taosMemoryFree(data);
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_VALUE_TOO_LONG, pVal->literal);
+      }
+      pVal->datum.p = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+      if (NULL == pVal->datum.p) {
+        if(isHexChar) taosMemoryFree(data);
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+      }
+      varDataSetLen(pVal->datum.p, size + VARSTR_HEADER_SIZE);
+      memcpy(varDataVal(pVal->datum.p), data, size);
+      if(isHexChar)  taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
       if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
@@ -1304,7 +1337,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
 }
 
 static int32_t calcTypeBytes(SDataType dt) {
-  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_VARBINARY == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
     return dt.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -4702,7 +4735,6 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
-    strcpy(field.comment, pCol->comments);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
@@ -4799,6 +4831,7 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     }
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
+          (TSDB_DATA_TYPE_VARBINARY == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
           (TSDB_DATA_TYPE_GEOMETRY == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
@@ -4851,6 +4884,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     }
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_VARBINARY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN) ||
           (TSDB_DATA_TYPE_GEOMETRY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_GEOMETRY_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
@@ -5050,7 +5084,6 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
   strcpy(pSchema->name, pCol->colName);
-  strcpy(pSchema->comment, pCol->comments);
 }
 
 typedef struct SSampleAstInfo {
@@ -5548,6 +5581,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 
     if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType) {
       if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
@@ -5574,6 +5608,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     }
 
     if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+        (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
         (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
     }
@@ -7699,10 +7734,6 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
 
-  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_COMMENT_LEN;
-  strcpy((*pSchema)[4].name, "comment");
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8863,6 +8894,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   }
 
   if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
       (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
   }
@@ -8883,15 +8915,6 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
-  if (pStmt->colComment[0]) {
-    pReq->colComment = taosStrdup(pStmt->colComment);
-    if (pReq->colComment == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pReq->colCommentLen = strlen(pReq->colComment);
-  } else {
-    pReq->colCommentLen = -1;
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8929,6 +8952,7 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   }
 
   if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
       (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
   }
@@ -8942,15 +8966,6 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pReq->colId = pSchema->colId;
-  if (pStmt->colComment[0]) {
-    pReq->colComment = taosStrdup(pStmt->colComment);
-    if (pReq->colComment == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pReq->colCommentLen = strlen(pReq->colComment);
-  } else {
-    pReq->colCommentLen = -1;
-  }
 
   return TSDB_CODE_SUCCESS;
 }

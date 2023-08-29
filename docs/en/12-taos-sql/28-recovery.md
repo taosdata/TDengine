@@ -17,7 +17,7 @@ You can use the SHOW CONNECTIONS statement to find the conn_id.
 ## Terminate a Query
 
 ```sql
-KILL QUERY kill_id;
+KILL QUERY 'kill_id';
 ```
 
 You can use the SHOW QUERIES statement to find the kill_id.

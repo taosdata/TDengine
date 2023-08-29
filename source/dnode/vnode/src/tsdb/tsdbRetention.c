@@ -338,6 +338,17 @@ static int32_t tsdbDoRetention2(void *arg) {
           code = tsdbMigrateDataFileS3(rtner, fobj, &did);
           TSDB_CHECK_CODE(code, lino, _exit);
         } else {
+          if (tsS3Enabled) {
+            int64_t fsize = 0;
+            if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
+              code = TAOS_SYSTEM_ERROR(terrno);
+              tsdbError("vgId:%d %s failed since file:%s stat failed, reason:%s", TD_VID(rtner->tsdb->pVnode), __func__,
+                        fobj->fname, tstrerror(code));
+              TSDB_CHECK_CODE(code, lino, _exit);
+            }
+            s3EvictCache(fobj->fname, fsize * 2);
+          }
+
           code = tsdbDoMigrateFileObj(rtner, fobj, &did);
           TSDB_CHECK_CODE(code, lino, _exit);
         }

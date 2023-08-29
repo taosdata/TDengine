@@ -360,6 +360,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sma_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
@@ -772,6 +773,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill_with_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3

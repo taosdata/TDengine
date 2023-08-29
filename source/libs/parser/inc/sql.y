@@ -306,7 +306,7 @@ retention(A) ::= NK_VARIABLE(B) NK_COLON NK_VARIABLE(C).                        
 %type speed_opt                                                                   { int32_t }
 %destructor speed_opt                                                             { }
 speed_opt(A) ::= .                                                                { A = 0; }
-speed_opt(A) ::= MAX_SPEED NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
+speed_opt(A) ::= BWLIMIT NK_INTEGER(B).                                           { A = taosStr2Int32(B.z, NULL, 10); }
 
 start_opt(A) ::= .                                                                { A = NULL; }
 start_opt(A) ::= START WITH NK_INTEGER(B).                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
@@ -332,17 +332,17 @@ cmd ::= ALTER STABLE alter_table_clause(A).                                     
 
 alter_table_clause(A) ::= full_table_name(B) alter_table_options(C).              { A = createAlterTableModifyOptions(pCxt, B, C); }
 alter_table_clause(A) ::=
-  full_table_name(B) ADD COLUMN column_def(C).                                    { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, C); }
+  full_table_name(B) ADD COLUMN column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, &C, D); }
 alter_table_clause(A) ::= full_table_name(B) DROP COLUMN column_name(C).          { A = createAlterTableDropCol(pCxt, B, TSDB_ALTER_TABLE_DROP_COLUMN, &C); }
 alter_table_clause(A) ::=
-  full_table_name(B) MODIFY COLUMN column_def(C).                                 { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, C); }
+  full_table_name(B) MODIFY COLUMN column_name(C) type_name(D).                   { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, &C, D); }
 alter_table_clause(A) ::=
   full_table_name(B) RENAME COLUMN column_name(C) column_name(D).                 { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) ADD TAG column_def(C).                                       { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG, C); }
+  full_table_name(B) ADD TAG column_name(C) type_name(D).                         { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG, &C, D); }
 alter_table_clause(A) ::= full_table_name(B) DROP TAG column_name(C).             { A = createAlterTableDropCol(pCxt, B, TSDB_ALTER_TABLE_DROP_TAG, &C); }
 alter_table_clause(A) ::= 
-  full_table_name(B) MODIFY TAG column_def(C).                                    { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, C); }
+  full_table_name(B) MODIFY TAG column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, &C, D); }
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
@@ -378,7 +378,7 @@ column_def_list(A) ::= column_def(B).                                           
 column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
 
 column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL); }
-column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
+//column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
 
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
@@ -1029,7 +1029,7 @@ join_type(A) ::= INNER.                                                         
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
-  SELECT hint_list(M) tag_mode_opt(N) set_quantifier_opt(B) select_list(C) from_clause_opt(D)
+  SELECT hint_list(M) set_quantifier_opt(B) tag_mode_opt(N) select_list(C) from_clause_opt(D)
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
   fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
                                                                                     A = createSelectStmt(pCxt, B, C, D, M);

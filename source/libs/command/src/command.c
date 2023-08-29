@@ -48,6 +48,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       return (pSchema->bytes - VARSTR_HEADER_SIZE);
     case TSDB_DATA_TYPE_NCHAR:
@@ -78,10 +79,6 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COL_COMMENT_LEN, 5);
-    code = blockDataAppendColInfo(pBlock, &infoData);
-  }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
@@ -103,9 +100,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
   // Note
   SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
-  // Comment
-  SColumnInfoData* pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
-  char             buf[DESCRIBE_RESULT_COL_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
+  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (invisibleColumn(sysInfoUser, pMeta->tableType, pMeta->schema[i].flags)) {
       continue;
@@ -118,8 +113,6 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
-    STR_TO_VARSTR(buf, pMeta->schema[i].comment);
-    colDataSetVal(pCol5, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }
   if (pBlock->info.rows <= 0) {
@@ -464,19 +457,14 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     char     type[32];
-    char     comments[TSDB_COL_COMMENT_LEN + 16] = {0};
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
-    if (pSchema->comment[0]) {
-      sprintf(comments, " COMMENT '%s'", pSchema->comment);
-    }
 
-    *len +=
-        sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s%s", ((i > 0) ? ", " : ""), pSchema->name, type, comments);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
 
@@ -484,18 +472,14 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
-    char     comments[TSDB_COL_COMMENT_LEN + 16] = {0};
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
-    if (pSchema->comment[0]) {
-      sprintf(comments, " COMMENT '%s'", pSchema->comment);
-    }
 
-    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s%s", ((i > 0) ? ", " : ""), pSchema->name, type, comments);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
 
