@@ -324,7 +324,7 @@ async fn consume_lush_record(
     names: &str,
     marks: &str,
     records: &mut usize,
-    license: Option<&ConnectorLicense>,
+    _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     match record {

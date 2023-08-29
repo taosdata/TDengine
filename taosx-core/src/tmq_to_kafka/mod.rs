@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
-use bytes::Buf;
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 use kafka::client::RequiredAcks;

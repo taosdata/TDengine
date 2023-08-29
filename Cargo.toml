@@ -2,6 +2,9 @@
 members = ["taosx-ipc", "taosx-core", "taosx-agent"]
 
 [workspace.dependencies]
+chrono = { version = "0.4.26" }
+chrono-tz = { version = "0.8.3" }
+
 regex = { version = "1.9" }
 arrow = { version = "38.0.0", features = ["chrono-tz"] }
 arrow-flight = { version = "38.0.0" }
@@ -37,7 +40,7 @@ arrow-flight = { workspace = true }
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
-chrono = "0.4"
+chrono = { workspace = true }
 clap = { version = "4.3.23", features = ["default", "derive", "env"] }
 clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
