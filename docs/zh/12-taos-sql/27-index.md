@@ -20,6 +20,8 @@ index_option:
 functions:
     function [, function] ...
 ```
+### tag 索引
+ [tag 索引] (../tag-index)
 
 ### SMA 索引
 
