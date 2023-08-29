@@ -20,7 +20,7 @@
       </el-col>
       <el-col :span="12" class="col-style">
         <span class="label">{{ $t('dashboard.tables') }}</span>
-        <el-cascader
+        <!-- <el-cascader
           class="tb-cascader"
           v-model="general.tbName" 
           :options="tableData"
@@ -30,8 +30,14 @@
           filterable
           :size="size"
           @change="handleCascader"
-          ></el-cascader>
-      </el-col>
+          ></el-cascader> -->
+        <el-input
+          v-model="general.tbName"
+          :size="size"
+          style="margin-right: 8px;"
+          @blur="handleBlur"
+        ></el-input>
+        </el-col>
     </el-row>
     <el-row>
       <el-col :span="12" class="col-style">
@@ -102,15 +108,16 @@ import {
     },
     emits: ['getFromVal'],
     computed: {
-      tbName() {
-        return this.general.tbName.length <= 2 
-          ? this.general.tbName[1] 
-          : this.general.tbName[2]
-      },
+      // tbName() {
+      //   return this.general.tbName.length <= 2 
+      //     ? this.general.tbName[1] 
+      //     : this.general.tbName[2]
+      // },
       fromVal() {
-        const result =  `${this.general.dbname}.${this.general.tbName.length <= 2 
-          ? this.general.tbName[1] || '' 
-          : this.general.tbName[2] || ''}`
+        // const result =  `${this.general.dbname}.${this.general.tbName.length <= 2 
+        //   ? this.general.tbName[1] || '' 
+        //   : this.general.tbName[2] || ''}`
+        const result = `${this.general.dbname}.${this.general.tbName || ''}`
         this.getFromVal(result)
         return result
       }
@@ -203,6 +210,16 @@ import {
         })
         this.fieldData = res 
         this.$store.commit('console/SET_FIELEDS',res)
+      },
+      async handleBlur(val) {
+        if (this.general.dbname && this.general.tbName) {
+          let res = await getMatrixStructReq({
+            selected_db: this.general.dbname,
+            selected_tb: this.general.tbName,
+          })
+          this.fieldData = res 
+          this.$store.commit('console/SET_FIELEDS',res)
+        }
       }
     }
   }
