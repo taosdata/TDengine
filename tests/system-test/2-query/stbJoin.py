@@ -106,6 +106,9 @@ class TDTestCase:
         tdSql.query(f"select a.ts, b.ts from sta a, stb b where a.ts=b.ts and (a.tg1=b.tg1 and a.tg1 > b.tg1);")
         tdSql.checkRows(0)
 
+        tdSql.query(f"select a.* from sta a join stb b on a.tg1=b.tg1 and a.ts=b.ts and a.tg2=b.tg2;")
+        tdSql.checkRows(12)
+
 #        tdSql.checkData(0,1,10)
 
         tdSql.error(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
