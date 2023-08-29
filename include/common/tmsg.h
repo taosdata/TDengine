@@ -884,6 +884,11 @@ typedef struct {
 int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 
+typedef struct SIpV4Range{
+  uint32_t ip;
+  uint32_t mask;
+} SIpV4Range;
+
 typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
@@ -893,10 +898,13 @@ typedef struct {
   char   pass[TSDB_USET_PASSWORD_LEN];
   int32_t sqlLen;
   char*   sql;
+  int32_t numIpRanges;
+  SIpV4Range* pIpRanges;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
+void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
 typedef struct {
   int8_t  alterType;
@@ -911,6 +919,8 @@ typedef struct {
   int32_t tagCondLen;
   int32_t sqlLen;
   char*   sql;
+  int32_t numIpRanges;
+  SIpV4Range* pIpRanges;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);

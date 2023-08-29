@@ -14,6 +14,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <arpa/inet.h>
 #include <regex.h>
 
 #include "parAst.h"
@@ -1665,16 +1666,56 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   return (SNode*)pStmt;
 }
 
+static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
+  struct in_addr addr;
+
+  char* ipCopy = strdup(ipRange);
+  char* slash = strchr(ipCopy, '/');
+  if (slash) {
+    *slash = '\0';
+    if (inet_pton(AF_INET, ipCopy, &addr) == 1) {
+      int prefix = atoi(slash + 1);
+      pIpRange->ip = addr.s_addr;
+      uint32_t mask = (1 << (32 - prefix)) - 1;
+      mask = htonl(~mask);
+      pIpRange->mask = mask;
+      if (prefix < 0 || prefix > 32) {
+        return TSDB_CODE_PAR_INVALID_IP_RANGE;
+      }
+    } else {
+      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+  } else {
+    if (inet_pton(AF_INET, ipCopy, &addr) == 1) {
+      pIpRange->ip = addr.s_addr;
+      pIpRange->mask = 0xFFFFFFFF;
+    } else {
+      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
   if (pIpRangesNodeList == NULL) {
     return pCreateUserStmt;
   }
+  SCreateUserStmt* pCreateUser = (SCreateUserStmt*)pCreateUserStmt;
+  pCreateUser->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
+  pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpV4Range));
+  int32_t i = 0;
+  int32_t code = 0;
+
   SNode* pNode = NULL;
   FOREACH(pNode, pIpRangesNodeList) {
-    char* pStr = NULL;
-    nodesNodeToString(pNode, false, &pStr, NULL);
-    printf("%s\n", pStr);
-    taosMemoryFree(pStr);  
+    SValueNode* pValNode = (SValueNode*)(pNode);
+    code = getIpV4RangeFromWhitelistItem(pValNode->literal, pCreateUser->pIpRanges + i);
+    if (code != TSDB_CODE_SUCCESS) {
+      //TODO: see check user name/pass to return error no
+      taosMemoryFree(pCreateUser->pIpRanges);
+      nodesDestroyNode(pCreateUserStmt);
+      return NULL;
+    }
   }
   return pCreateUserStmt;
 }
