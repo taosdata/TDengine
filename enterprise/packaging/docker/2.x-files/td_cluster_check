@@ -23,14 +23,38 @@ logging "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
 logging "INFO" "FIRST_EP_HOST: ${FIRST_EP_HOST}"
 logging "INFO" "FIRST_EP_PORT: ${FIRST_EP_PORT}"
 logging "INFO" "ENDPOINT: ${ENDPOINT}"
-NotCheckTaosadapter=$1
-if [ -z $NotCheckTaosadapter ]; then
+
+param1=$1
+if [[ "$param1" == "CheckTaosAdapterFirst" ]];then
     nc -z 127.0.0.1 6041
     if [ $? -ne 0 ]; then
         logging "ERROR" "taosadapter port 6041 is not ok"
         exit 1
     fi
 fi
+
+
+if [[ "$param1" == "CheckClusterStatus" ]];then
+    logging "INFO" "CheckClusterStatus begin"
+    # get dnode id
+    output=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "td-transport" | grep -E -v "$ENDPOINT"  | awk '{split($0,a,"|");print a[1]}' | awk '{gsub(/ /,"")}1' )
+    IFS=$'\n' read -r -d '' -a dnodesArray <<< "$output"
+ 
+    for dnodeId in "${dnodesArray[@]}"
+    do
+        logging "INFO" "check dnode --$dnodeId--"
+        # get vgroup status
+        VGroupStatusTmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show vnodes on dnode $dnodeId;" | grep -i false)
+        if [[ "$VGroupStatusTmp" != "" ]]; then
+            logger "ERROR" "there is vgroup not ready ！！ $VGroupStatusTmp"
+            exit 1
+        fi
+    done
+
+    logging "INFO" "CheckClusterStatus OK"
+    exit 0
+fi
+
 
 
 # get dnode id
