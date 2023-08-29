@@ -45,7 +45,8 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey, int32
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (NULL != pStmtName) {
       if ('\0' != pStmtName[0]) {
-        return snprintf(pKey, keyBufSize, "%s.%s", pStmtName, pCol->node.aliasName);
+        len = snprintf(pKey, keyBufSize, "%s.%s", pStmtName, pCol->node.aliasName);
+        return taosCreateMD5Hash(pKey, len);
       } else {
         return snprintf(pKey, keyBufSize, "%s", pCol->node.aliasName);
       }
@@ -59,7 +60,8 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey, int32
   }
 
   if (NULL != pStmtName && '\0' != pStmtName[0]) {
-    return snprintf(pKey, keyBufSize, "%s.%s", pStmtName, ((SExprNode*)pNode)->aliasName);
+    len = snprintf(pKey, keyBufSize, "%s.%s", pStmtName, ((SExprNode*)pNode)->aliasName);
+    return taosCreateMD5Hash(pKey, len);
   }
 
   return snprintf(pKey, keyBufSize, "%s", ((SExprNode*)pNode)->aliasName);
