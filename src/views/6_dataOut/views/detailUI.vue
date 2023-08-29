@@ -160,14 +160,14 @@ import { Message } from 'element-ui'
     data() {
         const startTimeOption = (time) => {
         if (this.info.sourceData.end) {
-          return time.getTime() > new Date(this.info.sourceData.end).getTime();
+          return time.getTime() >= new Date(this.info.sourceData.end).getTime();
         } else {
           return false;
         }
       };
       const endTimeOption = (time) => {
         if (this.info.sourceData.start) {
-          return time.getTime() < (new Date(this.info.sourceData.start).getTime() - 24 * 60 * 60 * 1000);
+          return time.getTime() <= (new Date(this.info.sourceData.start).getTime() - 24 * 60 * 60 * 1000);
         } else {
           return false;
         }
@@ -240,6 +240,18 @@ import { Message } from 'element-ui'
          'target.topic': [{
             required: true, message: this.$t('dataIn.enterTip'),
           }],
+          'sourceData.start': [
+            {
+              validator: this.compareTime,
+              trigger: "blur",  
+            }
+          ],
+          'sourceData.end': [
+            {
+              validator: this.compareTime,
+              trigger: "blur",  
+            }
+          ]
         }
       }
     },
@@ -349,10 +361,19 @@ import { Message } from 'element-ui'
       cancel() {
         this.$parent.currentName = 'dbsource'
       },
+      compareTime(_, value, callback) {
+        let date1 = new Date(this.info.sourceData.start)
+        let date2 = new Date(this.info.sourceData.end)
+        if (date1 > date2) {
+          return callback(new Error(this.$t('dataOut.startTime') + ' > ' + this.$t('dataOut.endTime')));
+        } else {
+          callback()
+        }
+      },
       submitForm() {
         this.$refs.form.validate(async (valid) => {
           if (valid) {
-            let dns = "";
+            let dns = "+http";
             let id = localStorage.getItem("local_clusterID");
             let username = localStorage.getItem("username")
             let pwd = decrypt(localStorage.getItem("pwd"));
