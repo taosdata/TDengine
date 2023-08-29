@@ -200,14 +200,19 @@ async fn ipc_tcp_forward(
     let mut client = FlightClient::new(channel);
     let _ = client
         .handshake(Bytes::from(token.as_bytes().to_vec()))
-        .await?;
+        .await
+        .map_err(|err| match err {
+            FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+            err => anyhow::anyhow!("Handshake error: {err:#}"),
+        })?;
     // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
-    let mut stream = client
-        .do_put(data)
-        .await
-        .context("Failed to forward IPC stream to server")?;
+    let mut stream = client.do_put(data).await.map_err(|err| match err {
+        FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
+        FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+        err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
+    })?;
 
     while let Some(res) = stream.next().await {
         let _: PutResult = res.context("Got server response with error")?;
@@ -2123,9 +2128,8 @@ pub async fn listen_tcp_socket_with_agent(
                                 ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
                                     .await;
                             if let Err(err) = res {
-                                tracing::error!("ipc read err: {:?}", err);
-                                tokio::time::sleep(Duration::from_millis(100)).await;
-                                let _ = se.send(err.to_string()).await;
+                                tracing::error!("{:?}", err);
+                                let _ = se.send(format!("{err:#}")).await;
                             } else {
                                 tracing::info!("IPC reader stopped for client {client}",);
                             }
