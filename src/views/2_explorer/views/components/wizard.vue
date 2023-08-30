@@ -20,6 +20,9 @@
       ></rule-list>
       <OtherRule
         :otherRule="otherRule"
+        :columnList="fields"
+        :general="general"
+        :isInterp="isInterp"
       ></OtherRule>
       <!-- <el-col class="flexEnd">
         <el-button :disabled="previewBtn" @click="generateSql" size="small"
@@ -34,8 +37,8 @@
         :visible.sync="dialog"
         title="SQL"
       >
-        <pre :key="previewSql" v-highlight>
-            <code class="language-sql">{{previewSql}}</code>
+        <pre :key="sql" v-highlight>
+            <code class="language-sql">{{sql}}</code>
           </pre>
         <section class="flexEnd">
           <el-button type="primary" size="mini" @click="dialog = false">{{
@@ -81,18 +84,47 @@ const conditionMap = {
     data () {
     return {
       dialog: false,
-      previewSql: "",
+      sql: "",
       count: 0,
       valueVisible: {},
       general: {
         dbname: '',
-        tbName: [],
+        tbName: '',
         fields: ''
       },
       fromVal: '',
       otherRule: {
         limit: 1000,
         offset: 0,
+        orderby: '',
+        partitionby: '',
+        groupby: '',
+        slimit: '',
+        soffset: '',
+        window_type: '',
+        tol_val: "",
+        tol_unit: "m",
+        interval_val: "",
+        interval_offset: "",
+        column: "",
+        interval_unit: "m",
+        offset_unit: "m",
+        sliding_val: "",
+        sliding_unit: "s",
+        range1: '',
+        range2: '',
+        every_val: '',
+        every_unit: 'a',
+        fill: 'NONE',
+        fill_val: '',
+        // interpClause: {
+        //   range1: '',
+        //   range2: '',
+        //   every_val: '',
+        //   every_unit: '',
+        //   fill: 'NONE',
+        //   fill_val: '',
+        // }
       },
       rules: [{
         combinator: 'AND',
@@ -131,6 +163,10 @@ const conditionMap = {
     fields() {
       let fields = this.$store.state.console.fields
       return fields
+    },
+    isInterp() {
+      // 检测 select 是否包含 interp 函数
+      return /interp/i.test(this.general.fields)
     }
   },
   mounted () {
@@ -306,6 +342,11 @@ const conditionMap = {
         if (rules[index].rules) this.validateRules(rules[index].rules)
       }
     },
+    compareTime(time1,time2) {
+      let date1 = new Date(time1)
+      let date2 = new Date(time2)
+      return date1 <= date2
+    },
     generateSql() {
       const query = this.rules[0]
       let sql = ''
@@ -315,24 +356,119 @@ const conditionMap = {
       if (condition) {
         sql += ` WHERE ${condition}`
       }
-      if (this.otherRule) {
-        for (const key in this.otherRule) {
-          if (Object.hasOwnProperty.call(this.otherRule, key)) {
-            const value = this.otherRule[key];
-            if (key == 'limit' && !value) {
-              return this.$message.error(this.$t('console.enterTip').replace('{value}',key))
+
+      if (this.otherRule.limit) {
+        sql += ` LIMIT ${this.otherRule.limit}`
+      } else {
+        return this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
+      }
+
+      if (this.otherRule.offset) {
+        sql += ` OFFSET ${this.otherRule.offset}`
+      }
+
+      if (this.otherRule.groupby) {
+        sql += ` GROUP BY ${this.otherRule.groupby}`
+        if (this.otherRule.slimit) {
+          sql += ` `
+        }
+      }
+
+      if (this.otherRule.partitionby) {
+        sql += ` PARTITION BY ${this.otherRule.partitionby}`
+      }
+
+      // slimit
+      if (this.otherRule.groupby || this.otherRule.partitionby) {
+        if (this.otherRule.slimit) {
+          sql += ` SLIMIT ${this.otherRule.limit}`
+        }
+        if (this.otherRule.soffset) {
+          sql += ` OFFSET ${this.otherRule.soffset}`
+        }
+      }
+
+      if (this.otherRule.orderby) {
+        sql += ` ORDER BY ${this.otherRule.orderby}`
+      }
+
+      // window_clause
+      if (this.otherRule.window_type) {
+        sql += " ";
+        const ts_col = this.fields.find(
+          (item) => item.type === "TIMESTAMP"
+        )?.field;
+        switch (this.otherRule.window_type) {
+          case "SESSION":
+            if (ts_col && this.otherRule.tol_val) {
+              sql += ` SESSION(${ts_col},${this.otherRule.tol_val}${this.otherRule.tol_unit})`;
             }
-            if (value) {
-              sql += ` ${key} ${value}`
-            } 
+            break;
+          case "STATE":
+            sql += this.otherRule.state_column ? ` STATE_WINDOW(\`${this.otherRule.state_column}\`)` : '';
+            break;
+          case "INTERVAL":
+            if (this.otherRule.interval_val) {
+              sql += `INTERVAL(${this.otherRule.interval_val}${this.otherRule.interval_unit}`;
+              if(this.otherRule.interval_offset){
+                sql += `,${this.otherRule.interval_offset}${this.otherRule.offset_unit}`
+              }
+              sql +=`)`
+            }
+            if (this.otherRule.sliding_val) {
+              sql += ` SLIDING(${this.otherRule.sliding_val}${this.otherRule.sliding_unit})`;
+            }
+            break;
+          case "EVENT":
+            if (this.otherRule.start_with && this.otherRule.end_with) {
+              sql += ` EVENT_WINDOW start with ${this.otherRule.start_with} end with ${this.otherRule.end_with}`
+            }
+            break;
+          default:
+            break;
+        }
+      }
+
+      // interp_clause 
+      if (this.isInterp) {
+        const { range1, range2, every_val, every_unit, fill, fill_val } = this.otherRule
+        sql += ''
+        // 需要进行校验,必填项 6个 框
+        // rang1 <= rang2 
+        // 处理range 
+
+        if (!range1) return this.$message.error(this.$t('console.enterTip').replace('{value}','RANGE'))
+        if (range1 && !range2) {
+          sql += ` RANGE(${range1})`
+          // 只有rang1， every 可以省略
+          if (every_val) {
+            sql += ` EVERY(${every_val}${every_unit})`
+          } 
+        } else if (range1 && range2) {
+          if (!this.compareTime(range1,range2)) return this.$message.error('RANGE 范围必须是 timestamp1 <= timestamp2')
+          if (every_val) {
+            sql += ` RANGE(${range1},${range2}) EVERY(${every_val}${every_unit})`
+          } else {
+            return this.$message.error(this.$t('console.enterTip').replace('{value}','EVERY'))
           }
+        }
+
+        if (fill) { 
+          if (fill === 'VALUE') {
+            if (!fill_val) return this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
+            sql += ` FILL(${fill},${fill_val})`
+          } else {
+            sql += ` FILL(${fill})`
+          }
+        } else {
+          return this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
         }
       }
       return sql
     },
     getPreviewSql() {
       this.dialog = true
-      this.previewSql = this.generateSql()
+      this.sql = this.generateSql()
     },
     async handleSendSQL() {
       // const query = {
