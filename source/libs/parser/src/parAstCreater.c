@@ -1652,20 +1652,6 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
   return (SNode*)pStmt;
 }
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo) {
-  CHECK_PARSER_STATUS(pCxt);
-  char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
-  if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
-    return NULL;
-  }
-  SCreateUserStmt* pStmt = (SCreateUserStmt*)nodesMakeNode(QUERY_NODE_CREATE_USER_STMT);
-  CHECK_OUT_OF_MEM(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  strcpy(pStmt->password, password);
-  pStmt->sysinfo = sysinfo;
-  return (SNode*)pStmt;
-}
-
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   struct in_addr addr;
 
@@ -1738,6 +1724,20 @@ SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStm
   return pCreateUserStmt;
 }
 
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo) {
+  CHECK_PARSER_STATUS(pCxt);
+  char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
+  if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
+    return NULL;
+  }
+  SCreateUserStmt* pStmt = (SCreateUserStmt*)nodesMakeNode(QUERY_NODE_CREATE_USER_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  strcpy(pStmt->password, password);
+  pStmt->sysinfo = sysinfo;
+  return (SNode*)pStmt;
+}
+
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkUserName(pCxt, pUserName)) {
@@ -1775,13 +1775,13 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
       pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpV4Range));
       if (NULL == pStmt->pIpRanges) {
         pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        nodesDestroyNode(pStmt);
+        nodesDestroyNode((SNode*)pStmt);
         return NULL;
       }
 
       int32_t code = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pStmt->pIpRanges);
       if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode(pStmt);
+        nodesDestroyNode((SNode*)pStmt);
         return NULL;
       }
       break;

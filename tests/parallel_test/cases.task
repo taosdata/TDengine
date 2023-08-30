@@ -808,6 +808,7 @@
 
 ,,y,script,./test.sh -f tsim/user/basic.sim
 ,,y,script,./test.sh -f tsim/user/password.sim
+,,y,script,./test.sh -f tsim/user/whitelist.sim
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
 ,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,y,script,./test.sh -f tsim/user/privilege_topic.sim
