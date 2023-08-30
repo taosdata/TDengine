@@ -494,7 +494,7 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
       tqDebug("block found, ver:%" PRId64 ", uid:%" PRId64", %s", pReader->msg.ver, pSubmitTbData->uid, idstr);
       return true;
     } else {
-      tqDebug("discard submit block, uid:%" PRId64 ", total queried tables:%d continue %s", pSubmitTbData->uid,
+      tqInfo("discard submit block, uid:%" PRId64 ", total queried tables:%d continue %s", pSubmitTbData->uid,
           taosHashGetSize(pReader->tbIdHash), idstr);
     }
 
@@ -855,7 +855,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
           tDeleteSchemaWrapper(pSW);
           goto FAIL;
         }
-        tqDebug("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
+        tqTrace("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
                 (int32_t)taosArrayGetSize(block.pDataBlock));
 
         block.info.id.uid = uid;
@@ -872,7 +872,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
 
       SSDataBlock* pBlock = taosArrayGetLast(blocks);
 
-      tqDebug("vgId:%d, taosx scan, block num: %d", pReader->pWalReader->pWal->cfg.vgId,
+      tqTrace("vgId:%d, taosx scan, block num: %d", pReader->pWalReader->pWal->cfg.vgId,
               (int32_t)taosArrayGetSize(blocks));
 
       int32_t targetIdx = 0;
@@ -954,7 +954,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
           tDeleteSchemaWrapper(pSW);
           goto FAIL;
         }
-        tqDebug("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
+        tqTrace("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
                 (int32_t)taosArrayGetSize(block.pDataBlock));
 
         block.info.id.uid = uid;
@@ -971,7 +971,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
 
       SSDataBlock* pBlock = taosArrayGetLast(blocks);
 
-      tqDebug("vgId:%d, taosx scan, block num: %d", pReader->pWalReader->pWal->cfg.vgId,
+      tqTrace("vgId:%d, taosx scan, block num: %d", pReader->pWalReader->pWal->cfg.vgId,
               (int32_t)taosArrayGetSize(blocks));
 
       int32_t targetIdx = 0;
