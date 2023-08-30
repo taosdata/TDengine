@@ -1689,14 +1689,14 @@ static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIp
   SNode* pNode = NULL;
   FOREACH(pNode, pIpRangesNodeList) {
     if (QUERY_NODE_VALUE != nodeType(pNode)) {
-      pCxt->errCode = TSDB_CODE_PAR_INVALID_IP_RANGE;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IP_RANGE);
       return TSDB_CODE_PAR_INVALID_IP_RANGE;
     }
     SValueNode* pValNode = (SValueNode*)(pNode);
     code = getIpV4RangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
     ++i;
     if (code != TSDB_CODE_SUCCESS) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, pValNode->literal);
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid IP range %s", pValNode->literal);
       return code;
     }
   }
