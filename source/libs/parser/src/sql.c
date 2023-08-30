@@ -4955,7 +4955,7 @@ static YYACTIONTYPE yy_reduce(
 #line 100 "sql.y"
 { 
                                                                                     pCxt->pRootNode = createCreateUserStmt(pCxt, &yymsp[-4].minor.yy889, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy847);
-                                                                                    addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, yymsp[0].minor.yy236);     
+                                                                                    pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, yymsp[0].minor.yy236);     
                                                                                   }
 #line 4960 "sql.c"
         break;
