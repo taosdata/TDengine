@@ -402,7 +402,7 @@ CAST(expr AS type_name)
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是除JSON外的所有类型。
+**适用数据类型**：输入参数 expr 的类型可以是除JSON和VARBINARY外的所有类型。如果 type_name 为 VARBINARY，则 expr 只能是 VARCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 

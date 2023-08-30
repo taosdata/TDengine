@@ -32,8 +32,10 @@ All data in tag_set is automatically converted to the NCHAR data type and does n
 
 In the schemaless writing data line protocol, each data item in the field_set needs to be described with its data type. Let's explain in detail:
 
-- If there are English double quotes on both sides, it indicates the BINARY(32) type. For example, `"abc"`.
-- If there are double quotes on both sides and an L prefix, it means NCHAR(32) type. For example, `L"error message"`.
+- If there are English double quotes on both sides, it indicates the VARCHAR type. For example, `"abc"`.
+- If there are double quotes on both sides and a L/l prefix, it means NCHAR type. For example, `L"error message"`.
+- If there are double quotes on both sides and a G/g prefix, it means GEOMETRY type. For example `G"Point(4.343 89.342)"`.
+- If there are double quotes on both sides and a B/b prefix, it means VARBINARY type. Hexadecimal start with \x or string can be used in double quotes. For example `B"\x98f46e"` `B"hello"`.
 - Spaces, equals sign (=), comma (,), double quote ("), and backslash (\\) need to be escaped with a backslash (\\) in front. (All refer to the ASCII character). The rules are as follows:
 
 | **Serial number** | **Element**    | **Escape characters**   |
@@ -110,7 +112,7 @@ You can configure smlChildTableName in taos.cfg to specify table names, for exam
    Note: TDengine 3.0.3.0 and later automatically detect whether order is consistent. This parameter is no longer used.
 9. Due to the fact that SQL table names do not support period (.), schemaless has also processed period (.). If there is a period (.) in the table name automatically created by schemaless, it will be automatically replaced with an underscore (\_). If you manually specify a sub table name, if there is a dot (.) in the sub table name, it will also be converted to an underscore (\_)
 10. Taos.cfg adds the configuration of smlTsDefaultName (with a string value), which only works on the client side. After configuration, the time column name of the schemaless automatic table creation can be set through this configuration. If not configured, defaults to _ts.
-
+11. Super table name or child table name are case sensitive.
 :::tip
 All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48 KB(64 KB since version 3.0.5.0) and the total length of a tag value cannot exceed 16 KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
 :::
