@@ -25,7 +25,7 @@
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                           const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t numOfRows = pBlock->info.rows;
-  bool    allNullRow = true;
+  // bool    allNullRow = true;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
@@ -36,7 +36,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
       p->ts = pColVal->ts;
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
-      allNullRow = p->isNull & allNullRow;
+      // allNullRow = p->isNull & allNullRow;
 
       if (!p->isNull) {
         if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
@@ -56,7 +56,8 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       colDataSetVal(pColInfoData, numOfRows, (const char*)pRes[i], false);
     }
 
-    pBlock->info.rows += allNullRow ? 0 : 1;
+    // pBlock->info.rows += allNullRow ? 0 : 1;
+    ++pBlock->info.rows;
   } else if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
@@ -65,7 +66,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
       SColVal*  pVal = &pColVal->colVal;
 
-      allNullRow = false;
+      // allNullRow = false;
       if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
         if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
           colDataSetNULL(pColInfoData, numOfRows);
@@ -80,7 +81,8 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       }
     }
 
-    pBlock->info.rows += allNullRow ? 0 : 1;
+    // pBlock->info.rows += allNullRow ? 0 : 1;
+    ++pBlock->info.rows;
   } else {
     tsdbError("invalid retrieve type:%d, %s", pReader->type, idStr);
     return TSDB_CODE_INVALID_PARA;

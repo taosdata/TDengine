@@ -19,6 +19,9 @@ index_option:
 functions:
     function [, function] ...
 ```
+### tag Indexing
+
+  [tag index](../tag-index)
 
 ### SMA Indexing
 
