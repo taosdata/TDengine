@@ -790,6 +790,22 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       }
     }
 
+    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      }
+    }
+    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC ) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      }
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0) conflict = true;
+      }
+    }
+
     if (conflict) {
       mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with trans:%d db:%s stb:%s type:%d",
              pNew->id, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname,

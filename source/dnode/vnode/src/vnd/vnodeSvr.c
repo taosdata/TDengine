@@ -19,6 +19,7 @@
 #include "vndCos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "audit.h"
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -940,6 +941,14 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
+
+    int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
+
+    char detail[1000] = {0};
+    sprintf(detail, "btime:%" PRId64 ", flags:%d, ttl:%d, type:%d", 
+            pCreateReq->btime, pCreateReq->flags, pCreateReq->ttl, pCreateReq->type);
+
+    auditRecord(pReq, clusterId, "createTable", pVnode->config.dbname, pCreateReq->name, detail);
   }
 
   vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));

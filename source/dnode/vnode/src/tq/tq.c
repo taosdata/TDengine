@@ -666,6 +666,8 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
 
+    tqUnregisterPushHandle(pTq, pHandle);
+
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
       tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
@@ -767,20 +769,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
-      //    atomic_add_fetch_32(&pHandle->epoch, 1);
-
-      // kill executing task
-      //    if(tqIsHandleExec(pHandle)) {
-      //      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
-      //      if (pTaskInfo != NULL) {
-      //        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
-      //      }
-
-      //      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      //        qStreamCloseTsdbReader(pTaskInfo);
-      //      }
-      //    }
-      // remove if it has been register in the push manager, and return one empty block to consumer
+      atomic_store_32(&pHandle->epoch, 0);
       tqUnregisterPushHandle(pTq, pHandle);
       ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
     }

@@ -64,6 +64,7 @@ typedef struct SFillOperatorInfo {
 static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order);
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
+static void fillResetPrevForNewGroup(SFillInfo* pFillInfo);
 
 static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOperatorInfo* pInfo,
                                                SResultInfo* pResultInfo, int32_t order) {
@@ -84,6 +85,9 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
 
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
+  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
+    fillResetPrevForNewGroup(pInfo->pFillInfo);
+  }
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
   taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
@@ -122,6 +126,15 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
 }
 
+static void fillResetPrevForNewGroup(SFillInfo* pFillInfo) {
+  for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
+    if (!pFillInfo->pFillCol[colIdx].notFillCol) {
+      SGroupKeys* key = taosArrayGet(pFillInfo->prev.pRowVal, colIdx);
+      key->isNull = true;
+    }
+  }
+}
+
 // todo refactor: decide the start key according to the query time range.
 static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order) {
   if (order == TSDB_ORDER_ASC) {
@@ -153,17 +166,20 @@ static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, i
     } else if (ekey < pInfo->pFillInfo->start) {
       int64_t t = ekey;
       SInterval* pInterval = &pInfo->pFillInfo->interval;
-
+      int64_t    prev = t;
       while(1) {
-        int64_t prev = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-        if (prev >= pInfo->pFillInfo->start) {
-          t = prev;
+        int64_t next = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+        if (next >= pInfo->pFillInfo->start) {
+          prev = t;
+          t = next;
           break;
         }
-        t = prev;
+        prev = t;
+        t = next;
       }
 
-      // todo time window chosen problem: t or prev value?
+      // todo time window chosen problem: t or next value?
+      if (t > pInfo->pFillInfo->start) t = prev;
       taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
     }
   }

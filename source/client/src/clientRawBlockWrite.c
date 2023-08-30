@@ -522,9 +522,9 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
           buf = parseTagDatatoJson(vAlterTbReq.pTagVal);
         } else {
           if(vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY){
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal*2 + 2 + 3, 1);
           }else{
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 3, 1);
           }
           dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
         }
@@ -697,14 +697,14 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SField));
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
     SSchema* pSchema = req.schemaRow.pSchema + i;
-    SField   field = {.type = pSchema->type, .bytes = pSchema->bytes};
+    SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
     taosArrayPush(pReq.pColumns, &field);
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
   for (int32_t i = 0; i < req.schemaTag.nCols; i++) {
     SSchema* pSchema = req.schemaTag.pSchema + i;
-    SField   field = {.type = pSchema->type, .bytes = pSchema->bytes};
+    SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
     taosArrayPush(pReq.pTags, &field);
   }

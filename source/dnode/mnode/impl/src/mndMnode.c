@@ -22,6 +22,7 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "tmisce.h"
+#include "audit.h"
 
 #define MNODE_VER_NUMBER   2
 #define MNODE_RESERVE_SIZE 64
@@ -652,6 +653,11 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   code = mndCreateMnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[40] = {0};
+  sprintf(obj, "%d", createReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "createMnode", obj, "", "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("mnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
@@ -787,6 +793,11 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
 
   code = mndDropMnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  char obj[40] = {0};
+  sprintf(obj, "%d", dropReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "dropMnode", obj, "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

@@ -155,9 +155,37 @@ class TDTestCase:
                     tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
                     for i in range(self.tbnum):
                         tdSql.error(f'alter stable {self.stbname}_{i} modify column {key} {v}')
-    def run(self):
+    
+    def alter_stable_column_varchar_39001(self):
+        """Check alter stable column varchar 39001 from 39000(TS-3841)
+        """
+        stbname = "st1"
+        column_dict = {
+            'ts'  : 'timestamp',
+            'col1': 'varchar(39000)',
+            'col2': 'tinyint',
+            'col3': 'timestamp',
+            'col4': 'tinyint',
+            'col5': 'timestamp',
+            'col6': 'varchar(18)',
+            'col7': 'varchar(17)'
+        }
+        tag_dict = {
+            'id': 'int'
+        }
 
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname, column_dict, tag_dict))
+        res = tdSql.getResult(f'desc {stbname}')
+        tdLog.info(res)
+        assert(res[1][2] == 39000)
+        tdSql.execute(f'alter stable {stbname} modify column col1 varchar(39001)')
+        res = tdSql.getResult(f'desc {stbname}')
+        tdLog.info(res)
+        assert(res[1][2] == 39001)
+
+    def run(self):
         self.alter_stable_check()
+        self.alter_stable_column_varchar_39001()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

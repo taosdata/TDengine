@@ -25,6 +25,7 @@
 #include "mndUser.h"
 #include "tglobal.h"
 #include "tversion.h"
+#include "audit.h"
 
 typedef struct {
   uint32_t id;
@@ -307,6 +308,15 @@ _CONNECT:
   mGDebug("user:%s, login from %s:%d, conn:%u, app:%s", pReq->info.conn.user, ip, pConn->port, pConn->id, connReq.app);
 
   code = 0;
+
+  char obj[100] = {0};
+  sprintf(obj, "%s:%d", ip, pConn->port);
+
+  char detail[1000] = {0};
+  sprintf(detail, "connType:%d, db:%s, pid:%d, startTime:%" PRId64 ", sVer:%s, app:%s", 
+          connReq.connType, connReq.db, connReq.pid, connReq.startTime, connReq.sVer, connReq.app);
+
+  auditRecord(pReq, pMnode->clusterId, "login", connReq.user, obj, detail);
 
 _OVER:
 

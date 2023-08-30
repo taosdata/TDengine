@@ -26,6 +26,7 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "mndCluster.h"
+#include "audit.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -908,6 +909,12 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   tsGrantHBInterval = 5;
+
+  char obj[200] = {0};
+  sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
+
+  auditRecord(pReq, pMnode->clusterId, "createDnode", obj, "", "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
@@ -1054,6 +1061,17 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  char obj1[150] = {0};
+  sprintf(obj1, "%s:%d", dropReq.fqdn, dropReq.port);
+
+  char obj2[30] = {0};
+  sprintf(obj2, "%d", dropReq.dnodeId);
+
+  char detail[100] = {0};
+  sprintf(detail, "force:%d, unsafe:%d", dropReq.force, dropReq.unsafe);
+
+  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, obj2, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1235,6 +1253,14 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
   }
+
+  char obj[50] = {0};
+  sprintf(obj, "%d", cfgReq.dnodeId);
+
+  char detail[500] = {0};
+  sprintf(detail, "config:%s, value:%s", cfgReq.config, cfgReq.value);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", detail);
 
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;

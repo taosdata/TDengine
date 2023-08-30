@@ -234,6 +234,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
   taosThreadMutexDestroy(&pDispatcher->mutex);
+  taosMemoryFree(pDispatcher->pManager);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -248,7 +249,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
   dispatcher->sink.fPut = putDataBlock;
   dispatcher->sink.fEndPut = endPut;
@@ -266,8 +267,13 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   if (NULL == dispatcher->pDataBlocks) {
     taosMemoryFree(dispatcher);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFree(pManager);
+  return terrno;
 }
