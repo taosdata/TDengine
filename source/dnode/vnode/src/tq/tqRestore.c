@@ -84,6 +84,7 @@ int32_t tqSetStreamTasksReady(STQ* pTq) {
       tqDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
               pTask->id.idStr);
       streamLaunchFillHistoryTask(pTask);
+      streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
