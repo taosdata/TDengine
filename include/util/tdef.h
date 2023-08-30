@@ -184,6 +184,7 @@ typedef enum ELogicConditionType {
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
 
+#define TSDB_POINTER_PRINT_BYTES 18 // 0x1122334455667788
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN 11
