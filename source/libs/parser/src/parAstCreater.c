@@ -1655,33 +1655,39 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
 }
 
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
-  struct in_addr addr;
-
-  char* ipCopy = strdup(ipRange);
+  int32_t code = TSDB_CODE_SUCCESS;
+  char* ipCopy = taosStrdup(ipRange);
   char* slash = strchr(ipCopy, '/');
   if (slash) {
     *slash = '\0';
+    struct in_addr addr;
     if (inet_pton(AF_INET, ipCopy, &addr) == 1) {
       int prefix = atoi(slash + 1);
-      pIpRange->ip = addr.s_addr;
-      uint32_t mask = (1 << (32 - prefix)) - 1;
-      mask = htonl(~mask);
-      pIpRange->mask = mask;
       if (prefix < 0 || prefix > 32) {
-        return TSDB_CODE_PAR_INVALID_IP_RANGE;
+        code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+      } else {      
+        pIpRange->ip = addr.s_addr;
+        uint32_t mask = (1 << (32 - prefix)) - 1;
+        mask = htonl(~mask);
+        pIpRange->mask = mask;
+        code = TSDB_CODE_SUCCESS;
       }
     } else {
-      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+      code = TSDB_CODE_PAR_INVALID_IP_RANGE;
     }
   } else {
+    struct in_addr addr;
     if (inet_pton(AF_INET, ipCopy, &addr) == 1) {
       pIpRange->ip = addr.s_addr;
       pIpRange->mask = 0xFFFFFFFF;
+      code = TSDB_CODE_SUCCESS;
     } else {
-      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+      code = TSDB_CODE_PAR_INVALID_IP_RANGE;
     }
   }
-  return TSDB_CODE_SUCCESS;
+
+  taosMemoryFreeClear(ipCopy);
+  return code;  
 }
 
 static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIpRangesNodeList, SIpV4Range* pIpRanges) {
@@ -1706,6 +1712,8 @@ static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIp
 }
 
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
+  ((SCreateUserStmt*)pCreateUserStmt)->pNodeListIpRanges = pIpRangesNodeList;
+
   if (pIpRangesNodeList == NULL) {
     return pCreateUserStmt;
   }
@@ -1773,6 +1781,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
     case TSDB_ALTER_USER_ADD_WHITE_LIST: 
     case TSDB_ALTER_USER_DROP_WHITE_LIST: {
       SNodeList* pIpRangesNodeList = pAlterInfo;
+      pStmt->pNodeListIpRanges = pIpRangesNodeList;
       pStmt->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
       pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpV4Range));
       if (NULL == pStmt->pIpRanges) {

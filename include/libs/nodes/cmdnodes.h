@@ -224,6 +224,8 @@ typedef struct SCreateUserStmt {
   int8_t    sysinfo;
   int32_t numIpRanges;
   SIpV4Range* pIpRanges;
+
+  SNodeList* pNodeListIpRanges;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
@@ -235,6 +237,8 @@ typedef struct SAlterUserStmt {
   int8_t    sysinfo;
   int32_t numIpRanges;
   SIpV4Range* pIpRanges;
+
+  SNodeList* pNodeListIpRanges;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
