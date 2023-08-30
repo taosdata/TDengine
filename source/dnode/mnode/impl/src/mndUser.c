@@ -982,24 +982,41 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
           alterReq.alterType, alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
 
   if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
-    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, alterReq.objname, detail);
+    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
           alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
           alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
-    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, alterReq.objname, detail);
+    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB||
           alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB||
           alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC||
           alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE||
           alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE||
           alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE){
+    if (strcmp(alterReq.objname, "1.*") != 0){
+      SName name = {0};
+      tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, name.dbname, detail);
+    }else{
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, "*", detail);
+    }
+  }
+  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
     auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, alterReq.objname, detail);
   }
-  else{
+  else if(alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
     auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, alterReq.objname, detail);
+  }
+  else{
+    if (strcmp(alterReq.objname, "1.*") != 0){
+      SName name = {0};
+      tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, name.dbname, detail);
+    }else{
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, "*", detail);
+    }
   }
 
 _OVER:
