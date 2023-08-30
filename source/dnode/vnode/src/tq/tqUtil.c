@@ -39,6 +39,7 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
 void tqUpdateNodeStage(STQ* pTq) {
   SSyncState state = syncGetState(pTq->pVnode->sync);
   pTq->pStreamMeta->stage = state.term;
+  tqDebug("vgId:%d update the meta stage to be:%"PRId64, pTq->pStreamMeta->vgId, pTq->pStreamMeta->stage);
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {

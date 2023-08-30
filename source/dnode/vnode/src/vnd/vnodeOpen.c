@@ -423,16 +423,23 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
 
-  // open sma
-  if (smaOpen(pVnode, rollback)) {
-    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
-
   // open query
   if (vnodeQueryOpen(pVnode)) {
     vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  // sma required the tq is initialized before the vnode open
+  pVnode->pTq = tqOpen(tdir, pVnode);
+  if (pVnode->pTq == NULL) {
+    vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // open sma
+  if (smaOpen(pVnode, rollback)) {
+    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -447,12 +454,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
   if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
-
-  pVnode->pTq = tqOpen(tdir, pVnode);
-  if (pVnode->pTq == NULL) {
-    vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 

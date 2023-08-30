@@ -1687,7 +1687,8 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   // set the initial value for generating check point
   // set the mgmt epset info according to the checkout source msg from mnode, todo update mgmt epset if needed
   if (pMeta->chkptNotReadyTasks == 0) {
-    pMeta->chkptNotReadyTasks = taosArrayGetSize(pMeta->pTaskList);
+    pMeta->chkptNotReadyTasks = streamMetaGetNumOfStreamTasks(pMeta);
+    pMeta->totalTasks = pMeta->chkptNotReadyTasks;
   }
 
   total = taosArrayGetSize(pMeta->pTaskList);
@@ -1798,19 +1799,6 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     tqDebug("vgId:%d closed tasks:%d, not closed:%d", vgId, pMeta->closedTask, (numOfTasks - pMeta->closedTask));
   }
-//  bool allStopped = true;
-//  int32_t numOfCount = streamMetaGetNumOfTasks(pMeta);
-//  for(int32_t i = 0; i < numOfCount; ++i) {
-//    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-//
-//    int64_t keys1[2] = {pId->streamId, pId->taskId};
-//    SStreamTask** p = taosHashGet(pMeta->pTasks, keys1, sizeof(keys1));
-//    if ((*p)->status.taskStatus != TASK_STATUS__STOP) {
-//      allStopped = false;
-//      tqDebug("vgId:%d, s-task:0x%"PRIx64"-0x%x not updated yet", vgId, keys1[0], pId->taskId);
-//      break;
-//    }
-//  }
 
   taosWUnLockLatch(&pMeta->lock);
 

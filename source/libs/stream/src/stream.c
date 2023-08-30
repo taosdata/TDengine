@@ -67,7 +67,6 @@ static void streamSchedByTimer(void* param, void* tmrId) {
 
   if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
     qDebug("s-task:%s jump out of schedTimer", pTask->id.idStr);
-    streamMetaReleaseTask(NULL, pTask);
     return;
   }
 
@@ -410,7 +409,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
-    qDebug("s-task:%s new data arrived, active the trigger, trigerStatus:%d", pTask->id.idStr, pTask->triggerStatus);
+    qDebug("s-task:%s new data arrived, active the trigger, triggerStatus:%d", pTask->id.idStr, pTask->triggerStatus);
   }
 
   return 0;

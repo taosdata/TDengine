@@ -258,6 +258,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
 
     // release the ref by timer
     if (p->triggerParam != 0 && p->info.fillHistory == 0) {  // one more ref in timer
+      qDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", p->id.idStr, p->refCnt);
       taosTmrStop(p->schedTimer);
       p->triggerParam = 0;
       streamMetaReleaseTask(pMeta, p);
@@ -399,6 +400,22 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
   size_t size = taosHashGetSize(pMeta->pTasks);
   ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasks));
   return (int32_t)size;
+}
+
+int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
+  int32_t num = 0;
+  size_t  size = taosArrayGetSize(pMeta->pTaskList);
+  for (int32_t i = 0; i < size; ++i) {
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    int64_t        keys[2] = {pId->streamId, pId->taskId};
+
+    SStreamTask** p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if ((*p)->info.fillHistory == 0) {
+      num += 1;
+    }
+  }
+
+  return num;
 }
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {

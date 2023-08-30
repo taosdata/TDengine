@@ -400,8 +400,9 @@ typedef struct SStreamMeta {
   TdThreadMutex backendMutex;
   SMetaHbInfo   hbInfo;
   int32_t       closedTask;
+  int32_t       totalTasks;  // this value should be increased when a new task is added into the meta
   int32_t       chkptNotReadyTasks;
-  int64_t      rid;
+  int64_t       rid;
 
   int64_t  chkpId;
   SArray*  chkpSaved;
@@ -711,6 +712,7 @@ int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int64_t* pKey);
 int32_t      streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);
 int32_t      streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);
+int32_t      streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
