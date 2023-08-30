@@ -1117,6 +1117,26 @@ static char* mndAuditFieldTypeStr(int32_t type){
   }
 }
 
+static void mndAuditFieldStr(char* detail, SArray *arr, int32_t len, int32_t max){
+for (int32_t i = 0; i < len; ++i) {
+    SField *pField = taosArrayGet(arr, i);
+    char field[200] = {0};
+    if(strlen(detail) > 0 && strlen(detail)< max-3) {
+      strcat(detail, ", ");
+    }
+    else{
+      break;
+    }
+    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
+    if(strlen(detail)< max-strlen(field)) {
+      strcat(detail, field);
+    }
+    else{
+      break;
+    }
+  }
+}
+
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -1225,7 +1245,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[4000] = {0};
+  char detail[AUDIT_DETAIL_MAX] = {0};
   sprintf(detail, "colVer:%d, delay1:%" PRId64 ", delay2:%" PRId64 ", deleteMark1:%" PRId64 ", "
           "deleteMark2:%" PRId64 ", igExists:%d, numOfColumns:%d, numOfFuncs:%d, numOfTags:%d, "
           "source:%d, suid:%" PRId64 ", tagVer:%d, ttl:%d, "
@@ -1235,21 +1255,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
           createReq.watermark1, createReq.watermark2);
   
-  for (int32_t i = 0; i < createReq.numOfColumns; ++i) {
-    SField *pField = taosArrayGet(createReq.pColumns, i);
-    char field[200] = {0};
-    if(strlen(detail) > 0) strcat(detail, ", ");
-    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
-    strcat(detail, field);
-  }
-
-  for (int32_t i = 0; i < createReq.numOfTags; ++i) {
-    SField *pField = taosArrayGet(createReq.pTags, i);
-    char field[200] = {0};
-    if(strlen(detail) > 0) strcat(detail, ", ");
-    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
-    strcat(detail, field);
-  }
+  mndAuditFieldStr(detail, createReq.pColumns, createReq.numOfColumns, AUDIT_DETAIL_MAX);
+  mndAuditFieldStr(detail, createReq.pTags, createReq.numOfTags, AUDIT_DETAIL_MAX);
 
   SName name = {0};
   tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
