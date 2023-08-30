@@ -409,6 +409,7 @@ typedef struct SStreamMeta {
   SArray*  chkpInUse;
   int32_t  chkpCap;
   SRWLatch chkpDirLock;
+  int32_t  pauseTaskNum;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -673,8 +674,8 @@ int32_t streamTaskGetInputQItems(const SStreamTask* pTask);
 int32_t     streamRestoreParam(SStreamTask* pTask);
 int32_t     streamSetStatusNormal(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
-void        streamTaskPause(SStreamTask* pTask);
-void        streamTaskResume(SStreamTask* pTask);
+void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
+void        streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskHalt(SStreamTask* pTask);
 void        streamTaskResumeFromHalt(SStreamTask* pTask);
 void        streamTaskDisablePause(SStreamTask* pTask);

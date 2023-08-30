@@ -403,7 +403,11 @@ static void doRetryDispatchData(void* param, void* tmrId) {
     if (!streamTaskShouldStop(&pTask->status)) {
       qDebug("s-task:%s reset the waitRspCnt to be 0 before launch retry dispatch", pTask->id.idStr);
       atomic_store_32(&pTask->shuffleDispatcher.waitingRspCnt, 0);
-      streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
+      if (streamTaskShouldPause(&pTask->status)) {
+        streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS * 10);
+      } else {
+        streamRetryDispatchStreamBlock(pTask, DISPATCH_RETRY_INTERVAL_MS);
+      }
     } else {
       atomic_sub_fetch_8(&pTask->status.timerActive, 1);
       qDebug("s-task:%s should stop, abort from timer", pTask->id.idStr);

@@ -203,6 +203,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
+  pMeta->pauseTaskNum = 0;
+
   qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,
         stage);
   return pMeta;
@@ -486,6 +488,10 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
   if (ppTask) {
     pTask = *ppTask;
+    if (streamTaskShouldPause(&pTask->status)) {
+      int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
+      qInfo("vgId:%d s-task:%s drop stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
+    }
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
   } else {
     qDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
@@ -685,8 +691,13 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
       return -1;
     }
 
+    if (streamTaskShouldPause(&pTask->status)) {
+      atomic_add_fetch_32(&pMeta->pauseTaskNum, 1);
+    }
+
     ASSERT(pTask->status.downstreamReady == 0);
   }
+  qInfo("vgId:%d pause task num:%d", pMeta->vgId, pMeta->pauseTaskNum);
 
   tdbFree(pKey);
   tdbFree(pVal);

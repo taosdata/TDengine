@@ -121,7 +121,7 @@ int32_t tqCheckStreamStatus(STQ* pTq) {
   return 0;
 }
 
-int32_t tqStartStreamTasks(STQ* pTq) {
+int32_t tqStartStreamTasks(STQ* pTq, bool ckPause) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -143,6 +143,13 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   if (pMeta->walScanCounter > 1) {
     tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
+    taosWUnLockLatch(&pMeta->lock);
+    return 0;
+  }
+
+  int32_t numOfPauseTasks = pTq->pStreamMeta->pauseTaskNum;
+  if (ckPause && numOfTasks == numOfPauseTasks) {
+    tqDebug("ignore all submit, all streams had been paused");
     taosWUnLockLatch(&pMeta->lock);
     return 0;
   }

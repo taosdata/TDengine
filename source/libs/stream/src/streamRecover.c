@@ -811,9 +811,7 @@ void streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
 }
 
 // normal -> pause, pause/stop/dropping -> pause, halt -> pause, scan-history -> pause
-void streamTaskPause(SStreamTask* pTask) {
-  SStreamMeta* pMeta = pTask->pMeta;
-
+void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
   int64_t st = taosGetTimestampMs();
 
   int8_t status = pTask->status.taskStatus;
@@ -825,6 +823,12 @@ void streamTaskPause(SStreamTask* pTask) {
   const char* str = streamGetTaskStatusStr(status);
   if (status == TASK_STATUS__STOP || status == TASK_STATUS__PAUSE) {
     qDebug("vgId:%d s-task:%s task already stopped/paused, status:%s, do nothing", pMeta->vgId, pTask->id.idStr, str);
+    return;
+  }
+
+  if(pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    int32_t num = atomic_add_fetch_32(&pMeta->pauseTaskNum, 1);
+    qInfo("vgId:%d s-task:%s pause stream sink task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
     return;
   }
 
@@ -857,6 +861,8 @@ void streamTaskPause(SStreamTask* pTask) {
 
   atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
   atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+  int32_t num = atomic_add_fetch_32(&pMeta->pauseTaskNum, 1);
+  qInfo("vgId:%d s-task:%s pause stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
   taosWUnLockLatch(&pMeta->lock);
 
   // in case of fill-history task, stop the tsdb file scan operation.
@@ -870,12 +876,16 @@ void streamTaskPause(SStreamTask* pTask) {
          streamGetTaskStatusStr(pTask->status.keepTaskStatus), (int32_t)el);
 }
 
-void streamTaskResume(SStreamTask* pTask) {
+void streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta) {
   int8_t status = pTask->status.taskStatus;
   if (status == TASK_STATUS__PAUSE) {
     pTask->status.taskStatus = pTask->status.keepTaskStatus;
     pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
-    qDebug("s-task:%s resume from pause", pTask->id.idStr);
+    int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
+    qInfo("vgId:%d s-task:%s resume from pause, status%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
+  } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
+    qInfo("vgId:%d s-task:%s sink task.resume from pause, status%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
   } else {
     qError("s-task:%s not in pause, failed to resume, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
   }
