@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -54,7 +55,6 @@ typedef enum SResultTsInterpType {
   RESULT_ROW_START_INTERP = 1,
   RESULT_ROW_END_INTERP = 2,
 } SResultTsInterpType;
-
 
 typedef struct SOpenWindowInfo {
   SResultRowPosition pos;
@@ -388,7 +388,7 @@ static bool setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SEx
 
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType) {
   if (pInterval->interval != pInterval->sliding &&
-      ((pWin->ekey < calStart || pWin->skey > calEnd) || (blockType == STREAM_PULL_DATA && pWin->skey < calStart) )) {
+      ((pWin->ekey < calStart || pWin->skey > calEnd) || (blockType == STREAM_PULL_DATA && pWin->skey < calStart))) {
     return false;
   }
 
@@ -400,7 +400,7 @@ bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pB
 }
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
-                                      TSKEY* primaryKeys, int32_t prevPosition, int32_t order) {
+                               TSKEY* primaryKeys, int32_t prevPosition, int32_t order) {
   bool ascQuery = (order == TSDB_ORDER_ASC);
 
   int32_t precision = pInterval->precision;
@@ -632,8 +632,8 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 }
 
 static bool tsKeyCompFn(void* l, void* r, void* param) {
-  TSKEY* lTS = (TSKEY*)l;
-  TSKEY* rTS = (TSKEY*)r;
+  TSKEY*                    lTS = (TSKEY*)l;
+  TSKEY*                    rTS = (TSKEY*)r;
   SIntervalAggOperatorInfo* pInfo = param;
   return pInfo->binfo.outputTsOrder == ORDER_ASC ? *lTS < *rTS : *lTS > *rTS;
 }
@@ -728,8 +728,8 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   }
 
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
-  int32_t forwardRows =
-      getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->binfo.inputTsOrder);
+  int32_t forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
+                                                 pInfo->binfo.inputTsOrder);
 
   // prev time window not interpolation yet.
   if (pInfo->timeWindowInterpo) {
@@ -756,7 +756,8 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   STimeWindow nextWin = win;
   while (1) {
     int32_t prevEndPos = forwardRows - 1 + startPos;
-    startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos, pInfo->binfo.inputTsOrder);
+    startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos,
+                                      pInfo->binfo.inputTsOrder);
     if (startPos < 0 || filterWindowWithLimit(pInfo, &nextWin, tableGroupId)) {
       break;
     }
@@ -768,8 +769,8 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     }
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
-    forwardRows =
-        getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->binfo.inputTsOrder);
+    forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
+                                           pInfo->binfo.inputTsOrder);
     // window start(end) key interpolation
     doWindowBorderInterpolation(pInfo, pBlock, pResult, &nextWin, startPos, forwardRows, pSup);
     // TODO: add to open window? how to close the open windows after input blocks exhausted?
@@ -1116,7 +1117,6 @@ static void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf,
   releaseBufPage(pResultBuf, bufPage);
 }
 
-
 static void destroyStateWindowOperatorInfo(void* param) {
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
@@ -1152,7 +1152,6 @@ void destroyIntervalOperatorInfo(void* param) {
   destroyBoundedQueue(pInfo->pBQ);
   taosMemoryFreeClear(param);
 }
-
 
 static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SIntervalAggOperatorInfo* pInfo) {
   // the primary timestamp column
@@ -1208,13 +1207,6 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
   return needed;
 }
 
-
-void initStreamFunciton(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
-  for (int32_t i = 0; i < numOfExpr; i++) {
-    //    pCtx[i].isStream = true;
-  }
-}
-
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,
                                           SExecTaskInfo* pTaskInfo) {
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
@@ -1235,8 +1227,8 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->window.pFuncs, NULL, &num);
-  int32_t    code =
-      initAggSup(pSup, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+  int32_t    code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
+                               pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1476,7 +1468,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pStateNode->window.pExprs, NULL, &numOfScalarExpr);
-    int32_t    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
+    int32_t    code =
+        initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -1614,7 +1607,6 @@ _error:
   pTaskInfo->code = code;
   return NULL;
 }
-
 
 void destroyMAIOperatorInfo(void* param) {
   SMergeAlignedIntervalAggOperatorInfo* miaInfo = (SMergeAlignedIntervalAggOperatorInfo*)param;
@@ -1979,8 +1971,8 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   }
 
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
-  int32_t forwardRows =
-      getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, iaInfo->binfo.inputTsOrder);
+  int32_t forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
+                                                 iaInfo->binfo.inputTsOrder);
   ASSERT(forwardRows > 0);
 
   // prev time window not interpolation yet.
@@ -2010,8 +2002,8 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   STimeWindow nextWin = win;
   while (1) {
     int32_t prevEndPos = forwardRows - 1 + startPos;
-    startPos =
-        getNextQualifiedWindow(&iaInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos, iaInfo->binfo.inputTsOrder);
+    startPos = getNextQualifiedWindow(&iaInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos,
+                                      iaInfo->binfo.inputTsOrder);
     if (startPos < 0) {
       break;
     }
@@ -2025,8 +2017,8 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
     }
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
-    forwardRows =
-        getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, iaInfo->binfo.inputTsOrder);
+    forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
+                                           iaInfo->binfo.inputTsOrder);
 
     // window start(end) key interpolation
     doWindowBorderInterpolation(iaInfo, pBlock, pResult, &nextWin, startPos, forwardRows, pExprSup);

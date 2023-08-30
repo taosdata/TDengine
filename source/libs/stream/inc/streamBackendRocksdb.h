@@ -44,9 +44,11 @@ typedef struct {
   int64_t                            defaultCfInit;
 } SBackendWrapper;
 
-void*      streamBackendInit(const char* path);
+void*      streamBackendInit(const char* path, int64_t chkpId);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
+int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
+int32_t    streamBackendDoCheckpoint(void* pMeta, uint64_t checkpointId);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 
@@ -135,5 +137,10 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
                                     void* val, int32_t vlen, int64_t ttl, void* tmpBuf);
 
 int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
+int32_t streamBackendTriggerChkp(void* pMeta, char* dst);
+
+int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
+int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
+
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif

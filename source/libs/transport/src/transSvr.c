@@ -196,8 +196,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
     return false;
   }
-  tDebug("head version: %d 2", pHead->version);
-
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
@@ -727,7 +725,6 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
-  tTrace("connection coming");
   if (nread < 0) {
     if (nread != UV_EOF) {
       tError("read error %s", uv_err_name(nread));

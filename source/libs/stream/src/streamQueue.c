@@ -15,33 +15,49 @@
 
 #include "streamInt.h"
 
+#define MAX_STREAM_EXEC_BATCH_NUM 32
+#define MIN_STREAM_EXEC_BATCH_NUM 4
+
 SStreamQueue* streamQueueOpen(int64_t cap) {
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
-  if (pQueue == NULL) return NULL;
+  if (pQueue == NULL) {
+    return NULL;
+  }
+
   pQueue->queue = taosOpenQueue();
   pQueue->qall = taosAllocateQall();
+
   if (pQueue->queue == NULL || pQueue->qall == NULL) {
-    goto FAIL;
+    if (pQueue->queue) taosCloseQueue(pQueue->queue);
+    if (pQueue->qall) taosFreeQall(pQueue->qall);
+    taosMemoryFree(pQueue);
+    return NULL;
   }
+
   pQueue->status = STREAM_QUEUE__SUCESS;
   taosSetQueueCapacity(pQueue->queue, cap);
   taosSetQueueMemoryCapacity(pQueue->queue, cap * 1024);
   return pQueue;
-
-FAIL:
-  if (pQueue->queue) taosCloseQueue(pQueue->queue);
-  if (pQueue->qall) taosFreeQall(pQueue->qall);
-  taosMemoryFree(pQueue);
-  return NULL;
 }
 
-void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
-  qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->queue, taosQueueItemSize(pQueue->queue));
-
+void streamQueueCleanup(SStreamQueue* pQueue) {
   void* qItem = NULL;
   while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
     streamFreeQitem(qItem);
   }
+  pQueue->status = STREAM_QUEUE__SUCESS;
+}
+// void streamQueueClose(SStreamQueue* pQueue) {
+//   streamQueueCleanup(pQueue);
+
+//   taosFreeQall(pQueue->qall);
+//   taosCloseQueue(pQueue->queue);
+//   taosMemoryFree(pQueue);
+// }
+
+void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
+  qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->queue, taosQueueItemSize(pQueue->queue));
+  streamQueueCleanup(pQueue);
 
   taosFreeQall(pQueue->qall);
   taosCloseQueue(pQueue->queue);
@@ -106,18 +122,16 @@ SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
 }
 #endif
 
-#define MAX_STREAM_EXEC_BATCH_NUM 128
-#define MIN_STREAM_EXEC_BATCH_NUM 16
-
 // todo refactor:
 // read data from input queue
 typedef struct SQueueReader {
   SStreamQueue* pQueue;
-  int32_t  taskLevel;
-  int32_t  maxBlocks;        // maximum block in one batch
-  int32_t  waitDuration;     // maximum wait time to format several block into a batch to process, unit: ms
+  int32_t       taskLevel;
+  int32_t       maxBlocks;     // maximum block in one batch
+  int32_t       waitDuration;  // maximum wait time to format several block into a batch to process, unit: ms
 } SQueueReader;
 
+#if 0
 SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* idstr) {
   int32_t numOfBlocks = 0;
   int32_t tryCount = 0;
@@ -162,4 +176,101 @@ SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* 
   }
 
   return pRet;
+}
+#endif
+
+int32_t extractBlocksFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks) {
+  int32_t     retryTimes = 0;
+  int32_t     MAX_RETRY_TIMES = 5;
+  const char* id = pTask->id.idStr;
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {  // extract block from inputQ, one-by-one
+    while (1) {
+      if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
+        qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
+      if (qItem == NULL) {
+        qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      qDebug("s-task:%s sink task handle block one-by-one, type:%d", id, qItem->type);
+
+      *numOfBlocks = 1;
+      *pInput = qItem;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // non sink task
+  while (1) {
+    if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
+      qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
+    if (qItem == NULL) {
+      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
+        taosMsleep(10);
+        qDebug("===stream===try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
+        continue;
+      }
+
+      qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    // do not merge blocks for sink node and check point data block
+    if (qItem->type == STREAM_INPUT__CHECKPOINT || qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
+        qItem->type == STREAM_INPUT__TRANS_STATE) {
+      if (*pInput == NULL) {
+        char* p = NULL;
+        if (qItem->type == STREAM_INPUT__CHECKPOINT) {
+          p = "checkpoint";
+        } else if (qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+          p = "checkpoint-trigger";
+        } else {
+          p = "transtate";
+        }
+
+        qDebug("s-task:%s %s msg extracted, start to process immediately", id, p);
+        *numOfBlocks = 1;
+        *pInput = qItem;
+        return TSDB_CODE_SUCCESS;
+      } else {
+        // previous existed blocks needs to be handle, before handle the checkpoint msg block
+        qDebug("s-task:%s checkpoint/transtate msg extracted, handle previous blocks, numOfBlocks:%d", id,
+               *numOfBlocks);
+        streamQueueProcessFail(pTask->inputQueue);
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      if (*pInput == NULL) {
+        ASSERT((*numOfBlocks) == 0);
+        *pInput = qItem;
+      } else {
+        // todo we need to sort the data block, instead of just appending into the array list.
+        void* newRet = streamMergeQueueItem(*pInput, qItem);
+        if (newRet == NULL) {
+          qError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d", id, *numOfBlocks);
+          streamQueueProcessFail(pTask->inputQueue);
+          return TSDB_CODE_SUCCESS;
+        }
+
+        *pInput = newRet;
+      }
+
+      *numOfBlocks += 1;
+      streamQueueProcessSuccess(pTask->inputQueue);
+
+      if (*numOfBlocks >= MAX_STREAM_EXEC_BATCH_NUM) {
+        qDebug("s-task:%s batch size limit:%d reached, start to process blocks", id, MAX_STREAM_EXEC_BATCH_NUM);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
 }

@@ -377,7 +377,7 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SEncoder  *pCoder = &(SEncoder){0};
   SDeleteRes res = {0};
 
-  SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
+  SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   initStorageAPI(&handle.api);
 
   code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
@@ -561,7 +561,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      if (pVnode->restored && tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len) < 0) {
+      if (tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
       }
     } break;
@@ -571,12 +571,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
     } break;
     case TDMT_STREAM_TASK_PAUSE: {
-      if (pVnode->restored && tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
+      if (pVnode->restored && vnodeIsLeader(pVnode) &&
+          tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_RESUME: {
-      if (pVnode->restored && tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
+      if (pVnode->restored && vnodeIsLeader(pVnode) &&
+          tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
@@ -586,6 +588,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
       break;
+
     case TDMT_VND_ALTER_CONFIG:
       vnodeProcessAlterConfigReq(pVnode, ver, pReq, len, pRsp);
       break;
@@ -597,6 +600,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     case TDMT_VND_DROP_INDEX:
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
+      break;
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
+      tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg);
+      break;
+    case TDMT_VND_STREAM_TASK_UPDATE:
+      tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
       break;
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
@@ -614,7 +623,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   walApplyVer(pVnode->pWal, ver);
 
-  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, ver) < 0) {
+  if (tqPushMsg(pVnode->pTq, pMsg->msgType) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
@@ -665,7 +674,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     return 0;
   }
 
-  SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
+  SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   initStorageAPI(&handle.api);
 
   switch (pMsg->msgType) {
@@ -744,9 +753,9 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECK:
+    case TDMT_VND_STREAM_TASK_CHECK:
       return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECK_RSP:
+    case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return tqProcessStreamTaskCheckRsp(pVnode->pTq, 0, pMsg);
     case TDMT_STREAM_RETRIEVE:
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
@@ -754,10 +763,12 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_STREAM_SCAN_HISTORY_FINISH:
+    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
       return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
+    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
       return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY:
+      return tqProcessStreamTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -765,7 +776,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
 }
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
-  // blockDebugShowDataBlocks(data, __func__);
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 
@@ -1668,7 +1678,7 @@ static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
 }
 
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  vInfo("vgId:%d, vnode handle msgType:alter-confirm, alter confim msg is processed", TD_VID(pVnode));
+  vInfo("vgId:%d, vnode handle msgType:alter-confirm, alter confirm msg is processed", TD_VID(pVnode));
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pVnode->config.hashChange) {
     goto _exit;

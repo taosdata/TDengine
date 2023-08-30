@@ -12,7 +12,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
 #include "transComm.h"
+#include "tmisce.h"
+// clang-format on
 
 typedef struct {
   int32_t numOfConn;
@@ -307,19 +310,6 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
       (epSet)->inUse = ((epSet)->inUse) % ((epSet)->numOfEps); \
     }                                                          \
   } while (0)
-
-#define EPSET_DEBUG_STR(epSet, tbuf)                                                                                   \
-  do {                                                                                                                 \
-    int len = snprintf(tbuf, sizeof(tbuf), "epset:{");                                                                 \
-    for (int i = 0; i < (epSet)->numOfEps; i++) {                                                                      \
-      if (i == (epSet)->numOfEps - 1) {                                                                                \
-        len += snprintf(tbuf + len, sizeof(tbuf) - len, "%d. %s:%d", i, (epSet)->eps[i].fqdn, (epSet)->eps[i].port);   \
-      } else {                                                                                                         \
-        len += snprintf(tbuf + len, sizeof(tbuf) - len, "%d. %s:%d, ", i, (epSet)->eps[i].fqdn, (epSet)->eps[i].port); \
-      }                                                                                                                \
-    }                                                                                                                  \
-    len += snprintf(tbuf + len, sizeof(tbuf) - len, "}, inUse:%d", (epSet)->inUse);                                    \
-  } while (0);
 
 static void* cliWorkThread(void* arg);
 
@@ -1268,7 +1258,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  if (status == -1) status = ENETUNREACH;
+  if (status == -1) status = UV_EADDRNOTAVAIL;
 
   if (pConn->pBatch == NULL) {
     SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
@@ -2167,7 +2157,7 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (rpcDebugFlag & DEBUG_DEBUG) {
     STraceId* trace = &pMsg->msg.info.traceId;
     char      tbuf[256] = {0};
-    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+    EPSET_TO_STR(&pCtx->epSet, tbuf);
     tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
             pCtx->retryStep, pCtx->retryNextInterval);
   }
@@ -2396,7 +2386,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (hasEpSet) {
     if (rpcDebugFlag & DEBUG_TRACE) {
       char tbuf[256] = {0};
-      EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+      EPSET_TO_STR(&pCtx->epSet, tbuf);
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }

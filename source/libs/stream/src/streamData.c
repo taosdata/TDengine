@@ -15,7 +15,7 @@
 
 #include "streamInt.h"
 
-SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
+SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen);
   if (pData == NULL) {
     return NULL;
@@ -23,6 +23,7 @@ SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq
 
   pData->type = blockType;
   pData->srcVgId = srcVg;
+  pData->srcTaskId = pReq->upstreamTaskId;
 
   int32_t blockNum = pReq->blockNum;
   SArray* pArray = taosArrayInit_s(sizeof(SSDataBlock), blockNum);
@@ -60,16 +61,15 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
     return NULL;
   }
 
+  pStreamBlocks->srcTaskId = pTask->id.taskId;
   pStreamBlocks->type = STREAM_INPUT__DATA_BLOCK;
   pStreamBlocks->blocks = pRes;
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pSubmit->ver;
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pMerged->ver;
   }
 
@@ -121,6 +121,7 @@ SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type) {
     return NULL;
   }
 
+  pDataSubmit->ver = pData->ver;
   pDataSubmit->submit = *pData;
   *pDataSubmit->dataRef = 1;   // initialize the reference count to be 1
   pDataSubmit->type = type;
@@ -199,6 +200,11 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
   }
 }
 
+static void freeItems(void* param) {
+  SSDataBlock* pBlock = param;
+  taosArrayDestroy(pBlock->pDataBlock);
+}
+
 void streamFreeQitem(SStreamQueueItem* data) {
   int8_t type = data->type;
   if (type == STREAM_INPUT__GET_RES) {
@@ -232,5 +238,22 @@ void streamFreeQitem(SStreamQueueItem* data) {
     SStreamRefDataBlock* pRefBlock = (SStreamRefDataBlock*)data;
     blockDataDestroy(pRefBlock->pBlock);
     taosFreeQitem(pRefBlock);
+  } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    SStreamDataBlock* pBlock = (SStreamDataBlock*) data;
+    taosArrayDestroyEx(pBlock->blocks, freeItems);
+    taosFreeQitem(pBlock);
+  }
+}
+
+const char* streamGetBlockTypeStr(int32_t type) {
+  switch (type) {
+    case STREAM_INPUT__CHECKPOINT:
+      return "checkpoint";
+    case STREAM_INPUT__CHECKPOINT_TRIGGER:
+      return "checkpoint-trigger";
+    case STREAM_INPUT__TRANS_STATE:
+      return "trans-state";
+    default:
+      return "";
   }
 }

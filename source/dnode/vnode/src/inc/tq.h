@@ -55,7 +55,7 @@ typedef struct {
 
 typedef struct {
   int64_t suid;
-  char*   qmsg;   // SubPlanToString
+  char*   qmsg;  // SubPlanToString
   SNode*  node;
 } STqExecTb;
 
@@ -81,18 +81,21 @@ typedef enum tq_handle_status {
 } tq_handle_status;
 
 typedef struct {
-  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t       consumerId;
-  int32_t       epoch;
-  int8_t        fetchMeta;
-  int64_t       snapshotVer;
-  SWalReader*   pWalReader;
-  SWalRef*      pRef;
-//  STqPushHandle pushHandle;    // push
-  STqExecHandle execHandle;    // exec
-  SRpcMsg*      msg;
-  tq_handle_status        status;
+  char        subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t     consumerId;
+  int32_t     epoch;
+  int8_t      fetchMeta;
+  int64_t     snapshotVer;
+  SWalReader* pWalReader;
+  SWalRef*    pRef;
+  //  STqPushHandle pushHandle;    // push
+  STqExecHandle    execHandle;  // exec
+  SRpcMsg*         msg;
+  tq_handle_status status;
 } STqHandle;
+typedef struct {
+  int64_t snapshotVer;
+} SStreamHandle;
 
 struct STQ {
   SVnode*         pVnode;
@@ -110,15 +113,8 @@ struct STQ {
 };
 
 typedef struct {
-  int8_t inited;
-  tmr_h  timer;
-} STqMgmt;
-
-typedef struct {
   int32_t size;
 } STqOffsetHead;
-
-static STqMgmt tqMgmt = {0};
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
@@ -159,7 +155,7 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 // tqSink
 int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
-void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
@@ -176,6 +172,8 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
+void    tqUpdateNodeStage(STQ* pTq);
+
 #ifdef __cplusplus
 }
 #endif
