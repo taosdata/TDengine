@@ -98,6 +98,14 @@
           >
           <el-input v-model="info.sourceData.ts"> </el-input>
         </el-form-item>
+        <el-form-item label="Topic Suffix" prop="sourceData.topic_suffix"
+          :rules="{
+            required: true,
+            message: $t('dataIn.enterTip'),
+          }"
+          >
+          <el-input v-model="info.sourceData.topic_suffix"> </el-input>
+        </el-form-item>
       </template>
       <!-- SQL start -->
       <!-- <template v-if="model == 'SQL'">
@@ -189,7 +197,8 @@ import { Message } from 'element-ui'
             tags: [],
             start: '',
             end: '',
-            ts: ''
+            ts: '',
+            topic_suffix: ''
           },
           target: {
             kafkaUrl: '',
