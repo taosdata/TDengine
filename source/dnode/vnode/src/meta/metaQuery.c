@@ -699,16 +699,15 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 // N.B. Called by statusReq per second
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
-  static int64_t vndNumOfCTables = 0;
-  int64_t        numOfCTables = pMeta->pVnode->config.vndStats.numOfCTables;
-  if (numOfCTables - vndNumOfCTables > 100 || pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
+  int64_t nTables = metaGetTbNum(pMeta);
+  if (nTables - pMeta->pVnode->statis.nComparedTables > 100 || pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
       ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
     int64_t num = 0;
     vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
     pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
 
     pMeta->pVnode->config.vndStats.itvTimeSeries = (TD_VID(pMeta->pVnode) % 100) * 2;
-    vndNumOfCTables = numOfCTables;
+    pMeta->pVnode->statis.nComparedTables = nTables;
   }
 
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
