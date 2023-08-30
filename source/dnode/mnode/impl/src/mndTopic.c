@@ -622,14 +622,24 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  char detail[1000] = {0};
-  sprintf(detail, "igExists:%d, subStbName:%s, subType:%d, withMeta:%d", 
-          createTopicReq.igExists, createTopicReq.subStbName, createTopicReq.subType, createTopicReq.withMeta);
+  char detail[4000] = {0};
+  char sql[3000] = {0};
+  strncpy(sql, createTopicReq.sql, 2999);
 
-  SName name = {0};
-  tNameFromString(&name, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+  SName tableName = {0};
+  tNameFromString(&tableName, createTopicReq.subStbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "crateTopic", createTopicReq.name, name.dbname, detail);
+  sprintf(detail, "igExists:%d, subStbName:%s, subType:%d, withMeta:%d, sql:%s", 
+          createTopicReq.igExists, tableName.tname, createTopicReq.subType, createTopicReq.withMeta, sql);
+
+  SName dbname = {0};
+  tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+
+  SName topicName = {0};
+  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB);
+  //reuse this function for topic
+
+  auditRecord(pReq, pMnode->clusterId, "crateTopic", topicName.dbname, dbname.dbname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
