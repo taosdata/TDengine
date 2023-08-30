@@ -55,7 +55,7 @@ class TDTestCase:
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-        self.ins_list = ['ins_dnodes','ins_mnodes','ins_modules','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
+        self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges']
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
@@ -215,7 +215,13 @@ class TDTestCase:
         for t in range (2):
             tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
             tdSql.checkEqual(20470,len(tdSql.queryResult))
-            
+
+        tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
+        tdSql.checkEqual(193, len(tdSql.queryResult))
+
+        tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
+        tdSql.checkEqual(54, len(tdSql.queryResult))
+
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
         tdSql.execute('create database if not exists db2 vgroups 1 replica 1')

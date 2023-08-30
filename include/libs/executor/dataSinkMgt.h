@@ -59,7 +59,7 @@ typedef struct SDataSinkMgtCfg {
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI);
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
@@ -83,7 +83,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
+int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 
@@ -96,6 +96,8 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue);
 
 void dsEndPut(DataSinkHandle handle, uint64_t useconds);
+
+void dsReset(DataSinkHandle handle);
 
 /**
  * Get the length of the data returned by the next call to dsGetDataBlock.

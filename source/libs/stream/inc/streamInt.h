@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+#define ONE_MB_F       (1048576.0)
+#define SIZE_IN_MB(_v) ((_v) / ONE_MB_F)
+
 typedef struct {
   int8_t inited;
   void*  timer;
@@ -52,7 +55,6 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
-int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData);
 int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
 int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHistoryFinishReq* pReq, int32_t vgId,
@@ -63,6 +65,7 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
 int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
+int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;

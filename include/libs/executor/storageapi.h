@@ -98,6 +98,18 @@ typedef struct SMTbCursor {
   int8_t      paused;
 } SMTbCursor;
 
+typedef struct SMCtbCursor {
+  SMeta   *pMeta;
+  void    *pCur;
+  tb_uid_t suid;
+  void    *pKey;
+  void    *pVal;
+  int      kLen;
+  int      vLen;
+  int8_t     paused;
+  int      lock;
+} SMCtbCursor;
+
 typedef struct SRowBuffPos {
   void* pRowBuff;
   void* pKey;
@@ -278,13 +290,17 @@ typedef struct SStoreMeta {
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);  // vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId) &
                                                      // metaGetTbNum(SMeta *pMeta) & metaGetNtbNum(SMeta *pMeta);
-
   int64_t (*getNumOfRowsInMem)(void* pVnode);
   /**
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(void *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
 int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
  */
+  SMCtbCursor* (*openCtbCursor)(void *pVnode, tb_uid_t uid, int lock);
+  int32_t      (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
+  void         (*pauseCtbCursor)(SMCtbCursor* pCtbCur);
+  void         (*closeCtbCursor)(SMCtbCursor *pCtbCur);
+  tb_uid_t     (*ctbCursorNext)(SMCtbCursor* pCur);
 } SStoreMeta;
 
 typedef struct SStoreMetaReader {

@@ -400,8 +400,7 @@ static bool sysTableIsOperatorCondOnOneTable(SNode* pCond, char* condTable) {
         strcasecmp(nodesGetNameFromColumnNode(node->pLeft), "table_name") == 0 &&
         nodeType(node->pRight) == QUERY_NODE_VALUE) {
       SValueNode* pValue = (SValueNode*)node->pRight;
-      if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR ||
-          pValue->node.resType.type == TSDB_DATA_TYPE_BINARY) {
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
         char* value = nodesGetValueFromNode(pValue);
         strncpy(condTable, varDataVal(value), TSDB_TABLE_NAME_LEN);
         return true;
@@ -933,7 +932,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       } else {
         int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? (tagLen + VARSTR_HEADER_SIZE)
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
-        tagVarChar = taosMemoryMalloc(bufSize);
+        tagVarChar = taosMemoryCalloc(1, bufSize + 1);
         int32_t len = -1;
         convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
         varDataSetLen(tagVarChar, len);
@@ -1601,6 +1600,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
 
+  if (isTaskKilled(pOperator->pTaskInfo)) {
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+
   blockDataCleanup(pInfo->pRes);
 
   const char* name = tNameGetTableName(&pInfo->name);
@@ -1783,7 +1787,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
+      createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   return pOperator;
 
 _error:
@@ -2320,7 +2324,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
   setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   return pOperator;
 
 _error:

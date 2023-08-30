@@ -35,18 +35,17 @@ FAIL:
   return NULL;
 }
 
-void streamQueueClose(SStreamQueue* queue) {
-  while (1) {
-    void* qItem = streamQueueNextItem(queue);
-    if (qItem) {
-      streamFreeQitem(qItem);
-    } else {
-      break;
-    }
+void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
+  qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->queue, taosQueueItemSize(pQueue->queue));
+
+  void* qItem = NULL;
+  while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
+    streamFreeQitem(qItem);
   }
-  taosFreeQall(queue->qall);
-  taosCloseQueue(queue->queue);
-  taosMemoryFree(queue);
+
+  taosFreeQall(pQueue->qall);
+  taosCloseQueue(pQueue->queue);
+  taosMemoryFree(pQueue);
 }
 
 #if 0
@@ -130,11 +129,11 @@ SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* 
       if (pReader->taskLevel == TASK_LEVEL__SOURCE && numOfBlocks < MIN_STREAM_EXEC_BATCH_NUM && tryCount < pReader->waitDuration) {
         tryCount++;
         taosMsleep(1);
-        qDebug("===stream===try again batchSize:%d", numOfBlocks);
+        qDebug("try again batchSize:%d", numOfBlocks);
         continue;
       }
 
-      qDebug("===stream===break batchSize:%d", numOfBlocks);
+      qDebug("break batchSize:%d", numOfBlocks);
       break;
     }
 

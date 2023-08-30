@@ -1146,6 +1146,7 @@ static int tTagValJsonCmprFn(const void *p1, const void *p2) {
 
 static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln) {
   switch (type) {
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_NCHAR:

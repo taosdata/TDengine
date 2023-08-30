@@ -348,6 +348,123 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
+bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList, int32_t paramNum) {
+  void* value = NULL;
+  switch (opt) {
+    case HINT_BATCH_SCAN:
+    case HINT_NO_BATCH_SCAN: {
+      if (paramNum > 0) {
+        return true;
+      }
+      break;
+    }
+    default:
+      return true;
+  }
+  
+  SHintNode* hint = (SHintNode*)nodesMakeNode(QUERY_NODE_HINT);
+  CHECK_OUT_OF_MEM(hint);
+  hint->option = opt;
+  hint->value = value;
+
+  if (NULL == *ppHintList) {
+    *ppHintList = nodesMakeList();
+    CHECK_OUT_OF_MEM(*ppHintList);
+  }
+
+  pCxt->errCode = nodesListStrictAppend(*ppHintList, (SNode*)hint);
+  if (pCxt->errCode) {
+    return true;
+  }
+
+  return false;
+}
+
+SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pLiteral || pLiteral->n <= 5) {
+    return NULL;
+  }
+  SNodeList* pHintList = NULL;
+  char* hint = strndup(pLiteral->z + 3, pLiteral->n - 5);
+  int32_t i = 0;
+  bool quit = false;
+  bool inParamList = false;
+  bool lastComma = false;
+  EHintOption opt = 0;
+  int32_t paramNum = 0;
+  SToken paramList[10];
+  while (!quit) {
+    SToken t0 = {0};
+    if (hint[i] == 0) {
+      break;
+    }
+    t0.n = tGetToken(&hint[i], &t0.type);
+    t0.z = hint + i;
+    i += t0.n;
+
+    switch (t0.type) {
+      case TK_BATCH_SCAN:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_BATCH_SCAN;
+        break;
+      case TK_NO_BATCH_SCAN:  
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_NO_BATCH_SCAN;
+        break;
+      case TK_NK_LP:
+        lastComma = false;
+        if (0 == opt || inParamList) {
+          quit = true;
+        }
+        inParamList = true;
+        break;
+      case TK_NK_RP:
+        lastComma = false;
+        if (0 == opt || !inParamList) {
+          quit = true;
+        } else {
+          quit = addHintNodeToList(pCxt, &pHintList, opt, paramList, paramNum);
+          inParamList = false;
+          paramNum = 0;
+          opt = 0;
+        }
+        break;
+      case TK_NK_ID:
+        lastComma = false;
+        if (0 == opt || !inParamList) {
+          quit = true;
+        } else {
+          paramList[paramNum++] = t0;
+        }
+        break;
+      case TK_NK_COMMA:  
+        if (lastComma) {
+          quit = true;
+        }
+        lastComma = true;
+        break;
+      case TK_NK_SPACE:
+        break;
+      default:
+        lastComma = false;
+        quit = true;
+        break;
+    }
+  }
+
+  taosMemoryFree(hint);
+  return pHintList;
+}
+
 SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral) {
   trimEscape(pLiteral);
   return createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, pLiteral);
@@ -518,7 +635,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
-  if (TSDB_DATA_TYPE_VARCHAR == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
+  if (TSDB_DATA_TYPE_VARCHAR == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type || TSDB_DATA_TYPE_VARBINARY == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -845,11 +962,18 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   return pStmt;
 }
 
-SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
+SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable);
+  SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable, pHint);
   CHECK_OUT_OF_MEM(select);
   return select;  
+}
+
+SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) {
+  if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
+  }
+  return pStmt;
 }
 
 static void setSubquery(SNode* pStmt) {

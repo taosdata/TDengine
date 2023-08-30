@@ -655,11 +655,10 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw) {
   return mndTransAppendAction(pTrans->commitActions, &action);
 }
 
-int32_t mndTransAppendPrepareAction(STrans *pTrans, STransAction *pAction) {
-  pAction->stage = TRN_STAGE_PREPARE;
-  pAction->actionType = TRANS_ACTION_RAW;
-  pAction->mTraceId = pTrans->mTraceId;
-  return mndTransAppendAction(pTrans->prepareActions, pAction);
+int32_t mndTransAppendPrepareLog(STrans *pTrans, SSdbRaw *pRaw) {
+  STransAction action = {
+      .pRaw = pRaw, .stage = TRN_STAGE_PREPARE, .actionType = TRANS_ACTION_RAW, .mTraceId = pTrans->mTraceId};
+  return mndTransAppendAction(pTrans->prepareActions, &action);
 }
 
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
@@ -789,6 +788,22 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       }
       if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
         if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
+      }
+    }
+
+    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      }
+    }
+    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC ) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      }
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0) conflict = true;
       }
     }
 
@@ -1125,7 +1140,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   int32_t code = tmsgSendReq(&pAction->epSet, &rpcMsg);
   if (code == 0) {
     pAction->msgSent = 1;
-    pAction->msgReceived = 0;
+    //pAction->msgReceived = 0;
     pAction->errCode = TSDB_CODE_ACTION_IN_PROGRESS;
     mInfo("trans:%d, %s:%d is sent, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, detail);
 

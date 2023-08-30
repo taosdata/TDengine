@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "vndCos.h"
 
 int32_t vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
   if (pTfs) {
@@ -100,7 +101,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
     pCfg->replicaNum++;
   }
-  if(pReq->selfIndex != -1){
+  if (pReq->selfIndex != -1) {
     pCfg->myIndex = pReq->selfIndex;
   }
   for (int i = pCfg->replicaNum; i < pReq->replica + pReq->learnerReplica; ++i) {
@@ -114,12 +115,13 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
     pCfg->totalReplicaNum++;
   }
   pCfg->totalReplicaNum += pReq->replica;
-  if(pReq->learnerSelfIndex != -1){
+  if (pReq->learnerSelfIndex != -1) {
     pCfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
   }
+  pCfg->changeVersion = pReq->changeVersion;
 
-  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d",
-            pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex);
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", 
+        pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex, pCfg->changeVersion);
 
   info.config.syncCfg = *pCfg;
   ret = vnodeSaveInfo(dir, &info);
@@ -216,6 +218,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   info.config.hashEnd = pReq->hashEnd;
   info.config.hashChange = true;
   info.config.walCfg.vgId = pReq->dstVgId;
+  info.config.syncCfg.changeVersion = pReq->changeVersion;
 
   SSyncCfg *pCfg = &info.config.syncCfg;
   pCfg->myIndex = 0;
@@ -293,9 +296,16 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
   return dstVgId;
 }
 
-void vnodeDestroy(const char *path, STfs *pTfs) {
+void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs) {
   vInfo("path:%s is removed while destroy vnode", path);
   tfsRmdir(pTfs, path);
+
+  int32_t nlevel = tfsGetLevel(pTfs);
+  if (vgId > 0 && nlevel > 1 && tsS3Enabled) {
+    char vnode_prefix[TSDB_FILENAME_LEN];
+    snprintf(vnode_prefix, TSDB_FILENAME_LEN, "v%df", vgId);
+    s3DeleteObjectsByPrefix(vnode_prefix);
+  }
 }
 
 static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
@@ -439,7 +449,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open sync
-  if (vnodeSyncOpen(pVnode, dir)) {
+  vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
+  if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -465,8 +476,8 @@ _err:
 }
 
 void vnodePreClose(SVnode *pVnode) {
-  vnodeQueryPreClose(pVnode);
   vnodeSyncPreClose(pVnode);
+  vnodeQueryPreClose(pVnode);
 }
 
 void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
@@ -497,13 +508,9 @@ void vnodeClose(SVnode *pVnode) {
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
 
-int32_t vnodeIsCatchUp(SVnode *pVnode){
-  return syncIsCatchUp(pVnode->sync);
-}
+int32_t vnodeIsCatchUp(SVnode *pVnode) { return syncIsCatchUp(pVnode->sync); }
 
-ESyncRole vnodeGetRole(SVnode *pVnode){
-  return syncGetRole(pVnode->sync);
-}
+ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
 
 void vnodeStop(SVnode *pVnode) {}
 

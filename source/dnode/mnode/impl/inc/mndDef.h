@@ -99,6 +99,8 @@ typedef enum {
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
   TRN_CONFLICT_DB_INSIDE = 3,
+  TRN_CONFLICT_TOPIC = 4,
+  TRN_CONFLICT_TOPIC_INSIDE = 5,
 } ETrnConflct;
 
 typedef enum {
@@ -347,9 +349,13 @@ typedef struct {
 typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
+  int64_t    syncTerm;
   bool       syncRestore;
   bool       syncCanRead;
+  int64_t    roleTimeMs;
+  int64_t    startTimeMs;
   ESyncRole  nodeRole;
+  int32_t    learnerProgress;
 } SVnodeGid;
 
 typedef struct {
@@ -373,6 +379,7 @@ typedef struct {
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
   int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
 } SVgObj;
 
 typedef struct {

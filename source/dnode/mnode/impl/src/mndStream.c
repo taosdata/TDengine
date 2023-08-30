@@ -27,6 +27,7 @@
 #include "mndVgroup.h"
 #include "parser.h"
 #include "tname.h"
+#include "audit.h"
 
 #define MND_STREAM_VER_NUMBER   3
 #define MND_STREAM_RESERVE_SIZE 64
@@ -692,7 +693,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-
+#ifdef WINDOWS
+  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
+  goto _OVER;
+#endif
   mInfo("stream:%s, start to create, sql:%s", createStreamReq.name, createStreamReq.sql);
 
   if (mndCheckCreateStreamReq(&createStreamReq) != 0) {
@@ -824,6 +828,20 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   mndTransDrop(pTrans);
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  char detail[2000] = {0};
+  sprintf(detail, "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64 ", "
+          "fillHistory:%d, igExists:%d, "
+          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64 ", "
+          "maxDelay:%" PRId64 ", numOfTags:%d, sourceDB:%s, "
+          "targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
+          createStreamReq.checkpointFreq, createStreamReq.createStb, createStreamReq.deleteMark,
+          createStreamReq.fillHistory, createStreamReq.igExists, 
+          createStreamReq.igExpired, createStreamReq.igUpdate, createStreamReq.lastTs,
+          createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB, 
+          createStreamReq.targetStbFullName, createStreamReq.triggerType, createStreamReq.watermark);
+
+  auditRecord(pReq, pMnode->clusterId, "createStream", createStreamReq.name, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1069,6 +1087,11 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return -1;
   }
+
+  char detail[100] = {0};
+  sprintf(detail, "igNotExists:%d", dropReq.igNotExists);
+
+  auditRecord(pReq, pMnode->clusterId, "dropStream", dropReq.name, "", detail);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -1564,6 +1587,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   }
 
   if (pStream->status != STREAM_STATUS__PAUSE) {
+    sdbRelease(pMnode->pSdb, pStream);
     return 0;
   }
 

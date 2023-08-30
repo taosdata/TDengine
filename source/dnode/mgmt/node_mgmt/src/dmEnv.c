@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "audit.h"
 
 #define STR_CASE_CMP(s, d)   (0 == strcasecmp((s), (d)))
 #define STR_STR_CMP(s, d)    (strstr((s), (d)))
@@ -31,6 +32,16 @@
     if (monInit(&monCfg) != 0) {        \
       if (terrno != 0) code = terrno;   \
       goto _exit;                       \
+    }                                   \
+  } while (0)
+
+#define DM_INIT_AUDIT()                 \
+  do {                                  \
+    auditCfg.port = tsMonitorPort;        \
+    auditCfg.server = tsMonitorFqdn;      \
+    auditCfg.comp = tsMonitorComp;      \
+    if (auditInit(&auditCfg) != 0) {    \
+      return -1;                        \
     }                                   \
   } while (0)
 
@@ -94,6 +105,14 @@ static int32_t dmInitMonitor() {
 _exit:
   if (code) terrno = code;
   return code;
+}
+
+static int32_t dmInitAudit() {
+  SAuditCfg auditCfg = {0};
+
+  DM_INIT_AUDIT();
+
+  return 0;
 }
 
 static bool dmDataSpaceAvailable() {
@@ -176,6 +195,7 @@ int32_t dmInit() {
   if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
   if (dmInitSystem() != 0) return -1;
   if (dmInitMonitor() != 0) return -1;
+  if (dmInitAudit() != 0) return -1;
   if (dmInitDnode(dmInstance()) != 0) return -1;
 
   dInfo("dnode env is initialized");

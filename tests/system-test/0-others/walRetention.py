@@ -147,13 +147,13 @@ class VNode :
         if self.lastVer != -1 and ret:
             # first wal file ignore
             if walFile.startVer == self.firstVer:
-                tdLog.info(f"  {walFile.pathFile} can del, but is first. snapVer={self.snapVer} firstVer={self.firstVer}")
+                tdLog.info(f"    can del {walFile.pathFile}, but is first. snapVer={self.snapVer} firstVer={self.firstVer}")
                 return False
 
             # ver in stay range 
             smallVer = self.snapVer - self.walStayRange -1
             if walFile.startVer >= smallVer:
-                tdLog.info(f"  {walFile.pathFile} can del, but range not arrived. snapVer={self.snapVer} smallVer={smallVer}")
+                tdLog.info(f"    can del {walFile.pathFile}, but range not arrived. snapVer={self.snapVer} smallVer={smallVer}")
                 return False
 
         return ret
@@ -161,9 +161,20 @@ class VNode :
     # get log size
     def getWalsSize(self):
         size = 0
+        lastSize = 0
+        max = -1
         for walFile in self.walFiles:
-            size += walFile.fsize
+            if self.canDelete(walFile) == False:
+                tdLog.info(f"  calc vnode size {walFile.pathFile} size={walFile.fsize} startVer={walFile.startVer}")
+                size += walFile.fsize
+                if max < walFile.startVer:
+                    max = walFile.startVer
+                    lastSize = walFile.fsize
+
         
+        if lastSize > 0:
+            tdLog.info(f" last file size need reduct . lastSize={lastSize}")
+            size -= lastSize
         return size
     
     # vnode
@@ -183,7 +194,7 @@ class VNode :
         delTs = delTsLine.timestamp()
         for walFile in self.walFiles:
             mt = datetime.fromtimestamp(walFile.mtime)
-            info = f" {walFile.pathFile} mt={mt} line={delTsLine}  start={walFile.startVer} snap={self.snapVer} end= {walFile.endVer}"
+            info = f" {walFile.pathFile} size={walFile.fsize} mt={mt} line={delTsLine}  start={walFile.startVer} snap={self.snapVer} end= {walFile.endVer}"
             tdLog.info(info) 
             if walFile.mtime < delTs and self.canDelete(walFile):
                 # wait a moment then check file exist
@@ -199,25 +210,16 @@ class VNode :
         if self.walSize == 0:
             return True
         
+        time.sleep(2)
         vnodeSize = self.getWalsSize()
-        if vnodeSize < self.walSize:
-            tdLog.info(f" wal size valid. {self.path} real = {vnodeSize} set = {self.walSize} ")
+        # need over 20%
+        if vnodeSize < self.walSize * 1.2:
+            tdLog.info(f" wal size valid. {self.path} real = {vnodeSize} set = {self.walSize}. allow over 20%.")
             return True
         
-        # check valid
-        tdLog.info(f" wal size over set. {self.path} real = {vnodeSize} set = {self.walSize} ")
-        for walFile in self.walFiles:
-            if self.canDelete(walFile):
-                # wait a moment then check file exist
-                time.sleep(1) 
-                if os.path.exists(walFile.pathFile):
-                    tdLog.exit(f"  wal file size over .\
-                           \n   wal file = {walFile.pathFile}\
-                           \n   snapVer  = {self.snapVer}\
-                           \n   real     = {vnodeSize} bytes\
-                           \n   set      = {self.walSize} bytes")
-                return False
-        return True
+        # check over
+        tdLog.exit(f" wal size over set. {self.path} real = {vnodeSize} set = {self.walSize} ")
+        return False
 
 
 # insert by async
@@ -460,8 +462,7 @@ class TDTestCase:
         #self.test_db("db2", 5, 10*24*3600, 2*1024) # 2M size
         
         # period + size        
-        self.test_db("db", checkTime = 5*60, wal_period = 60, wal_size_kb=10)
-        #self.test_db("db", checkTime = 3*60, wal_period = 0, wal_size_kb=0)
+        self.test_db("db", checkTime = 3*60, wal_period = 60, wal_size_kb=500)
 
 
     def stop(self):

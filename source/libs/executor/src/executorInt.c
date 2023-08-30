@@ -1070,3 +1070,151 @@ void streamOpReloadState(SOperatorInfo* pOperator) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
 }
+
+void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
+  int32_t childrenNum = taosArrayGetSize(pParam->pChildren);
+  for (int32_t i = 0; i < childrenNum; ++i) {
+    SOperatorParam* pChild = taosArrayGetP(pParam->pChildren, i);
+    freeOperatorParam(pChild, type);
+  }
+
+  taosArrayDestroy(pParam->pChildren);
+
+  taosMemoryFree(pParam->value);
+  
+  taosMemoryFree(pParam);
+}
+
+void freeExchangeGetBasicOperatorParam(void* pParam) {
+  SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
+  taosArrayDestroy(pBasic->uidList);
+}
+
+void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
+  SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pParam->value;
+  if (pExcParam->multiParams) {
+    SExchangeOperatorBatchParam* pExcBatch = (SExchangeOperatorBatchParam*)pParam->value;
+    tSimpleHashCleanup(pExcBatch->pBatchs);
+  } else {
+    freeExchangeGetBasicOperatorParam(&pExcParam->basic);
+  }
+
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeExchangeNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+void freeGroupCacheGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeGroupCacheNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+void freeMergeJoinGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
+  STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
+  taosArrayDestroy(pTableScanParam->pUidList);
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
+  if (NULL == pParam) {
+    return;
+  }
+  
+  switch (pParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+      type == OP_GET_PARAM ? freeExchangeGetOperatorParam(pParam) : freeExchangeNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
+      type == OP_GET_PARAM ? freeGroupCacheGetOperatorParam(pParam) : freeGroupCacheNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
+      type == OP_GET_PARAM ? freeMergeJoinGetOperatorParam(pParam) : freeMergeJoinNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
+      break;
+    default:
+      qError("unsupported op %d param, type %d", pParam->opType, type);
+      break;
+  }
+}
+
+void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree) {
+  SOperatorParam** ppParam = NULL;
+  SOperatorParam*** pppDownstramParam = NULL;
+  switch (type) {
+    case OP_GET_PARAM:
+      ppParam = &pOperator->pOperatorGetParam;
+      pppDownstramParam = &pOperator->pDownstreamGetParams;
+      break;
+    case OP_NOTIFY_PARAM:
+      ppParam = &pOperator->pOperatorNotifyParam;
+      pppDownstramParam = &pOperator->pDownstreamNotifyParams;
+      break;
+    default:
+      return;
+  }
+
+  if (*ppParam) {
+    freeOperatorParam(*ppParam, type);
+    *ppParam = NULL;
+  }
+
+  if (*pppDownstramParam) {
+    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+      if ((*pppDownstramParam)[i]) {
+        freeOperatorParam((*pppDownstramParam)[i], type);
+        (*pppDownstramParam)[i] = NULL;
+      }
+    }
+    if (allFree) {
+      taosMemoryFreeClear(*pppDownstramParam);
+    }
+  }
+}
+
+
+FORCE_INLINE SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam) {
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamGetParams[idx]);
+    if (clearParam) {
+      freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
+      pOperator->pDownstreamGetParams[idx] = NULL;
+    }
+    return pBlock;
+  }
+  
+  return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+}
+
+
+bool compareVal(const char* v, const SStateKeys* pKey) {
+  if (IS_VAR_DATA_TYPE(pKey->type)) {
+    if (varDataLen(v) != varDataLen(pKey->pData)) {
+      return false;
+    } else {
+      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+    }
+  } else {
+    return memcmp(pKey->pData, v, pKey->bytes) == 0;
+  }
+}

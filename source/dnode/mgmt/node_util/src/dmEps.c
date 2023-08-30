@@ -100,7 +100,7 @@ int32_t dmReadEps(SDnodeData *pData) {
     goto _OVER;
   }
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("dnode file:%s not exist", file);
     code = 0;
     goto _OVER;
@@ -350,7 +350,7 @@ void dmRotateMnodeEpSet(SDnodeData *pData) {
 }
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  if(!pData->validMnodeEps) return;
+  if (!pData->validMnodeEps) return;
   dmGetMnodeEpSet(pData, pEpSet);
   dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
@@ -469,7 +469,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dDebug("dnode file:%s not exist", file);
     code = 0;
     goto _OVER;

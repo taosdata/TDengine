@@ -1275,6 +1275,14 @@ SELECT SERVER_STATUS();
 
 **Description**: The server status.
 
+### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**Description**: get current user.
+
 
 ## Geometry Functions
 

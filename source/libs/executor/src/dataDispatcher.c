@@ -156,6 +156,13 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
+static void resetDispatcher(struct SDataSinkHandle* pHandle) {
+  SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+  taosThreadMutexLock(&pDispatcher->mutex);
+  pDispatcher->queryEnd = false;
+  taosThreadMutexUnlock(&pDispatcher->mutex);
+}
+
 static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
@@ -181,6 +188,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
          ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
 }
+
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
@@ -226,6 +234,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
   taosThreadMutexDestroy(&pDispatcher->mutex);
+  taosMemoryFree(pDispatcher->pManager);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -240,10 +249,11 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
   dispatcher->sink.fPut = putDataBlock;
   dispatcher->sink.fEndPut = endPut;
+  dispatcher->sink.fReset = resetDispatcher;
   dispatcher->sink.fGetLen = getDataLength;
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
@@ -257,8 +267,13 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   if (NULL == dispatcher->pDataBlocks) {
     taosMemoryFree(dispatcher);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFree(pManager);
+  return terrno;
 }

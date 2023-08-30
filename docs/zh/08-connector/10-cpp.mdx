@@ -223,7 +223,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
 基础 API 用于完成创建数据库连接等工作，为其它 API 的执行提供运行时环境。
 
-- `void taos_init()`
+- `int taos_init()`
 
   初始化运行环境。如果没有主动调用该 API，那么调用 `taos_connect()` 时驱动将自动调用该 API，故程序一般无需手动调用。
 
@@ -256,6 +256,12 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
   :::
 
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`  
+
+  功能同 taos_connect。除 pass 参数替换为 auth 外，其他参数同 taos_connect。
+  
+  - auth: 原始密码取 32 位小写 md5
+
 - `char *taos_get_server_info(TAOS *taos)`
 
   获取服务端版本信息。
@@ -271,6 +277,14 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   - 如果，database == NULL 或者 len<=0 返回错误，required里保存存储db需要的空间（包含最后的'\0'）
   - 如果，len 小于 存储db需要的空间（包含最后的'\0'），返回错误，database里赋值截断的数据，以'\0'结尾。
   - 如果，len 大于等于 存储db需要的空间（包含最后的'\0'），返回正常0，database里赋值以'\0‘结尾的db名。
+
+- `int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)`
+
+   设置事件回调函数。
+
+  - fp 事件回调函数指针。函数声明：typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type)；其中， param 为用户自定义参数，ext 为扩展参数(依赖事件类型，针对 TAOS_NOTIFY_PASSVER 返回用户密码版本)，type 为事件类型
+  - param 用户自定义参数
+  - type 事件类型。取值范围：1）TAOS_NOTIFY_PASSVER： 用户密码改变
 
 - `void taos_close(TAOS *taos)`
 
@@ -396,21 +410,20 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
   解析一条 SQL 语句，将解析结果和参数信息绑定到 stmt 上，如果参数 length 大于 0，将使用此参数作为 SQL 语句的长度，如等于 0，将自动判断 SQL 语句的长度。
 
-- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
+- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind)`
 
   不如 `taos_stmt_bind_param_batch()` 效率高，但可以支持非 INSERT 类型的 SQL 语句。
-  进行参数绑定，bind 指向一个数组（代表所要绑定的一行数据），需保证此数组中的元素数量和顺序与 SQL 语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL 中的 MYSQL_BIND 类似，具体定义如下：
+  进行参数绑定，bind 指向一个数组（代表所要绑定的一行数据），需保证此数组中的元素数量和顺序与 SQL 语句中的参数完全一致。TAOS_MULTI_BIND 的使用方法与 MySQL 中的 MYSQL_BIND 类似，具体定义如下：
 
   ```c
-  typedef struct TAOS_BIND {
+  typedef struct TAOS_MULTI_BIND {
     int            buffer_type;
-    void *         buffer;
-    uintptr_t      buffer_length;  // not in use
-    uintptr_t *    length;
-    int *          is_null;
-    int            is_unsigned;    // not in use
-    int *          error;          // not in use
-  } TAOS_BIND;
+    void          *buffer;
+    uintptr_t      buffer_length;
+    uint32_t      *length;
+    char          *is_null;
+    int            num;             // the number of columns
+  } TAOS_MULTI_BIND;
   ```
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
@@ -418,7 +431,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
   当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
 
-- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
+- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_MULTI_BIND* tags)`
 
   （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
   当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。TAGS 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
@@ -428,17 +441,6 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
   以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
 
-  ```c
-  typedef struct TAOS_MULTI_BIND {
-    int          buffer_type;
-    void *       buffer;
-    uintptr_t    buffer_length;
-    uintptr_t *  length;
-    char *       is_null;
-    int          num;             // the number of columns
-  } TAOS_MULTI_BIND;
-  ```
-
 - `int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
   将当前绑定的参数加入批处理中，调用此函数后，可以再次调用 `taos_stmt_bind_param()` 或 `taos_stmt_bind_param_batch()` 绑定新的参数。需要注意，此函数仅支持 INSERT/IMPORT 语句，如果是 SELECT 等其他 SQL 语句，将返回错误。
@@ -446,6 +448,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
   执行准备好的语句。目前，一条语句只能执行一次。
+
+- `int taos_stmt_affected_rows(TAOS_STMT *stmt)`
+ 
+  获取执行多次绑定语句影响的行数。
+
+- `int taos_stmt_affected_rows_once(TAOS_STMT *stmt)`
+
+  获取执行一次绑定语句影响的行数。
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
@@ -467,21 +477,22 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
   **功能说明**
-  该接口将行协议的文本数据写入到 TDengine 中。
+  - 该接口将行协议的文本数据写入到 TDengine 中。
 
   **参数说明**
-  taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
-  lines：文本数据。满足解析格式要求的无模式文本字符串。
-  numLines:文本数据的行数，不能为 0 。
-  protocol: 行协议类型，用于标识文本数据格式。
-  precision：文本数据中的时间戳精度字符串。
+  - taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
+  - lines：文本数据。满足解析格式要求的无模式文本字符串。
+  - numLines:文本数据的行数，不能为 0 。
+  - protocol: 行协议类型，用于标识文本数据格式。
+  - precision：文本数据中的时间戳精度字符串。
 
   **返回值**
-  TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
+  - TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
   在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
   返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
 
   **说明**
+  
   协议类型是枚举类型，包含以下三种格式：
 
   - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
@@ -515,3 +526,90 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - 带_raw的接口通过传递的参数lines指针和长度len来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。totalRows指针返回解析出来的数据行数。
   - 带_ttl的接口可以传递ttl参数来控制建表的ttl到期时间。
   - 带_reqid的接口可以通过传递reqid参数来追踪整个的调用链。
+
+### 数据订阅 API
+
+- `int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
+- `void      tmq_free_assignment(tmq_topic_assignment* pAssignment)`
+  
+  tmq_topic_assignment结构体定义如下：
+  ```c
+  typedef struct tmq_topic_assignment {
+    int32_t vgId;
+    int64_t currentOffset;
+    int64_t begin;
+    int64_t end;
+  } tmq_topic_assignment;
+  ```
+  **功能说明**
+  - tmq_get_topic_assignment 接口返回当前consumer分配的vgroup的信息，每个vgroup的信息包括vgId，wal的最大最小offset，以及当前消费到的offset。
+
+  **参数说明**
+  - numOfAssignment ：分配给该consumer有效的vgroup个数。
+  - assignment ：分配的信息，数据大小为numOfAssignment，需要通过 tmq_free_assignment 接口释放。
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+
+- `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+  
+  **功能说明**
+  - 获取当前 consumer 在某个 topic 和 vgroup上的 commit 位置。
+
+  **返回值**
+  - 当前commit的位置，-2147467247表示没有消费进度，其他小于0的值表示失败，错误码就是返回值
+
+- `int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
+- `void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
+- `int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+- `void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
+  
+  **功能说明**
+  
+  - commit接口分为两种类型，每种类型有同步和异步接口：
+    - 第一种类型：根据消息提交，提交消息里的进度，如果消息传NULL，提交当前consumer所有消费的vgroup的当前进度 : tmq_commit_sync/tmq_commit_async
+    - 第二种类型：根据某个topic的某个vgroup的offset提交 : tmq_commit_offset_sync/tmq_commit_offset_async
+  
+  **参数说明**
+  - msg：消费到的消息结构，如果msg传NULL，提交当前consumer所有消费的vgroup的当前进度
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+
+- `int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
+
+  **功能说明**
+  - 获取当前消费位置，为消费到的数据位置的下一个位置
+  
+  **返回值**
+  - 消费位置，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+
+- `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+
+  **功能说明**
+  - 设置 consumer 在某个topic的某个vgroup的 offset位置，开始消费
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+  
+- `int32_t   int64_t     tmq_get_vgroup_offset(TAOS_RES* res)`
+
+  **功能说明**
+  - 获取 poll 消费到的数据的起始offset
+  
+  **参数说明**
+  - msg：消费到的消息结构
+
+  **返回值**
+  - 消费到的offset，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+  
+- `int32_t   int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics)`
+
+  **功能说明**
+  - 获取消费者订阅的 topic 列表
+  
+  **参数说明**
+  - topics: 获取的 topic 列表存储在这个结构中，接口内分配内存，需调用tmq_list_destroy释放
+
+  **返回值**
+  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息

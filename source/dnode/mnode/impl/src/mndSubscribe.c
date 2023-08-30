@@ -489,7 +489,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
             SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, i);
             if(pVgEp->vgId == d1->vgId){
               jump = true;
-              mInfo("pSub->offsetRows jump, because consumer id:%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
+              mInfo("pSub->offsetRows jump, because consumer id:0x%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
               break;
             }
           }
@@ -553,13 +553,17 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     }
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
+  char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+  char cgroup[TSDB_CGROUP_LEN] = {0};
+  mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) {
     nodesDestroyNode((SNode*)pPlan);
     return -1;
   }
 
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
+  mndTransSetDbName(pTrans, topic, cgroup);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndTransDrop(pTrans);
     nodesDestroyNode((SNode*)pPlan);
@@ -586,10 +590,6 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     mndTransDrop(pTrans);
     return -1;
   }
-
-  char topic[TSDB_TOPIC_FNAME_LEN] = {0};
-  char cgroup[TSDB_CGROUP_LEN] = {0};
-  mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
 
   // 3. commit log: consumer to update status and epoch
   // 3.1 set touched consumer
@@ -802,6 +802,19 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto end;
   }
 
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "drop-cgroup");
+  if (pTrans == NULL) {
+    mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    code = -1;
+    goto end;
+  }
+
+  mndTransSetDbName(pTrans, dropReq.topic, dropReq.cgroup);
+  code = mndTransCheckConflict(pMnode, pTrans);
+  if (code != 0) {
+    goto end;
+  }
+
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer;
   while (1) {
@@ -811,16 +824,9 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     }
 
     if (strcmp(dropReq.cgroup, pConsumer->cgroup) == 0) {
-      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
     }
     sdbRelease(pMnode->pSdb, pConsumer);
-  }
-
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
-  if (pTrans == NULL) {
-    mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
-    code = -1;
-    goto end;
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
@@ -1019,8 +1025,8 @@ int32_t mndGetGroupNumByTopic(SMnode *pMnode, const char *topicName) {
     if (pIter == NULL) break;
 
 
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
+    char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    char cgroup[TSDB_CGROUP_LEN] = {0};
     mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
     if (strcmp(topic, topicName) != 0) {
       sdbRelease(pSdb, pSub);
@@ -1084,7 +1090,6 @@ int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 }
 
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName) {
-  int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
 
   void            *pIter = NULL;
@@ -1093,8 +1098,8 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
     if (pIter == NULL) break;
 
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
+    char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    char cgroup[TSDB_CGROUP_LEN] = {0};
     mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
     if (strcmp(topic, topicName) != 0) {
       sdbRelease(pSdb, pSub);
@@ -1132,15 +1137,13 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
       sdbCancelFetch(pSdb, pIter);
-      goto END;
+      return -1;
     }
 
     sdbRelease(pSdb, pSub);
   }
 
-  code = 0;
-END:
-  return code;
+  return 0;
 }
 
 static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t consumerId, const char* topic, const char* cgroup, SArray* vgs, SArray *offsetRows){

@@ -7,9 +7,9 @@ description: This document describes how to query data in TDengine.
 ## Syntax
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [DISTINCT] select_list
+SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -20,6 +20,11 @@ SELECT [DISTINCT] select_list
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN   
 
 select_list:
     select_expr [, select_expr] ...
@@ -68,6 +73,29 @@ order_by_clasue:
 
 order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+```
+
+## Hints
+
+Hints are a means of user control over query optimization for individual statements. Hints will be ignore automatically if they are not applicable to the current query statement. The specific instructions are as follows:
+
+- Hints syntax starts with `/*+` and ends with `*/`,  spaces are allowed before or after.
+- Hints syntax can only follow the SELECT keyword.
+- Each hints can contain multiple hint, separated by spaces. When multiple hints conflict or are identical, whichever comes first takes effect.
+- When an error occurs with a hint in hints, the effective hint before the error is still valid, and the current and subsequent hints are ignored.
+- hint_param_list are arguments to each hint, which varies according to each hint.
+
+The list of currently supported Hints is as follows:
+
+|    **Hint**   |    **Params**  |         **Comment**        |       **Scopt**            |  
+| :-----------: | -------------- | -------------------------- | -------------------------- |
+| BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable   |         
+| NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable   |         
+
+For example:
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 ```
 
 ## Lists
@@ -167,7 +195,7 @@ The following SQL statement returns the number of subtables within the meters su
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. For example:
+In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. 
 
 **\_QSTART and \_QEND**
 
@@ -197,6 +225,14 @@ The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolu
 select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
+### TAGS Query
+
+The TAGS keyword returns only tag columns from all child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+```
+
 ## Query Objects
 
 `FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query.
@@ -209,8 +245,7 @@ You can perform INNER JOIN statements based on the primary key. The following co
 3. For supertables, the ON condition must be equivalent to the primary key. In addition, the tag columns of the tables on which the INNER JOIN is performed must have a one-to-one relationship. You cannot specify an OR condition.
 4. The tables that are included in a JOIN clause must be of the same type (supertable, standard table, or subtable).
 5. You can include subqueries before and after the JOIN keyword.
-6. You cannot include more than ten tables in a JOIN clause.
-7. You cannot include a FILL clause and a JOIN clause in the same statement.
+6. You cannot include a FILL clause and a JOIN clause in the same statement.
 
 ## GROUP BY
 
@@ -301,6 +336,12 @@ SELECT TODAY();
 SELECT TIMEZONE();
 ```
 
+### Obtain Current User
+
+```sql
+SELECT CURRENT_USER();
+```
+
 ## Regular Expression
 
 ### Syntax
@@ -355,7 +396,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN
 
-TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables.
+TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables, primary key and other conditions must be combined with `AND` operator.
 
 For standard tables:
 

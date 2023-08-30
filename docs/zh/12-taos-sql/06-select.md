@@ -7,9 +7,9 @@ description: 查询数据的详细语法
 ## 查询语法
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [DISTINCT] select_list
+SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -20,6 +20,11 @@ SELECT [DISTINCT] select_list
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN   
 
 select_list:
     select_expr [, select_expr] ...
@@ -68,6 +73,29 @@ order_by_clasue:
 
 order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+```
+
+## Hints
+
+Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适用于当前的查询语句时会被自动忽略，具体说明如下：
+
+- Hints 语法以`/*+`开始，终于`*/`，前后可有空格。
+- Hints 语法只能跟随在 SELECT 关键字后。
+- 每个 Hints 可以包含多个 Hint，Hint 间以空格分开，当多个 Hint 冲突或相同时以先出现的为准。
+- 当 Hints 中某个 Hint 出现错误时，错误出现之前的有效 Hint 仍然有效，当前及之后的 Hint 被忽略。
+- hint_param_list 是每个 Hint 的参数，根据每个 Hint 的不同而不同。
+
+目前支持的 Hints 列表如下：
+
+|    **Hint**   |    **参数**    |         **说明**           |       **适用范围**         |  
+| :-----------: | -------------- | -------------------------- | -------------------------- |
+| BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句           |         
+| NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句           |         
+
+举例： 
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 ```
 
 ## 列表
@@ -132,6 +160,16 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 :::
 
+### 标签查询
+
+当查询的列只有标签列时，`TAGS` 关键字可以指定返回所有子表的标签列。每个子表只返回一行标签列。
+
+返回所有子表的标签列：
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+``` 
+
 ### 结果集列名
 
 `SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
@@ -167,7 +205,7 @@ SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tag
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。例如：
+以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。
 
 **\_QSTART/\_QEND**
 
@@ -209,8 +247,7 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 3. 对于超级表，ON 条件在时间戳主键的等值条件之外，还要求有可以一一对应的标签列等值条件，不支持 OR 条件。
 4. 参与 JOIN 计算的表只能是同一种类型，即只能都是超级表，或都是子表，或都是普通表。
 5. JOIN 两侧均支持子查询。
-6. 参与 JOIN 的表个数上限为 10 个。
-7. 不支持与 FILL 子句混合使用。
+6. 不支持与 FILL 子句混合使用。
 
 ## GROUP BY
 
@@ -301,6 +338,12 @@ SELECT TODAY();
 SELECT TIMEZONE();
 ```
 
+### 获取当前用户
+
+```sql
+SELECT CURRENT_USER();
+```
+
 ## 正则表达式过滤
 
 ### 语法
@@ -354,7 +397,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制。
+TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制，其它连接条件与主键间必须是 AND 操作。
 
 普通表与普通表之间的 JOIN 操作：
 
