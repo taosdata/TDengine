@@ -18,6 +18,7 @@ zstd = "0.12.1"
 arrow = { workspace = true }
 taos-query = { workspace = true }
 tonic = { workspace = true }
+metrics = "0.21.0"
 
 [dev-dependencies]
 actix-web = "4"

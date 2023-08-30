@@ -15,11 +15,11 @@ mod plugins;
 mod tmq_to_kafka;
 
 use anyhow::Context;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-use tracing::instrument;
+use tracing::{instrument, Instrument};
 
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
@@ -160,6 +160,10 @@ pub fn validate_target(dsn: impl IntoDsn) -> ValidatedTarget {
     }
 }
 
+pub const METRICS_TIME_START: &str = "metrics.time_started";
+pub const METRICS_TIME_COST: &str = "metrics.time_cost";
+pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
+
 impl TaskOpts {
     pub fn cancel(&self) {
         self.cancel.cancel();
@@ -241,6 +245,7 @@ impl TaskOpts {
 
         // Run task
         {
+            metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
                     tmq_to_td(
@@ -250,7 +255,7 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
-                    )
+                    ).in_current_span()
                     .await?;
                 }
                 ("tmq", "local") => {

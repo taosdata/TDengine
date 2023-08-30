@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    io::BufRead,
     net::SocketAddr,
     path::PathBuf,
     pin::Pin,
@@ -20,7 +19,6 @@ use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
 use futures::{Stream, StreamExt, TryStreamExt};
-use itertools::Itertools;
 use metrics::atomics::AtomicU64;
 use serde::Deserialize;
 use serde_json::json;
