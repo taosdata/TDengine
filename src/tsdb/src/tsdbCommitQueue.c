@@ -194,7 +194,8 @@ static void *tsdbLoopCommit(void *arg) {
     if (req == COMMIT_REQ) {
       tsdbCommitData(pRepo, true);
     } else if (req == COMPACT_REQ) {
-      tsdbCompactImpl(pRepo);
+      STimeWindow* compactWin = param;
+      tsdbCompactImpl(pRepo, compactWin);
     } else if (req == COMMIT_BOTH_REQ) {
       SControlDataInfo* pCtlDataInfo = (SControlDataInfo* )param;
       if(!pCtlDataInfo->memNull) {

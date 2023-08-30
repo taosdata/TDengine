@@ -43,11 +43,11 @@ typedef struct {
 #define TSDB_COMPACT_COMP_BUF(pComph) TSDB_READ_COMP_BUF(&((pComph)->readh))
 #define TSDB_COMPACT_EXBUF(pComph) TSDB_READ_EXBUF(&((pComph)->readh))
 
-static int  tsdbAsyncCompact(STsdbRepo *pRepo);
+static int  tsdbAsyncCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey);
 static void tsdbStartCompact(STsdbRepo *pRepo);
 static void tsdbEndCompact(STsdbRepo *pRepo, int eno);
 static int  tsdbCompactMeta(STsdbRepo *pRepo);
-static int  tsdbCompactTSData(STsdbRepo *pRepo);
+static int  tsdbCompactTSData(STsdbRepo *pRepo, STimeWindow*compactWin);
 static int  tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet);
 static bool tsdbShouldCompact(SCompactH *pComph);
 static int  tsdbInitCompactH(SCompactH *pComph, STsdbRepo *pRepo);
@@ -62,9 +62,9 @@ static int  tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCo
                                       void **ppCBuf, void **ppExBuf);
 
 enum { TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
-int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
+int tsdbCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey) { return tsdbAsyncCompact(pRepo, skey, ekey); }
 
-void *tsdbCompactImpl(STsdbRepo *pRepo) {
+void *tsdbCompactImpl(STsdbRepo *pRepo, STimeWindow* compactWin) {
   // Check if there are files in TSDB FS to compact
   if (REPO_FS(pRepo)->cstatus->pmf == NULL) {
     pRepo->compactState = TSDB_NO_COMPACT;
@@ -80,7 +80,7 @@ void *tsdbCompactImpl(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  if (tsdbCompactTSData(pRepo) < 0) {
+  if (tsdbCompactTSData(pRepo, compactWin) < 0) {
     tsdbError("vgId:%d failed to compact TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
@@ -94,14 +94,17 @@ _err:
   return NULL;
 }
 
-static int tsdbAsyncCompact(STsdbRepo *pRepo) {
+static int tsdbAsyncCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey) {
   if (pRepo->compactState != TSDB_NO_COMPACT) {
     tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
     return 0;
   }
   pRepo->compactState = TSDB_WAITING_COMPACT;
   tsem_wait(&(pRepo->readyToCommit));
-  int code = tsdbScheduleCommit(pRepo, NULL, COMPACT_REQ);
+  STimeWindow* timeRangeInfo = tmalloc(sizeof(STimeWindow));
+  timeRangeInfo->skey = skey;
+  timeRangeInfo->ekey = ekey;
+  int code = tsdbScheduleCommit(pRepo, timeRangeInfo, COMPACT_REQ);
   if (code != 0) {
     tsem_post(&(pRepo->readyToCommit));
   }
@@ -133,7 +136,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-  static int tsdbCompactTSData(STsdbRepo *pRepo) {
+  static int tsdbCompactTSData(STsdbRepo *pRepo, STimeWindow *compactWin) {
     SCompactH  compactH;
     SDFileSet *pSet = NULL;
 
@@ -149,7 +152,11 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       return -1;
     }
 
+    int minfid = TSDB_KEY_FID(compactWin->skey, pRepo->config.daysPerFile, pRepo->config.precision);
+    int maxfid = TSDB_KEY_FID(compactWin->ekey, pRepo->config.daysPerFile, pRepo->config.precision);
     while ((pSet = tsdbFSIterNext(&(compactH.fsIter)))) {
+      if (pSet->fid < minfid) continue;
+      if (pSet->fid > maxfid) continue;
       // Remove those expired files
       if (pSet->fid < compactH.rtn.minFid) {
         tsdbInfo("vgId:%d FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,

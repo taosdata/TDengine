@@ -117,12 +117,12 @@ int32_t vnodeDrop(int32_t vgId) {
 
   return TSDB_CODE_SUCCESS;
 }
-int32_t vnodeCompact(int32_t vgId) {
+int32_t vnodeCompact(int32_t vgId, int64_t skey, int64_t ekey) {
   void *pVnode = vnodeAcquire(vgId);
   if (pVnode != NULL) {
     vDebug("vgId:%d, compact vnode msg is received\n", vgId);
     //not care success or not
-    tsdbCompact(((SVnodeObj*)pVnode)->tsdb);  
+    tsdbCompact(((SVnodeObj*)pVnode)->tsdb, skey, ekey);
     vnodeRelease(pVnode);
   } else {
     vInfo("vgId:%d, vnode not exist, can't compact it", vgId);

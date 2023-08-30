@@ -194,7 +194,9 @@ static int32_t dnodeProcessSyncVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
   SCompactVnodeMsg *pCompactVnode = rpcMsg->pCont;
   pCompactVnode->vgId = htonl(pCompactVnode->vgId);
-  return vnodeCompact(pCompactVnode->vgId);
+  pCompactVnode->skey = htobe64(pCompactVnode->skey);
+  pCompactVnode->ekey = htobe64(pCompactVnode->ekey);
+  return vnodeCompact(pCompactVnode->vgId, pCompactVnode->skey, pCompactVnode->ekey);
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {

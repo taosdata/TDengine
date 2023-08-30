@@ -419,7 +419,7 @@ int tsdbSyncSend(void *pRepo, SOCKET socketFd);
 int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 
 // For TSDB Compact
-int tsdbCompact(STsdbRepo *pRepo);
+int tsdbCompact(STsdbRepo *pRepo, int64_t skey, int64_t ekey);
 
 // For TSDB delete data
 int tsdbDeleteData(STsdbRepo *pRepo, void *param);
