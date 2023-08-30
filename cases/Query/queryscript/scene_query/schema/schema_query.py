@@ -708,65 +708,65 @@ class TDTestQuery(TDCase):
         limit = self.limit_slimit(db_tb,1)
         limit_slimit = self.limit_slimit(db_tb,2)  #适合group by,partition by
         
-        sql_num = "SELECT TAGS DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        sql_num = "SELECT DISTINCT TAGS FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
 
         
 
-        # sql_str = "SELECT TAGS DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        # sql_str = "SELECT DISTINCT TAGS FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         # self.basic_query_util(sql_str,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
 
         
-        # sql_base = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)       #单列
+        # sql_base = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)       #单列
         # self.basic_query_util(sql_base,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s " %(column_tag_list,db_tb)     #多列
+        # sql_base = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s " %(column_tag_list,db_tb)     #多列
         # self.basic_query_util(sql_base,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base_where = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE 1=1" %(data_col,db_tb) #单列
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s WHERE 1=1" %(data_col,db_tb) #单列
         # self.basic_query_util(sql_base_where,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         # #sql_base_where = self.basic_query_util(sql_base_where,data_col,db_tb,base_fun,replace_fun,base_num,replace_num,1)
-        # sql_base_where_null = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is null and 1=1" %(data_col,db_tb,data_col)
-        # sql_base_where_notnull = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is not null and 1=1" %(data_col,db_tb,data_col)
+        # sql_base_where_null = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is null and 1=1" %(data_col,db_tb,data_col)
+        # sql_base_where_notnull = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is not null and 1=1" %(data_col,db_tb,data_col)
         # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
         # self.basic_query_util(sql_base_where_union_all,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         # #sql_base_where_union_all = self.basic_query_util(sql_base_where_union_all,data_col,db_tb,base_fun,replace_fun,base_num,replace_num,1)
         # #self.tdCreateData.dataequal('%s' %sql_base_where ,1,1,'%s' %sql_base_where_union_all ,1,1)  #没有合适的校验手段
         
-        # sql_base_where = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE 1=1" %(column_tag_list,db_tb)  #多列
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE 1=1" %(column_tag_list,db_tb)  #多列
         # self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where_null = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
-        # sql_base_where_notnull = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_null = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_notnull = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
         # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base_where = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
         # self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where)
-        # sql_base_where_1 = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where_1)
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where)
+        # sql_base_where_1 = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where_1)
         # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit)
-        # sql_base_where_1 = "SELECT TAGS DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit)
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit)
+        # sql_base_where_1 = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit)
         # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_orderby = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
+        # sql_orderby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_orderby = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY %s" %(data_col,db_tb,column_tag_list) #多列
+        # sql_orderby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s ORDER BY %s" %(data_col,db_tb,column_tag_list) #多列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_groupby = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
+        # sql_groupby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
         # self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_groupby = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY %s" %(data_col,db_tb,column_tag_list)   #多列
+        # sql_groupby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s GROUP BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_partitionby = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
+        # sql_partitionby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_partitionby = "SELECT TAGS DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY %s" %(data_col,db_tb,column_tag_list)   #多列
+        # sql_partitionby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s PARTITION BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
 
     def interval_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
@@ -780,7 +780,7 @@ class TDTestQuery(TDCase):
         for i in (1,2,3,4,21,41,42,43,44,45,):                        
             time_window = self.time_window(i)
             
-            sql_num = "SELECT TAGS DISTINCT FUNCTION('%s',NUM) FROM %s %s " %(data_col,db_tb,time_window)
+            sql_num = "SELECT DISTINCT TAGS FUNCTION('%s',NUM) FROM %s %s " %(data_col,db_tb,time_window)
             self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
                     

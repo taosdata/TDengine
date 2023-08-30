@@ -140,6 +140,7 @@ class TDCreateData():
     
     def drop_DB_index(self,database):
         fake = Faker('zh_CN')
+        self.tdSql.query("use `%s`;" %database)
         sql = "select index_name,db_name,table_name from information_schema.ins_indexes where db_name ='%s'" %database
         rows = self.tdSql.query(sql).row_count
         # print(rows,self.tdSql.query_data[0][0],self.tdSql.query_data[1][0],self.tdSql.query_data[2][0],self.tdSql.query_data[3][0],self.tdSql.query_data[4][0])
@@ -150,7 +151,7 @@ class TDCreateData():
         
         #create_new_index
         self.tdSql.query("select distinct db_name,stable_name,tag_name from information_schema.ins_tags where db_name ='%s';" %database)
-        self.tdSql.query("create index %s_%s_%s on %s.%s(%s)" %(self.tdSql.query_data[0][2],fake.random_int(min=0, max=9999999999, step=1),fake.pystr(),self.tdSql.query_data[0][0],self.tdSql.query_data[0][1],self.tdSql.query_data[0][2]))
+        self.tdSql.query("create index %s_%s_%s on %s.%s(%s);" %(self.tdSql.query_data[0][2],fake.random_int(min=0, max=9999999999, step=1),fake.pystr(),self.tdSql.query_data[0][0],self.tdSql.query_data[0][1],self.tdSql.query_data[0][2]))
         
         
     def dropandcreateDB_random(self,database,n):
@@ -2113,16 +2114,23 @@ class TDCreateData():
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
                             
         rows1 = self.tdSql.query(sql1).row_count 
-        rows2 = self.tdSql.query(sql2).row_count    
-        if operator.ge(rows1,rows2) and rows1 == 1:  
+        rows2 = self.tdSql.query(sql2).row_count   
+        if operator.eq(rows1,rows2) and rows1 == 1:  
             self.tdSql.query(sql1)
             sql1_data = self.tdSql.getData(0,0)
             self.tdSql.query(sql2)
             sql2_data = self.tdSql.getData(0,0)
-            self.logger.debug(f"（DATA等于）Check Data Equal Success, sql:{sql1}.rows:{rows1}.data:{sql1_data} = sql:{sql2}.rows:{rows2}.data:{sql2_data}") 
-            self.explain_sql(sql2)              
-            return True 
-        elif operator.ge(rows1,rows2) and rows1 != 1:  
+            if operator.ge(sql1_data,sql2_data):
+                self.logger.debug(f"（DATA等于）Check Data Equal Success, sql:{sql1}.rows:{rows1}.data:{sql1_data} = sql:{sql2}.rows:{rows2}.data:{sql2_data}") 
+                self.explain_sql(sql2)              
+                return True 
+            else:
+                if throw:
+                    raise AssertionError(f"（DATA等于）checkEqual error, {sql1_data} != {sql2_data}")
+                else:
+                    self._set_error_msg(f"（DATA等于）checkEqual error, {sql1_data} != {sql2_data}")
+                    return False
+        elif operator.eq(rows1,rows2) and rows1 != 1: 
             self.logger.debug(f"（ROWS等于）Check Rows Equal Success, sql:{sql1}.rows:{rows1} = sql:{sql2}.rows:{rows2}") 
             self.explain_sql(sql2)              
             return True 
