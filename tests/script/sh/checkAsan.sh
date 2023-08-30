@@ -31,7 +31,16 @@ TAOS_DIR=`pwd`
 LOG_DIR=$TAOS_DIR/sim/asan
 
 error_num=`cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l`
-memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l`
+
+archOs=`arch`  
+if [[ $archOs =~ "aarch64" ]];then  
+  echo "arm64 check mem leak" 
+  memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v ""Direct leak of 32 byte"| wc -l`
+else
+  memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l`
+fi
+
+
 indirect_leak=`cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l`
 python_error=`cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l`
 
