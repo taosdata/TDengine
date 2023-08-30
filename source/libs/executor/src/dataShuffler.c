@@ -24,27 +24,32 @@
 
 extern SDataSinkStat gDataSinkStat;
 
-typedef struct SDataShuffleBuf {
-  int32_t useSize;
-  int32_t allocSize;
-  char*   pData;
-} SDataShuffleBuf;
-
-typedef struct SDataCacheEntry {
+typedef struct SSfCacheEntry {
   int32_t dataLen;
   int32_t numOfRows;
   int32_t numOfCols;
   int8_t  compressed;
   char    data[];
-} SDataCacheEntry;
+} SSfCacheEntry;
+
+typedef struct SSfBucketInfo {
+  TdThreadMutex    mutex;
+  SArray*          pBlockList;
+  SArray*          pRowIdxList;
+  SSfCacheEntry*   pCurrent;
+} SSfBucketInfo;
 
 typedef struct SDataShuffleHandle {
   SDataSinkHandle     sink;
   SDataSinkManager*   pManager;
   SDataBlockDescNode* pSchema;
-  STaosQueue*         pDataBlocks;
-  SDataShuffleBuf     nextOutput;
+  SSlotDescNode*      pSlot;
+  _hash_fn_t          hashFp;
+  int32_t             numOfCols;
   int32_t             status;
+  int32_t             bucketNum;
+  int32_t             maxBlockPerBucket;
+  SSfBucketInfo*      pBuckets;
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
@@ -60,15 +65,10 @@ typedef struct SDataShuffleHandle {
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 // clang-format on
-static void toDataCacheEntry(SDataShuffleHandle* pHandle, const SInputData* pInput, SDataShuffleBuf* pBuf) {
+static void sfToDataCacheEntry(SDataShuffleHandle* pHandle, const SInputData* pInput, SDataShuffleBuf* pBuf) {
   int32_t numOfCols = 0;
   SNode*  pNode;
-  FOREACH(pNode, pHandle->pSchema->pSlots) {
-    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
-    if (pSlotDesc->output) {
-      ++numOfCols;
-    }
-  }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = 0;
   pEntry->numOfRows = pInput->pData->info.rows;
@@ -86,7 +86,7 @@ static void toDataCacheEntry(SDataShuffleHandle* pHandle, const SInputData* pInp
   atomic_add_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 }
 
-static bool allocBuf(SDataShuffleHandle* pShuffler, const SInputData* pInput, SDataShuffleBuf* pBuf) {
+static bool sfAllocBuf(SDataShuffleHandle* pShuffler, const SInputData* pInput, SDataShuffleBuf* pBuf) {
   /*
     uint32_t capacity = pShuffler->pManager->cfg.maxDataBlockNumPerQuery;
     if (taosQueueItemSize(pShuffler->pDataBlocks) > capacity) {
@@ -117,36 +117,46 @@ static int32_t sfUpdateStatus(SDataShuffleHandle* pShuffler) {
   return status;
 }
 
-static int32_t getStatus(SDataShuffleHandle* pShuffler) {
-  taosThreadMutexLock(&pShuffler->mutex);
-  int32_t status = pShuffler->status;
-  taosThreadMutexUnlock(&pShuffler->mutex);
-  return status;
-}
-
 static int32_t sfPutDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   int32_t              code = 0;
   SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
-  SDataShuffleBuf*    pBuf = taosAllocateQitem(sizeof(SDataShuffleBuf), DEF_QITEM, 0);
-  if (NULL == pBuf) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
-  if (!allocBuf(pShuffler, pInput, pBuf)) {
+  if (!sfAllocBuf(pShuffler, pInput, pBuf)) {
     taosFreeQitem(pBuf);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  toDataCacheEntry(pShuffler, pInput, pBuf);
+  sfToDataCacheEntry(pShuffler, pInput, pBuf);
   code = taosWriteQitem(pShuffler->pDataBlocks, pBuf);
   if (code != 0) {
     return code;
   }
 
-  int32_t status = updateStatus(pShuffler);
+  int32_t status = sfUpdateStatus(pShuffler);
   *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t sfGetCacheEntry(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
+  int32_t              code = 0;
+  SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
+
+  if (!sfAllocBuf(pShuffler, pInput, pBuf)) {
+    taosFreeQitem(pBuf);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  sfToDataCacheEntry(pShuffler, pInput, pBuf);
+  code = taosWriteQitem(pShuffler->pDataBlocks, pBuf);
+  if (code != 0) {
+    return code;
+  }
+
+  int32_t status = sfUpdateStatus(pShuffler);
+  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 static void sfEndPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
@@ -223,16 +233,16 @@ static int32_t sfGetDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
 static int32_t destroyDataShuffler(SDataSinkHandle* pHandle) {
   SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pShuffler->cachedSize);
-  taosMemoryFreeClear(pShuffler->nextOutput.pData);
-  while (!taosQueueEmpty(pShuffler->pDataBlocks)) {
-    SDataShuffleBuf* pBuf = NULL;
-    taosReadQitem(pShuffler->pDataBlocks, (void**)&pBuf);
-    if (pBuf != NULL) {
-      taosMemoryFreeClear(pBuf->pData);
-      taosFreeQitem(pBuf);
+  if (NULL != pShuffler->pBuckets) {
+    for (int32_t i = 0; i < pShuffler->bucketNum; ++i) {
+      if (pShuffler->pBuckets[i].pBlockList) {
+        taosArrayDestroy(pShuffler->pBuckets[i].pBlockList);
+        taosThreadMutexDestroy(&pShuffler->pBuckets[i].mutex);
+      }
+      taosMemoryFree(pShuffler->pBuckets[i].pCurrent);
+      taosArrayDestroy(pShuffler->pBuckets[i].pRowIdxList);
     }
   }
-  taosCloseQueue(pShuffler->pDataBlocks);
   taosThreadMutexDestroy(&pShuffler->mutex);
   taosMemoryFree(pShuffler->pManager);
   return TSDB_CODE_SUCCESS;
@@ -246,11 +256,36 @@ static int32_t sfGetCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
 }
 
 int32_t createDataShuffler(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SDataShufflerNode* pNode = (SDataShufflerNode*)pDataSink;
   SDataShuffleHandle* shuffler = taosMemoryCalloc(1, sizeof(SDataShuffleHandle));
   if (NULL == shuffler) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
+
+  taosThreadMutexInit(&shuffler->mutex, NULL);
+  shuffler->pManager = pManager;
+  shuffler->pBuckets = taosMemoryCalloc(pNode->bucketNum, sizeof(*shuffler->pBuckets));
+  if (NULL == shuffler->pBuckets) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
+  }
+  shuffler->maxBlockPerBucket = TMAX(pManager->cfg.maxDataBlockNumPerQuery / pNode->bucketNum, 3);
+  for (int32_t i = 0; i < pNode->bucketNum; ++i) {
+    shuffler->pBuckets[i].pBlockList = taosArrayInit(shuffler->maxBlockPerBucket, POINTER_BYTES);
+    if (NULL == shuffler->pBuckets[i].pBlockList) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _return;
+    }
+    taosThreadMutexInit(&shuffler->pBuckets[i].mutex, NULL);
+    shuffler->pBuckets[i].pRowIdxList = taosArrayInit(4096/pNode->bucketNum, sizeof(int32_t));
+    if (NULL == shuffler->pBuckets[i].pRowIdxList) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _return;
+    }
+  }
+  shuffler->hashFp = taosGetDefaultHashFunction(pNode->pSlot->dataType.type);
   shuffler->sink.fPut = sfPutDataBlock;
   shuffler->sink.fEndPut = sfEndPut;
   shuffler->sink.fReset = sfReset;
@@ -258,22 +293,29 @@ int32_t createDataShuffler(SDataSinkManager* pManager, const SDataSinkNode* pDat
   shuffler->sink.fGetData = sfGetDataBlock;
   shuffler->sink.fDestroy = destroyDataShuffler;
   shuffler->sink.fGetCacheSize = sfGetCacheSize;
-  shuffler->pManager = pManager;
+  shuffler->pSlot = pNode->pSlot;
+  shuffler->bucketNum = pNode->bucketNum;
   shuffler->pSchema = pDataSink->pInputDataBlockDesc;
   shuffler->status = DS_BUF_EMPTY;
   shuffler->queryEnd = false;
-  shuffler->pDataBlocks = taosOpenQueue();
-  taosThreadMutexInit(&shuffler->mutex, NULL);
-  if (NULL == shuffler->pDataBlocks) {
-    taosMemoryFree(shuffler);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _return;
+  shuffler->numOfCols = 0;
+  FOREACH(pNode, shuffler->pSchema->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      ++shuffler->numOfCols;
+    }
   }
+  
   *pHandle = shuffler;
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFree(pManager);
-  return terrno;
+  if (shuffler) {
+    destroyDataShuffler(shuffler);
+  } else {
+    taosMemoryFree(pManager);
+  }
+  terrno = code;
+  return code;
 }

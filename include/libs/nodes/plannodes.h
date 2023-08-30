@@ -629,6 +629,12 @@ typedef struct SDataDispatcherNode {
   SDataSinkNode sink;
 } SDataDispatcherNode;
 
+typedef struct SDataShufflerNode {
+  SDataSinkNode  sink;
+  SSlotDescNode* pSlot;
+  int32_t        bucketNum;
+} SDataShufflerNode;
+
 typedef struct SDataInserterNode {
   SDataSinkNode sink;
   int32_t       numOfTables;
