@@ -21,6 +21,8 @@ use serde_with::serde_as;
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tracing::{instrument, Instrument};
 
+mod extensions;
+
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 use dashmap::DashMap;

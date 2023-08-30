@@ -27,7 +27,7 @@ use taos::{
     taos_query::common::Describe, AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools,
     RawBlock, Stmt, Taos, TaosPool, Ty, Value,
 };
-use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
+use tokio::sync::{Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument};
@@ -202,14 +202,19 @@ async fn ipc_tcp_forward(
     let mut client = FlightClient::new(channel);
     let _ = client
         .handshake(Bytes::from(token.as_bytes().to_vec()))
-        .await?;
+        .await
+        .map_err(|err| match err {
+            FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+            err => anyhow::anyhow!("Handshake error: {err:#}"),
+        })?;
     // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
-    let mut stream = client
-        .do_put(data)
-        .await
-        .context("Failed to forward IPC stream to server")?;
+    let mut stream = client.do_put(data).await.map_err(|err| match err {
+        FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
+        FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+        err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
+    })?;
 
     while let Some(res) = stream.next().await {
         let _: PutResult = res.context("Got server response with error")?;
@@ -321,7 +326,7 @@ async fn consume_lush_record(
     names: &str,
     marks: &str,
     records: &mut usize,
-    license: Option<&ConnectorLicense>,
+    _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     counter!(RECORD_BATCHES, 1);
@@ -2121,12 +2126,12 @@ impl<'a> IpcStreamWorker<'a> {
 
 pub async fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
-    sender: Sender<String>,
-    _config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
+) -> anyhow::Result<IpcHandler> {
     let addr = socket.as_ref();
+
+    let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
     let socket = tokio::net::TcpListener::bind(addr).await?;
 
@@ -2162,9 +2167,8 @@ pub async fn listen_tcp_socket_with_agent(
                                 ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
                                     .await;
                             if let Err(err) = res {
-                                tracing::error!("ipc read err: {:?}", err);
-                                tokio::time::sleep(Duration::from_millis(100)).await;
-                                let _ = se.send(err.to_string()).await;
+                                tracing::error!("{:?}", err);
+                                let _ = se.send(format!("{err:#}")).await;
                             } else {
                                 tracing::info!("IPC reader stopped for client {client}",);
                             }
@@ -2189,26 +2193,71 @@ pub async fn listen_tcp_socket_with_agent(
         .instrument(tracing::info_span!("agent_ipc_listener")),
     );
 
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
         let _ = receiver.recv().await;
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
         let _ = thread.await;
     });
-    Ok(closer)
+    Ok(IpcHandler::new(closer, handle, error_receiver))
+}
+
+pub struct IpcHandler {
+    closer: tokio::sync::mpsc::Sender<()>,
+    handle: tokio::task::JoinHandle<()>,
+    receiver: tokio::sync::mpsc::Receiver<String>,
+}
+
+impl IpcHandler {
+    fn new(
+        closer: tokio::sync::mpsc::Sender<()>,
+        handle: tokio::task::JoinHandle<()>,
+        receiver: tokio::sync::mpsc::Receiver<String>,
+    ) -> Self {
+        Self {
+            closer,
+            handle,
+            receiver,
+        }
+    }
+    pub async fn send<T>(&self, _: T) -> Result<(), tokio::sync::mpsc::error::SendError<()>> {
+        self.closer.send(()).await
+    }
+    pub async fn wait(mut self) -> Result<(), tokio::task::JoinError> {
+        (&mut self.handle).await
+    }
+
+    /// Receive error
+    pub async fn recv_error(&mut self) -> Option<String> {
+        self.receiver.recv().await
+    }
+
+    /// Receive error
+    pub fn try_recv_error(&mut self) -> Result<String, tokio::sync::mpsc::error::TryRecvError> {
+        self.receiver.try_recv()
+    }
+
+    /// Close IPC listener and wait until IPC handler joint.
+    pub async fn close(self) -> anyhow::Result<()> {
+        let _ = self.closer.send(()).await;
+        self.handle.await?;
+        Ok(())
+    }
 }
 
 pub fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
-    sender: Sender<String>,
+    // sender: Sender<String>,
     config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
+) -> anyhow::Result<IpcHandler> {
+    let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
+
     let addr = socket.as_ref();
     let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
@@ -2275,7 +2324,7 @@ pub fn listen_tcp_socket(
                         if let Err(err) = res {
                             // panic!("{err:?}");
                             println!("{err:?}");
-                            tracing::error!("ipc read err: {}", err);
+                            tracing::error!("ipc read err: {:#}", err);
                             let _ = se.send(err.to_string()).await;
                         }
                     }.instrument(span))
@@ -2313,7 +2362,7 @@ pub fn listen_tcp_socket(
         }
         .instrument(tracing::info_span!("plain_ipc_listener").or_current()),
     );
-    tokio::spawn(
+    let handle = tokio::spawn(
         async move {
             let _ = receiver.recv().await;
             tracing::debug!("shutdown socket");
@@ -2324,5 +2373,5 @@ pub fn listen_tcp_socket(
         }
         .instrument(tracing::info_span!("plain_ipc_listener_abort_handle").or_current()),
     );
-    Ok(closer)
+    Ok(IpcHandler::new(closer, handle, error_receiver))
 }

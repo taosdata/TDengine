@@ -8,6 +8,8 @@ description = "taosX - TDengine data integration tool"
 
 [dependencies]
 anyhow = "1"
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
 
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
@@ -20,7 +22,7 @@ async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"
 bitflags = "2"
-chrono = "0.4"
+
 clap = { version = "4.0.11", features = ["default", "derive"] }
 clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
@@ -45,13 +47,13 @@ toml = "0.7.2"
 zstd = "0.12.1"
 either = "1.8"
 serde_regex = "1"
-chrono-tz = "0.8"
 tinytemplate = "1.2.1"
 serde_json_path = "0.6.0"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
 
 file-rotate = "0.7.5"
+ringbuf = { version =  "0.3.3" }
 
 actix-cors = "0.6.4"
 actix-web = "4"
@@ -92,13 +94,14 @@ md5 = "0.7.0"
 kafka = "0.9.0"
 rand = "0.8"
 base64 = "0.21.2"
-openssl = "0.10.55"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
+openssl = "0.10.55"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+openssl = { version = "0.10.55", features = ["vendored"] }
 
 [features]
 default = ["optin", "native-tls"]

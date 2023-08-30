@@ -18,8 +18,8 @@ use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 
 use crate::{
-    get_log_keep_days,
-    plugins::{service::spawn_rest_service, sink},
+    build_ipc, get_log_keep_days,
+    plugins::service::spawn_rest_service,
     utils::{port_pool::PortPool, stop_thread},
     Action, DataSet, DataSetsReq, Transferred,
 };
@@ -164,7 +164,10 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
-        if is_real_run && point_list.is_empty() && template_for_af_element.is_empty() && template_for_pi_point.is_empty() {
+        if is_real_run && point_list.is_empty()
+            && template_for_af_element.is_empty()
+            && template_for_pi_point.is_empty()
+        {
             return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
         }
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -326,30 +329,18 @@ pub async fn pi_to_taos(
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = TaosBuilder::from_dsn(&to)?;
-        let target_pool = builder.pool()?;
-        sink::listen_tcp_socket(
-            target_pool,
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            None,
-            Some("pi"),
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        ).await?
-    };
+
+    let mut ipc = build_ipc(
+        &config.ipc_stream,
+        None,
+        &to,
+        Some("pi"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+    )
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -459,7 +450,7 @@ pub async fn pi_to_taos(
                 cancel.cancel();
                 // panic!();
             },
-            err = receiver.recv() => {
+            err = ipc.recv_error() => {
                 if let Some(err) = err {
                     tracing::warn!("PI writer error occurred: {err}");
                     let _ = ipc.send(());
@@ -474,6 +465,7 @@ pub async fn pi_to_taos(
         let _ = ipc.send(());
         stop_thread(server);
         terminate_child_process(pid)?;
+        let _ = ipc.close().await;
         tracing::info!("pi task Done");
         temp_path.close().unwrap();
         port_pool.put(ipc_port);

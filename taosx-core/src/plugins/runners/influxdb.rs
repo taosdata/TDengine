@@ -7,14 +7,13 @@ use file_rotate::{
     ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tokio::io::AsyncBufReadExt;
+use taos::Dsn;
+use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
-    get_log_keep_days,
-    plugins::sink,
+    build_ipc, get_log_keep_days,
     utils::{mask_dsn, port_pool::PortPool},
     Action, DataSet, Transferred,
 };
@@ -268,8 +267,8 @@ pub async fn influxdb_to_taos(
 
     // tdengine
     let td_database = to.subject.clone();
-    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
-    let target_pool_for_ipc = target_pool.clone();
+    // let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
+    // let target_pool_for_ipc = target_pool.clone();
     // a random port
     let ipc_port = port_pool
         .get()
@@ -287,30 +286,17 @@ pub async fn influxdb_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
     // create socket channel
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let _ = target_pool_for_ipc.get().await?;
-        sink::listen_tcp_socket(
-            target_pool_for_ipc,
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            None,
-            Some("influxdb"),
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )
-        .await?
-    };
+    let mut ipc = build_ipc(
+        &config.ipc_stream,
+        None,
+        &to,
+        Some("influxdb"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+    )
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
@@ -371,7 +357,9 @@ pub async fn influxdb_to_taos(
     let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start InfluxDB collector error")?;
-
+        const ERROR_BUF_SIZE: usize = 2;
+        let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
+        let error_buf_producer = error_buf.clone();
         let stderr = child.stderr.take().expect("Failed to capture stderr");
         tokio::spawn(async move {
             let mut reader = tokio::io::BufReader::new(stderr);
@@ -381,6 +369,11 @@ pub async fn influxdb_to_taos(
                 let bytes_read = reader.read_line(&mut line).await?;
                 if bytes_read == 0 {
                     break; // End of stream, exit the loop
+                }
+                if line.contains("ERROR") {
+                    use ringbuf::Rb;
+                    let mut guard = error_buf_producer.lock().await;
+                    let _ = guard.push_overwrite(line.clone());
                 }
                 // Write the line to log_rotation
                 write!(log_rotation, "{}", line)?;
@@ -397,11 +390,13 @@ pub async fn influxdb_to_taos(
                     let status = status?;
                     tracing::info!("InfluxDB exit with {}", status);
                     if !status.success() {
-                        let _ = ipc.send(());
-                        anyhow::bail!("InfluxDB exit with {}", status);
+                        use ringbuf::Rb;
+                        let _ = ipc.close().await?;
+                        let error = error_buf.lock().await.iter().join("");
+                        anyhow::bail!("InfluxDB exit with status {status}: {error}");
                     }
                 },
-                err = receiver.recv() => {
+                err = ipc.recv_error() => {
                     tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
                         let _ = ipc.send(());
@@ -417,6 +412,7 @@ pub async fn influxdb_to_taos(
             ipc.send(()).await?;
             // stop the connector
             let _ = child.kill().await;
+            ipc.close().await?;
             tracing::info!("InfluxDB task Done");
             // delete the temporary file
             let _ = temp_path.close();

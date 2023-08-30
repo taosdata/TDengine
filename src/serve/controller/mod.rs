@@ -1069,7 +1069,7 @@ impl TaskController {
                 match license.number {
                     0 => anyhow::bail!("Connector {connector} is disabled by license"),
                     n if n > 0 => {
-                        if used >= n as _ {
+                        if used >= n as usize {
                             anyhow::bail!("Connector {connector} reaches connection number limit({n}) by license");
                         }
                     }

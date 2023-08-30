@@ -69,6 +69,11 @@ pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
 }
 
 fn main() {
+    #[cfg(windows)]
+    {
+        println!("cargo:rustc-link-arg-bin=taosx-agent=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg-bin=taosx-agent=/MANIFESTUAC:level=\'requireAdministrator\'");
+    }
     dotenv::dotenv().ok();
     shadow_build();
 }

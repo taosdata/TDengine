@@ -165,7 +165,7 @@ pub fn spawn_runner(
                                         id: task.id,
                                         at: Utc::now(),
                                         action: "failed".to_string(),
-                                        message: Some(err.to_string()),
+                                        message: Some(format!("{err:#}")),
                                         context: Some(err.chain().join("\n")),
                                     };
                                     let _ = status_tx.send_async(status).await;

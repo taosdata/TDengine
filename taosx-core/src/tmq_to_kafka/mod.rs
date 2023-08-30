@@ -6,24 +6,22 @@ use itertools::Itertools;
 use kafka::client::RequiredAcks;
 use kafka::producer::{Producer, Record};
 use serde_json::{Map, Value};
-use taos::sync::{Queryable, TBuilder};
-use taos::{AsAsyncConsumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
+use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
 pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
-    let sinker = KafkaSinker::new(from, to)?;
+    let sinker = KafkaSinker::new(from, to).await?;
     sinker.sink().await?;
     Ok(())
 }
 
 #[allow(dead_code)]
-pub async fn clean_task(from: Dsn, task_id: String) -> Result<()> {
-    let taos = TaosBuilder::from_dsn(from)?.build()?;
-    let topic = tmq_topic_name(task_id);
-    taos.exec(format!("drop topic if exists {}", topic))
-        .unwrap();
+pub async fn clean_task(from: Dsn, topic_suffix: String) -> Result<()> {
+    let conn = TaosBuilder::from_dsn(from)?.build().await?;
+    let topic = tmq_topic_name(topic_suffix);
+    conn.exec(format!("drop topic if exists {}", topic)).await?;
     Ok(())
 }
 
@@ -48,22 +46,22 @@ struct KafkaProducer {
 }
 
 impl TMQSource {
-    // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&task_id=task_id&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
-    fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
+    // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&topic_suffix=topic_suffix&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
+    async fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
         let mut consumer_dsn = Dsn::from(dsn.clone());
-        let group_id = "taosx_kafka_sink";
+        let group_id = "x_kafka_sink";
         consumer_dsn.set("group.id", group_id);
 
-        let taos = TaosBuilder::from_dsn(&dsn)?.build()?;
+        let conn = TaosBuilder::from_dsn(&dsn)?.build().await?;
         let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
         let table = dsn
             .params
             .remove("table")
             .ok_or(anyhow!("table in dsn is null"))?;
-        let task_id = dsn
+        let topic_suffix = dsn
             .params
-            .remove("task_id")
-            .ok_or(anyhow!("task id is null"))?;
+            .remove("topic_suffix")
+            .ok_or(anyhow!("topic suffix is null"))?;
         let ts_field = dsn.params.remove("ts").unwrap_or("_c0".to_string());
         let start = dsn.params.remove("start");
         let end = dsn.params.remove("end");
@@ -85,11 +83,11 @@ impl TMQSource {
         if cols.is_none() && !tags.is_none() {
             return Err(anyhow!("cols is null and tags is not null"));
         }
-        let topic = tmq_topic_name(task_id);
+        let topic = tmq_topic_name(topic_suffix);
 
         let topic_sql =
             TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
-        taos.exec(&topic_sql)?;
+        conn.exec(&topic_sql).await?;
 
         Ok(TMQSource {
             consumer_dsn,
@@ -153,7 +151,7 @@ impl TMQSource {
     }
 
     async fn consume(dsn: Dsn, topic: String, sender: Sender<String>) -> Result<()> {
-        let mut consumer = TmqBuilder::from_dsn(dsn)?.build()?;
+        let mut consumer = TmqBuilder::from_dsn(dsn)?.build().await?;
         AsAsyncConsumer::subscribe(&mut consumer, [topic]).await?;
 
         'outer: loop {
@@ -275,9 +273,9 @@ impl KafkaProducer {
 impl KafkaSinker {
     // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&[start=start&][end=end&]cols=cols&tags=tags
     // to dsn: kafka://host:port/topic?ack_timeout=1
-    fn new(from: Dsn, to: Dsn) -> Result<KafkaSinker> {
+    async fn new(from: Dsn, to: Dsn) -> Result<KafkaSinker> {
         let (tx, rx) = mpsc::channel(10);
-        let source = TMQSource::new(from, tx)?;
+        let source = TMQSource::new(from, tx).await?;
         let producer = KafkaProducer::new(to, rx)?;
 
         let sinker = KafkaSinker { source, producer };
@@ -299,6 +297,6 @@ impl KafkaSinker {
 }
 
 // tmq topic is base on task id
-fn tmq_topic_name(task_id: String) -> String {
-    format!("taosx_kafka_sink_{}", task_id)
+fn tmq_topic_name(topic_suffix: String) -> String {
+    format!("x_kafka_sink_{}", topic_suffix)
 }

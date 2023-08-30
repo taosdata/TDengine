@@ -98,7 +98,7 @@ public class OpentsdbServiceImpl implements OpentsdbService {
         // query.put("filters", List);
         // query.put("explicitTags", false);
         // query.put("percentiles", List);
-        // query.put("rollupUsage ", "");
+        // query.put("rollupUsage", "");
 
         JSONArray queries = new JSONArray();
         queries.add(query);
@@ -162,8 +162,11 @@ public class OpentsdbServiceImpl implements OpentsdbService {
                         }
                         // 设置表结构
                         opentsdbDataEntity.setOpentsdbMetricEntity(opentsdbMetricEntity);
-                        // 放入列表
-                        opentsdbDataEntityList.add(opentsdbDataEntity);
+                        // 判断data point是否空
+                        if (opentsdbDataEntity.getDps().size() > 0) {
+                            // 放入列表
+                            opentsdbDataEntityList.add(opentsdbDataEntity);
+                        }
                     } else {
                         // 无效数据
                         logger.error("Failed to parse data, not legal JSON data: {}", object);

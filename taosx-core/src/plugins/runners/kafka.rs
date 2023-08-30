@@ -117,8 +117,17 @@ pub async fn kafka_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
     let socket = format!("127.0.0.1:{}", port);
-    let (abort, mut closed) =
-        build_ipc(&socket, parser, &to, &cancel, with_agent, transferred).await?;
+    let mut ipc = build_ipc(
+        &socket,
+        parser,
+        &to,
+        Some("kafka"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+    )
+    .await?;
 
     let worker = tokio::spawn(kafka_worker(from, port));
     let abort_handle = worker.abort_handle();
@@ -132,28 +141,29 @@ pub async fn kafka_to_taos(
                 match status? {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
-                        match closed.try_recv() {
+                        match ipc.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
                                 anyhow::bail!("Kafka worker exit with IPC error: {res}");
                             }
                             Err(_) => {
                                 tracing::info!("Kafka worker done successfully");
-                                let _ = abort.send(());
+                                let _ = ipc.send(());
                             }
                         }
                     }
                     Err(err) => {
-                        let _ = abort.send(());
+                        let _ = ipc.send(());
                         anyhow::bail!("Kafka exit with error: {:#}", err);
                     }
                 }
             },
-            err = closed.recv() => {
+            err = ipc.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 abort_handle.abort();
                 if let Some(err) = err {
-                    let _ = abort.send(());
+                    let _ = ipc.send(());
+                    let _ = ipc.close().await;
                     abort_handle.abort();
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
@@ -164,9 +174,10 @@ pub async fn kafka_to_taos(
             }
         }
         // send an empty tuple
-        let _ = abort.send(());
+        let _ = ipc.send(());
         // stop the connector
         tracing::info!("Kafka task Done");
+        ipc.close().await?;
         // put ipc port back to port pool.
         port_pool.put(port);
         // wait for completion
