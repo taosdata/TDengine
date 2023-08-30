@@ -102,15 +102,19 @@ class TDTestQuery(TDCase):
         for i in range(250):
             self.logger.info("  ================i=  %d ====================" % i)
             if i/4==1:
-                self.data_create(self.db)   
+                self.data_create(self.db)  
+                self.tdCreateData.drop_DB_index(self.db)
             elif i/4==2:  
                 self.data_create(self.db)    
+                self.tdCreateData.drop_DB_index(self.db)
                 self.rm_sql()
             elif i/4==3:  
                 self.data_create(self.db) 
+                self.tdCreateData.drop_DB_index(self.db)
                 self.drop_db_data("%s" % self.db) 
             else:
                 self.data_create(self.db) 
+                self.tdCreateData.drop_DB_index(self.db)
                 self.drop_db_table("%s" % self.db)
         
         endTime = time.time()
