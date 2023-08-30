@@ -41,11 +41,12 @@ if [[ -z $param1 ]]; then
 fi
 
 
-if [ "$param1" == "CheckClusterStatus" ]; then
+if [ "$param1"x = "CheckClusterStatus"x ]; then
     logging "INFO" "CheckClusterStatus begin"
     # get dnode id
     # output=$(timeout $TAOS_TIMEOUT_SECOND taos -w 2000 -s "show dnodes;" | grep -E "td-transport" | grep -E -v "$ENDPOINT"  | awk '{split($0,a,"|");print a[1]}' | awk '{gsub(/ /,"")}1' )
-    if [ "$SECOND_EP_HOST"x == "$FIRST_EP_HOST"x ]; then
+    if [ "$SECOND_EP_HOST"x = "$FIRST_EP_HOST"x ]; then
+        logging "INFO" "CheckClusterStatus existed 0 for single node"
         exit 0
     fi
     ShortTime=2
@@ -60,6 +61,7 @@ if [ "$param1" == "CheckClusterStatus" ]; then
         if [[ 0 = $(echo "$output" | jq -r '.code') ]]; then
             :
         else 
+            logging "INFO" "CheckClusterStatus existed 0 for first and second ep not started"
             exit 0
         fi
     fi        
