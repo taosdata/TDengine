@@ -5712,6 +5712,9 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
+  createReq.numIpRanges = pStmt->numIpRanges;
+  createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges);
+  memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
 
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
 }
@@ -5727,6 +5730,9 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   if (NULL != pCxt->pParseCxt->db) {
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }
+  alterReq.numIpRanges = pStmt->numIpRanges;
+  alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges);
+  memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
 
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
 }

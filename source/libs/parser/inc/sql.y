@@ -99,7 +99,7 @@ white_list_opt(A) ::= white_list(B).                                            
 cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C) 
                       white_list_opt(D).                                          { 
                                                                                     pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C);
-                                                                                    addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);     
+                                                                                    pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);     
                                                                                   }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
 cmd ::= ALTER USER user_name(A) ENABLE NK_INTEGER(B).                             { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ENABLE, &B); }

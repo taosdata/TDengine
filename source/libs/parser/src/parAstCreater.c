@@ -1696,6 +1696,27 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIpRangesNodeList, SIpV4Range* pIpRanges) {
+  int32_t i = 0;
+  int32_t code = 0;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pIpRangesNodeList) {
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      pCxt->errCode = TSDB_CODE_PAR_INVALID_IP_RANGE;
+      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+    SValueNode* pValNode = (SValueNode*)(pNode);
+    code = getIpV4RangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
+    ++i;
+    if (code != TSDB_CODE_SUCCESS) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, pValNode->literal);
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
   if (pIpRangesNodeList == NULL) {
     return pCreateUserStmt;
@@ -1703,19 +1724,16 @@ SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStm
   SCreateUserStmt* pCreateUser = (SCreateUserStmt*)pCreateUserStmt;
   pCreateUser->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
   pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpV4Range));
-  int32_t i = 0;
-  int32_t code = 0;
+  if (NULL == pCreateUser->pIpRanges) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    nodesDestroyNode(pCreateUserStmt);
+    return NULL;
+  }
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, pIpRangesNodeList) {
-    SValueNode* pValNode = (SValueNode*)(pNode);
-    code = getIpV4RangeFromWhitelistItem(pValNode->literal, pCreateUser->pIpRanges + i);
-    if (code != TSDB_CODE_SUCCESS) {
-      //TODO: see check user name/pass to return error no
-      taosMemoryFree(pCreateUser->pIpRanges);
-      nodesDestroyNode(pCreateUserStmt);
-      return NULL;
-    }
+  int32_t code = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pCreateUser->pIpRanges);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pCreateUserStmt);
+    return NULL;
   }
   return pCreateUserStmt;
 }
@@ -1753,13 +1771,20 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
     case TSDB_ALTER_USER_ADD_WHITE_LIST: 
     case TSDB_ALTER_USER_DROP_WHITE_LIST: {
       SNodeList* pIpRangesNodeList = pAlterInfo;
-      SNode* pNode = NULL;
-      FOREACH(pNode, pIpRangesNodeList) {
-          char* pStr = NULL;
-          nodesNodeToString(pNode, false, &pStr, NULL);
-          printf("%s\n", pStr);
-          taosMemoryFree(pStr);
-      }      
+      pStmt->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
+      pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpV4Range));
+      if (NULL == pStmt->pIpRanges) {
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        nodesDestroyNode(pStmt);
+        return NULL;
+      }
+
+      int32_t code = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pStmt->pIpRanges);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pStmt);
+        return NULL;
+      }
+      break;
     }
     default:
       break;
