@@ -364,7 +364,7 @@ do
     fi
     if [ "$status"x = "0"x ]; then
         td_cluster_check "CheckClusterStatus"
-        if [ $? = 0]; then
+        if [ $? -eq 0 ]; then
             logger "INFO" "start taosd count: ${start_taosd_count}"
             if [ ${start_taosd_count} -gt ${START_TAOSD_MAX_NUMBER} ]; then
                 logger "ERROR" "exceed restart max count: ${START_TAOSD_MAX_NUMBER}"
