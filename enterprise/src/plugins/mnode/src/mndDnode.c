@@ -139,6 +139,22 @@ _OVER:
   return code;
 }
 
+char* mndAuditRestoreDnodeTypeStr(int8_t type){
+  switch (type)
+  {
+  case RESTORE_TYPE__ALL:
+    return "restore dnode";
+  case RESTORE_TYPE__MNODE:
+    return "restore mnode";
+  case RESTORE_TYPE__VNODE:
+    return "restore vnode";
+  case RESTORE_TYPE__QNODE:
+    return "restore qnode";
+  }
+
+  return "error";  
+}
+
 int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
@@ -188,9 +204,9 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   sprintf(obj, "%d", restoreReq.dnodeId);
 
   char detail[100] = {0};
-  sprintf(detail, "%d", restoreReq.restoreType);
+  sprintf(detail, "%s", mndAuditRestoreDnodeTypeStr(restoreReq.restoreType));
 
-  auditRecord(pReq, pMnode->clusterId, "restoreDnode", obj, "", detail);
+  auditRecord(pReq, pMnode->clusterId, "restore", obj, "", detail);
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to restore, restoreType:%d,  since %s", 
