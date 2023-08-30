@@ -5,9 +5,7 @@ title: 数据同步
 
 ## 简介
 
-为了能够方便地将各种数据源中的数据导入 TDengine 3.0，TDengine 3.0 企业版提供了一个全新的工具 taosX 用于帮助用户快速将其它数据源中的数据传输到 TDengine 中。 taosX 定义了自己的集成框架，方便扩展新的数据源。目前支持的数据源有 TDengine 自身（即从一个 TDengine 集群到另一个 TDengine 集群），Pi, OPC UA。除了数据接入外，taosX 还支持数据备份、数据同步、数据迁移以及数据导出功能。
-
-本节讲述如何在 TDengine 集群之间同步数据。数据同步功能的目标端必须是 TDengine 3.0，源端可以是 TDengine 3.0 或 2.6 。
+本节讲述如何使用 taosX 的命令行在 TDengine 集群之间同步数据。数据同步功能的目标端必须是 TDengine 3.0，源端可以是 TDengine 3.0 或 2.6 。您也可以使用 taos-explorer 的可视化界面进行数据同步，具体请参考【可视化管理】(./explorer)。
 
 
 ## TDengine 3.0 -> TDengine 3.0

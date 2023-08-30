@@ -3,7 +3,7 @@ toc_max_heading_level: 4
 title: 数据备份和恢复
 ---
 
-本节讲述如何将 TDengine 集群中的数据备份到本地文件以及如何从一个备份出的本地文件恢复数据到 TDengine 集群中。
+本节讲述如何使用 taosX 的命令行将 TDengine 集群中的数据备份到本地文件以及如何从一个备份出的本地文件恢复数据到 TDengine 集群中。您也可以使用 taos-explorer 的可视化界面进行数据备份和恢复，具体请参考【可视化管理】(./explorer)。
 
 ## 从 TDengine 备份数据文件到本地
 
