@@ -3730,7 +3730,8 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 static int32_t removeConstantValueFromList(SNodeList** pList) {
   SNode* pNode = NULL;
   WHERE_EACH(pNode, *pList) {
-    if (nodeType(pNode) == QUERY_NODE_VALUE || (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode))) {
+    if (nodeType(pNode) == QUERY_NODE_VALUE || 
+        (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
       ERASE_NODE(*pList);
       continue;
     }
