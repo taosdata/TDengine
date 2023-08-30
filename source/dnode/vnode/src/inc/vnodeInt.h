@@ -354,7 +354,6 @@ struct SVStatis {
   int64_t nInsertSuccess;       // delta
   int64_t nBatchInsert;         // delta
   int64_t nBatchInsertSuccess;  // delta
-  int64_t nComparedTables;
 };
 
 struct SVnodeInfo {
