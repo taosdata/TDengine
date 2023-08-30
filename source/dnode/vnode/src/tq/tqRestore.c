@@ -75,7 +75,12 @@ int32_t tqSetStreamTasksReady(STQ* pTq) {
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
-    if (pTask == NULL || pTask->info.fillHistory == 1) {
+    if (pTask == NULL) {
+      continue;
+    }
+
+    if (pTask->info.fillHistory == 1) {
+      streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
