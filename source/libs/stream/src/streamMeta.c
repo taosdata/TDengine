@@ -113,19 +113,12 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   int32_t len = strlen(path) + 64;
-  char* tpath = taosMemoryCalloc(1, len);
+  char*   tpath = taosMemoryCalloc(1, len);
 
   sprintf(tpath, "%s%s%s", path, TD_DIRSEP, "stream");
   pMeta->path = tpath;
 
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
-    goto _err;
-  }
-
-  sprintf(tpath, "%s/%s", pMeta->path, "checkpoints");
-  code = taosMulModeMkDir(tpath, 0755, false);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
 
@@ -164,13 +157,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   *pRid = pMeta->rid;
-
-  sprintf(tpath, "%s/%s", pMeta->path, "state");
-  code = taosMulModeMkDir(tpath, 0755, false);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    goto _err;
-  }
 
   metaRefMgtAdd(pMeta->vgId, pRid);
 
