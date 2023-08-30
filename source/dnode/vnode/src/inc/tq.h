@@ -45,8 +45,8 @@ extern "C" {
 typedef struct STqOffsetStore STqOffsetStore;
 
 // tqPush
-#define EXTRACT_DATA_FROM_WAL_ID    (-1)
-#define STREAM_TASK_STATUS_CHECK_ID (-2)
+#define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
+#define STREAM_EXEC_TASK_STATUS_CHECK_ID     (-2)
 
 // tqExec
 typedef struct {
@@ -163,8 +163,9 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
-int32_t tqStreamTasksScanWal(STQ* pTq);
-int32_t tqStreamTasksStatusCheck(STQ* pTq);
+int32_t tqScanWalForStreamTasks(STQ* pTq);
+int32_t tqSetStreamTasksReady(STQ* pTq);
+int32_t tqStopStreamTasks(STQ* pTq);
 
 // tq util
 int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock);
