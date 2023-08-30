@@ -165,7 +165,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   *pRid = pMeta->rid;
 
-  memset(tpath, 0, len);
   sprintf(tpath, "%s/%s", pMeta->path, "state");
   code = taosMulModeMkDir(tpath, 0755, false);
   if (code != 0) {
@@ -298,6 +297,10 @@ void streamMetaClear(SStreamMeta* pMeta) {
 
 void streamMetaClose(SStreamMeta* pMeta) {
   qDebug("start to close stream meta");
+  if (pMeta == NULL) {
+    return;
+  }
+
   // int64_t rid = *(int64_t*)pMeta->pRid;
   // if (taosTmrStop(pMeta->hbInfo.hbTmr)) {
   //   taosMemoryFree(pMeta->pRid);
