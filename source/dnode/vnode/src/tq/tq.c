@@ -1210,7 +1210,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         streamSetStatusNormal(pTask);
       }
 
-      tqStartStreamTasks(pTq);
+      tqStartStreamTasks(pTq, false);
     }
 
     streamMetaReleaseTask(pMeta, pTask);
@@ -1376,7 +1376,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqStartStreamTasks(pTq);
+    tqStartStreamTasks(pTq, false);
     return 0;
   } else {  // NOTE: pTask->status.schedStatus is not updated since it is not be handled by the run exec.
     // todo add one function to handle this
@@ -1459,7 +1459,7 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   }
 
   tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
-  streamTaskPause(pTask);
+  streamTaskPause(pTask, pMeta);
 
   SStreamTask* pHistoryTask = NULL;
   if (pTask->historyTaskId.taskId != 0) {
@@ -1475,7 +1475,7 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
     tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
 
-    streamTaskPause(pHistoryTask);
+    streamTaskPause(pHistoryTask, pMeta);
     streamMetaReleaseTask(pMeta, pHistoryTask);
   }
 
@@ -1490,9 +1490,14 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
   }
 
   // todo: handle the case: resume from halt to pause/ from halt to normal/ from pause to normal
-  streamTaskResume(pTask);
+  streamTaskResume(pTask, pTq->pStreamMeta);
 
   int32_t level = pTask->info.taskLevel;
+  if (level == TASK_LEVEL__SINK) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
+  }
+
   int8_t  status = pTask->status.taskStatus;
   if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY) {
     // no lock needs to secure the access of the version
@@ -1511,7 +1516,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
         pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
       streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (taosQueueItemSize(pTask->inputQueue->queue) == 0)) {
-      tqStartStreamTasks(pTq);
+      tqStartStreamTasks(pTq, false);
     } else {
       streamSchedExec(pTask);
     }
