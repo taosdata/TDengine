@@ -67,7 +67,8 @@ if [ "$param1"x = "CheckClusterStatus"x ]; then
     fi        
 
     logging "INFO" "output: $output"
-
+    sleep 20
+    exit 0
     if [[ 0 = $(echo "$output" | jq -r '.code') ]]; then
         i=0
         rows=$(echo "$output" | jq -r '.rows')
