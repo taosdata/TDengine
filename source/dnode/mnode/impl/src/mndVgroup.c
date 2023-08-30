@@ -2175,7 +2175,11 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   char obj[33] = {0};
   sprintf(obj, "%d", req.vgId);
 
-  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", obj, "", req.sql);
+  char detail[1000] = {0};
+  sprintf(detail, "dnodeId1:%d, dnodeId2:%d, dnodeId3:%d", 
+          req.dnodeId1, req.dnodeId2, req.dnodeId3);
+
+  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", obj, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2987,7 +2991,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     code = mndBalanceVgroup(pMnode, pReq, pArray);
   }
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", req.sql);
+  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
