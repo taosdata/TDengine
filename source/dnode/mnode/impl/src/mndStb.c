@@ -1118,18 +1118,24 @@ static char* mndAuditFieldTypeStr(int32_t type){
 }
 
 static void mndAuditFieldStr(char* detail, SArray *arr, int32_t len, int32_t max){
-for (int32_t i = 0; i < len; ++i) {
+  int32_t detialLen = strlen(detail);
+  int32_t fieldLen = 0;
+  for (int32_t i = 0; i < len; ++i) {
     SField *pField = taosArrayGet(arr, i);
-    char field[200] = {0};
-    if(strlen(detail) > 0 && strlen(detail)< max-3) {
+    char field[TSDB_COL_NAME_LEN + 20] = {0};
+    fieldLen = strlen(", ");
+    if(detialLen > 0 && detialLen < max-fieldLen-1) {
       strcat(detail, ", ");
+      detialLen += fieldLen;
     }
     else{
       break;
     }
     sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
-    if(strlen(detail)< max-strlen(field)) {
+    fieldLen = strlen(field);
+    if(detialLen < max-fieldLen-1) {
       strcat(detail, field);
+      detialLen += fieldLen;
     }
     else{
       break;
