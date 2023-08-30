@@ -52,7 +52,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   memset(streamPath, 0, len);
 
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
-  code = taosMulModeMkDir(streamPath, 0755);
+  code = taosMulModeMkDir(streamPath, 0755, false);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
@@ -90,7 +90,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   memset(streamPath, 0, len);
   sprintf(streamPath, "%s/%s", pMeta->path, "state");
-  code = taosMulModeMkDir(streamPath, 0755);
+  code = taosMulModeMkDir(streamPath, 0755, false);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
