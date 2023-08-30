@@ -3221,7 +3221,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "now",
     .type = FUNCTION_TYPE_NOW,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -3231,7 +3231,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "today",
     .type = FUNCTION_TYPE_TODAY,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
