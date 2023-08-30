@@ -465,8 +465,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
 
     // mnode will not send the pause/resume message to the sink task, so no need to enable the pause for sink tasks.
     if (taskLevel == TASK_LEVEL__AGG) {
-      streamTaskEnablePause(pTask);
-      int32_t code = streamTaskScanHistoryDataComplete(pTask);
+      /*int32_t code = */streamTaskScanHistoryDataComplete(pTask);
     } else {  // for sink task, set normal
       if (pTask->status.taskStatus != TASK_STATUS__PAUSE && pTask->status.taskStatus != TASK_STATUS__STOP &&
           pTask->status.taskStatus != TASK_STATUS__DROPPING) {
