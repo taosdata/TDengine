@@ -37,7 +37,7 @@ Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。
 1. Linux 操作系统
 2. 已安装 Java 8 和 Maven
 3. 已安装 Git
-4. 已安装并启动 TDengine。如果还没有可参考[安装和卸载](/operation/pkg-install)
+4. 已安装并启动 TDengine。如果还没有可参考[安装和卸载](../../operation/pkg-install)
 
 ## 安装 Confluent
 
