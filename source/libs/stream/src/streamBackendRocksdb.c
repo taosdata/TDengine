@@ -848,7 +848,7 @@ int32_t chkpPreCheckDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
   char*   pChkpIdDir = taosMemoryCalloc(1, 256);
 
   sprintf(pChkpDir, "%s%s%s", path, TD_DIRSEP, "checkpoints");
-  code = taosMulModeMkDir(pChkpDir, 0755);
+  code = taosMulModeMkDir(pChkpDir, 0755, true);
   if (code != 0) {
     qError("failed to prepare checkpoint dir, path:%s, reason:%s", path, tstrerror(code));
     taosMemoryFree(pChkpDir);
