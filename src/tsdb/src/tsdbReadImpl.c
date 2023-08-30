@@ -97,18 +97,18 @@ int tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet) {
 void tsdbCloseAndUnsetFSet(SReadH *pReadh) { tsdbResetReadFile(pReadh); }
 
 int tsdbLoadBlockIdx(SReadH *pReadh) {
-  SDFile *  pHeadf = TSDB_READ_HEAD_FILE(pReadh);
+  SDFile   *pHeadf = TSDB_READ_HEAD_FILE(pReadh);
   SBlockIdx blkIdx;
 
   ASSERT(taosArrayGetSize(pReadh->aBlkIdx) == 0);
 
   // No data at all, just return
-  if (pHeadf->info.offset <= 0) return 0;
+  int64_t offset = pHeadf->info.size - pHeadf->info.len;
+  if (offset <= 0) return 0;
 
-  if (tsdbSeekDFile(pHeadf, pHeadf->info.offset, SEEK_SET) < 0) {
-    tsdbError("vgId:%d failed to load SBlockIdx part while seek file %s since %s, offset:%u len :%u",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pHeadf->info.offset,
-              pHeadf->info.len);
+  if (tsdbSeekDFile(pHeadf, offset, SEEK_SET) < 0) {
+    tsdbError("vgId:%d failed to load SBlockIdx part while seek file %s since %s, offset:%" PRId64 " len :%u",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), offset, pHeadf->info.len);
     return -1;
   }
 
@@ -116,23 +116,23 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
 
   int64_t nread = tsdbReadDFile(pHeadf, TSDB_READ_BUF(pReadh), pHeadf->info.len);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load SBlockIdx part while read file %s since %s, offset:%u len :%u",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pHeadf->info.offset,
-              pHeadf->info.len);
+    tsdbError("vgId:%d failed to load SBlockIdx part while read file %s since %s, offset:%" PRId64 " len :%u",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), offset, pHeadf->info.len);
     return -1;
   }
 
   if (nread < pHeadf->info.len) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d SBlockIdx part in file %s is corrupted, offset:%u expected bytes:%u read bytes: %" PRId64,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pHeadf->info.offset, pHeadf->info.len, nread);
+    tsdbError("vgId:%d SBlockIdx part in file %s is corrupted, offset:%" PRId64
+              " expected bytes:%u read bytes: %" PRId64,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), offset, pHeadf->info.len, nread);
     return -1;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), pHeadf->info.len)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d SBlockIdx part in file %s is corrupted since wrong checksum, offset:%u len :%u",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pHeadf->info.offset, pHeadf->info.len);
+    tsdbError("vgId:%d SBlockIdx part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%u",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), offset, pHeadf->info.len);
     return -1;
   }
 
@@ -174,7 +174,7 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
   if (size > 0) {
     int64_t left = 0, right = size - 1;
     while (left <= right) {
-      int64_t mid = (left + right) / 2;
+      int64_t    mid = (left + right) / 2;
       SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, (size_t)mid);
       if (pBlkIdx->tid == TABLE_TID(pTable)) {
         if (pBlkIdx->uid == TABLE_UID(pTable)) {
@@ -312,8 +312,8 @@ static int tsdbSBlkInfoRefactor(SDFile *pHeadf, SBlockInfo **pDstBlkInfo, SBlock
 int tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, uint32_t *extendedLen) {
   ASSERT(pReadh->pBlkIdx != NULL);
 
-  SDFile *    pHeadf = TSDB_READ_HEAD_FILE(pReadh);
-  SBlockIdx * pBlkIdx = pReadh->pBlkIdx;
+  SDFile    *pHeadf = TSDB_READ_HEAD_FILE(pReadh);
+  SBlockIdx *pBlkIdx = pReadh->pBlkIdx;
 
   if (tsdbSeekDFile(pHeadf, pBlkIdx->offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load SBlockInfo part while seek file %s since %s, offset:%u len:%u",
@@ -386,7 +386,9 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
-    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL, update != TD_ROW_PARTIAL_UPDATE) < 0) return -1;
+    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
+                        update != TD_ROW_PARTIAL_UPDATE) < 0)
+      return -1;
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -413,7 +415,9 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
-    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL, update != TD_ROW_PARTIAL_UPDATE) < 0) return -1;
+    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
+                        update != TD_ROW_PARTIAL_UPDATE) < 0)
+      return -1;
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -665,9 +669,9 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
   pDataCols->numOfRows = pBlock->numOfRows;
 
   // Recover the data
-  int ccol = 0;  // loop iter for SBlockCol object
-  int dcol = 0;  // loop iter for SDataCols object
-  SBlockCol blockCol = {0};
+  int        ccol = 0;  // loop iter for SBlockCol object
+  int        dcol = 0;  // loop iter for SDataCols object
+  SBlockCol  blockCol = {0};
   SBlockCol *pBlockCol = &blockCol;
   while (dcol < pDataCols->numOfCols) {
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
@@ -734,7 +738,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
   if (comp) {
     // Need to decompress
     int tlen = (*(tDataTypes[pDataCol->type].decompFunc))(content, len - sizeof(TSCKSUM), numOfRows, pDataCol->pData,
-                                                             pDataCol->spaceSize, comp, buffer, bufferSize);
+                                                          pDataCol->spaceSize, comp, buffer, bufferSize);
     if (tlen <= 0) {
       tsdbError("Failed to decompress column, file corrupted, len:%d comp:%d numOfRows:%d maxPoints:%d bufferSize:%d",
                 len, comp, numOfRows, maxPoints, bufferSize);
@@ -759,7 +763,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
   ASSERT(colIds[0] == 0);
 
-  SDFile *  pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
+  SDFile   *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   SBlockCol blockCol = {0};
 
   tdResetDataCols(pDataCols);
@@ -773,7 +777,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   int ccol = 0;
   for (int i = 0; i < numOfColIds; i++) {
     int16_t    colId = colIds[i];
-    SDataCol * pDataCol = NULL;
+    SDataCol  *pDataCol = NULL;
     SBlockCol *pBlockCol = NULL;
 
     while (true) {
@@ -837,7 +841,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   ASSERT(pDataCol->colId == pBlockCol->colId);
 
   STsdbRepo *pRepo = TSDB_READ_REPO(pReadh);
-  STsdbCfg * pCfg = REPO_CFG(pRepo);
+  STsdbCfg  *pCfg = REPO_CFG(pRepo);
   int        tsize = pDataCol->bytes * pBlock->numOfRows + COMP_OVERFLOW_BYTES;
 
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
