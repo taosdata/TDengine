@@ -678,6 +678,22 @@ _OVER:
   return code;
 }
 
+static void mndBuildAuditDetailInt32(char* detail, char* tmp, char* format, int32_t para){
+  if(para > 0){
+    if(strlen(detail) > 0) strcat(detail, ", "); 
+    sprintf(tmp, format, para);
+    strcat(detail, tmp);
+  }
+}
+
+static void mndBuildAuditDetailInt64(char* detail, char* tmp, char* format, int64_t para){
+  if(para > 0){
+    if(strlen(detail) > 0) strcat(detail, ", "); 
+    sprintf(tmp, format, para);
+    strcat(detail, tmp);
+  }
+}
+
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
@@ -737,20 +753,38 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[3000] = {0};
-  sprintf(detail, "buffer:%d, cacheLast:%d, cacheLastSize:%d, compression:%d, daysPerFile:%d, "
-        "daysToKeep0:%d, daysToKeep:%d, daysToKeep2:%d, hashPrefix:%d, "
-        "hashSuffix:%d, ignoreExist:%d, maxRows:%d, minRows:%d, numOfRetensions:%d, "
-        "numOfStables:%d, numOfVgroups:%d, pages:%d, pageSize:%d, precision:%d, "
-        "replications:%d, schemaless:%d, sstTrigger:%d, strict:%d, "
-        "tsdbPageSize:%d, walFsyncPeriod:%d, walLevel:%d, walRetentionPeriod:%d, "
-        "walRetentionSize:%" PRId64 ", walRollPeriod:%d, walSegmentSize:%" PRId64, 
-        createReq.buffer, createReq.cacheLast, createReq.cacheLastSize, createReq.compression, createReq.daysPerFile,
-        createReq.daysToKeep0, createReq.daysToKeep1, createReq.daysToKeep2, createReq.hashPrefix,
-        createReq.hashSuffix, createReq.ignoreExist, createReq.maxRows, createReq.minRows, createReq.numOfRetensions,
-        createReq.numOfStables, createReq.numOfVgroups, createReq.pages, createReq.pageSize, createReq.precision,
-        createReq.replications, createReq.schemaless, createReq.sstTrigger, createReq.strict,
-        createReq.tsdbPageSize, createReq.walFsyncPeriod, createReq.walLevel, createReq.walRetentionPeriod,
-        createReq.walRetentionSize, createReq.walRollPeriod, createReq.walSegmentSize);
+  char tmp[100] = {0};
+
+  mndBuildAuditDetailInt32(detail, tmp, "buffer:%d", createReq.buffer);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLast:%d", createReq.cacheLast);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLastSize:%d", createReq.cacheLastSize);
+  mndBuildAuditDetailInt32(detail, tmp, "compression:%d", createReq.compression);
+  mndBuildAuditDetailInt32(detail, tmp, "daysPerFile:%d", createReq.daysPerFile);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep0:%d", createReq.daysToKeep0);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep1:%d", createReq.daysToKeep1);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep2:%d", createReq.daysToKeep2);
+  mndBuildAuditDetailInt32(detail, tmp, "hashPrefix:%d", createReq.hashPrefix);
+  mndBuildAuditDetailInt32(detail, tmp, "hashSuffix:%d", createReq.hashSuffix);
+  mndBuildAuditDetailInt32(detail, tmp, "ignoreExist:%d", createReq.ignoreExist);
+  mndBuildAuditDetailInt32(detail, tmp, "maxRows:%d", createReq.maxRows);
+  mndBuildAuditDetailInt32(detail, tmp, "minRows:%d", createReq.minRows);
+  mndBuildAuditDetailInt32(detail, tmp, "numOfRetensions:%d", createReq.numOfRetensions);
+  mndBuildAuditDetailInt32(detail, tmp, "numOfStables:%d", createReq.numOfStables);
+  mndBuildAuditDetailInt32(detail, tmp, "numOfVgroups:%d", createReq.numOfVgroups);
+  mndBuildAuditDetailInt32(detail, tmp, "pages:%d", createReq.pages);
+  mndBuildAuditDetailInt32(detail, tmp, "pageSize:%d", createReq.pageSize);
+  mndBuildAuditDetailInt32(detail, tmp, "precision:%d", createReq.precision);
+  mndBuildAuditDetailInt32(detail, tmp, "replications:%d", createReq.replications);
+  mndBuildAuditDetailInt32(detail, tmp, "schemaless:%d", createReq.schemaless);
+  mndBuildAuditDetailInt32(detail, tmp, "sstTrigger:%d", createReq.sstTrigger);
+  mndBuildAuditDetailInt32(detail, tmp, "strict:%d", createReq.strict);
+  mndBuildAuditDetailInt32(detail, tmp, "tsdbPageSize:%d", createReq.tsdbPageSize);
+  mndBuildAuditDetailInt32(detail, tmp, "walFsyncPeriod:%d", createReq.walFsyncPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walLevel:%d", createReq.walLevel);
+  mndBuildAuditDetailInt32(detail, tmp, "walRetentionPeriod:%d", createReq.walRetentionPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walRetentionSize:%" PRId64, createReq.walRetentionSize);
+  mndBuildAuditDetailInt32(detail, tmp, "walRollPeriod:%d", createReq.walRollPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walSegmentSize:%" PRId64, createReq.walSegmentSize);
   
   SName name = {0};
   tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
@@ -1000,14 +1034,23 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   char detail[3000] = {0};
-  sprintf(detail, "buffer:%d, cacheLast:%d, cacheLastSize:%d, daysPerFile:%d, daysToKeep0:%d, "
-          "daysToKeep1:%d, daysToKeep2:%d, db:%s, minRows:%d, pages:%d, pageSize:%d, "
-          "replications:%d, sstTrigger:%d, strict:%d, walFsyncPeriod:%d, "
-          "walRetentionSize:%d", 
-          alterReq.buffer, alterReq.cacheLast, alterReq.cacheLastSize, alterReq.daysPerFile, alterReq.daysToKeep0,
-          alterReq.daysToKeep1, alterReq.daysToKeep2, alterReq.db, alterReq.minRows, alterReq.pages, alterReq.pageSize,
-          alterReq.replications, alterReq.sstTrigger, alterReq.strict, alterReq.walFsyncPeriod, 
-          alterReq.walRetentionSize);
+  char tmp[100] = {0};
+
+  mndBuildAuditDetailInt32(detail, tmp, "buffer:%d", alterReq.buffer);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLast:%d", alterReq.cacheLast);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLastSize:%d", alterReq.cacheLastSize);
+  mndBuildAuditDetailInt32(detail, tmp, "daysPerFile:%d", alterReq.daysPerFile);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep0:%d", alterReq.daysToKeep0);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep1:%d", alterReq.daysToKeep1);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep2:%d", alterReq.daysToKeep2);
+  mndBuildAuditDetailInt32(detail, tmp, "minRows:%d", alterReq.minRows);
+  mndBuildAuditDetailInt32(detail, tmp, "pages:%d", alterReq.pages);
+  mndBuildAuditDetailInt32(detail, tmp, "pageSize:%d", alterReq.pageSize);
+  mndBuildAuditDetailInt32(detail, tmp, "replications:%d", alterReq.replications);
+  mndBuildAuditDetailInt32(detail, tmp, "sstTrigger:%d", alterReq.sstTrigger);
+  mndBuildAuditDetailInt32(detail, tmp, "strict:%d", alterReq.strict);
+  mndBuildAuditDetailInt32(detail, tmp, "walFsyncPeriod:%d", alterReq.walFsyncPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walRetentionSize:%d", alterReq.walRetentionSize);
 
   SName name = {0};
   tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
