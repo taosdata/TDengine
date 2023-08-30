@@ -1066,6 +1066,57 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   return TSDB_CODE_SUCCESS;
 }
 
+static char* mndAuditFieldTypeStr(int32_t type){
+  switch (type)
+  {
+  case TSDB_DATA_TYPE_NULL:
+    return "null";
+  case TSDB_DATA_TYPE_BOOL:
+    return "bool";
+  case TSDB_DATA_TYPE_TINYINT:
+    return "tinyint";
+  case TSDB_DATA_TYPE_SMALLINT:
+    return "smallint";
+  case TSDB_DATA_TYPE_INT:
+    return "int";
+  case TSDB_DATA_TYPE_BIGINT:
+    return "bigint";
+  case TSDB_DATA_TYPE_FLOAT:
+    return "float";
+  case TSDB_DATA_TYPE_DOUBLE:
+    return "double";
+  case TSDB_DATA_TYPE_VARCHAR:
+    return "varchar";
+  case TSDB_DATA_TYPE_TIMESTAMP:
+    return "timestamp";
+  case TSDB_DATA_TYPE_NCHAR:
+    return "nchar";
+  case TSDB_DATA_TYPE_UTINYINT:
+    return "utinyint";
+  case TSDB_DATA_TYPE_USMALLINT:
+    return "usmallint";
+  case TSDB_DATA_TYPE_UINT:
+    return "uint";
+  case TSDB_DATA_TYPE_UBIGINT:
+    return "ubigint";
+  case TSDB_DATA_TYPE_JSON:
+    return "json";
+  case TSDB_DATA_TYPE_VARBINARY:
+    return "varbinary";
+  case TSDB_DATA_TYPE_DECIMAL:
+    return "decimal";
+  case TSDB_DATA_TYPE_BLOB:
+    return "blob";
+  case TSDB_DATA_TYPE_MEDIUMBLOB:
+    return "mediumblob";
+  case TSDB_DATA_TYPE_GEOMETRY:
+    return "geometry";
+
+  default:
+    return "error";
+  }
+}
+
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -1174,7 +1225,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[2000] = {0};
+  char detail[4000] = {0};
   sprintf(detail, "colVer:%d, delay1:%" PRId64 ", delay2:%" PRId64 ", deleteMark1:%" PRId64 ", "
           "deleteMark2:%" PRId64 ", igExists:%d, numOfColumns:%d, numOfFuncs:%d, numOfTags:%d, "
           "source:%d, suid:%" PRId64 ", tagVer:%d, ttl:%d, "
@@ -1183,6 +1234,22 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           createReq.deleteMark2, createReq.igExists, createReq.numOfColumns, createReq.numOfFuncs, createReq.numOfTags,
           createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
           createReq.watermark1, createReq.watermark2);
+  
+  for (int32_t i = 0; i < createReq.numOfColumns; ++i) {
+    SField *pField = taosArrayGet(createReq.pColumns, i);
+    char field[200] = {0};
+    if(strlen(detail) > 0) strcat(detail, ", ");
+    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
+    strcat(detail, field);
+  }
+
+  for (int32_t i = 0; i < createReq.numOfTags; ++i) {
+    SField *pField = taosArrayGet(createReq.pTags, i);
+    char field[200] = {0};
+    if(strlen(detail) > 0) strcat(detail, ", ");
+    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
+    strcat(detail, field);
+  }
 
   SName name = {0};
   tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
