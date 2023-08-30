@@ -236,7 +236,7 @@ bool taosCheckSystemIsLittleEnd() {
 
 void taosGetSystemInfo() {
 #ifdef WINDOWS
-  taosGetCpuCores(&tsNumOfCores);
+  taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
 #elif defined(_TD_DARWIN_64)
@@ -247,7 +247,7 @@ void taosGetSystemInfo() {
   tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 #else
   taosGetProcIOnfos();
-  taosGetCpuCores(&tsNumOfCores);
+  taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
   taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable);
@@ -495,6 +495,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #endif
 }
 
+// Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
 static int32_t taosCntrGetCpuCores(float *numOfCores) {
 #ifdef WINDOWS
   return -1;
@@ -503,26 +504,26 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
 #else
   TdFilePtr pFile = NULL;
   if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _sys;
+    goto _physical;
   }
   char qline[32] = {0};
   if (taosGetsFile(pFile, sizeof(qline), qline) < 0) {
     taosCloseFile(&pFile);
-    goto _sys;
+    goto _physical;
   }
   taosCloseFile(&pFile);
   float quota = taosStr2Float(qline, NULL);
   if (quota < 0) {
-    goto _sys;
+    goto _physical;
   }
 
   if (!(pFile = taosOpenFile(tsCpuPeroidFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _sys;
+    goto _physical;
   }
   char pline[32] = {0};
   if (taosGetsFile(pFile, sizeof(pline), pline) < 0) {
     taosCloseFile(&pFile);
-    goto _sys;
+    goto _physical;
   }
   taosCloseFile(&pFile);
 
@@ -535,14 +536,14 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     *numOfCores = sysCores;
   }
   goto _end;
-_sys:
+_physical:
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 _end:
   return 0;
 #endif
 }
 
-int32_t taosGetCpuCores(float *numOfCores) {
+int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
@@ -552,11 +553,11 @@ int32_t taosGetCpuCores(float *numOfCores) {
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   return 0;
 #else
-#if 1
-  taosCntrGetCpuCores(numOfCores);
-#else
-  *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
-#endif
+  if (physical) {
+    *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+  } else {
+    taosCntrGetCpuCores(numOfCores);
+  }
   return 0;
 #endif
 }
