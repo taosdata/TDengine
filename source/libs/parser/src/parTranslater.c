@@ -3727,11 +3727,33 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static int32_t removeConstantValueFromList(SNodeList** pList) {
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, *pList) {
+    if (nodeType(pNode) == QUERY_NODE_VALUE || (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode))) {
+      ERASE_NODE(*pList);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+
+  if (*pList && (*pList)->length <= 0) {
+    nodesDestroyList(*pList);
+    *pList = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pSelect->pPartitionByList) {
+    code = removeConstantValueFromList(&pSelect->pPartitionByList);
+  }
+  
+  if (TSDB_CODE_SUCCESS == code && pSelect->pPartitionByList) {
     int8_t typeType = getTableTypeFromTableNode(pSelect->pFromTable);
     SNode* pPar = nodesListGetNode(pSelect->pPartitionByList, 0);
     if (!((TSDB_NORMAL_TABLE == typeType || TSDB_CHILD_TABLE == typeType) && 1 == pSelect->pPartitionByList->length &&
