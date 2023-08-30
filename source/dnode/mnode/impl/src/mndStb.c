@@ -1185,9 +1185,9 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           createReq.watermark1, createReq.watermark2);
 
   SName name = {0};
-  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, createReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
