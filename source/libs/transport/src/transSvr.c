@@ -289,8 +289,15 @@ static bool uvHandleReq(SSvrConn* pConn) {
 }
 
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
-  SSvrConn* conn = cli->data;
-  STrans*   pTransInst = conn->pTransInst;
+  SSvrConn*  conn = cli->data;
+  SWorkThrd* pThrd = conn->hostThrd;
+
+  if (true == pThrd->quit) {
+    tInfo("work thread received quit msg, destroy conn");
+    destroyConn(conn, true);
+    return;
+  }
+  STrans* pTransInst = conn->pTransInst;
 
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {

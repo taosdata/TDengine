@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 typedef enum DirtyEntryType {
-  ENTRY_TYPE_DEL = 1,
+  ENTRY_TYPE_DELETE = 1,
   ENTRY_TYPE_UPSERT = 2,
 } DirtyEntryType;
 
@@ -44,6 +44,8 @@ typedef struct STtlManger {
 typedef struct {
   int64_t ttlDays;
   int64_t changeTimeMs;
+  int64_t ttlDaysDirty;
+  int64_t changeTimeMsDirty;
 } STtlCacheEntry;
 
 typedef struct {
