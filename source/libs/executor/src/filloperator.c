@@ -166,18 +166,20 @@ static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, i
     } else if (ekey < pInfo->pFillInfo->start) {
       int64_t t = ekey;
       SInterval* pInterval = &pInfo->pFillInfo->interval;
-
+      int64_t    prev = t;
       while(1) {
-        int64_t prev = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-        if (prev >= pInfo->pFillInfo->start) {
-          t = prev;
+        int64_t next = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+        if (next >= pInfo->pFillInfo->start) {
+          prev = t;
+          t = next;
           break;
         }
-        t = prev;
+        prev = t;
+        t = next;
       }
 
-      // todo time window chosen problem: t or prev value?
-      if (t > pInfo->pFillInfo->start) t -= pInterval->sliding;
+      // todo time window chosen problem: t or next value?
+      if (t > pInfo->pFillInfo->start) t = prev;
       taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
     }
   }

@@ -5608,4 +5608,4 @@ void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
   pReader->idStr = taosStrdup(idstr);
 }
 
-void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
+void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/ }

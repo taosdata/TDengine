@@ -296,7 +296,7 @@ ldconfig
 3. 如果 Python UDF 程序执行时，通过 PYTHONPATH 引用其它的包，可以设置 taos.cfg 的 UdfdLdLibPath 变量为PYTHONPATH的内容
 
 4. 启动 `taosd` 服务
-细节请参考 [快速开始](../../get-started)
+细节请参考 [立即开始](../../get-started)
 
 ### 接口定义
 
@@ -883,5 +883,5 @@ pycumsum 使用 numpy 计算输入列所有数据的累积和。
 
 </details>
 ## 管理和使用 UDF
-在使用 UDF 之前需要先将其加入到 TDengine 系统中。关于如何管理和使用 UDF，请参考[管理和使用 UDF](../12-taos-sql/26-udf.md)
+在使用 UDF 之前需要先将其加入到 TDengine 系统中。关于如何管理和使用 UDF，请参考[管理和使用 UDF](../../taos-sql/udf)
 

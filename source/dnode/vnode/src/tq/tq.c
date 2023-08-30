@@ -779,6 +779,8 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
 
+    tqUnregisterPushHandle(pTq, pHandle);
+
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
       tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
@@ -880,7 +882,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId, req.newConsumerId);
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
       atomic_store_32(&pHandle->epoch, 0);
-
       tqUnregisterPushHandle(pTq, pHandle);
       ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
     }
@@ -1197,6 +1198,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
         "sched-status:%d",
         id, schedStatus);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
@@ -1210,6 +1212,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el,
             TASK_SCHED_STATUS__INACTIVE);
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
