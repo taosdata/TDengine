@@ -373,5 +373,3 @@ bool isPartTableAgg(SAggLogicNode* pAgg) {
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   return stbHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
-
-
