@@ -32,6 +32,7 @@ LOG_DIR=$TAOS_DIR/sim/asan
 
 
 
+error_num=`cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l`
 
 archOs=`arch`  
 if [[ $archOs =~ "aarch64" ]]; then  
@@ -39,7 +40,7 @@ if [[ $archOs =~ "aarch64" ]]; then
   memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte"| wc -l`
   memory_count=`cat ${LOG_DIR}/*.asan | grep "Direct leak of 32 byte"| wc -l`
 
-  if [ $memory_count == $error_num ] && [ $memory_leak == 0 ]; then
+  if [ $memory_count -eq $error_num ] && [ $memory_leak -eq 0 ]; then
     echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
     error_num=0
   fi 
