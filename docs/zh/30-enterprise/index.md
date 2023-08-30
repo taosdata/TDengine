@@ -1,5 +1,6 @@
 ---
-title: TDengine 企业版
+title: 企业版特有功能
+sidebar_label: 企业版特性
 description: 企业版特有功能和工具
 ---
 
