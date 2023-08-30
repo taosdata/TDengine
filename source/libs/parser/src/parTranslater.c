@@ -1258,7 +1258,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
         if(isHexChar) taosMemoryFree(data);
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
-      varDataSetLen(pVal->datum.p, size + VARSTR_HEADER_SIZE);
+      varDataSetLen(pVal->datum.p, size);
       memcpy(varDataVal(pVal->datum.p), data, size);
       if(isHexChar)  taosMemoryFree(data);
       break;

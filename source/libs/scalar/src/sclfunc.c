@@ -964,6 +964,17 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
+      case TSDB_DATA_TYPE_VARBINARY:{
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
+          memcpy(varDataVal(output), varDataVal(input), len);
+          varDataSetLen(output, len);
+        }else{
+          code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+          goto _end;
+        }
+        break;
+      }
       case TSDB_DATA_TYPE_NCHAR: {
         int32_t outputCharLen = (outputLen - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
         int32_t len;

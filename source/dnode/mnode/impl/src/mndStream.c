@@ -829,7 +829,19 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createStream", createStreamReq.name, "", "");
+  char detail[2000] = {0};
+  sprintf(detail, "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64 ", "
+          "fillHistory:%d, igExists:%d, "
+          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64 ", "
+          "maxDelay:%" PRId64 ", numOfTags:%d, sourceDB:%s, "
+          "targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
+          createStreamReq.checkpointFreq, createStreamReq.createStb, createStreamReq.deleteMark,
+          createStreamReq.fillHistory, createStreamReq.igExists, 
+          createStreamReq.igExpired, createStreamReq.igUpdate, createStreamReq.lastTs,
+          createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB, 
+          createStreamReq.targetStbFullName, createStreamReq.triggerType, createStreamReq.watermark);
+
+  auditRecord(pReq, pMnode->clusterId, "createStream", createStreamReq.name, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1076,7 +1088,10 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  auditRecord(pReq, pMnode->clusterId, "dropStream", dropReq.name, "", "");
+  char detail[100] = {0};
+  sprintf(detail, "igNotExists:%d", dropReq.igNotExists);
+
+  auditRecord(pReq, pMnode->clusterId, "dropStream", dropReq.name, "", detail);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);

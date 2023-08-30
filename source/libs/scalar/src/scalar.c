@@ -1193,6 +1193,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecFunction(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1241,10 +1242,12 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   SScalarParam output = {0};
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
   if (0 == output.numOfRows) {
+    sclFreeParam(&output);
     return DEAL_RES_CONTINUE;
   }
 
@@ -1341,6 +1344,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   SScalarParam output = {0};
   ctx->code = sclExecCaseWhen(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1403,11 +1407,13 @@ EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecFunction(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1420,11 +1426,13 @@ EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1443,6 +1451,7 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 

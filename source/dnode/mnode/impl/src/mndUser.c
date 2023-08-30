@@ -656,7 +656,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createUser", createReq.user, "", "");
+  char detail[1000] = {0};
+  sprintf(detail, "createType:%d, enable:%d, superUser:%d, sysInfo:%d", 
+          createReq.createType, createReq.enable, createReq.superUser, createReq.sysInfo);
+
+  auditRecord(pReq, pMnode->clusterId, "createUser", createReq.user, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -973,25 +977,46 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char detail[1000] = {0};
+  sprintf(detail, "alterType:%d, enable:%d, superUser:%d, sysInfo:%d, tabName:%s", 
+          alterReq.alterType, alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
+
   if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
-    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, alterReq.objname, "");
+    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
           alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
           alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
-    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, alterReq.objname, "");
+    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB||
           alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB||
           alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC||
           alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE||
           alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE||
           alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE){
-    auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, alterReq.objname, "");
+    if (strcmp(alterReq.objname, "1.*") != 0){
+      SName name = {0};
+      tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, name.dbname, detail);
+    }else{
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, "*", detail);
+    }
+  }
+  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
+    auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, alterReq.objname, detail);
+  }
+  else if(alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
+    auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, alterReq.objname, detail);
   }
   else{
-    auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, alterReq.objname, "");
+    if (strcmp(alterReq.objname, "1.*") != 0){
+      SName name = {0};
+      tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, name.dbname, detail);
+    }else{
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, "*", detail);
+    }
   }
 
 _OVER:
@@ -1063,7 +1088,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   code = mndDropUser(pMnode, pReq, pUser);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "dropUser", dropReq.user, "", dropReq.sql);
+  auditRecord(pReq, pMnode->clusterId, "dropUser", dropReq.user, "", "");
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
