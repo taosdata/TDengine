@@ -28,7 +28,11 @@ typedef struct SReadH SReadH;
 typedef struct {
   int32_t  tid;
   uint32_t len;
+#if 0
   uint32_t offset;
+#else
+  int64_t offset;
+#endif
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
   uint64_t uid;
