@@ -31,7 +31,7 @@ extern "C" {
 
 typedef struct SStreamTask SStreamTask;
 
-#define SSTREAM_TASK_VER 1
+#define SSTREAM_TASK_VER 2
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
@@ -321,7 +321,7 @@ typedef struct {
 
 struct SStreamTask {
   int64_t          ver;
-  SStreamTaskId        id;
+  SStreamTaskId    id;
   SSTaskBasicInfo  info;
   STaskOutputInfo  outputInfo;
   SDispatchMsgInfo msgInfo;
@@ -329,8 +329,8 @@ struct SStreamTask {
   SCheckpointInfo  chkInfo;
   STaskExec        exec;
   SHistDataRange   dataRange;
-  SStreamTaskId        historyTaskId;
-  SStreamTaskId        streamTaskId;
+  SStreamTaskId    historyTaskId;
+  SStreamTaskId    streamTaskId;
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
   STaskTimestamp   tsInfo;
@@ -371,6 +371,8 @@ struct SStreamTask {
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
+
+  char reserve[256];
 };
 
 typedef struct SMetaHbInfo {

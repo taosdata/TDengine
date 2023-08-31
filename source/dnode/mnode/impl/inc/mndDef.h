@@ -615,25 +615,25 @@ void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
-//typedef struct {
-//  int32_t epoch;
-//  SArray* consumers;  // SArray<SMqConsumerEp*>
-//} SMqSubActionLogEntry;
+// typedef struct {
+//   int32_t epoch;
+//   SArray* consumers;  // SArray<SMqConsumerEp*>
+// } SMqSubActionLogEntry;
 
-//SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-//void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-//int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
-//void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
+// SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
+// void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
+// int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
+// void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
 //
-//typedef struct {
-//  char    key[TSDB_SUBSCRIBE_KEY_LEN];
-//  SArray* logs;  // SArray<SMqSubActionLogEntry*>
-//} SMqSubActionLogObj;
+// typedef struct {
+//   char    key[TSDB_SUBSCRIBE_KEY_LEN];
+//   SArray* logs;  // SArray<SMqSubActionLogEntry*>
+// } SMqSubActionLogObj;
 //
-//SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-//void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-//int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
-//void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
+// SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
+// void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
+// int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
+// void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
   int32_t           oldConsumerNum;
@@ -647,12 +647,12 @@ typedef struct {
 } SMqRebOutputVg;
 
 typedef struct {
-  SArray*               rebVgs;            // SArray<SMqRebOutputVg>
-  SArray*               newConsumers;      // SArray<int64_t>
-  SArray*               removedConsumers;  // SArray<int64_t>
-  SArray*               modifyConsumers;   // SArray<int64_t>
-  SMqSubscribeObj*      pSub;
-//  SMqSubActionLogEntry* pLogEntry;
+  SArray*          rebVgs;            // SArray<SMqRebOutputVg>
+  SArray*          newConsumers;      // SArray<int64_t>
+  SArray*          removedConsumers;  // SArray<int64_t>
+  SArray*          modifyConsumers;   // SArray<int64_t>
+  SMqSubscribeObj* pSub;
+  //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
 typedef struct SStreamConf {
@@ -674,8 +674,8 @@ typedef struct {
   int32_t totalLevel;
   int64_t smaId;  // 0 for unused
   // info
-  int64_t uid;
-  int8_t  status;
+  int64_t     uid;
+  int8_t      status;
   SStreamConf conf;
   // source and target
   int64_t sourceDbUid;
@@ -690,13 +690,13 @@ typedef struct {
   int32_t fixedSinkVgId;  // 0 for shuffle
 
   // transformation
-  char*          sql;
-  char*          ast;
-  char*          physicalPlan;
-  SArray*        tasks;        // SArray<SArray<SStreamTask>>
+  char*   sql;
+  char*   ast;
+  char*   physicalPlan;
+  SArray* tasks;  // SArray<SArray<SStreamTask>>
 
-  SArray*        pHTasksList;   // generate the results for already stored ts data
-  int64_t        hTaskUid; // stream task for history ts data
+  SArray* pHTasksList;  // generate the results for already stored ts data
+  int64_t hTaskUid;     // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
@@ -709,6 +709,8 @@ typedef struct {
 
   // 3.0.5.
   int64_t checkpointId;
+  char    reserve[256];
+
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);

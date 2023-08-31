@@ -134,6 +134,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     if (tEncodeCStr(pEncoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tEncodeI64(pEncoder, pTask->triggerParam) < 0) return -1;
+  if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve)) < 0) return -1;
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -245,6 +246,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeCStrTo(pDecoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tDecodeI64(pDecoder, &pTask->triggerParam) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
 
   tEndDecode(pDecoder);
   return 0;
@@ -483,7 +485,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   pTask->status.taskStatus = TASK_STATUS__STOP;
   qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
 
-  while (/*pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE */!streamTaskIsIdle(pTask)) {
+  while (/*pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE */ !streamTaskIsIdle(pTask)) {
     qDebug("s-task:%s level:%d wait for task to be idle, check again in 100ms", id, pTask->info.taskLevel);
     taosMsleep(100);
   }
