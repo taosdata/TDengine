@@ -117,7 +117,9 @@ import {
         // const result =  `${this.general.dbname}.${this.general.tbName.length <= 2 
         //   ? this.general.tbName[1] || '' 
         //   : this.general.tbName[2] || ''}`
-        const result = `${this.general.dbname}.${this.general.tbName || ''}`
+        const dbname = this.general.dbname ? `\`${this.general.dbname}\`` : ''
+        const tbname = this.general.tbName ? `.\`${this.general.tbName}\``: ''
+        const result = dbname + tbname
         this.getFromVal(result)
         return result
       }
