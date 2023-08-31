@@ -2009,14 +2009,11 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
 
 static bool isNodeEpsetChanged(const SEpSet *pPrevEpset, const SEpSet *pCurrent) {
   const SEp *pEp = GET_ACTIVE_EP(pPrevEpset);
+  const SEp* p = GET_ACTIVE_EP(pCurrent);
 
-  for (int32_t i = 0; i < pCurrent->numOfEps; ++i) {
-    const SEp *p = &(pCurrent->eps[i]);
-    if (pEp->port == p->port && strncmp(pEp->fqdn, p->fqdn, TSDB_FQDN_LEN) == 0) {
-      return false;
-    }
+  if (pEp->port == p->port && strncmp(pEp->fqdn, p->fqdn, TSDB_FQDN_LEN) == 0) {
+    return false;
   }
-
   return true;
 }
 
@@ -2113,6 +2110,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     mDebug("stream:0x%" PRIx64 " involved node changed, create update trans", pStream->uid);
     int32_t code = createStreamUpdateTrans(pMnode, pStream, pChangeInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
   }
@@ -2216,17 +2214,20 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
   if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
     code = mndProcessVgroupChange(pMnode, &changeInfo);
+
+    // keep the new vnode snapshot
+    if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
+      mDebug("create trans successfully, update cached node list");
+      taosArrayDestroy(execNodeList.pNodeEntryList);
+      execNodeList.pNodeEntryList = pNodeSnapshot;
+      execNodeList.ts = ts;
+    }
+  } else {
+    mDebug("no update found in nodeList");
   }
 
   taosArrayDestroy(changeInfo.pUpdateNodeList);
   taosHashCleanup(changeInfo.pDBMap);
-
-  // keep the new vnode snapshot
-  if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    taosArrayDestroy(execNodeList.pNodeEntryList);
-    execNodeList.pNodeEntryList = pNodeSnapshot;
-    execNodeList.ts = ts;
-  }
 
   mDebug("end to do stream task node change checking");
   atomic_store_32(&mndNodeCheckSentinel, 0);
