@@ -16,23 +16,15 @@
 #include "tsdbUpgrade.h"
 
 // old
-extern void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
-extern int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData);
+#include "tsdb.h"
+// extern void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
 
 // new
 #include "tsdbDataFileRW.h"
+#include "tsdbFS2.h"
 #include "tsdbSttFileRW.h"
-extern int32_t save_fs(const TFileSetArray *arr, const char *fname);
-extern int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
-extern int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
-                                      TBrinBlkArray *brinBlkArray, uint8_t **bufArr, SVersionRange *range);
-extern int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
-extern int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
-extern int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
-extern int32_t tsdbSttLvlClear(SSttLvl **lvl);
-extern int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize);
-extern int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize);
-extern int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize);
+// extern int32_t save_fs(const TFileSetArray *arr, const char *fname);
+// extern int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
 
 static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *reader, STFileSet *fset) {
   int32_t code = 0;
