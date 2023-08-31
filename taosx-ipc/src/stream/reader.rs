@@ -821,7 +821,7 @@ impl LushMessageInsert {
                                         );
                                     }
                                 }
-
+                                metrics::counter!("ipc.stream.points", 1);
                                 insert_columns.push_str(format!("`{}`,", column_name).as_str());
                                 insert_values.push_str(format!("{},", sql_value).as_str());
                             } else {

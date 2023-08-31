@@ -1984,7 +1984,7 @@ pub struct Task {
     #[schema(read_only)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(with = "option_datetime_format")]
-    finished_at: Option<DateTime<Utc>>,
+    pub finished_at: Option<DateTime<Utc>>,
 
     /// Last modified time.
     #[schema(read_only)]

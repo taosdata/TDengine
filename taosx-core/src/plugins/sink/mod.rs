@@ -39,6 +39,8 @@ use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
+use metrics::*;
+use super::*;
 
 // mod rpc_client;
 
@@ -327,6 +329,7 @@ async fn consume_lush_record(
     _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
+    counter!(RECORD_BATCHES, 1);
     match record {
         LushMessage::Tables(tables) => {
             // let mut sql = format!("CREATE TABLE ");
@@ -426,7 +429,7 @@ async fn consume_lush_record(
                 for sql in message_modify.sqls {
                     info!("Tables: {}", sql.0);
                     match taos.exec(&sql.0).await {
-                        Ok(_) => (),
+                        Ok(n) => counter!(CHILD_TABLE_CREATED, n as u64),
                         Err(err) => {
                             let err_str = err.to_string();
                             tracing::warn!("create table error: {err:#}");
@@ -474,6 +477,7 @@ async fn consume_lush_record(
                 if record.num_rows() == 0 {
                     continue;
                 }
+                counter!(BATCH_RECORDS, record.num_rows() as u64);
                 *records += record.num_rows();
                 let data = record.to_column_views();
                 // RawBlock
@@ -489,11 +493,14 @@ async fn consume_lush_record(
                             match res {
                                 Ok(num) => {
                                     count = count + num;
+                                    counter!(INSERT_SQLS, 1);
+                                    counter!(RECORDS, num as u64);
                                     break;
                                 }
                                 Err(err) => {
                                     if retry > 2 {
                                         tracing::warn!("retry 3 faild continue: {err:#}");
+                                        counter!(INSERT_SQL_FAILS, 1);
                                         break;
                                     }
                                     tracing::error!("written err cause: {err:#}");
@@ -561,6 +568,7 @@ struct ModifyStructForPointMessage {
     value_cloumn_length: usize,
 }
 
+#[instrument(skip_all,)]
 async fn consume_point_record(
     taos: &Taos,
     _: &mut Stmt,
@@ -569,6 +577,7 @@ async fn consume_point_record(
     config: &OpcTableConfig,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
+    metrics::counter!(RECORD_BATCHES, 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
         // process id, name, ts, value, status
@@ -664,6 +673,7 @@ async fn consume_point_record(
         > = HashMap::new();
         let mut child_table_create_sql_map = HashMap::new();
         for i in 0..id_cv.len() {
+            metrics::counter!(BATCH_RECORDS, 1);
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
             if code.is_none() {
@@ -875,17 +885,21 @@ async fn consume_point_record(
         }
         for (stable_name, sql_vec) in stable_insert_map {
             for (insert_sql, _, value_column_type, modify_message) in sql_vec {
-                debug!("point message insert sql: {}", insert_sql);
+                debug!("point message insert sql len: {}", insert_sql.len());
                 let mut retry = 0;
                 'outer: loop {
                     if retry >= 3 {
                         tracing::warn!("sql error cannot be solved, break;");
+                        counter!(INSERT_SQL_FAILS, 1);
                         break;
                     }
                     let sql_res = taos.exec(&insert_sql).await;
                     match sql_res {
                         Ok(n) => {
                             *count += n;
+                            counter!(INSERT_SQLS, 1);
+                            counter!(RECORDS, n as u64);
+                            counter!(POINTS, n as u64 * columns_insert.len() as u64);
                             points += n;
                             break;
                         }
@@ -913,7 +927,7 @@ async fn consume_point_record(
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
                                 match taos.exec(&stable_sql).await {
-                                    Ok(_) => (),
+                                    Ok(n) => counter!(STABLE_CREATED, n as u64),
                                     Err(err) => {
                                         if err.to_string().contains("0x032C") {
                                             // Object is creating, maybe should ignore
@@ -940,7 +954,7 @@ async fn consume_point_record(
                                 for create_child_sql in child_table_create_sqls {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match taos.exec(&create_child_sql).await {
-                                        Ok(_) => (),
+                                        Ok(n) => counter!(CHILD_TABLE_CREATED, n as u64),
                                         Err(err) => {
                                             if err.to_string().contains("0x032C") {
                                                 // Object is creating, maybe should ignore
@@ -1127,6 +1141,7 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
 
     for message in record.records() {
+        counter!(RECORD_BATCHES, 1);
         let batch = message.record();
         if let Some(parser) = parser {
             let batch = parser.parse_message_from_records(batch)?;
@@ -1139,6 +1154,7 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
+                        counter!(BATCH_RECORDS, 1);
                         // dbg!(&records);
 
                         if records.records.column(0).null_count() > 0 {
@@ -1212,80 +1228,86 @@ async fn consume_flat_record(
                                                             .stables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    _taos.exec(&sql).await?;
+                                                    match _taos.exec(&sql).await {
+                                                        Ok(n) => counter!(STABLE_CREATED, n as u64),
+                                                        Err(err) => return Err(err)?
+                                                    }
                                                     let sql = records.table_sql();
 
                                                     loop {
-                                                        if let Err(err) = _taos.exec(&sql).await {
-                                                            if err.to_string().contains("[0x2605]")
-                                                            {
-                                                                let table = records
-                                                                    .table
-                                                                    .using
-                                                                    .as_deref()
-                                                                    .unwrap();
-                                                                let desc = _taos
-                                                                    .describe(table)
-                                                                    .await
-                                                                    .unwrap();
-                                                                for f in desc.iter().filter(|f| {
-                                                                    f.is_tag()
-                                                                        && f.ty().is_var_type()
-                                                                }) {
-                                                                    let sql = format!(
-                                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                                        f.field(),
-                                                                        f.ty(),
-                                                                        f.length() * 2
-                                                                    );
-                                                                    _taos.exec(&sql).await.unwrap();
-                                                                    continue;
-                                                                }
-                                                            } else if err
-                                                                .to_string()
-                                                                .contains("[0x260D]")
-                                                            {
-                                                                // Tags number not matched
-                                                                // add Tag
-                                                                let table = records
-                                                                    .table
-                                                                    .using
-                                                                    .as_deref()
-                                                                    .unwrap();
-                                                                let tags =
-                                                                    records.tag_meta().unwrap();
-                                                                for tag_meta in tags {
-                                                                    let mut need_add = true;
-                                                                    let res = _taos
+                                                        match _taos.exec(&sql).await {
+                                                            Ok(n) => counter!(CHILD_TABLE_CREATED, n as u64),
+                                                            Err(err) => {
+                                                                if err.to_string().contains("[0x2605]")
+                                                                {
+                                                                    let table = records
+                                                                        .table
+                                                                        .using
+                                                                        .as_deref()
+                                                                        .unwrap();
+                                                                    let desc = _taos
                                                                         .describe(table)
                                                                         .await
                                                                         .unwrap();
-                                                                    res.into_iter().for_each(
-                                                                        |tag_added| {
-                                                                            if tag_added.is_tag()
-                                                                                && tag_added.field()
-                                                                                    == tag_meta
-                                                                                        .field()
-                                                                            {
-                                                                                need_add = false;
-                                                                            }
-                                                                        },
-                                                                    );
-                                                                    if need_add {
-                                                                        let add_tag_sql = format!(
-                                                                            "alter table `{table}` add tag `{}` {}",
-                                                                            tag_meta.field(),
-                                                                            parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
-                                                                            );
-                                                                        tracing::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                        _taos
-                                                                            .exec(add_tag_sql)
+                                                                    for f in desc.iter().filter(|f| {
+                                                                        f.is_tag()
+                                                                            && f.ty().is_var_type()
+                                                                    }) {
+                                                                        let sql = format!(
+                                                                            "alter table `{table}` modify tag `{}` {}({})",
+                                                                            f.field(),
+                                                                            f.ty(),
+                                                                            f.length() * 2
+                                                                        );
+                                                                        _taos.exec(&sql).await.unwrap();
+                                                                        continue;
+                                                                    }
+                                                                } else if err
+                                                                    .to_string()
+                                                                    .contains("[0x260D]")
+                                                                {
+                                                                    // Tags number not matched
+                                                                    // add Tag
+                                                                    let table = records
+                                                                        .table
+                                                                        .using
+                                                                        .as_deref()
+                                                                        .unwrap();
+                                                                    let tags =
+                                                                        records.tag_meta().unwrap();
+                                                                    for tag_meta in tags {
+                                                                        let mut need_add = true;
+                                                                        let res = _taos
+                                                                            .describe(table)
                                                                             .await
                                                                             .unwrap();
+                                                                        res.into_iter().for_each(
+                                                                            |tag_added| {
+                                                                                if tag_added.is_tag()
+                                                                                    && tag_added.field()
+                                                                                        == tag_meta
+                                                                                            .field()
+                                                                                {
+                                                                                    need_add = false;
+                                                                                }
+                                                                            },
+                                                                        );
+                                                                        if need_add {
+                                                                            let add_tag_sql = format!(
+                                                                                "alter table `{table}` add tag `{}` {}",
+                                                                                tag_meta.field(),
+                                                                                parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
+                                                                                );
+                                                                            tracing::info!("table {table} add tag sql: {add_tag_sql}");
+                                                                            _taos
+                                                                                .exec(add_tag_sql)
+                                                                                .await
+                                                                                .unwrap();
+                                                                        }
                                                                     }
-                                                                }
-                                                            } else {
-                                                                Err(err)?;
+                                                                } else {
+                                                                    Err(err)?;
+                                                                } 
                                                             }
                                                         }
                                                         break;
@@ -1312,44 +1334,52 @@ async fn consume_flat_record(
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         // dbg!(&sql);
-                                        if let Err(err) = _taos.exec(&sql).await {
-                                            if err.to_string().contains("0x032C") {
-                                                // Object is creating
-                                                tracing::warn!(
-                                                    "error code [0x032C] encountered, ignore"
-                                                );
-                                                continue;
-                                            } else {
-                                                anyhow::bail!(
-                                                    "create stable sql err: {}",
-                                                    err.to_string()
-                                                );
+                                        match _taos.exec(&sql).await {
+                                            Ok(n) => counter!(STABLE_CREATED, n as u64),
+                                            Err(err) => {
+                                                if err.to_string().contains("0x032C") {
+                                                    // Object is creating
+                                                    tracing::warn!(
+                                                        "error code [0x032C] encountered, ignore"
+                                                    );
+                                                    continue;
+                                                } else {
+                                                    anyhow::bail!(
+                                                        "create stable sql err: {}",
+                                                        err.to_string()
+                                                    );
+                                                }
                                             }
                                         }
+
                                         let sql = records.table_sql();
 
                                         loop {
-                                            if let Err(err) = _taos.exec(&sql).await {
-                                                if err.to_string().contains("[0x2605]") {
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
-                                                    let desc = _taos.describe(table).await.unwrap();
-                                                    for f in desc.iter().filter(|f| {
-                                                        f.is_tag() && f.ty().is_var_type()
-                                                    }) {
-                                                        let sql = format!(
-                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                        f.field(),
-                                                        f.ty(),
-                                                        f.length() * 2
-                                                        );
-                                                        _taos.exec(&sql).await?;
-                                                        continue;
+                                            match _taos.exec(&sql).await {
+                                                Ok(n) => counter!(CHILD_TABLE_CREATED, n as u64),
+                                                Err(err) => {
+                                                    if err.to_string().contains("[0x2605]") {
+                                                        let table =
+                                                            records.table.using.as_deref().unwrap();
+                                                        let desc = _taos.describe(table).await.unwrap();
+                                                        for f in desc.iter().filter(|f| {
+                                                            f.is_tag() && f.ty().is_var_type()
+                                                        }) {
+                                                            let sql = format!(
+                                                            "alter table `{table}` modify tag `{}` {}({})",
+                                                            f.field(),
+                                                            f.ty(),
+                                                            f.length() * 2
+                                                            );
+                                                            _taos.exec(&sql).await?;
+                                                            continue;
+                                                        }
+                                                    } else {
+                                                        Err(err)?;
                                                     }
-                                                } else {
-                                                    Err(err)?;
                                                 }
                                             }
+
                                             if let Some(transferred) = transferred {
                                                 transferred.tables.fetch_add(1, Ordering::SeqCst);
                                             }
@@ -1423,12 +1453,18 @@ async fn consume_flat_record(
                                 //     break;
                                 } else {
                                     error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
+                                    counter!(WRITE_RAW_BLOCK_FAILS, 1);
+                                    counter!(RECORD_FAILS, raw.nrows() as u64);
+                                    counter!(POINT_FAILS, (raw.nrows() * raw.column_views().len()) as u64);
                                     Err(err)?;
                                     break;
                                 }
                                 continue;
                             } else {
                                 *count += raw.nrows();
+                                counter!(WRITE_RAW_BLOCKS, 1);
+                                counter!(RECORDS, raw.nrows() as u64);
+                                counter!(POINTS, (raw.nrows() * raw.column_views().len()) as u64);
                                 if let Some(transferred) = transferred {
                                     transferred
                                         .records
@@ -1456,9 +1492,7 @@ async fn consume_flat_record(
 }
 
 // #[instrument(skip_all)]
-#[instrument(skip_all, fields(
-    ipc.stream.item = "flat", ipc.stream.records = 0, ipc.stream.batches = 0
-))]
+#[instrument(skip_all, )]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -1824,6 +1858,7 @@ async fn handle_lush_message_init(
                         break;
                     }
                 } else {
+                    metrics::counter!(STABLE_CREATED, 1);
                     break;
                 }
             }
@@ -1843,6 +1878,7 @@ pub struct IpcStreamWorker<'a> {
     opc_table_config: OnceCell<OpcTableConfig>,
     license: Option<&'a ConnectorLicense>,
     transferred: Option<&'a Transferred>,
+    span: tracing::Span,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
 
@@ -1857,6 +1893,7 @@ impl<'a> IpcStreamWorker<'a> {
         schema: Arc<Schema>,
         license: Option<&'a ConnectorLicense>,
         transferred: Option<&'a Transferred>,
+        span: tracing::Span,
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
@@ -1876,6 +1913,7 @@ impl<'a> IpcStreamWorker<'a> {
             opc_table_config: OnceCell::const_new(),
             license,
             transferred, // stmt: Arc::new(UnsafeCell::new(stmt)),
+            span,
         })
     }
 
@@ -1884,6 +1922,7 @@ impl<'a> IpcStreamWorker<'a> {
         self
     }
 
+    #[instrument(skip_all)]
     pub async fn process_record(
         &self,
         stmt: &mut Stmt,

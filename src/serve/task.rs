@@ -8,17 +8,19 @@ use actix_web::{
 };
 
 use anyhow::Context;
+use chrono::Utc;
 use itertools::Itertools;
-use metrics_util::{debugging::Snapshotter, MetricKind};
+use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
 
+use taosx_core::{METRICS_TIME_START, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND};
 use tokio_cron_scheduler::Job;
 
 use utoipa::*;
 
-use crate::serve::{controller::TaskControllerRef, NewTask, TaskDecorator, TaskFilter, UpdateTask};
+use crate::serve::{controller::{TaskControllerRef, Status}, NewTask, TaskDecorator, TaskFilter, UpdateTask};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -499,19 +501,19 @@ pub(super) async fn get_task_activities_by_id(
 #[get("/tasks/{id}/metrics")]
 pub(super) async fn get_task_metrics_by_id(
     snapshotter: Data<Snapshotter>,
+    task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
     let id = id.into_inner();
     let snapshot = snapshotter.snapshot().into_hashmap();
     // dbg!(&snapshot);
-    let map = snapshot
+    let mut map = snapshot
         .into_iter()
         .filter(|(k, _)| {
-            k.kind() == MetricKind::Counter
-                && k.key()
-                    .labels()
-                    .find(|label| label.key() == "task.id" && label.value() == id.to_string())
-                    .is_some()
+            k.key()
+                .labels()
+                .find(|label| label.key() == "task.id" && label.value() == id.to_string())
+                .is_some()
         })
         .map(|(k, v)| {
             (
@@ -526,6 +528,30 @@ pub(super) async fn get_task_metrics_by_id(
             )
         })
         .collect::<std::collections::HashMap<_, _>>();
+    let task_started_timestamp = map.get(METRICS_TIME_START);
+    if task_started_timestamp.is_some() {
+        let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
+        let task = task_store.get(id).await.unwrap().unwrap();
+        let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
+            Some((Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000)
+        } else {
+            if task.task.finished_at.is_some() {
+                Some((task.task.finished_at.unwrap().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000)
+            } else {
+                None
+            }
+        };
+        if time_elapsed_in_seconds.is_some() {
+            map.insert(METRICS_TIME_COST.to_string(), Some((time_elapsed_in_seconds.unwrap()).into()));
+            let records_vec = map.iter().filter(|(k, _v)| k.contains("records")).map(|(_k, v)| v).collect_vec();
+            let records = records_vec.get(0);
+            if records.is_some() {
+                // should be safe
+                let records = records.unwrap().clone().clone().unwrap().clone().as_i64().unwrap();
+                map.insert(METRICS_TIME_RECORDS_PER_SECOND.to_string(), Some((records / time_elapsed_in_seconds.unwrap()).into()));
+            }
+        }
+    }
     serde_json::to_string(&map)
 }
 

@@ -9,13 +9,15 @@ use std::{
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
+use metrics::counter;
 use taos::{AsyncQueryable, TaosPool};
 use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
 };
+use tracing::{instrument, Instrument};
 
-use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange, Action};
+use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange, Action, METRICS_LEGACY_CREATED_TABLES};
 
 use super::{sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs};
 
@@ -60,6 +62,7 @@ impl Debug for Scheduler {
     }
 }
 
+#[instrument(skip_all)]
 async fn worker(
     worker: u32,
     source: TaosPool,
@@ -131,7 +134,7 @@ async fn worker(
                                     log::error!(
                                         "[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:#}, continue next"
                                     );
-
+                                    
                                     if let Some(path) = opts.fails_to.as_ref() {
                                         path.lock().unwrap().write_fmt(format_args!(
                                             "meta\t{}:{}\t{}\n",
@@ -164,6 +167,7 @@ async fn worker(
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
+                                counter!(METRICS_LEGACY_CREATED_TABLES, 1);
                                 metrics.created_tables.fetch_add(1, Ordering::SeqCst);
                             }
                         }
@@ -274,7 +278,7 @@ impl Scheduler {
                     actions.clone(),
                     source_is_v3,
                     target_is_v3,
-                ))
+                ).in_current_span())
             })
             .collect_vec();
 

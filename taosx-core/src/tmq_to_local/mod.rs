@@ -6,15 +6,17 @@ use std::{
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
+use metrics::counter;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{sync::MessageSet, Consumer, *};
 use tokio::sync::{Barrier, Mutex};
 use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
 
 use crate::{
     taoz::ZFile,
-    tmq::{check_tmq_dsn, StopAt, TmqMetrics, Topic}, utils::get_main_version_from_server_version,
+    tmq::*, utils::get_main_version_from_server_version,
 };
 
 use dashmap::DashMap;
@@ -70,7 +72,7 @@ impl ZFileMan {
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         entry.value().lock().await.write_meta(&raw).await?;
-
+        counter!(METRICS_TMQ_MESSAGES_OF_META, 1);
         metrics
             .messages_of_meta
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -107,13 +109,15 @@ impl ZFileMan {
                 block.table_name().unwrap_or_default(),
                 block.nrows()
             );
-
+            counter!(METRICS_TMQ_BLOCKS, 1);
             metrics
                 .blocks
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            counter!(METRICS_TMQ_RECORDS, block.nrows() as u64);
             metrics
                 .records
                 .fetch_add(block.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+            counter!(METRICS_TMQ_POINTS, block.nrows() as u64 * block.ncols() as u64);
             metrics.points.fetch_add(
                 block.nrows() as u64 * block.ncols() as u64,
                 std::sync::atomic::Ordering::SeqCst,
@@ -130,7 +134,7 @@ impl ZFileMan {
             }
             _ => (),
         }
-
+        counter!(METRICS_TMQ_MESSAGES_OF_DATA, 1);
         metrics
             .messages_of_data
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -146,6 +150,7 @@ impl ZFileMan {
     }
 }
 
+#[instrument(skip_all)]
 async fn backup(
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
     consumer: Consumer,
@@ -189,6 +194,7 @@ async fn backup(
                 }
 
                 if let Some((offset, message)) = next? {
+                    counter!(METRICS_TMQ_MESSAGES, 1);
                     metrics
                         .messages
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -379,6 +385,7 @@ pub async fn tmq_to_local(
         topics: config.topics.len(),
         ..Default::default()
     });
+    counter!(METRICS_TMQ_TOPICS, config.topics.len() as u64);
 
     let tmq = TmqBuilder::from_dsn(&from)?;
     log::info!("TMQ builder created");
@@ -413,6 +420,7 @@ pub async fn tmq_to_local(
         metrics
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
+        counter!(METRICS_TMQ_WORKERS, jobs as u64);
         for _ in 0..jobs {
             let mut consumer = tmq.build().await?;
             consumer.subscribe([&topic.name]).await?;
@@ -439,7 +447,7 @@ pub async fn tmq_to_local(
             let offsets = offsets.clone();
             let handle = tokio::spawn(backup(
                 sender, consumer, man, task_id, barrier, cancel, metrics, stop_at, offsets, version.clone(),
-            ));
+            ).in_current_span());
             handles.push(handle);
             task_id += 1;
         }

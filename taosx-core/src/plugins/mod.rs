@@ -41,6 +41,21 @@ pub use runners::{
 use self::runners::opc::OpcTableConfig;
 use self::sink::IpcHandler;
 
+/// ipc stream metrics
+/// be careful to modify, in case other crate use string value. for now POINTS value used in taosx-ipc.
+pub const RECORD_BATCHES: &str = "ipc.stream.record_batches";
+pub const BATCH_RECORDS: &str = "ipc.stream.batch_records";
+pub const INSERT_SQLS: &str = "ipc.stream.insert_sqls";
+pub const INSERT_SQL_FAILS: &str = "ipc.stream.insert_sql_fails";
+pub const STABLE_CREATED: &str = "ipc.stream.stable_created";
+pub const CHILD_TABLE_CREATED: &str = "ipc.stream.child_table_created";
+pub const RECORDS: &str = "ipc.stream.records";
+pub const RECORD_FAILS: &str = "ipc.stream.record_fails";
+pub const POINTS: &str = "ipc.stream.points";
+pub const POINT_FAILS: &str = "ipc.stream.point_fails";
+pub const WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
+pub const WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
+
 #[instrument(skip_all, fields(ipc.listen = socket, ipc.target = %mask_dsn(to)))]
 pub async fn build_ipc(
     socket: &str,
