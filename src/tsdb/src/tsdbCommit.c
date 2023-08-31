@@ -226,7 +226,7 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   pIdx->maxKey = pBlock->keyLast;
   pIdx->numOfBlocks = (uint32_t)nSupBlocks;
   pIdx->len = tlen;
-  pIdx->offset = (uint32_t)offset;
+  pIdx->offset = offset;
 
   return 0;
 }
