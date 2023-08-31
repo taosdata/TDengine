@@ -196,7 +196,7 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     taosFreeQitem(pElem);
     return (SStreamQueueItem*)pMerged;
   } else {
-    qDebug("block type:%d not merged with existed blocks list, type:%d", streamGetBlockTypeStr(pElem->type), dst->type);
+    qDebug("block type:%s not merged with existed blocks list, type:%d", streamGetBlockTypeStr(pElem->type), dst->type);
     return NULL;
   }
 }
