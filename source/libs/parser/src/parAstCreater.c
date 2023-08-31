@@ -13,8 +13,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <arpa/inet.h>
+#include <uv.h>
 #include <regex.h>
 
 #include "parAst.h"
@@ -1661,7 +1660,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   if (slash) {
     *slash = '\0';
     struct in_addr addr;
-    if (inet_pton(AF_INET, ipCopy, &addr) == 1) {
+    if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
       int prefix = atoi(slash + 1);
       if (prefix < 0 || prefix > 32) {
         code = TSDB_CODE_PAR_INVALID_IP_RANGE;
@@ -1677,7 +1676,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
     }
   } else {
     struct in_addr addr;
-    if (inet_pton(AF_INET, ipCopy, &addr) == 1) {
+    if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
       pIpRange->ip = addr.s_addr;
       pIpRange->mask = 0xFFFFFFFF;
       code = TSDB_CODE_SUCCESS;
