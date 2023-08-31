@@ -547,6 +547,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
+    trimDataBlock(pBlock, pBlock->info.rows, NULL);
     pBlock->info.rows = 0;
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
     trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);

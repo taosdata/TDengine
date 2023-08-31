@@ -2368,6 +2368,23 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
 
     int32_t numOfRows = 0;
     if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+      pDst->varmeta.length = 0;
+    }
+  }
+
+  if (NULL == pBoolList) {
+    return;
+  }
+  
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    // it is a reserved column for scalar function, and no data in this column yet.
+    if (pDst->pData == NULL) {
+      continue;
+    }
+
+    int32_t numOfRows = 0;
+    if (IS_VAR_DATA_TYPE(pDst->info.type)) {
       int32_t j = 0;
       pDst->varmeta.length = 0;
 
