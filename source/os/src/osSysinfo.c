@@ -121,7 +121,7 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 static pid_t tsProcId;
 static char  tsSysNetFile[] = "/proc/net/dev";
 static char  tsSysCpuFile[] = "/proc/stat";
-static char  tsCpuPeroidFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
+static char  tsCpuPeriodFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
 static char  tsCpuQuotaFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
 static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
@@ -504,31 +504,31 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
 #else
   TdFilePtr pFile = NULL;
   if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _physical;
+    goto _sys;
   }
   char qline[32] = {0};
   if (taosGetsFile(pFile, sizeof(qline), qline) < 0) {
     taosCloseFile(&pFile);
-    goto _physical;
+    goto _sys;
   }
   taosCloseFile(&pFile);
   float quota = taosStr2Float(qline, NULL);
   if (quota < 0) {
-    goto _physical;
+    goto _sys;
   }
 
-  if (!(pFile = taosOpenFile(tsCpuPeroidFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _physical;
+  if (!(pFile = taosOpenFile(tsCpuPeriodFile, TD_FILE_READ | TD_FILE_STREAM))) {
+    goto _sys;
   }
   char pline[32] = {0};
   if (taosGetsFile(pFile, sizeof(pline), pline) < 0) {
     taosCloseFile(&pFile);
-    goto _physical;
+    goto _sys;
   }
   taosCloseFile(&pFile);
 
-  float peroid = taosStr2Float(pline, NULL);
-  float quotaCores = quota / peroid;
+  float period = taosStr2Float(pline, NULL);
+  float quotaCores = quota / period;
   float sysCores = sysconf(_SC_NPROCESSORS_ONLN);
   if (quotaCores < sysCores && quotaCores > 0) {
     *numOfCores = quotaCores;
@@ -536,7 +536,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     *numOfCores = sysCores;
   }
   goto _end;
-_physical:
+_sys:
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 _end:
   return 0;
