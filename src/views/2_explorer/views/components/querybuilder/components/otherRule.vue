@@ -2,30 +2,6 @@
   <div>
     <el-row class="row-style">
       <el-col :span="12" class="col-style">
-        <span class="label">LIMIT</span>
-        <el-input-number 
-          v-model="otherRule.limit" 
-          placeholder="" 
-          style="margin-right: 8px; width: 280px;" 
-          :size="size"
-          controls-position="right"
-          >
-        </el-input-number>
-      </el-col>
-      <el-col :span="12" class="col-style">
-        <span class="label">OFFSET</span>
-        <el-input-number 
-          v-model="otherRule.offset" 
-          placeholder="" 
-          style="margin-right: 8px; width: 280px;" 
-          :size="size"
-          controls-position="right"
-          >
-        </el-input-number>
-      </el-col>
-    </el-row>
-    <el-row class="row-style">
-      <el-col :span="12" class="col-style">
         <span class="label">ORDER BY</span>
         <el-input 
           v-model="otherRule.orderby" 
@@ -37,8 +13,34 @@
         </el-input>
       </el-col>
     </el-row>
+    <el-row class="row-style">
+      <el-col :span="12" class="col-style">
+        <span class="label">LIMIT</span>
+        <el-input-number 
+          v-model="otherRule.limit" 
+          placeholder="" 
+          style="margin-right: 8px; width: 280px;" 
+          :size="size"
+          :min="0"
+          controls-position="right"
+          >
+        </el-input-number>
+      </el-col>
+      <el-col :span="12" class="col-style">
+        <span class="label">OFFSET</span>
+        <el-input-number 
+          v-model="otherRule.offset" 
+          placeholder="" 
+          style="margin-right: 8px; width: 280px;" 
+          :size="size"
+          :min="0"
+          controls-position="right"
+          >
+        </el-input-number>
+      </el-col>
+    </el-row>
     <el-collapse v-model="activeNames" class="row-style">
-      <el-collapse-item title="GROUP BY / PARTITION BY" name="1">
+      <el-collapse-item title="GROUP BY" name="1" v-if="!isWhereCondition">
         <el-row class="row-style">
           <el-col :span="12" class="col-style">
             <span class="label">GROUP BY</span>
@@ -47,18 +49,6 @@
               placeholder="" 
               style="margin-right: 8px; width: 280px;" 
               :size="size"
-              :disabled="otherRule.partitionby != ''"
-              >
-            </el-input>
-          </el-col>
-          <el-col :span="12" class="col-style">
-            <span class="label">PARTITION BY</span>
-            <el-input 
-              v-model="otherRule.partitionby" 
-              placeholder="" 
-              style="margin-right: 8px; width: 280px;" 
-              :size="size"
-              :disabled="otherRule.groupby != ''"
               >
             </el-input>
           </el-col>
@@ -90,7 +80,47 @@
         </el-row>
         <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 end -->
       </el-collapse-item>
-      <el-collapse-item title="Window Clause" name="2">
+      <el-collapse-item title="PARTITION BY" name="2" v-if="isWhereCondition">
+        <el-row class="row-style">
+          <el-col :span="12" class="col-style">
+            <span class="label">PARTITION BY</span>
+            <el-input 
+              v-model="otherRule.partitionby" 
+              placeholder="" 
+              style="margin-right: 8px; width: 280px;" 
+              :size="size"
+              >
+            </el-input>
+          </el-col>
+        </el-row>
+        <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 start -->
+        <el-row class="row-style" v-if="otherRule.groupby || otherRule.partitionby">
+          <el-col :span="12" class="col-style">
+            <span class="label">SLIMIT</span>
+            <el-input-number 
+              v-model="otherRule.slimit" 
+              placeholder="" 
+              style="margin-right: 8px; width: 280px;" 
+              :size="size"
+              controls-position="right"
+              >
+            </el-input-number>
+          </el-col>
+          <el-col :span="12" class="col-style">
+            <span class="label">OFFSET</span>
+            <el-input-number 
+              v-model="otherRule.soffset" 
+              placeholder="" 
+              style="margin-right: 8px; width: 280px;" 
+              :size="size"
+              controls-position="right"
+              >
+            </el-input-number>
+          </el-col>
+        </el-row>
+        <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 end -->
+      </el-collapse-item>
+      <el-collapse-item title="Window Clause" name="3">
         <el-row class="row-style">
           <el-col :span="12">
             <el-col class="col-style">
@@ -244,7 +274,7 @@
           </el-col>
         </el-row>
       </el-collapse-item>
-      <el-collapse-item title="INTERP" name="3" v-if="isInterp">
+      <el-collapse-item title="INTERP" name="4" v-if="isInterp">
         <!-- interp start -->
         <el-row class="row-style">
           <el-col class="col-style">
@@ -357,6 +387,10 @@ export default {
     isInterp: {
       type: Boolean,
       default: () => false
+    },
+    isWhereCondition: {
+      type: Boolean,
+      default: () => true
     }
   },
   computed: {

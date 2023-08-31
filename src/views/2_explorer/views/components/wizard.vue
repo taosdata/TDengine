@@ -6,7 +6,17 @@
         :general="general"
         @getFromVal="getFromVal"
       ></Genneral>
-      <div class="label">WHERE</div>
+      <div class="label" style="width: 200px;">
+        <el-switch
+          size="mini"
+          v-model="isWhereCondition"
+          active-text="WHERE"
+          inactive-text="GROUP BY"
+          active-color="#4259ce"
+          inactive-color="#4259ce"
+          >
+      </el-switch>
+      </div>
       <rule-list
         :rules="rules"
         :fields="fields"
@@ -17,12 +27,14 @@
         @handleOperatorChange="handleOperatorChange"
         @handleAddGroup="handleAddGroup"
         @handleDelete="handleDelete"
+        v-if="isWhereCondition"
       ></rule-list>
       <OtherRule
         :otherRule="otherRule"
         :columnList="fields"
         :general="general"
         :isInterp="isInterp"
+        :isWhereCondition="isWhereCondition"
       ></OtherRule>
       <!-- <el-col class="flexEnd">
         <el-button :disabled="previewBtn" @click="generateSql" size="small"
@@ -87,6 +99,7 @@ const conditionMap = {
       sql: "",
       count: 0,
       valueVisible: {},
+      isWhereCondition: true,
       general: {
         dbname: '',
         tbName: '',
@@ -347,10 +360,15 @@ const conditionMap = {
       sql = `SELECT ${this.general.fields} FROM ${this.fromVal}`
       let condition = formatQuery(query)
 
-      if (condition) {
+      // group by 和 where 条件不能同时存在
+      if (condition && this.isWhereCondition) {
         sql += ` WHERE ${condition}`
       }
 
+      if (this.otherRule.orderby) {
+        sql += ` ORDER BY ${this.otherRule.orderby}`
+      }
+      
       if (this.otherRule.limit) {
         sql += ` LIMIT ${this.otherRule.limit}`
       } else {
@@ -361,29 +379,22 @@ const conditionMap = {
         sql += ` OFFSET ${this.otherRule.offset}`
       }
 
-      if (this.otherRule.groupby) {
+      if (this.otherRule.groupby && !this.isWhereCondition) {
         sql += ` GROUP BY ${this.otherRule.groupby}`
-        if (this.otherRule.slimit) {
-          sql += ` `
-        }
       }
 
-      if (this.otherRule.partitionby) {
+      if (this.otherRule.partitionby && this.isWhereCondition) {
         sql += ` PARTITION BY ${this.otherRule.partitionby}`
       }
 
       // slimit
       if (this.otherRule.groupby || this.otherRule.partitionby) {
         if (this.otherRule.slimit) {
-          sql += ` SLIMIT ${this.otherRule.limit}`
+          sql += ` SLIMIT ${this.otherRule.slimit}`
         }
         if (this.otherRule.soffset) {
           sql += ` OFFSET ${this.otherRule.soffset}`
         }
-      }
-
-      if (this.otherRule.orderby) {
-        sql += ` ORDER BY ${this.otherRule.orderby}`
       }
 
       // window_clause
@@ -466,9 +477,11 @@ const conditionMap = {
     },
     async handleSendSQL() {
       // 校验 _c0 为必填项 
-      const query = this.rules[0]
-      if (!this.validateRules(query.rules)) {
-        return 
+      if (this.isWhereCondition) {
+        const query = this.rules[0]
+        if (!this.validateRules(query.rules)) {
+          return 
+        }
       }
       
       if (this.requestIng) return;
