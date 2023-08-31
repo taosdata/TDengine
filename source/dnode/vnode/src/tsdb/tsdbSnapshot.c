@@ -412,7 +412,8 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, void* pEx, STsdbSnapReader** reader) {
+int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, void* pExclude,
+                           STsdbSnapReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -424,7 +425,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TSnapRangeArray*)pEx, &reader[0]->fsrArr);
+  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TSnapRangeArray*)pExclude, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
