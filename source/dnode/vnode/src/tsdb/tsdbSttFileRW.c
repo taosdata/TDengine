@@ -401,8 +401,14 @@ struct SSttFileWriter {
   uint8_t *bufArr[5];
 };
 
-int32_t tsdbFileDoWriteBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
-                                 TSttBlkArray *sttBlkArray, uint8_t **bufArr) {
+static int32_t tsdbSSttUpdVerRange(SSttFileWriterConfig *config, SVersionRange *range) {
+  config->minVer = TMIN(config->minVer, range->minVer);
+  config->maxVer = TMAX(config->maxVer, range->maxVer);
+  return 0;
+}
+
+static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
+                                 TSttBlkArray *sttBlkArray, uint8_t **bufArr, SVersionRange *range) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -424,6 +430,9 @@ int32_t tsdbFileDoWriteBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmpr
     if (sttBlk->minVer > blockData->aVersion[iRow]) sttBlk->minVer = blockData->aVersion[iRow];
     if (sttBlk->maxVer < blockData->aVersion[iRow]) sttBlk->maxVer = blockData->aVersion[iRow];
   }
+
+  range->minVer = sttBlk->minVer;
+  range->maxVer = sttBlk->maxVer;
 
   int32_t sizeArr[5] = {0};
   code = tCmprBlockData(blockData, cmprAlg, NULL, NULL, bufArr, sizeArr);
@@ -455,9 +464,11 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFileDoWriteBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
-                                  writer->sttBlkArray, writer->config->bufArr);
+  SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+  code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
+                                  writer->sttBlkArray, writer->config->bufArr, &range);
   TSDB_CHECK_CODE(code, lino, _exit);
+  tsdbSSttUpdVerRange(writer->config, &range);
 
 _exit:
   if (code) {
@@ -518,7 +529,7 @@ _exit:
 }
 
 int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TTombBlkArray *tombBlkArray, uint8_t **bufArr) {
+                               TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range) {
   int32_t code;
 
   if (TOMB_BLOCK_SIZE(tombBlock) == 0) return 0;
@@ -554,6 +565,9 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
     }
   }
 
+  range->minVer = tombBlk->minVer;
+  range->maxVer = tombBlk->maxVer;
+
   for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->dataArr); i++) {
     code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&tombBlock->dataArr[i]), TARRAY2_DATA_LEN(&tombBlock->dataArr[i]),
                         TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg, &bufArr[0], 0, &tombBlk->size[i], &bufArr[1]);
@@ -579,9 +593,11 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
   code = tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
-                                writer->tombBlkArray, writer->config->bufArr);
+                                writer->tombBlkArray, writer->config->bufArr, &range);
   TSDB_CHECK_CODE(code, lino, _exit);
+  tsdbSSttUpdVerRange(writer->config, &range);
 
 _exit:
   if (code) {
@@ -784,6 +800,10 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
       .fid = writer->config->fid,
       .nf = writer->file[0],
   };
+  op.nf.minVer = TMIN(op.nf.minVer, writer->config->minVer);
+  op.nf.maxVer = TMAX(op.nf.maxVer, writer->config->maxVer);
+  writer->config->minVer = VERSION_MAX;
+  writer->config->maxVer = VERSION_MIN;
 
   code = TARRAY2_APPEND(opArray, op);
   TSDB_CHECK_CODE(code, lino, _exit);
