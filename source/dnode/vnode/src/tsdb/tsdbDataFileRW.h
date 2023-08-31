@@ -97,11 +97,18 @@ int32_t tsdbDataFileWriteRow(SDataFileWriter *writer, SRowInfo *row);
 int32_t tsdbDataFileWriteBlockData(SDataFileWriter *writer, SBlockData *bData);
 int32_t tsdbDataFileFlush(SDataFileWriter *writer);
 
+// head
+int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
+                               TBrinBlkArray *brinBlkArray, uint8_t **bufArr, SVersionRange *range);
+int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
+int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
+
 // tomb
 int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record);
 int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
                                TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range);
 int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize);
+int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize);
 
 #ifdef __cplusplus
 }

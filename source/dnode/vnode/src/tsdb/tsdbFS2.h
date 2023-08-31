@@ -71,6 +71,9 @@ int32_t tsdbFSDisableBgTask(STFileSystem *fs);
 int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
+// utils
+int32_t save_fs(const TFileSetArray *arr, const char *fname);
+int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
 
 struct STFSBgTask {
   EFSBgTaskT type;

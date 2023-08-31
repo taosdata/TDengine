@@ -63,6 +63,9 @@ int64_t tsdbTFileSetMaxCid(const STFileSet *fset);
 SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level);
 // is empty
 bool tsdbTFileSetIsEmpty(const STFileSet *fset);
+// stt
+int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
+int32_t tsdbSttLvlClear(SSttLvl **lvl);
 
 struct STFileOp {
   tsdb_fop_t optype;

@@ -263,6 +263,7 @@ int32_t tsdbFSRollback(STsdb *pTsdb);
 int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFS);
 int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
+void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
 
 int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet);
 int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
