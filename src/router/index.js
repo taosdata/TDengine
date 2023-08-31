@@ -154,7 +154,7 @@ const layoutCommonChildren = [
   //   component: () => import("@/views/17_udf"),
   // },
   {
-    path: "admin",
+    path: "management",
     component: () => import("@/views/13_administrator"),
   },
   // {
