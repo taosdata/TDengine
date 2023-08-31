@@ -82,8 +82,6 @@ struct SSttFileWriterConfig {
   int64_t   compactVersion;
   SDiskID   did;
   int32_t   fid;
-  int64_t   minVer;
-  int64_t   maxVer;
   int64_t   cid;
   int32_t   level;
   SSkmInfo *skmTb;

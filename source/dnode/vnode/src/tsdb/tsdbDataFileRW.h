@@ -76,8 +76,6 @@ typedef struct SDataFileWriterConfig {
   int32_t maxRow;
   int32_t szPage;
   int32_t fid;
-  int64_t minVer;
-  int64_t maxVer;
   int64_t cid;
   SDiskID did;
   int64_t compactVersion;
@@ -109,6 +107,9 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
                                TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range);
 int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize);
+
+// utils
+int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);
 
 #ifdef __cplusplus
 }
