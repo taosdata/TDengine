@@ -28,9 +28,9 @@
 #define TRANS_ARRAY_SIZE   8
 #define TRANS_RESERVE_SIZE 48
 
-static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
-static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
-static int32_t  mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc);
+static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
+static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
+static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc);
 
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw);
 static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction);
@@ -100,10 +100,9 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
   return rawDataLen;
 }
 
-
 static int32_t mndTransEncodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionsNum) {
   int32_t dataPos = *offset;
-  int8_t unused = 0;
+  int8_t  unused = 0;
   int32_t ret = -1;
 
   for (int32_t i = 0; i < actionsNum; ++i) {
@@ -266,16 +265,16 @@ _OVER:
 SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_INVALID_MSG;
 
-  SSdbRow     *pRow = NULL;
-  STrans      *pTrans = NULL;
-  char        *pData = NULL;
-  int32_t      dataLen = 0;
-  int8_t       sver = 0;
-  int32_t      prepareActionNum = 0;
-  int32_t      redoActionNum = 0;
-  int32_t      undoActionNum = 0;
-  int32_t      commitActionNum = 0;
-  int32_t      dataPos = 0;
+  SSdbRow *pRow = NULL;
+  STrans  *pTrans = NULL;
+  char    *pData = NULL;
+  int32_t  dataLen = 0;
+  int8_t   sver = 0;
+  int32_t  prepareActionNum = 0;
+  int32_t  redoActionNum = 0;
+  int32_t  undoActionNum = 0;
+  int32_t  commitActionNum = 0;
+  int32_t  dataPos = 0;
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
@@ -577,7 +576,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->commitActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
-  pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : 0;
+  pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
   taosThreadMutexInit(&pTrans->mutex, NULL);
 
@@ -788,6 +787,22 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       }
       if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
         if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
+      }
+    }
+
+    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      }
+    }
+    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC ) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      }
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0) conflict = true;
       }
     }
 
@@ -1326,7 +1341,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
 }
 
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
-  bool continueExec = true;
+  bool    continueExec = true;
   int32_t code = 0;
 
   int32_t numOfActions = taosArrayGetSize(pTrans->prepareActions);

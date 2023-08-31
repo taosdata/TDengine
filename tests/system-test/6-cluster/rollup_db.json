@@ -1,6 +1,6 @@
 {
   "filetype": "insert",
-  "cfgdir": "/home/chr/TDengine/debug/../sim/dnode1/cfg/",
+  "cfgdir": "/home/lisa/Documents/workspace/tdengine/debug/../sim/dnode1/cfg/",
   "host": "localhost",
   "port": 6030,
   "rest_port": 6041,

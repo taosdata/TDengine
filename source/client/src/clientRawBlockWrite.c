@@ -522,9 +522,9 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
           buf = parseTagDatatoJson(vAlterTbReq.pTagVal);
         } else {
           if(vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY){
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal*2 + 2 + 3, 1);
           }else{
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 3, 1);
           }
           dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
         }

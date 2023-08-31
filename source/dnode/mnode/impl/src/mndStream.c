@@ -26,13 +26,36 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "parser.h"
+#include "tmisce.h"
 #include "tname.h"
 #include "audit.h"
 
-#define MND_STREAM_VER_NUMBER   3
-#define MND_STREAM_RESERVE_SIZE 64
+#define MND_STREAM_VER_NUMBER      3
+#define MND_STREAM_RESERVE_SIZE    64
+#define MND_STREAM_MAX_NUM         60
+#define MND_STREAM_CHECKPOINT_NAME "stream-checkpoint"
 
-#define MND_STREAM_MAX_NUM 60
+typedef struct SNodeEntry {
+  int32_t nodeId;
+  SEpSet  epset;        // compare the epset to identify the vgroup tranferring between different dnodes.
+  int64_t hbTimestamp;  // second
+} SNodeEntry;
+
+typedef struct SStreamVnodeRevertIndex {
+  SArray       *pNodeEntryList;
+  int64_t       ts;  // snapshot ts
+  SHashObj     *pTaskMap;
+  SArray       *pTaskList;
+  TdThreadMutex lock;
+} SStreamVnodeRevertIndex;
+
+typedef struct SVgroupChangeInfo {
+  SHashObj *pDBMap;
+  SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
+} SVgroupChangeInfo;
+
+static int32_t                 mndNodeCheckSentinel = 0;
+static SStreamVnodeRevertIndex execNodeList;
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
@@ -41,6 +64,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
+static int32_t mndProcessStreamHb(SRpcMsg *pReq);
 static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
@@ -50,6 +74,17 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
+static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
+                                                  int64_t streamId, int32_t taskId);
+static int32_t mndProcessNodeCheck(SRpcMsg *pReq);
+static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
+static void    keepStreamTasksInBuf(SStreamObj *pStream, SStreamVnodeRevertIndex *pExecNode);
+
+static SArray           *doExtractNodeListFromStream(SMnode *pMnode);
+static SArray           *mndTakeVgroupSnapshot(SMnode *pMnode);
+static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
+static int32_t           mndPersistTransLog(SStreamObj *pStream, STrans *pTrans);
+static void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset);
 
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
@@ -64,16 +99,21 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
-  /*mndSetMsgHandle(pMnode, TDMT_MND_RECOVER_STREAM, mndProcessRecoverStreamReq);*/
+  mndSetMsgHandle(pMnode, TDMT_MND_NODECHECK_TIMER, mndProcessNodeCheck);
 
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_STOP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_UPDATE_RSP, mndTransProcessRsp);
 
-  // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
-  // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_NODECHANGE_CHECK, mndProcessNodeCheckReq);
 
   mndSetMsgHandle(pMnode, TDMT_MND_PAUSE_STREAM, mndProcessPauseStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESUME_STREAM, mndProcessResumeStreamReq);
@@ -83,10 +123,19 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndRetrieveStreamTask);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndCancelGetNextStreamTask);
 
+  taosThreadMutexInit(&execNodeList.lock, NULL);
+  execNodeList.pTaskMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+  execNodeList.pTaskList = taosArrayInit(4, sizeof(STaskStatusEntry));
+
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupStream(SMnode *pMnode) {}
+void mndCleanupStream(SMnode *pMnode) {
+  taosArrayDestroy(execNodeList.pTaskList);
+  taosHashCleanup(execNodeList.pTaskMap);
+  taosThreadMutexDestroy(&execNodeList.lock);
+  mDebug("mnd stream cleanup");
+}
 
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -147,6 +196,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 
   if (sver != MND_STREAM_VER_NUMBER) {
     terrno = 0;
+    mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto STREAM_DECODE_OVER;
   }
 
@@ -460,11 +510,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
 
   STransAction action = {0};
   action.mTraceId = pTrans->mTraceId;
-  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
-  action.pCont = buf;
-  action.contLen = tlen;
-  action.msgType = TDMT_STREAM_TASK_DEPLOY;
-
+  initTransAction(&action, buf, tlen, TDMT_STREAM_TASK_DEPLOY, &pTask->info.epSet);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(buf);
     return -1;
@@ -640,8 +686,6 @@ _OVER:
 }
 
 static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
-  // vnode
-  /*if (pTask->info.nodeId > 0) {*/
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -653,15 +697,11 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   pReq->streamId = pTask->id.streamId;
 
   STransAction action = {0};
-  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
-  action.pCont = pReq;
-  action.contLen = sizeof(SVDropStreamTaskReq);
-  action.msgType = TDMT_STREAM_TASK_DROP;
+  initTransAction(&action, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &pTask->info.epSet);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
     return -1;
   }
-  /*}*/
 
   return 0;
 }
@@ -762,16 +802,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
-  if (pDb->cfg.replications != 1) {
-    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
-    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
-    mndReleaseDb(pMnode, pDb);
-    pDb = NULL;
-    goto _OVER;
-  }
+  //  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+  //  if (pDb->cfg.replications != 1) {
+  //    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+  //    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+  //    mndReleaseDb(pMnode, pDb);
+  //    pDb = NULL;
+  //    goto _OVER;
+  //  }
 
-  mndReleaseDb(pMnode, pDb);
+  //  mndReleaseDb(pMnode, pDb);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
@@ -827,6 +867,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   mndTransDrop(pTrans);
 
+  taosThreadMutexLock(&execNodeList.lock);
+  keepStreamTasksInBuf(&streamObj, &execNodeList);
+  taosThreadMutexUnlock(&execNodeList.lock);
+
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[2000] = {0};
@@ -855,55 +899,36 @@ _OVER:
   return code;
 }
 
-#if 0
-
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
-  void       *pIter = NULL;
-  SStreamObj *pStream = NULL;
-
-  // iterate all stream obj
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
-    if (pIter == NULL) break;
-    // incr tick
-    int64_t currentTick = atomic_add_fetch_64(&pStream->currentTick, 1);
-    // if >= checkpointFreq, build msg TDMT_MND_STREAM_BEGIN_CHECKPOINT, put into write q
-    if (currentTick >= pStream->checkpointFreq) {
-      atomic_store_64(&pStream->currentTick, 0);
-      SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-
-      pMsg->streamId = pStream->uid;
-      pMsg->checkpointId = tGenIdPI64();
-      memcpy(pMsg->streamName, pStream->name, TSDB_STREAM_FNAME_LEN);
-
-      SRpcMsg rpcMsg = {
-          .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
-          .pCont = pMsg,
-          .contLen = sizeof(SMStreamDoCheckpointMsg),
-      };
-
-      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-    }
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
+    return 0;
   }
 
+  int64_t                  checkpointId = taosGetTimestampMs();
+  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+  pMsg->checkpointId = checkpointId;
+
+  int32_t size = sizeof(SMStreamDoCheckpointMsg);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   return 0;
 }
 
-static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, const SStreamTask *pTask,
-                                                 SMStreamDoCheckpointMsg *pMsg) {
+static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
+                                                  int64_t streamId, int32_t taskId) {
   SStreamCheckpointSourceReq req = {0};
-  req.checkpointId = pMsg->checkpointId;
-  req.nodeId = pTask->info.nodeId;
+  req.checkpointId = checkpointId;
+  req.nodeId = nodeId;
   req.expireTime = -1;
-  req.streamId = pTask->streamId;
-  req.taskId = pTask->taskId;
+  req.streamId = streamId;  // pTask->id.streamId;
+  req.taskId = taskId;      // pTask->id.taskId;
 
   int32_t code;
   int32_t blen;
 
-  tEncodeSize(tEncodeSStreamCheckpointSourceReq, &req, blen, code);
+  tEncodeSize(tEncodeStreamCheckpointSourceReq, &req, blen, code);
   if (code < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -920,11 +945,11 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
   void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  tEncodeSStreamCheckpointSourceReq(&encoder, &req);
+  tEncodeStreamCheckpointSourceReq(&encoder, &req);
 
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);
-  pMsgHead->vgId = htonl(pTask->info.nodeId);
+  pMsgHead->vgId = htonl(nodeId);
 
   tEncoderClear(&encoder);
 
@@ -933,95 +958,296 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
 
   return 0;
 }
+// static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId) {
+//   int64_t timestampMs = taosGetTimestampMs();
+//   if (timestampMs - pStream->checkpointFreq < tsStreamCheckpointTickInterval * 1000) {
+//     return -1;
+//   }
 
-static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
+//   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
+//   if (pTrans == NULL) return -1;
+//   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+//   if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+//     mError("failed to checkpoint of stream name%s, checkpointId: %" PRId64 ", reason:%s", pStream->name,
+//     checkpointId,
+//            tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
+//     mndTransDrop(pTrans);
+//     return -1;
+//   }
+//   mDebug("start to trigger checkpoint for stream:%s, checkpoint: %" PRId64 "", pStream->name, checkpointId);
+//   atomic_store_64(&pStream->currentTick, 1);
+//   taosWLockLatch(&pStream->lock);
+//   // 1. redo action: broadcast checkpoint source msg for all source vg
+//   int32_t totLevel = taosArrayGetSize(pStream->tasks);
+//   for (int32_t i = 0; i < totLevel; i++) {
+//     SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+//     SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+//     if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+//       int32_t sz = taosArrayGetSize(pLevel);
+//       for (int32_t j = 0; j < sz; j++) {
+//         SStreamTask *pTask = taosArrayGetP(pLevel, j);
+//         /*A(pTask->info.nodeId > 0);*/
+//         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
+//         if (pVgObj == NULL) {
+//           taosWUnLockLatch(&pStream->lock);
+//           mndTransDrop(pTrans);
+//           return -1;
+//         }
 
-  SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
+//         void   *buf;
+//         int32_t tlen;
+//         if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
+//                                                pTask->id.taskId) < 0) {
+//           mndReleaseVgroup(pMnode, pVgObj);
+//           taosWUnLockLatch(&pStream->lock);
+//           mndTransDrop(pTrans);
+//           return -1;
+//         }
 
-  SStreamObj *pStream = mndAcquireStream(pMnode, pMsg->streamName);
+//         STransAction action = {0};
+//         action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+//         action.pCont = buf;
+//         action.contLen = tlen;
+//         action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
 
-  if (pStream == NULL || pStream->uid != pMsg->streamId) {
-    mError("start checkpointing failed since stream %s not found", pMsg->streamName);
-    return -1;
-  }
+//         mndReleaseVgroup(pMnode, pVgObj);
 
-  // build new transaction:
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "stream-checkpoint");
-  if (pTrans == NULL) return -1;
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
-    mndReleaseStream(pMnode, pStream);
-    mndTransDrop(pTrans);
-    return -1;
-  }
+//         if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+//           taosMemoryFree(buf);
+//           taosWUnLockLatch(&pStream->lock);
+//           mndReleaseStream(pMnode, pStream);
+//           mndTransDrop(pTrans);
+//           return -1;
+//         }
+//       }
+//     }
+//   }
+//   // 2. reset tick
+//   pStream->checkpointFreq = checkpointId;
+//   pStream->checkpointId = checkpointId;
+//   pStream->checkpointFreq = taosGetTimestampMs();
+//   atomic_store_64(&pStream->currentTick, 0);
+//   // 3. commit log: stream checkpoint info
+//   pStream->version = pStream->version + 1;
+//   taosWUnLockLatch(&pStream->lock);
 
-  taosRLockLatch(&pStream->lock);
-  // 1. redo action: broadcast checkpoint source msg for all source vg
+//   //   // code condtion
+
+//   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
+//   if (pCommitRaw == NULL) {
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+//   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+//     sdbFreeRaw(pCommitRaw);
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+//   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) {
+//     sdbFreeRaw(pCommitRaw);
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+
+//   if (mndTransPrepare(pMnode, pTrans) != 0) {
+//     mError("failed to prepare trans rebalance since %s", terrstr());
+//     goto _ERR;
+//   }
+//   mndTransDrop(pTrans);
+//   return 0;
+// _ERR:
+//   mndTransDrop(pTrans);
+//   return -1;
+// }
+
+static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream, SMnode *pMnode,
+                                             int64_t checkpointId) {
+  taosWLockLatch(&pStream->lock);
+
   int32_t totLevel = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < totLevel; i++) {
     SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
     SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+
     if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
-        SStreamTask *pTask = taosArrayGetP(pLevel, j);
+        pTask = taosArrayGetP(pLevel, j);
+        if (pTask->info.fillHistory == 1) {
+          continue;
+        }
         /*A(pTask->info.nodeId > 0);*/
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
         if (pVgObj == NULL) {
-          taosRUnLockLatch(&pStream->lock);
-          mndReleaseStream(pMnode, pStream);
-          mndTransDrop(pTrans);
+          taosWUnLockLatch(&pStream->lock);
           return -1;
         }
 
         void   *buf;
         int32_t tlen;
-        if (mndBuildStreamCheckpointSourceReq(&buf, &tlen, pTask, pMsg) < 0) {
-          taosRUnLockLatch(&pStream->lock);
-          mndReleaseStream(pMnode, pStream);
-          mndTransDrop(pTrans);
+        if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
+                                               pTask->id.taskId) < 0) {
+          mndReleaseVgroup(pMnode, pVgObj);
+          taosWUnLockLatch(&pStream->lock);
           return -1;
         }
 
         STransAction action = {0};
-        action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
-        action.pCont = buf;
-        action.contLen = tlen;
-        action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
-
+        SEpSet       epset = mndGetVgroupEpset(pMnode, pVgObj);
+        initTransAction(&action, buf, tlen, TDMT_VND_STREAM_CHECK_POINT_SOURCE, &epset);
         mndReleaseVgroup(pMnode, pVgObj);
 
         if (mndTransAppendRedoAction(pTrans, &action) != 0) {
           taosMemoryFree(buf);
-          taosRUnLockLatch(&pStream->lock);
-          mndReleaseStream(pMnode, pStream);
-          mndTransDrop(pTrans);
+          taosWUnLockLatch(&pStream->lock);
           return -1;
         }
       }
     }
   }
-  // 2. reset tick
+
+  pStream->checkpointId = checkpointId;
+  pStream->checkpointFreq = taosGetTimestampMs();
   atomic_store_64(&pStream->currentTick, 0);
   // 3. commit log: stream checkpoint info
-  taosRUnLockLatch(&pStream->lock);
+  pStream->version = pStream->version + 1;
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  taosWUnLockLatch(&pStream->lock);
+
+  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
+  if (pCommitRaw == NULL) {
     mError("failed to prepare trans rebalance since %s", terrstr());
-    mndTransDrop(pTrans);
-    mndReleaseStream(pMnode, pStream);
     return -1;
   }
-
-  mndReleaseStream(pMnode, pStream);
-  mndTransDrop(pTrans);
-
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    mError("failed to prepare trans rebalance since %s", terrstr());
+    return -1;
+  }
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    mError("failed to prepare trans rebalance since %s", terrstr());
+    return -1;
+  }
   return 0;
 }
 
-#endif
+static const char *mndGetStreamDB(SMnode *pMnode) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+
+  pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+  if (pIter == NULL) {
+    return NULL;
+  }
+
+  const char *p = taosStrdup(pStream->sourceDb);
+  mndReleaseStream(pMnode, pStream);
+  sdbCancelFetch(pSdb, pIter);
+  return p;
+}
+
+static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  void       *pIter = NULL;
+  SStreamObj *pStream = NULL;
+  int32_t     code = 0;
+
+  {  // check if the node update happens or not
+    int64_t ts = taosGetTimestampSec();
+
+    if (execNodeList.pNodeEntryList == NULL || (taosArrayGetSize(execNodeList.pNodeEntryList) == 0)) {
+      if (execNodeList.pNodeEntryList != NULL) {
+        execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
+      }
+
+      execNodeList.pNodeEntryList = doExtractNodeListFromStream(pMnode);
+    }
+
+    if (taosArrayGetSize(execNodeList.pNodeEntryList) == 0) {
+      mDebug("end to do stream task node change checking, no vgroup exists, do nothing");
+      execNodeList.ts = ts;
+      atomic_store_32(&mndNodeCheckSentinel, 0);
+      return 0;
+    }
+
+    SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode);
+
+    SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
+    bool              nodeUpdated = (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0);
+    taosArrayDestroy(changeInfo.pUpdateNodeList);
+    taosHashCleanup(changeInfo.pDBMap);
+    taosArrayDestroy(pNodeSnapshot);
+
+    if (nodeUpdated) {
+      mDebug("stream task not ready due to node update, not generate checkpoint");
+      return 0;
+    }
+  }
+
+  {  // check if all tasks are in TASK_STATUS__NORMAL status
+    bool ready = true;
+
+    taosThreadMutexLock(&execNodeList.lock);
+    for (int32_t i = 0; i < taosArrayGetSize(execNodeList.pTaskList); ++i) {
+      STaskStatusEntry *p = taosArrayGet(execNodeList.pTaskList, i);
+      if (p->status != TASK_STATUS__NORMAL) {
+        mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s not ready, create checkpoint msg not issued",
+               p->streamId, p->taskId, 0, streamGetTaskStatusStr(p->status));
+        ready = false;
+        break;
+      }
+    }
+    taosThreadMutexUnlock(&execNodeList.lock);
+
+    if (!ready) {
+      return 0;
+    }
+  }
+
+  SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
+  int64_t                  checkpointId = pMsg->checkpointId;
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, NULL, MND_STREAM_CHECKPOINT_NAME);
+  if (pTrans == NULL) {
+    mError("failed to trigger checkpoint, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
+  }
+  mDebug("start to trigger checkpoint, checkpointId: %" PRId64 "", checkpointId);
+
+  const char *pDb = mndGetStreamDB(pMnode);
+  mndTransSetDbName(pTrans, pDb, "checkpoint");
+  taosMemoryFree((void *)pDb);
+
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+    mError("failed to trigger checkpoint, checkpointId: %" PRId64 ", reason:%s", checkpointId,
+           tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    code = mndAddStreamCheckpointToTrans(pTrans, pStream, pMnode, checkpointId);
+    sdbRelease(pSdb, pStream);
+    if (code == -1) {
+      break;
+    }
+  }
+
+  if (code == 0) {
+    if (mndTransPrepare(pMnode, pTrans) != 0) {
+      mError("failed to prepre trans rebalance since %s", terrstr());
+    }
+  }
+
+  mndTransDrop(pTrans);
+  return code;
+}
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
@@ -1057,6 +1283,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
+
   mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
@@ -1065,6 +1292,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return -1;
   }
+  // mndTransSetSerial(pTrans);
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
@@ -1381,18 +1609,18 @@ static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
 static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
   SVPauseStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVPauseStreamTaskReq));
   if (pReq == NULL) {
+    mError("failed to malloc in pause stream, size:%" PRIzu ", code:%s", sizeof(SVPauseStreamTaskReq),
+           tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
 
   STransAction action = {0};
-  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
-  action.pCont = pReq;
-  action.contLen = sizeof(SVPauseStreamTaskReq);
-  action.msgType = TDMT_STREAM_TASK_PAUSE;
+  initTransAction(&action, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &pTask->info.epSet);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
     return -1;
@@ -1407,7 +1635,7 @@ int32_t mndPauseAllStreamTaskImpl(STrans *pTrans, SArray *tasks) {
     int32_t sz = taosArrayGetSize(pTasks);
     for (int32_t j = 0; j < sz; j++) {
       SStreamTask *pTask = taosArrayGetP(pTasks, j);
-      if (pTask->info.taskLevel != TASK_LEVEL__SINK && mndPauseStreamTask(pTrans, pTask) < 0) {
+      if (mndPauseStreamTask(pTrans, pTask) < 0) {
         return -1;
       }
 
@@ -1532,10 +1760,7 @@ static int32_t mndResumeStreamTask(STrans *pTrans, SStreamTask *pTask, int8_t ig
   pReq->igUntreated = igUntreated;
 
   STransAction action = {0};
-  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
-  action.pCont = pReq;
-  action.contLen = sizeof(SVResumeStreamTaskReq);
-  action.msgType = TDMT_STREAM_TASK_RESUME;
+  initTransAction(&action, pReq, sizeof(SVResumeStreamTaskReq), TDMT_STREAM_TASK_RESUME, &pTask->info.epSet);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
     return -1;
@@ -1550,7 +1775,7 @@ int32_t mndResumeAllStreamTasks(STrans *pTrans, SStreamObj *pStream, int8_t igUn
     int32_t sz = taosArrayGetSize(pTasks);
     for (int32_t j = 0; j < sz; j++) {
       SStreamTask *pTask = taosArrayGetP(pTasks, j);
-      if (pTask->info.taskLevel != TASK_LEVEL__SINK && mndResumeStreamTask(pTrans, pTask, igUntreated) < 0) {
+      if (mndResumeStreamTask(pTrans, pTask, igUntreated) < 0) {
         return -1;
       }
 
@@ -1637,4 +1862,518 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   mndTransDrop(pTrans);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg *pMsg, const SVgroupChangeInfo *pInfo, int64_t streamId,
+                              int32_t taskId) {
+  pMsg->streamId = streamId;
+  pMsg->taskId = taskId;
+  pMsg->pNodeList = taosArrayInit(taosArrayGetSize(pInfo->pUpdateNodeList), sizeof(SNodeUpdateInfo));
+  taosArrayAddAll(pMsg->pNodeList, pInfo->pUpdateNodeList);
+}
+
+static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupChangeInfo *pInfo, int32_t nodeId,
+                                          int64_t streamId, int32_t taskId) {
+  SStreamTaskNodeUpdateMsg req = {0};
+  initNodeUpdateMsg(&req, pInfo, streamId, taskId);
+
+  int32_t code = 0;
+  int32_t blen;
+
+  tEncodeSize(tEncodeStreamTaskUpdateMsg, &req, blen, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMsgHead) + blen;
+
+  void *buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  tEncodeStreamTaskUpdateMsg(&encoder, &req);
+
+  SMsgHead *pMsgHead = (SMsgHead *)buf;
+  pMsgHead->contLen = htonl(tlen);
+  pMsgHead->vgId = htonl(nodeId);
+
+  tEncoderClear(&encoder);
+
+  *pBuf = buf;
+  *pLen = tlen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans) {
+  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
+  if (pCommitRaw == NULL) {
+    mError("failed to encode stream since %s", terrstr());
+    return -1;
+  }
+
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    sdbFreeRaw(pCommitRaw);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) {
+    mError("stream trans:%d failed to set raw status since %s", pTrans->id, terrstr());
+    sdbFreeRaw(pCommitRaw);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  return 0;
+}
+
+void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset) {
+  pAction->epSet = *pEpset;
+  pAction->contLen = contLen;
+  pAction->pCont = pCont;
+  pAction->msgType = msgType;
+}
+
+// todo extract method: traverse stream tasks
+// build trans to update the epset
+static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, NULL, "stream-task-update");
+  if (pTrans == NULL) {
+    mError("failed to build stream task DAG update, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
+  }
+
+  mDebug("start to build stream:0x%" PRIx64 " task DAG update", pStream->uid);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+    mError("failed to build stream:0x%" PRIx64 " task DAG update, code:%s", pStream->uid,
+           tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  taosWLockLatch(&pStream->lock);
+  int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
+
+  for (int32_t j = 0; j < numOfLevels; ++j) {
+    SArray *pLevel = taosArrayGetP(pStream->tasks, j);
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel);
+    for (int32_t k = 0; k < numOfTasks; ++k) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, k);
+
+      void   *pBuf = NULL;
+      int32_t len = 0;
+      streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
+      doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId);
+
+      STransAction action = {0};
+      initTransAction(&action, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &pTask->info.epSet);
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+        taosMemoryFree(pBuf);
+        taosWUnLockLatch(&pStream->lock);
+        return -1;
+      }
+    }
+  }
+
+  taosWUnLockLatch(&pStream->lock);
+
+  int32_t code = mndPersistTransLog(pStream, pTrans);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+static bool isNodeEpsetChanged(const SEpSet *pPrevEpset, const SEpSet *pCurrent) {
+  const SEp *pEp = GET_ACTIVE_EP(pPrevEpset);
+
+  for (int32_t i = 0; i < pCurrent->numOfEps; ++i) {
+    const SEp *p = &(pCurrent->eps[i]);
+    if (pEp->port == p->port && strncmp(pEp->fqdn, p->fqdn, TSDB_FQDN_LEN) == 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// 1. increase the replica does not affect the stream process.
+// 2. decreasing the replica may affect the stream task execution in the way that there is one or more running stream
+// tasks on the will be removed replica.
+// 3. vgroup redistribution is an combination operation of first increase replica and then decrease replica. So we will
+// handle it as mentioned in 1 & 2 items.
+static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList) {
+  SVgroupChangeInfo info = {
+      .pUpdateNodeList = taosArrayInit(4, sizeof(SNodeUpdateInfo)),
+      .pDBMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
+  };
+
+  int32_t numOfNodes = taosArrayGetSize(pPrevNodeList);
+  for (int32_t i = 0; i < numOfNodes; ++i) {
+    SNodeEntry *pPrevEntry = taosArrayGet(pPrevNodeList, i);
+
+    int32_t num = taosArrayGetSize(pNodeList);
+    for (int32_t j = 0; j < num; ++j) {
+      SNodeEntry *pCurrent = taosArrayGet(pNodeList, j);
+
+      if (pCurrent->nodeId == pPrevEntry->nodeId) {
+        if (isNodeEpsetChanged(&pPrevEntry->epset, &pCurrent->epset)) {
+          const SEp *pPrevEp = GET_ACTIVE_EP(&pPrevEntry->epset);
+
+          char buf[256] = {0};
+          EPSET_TO_STR(&pCurrent->epset, buf);
+          mDebug("nodeId:%d epset changed detected, old:%s:%d -> new:%s", pCurrent->nodeId, pPrevEp->fqdn,
+                 pPrevEp->port, buf);
+
+          SNodeUpdateInfo updateInfo = {.nodeId = pPrevEntry->nodeId};
+          epsetAssign(&updateInfo.prevEp, &pPrevEntry->epset);
+          epsetAssign(&updateInfo.newEp, &pCurrent->epset);
+          taosArrayPush(info.pUpdateNodeList, &updateInfo);
+
+          SVgObj *pVgroup = mndAcquireVgroup(pMnode, pCurrent->nodeId);
+          taosHashPut(info.pDBMap, pVgroup->dbName, strlen(pVgroup->dbName), NULL, 0);
+          mndReleaseVgroup(pMnode, pVgroup);
+        }
+
+        break;
+      }
+    }
+  }
+
+  return info;
+}
+
+static SArray *mndTakeVgroupSnapshot(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  SVgObj *pVgroup = NULL;
+
+  SArray *pVgroupListSnapshot = taosArrayInit(4, sizeof(SNodeEntry));
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SNodeEntry entry = {0};
+    entry.epset = mndGetVgroupEpset(pMnode, pVgroup);
+    entry.nodeId = pVgroup->vgId;
+    entry.hbTimestamp = -1;
+
+    taosArrayPush(pVgroupListSnapshot, &entry);
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return pVgroupListSnapshot;
+}
+
+static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  // check all streams that involved this vnode should update the epset info
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    void *p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
+    void *p1 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
+    if (p == NULL && p1 == NULL) {
+      mndReleaseStream(pMnode, pStream);
+      continue;
+    }
+
+    mDebug("stream:0x%" PRIx64 " involved node changed, create update trans", pStream->uid);
+    int32_t code = createStreamUpdateTrans(pMnode, pStream, pChangeInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return 0;
+}
+
+static SArray *doExtractNodeListFromStream(SMnode *pMnode) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+
+  SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    taosWLockLatch(&pStream->lock);
+    int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
+
+    for (int32_t j = 0; j < numOfLevels; ++j) {
+      SArray *pLevel = taosArrayGetP(pStream->tasks, j);
+
+      int32_t numOfTasks = taosArrayGetSize(pLevel);
+      for (int32_t k = 0; k < numOfTasks; ++k) {
+        SStreamTask *pTask = taosArrayGetP(pLevel, k);
+        SNodeEntry   entry = {0};
+        epsetAssign(&entry.epset, &pTask->info.epSet);
+        entry.nodeId = pTask->info.nodeId;
+        entry.hbTimestamp = -1;
+
+        taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
+      }
+    }
+
+    taosWUnLockLatch(&pStream->lock);
+    sdbRelease(pSdb, pStream);
+  }
+
+  SArray *plist = taosArrayInit(taosHashGetSize(pHash), sizeof(SNodeEntry));
+
+  // convert to list
+  pIter = NULL;
+  while ((pIter = taosHashIterate(pHash, pIter)) != NULL) {
+    SNodeEntry *pEntry = (SNodeEntry *)pIter;
+    taosArrayPush(plist, pEntry);
+  }
+  taosHashCleanup(pHash);
+
+  return plist;
+}
+
+static void doExtractTasksFromStream(SMnode *pMnode) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    keepStreamTasksInBuf(pStream, &execNodeList);
+    sdbRelease(pSdb, pStream);
+  }
+}
+
+// this function runs by only one thread, so it is not multi-thread safe
+static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
+  int32_t code = 0;
+  int32_t old = atomic_val_compare_exchange_32(&mndNodeCheckSentinel, 0, 1);
+  if (old != 0) {
+    mDebug("still in checking node change");
+    return 0;
+  }
+
+  mDebug("start to do node change checking");
+  int64_t ts = taosGetTimestampSec();
+
+  SMnode *pMnode = pMsg->info.node;
+  if (execNodeList.pNodeEntryList == NULL || (taosArrayGetSize(execNodeList.pNodeEntryList) == 0)) {
+    if (execNodeList.pNodeEntryList != NULL) {
+      execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
+    }
+
+    execNodeList.pNodeEntryList = doExtractNodeListFromStream(pMnode);
+  }
+
+  if (taosArrayGetSize(execNodeList.pNodeEntryList) == 0) {
+    mDebug("end to do stream task node change checking, no vgroup exists, do nothing");
+    execNodeList.ts = ts;
+    atomic_store_32(&mndNodeCheckSentinel, 0);
+    return 0;
+  }
+
+  SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode);
+
+  SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
+  if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
+    code = mndProcessVgroupChange(pMnode, &changeInfo);
+  }
+
+  taosArrayDestroy(changeInfo.pUpdateNodeList);
+  taosHashCleanup(changeInfo.pDBMap);
+
+  // keep the new vnode snapshot
+  if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    taosArrayDestroy(execNodeList.pNodeEntryList);
+    execNodeList.pNodeEntryList = pNodeSnapshot;
+    execNodeList.ts = ts;
+  }
+
+  mDebug("end to do stream task node change checking");
+  atomic_store_32(&mndNodeCheckSentinel, 0);
+  return 0;
+}
+
+typedef struct SMStreamNodeCheckMsg {
+  int8_t holder;  // // to fix windows compile error, define place holder
+} SMStreamNodeCheckMsg;
+
+static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
+    return 0;
+  }
+
+  SMStreamNodeCheckMsg *pMsg = rpcMallocCont(sizeof(SMStreamNodeCheckMsg));
+  SRpcMsg               rpcMsg = {
+                    .msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = sizeof(SMStreamNodeCheckMsg)};
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  return 0;
+}
+
+static void keepStreamTasksInBuf(SStreamObj *pStream, SStreamVnodeRevertIndex *pExecNode) {
+  int32_t level = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < level; i++) {
+    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel);
+    for (int32_t j = 0; j < numOfTasks; j++) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, j);
+      int64_t      keys[2] = {pTask->id.streamId, pTask->id.taskId};
+
+      void *p = taosHashGet(pExecNode->pTaskMap, keys, sizeof(keys));
+      if (p == NULL) {
+        STaskStatusEntry entry = {
+            .streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .status = TASK_STATUS__STOP};
+        taosArrayPush(pExecNode->pTaskList, &entry);
+
+        int32_t ordinal = taosArrayGetSize(pExecNode->pTaskList) - 1;
+        taosHashPut(pExecNode->pTaskMap, keys, sizeof(keys), &ordinal, sizeof(ordinal));
+      }
+    }
+  }
+}
+
+// todo: this process should be executed by the write queue worker of the mnode
+int32_t mndProcessStreamHb(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+
+  SStreamHbMsg req = {0};
+  int32_t      code = TSDB_CODE_SUCCESS;
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
+
+  if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
+    tDecoderClear(&decoder);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+  tDecoderClear(&decoder);
+
+  //  int64_t now = taosGetTimestampSec();
+  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
+
+  taosThreadMutexLock(&execNodeList.lock);
+  int32_t numOfExisted = taosHashGetSize(execNodeList.pTaskMap);
+  if (numOfExisted == 0) {
+    doExtractTasksFromStream(pMnode);
+  }
+
+  for(int32_t i = 0; i < req.numOfTasks; ++i) {
+    STaskStatusEntry* p = taosArrayGet(req.pTaskStatus, i);
+    int64_t k[2] = {p->streamId, p->taskId};
+    int32_t index = *(int32_t*) taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
+
+    STaskStatusEntry* pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
+    pStatusEntry->status = p->status;
+    if (p->status != TASK_STATUS__NORMAL) {
+      mDebug("received s-task:0x%x not in ready status:%s", p->taskId, streamGetTaskStatusStr(p->status));
+    }
+  }
+  taosThreadMutexUnlock(&execNodeList.lock);
+
+  taosArrayDestroy(req.pTaskStatus);
+
+  //  bool nodeChanged = false;
+  //  SArray* pList = taosArrayInit(4, sizeof(int32_t));
+  /*
+    // record the timeout node
+    for(int32_t i = 0; i < taosArrayGetSize(execNodeList.pNodeEntryList); ++i) {
+      SNodeEntry* pEntry = taosArrayGet(execNodeList.pNodeEntryList, i);
+      int64_t duration = now - pEntry->hbTimestamp;
+      if (duration > MND_STREAM_HB_INTERVAL) { // execNode timeout, try next
+        taosArrayPush(pList, &pEntry);
+        mWarn("nodeId:%d stream node timeout, since last hb:%"PRId64"s", pEntry->nodeId, duration);
+        continue;
+      }
+
+      if (pEntry->nodeId != req.vgId) {
+        continue;
+      }
+
+      pEntry->hbTimestamp = now;
+
+      // check epset to identify whether the node has been transferred to other dnodes.
+      // node the epset is changed, which means the node transfer has occurred for this node.
+  //    if (!isEpsetEqual(&pEntry->epset, &req.epset)) {
+  //      nodeChanged = true;
+  //      break;
+  //    }
+    }
+
+    // todo handle the node timeout case. Once the vnode is off-line, we should check the dnode status from mnode,
+    // to identify whether the dnode is truely offline or not.
+
+    // handle the node changed case
+    if (!nodeChanged) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int32_t nodeId = req.vgId;
+
+    {// check all streams that involved this vnode should update the epset info
+      SStreamObj *pStream = NULL;
+      void       *pIter = NULL;
+      while (1) {
+        pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+        if (pIter == NULL) {
+          break;
+        }
+
+        // update the related upstream and downstream tasks, todo remove this, no need this function
+        taosWLockLatch(&pStream->lock);
+  //      streamTaskUpdateEpInfo(pStream->tasks, req.vgId, &req.epset);
+  //      streamTaskUpdateEpInfo(pStream->pHTasksList, req.vgId, &req.epset);
+        taosWUnLockLatch(&pStream->lock);
+
+  //      code = createStreamUpdateTrans(pMnode, pStream, nodeId, );
+  //      if (code != TSDB_CODE_SUCCESS) {
+  //         todo
+  ////      }
+  //    }
+    }
+  */
+  return TSDB_CODE_SUCCESS;
 }

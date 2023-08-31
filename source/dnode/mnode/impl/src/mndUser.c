@@ -791,6 +791,67 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
   return 0;
 }
 
+static char* mndUserAuditTypeStr(int32_t type){
+  if(type == TSDB_ALTER_USER_PASSWD){
+    return "changePassword";
+  }
+  if(type == TSDB_ALTER_USER_SUPERUSER){
+    return "changeSuperUser";
+  }
+  if(type == TSDB_ALTER_USER_ADD_READ_DB){
+    return "addReadToDB";
+  }
+  if(type == TSDB_ALTER_USER_ADD_READ_DB){
+    return "addReadToDB";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_READ_DB){
+    return "removeReadFromDB";
+  }
+  if(type == TSDB_ALTER_USER_ADD_WRITE_DB){
+    return "addWriteToDB";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_WRITE_DB){
+    return "removeWriteFromDB";
+  }
+  if(type == TSDB_ALTER_USER_ADD_ALL_DB){
+    return "addToAllDB";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_ALL_DB){
+    return "removeFromAllDB";
+  }
+  if(type == TSDB_ALTER_USER_ENABLE){
+    return "enableUser";
+  }
+  if(type == TSDB_ALTER_USER_SYSINFO){
+    return "userSysInfo";
+  }
+  if(type == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
+    return "addSubscribeTopic";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
+    return "removeSubscribeTopic";
+  }
+  if(type == TSDB_ALTER_USER_ADD_READ_TABLE){
+    return "addReadToTable";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_READ_TABLE){
+    return "removeReadFromTable";
+  }
+  if(type == TSDB_ALTER_USER_ADD_WRITE_TABLE){
+    return "addWriteToTable";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_WRITE_TABLE){
+    return "removeWriteFromTable";
+  }
+  if(type == TSDB_ALTER_USER_ADD_ALL_TABLE){
+    return "addToAllTable";
+  }
+  if(type == TSDB_ALTER_USER_REMOVE_ALL_TABLE){
+    return "removeFromAllTable";
+  }
+  return "error";
+}
+
 static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;
@@ -978,28 +1039,45 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "alterType:%d, enable:%d, superUser:%d, sysInfo:%d, tabName:%s", 
-          alterReq.alterType, alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
+  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s", 
+          mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
 
   if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
-    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, alterReq.objname, detail);
+    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
           alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
           alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
-    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, alterReq.objname, detail);
+    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB||
           alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB||
           alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC||
           alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE||
           alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE||
           alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE){
+    if (strcmp(alterReq.objname, "1.*") != 0){
+      SName name = {0};
+      tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, name.dbname, detail);
+    }else{
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, "*", detail);
+    }
+  }
+  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
     auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, alterReq.objname, detail);
   }
-  else{
+  else if(alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
     auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, alterReq.objname, detail);
+  }
+  else{
+    if (strcmp(alterReq.objname, "1.*") != 0){
+      SName name = {0};
+      tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, name.dbname, detail);
+    }else{
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, "*", detail);
+    }
   }
 
 _OVER:

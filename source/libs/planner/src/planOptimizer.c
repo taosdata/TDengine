@@ -973,6 +973,9 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
       code = pushDownCondOptJoinExtractEqualOnCond(pCxt, pJoin);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      code = pushDownCondOptAppendFilterCol(pCxt, pJoin);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
       OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
       pCxt->optimized = true;
     }
