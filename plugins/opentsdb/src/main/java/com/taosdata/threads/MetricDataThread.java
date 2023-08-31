@@ -93,7 +93,11 @@ public class MetricDataThread implements Runnable {
                     // 写入数据队列
                     MetricDataCache.addMetricData(opentsdbDataEntityList);
                     // 记录统计信息
-                    StatisticCache.totalRead.addAndGet(opentsdbDataEntityList.size());
+                    for (OpentsdbDataEntity opentsdbDataEntity : opentsdbDataEntityList) {
+                        if (opentsdbDataEntity != null && opentsdbDataEntity.getDps() != null) {
+                            StatisticCache.totalRead.addAndGet(opentsdbDataEntity.getDps().size());
+                        }
+                    }
                 }
                 // 记录任务完成信息
                 StatisticCache.noteCompletedTask(this.key);

@@ -199,7 +199,11 @@ public class PushThread implements Runnable {
             // 修改当前线程/schema的首条标记
             this.first = false;
             // 记录统计信息
-            StatisticCache.totalPush.addAndGet(opentsdbDataEntityList.size());
+            for (OpentsdbDataEntity opentsdbDataEntity : opentsdbDataEntityList) {
+                if (opentsdbDataEntity != null && opentsdbDataEntity.getDps() != null) {
+                    StatisticCache.totalPush.addAndGet(opentsdbDataEntity.getDps().size());
+                }
+            }
         } catch (Exception e) {
             this.logger.error("Push data failed, write back to queue.", e);
             // 写回
