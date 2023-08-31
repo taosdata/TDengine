@@ -340,14 +340,14 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (streamQueueIsFull(pTask->inputQueue->queue)) {
+    if (streamQueueIsFull(pTask->inputInfo.queue->pQueue)) {
       tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
     // downstream task has blocked the output, stopped for a while
-    if (pTask->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+    if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
       tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;

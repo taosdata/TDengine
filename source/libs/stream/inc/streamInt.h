@@ -77,9 +77,6 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-extern int32_t streamBackendId;
-extern int32_t streamBackendCfWrapperId;
-
 #ifdef __cplusplus
 }
 #endif

@@ -179,7 +179,7 @@ SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue);
 #endif
 
 typedef struct {
-  STaosQueue* queue;
+  STaosQueue* pQueue;
   STaosQall*  qall;
   void*       qItem;
   int8_t      status;
@@ -297,6 +297,7 @@ typedef struct SSTaskBasicInfo {
   int32_t totalLevel;
   int8_t  taskLevel;
   int8_t  fillHistory;  // is fill history task or not
+  int64_t triggerParam; // in msec
 } SSTaskBasicInfo;
 
 typedef struct SDispatchMsgInfo {
@@ -306,11 +307,22 @@ typedef struct SDispatchMsgInfo {
   int64_t blockingTs;  // output blocking timestamp
 } SDispatchMsgInfo;
 
-typedef struct {
+typedef struct STaskOutputInfo {
   int8_t        type;
   int8_t        status;
   SStreamQueue* queue;
 } STaskOutputInfo;
+
+typedef struct STaskInputInfo {
+  int8_t status;
+  SStreamQueue* queue;
+} STaskInputInfo;
+
+typedef struct STaskSchedInfo {
+  int8_t  status;
+//  int64_t triggerParam;
+  void*   pTimer;
+} STaskSchedInfo;
 
 typedef struct {
   int64_t init;
@@ -323,6 +335,8 @@ struct SStreamTask {
   SStreamTaskId    id;
   SSTaskBasicInfo  info;
   STaskOutputInfo  outputInfo;
+  STaskInputInfo   inputInfo;
+  STaskSchedInfo   schedInfo;
   SDispatchMsgInfo msgInfo;
   SStreamStatus    status;
   SCheckpointInfo  chkInfo;
@@ -330,8 +344,6 @@ struct SStreamTask {
   SHistDataRange   dataRange;
   SStreamTaskId    historyTaskId;
   SStreamTaskId    streamTaskId;
-  int32_t          nextCheckId;
-  SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
   STaskTimestamp   tsInfo;
   SArray*          pReadyMsgList;  // SArray<SStreamChkptReadyInfo*>
   TdThreadMutex    lock;           // secure the operation of set task status and puting data into inputQ
@@ -346,13 +358,6 @@ struct SStreamTask {
     STaskSinkFetch         fetchSink;
   };
 
-  int8_t        inputStatus;
-  SStreamQueue* inputQueue;
-
-  // trigger
-  int8_t        triggerStatus;
-  int64_t       triggerParam;
-  void*         schedTimer;
   void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
@@ -595,14 +600,6 @@ typedef struct SStreamTaskNodeUpdateMsg {
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
-
-typedef struct SStreamTaskNodeUpdateRsp {
-  int64_t streamId;
-  int32_t taskId;
-} SStreamTaskNodeUpdateRsp;
-
-int32_t tEncodeStreamTaskUpdateRsp(SEncoder* pEncoder, const SStreamTaskNodeUpdateRsp* pMsg);
-int32_t tDecodeStreamTaskUpdateRsp(SDecoder* pDecoder, SStreamTaskNodeUpdateRsp* pMsg);
 
 typedef struct {
   int64_t streamId;

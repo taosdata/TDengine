@@ -99,7 +99,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
          " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
         SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer,
          pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
-         pTask->info.fillHistory, pTask->triggerParam);
+         pTask->info.fillHistory, pTask->info.triggerParam);
 
   return 0;
 }

@@ -493,7 +493,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   ASSERT((pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH));
 
   const char* id = pTask->id.idStr;
-  int32_t numOfElems = taosQueueItemSize(pTask->outputInfo.queue->queue);
+  int32_t numOfElems = taosQueueItemSize(pTask->outputInfo.queue->pQueue);
   if (numOfElems > 0) {
     qDebug("s-task:%s try to dispatch intermediate block to downstream, elem in outputQ:%d", id, numOfElems);
   }
@@ -995,7 +995,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   // the input queue of the (down stream) task that receive the output data is full,
   // so the TASK_INPUT_STATUS_BLOCKED is rsp
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-    pTask->inputStatus = TASK_INPUT_STATUS__BLOCKED;   // block the input of current task, to push pressure to upstream
+    pTask->inputInfo.status = TASK_INPUT_STATUS__BLOCKED;   // block the input of current task, to push pressure to upstream
     pTask->msgInfo.blockingTs = taosGetTimestampMs();  // record the blocking start time
     qError("s-task:%s inputQ of downstream task:0x%x is full, time:%" PRId64 " wait for %dms and retry dispatch data",
            id, pRsp->downstreamTaskId, pTask->msgInfo.blockingTs, DISPATCH_RETRY_INTERVAL_MS);
@@ -1012,7 +1012,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
       pTask->msgInfo.blockingTs = 0;
 
       // put data into inputQ of current task is also allowed
-      pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
+      pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
     }
 
     // now ready for next data output
@@ -1059,22 +1059,6 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
     taosArrayPush(pMsg->pNodeList, &info);
   }
 
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamTaskUpdateRsp(SEncoder* pEncoder, const SStreamTaskNodeUpdateRsp* pMsg) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pMsg->taskId) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamTaskUpdateRsp(SDecoder* pDecoder, SStreamTaskNodeUpdateRsp* pMsg) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pMsg->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pMsg->taskId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }

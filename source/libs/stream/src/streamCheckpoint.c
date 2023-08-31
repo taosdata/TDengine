@@ -155,7 +155,7 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
   pBlock->srcTaskId = pTask->id.taskId;
   pBlock->srcVgId = pTask->pMeta->vgId;
 
-  int32_t code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
+  int32_t code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
   if (code == 0) {
     streamDispatchStreamBlock(pTask);
   } else {
