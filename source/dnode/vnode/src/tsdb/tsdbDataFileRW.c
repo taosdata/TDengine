@@ -642,7 +642,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbSDataUpdVerRange(SDataFileWriterConfig *config, SVersionRange *range) {
+static int32_t tsdbDataWriterUpdVerRange(SDataFileWriterConfig *config, SVersionRange *range) {
   config->minVer = TMIN(config->minVer, range->minVer);
   config->maxVer = TMAX(config->maxVer, range->maxVer);
   return 0;
@@ -746,7 +746,7 @@ static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
                                 &range);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tsdbSDataUpdVerRange(writer->config, &range);
+  tsdbDataWriterUpdVerRange(writer->config, &range);
 
 _exit:
   if (code) {
@@ -813,7 +813,7 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   }
 
   SVersionRange range = {.minVer = record->minVer, .maxVer = record->maxVer};
-  tsdbSDataUpdVerRange(writer->config, &range);
+  tsdbDataWriterUpdVerRange(writer->config, &range);
 
   // to .data file
   int32_t sizeArr[5] = {0};
@@ -1246,7 +1246,7 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
   code = tsdbFileWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
                                 &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->config->bufArr, &range);
   TSDB_CHECK_CODE(code, lino, _exit);
-  tsdbSDataUpdVerRange(writer->config, &range);
+  tsdbDataWriterUpdVerRange(writer->config, &range);
 
 _exit:
   if (code) {
