@@ -68,7 +68,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 </Tabs>
 
 <!-- exclude -->
-:::note
+:::note IMPORTANT
 替换 <DSN\> 为 真实的值，格式应该是 `https(<cloud_endpoint>)/?token=<token>`。
 
 获取真实的 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”C#“。

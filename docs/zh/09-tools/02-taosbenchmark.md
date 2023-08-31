@@ -9,7 +9,7 @@ description: 'taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine
 
 taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具。taosBenchmark 可以测试 TDengine 的插入、查询和订阅等功能的性能，它可以模拟由大量设备产生的大量数据，还可以灵活地控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表的数量、每张子表的数据量、插入数据的时间间隔、taosBenchmark 的工作线程数量、是否以及如何插入乱序数据等。为了兼容过往用户的使用习惯，安装包提供 了 taosdemo 作为 taosBenchmark 的软链接。
 
-:::note
+:::note IMPORTANT
 在使用 TDengine Cloud 的时候，请注意，没有授权的用户是没有办法通过任何工具包括 taosBenchmark 来创建数据库的。只能通过 TDengine Cloud 的数据浏览器来创建数据库。这个文档中提到的任何创建数据库的内容请忽略，并在 TDengine Cloud 里面手动创建数据库。
 :::
 
@@ -32,7 +32,7 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 <!-- exclude -->
-:::note
+:::note IMPORTANT
 获取真实的 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”taosBenchmark“。
 :::
 <!-- exclude-end -->

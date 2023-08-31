@@ -87,7 +87,7 @@ String jdbcUrl = "jdbc:TAOS-RS://taosdemo.com:6041/test?user=root&password=taosd
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-:::note
+:::note IMPORTANT
 
 - REST 接口是无状态的。在使用 JDBC REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。例如：
 
@@ -211,7 +211,7 @@ stmt.close();
 conn.close();
 ```
 
-:::note
+:::note IMPORTANT
  请确保关闭连接，否则会造成连接池泄露。
 :::
 

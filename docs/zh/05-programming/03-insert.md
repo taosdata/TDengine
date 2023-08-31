@@ -39,7 +39,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 
 ## 连接器样例
 
-:::note
+:::note IMPORTANT
 在执行下面样例代码的之前，您必须首先建立和 TDengine Cloud 的连接，请参考 [连接 云服务](../../programming/connect/).
 
 :::
@@ -97,7 +97,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 
 </Tabs>
 
-:::note
+:::note IMPORTANT
 
 由于 RESTful 接口无状态， 不能使用 `USE db;` 语句来切换数据库, 所以在上面示例中使用了`dbName.tbName`指定表名。
 

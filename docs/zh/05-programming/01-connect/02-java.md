@@ -61,8 +61,8 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 另外，您也可以在您的 IDE 的运行配置里设置环境变量
 
 <!-- exclude -->
-:::note
-替换 <jdbcURL\> 为 真实的 JDBC URL，比如 `jdbc:TAOS-RS://example.com?usessl=true&token=xxxx`。
+:::note IMPORTANT
+替换 <jdbcURL\> 为 真实的 JDBC URL，比如 `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`。
 
 获取真实的 JDBC URL 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Java“。
 :::

@@ -66,7 +66,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 另外您也可以在您的 IDE 的运行配置里面设置这些环境变量。
 
 <!-- exclude -->
-:::note
+:::note IMPORTANT
 替换 <token\> 和 <url\> 为 TDengine Cloud 的令牌和 URL 。
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Python“。
 :::

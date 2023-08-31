@@ -18,7 +18,7 @@ title: TDengine R Language Connector
 install.packages("RJDBC", repos='http://cran.us.r-project.org')
 ```
 
-:::note
+:::note IMPORTANT
 在 Linux 上安装 RJDBC 包可能需要安装编译需要的组件，以 Ubuntu 为例执行 `apt install -y libbz2-dev libpcre2-dev libicu-dev` 命令安装。
 在 Windows 系统上需要设置 JAVA_HOME 环境变量。
 :::

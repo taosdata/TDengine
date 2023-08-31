@@ -6,7 +6,7 @@ description: 详细介绍 TDengine 提供的 RESTful API.
 
 为支持各种不同类型平台的开发，TDengine 提供符合 RESTful 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。
 
-:::note
+:::note IMPORTANT
 与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。支持在 RESTful URL 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 URL 中指定的这个 db_name。
 :::
 
