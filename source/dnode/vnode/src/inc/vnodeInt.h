@@ -293,7 +293,7 @@ int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWr
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapReader ========================================
-int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pEx,
+int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pExclude,
                            STsdbSnapReader** ppReader);
 int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader);
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);

@@ -991,7 +991,7 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pEx,
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pExclude,
                                       TSnapRangeArray **fsrArr) {
   int32_t      code = 0;
   STFileSet   *fset;
