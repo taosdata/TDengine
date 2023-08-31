@@ -108,7 +108,7 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
 
 // check status
 static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
-  SHistDataRange* pRange = &pTask->dataRange;
+  SDataRange* pRange = &pTask->dataRange;
   STimeWindow*    pWindow = &pRange->window;
 
   SStreamTaskCheckReq req = {
@@ -365,7 +365,7 @@ int32_t streamSourceScanHistoryData(SStreamTask* pTask) {
   return streamScanExec(pTask, 100);
 }
 
-int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
+int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
   SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pTranstate == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -764,7 +764,7 @@ int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistory
 
 void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
   if (pTask->historyTaskId.taskId == 0) {
-    SHistDataRange* pRange = &pTask->dataRange;
+    SDataRange* pRange = &pTask->dataRange;
     if (pTask->info.fillHistory == 1) {
       qDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64
                  "-%" PRId64,
@@ -775,7 +775,7 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     }
   } else {
-    SHistDataRange* pRange = &pTask->dataRange;
+    SDataRange* pRange = &pTask->dataRange;
 
     int64_t ekey = 0;
     if (pRange->window.ekey < INT64_MAX) {

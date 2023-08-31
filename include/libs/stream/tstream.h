@@ -248,7 +248,7 @@ typedef struct SStreamChildEpInfo {
 
 typedef struct SStreamTaskKey {
   int64_t streamId;
-  int64_t taskId;
+  int32_t taskId;
 } SStreamTaskKey;
 
 typedef struct SStreamTaskId {
@@ -273,10 +273,10 @@ typedef struct SStreamStatus {
   int8_t pauseAllowed;          // allowed task status to be set to be paused
 } SStreamStatus;
 
-typedef struct SHistDataRange {
+typedef struct SDataRange {
   SVersionRange range;
   STimeWindow   window;
-} SHistDataRange;
+} SDataRange;
 
 typedef struct SSTaskBasicInfo {
   int32_t nodeId;  // vgroup id or snode id
@@ -309,7 +309,6 @@ typedef struct STaskInputInfo {
 
 typedef struct STaskSchedInfo {
   int8_t  status;
-//  int64_t triggerParam;
   void*   pTimer;
 } STaskSchedInfo;
 
@@ -330,7 +329,7 @@ struct SStreamTask {
   SStreamStatus    status;
   SCheckpointInfo  chkInfo;
   STaskExec        exec;
-  SHistDataRange   dataRange;
+  SDataRange       dataRange;
   SStreamTaskId    historyTaskId;
   SStreamTaskId    streamTaskId;
   STaskTimestamp   tsInfo;
@@ -419,6 +418,7 @@ int32_t      streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsg
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
 
 int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem);
+int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask);
 bool    streamQueueIsFull(const STaosQueue* pQueue);
 
 typedef struct {
@@ -680,8 +680,6 @@ int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* p
 int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
 int32_t streamSourceScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
-
-int32_t appendTranstateIntoInputQ(SStreamTask* pTask);
 
 // agg level
 int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask);

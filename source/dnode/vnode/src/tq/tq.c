@@ -1172,7 +1172,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (done) {
       pTask->tsInfo.step2Start = taosGetTimestampMs();
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
-      appendTranstateIntoInputQ(pTask);
+      streamTaskPutTranstateIntoInputQ(pTask);
       streamTryExec(pTask);  // exec directly
     } else {
       STimeWindow* pWindow = &pTask->dataRange.window;
@@ -1346,7 +1346,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   if (taskId == STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID) {  // all tasks are extracted submit data from the wal
-    tqScanWalForStreamTasks(pTq);
+    tqScanWal(pTq);
     return 0;
   }
 
