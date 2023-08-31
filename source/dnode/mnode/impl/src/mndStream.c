@@ -14,6 +14,7 @@
  */
 
 #include "mndStream.h"
+#include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -28,9 +29,8 @@
 #include "parser.h"
 #include "tmisce.h"
 #include "tname.h"
-#include "audit.h"
 
-#define MND_STREAM_VER_NUMBER      3
+#define MND_STREAM_VER_NUMBER      4
 #define MND_STREAM_RESERVE_SIZE    64
 #define MND_STREAM_MAX_NUM         60
 #define MND_STREAM_CHECKPOINT_NAME "stream-checkpoint"
@@ -874,15 +874,18 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[2000] = {0};
-  sprintf(detail, "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64 ", "
+  sprintf(detail,
+          "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64
+          ", "
           "fillHistory:%d, igExists:%d, "
-          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64 ", "
-          "maxDelay:%" PRId64 ", numOfTags:%d, sourceDB:%s, "
+          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64
+          ", "
+          "maxDelay:%" PRId64
+          ", numOfTags:%d, sourceDB:%s, "
           "targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
           createStreamReq.checkpointFreq, createStreamReq.createStb, createStreamReq.deleteMark,
-          createStreamReq.fillHistory, createStreamReq.igExists, 
-          createStreamReq.igExpired, createStreamReq.igUpdate, createStreamReq.lastTs,
-          createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB, 
+          createStreamReq.fillHistory, createStreamReq.igExists, createStreamReq.igExpired, createStreamReq.igUpdate,
+          createStreamReq.lastTs, createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB,
           createStreamReq.targetStbFullName, createStreamReq.triggerType, createStreamReq.watermark);
 
   auditRecord(pReq, pMnode->clusterId, "createStream", createStreamReq.name, "", detail);
@@ -2301,12 +2304,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     doExtractTasksFromStream(pMnode);
   }
 
-  for(int32_t i = 0; i < req.numOfTasks; ++i) {
-    STaskStatusEntry* p = taosArrayGet(req.pTaskStatus, i);
-    int64_t k[2] = {p->streamId, p->taskId};
-    int32_t index = *(int32_t*) taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
+  for (int32_t i = 0; i < req.numOfTasks; ++i) {
+    STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
+    int64_t           k[2] = {p->streamId, p->taskId};
+    int32_t           index = *(int32_t *)taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
 
-    STaskStatusEntry* pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
+    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
     pStatusEntry->status = p->status;
     if (p->status != TASK_STATUS__NORMAL) {
       mDebug("received s-task:0x%x not in ready status:%s", p->taskId, streamGetTaskStatusStr(p->status));

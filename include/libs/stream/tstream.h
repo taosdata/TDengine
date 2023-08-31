@@ -31,7 +31,7 @@ extern "C" {
 
 typedef struct SStreamTask SStreamTask;
 
-#define SSTREAM_TASK_VER 1
+#define SSTREAM_TASK_VER 2
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
@@ -364,6 +364,7 @@ struct SStreamTask {
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
+  char                reserve[256];
 };
 
 typedef struct SMetaHbInfo {

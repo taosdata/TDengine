@@ -652,7 +652,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "crateTopic", topicName.dbname, dbname.dbname, detail);
+  auditRecord(pReq, pMnode->clusterId, "createTopic", topicName.dbname, dbname.dbname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
