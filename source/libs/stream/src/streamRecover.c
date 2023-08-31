@@ -882,10 +882,10 @@ void streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta) {
     pTask->status.taskStatus = pTask->status.keepTaskStatus;
     pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
     int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
-    qInfo("vgId:%d s-task:%s resume from pause, status%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
+    qInfo("vgId:%d s-task:%s resume from pause, status:%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), num);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
-    qInfo("vgId:%d s-task:%s sink task.resume from pause, status%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
+    qInfo("vgId:%d s-task:%s sink task.resume from pause, status:%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), num);
   } else {
     qError("s-task:%s not in pause, failed to resume, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
   }
