@@ -29,7 +29,7 @@ struct SVSnapReader {
   SMetaSnapReader *pMetaReader;
   // tsdb
   int8_t           tsdbDone;
-  TSnapRangeArray *pEx;
+  TSnapRangeArray *pExclude;
   STsdbSnapReader *pTsdbReader;
   // tq
   int8_t           tqHandleDone;
@@ -179,7 +179,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pEx,
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pExclude,
                                 &pReader->pTsdbReader);
       if (code) goto _err;
     }
