@@ -135,7 +135,7 @@
                     </el-col>
                     <el-col>
                       <div class="operator-wrap">
-                        <el-button v-if="item.rules.length > 1" :disabled="index==0" type="danger" @click="() => handleDelete(ruleItem.key)" :size="size">Delete</el-button>
+                        <el-button v-if="item.rules.length > 1 &&  index > 0" type="danger" @click="() => handleDelete(ruleItem.key)" :size="size">Delete</el-button>
                       </div>
                     </el-col>
                   </el-row>
