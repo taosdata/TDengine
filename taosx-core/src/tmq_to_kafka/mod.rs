@@ -200,11 +200,10 @@ impl KafkaProducer {
             .remove("batch_size")
             .unwrap_or("1".to_string())
             .parse()?;
-        let ack_timeout: u64 = dsn
+        let ack_timeout: u64 = parse_duration::parse(dsn
             .params
             .remove("ack_timeout")
-            .unwrap_or("1".to_string())
-            .parse()?;
+            .unwrap_or("1".to_string()).as_str()).context("ack timeout config error, should be a valid duartion config")?.as_secs();
 
         Ok(KafkaProducer {
             topic,
