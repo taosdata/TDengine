@@ -151,6 +151,8 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
               .type = fobj->f->type,
               .did = did[0],
               .fid = fobj->f->fid,
+              .minVer = fobj->f->minVer,
+              .maxVer = fobj->f->maxVer,
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .stt[0] =
@@ -198,6 +200,8 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
               .type = fobj->f->type,
               .did = did[0],
               .fid = fobj->f->fid,
+              .minVer = fobj->f->minVer,
+              .maxVer = fobj->f->maxVer,
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .stt[0] =
