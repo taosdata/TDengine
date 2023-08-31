@@ -632,6 +632,7 @@ impl TaskController {
             offsets,
             transferred,
             span: span.clone(),
+            task_id: Some(id.to_string()),
         };
         // dbg!(&opts);
         // dbg!(&agent_task_worker);
@@ -1358,6 +1359,29 @@ impl TaskController {
         sqlx::query!("DELETE FROM tasks where id = ?", id)
             .execute(&self.pool)
             .await?;
+
+        let from: Dsn = task.from.parse()?;
+        let to: Dsn = task.to.parse()?;
+        let opts = TaskOpts {
+            from,
+            transform: vec![],
+            to,
+            parser: None,
+            jobs: 0,
+            compression_level: None,
+            force: false,
+            cancel: Default::default(),
+            with_agent: None,
+            offsets: Arc::new(Default::default()),
+            transferred: None,
+            span: tracing::info_span!(
+                "task::delete",
+                task.id = id,
+                trace_id = tracing::field::Empty
+            ),
+            task_id: Some(task.id.to_string()),
+        };
+        opts.delete_task().await?;
 
         Ok(Some(task.into()))
     }

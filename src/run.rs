@@ -110,6 +110,7 @@ impl Cli {
             offsets: Default::default(),
             transferred: Default::default(),
             span: tracing::info_span!("cli"),
+            task_id: None,
         };
         task_opt.run(&Default::default()).await?;
 

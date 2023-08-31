@@ -10,18 +10,33 @@ use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Dsn, IsAsyncData, Tao
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
-pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
+pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Result<()> {
     let sinker = KafkaSinker::new(from, to).await?;
-    sinker.sink().await?;
+    sinker.sink(cancel).await?;
     Ok(())
 }
 
 #[allow(dead_code)]
-pub async fn clean_task(from: Dsn, topic_suffix: String) -> Result<()> {
+pub async fn clean_task(from: Dsn) -> Result<()> {
+    log::warn!("clean task {}", &from.to_string());
+    let mut dsn = from.clone();
+    let db = dsn
+        .subject
+        .ok_or(anyhow!("db in dsn is null"))?;
+    let table = dsn
+        .params
+        .remove("table")
+        .ok_or(anyhow!("table is null"))?;
+    let topic_suffix = dsn
+        .params
+        .remove("topic_suffix")
+        .ok_or(anyhow!("topic suffix is null"))?;
+
     let conn = TaosBuilder::from_dsn(from)?.build().await?;
-    let topic = tmq_topic_name(topic_suffix);
-    conn.exec(format!("drop topic if exists {}", topic)).await?;
+    let sql = format!("drop topic if exists {}", tmq_topic_name(&db, &table, &topic_suffix));
+    conn.exec(sql).await?;
     Ok(())
 }
 
@@ -83,7 +98,7 @@ impl TMQSource {
         if cols.is_none() && !tags.is_none() {
             return Err(anyhow!("cols is null and tags is not null"));
         }
-        let topic = tmq_topic_name(topic_suffix);
+        let topic = tmq_topic_name(&db, &table, &topic_suffix);
 
         let topic_sql =
             TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
@@ -174,6 +189,8 @@ impl TMQSource {
                 }
             }
         }
+
+        AsAsyncConsumer::unsubscribe(consumer).await;
         Ok(())
     }
 }
@@ -281,21 +298,32 @@ impl KafkaSinker {
         Ok(sinker)
     }
 
-    async fn sink(self) -> Result<()> {
+    async fn sink(self, cancel: CancellationToken) -> Result<()> {
         log::info!("start to sink data from tmq to kafka");
         let source_futures = self.source.read().await?;
         let sink_future = self.producer.sink().await?;
+        tokio::spawn(async move {
+            tokio::select! {
+                _=cancel.cancelled() =>{
+                    log::warn!("kafka sinker task is canceled");
+                    for future in &source_futures {
+                        future.abort();
+                    }
+                    &sink_future.abort();
+                }
+            }
 
-        for future in source_futures {
-            future.await??;
-        }
-        sink_future.await??;
+            for future in source_futures {
+                future.await.unwrap().unwrap();
+            }
+            sink_future.await.unwrap().unwrap();
+        }).await?;
 
         Ok(())
     }
 }
 
 // tmq topic is base on task id
-fn tmq_topic_name(topic_suffix: String) -> String {
-    format!("x_kafka_sink_{}", topic_suffix)
+fn tmq_topic_name(db: &String, table: &String, topic_suffix: &String) -> String {
+    format!("x_kafka_sink_{}_{}_{}", db, table, topic_suffix)
 }
