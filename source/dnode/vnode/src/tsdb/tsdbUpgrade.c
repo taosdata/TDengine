@@ -23,7 +23,7 @@ extern int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SB
 extern int32_t save_fs(const TFileSetArray *arr, const char *fname);
 extern int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
 extern int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
-                                      TBrinBlkArray *brinBlkArray, uint8_t **bufArr);
+                                      TBrinBlkArray *brinBlkArray, uint8_t **bufArr, SVersionRange *range);
 extern int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 extern int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
 extern int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
@@ -31,7 +31,7 @@ extern int32_t tsdbSttLvlClear(SSttLvl **lvl);
 extern int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 extern int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize);
 extern int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                                      TTombBlkArray *tombBlkArray, uint8_t **bufArr);
+                                      TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range);
 extern int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 extern int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize);
 
@@ -129,16 +129,18 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         TSDB_CHECK_CODE(code, lino, _exit);
 
         if (BRIN_BLOCK_SIZE(ctx->brinBlock) >= ctx->maxRow) {
+          SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
           code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                        ctx->brinBlkArray, ctx->bufArr);
+                                        ctx->brinBlkArray, ctx->bufArr, &range);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
     }
 
     if (BRIN_BLOCK_SIZE(ctx->brinBlock) > 0) {
+      SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
       code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                    ctx->brinBlkArray, ctx->bufArr);
+                                    ctx->brinBlkArray, ctx->bufArr, &range);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -493,8 +495,9 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
           code = tsdbUpgradeOpenTombFile(tsdb, fset, &ctx->fd, &ctx->fobj, &ctx->toStt);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
+        SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
         code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                      ctx->bufArr);
+                                      ctx->bufArr, &range);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -505,8 +508,9 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
       code = tsdbUpgradeOpenTombFile(tsdb, fset, &ctx->fd, &ctx->fobj, &ctx->toStt);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+    SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
     code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                  ctx->bufArr);
+                                  ctx->bufArr, &range);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
