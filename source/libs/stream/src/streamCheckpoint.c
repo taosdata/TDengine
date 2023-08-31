@@ -124,7 +124,7 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
   taosArrayPush(pChkpoint->blocks, pBlock);
 
   taosMemoryFree(pBlock);
-  if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pChkpoint) < 0) {
+  if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pChkpoint) < 0) {
     taosFreeQitem(pChkpoint);
     return TSDB_CODE_OUT_OF_MEMORY;
   }

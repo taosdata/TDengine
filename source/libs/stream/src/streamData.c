@@ -166,6 +166,7 @@ int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubm
   return 0;
 }
 
+// todo handle memory error
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem) {
   terrno = 0;
   
@@ -195,7 +196,7 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     taosFreeQitem(pElem);
     return (SStreamQueueItem*)pMerged;
   } else {
-    qDebug("block type:%d not merged with existed blocks list, type:%d", pElem->type, dst->type);
+    qDebug("block type:%d not merged with existed blocks list, type:%d", streamGetBlockTypeStr(pElem->type), dst->type);
     return NULL;
   }
 }

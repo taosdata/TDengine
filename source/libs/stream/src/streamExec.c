@@ -368,7 +368,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
     pDelBlock->info.version = 0;
     pItem->type = STREAM_INPUT__REF_DATA_BLOCK;
     pItem->pBlock = pDelBlock;
-    int32_t code = tAppendDataToInputQueue(pStreamTask, (SStreamQueueItem*)pItem);
+    int32_t code = streamTaskPutDataIntoInputQ(pStreamTask, (SStreamQueueItem*)pItem);
     qDebug("s-task:%s append dummy delete block,res:%d", pStreamTask->id.idStr, code);
   }
 
@@ -517,7 +517,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", id);
 
-    /*int32_t code = */ extractBlocksFromInputQ(pTask, &pInput, &numOfBlocks);
+    /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks);
     if (pInput == NULL) {
       ASSERT(numOfBlocks == 0);
       return 0;

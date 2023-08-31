@@ -189,7 +189,6 @@ int32_t streamInit();
 void    streamCleanUp();
 
 SStreamQueue* streamQueueOpen(int64_t cap);
-void          streamQueueCleanup(SStreamQueue* pQueue);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
 
 static FORCE_INLINE void streamQueueProcessSuccess(SStreamQueue* queue) {
@@ -424,8 +423,8 @@ int32_t      streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsg
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
 
-int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem);
-bool    tInputQueueIsFull(const SStreamTask* pTask);
+int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem);
+bool    streamQueueIsFull(const STaosQueue* pQueue);
 
 typedef struct {
   SMsgHead head;

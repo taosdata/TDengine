@@ -1199,7 +1199,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         streamSetStatusNormal(pTask);
       }
 
-      tqStartStreamTasksAsync(pTq, false);
+      tqScanWalAsync(pTq, false);
     }
 
     streamMetaReleaseTask(pMeta, pTask);
@@ -1341,7 +1341,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   if (taskId == STREAM_EXEC_TASK_STATUS_CHECK_ID) {
-    tqSetStreamTasksReady(pTq);
+    tqCheckAndRunStreamTask(pTq);
     return 0;
   }
 
@@ -1365,7 +1365,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqStartStreamTasksAsync(pTq, false);
+    tqScanWalAsync(pTq, false);
     return 0;
   } else {  // NOTE: pTask->status.schedStatus is not updated since it is not be handled by the run exec.
     // todo add one function to handle this
@@ -1505,7 +1505,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
         pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
       streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (taosQueueItemSize(pTask->inputQueue->queue) == 0)) {
-      tqStartStreamTasksAsync(pTq, false);
+      tqScanWalAsync(pTq, false);
     } else {
       streamSchedExec(pTask);
     }
@@ -1824,7 +1824,7 @@ _end:
       taosWUnLockLatch(&pMeta->lock);
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
         vInfo("vgId:%d, restart all stream tasks", vgId);
-        tqSetStreamTasksReadyAsync(pTq);
+        tqCheckAndRunStreamTaskAsync(pTq);
       }
     }
   }
