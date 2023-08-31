@@ -2303,13 +2303,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
 
     int64_t   k[2] = {p->streamId, p->taskId};
-    int32_t **index = taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
+    int32_t *index = taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
     if (index == NULL) {
-
       continue;
     }
 
-    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, **index);
+    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, *index);
     pStatusEntry->status = p->status;
     if (p->status != TASK_STATUS__NORMAL) {
       mDebug("received s-task:0x%x not in ready status:%s", p->taskId, streamGetTaskStatusStr(p->status));
