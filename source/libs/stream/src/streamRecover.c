@@ -579,19 +579,17 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 // todo fix the bug: 2. race condition
 // an fill history task needs to be started.
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
-  int32_t tId = pTask->historyTaskId.taskId;
-  if (tId == 0) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      hTaskId = pTask->historyTaskId.taskId;
+  if (hTaskId == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   ASSERT(pTask->status.downstreamReady == 1);
   qDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
-         pTask->historyTaskId.streamId, tId);
+         pTask->historyTaskId.streamId, hTaskId);
 
-  SStreamMeta* pMeta = pTask->pMeta;
-  int32_t      hTaskId = pTask->historyTaskId.taskId;
-
-  int64_t keys[2] = {pTask->historyTaskId.streamId, pTask->historyTaskId.taskId};
+  int64_t keys[2] = {pTask->historyTaskId.streamId, hTaskId};
 
   // Set the execute conditions, including the query time window and the version range
   SStreamTask** pHTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));

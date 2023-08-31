@@ -757,7 +757,6 @@ void metaHbToMnode(void* param, void* tmrId) {
   SStreamHbMsg hbMsg = {0};
   SStreamMeta* pMeta = taosAcquireRef(streamMetaId, rid);
   if (pMeta == NULL) {
-    // taosMemoryFree(param);
     return;
   }
 
@@ -779,6 +778,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
 
   SEpSet epset = {0};
+  bool   hasValEpset = false;
 
   hbMsg.vgId = pMeta->vgId;
   hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
@@ -797,51 +797,53 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     if (i == 0) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
+      hasValEpset = true;
     }
   }
 
   hbMsg.numOfTasks = taosArrayGetSize(hbMsg.pTaskStatus);
   taosRUnLockLatch(&pMeta->lock);
 
-  int32_t code = 0;
-  int32_t tlen = 0;
+  if (hasValEpset) {
+    int32_t code = 0;
+    int32_t tlen = 0;
 
-  tEncodeSize(tEncodeStreamHbMsg, &hbMsg, tlen, code);
-  if (code < 0) {
-    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-    taosArrayDestroy(hbMsg.pTaskStatus);
-    taosReleaseRef(streamMetaId, rid);
-    return;
-  }
+    tEncodeSize(tEncodeStreamHbMsg, &hbMsg, tlen, code);
+    if (code < 0) {
+      qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+      taosArrayDestroy(hbMsg.pTaskStatus);
+      taosReleaseRef(streamMetaId, rid);
+      return;
+    }
 
-  void* buf = rpcMallocCont(tlen);
-  if (buf == NULL) {
-    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    taosArrayDestroy(hbMsg.pTaskStatus);
-    taosReleaseRef(streamMetaId, rid);
-    return;
-  }
+    void* buf = rpcMallocCont(tlen);
+    if (buf == NULL) {
+      qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      taosArrayDestroy(hbMsg.pTaskStatus);
+      taosReleaseRef(streamMetaId, rid);
+      return;
+    }
 
-  SEncoder encoder;
-  tEncoderInit(&encoder, buf, tlen);
-  if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
-    rpcFreeCont(buf);
-    qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-    taosArrayDestroy(hbMsg.pTaskStatus);
-    taosReleaseRef(streamMetaId, rid);
-    return;
+    SEncoder encoder;
+    tEncoderInit(&encoder, buf, tlen);
+    if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
+      rpcFreeCont(buf);
+      qError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+      taosArrayDestroy(hbMsg.pTaskStatus);
+      taosReleaseRef(streamMetaId, rid);
+      return;
+    }
+    tEncoderClear(&encoder);
+
+    SRpcMsg msg = {0};
+    initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
+    msg.info.noResp = 1;
+
+    qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
+    tmsgSendReq(&epset, &msg);
   }
-  tEncoderClear(&encoder);
 
   taosArrayDestroy(hbMsg.pTaskStatus);
-
-  SRpcMsg msg = {0};
-  initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
-  msg.info.noResp = 1;
-
-  qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
-
-  tmsgSendReq(&epset, &msg);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
