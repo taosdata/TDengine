@@ -236,29 +236,23 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
   STqHandle     handle;
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
   if (pHdr->type == SNAP_DATA_STREAM_TASK) {
-    SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
-    if (pTask == NULL) {
-      return -1;
-    }
+    SStreamTaskId task = {0};
 
     SDecoder decoder;
     tDecoderInit(&decoder, (uint8_t*)pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-    code = tDecodeStreamTask(&decoder, pTask);
+
+    code = tDecodeStreamTaskId(&decoder, &task);
     if (code < 0) {
       tDecoderClear(&decoder);
-      taosMemoryFree(pTask);
       goto _err;
     }
     tDecoderClear(&decoder);
     // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
-    int64_t key[2] = {pTask->id.streamId, pTask->id.taskId};
+    int64_t key[2] = {task.streamId, task.taskId};
     if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, key, sizeof(int64_t) << 1, (uint8_t*)pData + sizeof(SSnapDataHdr),
                     nData - sizeof(SSnapDataHdr), pWriter->txn) < 0) {
-      taosMemoryFree(pTask);
       return -1;
     }
-    // mem leak or not ?
-    taosMemoryFree(pTask);
   } else if (pHdr->type == SNAP_DATA_STREAM_TASK_CHECKPOINT) {
     // do nothing
   }
