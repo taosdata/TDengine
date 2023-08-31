@@ -88,6 +88,17 @@ void* streamQueueNextItem(SStreamQueue* pQueue) {
   }
 }
 
+void streamQueueProcessSuccess(SStreamQueue* queue) {
+  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  queue->qItem = NULL;
+  atomic_store_8(&queue->status, STREAM_QUEUE__SUCESS);
+}
+
+void streamQueueProcessFail(SStreamQueue* queue) {
+  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
+}
+
 #if 0
 bool streamQueueResEmpty(const SStreamQueueRes* pRes) {
   //

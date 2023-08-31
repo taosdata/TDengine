@@ -50,7 +50,6 @@ enum {
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
   TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
-  TASK_STATUS__CK_READY,
 };
 
 enum {
@@ -190,19 +189,9 @@ void    streamCleanUp();
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
-
-static FORCE_INLINE void streamQueueProcessSuccess(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
-  queue->qItem = NULL;
-  atomic_store_8(&queue->status, STREAM_QUEUE__SUCESS);
-}
-
-static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
-  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
-  atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
-}
-
-void* streamQueueNextItem(SStreamQueue* pQueue);
+void          streamQueueProcessSuccess(SStreamQueue* queue);
+void          streamQueueProcessFail(SStreamQueue* queue);
+void*         streamQueueNextItem(SStreamQueue* pQueue);
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
 void               streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);

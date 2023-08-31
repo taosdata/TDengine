@@ -217,7 +217,6 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     }
 
     if (taskLevel == TASK_LEVEL__SINK) {
-      pTask->status.taskStatus = TASK_STATUS__CK_READY;
       qDebug("s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, send ready msg to upstream",
              id, num);
       streamFreeQitem((SStreamQueueItem*)pBlock);
@@ -231,8 +230,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       // can start local checkpoint procedure
       pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
 
-      // if all upstreams are ready for generating checkpoint, set the status to be TASK_STATUS__CK_READY
-      // put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
+      // Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
       // already. And then, dispatch check point msg to all downstream tasks
       code = continueDispatchCheckpointBlock(pBlock, pTask);
     }
@@ -314,7 +312,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
   ASSERT(remain >= 0);
 
-  if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
+  if (remain == 0) {  // all tasks are ready
     qDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
     pMeta->totalTasks = 0;
 
