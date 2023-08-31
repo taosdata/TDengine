@@ -52,7 +52,9 @@ int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv
 int  metaPrepareAsyncCommit(SMeta *pMeta) {
    // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
   int code = 0;
+  metaWLock(pMeta);
   code = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  metaULock(pMeta);
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
 
   return code;
