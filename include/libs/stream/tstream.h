@@ -416,6 +416,7 @@ void         tFreeStreamTask(SStreamTask* pTask);
 int32_t      streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver);
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
+int32_t tDecodeStreamTaskId(SDecoder* pDecoder, SStreamTaskId* pTaskId);
 
 int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem);
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask);
