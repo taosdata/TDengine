@@ -14,6 +14,7 @@
  */
 
 #include "tsdbSttFileRW.h"
+#include "tsdbDataFileRW.h"
 
 // SSttFReader ============================================================
 struct SSttFileReader {
@@ -528,65 +529,6 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range) {
-  int32_t code;
-
-  if (TOMB_BLOCK_SIZE(tombBlock) == 0) return 0;
-
-  STombBlk tombBlk[1] = {{
-      .dp[0] =
-          {
-              .offset = *fileSize,
-              .size = 0,
-          },
-      .minTbid =
-          {
-              .suid = TARRAY2_FIRST(tombBlock->suid),
-              .uid = TARRAY2_FIRST(tombBlock->uid),
-          },
-      .maxTbid =
-          {
-              .suid = TARRAY2_LAST(tombBlock->suid),
-              .uid = TARRAY2_LAST(tombBlock->uid),
-          },
-      .minVer = TARRAY2_FIRST(tombBlock->version),
-      .maxVer = TARRAY2_FIRST(tombBlock->version),
-      .numRec = TOMB_BLOCK_SIZE(tombBlock),
-      .cmprAlg = cmprAlg,
-  }};
-
-  for (int32_t i = 1; i < TOMB_BLOCK_SIZE(tombBlock); i++) {
-    if (tombBlk->minVer > TARRAY2_GET(tombBlock->version, i)) {
-      tombBlk->minVer = TARRAY2_GET(tombBlock->version, i);
-    }
-    if (tombBlk->maxVer < TARRAY2_GET(tombBlock->version, i)) {
-      tombBlk->maxVer = TARRAY2_GET(tombBlock->version, i);
-    }
-  }
-
-  range->minVer = tombBlk->minVer;
-  range->maxVer = tombBlk->maxVer;
-
-  for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->dataArr); i++) {
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&tombBlock->dataArr[i]), TARRAY2_DATA_LEN(&tombBlock->dataArr[i]),
-                        TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg, &bufArr[0], 0, &tombBlk->size[i], &bufArr[1]);
-    if (code) return code;
-
-    code = tsdbWriteFile(fd, *fileSize, bufArr[0], tombBlk->size[i]);
-    if (code) return code;
-
-    tombBlk->dp->size += tombBlk->size[i];
-    *fileSize += tombBlk->size[i];
-  }
-
-  code = TARRAY2_APPEND_PTR(tombBlkArray, tombBlk);
-  if (code) return code;
-
-  tTombBlockClear(tombBlock);
-  return 0;
-}
-
 static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
   if (TOMB_BLOCK_SIZE(writer->tombBlock) == 0) return 0;
 
@@ -653,21 +595,6 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
-}
-
-int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize) {
-  ptr->size = TARRAY2_DATA_LEN(tombBlkArray);
-  if (ptr->size > 0) {
-    ptr->offset = *fileSize;
-
-    int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(tombBlkArray), ptr->size);
-    if (code) {
-      return code;
-    }
-
-    *fileSize += ptr->size;
-  }
-  return 0;
 }
 
 static int32_t tsdbSttFileDoWriteTombBlk(SSttFileWriter *writer) {
