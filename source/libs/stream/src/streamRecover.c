@@ -610,7 +610,8 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         // todo failed to create timer
         taosMemoryFree(pInfo);
       } else {
-        atomic_add_fetch_8(&pTask->status.timerActive, 1);// timer is active
+        int32_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);// timer is active
+        ASSERT(ref == 1);
         qDebug("s-task:%s set timer active flag", pTask->id.idStr);
       }
     } else {  // timer exists
