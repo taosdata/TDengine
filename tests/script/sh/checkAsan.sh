@@ -30,8 +30,26 @@ fi
 TAOS_DIR=`pwd`
 LOG_DIR=$TAOS_DIR/sim/asan
 
+
+
 error_num=`cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l`
-memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l`
+
+archOs=`arch`  
+if [[ $archOs =~ "aarch64" ]]; then  
+  echo "arm64 check mem leak" 
+  memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte"| wc -l`
+  memory_count=`cat ${LOG_DIR}/*.asan | grep "Direct leak of 32 byte"| wc -l`
+
+  if [ $memory_count -eq $error_num ] && [ $memory_leak -eq 0 ]; then
+    echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
+    error_num=0
+  fi 
+else
+  echo "os check mem leak"
+  memory_leak=`cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l`
+fi
+
+
 indirect_leak=`cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l`
 python_error=`cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l`
 
