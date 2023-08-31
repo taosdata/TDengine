@@ -251,11 +251,13 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
     }
     tDecoderClear(&decoder);
     // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
-    if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t),
-                    (uint8_t*)pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr), pWriter->txn) < 0) {
+    int64_t key[2] = {pTask->id.streamId, pTask->id.taskId};
+    if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, key, sizeof(int64_t) << 1, (uint8_t*)pData + sizeof(SSnapDataHdr),
+                    nData - sizeof(SSnapDataHdr), pWriter->txn) < 0) {
       taosMemoryFree(pTask);
       return -1;
     }
+    // mem leak or not ?
     taosMemoryFree(pTask);
   } else if (pHdr->type == SNAP_DATA_STREAM_TASK_CHECKPOINT) {
     // do nothing
