@@ -40,13 +40,22 @@
                     <el-col>
                       <div class="id-wrap" v-if="index==0">
                         <el-select
+                          v-if="ruleItem.field === 'start time'"
                           @change="() => handleIdChange(ruleItem.field, ruleItem.key)"
                           v-model="ruleItem.field"
                           class="select"
                           :size="size"
-                          :disabled="index==0"
                         >
-                          <el-option v-for="idItem in defaultFields" :key="idItem.name" :value="idItem.field" :label="idItem.name"></el-option>
+                          <el-option value="start time" label="start time"></el-option>
+                        </el-select>
+                        <el-select
+                          v-else
+                          @change="() => handleIdChange(ruleItem.field, ruleItem.key)"
+                          v-model="ruleItem.field"
+                          class="select"
+                          :size="size"
+                        >
+                          <el-option value="end time" label="end time"></el-option>
                         </el-select>
                       </div>
                       <div class="id-wrap" v-else>
@@ -61,13 +70,32 @@
                       </div>
                     </el-col>
                     <el-col>
-                      <div class="operator-wrap">
+                      <div class="operator-wrap" v-if="index==0">
+                        <el-select
+                          v-if="ruleItem.field === 'start time'"
+                          @change="() => handleOperatorChange(ruleItem.operator, ruleItem.key)"
+                          v-model="ruleItem.operator"
+                          class="select"
+                          :size="size"
+                        >
+                          <el-option value=">=" label=">="></el-option>
+                        </el-select>
+                        <el-select
+                          v-else
+                          @change="() => handleOperatorChange(ruleItem.operator, ruleItem.key)"
+                          v-model="ruleItem.operator"
+                          class="select"
+                          :size="size"
+                        >
+                          <el-option value="<" label="<"></el-option>
+                        </el-select>
+                      </div>
+                      <div class="operator-wrap" v-else>
                         <el-select
                           @change="() => handleOperatorChange(ruleItem.operator, ruleItem.key)"
                           v-model="ruleItem.operator"
                           class="select"
                           :size="size"
-                          :disabled="index==0"
                         >
                           <el-option v-for="operatorItem in ruleItem.operators" :key="operatorItem" :value="operatorItem" :label="operatorItem"></el-option>
                         </el-select>
