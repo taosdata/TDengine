@@ -560,10 +560,10 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
-      tqCheckStreamStatus(pVnode->pTq);
+      tqSetStreamTasksReadyAsync(pVnode->pTq);
     }
   } else {
-    vInfo("vgId:%d, sync restore finished, no launch stream tasks since not leader", vgId);
+    vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
 }
 
@@ -578,6 +578,8 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
     tsem_post(&pVnode->syncSem);
   }
   taosThreadMutexUnlock(&pVnode->lock);
+
+  tqStopStreamTasks(pVnode->pTq);
 }
 
 static void vnodeBecomeLearner(const SSyncFSM *pFsm) {

@@ -133,7 +133,7 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+  if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
     return -1;
   }
 
@@ -896,7 +896,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   // reset the task status from unfinished transaction
   if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-    tqWarn("s-task:%s reset task status to be normal, kept in meta status: Paused", pTask->id.idStr);
+    tqWarn("s-task:%s reset task status to be normal, status kept in taskMeta: Paused", pTask->id.idStr);
     pTask->status.taskStatus = TASK_STATUS__NORMAL;
   }
 
@@ -1052,7 +1052,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored) {
-        streamTaskCheckDownstreamTasks(p);
+        streamTaskCheckDownstream(p);
       } else if (!restored) {
         tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
       }
@@ -1199,7 +1199,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         streamSetStatusNormal(pTask);
       }
 
-      tqStartStreamTasks(pTq, false);
+      tqStartStreamTasksAsync(pTq, false);
     }
 
     streamMetaReleaseTask(pMeta, pTask);
@@ -1320,7 +1320,7 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
 
   int32_t remain = atomic_sub_fetch_32(&pTask->notReadyTasks, 1);
   if (remain > 0) {
-    tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x, remain:%d not send finish rsp",
+    tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x, unfinished remain:%d",
             pTask->id.idStr, req.downstreamId, remain);
   } else {
     tqDebug(
@@ -1340,13 +1340,13 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t taskId = pReq->taskId;
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  if (taskId == STREAM_TASK_STATUS_CHECK_ID) {
-    tqStreamTasksStatusCheck(pTq);
+  if (taskId == STREAM_EXEC_TASK_STATUS_CHECK_ID) {
+    tqSetStreamTasksReady(pTq);
     return 0;
   }
 
-  if (taskId == EXTRACT_DATA_FROM_WAL_ID) {  // all tasks are extracted submit data from the wal
-    tqStreamTasksScanWal(pTq);
+  if (taskId == STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID) {  // all tasks are extracted submit data from the wal
+    tqScanWalForStreamTasks(pTq);
     return 0;
   }
 
@@ -1365,7 +1365,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqStartStreamTasks(pTq, false);
+    tqStartStreamTasksAsync(pTq, false);
     return 0;
   } else {  // NOTE: pTask->status.schedStatus is not updated since it is not be handled by the run exec.
     // todo add one function to handle this
@@ -1505,7 +1505,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
         pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
       streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (taosQueueItemSize(pTask->inputQueue->queue) == 0)) {
-      tqStartStreamTasks(pTq, false);
+      tqStartStreamTasksAsync(pTq, false);
     } else {
       streamSchedExec(pTask);
     }
@@ -1815,7 +1815,7 @@ _end:
         return -1;
       }
 
-      if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+      if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
         tqError("vgId:%d failed to load stream tasks", vgId);
         taosWUnLockLatch(&pMeta->lock);
         return -1;
@@ -1824,7 +1824,7 @@ _end:
       taosWUnLockLatch(&pMeta->lock);
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
         vInfo("vgId:%d, restart all stream tasks", vgId);
-        tqCheckStreamStatus(pTq);
+        tqSetStreamTasksReadyAsync(pTq);
       }
     }
   }

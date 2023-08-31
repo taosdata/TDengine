@@ -321,7 +321,7 @@ typedef struct {
 
 struct SStreamTask {
   int64_t          ver;
-  SStreamTaskId        id;
+  SStreamTaskId    id;
   SSTaskBasicInfo  info;
   STaskOutputInfo  outputInfo;
   SDispatchMsgInfo msgInfo;
@@ -329,8 +329,8 @@ struct SStreamTask {
   SCheckpointInfo  chkInfo;
   STaskExec        exec;
   SHistDataRange   dataRange;
-  SStreamTaskId        historyTaskId;
-  SStreamTaskId        streamTaskId;
+  SStreamTaskId    historyTaskId;
+  SStreamTaskId    streamTaskId;
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
   STaskTimestamp   tsInfo;
@@ -654,7 +654,7 @@ void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen)
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 
 // recover and fill history
-void    streamTaskCheckDownstreamTasks(SStreamTask* pTask);
+void    streamTaskCheckDownstream(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
@@ -718,7 +718,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
-int32_t      streamLoadTasks(SStreamMeta* pMeta);
+int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 
 // checkpoint

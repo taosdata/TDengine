@@ -182,7 +182,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   qDebug("snode:%d s-task:%s is deployed on snode and add into meta, status:%s, numOfTasks:%d", SNODE_HANDLE, pTask->id.idStr,
          streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
 
-  streamTaskCheckDownstreamTasks(pTask);
+  streamTaskCheckDownstream(pTask);
   return 0;
 }
 

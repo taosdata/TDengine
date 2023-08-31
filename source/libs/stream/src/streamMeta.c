@@ -605,7 +605,7 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
   taosArrayDestroy(pRecycleList);
 }
 
-int32_t streamLoadTasks(SStreamMeta* pMeta) {
+int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
 
   qInfo("vgId:%d load stream tasks from meta files", pMeta->vgId);

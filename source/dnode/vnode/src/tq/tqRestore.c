@@ -19,9 +19,8 @@
 static int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t doSetOffsetForWalReader(SStreamTask* pTask, int32_t vgId);
 
-// this function should be executed by stream threads.
 // extract submit block from WAL, and add them into the input queue for the sources tasks.
-int32_t tqStreamTasksScanWal(STQ* pTq) {
+int32_t tqScanWalForStreamTasks(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int64_t      st = taosGetTimestampMs();
@@ -57,7 +56,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   return 0;
 }
 
-int32_t tqStreamTasksStatusCheck(STQ* pTq) {
+int32_t tqSetStreamTasksReady(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -80,7 +79,23 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
       continue;
     }
 
-    streamTaskCheckDownstreamTasks(pTask);
+    if (pTask->info.fillHistory == 1) {
+      streamMetaReleaseTask(pMeta, pTask);
+      continue;
+    }
+
+    // todo: how about the fill-history task?
+    if (pTask->status.downstreamReady == 1) {
+      tqDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
+              pTask->id.idStr);
+      streamLaunchFillHistoryTask(pTask);
+      streamMetaReleaseTask(pMeta, pTask);
+      continue;
+    }
+
+    streamSetStatusNormal(pTask);
+    streamTaskCheckDownstream(pTask);
+
     streamMetaReleaseTask(pMeta, pTask);
   }
 
@@ -88,7 +103,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
   return 0;
 }
 
-int32_t tqCheckStreamStatus(STQ* pTq) {
+int32_t tqSetStreamTasksReadyAsync(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -109,10 +124,10 @@ int32_t tqCheckStreamStatus(STQ* pTq) {
     return -1;
   }
 
-  tqDebug("vgId:%d check for stream tasks status, numOfTasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d check %d stream task(s) status async", vgId, numOfTasks);
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
-  pRunReq->taskId = STREAM_TASK_STATUS_CHECK_ID;
+  pRunReq->taskId = STREAM_EXEC_TASK_STATUS_CHECK_ID;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
@@ -121,7 +136,7 @@ int32_t tqCheckStreamStatus(STQ* pTq) {
   return 0;
 }
 
-int32_t tqStartStreamTasks(STQ* pTq, bool ckPause) {
+int32_t tqStartStreamTasksAsync(STQ* pTq, bool ckPause) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -168,12 +183,43 @@ int32_t tqStartStreamTasks(STQ* pTq, bool ckPause) {
   tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d", vgId, numOfTasks);
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
-  pRunReq->taskId = EXTRACT_DATA_FROM_WAL_ID;
+  pRunReq->taskId = STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
   taosWUnLockLatch(&pMeta->lock);
 
+  return 0;
+}
+
+int32_t tqStopStreamTasks(STQ* pTq) {
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+
+  tqDebug("vgId:%d start to stop all %d stream task(s)", vgId, numOfTasks);
+
+  if (numOfTasks == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pTaskList = NULL;
+  taosWLockLatch(&pMeta->lock);
+  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  taosWUnLockLatch(&pMeta->lock);
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    if (pTask == NULL) {
+      continue;
+    }
+
+    streamTaskStop(pTask);
+    streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  taosArrayDestroy(pTaskList);
   return 0;
 }
 
