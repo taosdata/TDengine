@@ -15,6 +15,7 @@
         @click="menuClick(item.title)"
         style="display:flex;align-items:center"
       >
+      <!-- <span style="color:red;font-size:24px;">{{ item.title }}</span> -->
         <div :aria-data="item.path">
           <span>
             <Icon

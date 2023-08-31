@@ -87,12 +87,16 @@ request.interceptors.response.use(
     let taosx404 = '未配置 TaosX API，请检查 Explorer 配置'
     let taosx500 = 'TaosX API 无法访问，请检查 taosx 服务状态'
     // Message.closeAll()
+    let isoem=false
+    if(process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME !=='TDengine'){
+      isoem=true
+    }
     if (error.config.baseURL.includes('/api/x')) {
       if (error.response && error.response.status === 404) {
-        Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)
+        Message.error(navigator.language.includes('zh') ? (isoem?taosx404.replace('Taosx',''):taosx404) :(isoem?taosx404en.replace('Taosx',''): taosx404en))
       } else
         if (error.response && error.response.status === 500) {
-          Message.error(navigator.language.includes('zh') ? taosx500 : taosx500en)
+          Message.error(navigator.language.includes('zh') ? (isoem?taosx500.replace('Taosx',''):taosx500) :(isoem?taosx500en.replace('Taosx',''): taosx500en))
         } else {
           error.message && Message.error(error.message)
         }

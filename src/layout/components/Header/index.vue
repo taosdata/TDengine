@@ -1,6 +1,9 @@
 <template>
   <div class="header">
-    <div class="headerLeft">
+    <div
+      :class="['headerLeft', showHeaderLeft ? '' : 'hidden']"
+      @click="clickShowVersion"
+    >
       <!-- <ClusterSelector></ClusterSelector> -->
       <ul class="license" v-if="license[0]">
         <!-- <li>
@@ -47,6 +50,9 @@ export default {
   components: { Avatar, ClusterSelector, Help, Support, Document, Timezone },
   data() {
     return {
+      showHeaderLeft: true,
+      clickCount: 0,
+      clickNum: 0,
       issueTypeList: [],
       license: [],
       version: "",
@@ -74,12 +80,28 @@ export default {
   created() {
     this.getLicense();
   },
+  mounted() {
+    if (process.env.VUE_APP_CUS_CONFIG) {
+      let config = JSON.parse(process.env.VUE_APP_CUS_CONFIG);
+      this.showHeaderLeft = config.serverVersionDisplay.hide;
+      this.clickCount = config.serverVersionDisplay.showByClick;
+    }
+  },
   methods: {
+    clickShowVersion() {
+      if (process.env.VUE_APP_CUS_CONFIG) {
+        this.clickNum++;
+        if (this.clickNum > this.clickCount) return;
+        if (this.clickNum == this.clickCount) {
+          this.showHeaderLeft = true;
+        }
+      }
+    },
     getVersion(val) {
       if (val.match(/\./g).length > 3) {
         return val.substr(0, val.lastIndexOf("."));
-      }else{
-        return val
+      } else {
+        return val;
       }
     },
     async getLicense() {
@@ -190,5 +212,8 @@ export default {
   li {
     margin-right: 50px;
   }
+}
+.headerLeft.hidden {
+  opacity: 0;
 }
 </style>
