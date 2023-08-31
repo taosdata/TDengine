@@ -109,7 +109,7 @@ public class OpentsdbServiceImpl implements OpentsdbService {
         params.put("queries", queries);
         // params.put("noAnnotations", false);
         // params.put("globalAnnotations", false);
-        params.put("msResolution ", "ms");
+        params.put("msResolution", true);
         // params.put("showTSUIDs", false);
         // params.put("showSummary", false);
         // params.put("showStats", false);
