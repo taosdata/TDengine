@@ -3,7 +3,7 @@ toc_max_heading_level: 4
 title: 数据接入
 ---
 
-本节讲述如何使用 taosX 的命令行模式从各种数据源接入数据到 TDengine。您也可以使用 taos-explorer 的可视化界面进行数据接入，具体请参考[可视化管理](../explorer)。
+本节讲述如何使用 taosX 的命令行模式从各种数据源接入数据到 TDengine。对于 taosX 的命令行参数解析，请参考 [taosX](../../reference/taox)。您也可以使用 taos-explorer 的可视化界面进行数据接入，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../deploy)。
 
 ## OPC-UA
 
