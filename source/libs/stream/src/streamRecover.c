@@ -388,7 +388,7 @@ int32_t appendTranstateIntoInputQ(SStreamTask* pTask) {
   taosArrayPush(pTranstate->blocks, pBlock);
 
   taosMemoryFree(pBlock);
-  if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pTranstate) < 0) {
+  if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTranstate) < 0) {
     taosFreeQitem(pTranstate);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -624,7 +624,12 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  checkFillhistoryTaskStatus(pTask, *pHTask);
+  if ((*pHTask)->status.downstreamReady == 1) {
+    qDebug("s-task:%s fill-history task is ready, no need to check downstream", (*pHTask)->id.idStr);
+  } else {
+    checkFillhistoryTaskStatus(pTask, *pHTask);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

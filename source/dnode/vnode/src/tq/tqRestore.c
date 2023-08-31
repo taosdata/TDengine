@@ -56,7 +56,7 @@ int32_t tqScanWalForStreamTasks(STQ* pTq) {
   return 0;
 }
 
-int32_t tqSetStreamTasksReady(STQ* pTq) {
+int32_t tqCheckAndRunStreamTask(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -73,18 +73,18 @@ int32_t tqSetStreamTasksReady(STQ* pTq) {
 
   // broadcast the check downstream tasks msg
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask*   pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
     }
 
+    // fill-history task can only be launched by related stream tasks.
     if (pTask->info.fillHistory == 1) {
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
-    // todo: how about the fill-history task?
     if (pTask->status.downstreamReady == 1) {
       tqDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
               pTask->id.idStr);
@@ -103,7 +103,7 @@ int32_t tqSetStreamTasksReady(STQ* pTq) {
   return 0;
 }
 
-int32_t tqSetStreamTasksReadyAsync(STQ* pTq) {
+int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -136,7 +136,7 @@ int32_t tqSetStreamTasksReadyAsync(STQ* pTq) {
   return 0;
 }
 
-int32_t tqStartStreamTasksAsync(STQ* pTq, bool ckPause) {
+int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -340,7 +340,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (tInputQueueIsFull(pTask)) {
+    if (streamQueueIsFull(pTask->inputQueue->queue)) {
       tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
@@ -386,7 +386,7 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     if (pItem != NULL) {
       noDataInWal = false;
-      code = tAppendDataToInputQueue(pTask, pItem);
+      code = streamTaskPutDataIntoInputQ(pTask, pItem);
       if (code == TSDB_CODE_SUCCESS) {
         int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
         pTask->chkInfo.currentVer = ver;
