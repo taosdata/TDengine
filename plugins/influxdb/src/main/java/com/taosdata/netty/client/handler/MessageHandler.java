@@ -1,6 +1,6 @@
 package com.taosdata.netty.client.handler;
 
-import com.taosdata.caches.MessageCache;
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.netty.model.dto.MessageDto;
 import com.taosdata.netty.model.enums.MessageTypeEnums;
 import io.netty.channel.ChannelHandlerContext;
@@ -20,23 +20,21 @@ public class MessageHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext channelHandlerContext, Object msg) throws Exception {
         logger.debug("receive message: {}", msg.toString());
-        /*
         // 对象类型正确则处理
         if (msg instanceof MessageDto) {
             MessageDto messageDto = (MessageDto) msg;
             // 判断消息类型
             if (messageDto.getMsgType() == 0) {
                 // 类型错误，立即发送失败响应
-                sendTypeErrorResponse(channelHandlerContext, messageDto);
+                // sendTypeErrorResponse(channelHandlerContext, messageDto);
             } else if (messageDto.getMsgType() == MessageTypeEnums.MSG_REQ.getValue()) {
                 // 记入接收消息队列
-                MessageCache.addReqMessage(messageDto);
+                // MessageCache.addReqMessage(messageDto);
             } else if (messageDto.getMsgType() == MessageTypeEnums.MSG_RES.getValue()) {
-                // TODO 查找发送记录，判断结果是否符合预期
+                // 目前仅计数
+                StatisticCache.totalResp.incrementAndGet();
             }
         }
-        super.channelRead(channelHandlerContext, msg);
-        */
         super.channelRead(channelHandlerContext, msg);
     }
 

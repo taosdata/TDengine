@@ -303,6 +303,7 @@ public class DashboardController {
             dataInfo.getData().put("completedTask", StatisticCache.completedTaskSet.size());
             dataInfo.getData().put("TotalRead", StatisticCache.totalRead);
             dataInfo.getData().put("TotalPush", StatisticCache.totalPush);
+            dataInfo.getData().put("TotalResp", StatisticCache.totalResp);
             // 封装响应
             resDto.setCode(ResEnums.SUCCESS.getCode());
             resDto.setMsg(ResEnums.SUCCESS.getMsg());
@@ -367,6 +368,7 @@ public class DashboardController {
             taskStatistic.put("completedTask", StatisticCache.completedTaskSet.size());
             taskStatistic.put("totalRead", StatisticCache.totalRead);
             taskStatistic.put("totalPush", StatisticCache.totalPush);
+            taskStatistic.put("totalResp", StatisticCache.totalResp);
             dataInfo.getData().put("taskStatistic", taskStatistic);
             // 封装响应
             resDto.setCode(ResEnums.SUCCESS.getCode());

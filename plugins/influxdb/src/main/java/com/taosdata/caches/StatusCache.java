@@ -244,7 +244,8 @@ public class StatusCache {
         sb.append("\"Read Speed\":" + FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed() + ",");
         sb.append("\"Push Speed\":" + FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed() + ",");
         sb.append("\"Total Read\":" + StatisticCache.totalRead.get() + ",");
-        sb.append("\"Total Push\":" + StatisticCache.totalPush.get());
+        sb.append("\"Total Push\":" + StatisticCache.totalPush.get() + ",");
+        sb.append("\"Total Resp\":" + StatisticCache.totalResp.get());
         sb.append("}");
         return sb.toString();
     }

@@ -103,7 +103,7 @@ public class ArrowUtils {
     private static Map<String, String> generateMeta(ArrowInitDto arrowInitDto) {
         // TODO 目前不要响应，如果需要可以将none改为code/lush
         return new HashMap<String, String>() {{
-            put("ack", "none");
+            put("ack", "lush");
             put("stream", "lush");
             put("version", "1.0");
             put("init", arrowInitDto.toString());
