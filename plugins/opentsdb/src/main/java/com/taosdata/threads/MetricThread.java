@@ -94,7 +94,7 @@ public class MetricThread implements Runnable {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
                     if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.endTime.before(new Date())) {
                         // 判断是否可以退出进程
-                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
+                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get() && StatisticCache.totalResp.get() >= StatisticCache.totalPush.get()) {
                             Thread.sleep(5000L);
                             logger.info("Task execution completed, normal exit.");
                             logger.info(StatusCache.toPrintString());

@@ -1,5 +1,8 @@
 package com.taosdata.netty.decoder;
 
+import com.taosdata.netty.consts.NettyConsts;
+import com.taosdata.netty.model.dto.MessageDto;
+import com.taosdata.netty.model.enums.MessageTypeEnums;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -26,7 +29,13 @@ public class MessageDecoder extends ByteToMessageDecoder {
         byte[] bytes = new byte[len];
         // 读取字节流
         in.readBytes(bytes);
-        // TODO 目前不处理上行消息，仅将字节流输出到log文件
+        // 将字节数组作为对象流转到下游处理
+        MessageDto messageDto = new MessageDto();
+        messageDto.setVersion(NettyConsts.VERSION);
+        messageDto.setMsgType(MessageTypeEnums.MSG_RES.getValue());
+        messageDto.setBody(bytes);
+        out.add(messageDto);
+        // 将字节流输出到log文件
         logger.debug("receive byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(bytes));
     }
 }

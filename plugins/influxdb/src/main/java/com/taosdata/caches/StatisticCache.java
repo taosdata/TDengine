@@ -16,10 +16,11 @@ public class StatisticCache {
     public static int totalReadTaskEstimated = 0;
 
     /**
-     * 已读取数据量、已推送数据量
+     * 已读取数据量、已推送数据量、已响应数据量
      */
     public static AtomicLong totalRead = new AtomicLong();
     public static AtomicLong totalPush = new AtomicLong();
+    public static AtomicLong totalResp = new AtomicLong();
 
     /**
      * 已创建的读取任务，字符串格式为Bucket,Measurement,StartTime,StopTime
