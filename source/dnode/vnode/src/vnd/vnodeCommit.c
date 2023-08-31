@@ -297,8 +297,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = ++pVnode->state.commitID;
-  pInfo->vers.start = lastCommitted + 1;
-  pInfo->vers.end = pInfo->info.state.committed;
   pInfo->pVnode = pVnode;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
