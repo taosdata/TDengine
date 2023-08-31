@@ -853,7 +853,11 @@ end:
   char detail[100] = {0};
   sprintf(detail, "igNotExists:%d", dropReq.igNotExists);
 
-  auditRecord(pReq, pMnode->clusterId, "dropTopic", dropReq.name, "", detail);
+  SName name = {0};
+  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
+  //reuse this function for topic
+
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, "", detail);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
