@@ -65,7 +65,7 @@ remote_read:
 登录 TDengine Cloud，然后点击左边导航栏的”数据浏览器“。您就会看见由 Prometheus 收集的指标数据。
 ![TDengine prometheus remote_write result](prometheus_data.webp)
 
-:::note
+:::note IMPORTANT
 
 - TDengine 会根据一定规则自动为子表名创建唯一的 IDs。
 :::

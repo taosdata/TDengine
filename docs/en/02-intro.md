@@ -12,32 +12,36 @@ This section introduces the major features, competitive advantages and typical u
 The major features are listed below:
 
 1. Data In
-   - Supports [using SQL to insert](../programming/insert/).
-   - Supports [Telegraf](../data-in/telegraf/).
-   - Supports [Prometheus](../data-in/prometheus/).
-2. Data Out
-   - Supports standard [SQL](../programming/query/), including nested query.
-   - Supports exporting data via tool [taosDump](../data-out/taosdump/).
-   - Supports writing data to [Prometheus](../data-out/prometheus/).
-   - Supports exporting data via [data subscription](../data-subscription/).
-3. Data Explorer: browse through databases and even run SQL queries once you login.
-4. Visualization:
-   - Supports [Grafana](../visual/grafana/)
-   - Supports Google Data Studio
-   - Supports Grafana Cloud (to be released soon)
-5. [Data Subscription](../data-subscription/):  Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions and you can share the topic with other users and user groups in TDengien Cloud.
-6. [Stream Processing](../stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
-7. Enterprise
-   - Supports backuping data everyday.
-   - Supports replicating a database to another region or cloud.
-   - Supports VPC peering.
-   - Supports Allowed IP list for security.
-9. Tools
-   - Provides an interactive [Command-line Interface (CLI)](../tools/cli/) for management and ad-hoc queries.
-   - Provides a tool [taosBenchmark](../tools/taosbenchmark/) for testing the performance of TDengine.
-10. Programming
+   - Supports [Data Sources](../data-in/ds/).
+   - Supports [Data Collection Agents](../data-in/dca/).
+2. Data Explorer: browse through databases and even run SQL queries once you login.
+3. Programming
     - Provides [connectors](../programming/connector/) for Java, Python, Go, Rust, Node.js and other programming languages.
     - Provides a [REST API](../programming/connector/rest-api/).
+4. [Streams](../stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
+5. [Topics](../data-subscription/):  Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions and you can share the topic with other users and user groups in TDengien Cloud.
+6. [Tools](../tools)
+   - Provides an interactive [Command-line Interface (CLI)](../tools/cli/) for management and ad-hoc queries.
+   - Provides a tool [taosBenchmark](../tools/taosbenchmark/) for testing the performance of TDengine.
+   - Supports exporting data via tool [taosDump](../tools/taosdump/).
+   - Supports [Grafana](../tools/grafana/)
+   - Supports [Google Data Studio](../tools/gds/)
+   - Supports writing data to [Prometheus](../tools/prometheus/).
+   - Supports [DBeaver](../tools/dbeaver/).
+7. [Management](../mgmt)
+   - Manage the instance [Users & User Groups](../mgmt/user-mgmt)
+   - Support [replication](../mgmt/replication) a database to another region or cloud.
+   - Support [backup](../mgmt/backup) the database from the instance.
+   - Supports [IP whitelist](../mgmt/ip-whites) for security.
+   - Support [operation logs](../mgmt/ops-logs).
+8. [Users](../user-mgmt)
+   - Manage the [users](../user-mgmt/users) of the current organization.
+   - Manage the [user groups](../user-mgmt/usergroups) of the current organization.
+   - Manage the [roles](../user-mgmt/roles) of the current organization.
+
+9. [Organizations](../orgs)：management the organization of the current user.
+
+10. [DB Mart](../dbmarts)：the published public databases in TDengine Cloud.
 
 For more details on features, please read through the entire documentation.
 

@@ -3,11 +3,16 @@ sidebar_label: InfluexDB
 title: “InfluexDB”数据源
 description: 使用“InfluexDB”数据源导入数据到 TDengine Cloud 的实例
 ---
-InfluexDB 数据写入，是通过连接代理把数据从 InfluexDB 服务器写入到当前选择的 TDengine Cloud 实例。使用这种方式的前提条件是用户需要先在 InfluexDB 服务器上面下载安装相应的连接代理。
+InfluexDB 数据写入，是通过连接代理把数据从 InfluexDB 服务器写入到当前选择的 TDengine Cloud 实例。
 
-具体步骤如下：
+## 先决条件
 
-1. 在**名称**输入框里面填写这个数据源的名称，并选择 **InfluexDB** 类型，在**代理**选择框里面选择已经创建的代理，如果没有创建代理，请点击旁边的**创建新的代理**按钮去创建新代理。
+- 创建一个空数据库来存储 InfluexDB 数据。更多信息，请参阅 [数据库](../../../programming/model/#create-database)。
+- 确保连接代理运行在与 InfluexDB 服务器位于同一网络的机器上。更多信息，请参阅 [安装连接代理](../install-agent/)。
+
+## 具体步骤
+
+1. 在 TDengine Cloud 中，在左边菜单中打开 **数据写入** 页面，在 **数据源** 选项卡上，单击 **添加数据源**打开新增页面。在**名称**输入框里面填写这个数据源的名称，并选择 **InfluexDB** 类型，在**代理**选择框里面选择已经创建的代理，如果没有创建代理，请点击旁边的**创建新的代理**按钮去创建新代理。
 2. 在**目标数据库**里面选择一个当前所在的 TDengine Cloud 实例里面的数据库作为目标数据库。
 3. 在**服务器地址**输入框, 输入 InfluxDB 服务器的地址，可以输入 IP 地址或域名，此项为必填字段。
 4. 在**端口**输入框, 输入 InfluxDB 服务器端口，默认情况下，InfluxDB 监听8086端口的 HTTP 请求和8088端口的 HTTPS 请求，此项为必填字段。

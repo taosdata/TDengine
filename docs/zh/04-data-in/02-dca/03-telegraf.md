@@ -86,7 +86,7 @@ show telegraf.stables;
 
 ![TDengine Cloud show telegraf stables](./telegraf-show-stables.webp)
 
-:::note
+:::note IMPORTANT
 
 - TDengine 接收 influxdb 格式数据默认生成的子表名是根据规则生成的唯一 ID 值。
 用户如需指定生成的表名，可以通过在 taos.cfg 里配置 smlChildTableName 参数来指定。如果通过控制输入数据格式，即可利用 TDengine 这个功能指定生成的表名。

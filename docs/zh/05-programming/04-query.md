@@ -141,7 +141,7 @@ Query OK, 6 rows in database (0.005515s)
 
 ## 连接器样例
 
-:::note
+:::note IMPORTANT
 在执行下面样例代码的之前，您必须首先建立和 TDengine Cloud 的连接，请参考 [连接 云服务](../../programming/connect/).
 
 :::

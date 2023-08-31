@@ -55,7 +55,7 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 </Tabs>
 
 <!-- exclude -->
-:::note
+:::note IMPORTANT
 获取真实的 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”TDengine CLI“。
 :::
 <!-- exclude-end -->

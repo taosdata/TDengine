@@ -4,7 +4,8 @@ title: “CSV”数据源
 description: 使用“CSV”数据源导入数据到 TDengine Cloud 的实例
 ---
 CSV 数据源，是通过把 CSV 文件上传的方式写入到当前选择的 TDengine Cloud 实例。
-具体步骤如下：
+
+## 具体步骤
 
 1. 在**名称**输入框里面填写这个数据源的名称，并选择 **CSV** 类型。
 2. 在**目标数据库**里面选择一个当前所在的 TDengine Cloud 实例里面的数据库作为目标数据库。
