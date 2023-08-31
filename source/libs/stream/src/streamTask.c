@@ -134,45 +134,10 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     if (tEncodeCStr(pEncoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tEncodeI64(pEncoder, pTask->triggerParam) < 0) return -1;
-  if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve)) < 0) return -1;
+  if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1) < 0) return -1;
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
-}
-
-int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo) {
-  int64_t ver;
-  int64_t skip64;
-  int8_t  skip8;
-  int32_t skip32;
-  int16_t skip16;
-  SEpSet  epSet;
-
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &ver) < 0) return -1;
-
-  if (ver != SSTREAM_TASK_VER) return -1;
-
-  if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
-  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
-  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
-  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
-  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
-  if (tDecodeI16(pDecoder, &skip16) < 0) return -1;
-
-  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
-  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
-
-  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
-  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
-
-  if (tDecodeI64(pDecoder, &pChkpInfo->checkpointId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pChkpInfo->checkpointVer) < 0) return -1;
-
-  tEndDecode(pDecoder);
-  return 0;
 }
 
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
@@ -247,6 +212,41 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   }
   if (tDecodeI64(pDecoder, &pTask->triggerParam) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
+
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo) {
+  int64_t ver;
+  int64_t skip64;
+  int8_t  skip8;
+  int32_t skip32;
+  int16_t skip16;
+  SEpSet  epSet;
+
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &ver) < 0) return -1;
+
+  if (ver != SSTREAM_TASK_VER) return -1;
+
+  if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+  if (tDecodeI16(pDecoder, &skip16) < 0) return -1;
+
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+  if (tDecodeI8(pDecoder, &skip8) < 0) return -1;
+
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &epSet) < 0) return -1;
+
+  if (tDecodeI64(pDecoder, &pChkpInfo->checkpointId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pChkpInfo->checkpointVer) < 0) return -1;
 
   tEndDecode(pDecoder);
   return 0;

@@ -371,8 +371,7 @@ struct SStreamTask {
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
-
-  char reserve[256];
+  char                reserve[256];
 };
 
 typedef struct SMetaHbInfo {

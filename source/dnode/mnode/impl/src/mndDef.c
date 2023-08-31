@@ -84,7 +84,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   // 3.0.50 ver = 3
   if (tEncodeI64(pEncoder, pObj->checkpointId) < 0) return -1;
 
-  if (tEncodeCStrWithLen(pEncoder, pObj->reserve, sizeof(pObj->reserve)) < 0) return -1;
+  if (tEncodeCStrWithLen(pEncoder, pObj->reserve, sizeof(pObj->reserve) - 1) < 0) return -1;
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
