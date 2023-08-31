@@ -1,6 +1,14 @@
 <template>
   <div class="part">
-    <div v-show="$store.state.console.partActive == 'sql'" class="sql-btn">
+    <div v-show="$store.state.console.partActive == 'sql' || $store.state.console.partActive == 'wizard'" class="sql-btn">
+      <el-button 
+        v-show="$store.state.console.partActive == 'wizard'"
+        :disabled="previewBtn" 
+        @click="getPreviewSql" 
+        size="mini"
+      >
+        {{ $t('sqlPreview') }}
+      </el-button>
       <el-tooltip class="item" effect="light" placement="bottom-end">
         <div slot="content" class="flexCenter">
           <span>{{ $t("data.runSqlTip") }}</span>
@@ -8,7 +16,10 @@
           <Icon class="icon-shift" name="enter" />
         </div>
         <el-button
-          :disabled="!sqlStr || requestIng"
+          :disabled="
+            $store.state.console.partActive == 'sql' 
+            ? (!sqlStr || requestIng) 
+            : (previewBtn || requestIng)"
           type="primary"
           icon="el-icon-caret-right"
           :loading="requestIng"
@@ -19,7 +30,11 @@
         </el-button>
       </el-tooltip>
 
-      <el-button :disabled="!sqlStr || requestIng" type="success" @click="toggleFavorite" size="mini">
+      <el-button 
+        :disabled=" 
+          $store.state.console.partActive == 'sql' 
+          ? (!sqlStr || requestIng) 
+          : (previewBtn || requestIng)" type="success" @click="toggleFavorite" size="mini">
         <template v-if="!favorited">
           <el-icon class="el-icon-star-on" />
           <span class="add_favorite_text">{{ $t("console.addFavorites") }}</span>
@@ -31,6 +46,13 @@
       </el-button>
     </div>
     <el-tabs @tab-click="tabClick" v-model="$store.state.console.partActive" type="border-card">
+      <el-tab-pane name="wizard" label="Wizard">
+        <section class="sql-wrapper">
+          <Wizard ref="wizard"></Wizard>
+          <div id="bar" class="bar"></div>
+          <PanelView @refresh="refresh"></PanelView>
+        </section>
+      </el-tab-pane>      
       <el-tab-pane name="sql" label="Sql">
         <section class="sql-wrapper">
           <Sql ref="sql"></Sql>
@@ -51,13 +73,14 @@
 <script>
   import Detail from "./components/detail.vue";
   import Sql from "./components/sql";
+  import Wizard from './components/wizard.vue'
   import PanelView from "./components/panel.vue";
   import { addFavorite, delFavorite } from "@/api/gateway/console";
   import moment from 'moment'
   import { mapState } from "vuex";
   import Xterm from "./components/xterm";
   export default {
-    components: { Sql, PanelView, Detail, Xterm },
+    components: { Sql, Wizard, PanelView, Detail, Xterm },
     data() {
       return {
         requestIng: false,
@@ -68,6 +91,7 @@
         tabName: state => state.console.tabName,
         sqlStr: state => state.console.sqlStr,
         favorites: state => state.console.favorites,
+        previewBtn: state => state.console.previewBtn
       }),
       favorited() {
         return this.favorites?(this.favorites.find(item => item.sql == this.sqlStr)?.id || ""):"";
@@ -96,10 +120,17 @@
           return false;
         };
       },
+      getPreviewSql() {
+        this.$refs.wizard.getPreviewSql()
+      },
        handleSendSQL() {
         if (this.requestIng) return;
         this.requestIng = true;
-        this.$refs.sql.handleSendSQL();
+        if (this.$store.state.console.partActive == 'sql') {
+          this.$refs.sql.handleSendSQL();
+        } else {
+          this.$refs.wizard.handleSendSQL()
+        }
         this.$store.commit("console/CHANGE_TREE_KEY");
         this.requestIng = false;
       },
@@ -111,7 +142,9 @@
           create_time:moment().format('YYYY-MM-DD HH:mm:ss'),
           created_by:this.$store.state.app.token,
           id:new Date().getTime(),
-          sql:this.sqlStr,
+          sql:this.$store.state.console.partActive =='sql' 
+            ? this.sqlStr 
+            : this.$refs.wizard.generateSql(),
           update_time:moment().format('YYYY-MM-DD HH:mm:ss'),
           updated_by:this.$store.state.app.token,
           userId:this.$store.state.app.token

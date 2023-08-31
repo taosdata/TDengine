@@ -1,5 +1,12 @@
 <template>
-  <div id="sql">
+  <div id="sql" :style="isCondition?{height: '26vh'}: {height: '20vh'}">
+    <el-alert
+      :title="$t('console.sqlWaringTip')"
+      type="warning"
+      show-icon
+      v-if="isCondition"
+      >
+    </el-alert>
     <div class="sqlInput">
       <codemirror
         style="height: 100%"
@@ -76,6 +83,7 @@
           ch: 0,
         },
         comIns: null,
+        isCondition: false
       };
     },
     computed: {
@@ -114,6 +122,13 @@
         },
         immediate: true,
       },
+      sqlStr(newVal) {
+        if (/^select/i.test(newVal)) {
+          this.isCondition = true
+        } else {
+          this.isCondition = false
+        }
+      }
     },
     mounted() {
       this.$BusOnAndAutoOff("console/sql/focus", () => {

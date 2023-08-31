@@ -406,8 +406,8 @@ export default {
           1,
           [].concat(result).map((item) => {
             (item["taskid"] = item.id), (item["localname"] = item.name);
-            item["localtype"] = item.from_detail ? item.from_detail.name : "";
-            item["target"] = item.to_expand ? item.to_expand.subject : "";
+            item["localtype"] = item.to_expand ? item.to_expand.id : "";
+            item["target"] = item.from_expand ? item.from_expand.subject : "";
             item["created_at"] = item.created_at
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
                 "Z"

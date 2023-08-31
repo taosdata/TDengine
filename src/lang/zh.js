@@ -491,6 +491,8 @@ export default {
     persionalFavorites: "个人收藏",
     sharedFavorites: "共享收藏",
     sqlTip: "在SQL语句中，表名必须以数据库名作为前缀。\n例如，select * from testdb.table1;",
+    enterTip: '请输入 {value} 值',
+    sqlWaringTip: '当前查询无输入输出限制，可能导致查询时间长、资源消耗高、结果集过大等问题，如必要可添加主键时间范围、过滤条件、LIMIT/SLIMIT等限制条件进行优化'
   },
   sql: {
     analysis: "分析",
@@ -788,6 +790,7 @@ export default {
     storage: '存储',
     streams: 'Stream 数量',
     timeseries: '时间线数量 ',
+    clusterId: '集群 ID',
     version: '版本',
     users:'用户数量',
     license:'许可证',

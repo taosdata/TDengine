@@ -584,6 +584,8 @@ export default {
     databaseInfo: "DB Info",
     content: "Content",
     sqlTip: "In SQL statement, table name must be prefixed with database name.\nFor example, select * from testdb.table1;",
+    enterTip: 'Please enter {value} value',
+    sqlWaringTip: "The SQL you input doesn't have any conditions to limit the input and output, this may cause some problems such as too much time cost, too big result set, too big resource consumption. It's strongly recommended to add some conditions to filter by time range, tags, and use 'limit/slimit' to control the number of output groups.",
   },
   sql: {
     analysis: "Analysis",
@@ -944,6 +946,7 @@ export default {
     storage: 'Storage',
     streams: 'Streams',
     timeseries: 'Time Series',
+    clusterId: 'Cluster ID',
     version: 'Version',
     license: 'License',
     stables: "STables",
