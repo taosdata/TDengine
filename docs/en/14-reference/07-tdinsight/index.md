@@ -130,11 +130,11 @@ Most command-line options can take effect the same as environment variables.
 | -t | --tdinsight-title | TDINSIGHT_DASHBOARD_TITLE | TDinsight dashboard title. [Default: TDinsight] | -e | -tdinsight-title
 | -e | --tdinsight-editable | TDINSIGHT_DASHBOARD_EDITABLE | If the dashboard is configured to be editable. [Default: false] | -e | --external
 
-Suppose you start a TDengine database on host `tdengine` with HTTP API port `6041`, user `root1`, and password `pass5ord`. Execute the script.
-
 :::note
 The `-E` option is deprecated. We use Grafana unified alerting function instead.
 :::
+
+Suppose you start a TDengine database on host `tdengine` with HTTP API port `6041`, user `root1`, and password `pass5ord`. Execute the script.
 
 ```bash
 sudo . /TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord
