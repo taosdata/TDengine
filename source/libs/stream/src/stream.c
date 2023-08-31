@@ -59,8 +59,8 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
 static void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
-  int8_t status = atomic_load_8(&pTask->triggerStatus);
-  qDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", pTask->id.idStr, status, (int32_t)pTask->triggerParam);
+  int8_t status = atomic_load_8(&pTask->schedInfo.status);
+  qDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", pTask->id.idStr, status, (int32_t)pTask->info.triggerParam);
 
   if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
     qDebug("s-task:%s jump out of schedTimer", pTask->id.idStr);
@@ -80,29 +80,29 @@ static void streamSchedByTimer(void* param, void* tmrId) {
       return;
     }
 
-    atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE);
+    atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
     pTrigger->pBlock->info.type = STREAM_GET_ALL;
     if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger) < 0) {
       taosFreeQitem(pTrigger);
-      taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->schedTimer);
+      taosTmrReset(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
       return;
     }
 
     streamSchedExec(pTask);
   }
 
-  taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->schedTimer);
+  taosTmrReset(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
 }
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
-  if (pTask->triggerParam != 0 && pTask->info.fillHistory == 0) {
+  if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    ASSERT(ref == 2 && pTask->schedTimer == NULL);
+    ASSERT(ref == 2 && pTask->schedInfo.pTimer == NULL);
 
-    qDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->triggerParam);
+    qDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
 
-    pTask->schedTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
-    pTask->triggerStatus = TASK_TRIGGER_STATUS__INACTIVE;
+    pTask->schedInfo.pTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamEnv.timer);
+    pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
 
   return 0;
@@ -224,7 +224,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     destroyStreamDataBlock(pBlock);
   } else {
     ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
+    code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
     if (code != 0) {
       qError("s-task:%s failed to put res into outputQ", pTask->id.idStr);
     }
@@ -299,7 +299,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   return 0;
 }
 
-void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED); }
+void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputInfo.status, TASK_INPUT_STATUS__FAILED); }
 
 void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);

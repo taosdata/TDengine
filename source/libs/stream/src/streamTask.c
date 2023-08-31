@@ -39,7 +39,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
   pTask->id.streamId = streamId;
   pTask->info.taskLevel = taskLevel;
   pTask->info.fillHistory = fillHistory;
-  pTask->triggerParam = triggerParam;
+  pTask->info.triggerParam = triggerParam;
 
   char buf[128] = {0};
   sprintf(buf, "0x%" PRIx64 "-%d", pTask->id.streamId, pTask->id.taskId);
@@ -47,7 +47,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.taskStatus = TASK_STATUS__SCAN_HISTORY;
-  pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
+  pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
 
   addToTaskset(pTaskList, pTask);
@@ -133,7 +133,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     if (tSerializeSUseDbRspImp(pEncoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
     if (tEncodeCStr(pEncoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
   }
-  if (tEncodeI64(pEncoder, pTask->triggerParam) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->info.triggerParam) < 0) return -1;
   if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1) < 0) return -1;
 
   tEndEncode(pEncoder);
@@ -210,7 +210,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDeserializeSUseDbRspImp(pDecoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
     if (tDecodeCStrTo(pDecoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
   }
-  if (tDecodeI64(pDecoder, &pTask->triggerParam) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->info.triggerParam) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
 
   tEndDecode(pDecoder);
@@ -273,9 +273,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosMsleep(10);
   }
 
-  if (pTask->schedTimer != NULL) {
-    taosTmrStop(pTask->schedTimer);
-    pTask->schedTimer = NULL;
+  if (pTask->schedInfo.pTimer != NULL) {
+    taosTmrStop(pTask->schedInfo.pTimer);
+    pTask->schedInfo.pTimer = NULL;
   }
 
   if (pTask->launchTaskTimer != NULL) {
@@ -284,8 +284,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
-  if (pTask->inputQueue) {
-    streamQueueClose(pTask->inputQueue, pTask->id.taskId);
+  if (pTask->inputInfo.queue) {
+    streamQueueClose(pTask->inputInfo.queue, pTask->id.taskId);
   }
 
   if (pTask->outputInfo.queue) {
@@ -355,16 +355,16 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.timerActive = 0;
-  pTask->inputQueue = streamQueueOpen(512 << 10);
+  pTask->inputInfo.queue = streamQueueOpen(512 << 10);
   pTask->outputInfo.queue = streamQueueOpen(512 << 10);
 
-  if (pTask->inputQueue == NULL || pTask->outputInfo.queue == NULL) {
+  if (pTask->inputInfo.queue == NULL || pTask->outputInfo.queue == NULL) {
     qError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
     return -1;
   }
 
   pTask->tsInfo.init = taosGetTimestampMs();
-  pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
+  pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
 

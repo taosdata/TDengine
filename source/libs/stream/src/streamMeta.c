@@ -261,10 +261,10 @@ void streamMetaClear(SStreamMeta* pMeta) {
     SStreamTask* p = *(SStreamTask**)pIter;
 
     // release the ref by timer
-    if (p->triggerParam != 0 && p->info.fillHistory == 0) {  // one more ref in timer
+    if (p->info.triggerParam != 0 && p->info.fillHistory == 0) {  // one more ref in timer
       qDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", p->id.idStr, p->refCnt);
-      taosTmrStop(p->schedTimer);
-      p->triggerParam = 0;
+      taosTmrStop(p->schedInfo.pTimer);
+      p->info.triggerParam = 0;
       streamMetaReleaseTask(pMeta, p);
     }
 

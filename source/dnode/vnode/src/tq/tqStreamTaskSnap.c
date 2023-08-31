@@ -89,7 +89,6 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {
   taosArrayDestroy(pReader->tdbTbList);
   tdbTbcClose(pReader->pCur);
   taosMemoryFree(pReader);
-
   return code;
 }
 
