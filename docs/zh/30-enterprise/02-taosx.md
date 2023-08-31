@@ -1,6 +1,7 @@
 ---
 toc_max_heading_level: 4
-title: 命令行解析
+title: taosX
+sidebar_label: taosX
 ---
 
 ## 简介
