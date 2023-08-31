@@ -402,7 +402,7 @@ struct SSttFileWriter {
   uint8_t *bufArr[5];
 };
 
-static int32_t tsdbSSttUpdVerRange(SSttFileWriterConfig *config, SVersionRange *range) {
+static int32_t tsdbSttWriterUpdVerRange(SSttFileWriterConfig *config, SVersionRange *range) {
   config->minVer = TMIN(config->minVer, range->minVer);
   config->maxVer = TMAX(config->maxVer, range->maxVer);
   return 0;
@@ -469,7 +469,7 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
                                   writer->sttBlkArray, writer->config->bufArr, &range);
   TSDB_CHECK_CODE(code, lino, _exit);
-  tsdbSSttUpdVerRange(writer->config, &range);
+  tsdbSttWriterUpdVerRange(writer->config, &range);
 
 _exit:
   if (code) {
@@ -539,7 +539,7 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
   code = tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
                                 writer->tombBlkArray, writer->config->bufArr, &range);
   TSDB_CHECK_CODE(code, lino, _exit);
-  tsdbSSttUpdVerRange(writer->config, &range);
+  tsdbSttWriterUpdVerRange(writer->config, &range);
 
 _exit:
   if (code) {
