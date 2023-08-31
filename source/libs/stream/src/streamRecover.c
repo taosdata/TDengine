@@ -613,7 +613,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         qDebug("s-task:%s set timer active flag", pTask->id.idStr);
       }
     } else {  // timer exists
-      ASSERT(pTask->status.timerActive > 0);
+      ASSERT(pTask->status.timerActive == 1);
       qDebug("s-task:%s set timer active flag, task timer not null", pTask->id.idStr);
       taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
     }
