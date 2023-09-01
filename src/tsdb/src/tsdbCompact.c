@@ -155,8 +155,13 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
     int minfid = TSDB_KEY_FID(compactWin->skey, pRepo->config.daysPerFile, pRepo->config.precision);
     int maxfid = TSDB_KEY_FID(compactWin->ekey, pRepo->config.daysPerFile, pRepo->config.precision);
     while ((pSet = tsdbFSIterNext(&(compactH.fsIter)))) {
-      if (pSet->fid < minfid) continue;
-      if (pSet->fid > maxfid) continue;
+      if (pSet->fid < minfid || pSet->fid > maxfid) {
+        tsdbDebug("vgId:%d FSET %d out of compaction time range %"PRId64 "- %"PRId64, REPO_ID(pRepo),
+                  pSet->fid, compactWin->skey, compactWin->ekey);
+        tsdbUpdateDFileSet(REPO_FS(pRepo), pSet);
+        continue;
+      }
+
       // Remove those expired files
       if (pSet->fid < compactH.rtn.minFid) {
         tsdbInfo("vgId:%d FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
