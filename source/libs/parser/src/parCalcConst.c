@@ -202,9 +202,25 @@ static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
   return code;
 }
 
+typedef struct SIsUselessColCtx  {
+  bool      isUseless;
+} SIsUselessColCtx ;
+
+EDealRes checkUselessCol(SNode *pNode, void *pContext) {
+  SIsUselessColCtx  *ctx = (SIsUselessColCtx *)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && !fmIsScalarFunc(((SFunctionNode*)pNode)->funcId) &&
+      !fmIsPseudoColumnFunc(((SFunctionNode*)pNode)->funcId)) {
+    ctx->isUseless = false;  
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 static bool isUselessCol(SExprNode* pProj) {
-  if (QUERY_NODE_FUNCTION == nodeType(pProj) && !fmIsScalarFunc(((SFunctionNode*)pProj)->funcId) &&
-      !fmIsPseudoColumnFunc(((SFunctionNode*)pProj)->funcId)) {
+  SIsUselessColCtx ctx = {.isUseless = true};
+  nodesWalkExpr((SNode*)pProj, checkUselessCol, (void *)&ctx);
+  if (!ctx.isUseless) {
     return false;
   }
   return NULL == ((SExprNode*)pProj)->pAssociation;

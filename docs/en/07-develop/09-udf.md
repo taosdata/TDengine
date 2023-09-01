@@ -887,4 +887,4 @@ The `pycumsum` function finds the cumulative sum for all data in the input colum
 
 </details>
 ## Manage and Use UDF
-You need to add UDF to TDengine before using it in SQL queries. For more information about how to manage UDF and how to invoke UDF, please see [Manage and Use UDF](../12-taos-sql/26-udf.md).
+You need to add UDF to TDengine before using it in SQL queries. For more information about how to manage UDF and how to invoke UDF, please see [Manage and Use UDF](../taos-sql/udf/).
