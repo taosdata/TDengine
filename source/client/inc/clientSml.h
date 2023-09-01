@@ -33,6 +33,7 @@ extern "C" {
 #include "ttime.h"
 #include "ttypes.h"
 #include "cJSON.h"
+#include "geosWrapper.h"
 
 #if (defined(__GNUC__) && (__GNUC__ >= 3)) || (defined(__INTEL_COMPILER) && (__INTEL_COMPILER >= 800)) || defined(__clang__)
 #  define expect(expr,value)    (__builtin_expect ((expr),(value)) )
@@ -192,7 +193,7 @@ typedef struct {
   //
   SArray      *preLineTagKV;
   SArray      *maxTagKVs;
-  SArray      *masColKVs;
+  SArray      *maxColKVs;
 
   SSmlLineInfo preLine;
   STableMeta  *currSTableMeta;
@@ -250,7 +251,6 @@ int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
 uint8_t           smlGetTimestampLen(int64_t num);
-void              clearColValArray(SArray* pCols);
 void              smlDestroyTableInfo(void *para);
 
 void freeSSmlKv(void* data);

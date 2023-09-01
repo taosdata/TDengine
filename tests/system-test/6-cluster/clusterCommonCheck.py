@@ -261,7 +261,7 @@ class ClusterComCheck:
                 count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.notice(f"elections of {db_name} all vgroups are failed in{count} s ")
+            tdLog.notice(f"elections of {db_name} all vgroups are failed in {count} s ")
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno)
             tdLog.exit("%s(%d) failed " % args)

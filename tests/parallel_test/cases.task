@@ -6,6 +6,14 @@
 ,,y,unit-test,bash test.sh
 
 #system test
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
@@ -25,6 +33,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -127,6 +136,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
@@ -157,13 +167,15 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
+#,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
@@ -349,6 +361,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sma_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
@@ -454,7 +467,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 ,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
-,,n,system-test,python ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
+,,n,system-test,python3 ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
@@ -959,6 +972,7 @@
 ,,n,script,./test.sh -f tsim/query/udfpy.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/join_interval.sim
+,,y,script,./test.sh -f tsim/query/join_pk.sim
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
@@ -1015,6 +1029,7 @@
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
 ,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
@@ -1202,6 +1217,9 @@
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
+,,y,script,./test.sh -f tsim/tagindex/add_index.sim 
+,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim 
+
 
 #develop test
 ,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py

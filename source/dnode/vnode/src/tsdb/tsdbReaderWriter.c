@@ -14,6 +14,62 @@
  */
 
 #include "tsdb.h"
+#include "vndCos.h"
+
+static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
+  int32_t     code = 0;
+  const char *path = pFD->path;
+  int32_t     szPage = pFD->szPage;
+  int32_t     flag = pFD->flag;
+
+  pFD->pFD = taosOpenFile(path, flag);
+  if (pFD->pFD == NULL) {
+    int         errsv = errno;
+    const char *object_name = taosDirEntryBaseName((char *)path);
+    long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
+    if (tsS3Enabled && !strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
+      s3EvictCache(path, s3_size);
+      s3Get(object_name, path);
+
+      pFD->pFD = taosOpenFile(path, flag);
+
+      if (pFD->pFD == NULL) {
+        code = TAOS_SYSTEM_ERROR(ENOENT);
+        // taosMemoryFree(pFD);
+        goto _exit;
+      }
+    } else {
+      code = TAOS_SYSTEM_ERROR(errsv);
+      // taosMemoryFree(pFD);
+      goto _exit;
+    }
+  }
+
+  pFD->pBuf = taosMemoryCalloc(1, szPage);
+  if (pFD->pBuf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    // taosCloseFile(&pFD->pFD);
+    // taosMemoryFree(pFD);
+    goto _exit;
+  }
+
+  // not check file size when reading data files.
+  if (flag != TD_FILE_READ) {
+    if (taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      // taosMemoryFree(pFD->pBuf);
+      // taosCloseFile(&pFD->pFD);
+      // taosMemoryFree(pFD);
+      goto _exit;
+    }
+
+    ASSERT(pFD->szFile % szPage == 0);
+    pFD->szFile = pFD->szFile / szPage;
+  }
+
+_exit:
+  return code;
+}
 
 // =============== PAGE-WISE FILE ===============
 int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
@@ -32,35 +88,8 @@ int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **p
   strcpy(pFD->path, path);
   pFD->szPage = szPage;
   pFD->flag = flag;
-  pFD->pFD = taosOpenFile(path, flag);
-  if (pFD->pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosMemoryFree(pFD);
-    goto _exit;
-  }
   pFD->szPage = szPage;
   pFD->pgno = 0;
-  pFD->pBuf = taosMemoryCalloc(1, szPage);
-  if (pFD->pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    taosCloseFile(&pFD->pFD);
-    taosMemoryFree(pFD);
-    goto _exit;
-  }
-
-  // not check file size when reading data files.
-  if (flag != TD_FILE_READ) {
-    if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      taosMemoryFree(pFD->pBuf);
-      taosCloseFile(&pFD->pFD);
-      taosMemoryFree(pFD);
-      goto _exit;
-    }
-
-    ASSERT(pFD->szFile % szPage == 0);
-    pFD->szFile = pFD->szFile / szPage;
-  }
 
   *ppFD = pFD;
 
@@ -80,6 +109,13 @@ void tsdbCloseFile(STsdbFD **ppFD) {
 
 static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
   int32_t code = 0;
+
+  if (!pFD->pFD) {
+    code = tsdbOpenFileImpl(pFD);
+    if (code) {
+      goto _exit;
+    }
+  }
 
   if (pFD->pgno > 0) {
     int64_t n = taosLSeekFile(pFD->pFD, PAGE_OFFSET(pFD->pgno, pFD->szPage), SEEK_SET);
@@ -110,6 +146,12 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   int32_t code = 0;
 
   // ASSERT(pgno <= pFD->szFile);
+  if (!pFD->pFD) {
+    code = tsdbOpenFileImpl(pFD);
+    if (code) {
+      goto _exit;
+    }
+  }
 
   // seek
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);

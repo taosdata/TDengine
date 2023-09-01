@@ -95,6 +95,8 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf);
 struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst);
 time_t     taosTime(time_t *t);
 time_t     taosMktime(struct tm *timep);
+int64_t    user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t day, const uint32_t hour,
+                         const uint32_t min, const uint32_t sec, int64_t time_zone);
 
 #ifdef __cplusplus
 }
