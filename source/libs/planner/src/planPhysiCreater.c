@@ -887,7 +887,7 @@ static int32_t createHashJoinColList(int16_t lBlkId, int16_t rBlkId, SNode* pEq1
 
 static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhysiNode* pJoin) {
   SNode*  pNode = NULL;
-  char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+  char name[TSDB_COL_FNAME_LEN + 1] = {0};
   SSHashObj* pHash = tSimpleHashInit(pJoin->pTargets->length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   if (NULL == pHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
