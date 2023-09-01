@@ -1141,6 +1141,7 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    restarttask:'Please restart the task',
     csvconfigtip:'Please configure csv information',
     csvwholeinfo:'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
     customcolname:'Custom Columns',

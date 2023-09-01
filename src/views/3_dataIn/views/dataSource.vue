@@ -461,6 +461,11 @@ export default {
           return
         }
         let array=Object.entries(result)
+        console.log(Array.from(array).length==0,'metrics9999');
+        if(Array.from(array).length==0){
+          Message.error(this.$t('datasource.restarttask'))
+          return
+        }
         let html=`<ul>`
           array.forEach(item=>{
             html+=`<li style='margin-bottom:6px;color:#4d6992;'>${item.toString().replace(',',':')}</li>`

@@ -914,6 +914,7 @@ export default {
   },
 
   datasource: {
+    restarttask:'请重启任务',
     csvconfigtip:'请配置csv信息',
     csvwholeinfo:'请填写完整的csv配置信息（主键，tag，列和列类型）',
     customcolname:'自定义列',
