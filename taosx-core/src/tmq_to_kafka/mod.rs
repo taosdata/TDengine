@@ -10,6 +10,7 @@ use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Dsn, IsAsyncData, Tao
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
+use tokio::time;
 use tokio_util::sync::CancellationToken;
 
 pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Result<()> {
@@ -77,7 +78,7 @@ impl TMQSource {
             .params
             .remove("topic_suffix")
             .ok_or(anyhow!("topic suffix is null"))?;
-        let ts_field = dsn.params.remove("ts").unwrap_or("_c0".to_string());
+        let ts_field = dsn.params.remove("ts").unwrap_or("ts".to_string());
         let start = dsn.params.remove("start");
         let end = dsn.params.remove("end");
         let concurrent: usize = dsn
@@ -231,7 +232,7 @@ impl KafkaProducer {
         })
     }
 
-    async fn sink(self) -> Result<JoinHandle<Result<()>>> {
+    async fn sink(self, cancel: CancellationToken) -> Result<JoinHandle<Result<()>>> {
         let receiver = self.receiver;
         let kafka_server = self.kafka_server.clone();
         let topic = self.topic;
@@ -244,6 +245,7 @@ impl KafkaProducer {
             topic,
             ack_timeout,
             batch_size,
+            cancel,
         ));
         Ok(handler)
     }
@@ -254,6 +256,7 @@ impl KafkaProducer {
         topic: String,
         ack_timeout: u64,
         batch_size: usize,
+        cancel: CancellationToken,
     ) -> Result<()> {
         dbg!(&kafka_server);
         let server = kafka_server.iter().join(",");
@@ -264,24 +267,53 @@ impl KafkaProducer {
             .with_context(|| format!("Create kafka producer error from {server}"))?;
         tracing::info!("Start kafka producer");
 
-        let mut messages = Vec::with_capacity(batch_size + 2);
+        tokio::spawn(async move {
+            let mut messages: Vec<String> = Vec::with_capacity(batch_size + 2);
+            let mut interval = time::interval(Duration::from_secs(1));
 
-        while let Some(message) = receiver.recv().await {
-            messages.push(message);
-            if messages.len() >= batch_size {
-                let records = messages
-                    .into_iter()
-                    .map(|r| Record::from_value(topic.as_str(), r))
-                    .collect::<Vec<Record<_, _>>>();
+            'outer: loop {
+                tokio::select! {
+                    Some(message) = receiver.recv() => {
+                        messages.push(message);
+                        if messages.len() >= batch_size {
+                            KafkaProducer::send_messages(&mut producer, &messages, &topic)
+                            .await
+                            .unwrap();
+                            messages = Vec::with_capacity(batch_size + 2);
+                        }
+                    },
+                    _ = interval.tick() => {
+                        if messages.len() > 0 {
+                            KafkaProducer::send_messages(&mut producer, &messages, &topic)
+                            .await
+                            .unwrap();
+                            messages = Vec::with_capacity(batch_size + 2);
+                        }
+                    },
+                    _ = cancel.cancelled() => {
+                        break 'outer;
+                    }
+                }
+            };
 
-                producer
-                    .send_all(&records)
-                    .context("Kafka send message error")?;
-                messages = Vec::with_capacity(batch_size + 2);
+            if messages.len() > 0 {
+                KafkaProducer::send_messages(&mut producer, &messages, &topic)
+                    .await
+                    .unwrap();
             }
-        }
-        tracing::info!("Kafka producer stopped");
+        }).await?;
 
+        tracing::info!("Kafka producer stopped");
+        Ok(())
+    }
+
+    async fn send_messages(producer: &mut Producer, messages: &Vec<String>, topic: &String) -> Result<()> {
+        let records: Vec<Record<_, _>> = messages
+            .into_iter()
+            .map(|r| Record::from_value(topic.as_str(), r.as_bytes()))
+            .collect::<Vec<Record<_, _>>>();
+
+        producer.send_all(&records).context("Kafka send message error")?;
         Ok(())
     }
 }
@@ -301,7 +333,7 @@ impl KafkaSinker {
     async fn sink(self, cancel: CancellationToken) -> Result<()> {
         log::info!("start to sink data from tmq to kafka");
         let source_futures = self.source.read().await?;
-        let sink_future = self.producer.sink().await?;
+        let sink_future = self.producer.sink(cancel.clone()).await?;
         tokio::spawn(async move {
             tokio::select! {
                 _=cancel.cancelled() =>{
@@ -309,7 +341,7 @@ impl KafkaSinker {
                     for future in &source_futures {
                         future.abort();
                     }
-                    &sink_future.abort();
+                    sink_future.abort();
                 }
             }
 
