@@ -110,6 +110,7 @@ int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t 
 
 // utils
 int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);
+int32_t tsdbTFileUpdVerRange(STFile *f, SVersionRange range);
 
 #ifdef __cplusplus
 }
