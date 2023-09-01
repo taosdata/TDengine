@@ -654,9 +654,12 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int32_t outputLen = pInputData->varmeta.length * pInput->numOfRows;
-  char   *outputBuf = taosMemoryCalloc(outputLen, 1);
-  char   *output = outputBuf;
+  int32_t outputLen = pInputData->info.bytes;
+  char *outputBuf = taosMemoryMalloc(outputLen);
+  if (outputBuf == NULL) {
+    qError("substr function memory allocation failure. size: %d", outputLen);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -676,14 +679,16 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       startPosBytes = TMAX(startPosBytes, 0);
     }
 
+    char   *output = outputBuf;
     int32_t resLen = TMIN(subLen, len - startPosBytes);
     if (resLen > 0) {
       memcpy(varDataVal(output), varDataVal(input) + startPosBytes, resLen);
+      varDataSetLen(output, resLen);
+    } else {
+      varDataSetLen(output, 0);
     }
 
-    varDataSetLen(output, resLen);
     colDataSetVal(pOutputData, i, output, false);
-    output += varDataTLen(output);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -961,6 +966,17 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
           memcpy(varDataVal(output), buf, len);
           varDataSetLen(output, len);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_VARBINARY:{
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
+          memcpy(varDataVal(output), varDataVal(input), len);
+          varDataSetLen(output, len);
+        }else{
+          code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+          goto _end;
         }
         break;
       }
@@ -1705,6 +1721,31 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qTbUidFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char* p = colDataGetNumData(pInput->columnData, 0);
+
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  if (code) {
+    return code;
+  }
+  
+  pOutput->numOfRows += pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qVgIdFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char* p = colDataGetNumData(pInput->columnData, 0);
+
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  if (code) {
+    return code;
+  }
+  
+  pOutput->numOfRows += pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
 
 /** Aggregation functions **/
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

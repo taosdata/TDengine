@@ -262,7 +262,6 @@ bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 #define ASYNC_CHECK_HANDLE(exh1, id)                                                                         \
   do {                                                                                                       \
     if (id > 0) {                                                                                            \
-      tTrace("handle step1");                                                                                \
       SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
       if (exh2 == NULL || id != exh2->refId) {                                                               \
         tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \

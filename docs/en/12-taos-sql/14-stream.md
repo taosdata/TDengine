@@ -168,3 +168,11 @@ All [scalar functions](../function/#scalar-functions) are available in stream pr
   - [unique](../function/#unique)
   - [mode](../function/#mode)
 
+## Pause\Resume stream
+1.pause stream
+PAUSE STREAM [IF EXISTS] stream_name;
+If "IF EXISTS" is not specified and the stream does not exist, an error will be reported; If "IF EXISTS" is specified and the stream does not exist, success is returned; If the stream exists, paused all stream tasks.
+
+2.resume stream
+RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
+If "IF EXISTS" is not specified and the stream does not exist, an error will be reported. If "IF EXISTS" is specified and the stream does not exist, success is returned; If the stream exists, all of the stream tasks will be resumed. If "IGNORE UntREATED" is specified, data written during the pause period of stream is ignored when resuming stream.

@@ -18,19 +18,26 @@
 #include "tq.h"
 
 // STqSnapReader ========================================
-struct STqSnapReader {
+
+typedef struct {
+  int8_t type;
+  TTB*   tbl;
+} STablePair;
+struct SStreamTaskReader {
   STQ*    pTq;
   int64_t sver;
   int64_t ever;
   TBC*    pCur;
+  SArray* tdbTbList;
+  int8_t  pos;
 };
 
-int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader) {
-  int32_t        code = 0;
-  STqSnapReader* pReader = NULL;
+int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskReader** ppReader) {
+  int32_t            code = 0;
+  SStreamTaskReader* pReader = NULL;
 
   // alloc
-  pReader = (STqSnapReader*)taosMemoryCalloc(1, sizeof(STqSnapReader));
+  pReader = (SStreamTaskReader*)taosMemoryCalloc(1, sizeof(SStreamTaskReader));
   if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -38,68 +45,100 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** p
   pReader->pTq = pTq;
   pReader->sver = sver;
   pReader->ever = ever;
+  pReader->tdbTbList = taosArrayInit(4, sizeof(STablePair));
 
-  // impl
-  code = tdbTbcOpen(pTq->pExecStore, &pReader->pCur, NULL);
+  STablePair pair1 = {.tbl = pTq->pStreamMeta->pTaskDb, .type = SNAP_DATA_STREAM_TASK};
+  taosArrayPush(pReader->tdbTbList, &pair1);
+
+  STablePair pair2 = {.tbl = pTq->pStreamMeta->pCheckpointDb, .type = SNAP_DATA_STREAM_TASK_CHECKPOINT};
+  taosArrayPush(pReader->tdbTbList, &pair2);
+
+  pReader->pos = 0;
+
+  STablePair* pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
+  code = tdbTbcOpen(pPair->tbl, &pReader->pCur, NULL);
   if (code) {
+    tqInfo("vgId:%d, vnode stream-task snapshot reader failed to open, reason: %s", TD_VID(pTq->pVnode),
+           tstrerror(code));
     taosMemoryFree(pReader);
     goto _err;
   }
 
   code = tdbTbcMoveToFirst(pReader->pCur);
   if (code) {
+    tqInfo("vgId:%d, vnode stream-task snapshot reader failed to iterate, reason: %s", TD_VID(pTq->pVnode),
+           tstrerror(code));
     taosMemoryFree(pReader);
     goto _err;
   }
 
-  tqInfo("vgId:%d, vnode snapshot tq reader opened", TD_VID(pTq->pVnode));
+  tqDebug("vgId:%d, vnode stream-task snapshot reader opened", TD_VID(pTq->pVnode));
 
   *ppReader = pReader;
   return code;
 
 _err:
-  tqError("vgId:%d, vnode snapshot tq reader open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode stream-task snapshot reader open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
 
-int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
+int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader) {
   int32_t code = 0;
-
-  tdbTbcClose((*ppReader)->pCur);
-  taosMemoryFree(*ppReader);
-  *ppReader = NULL;
-
+  tqInfo("vgId:%d, vnode stream-task snapshot reader closed", TD_VID(pReader->pTq->pVnode));
+  taosArrayDestroy(pReader->tdbTbList);
+  tdbTbcClose(pReader->pCur);
+  taosMemoryFree(pReader);
   return code;
 }
 
-int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
+int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
   int32_t     code = 0;
   const void* pKey = NULL;
-  const void* pVal = NULL;
+  void*       pVal = NULL;
   int32_t     kLen = 0;
   int32_t     vLen = 0;
   SDecoder    decoder;
   STqHandle   handle;
 
   *ppData = NULL;
+  int8_t except = 0;
+  tqDebug("vgId:%d, vnode stream-task snapshot start read data", TD_VID(pReader->pTq->pVnode));
+
+  STablePair* pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
+NextTbl:
+  except = 0;
   for (;;) {
-    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
-      goto _exit;
-    }
-
-    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeSTqHandle(&decoder, &handle);
-    tDecoderClear(&decoder);
-
-    if (handle.snapshotVer <= pReader->sver && handle.snapshotVer >= pReader->ever) {
-      tdbTbcMoveToNext(pReader->pCur);
+    const void* tVal = NULL;
+    int32_t     tLen = 0;
+    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &tVal, &tLen)) {
+      except = 1;
       break;
     } else {
-      tdbTbcMoveToNext(pReader->pCur);
+      pVal = taosMemoryCalloc(1, tLen);
+      memcpy(pVal, tVal, tLen);
+      vLen = tLen;
+    }
+    tdbTbcMoveToNext(pReader->pCur);
+    break;
+  }
+  if (except == 1) {
+    if (pReader->pos + 1 < taosArrayGetSize(pReader->tdbTbList)) {
+      tdbTbcClose(pReader->pCur);
+
+      pReader->pos += 1;
+      pPair = taosArrayGet(pReader->tdbTbList, pReader->pos);
+      code = tdbTbcOpen(pPair->tbl, &pReader->pCur, NULL);
+      tdbTbcMoveToFirst(pReader->pCur);
+
+      goto NextTbl;
     }
   }
-
+  if (pVal == NULL || vLen == 0) {
+    *ppData = NULL;
+    tqDebug("vgId:%d, vnode stream-task snapshot finished read data", TD_VID(pReader->pTq->pVnode));
+    return code;
+  }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -107,35 +146,34 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
-  pHdr->type = SNAP_DATA_TQ_HANDLE;
+  pHdr->type = pPair->type;
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
+  taosMemoryFree(pVal);
 
-  tqInfo("vgId:%d, vnode snapshot tq read data, version:%" PRId64 " subKey: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
-         handle.snapshotVer, handle.subKey, vLen);
+  tqDebug("vgId:%d, vnode stream-task snapshot read data vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
 
-_exit:
   return code;
-
 _err:
-  tqError("vgId:%d, vnode snapshot tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode stream-task snapshot read data failed since %s", TD_VID(pReader->pTq->pVnode),
+          tstrerror(code));
   return code;
 }
 
 // STqSnapWriter ========================================
-struct STqSnapWriter {
+struct SStreamTaskWriter {
   STQ*    pTq;
   int64_t sver;
   int64_t ever;
   TXN*    txn;
 };
 
-int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter) {
-  int32_t        code = 0;
-  STqSnapWriter* pWriter;
+int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter) {
+  int32_t            code = 0;
+  SStreamTaskWriter* pWriter;
 
   // alloc
-  pWriter = (STqSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
+  pWriter = (SStreamTaskWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -144,68 +182,84 @@ int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** p
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  if (tdbBegin(pTq->pMetaDB, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
+  if (tdbBegin(pTq->pStreamMeta->db, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
     code = -1;
     taosMemoryFree(pWriter);
     goto _err;
   }
 
   *ppWriter = pWriter;
+  tqDebug("vgId:%d, vnode stream-task snapshot writer opened", TD_VID(pTq->pVnode));
   return code;
 
 _err:
-  tqError("vgId:%d, tq snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode stream-task snapshot writer failed to write since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
+  return 0;
 }
 
-int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
-  int32_t        code = 0;
-  STqSnapWriter* pWriter = *ppWriter;
-  STQ*           pTq = pWriter->pTq;
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
+  int32_t code = 0;
+  STQ*    pTq = pWriter->pTq;
 
+  tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
-    tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
+    tdbAbort(pWriter->pTq->pStreamMeta->db, pWriter->txn);
   } else {
-    code = tdbCommit(pWriter->pTq->pMetaDB, pWriter->txn);
+    code = tdbCommit(pWriter->pTq->pStreamMeta->db, pWriter->txn);
     if (code) goto _err;
-    code = tdbPostCommit(pWriter->pTq->pMetaDB, pWriter->txn);
+    code = tdbPostCommit(pWriter->pTq->pStreamMeta->db, pWriter->txn);
     if (code) goto _err;
   }
 
   taosMemoryFree(pWriter);
-  *ppWriter = NULL;
 
   // restore from metastore
-  if (tqMetaRestoreHandle(pTq) < 0) {
-    goto _err;
-  }
+  // if (tqMetaRestoreHandle(pTq) < 0) {
+  //   goto _err;
+  // }
 
   return code;
 
 _err:
-  tqError("vgId:%d, tq snapshot writer close failed since %s", TD_VID(pWriter->pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode stream-task snapshot writer failed to close since %s", TD_VID(pWriter->pTq->pVnode),
+          tstrerror(code));
   return code;
+  return 0;
 }
 
-int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t   code = 0;
-  STQ*      pTq = pWriter->pTq;
-  SDecoder  decoder = {0};
-  SDecoder* pDecoder = &decoder;
-  STqHandle handle;
+int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  int32_t       code = 0;
+  STQ*          pTq = pWriter->pTq;
+  STqHandle     handle;
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
+  if (pHdr->type == SNAP_DATA_STREAM_TASK) {
+    SStreamTaskId task = {0};
 
-  tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  code = tDecodeSTqHandle(pDecoder, &handle);
-  if (code) goto _err;
-  code = tqMetaSaveHandle(pTq, handle.subKey, &handle);
-  if (code < 0) goto _err;
-  tDecoderClear(pDecoder);
+    SDecoder decoder;
+    tDecoderInit(&decoder, (uint8_t*)pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+
+    code = tDecodeStreamTaskId(&decoder, &task);
+    if (code < 0) {
+      tDecoderClear(&decoder);
+      goto _err;
+    }
+    tDecoderClear(&decoder);
+    // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
+    int64_t key[2] = {task.streamId, task.taskId};
+    if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, key, sizeof(int64_t) << 1, (uint8_t*)pData + sizeof(SSnapDataHdr),
+                    nData - sizeof(SSnapDataHdr), pWriter->txn) < 0) {
+      return -1;
+    }
+  } else if (pHdr->type == SNAP_DATA_STREAM_TASK_CHECKPOINT) {
+    // do nothing
+  }
+  tqDebug("vgId:%d, vnode stream-task snapshot write", TD_VID(pTq->pVnode));
 
   return code;
 
 _err:
-  tDecoderClear(pDecoder);
-  tqError("vgId:%d, vnode snapshot tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode stream-task snapshot failed to write since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }

@@ -97,7 +97,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   SWrapperCfg *pCfgs = NULL;
   snprintf(file, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("vnode file:%s not exist", file);
     return 0;
   }

@@ -62,12 +62,13 @@ serverPort            6030
 
 For all the dnodes in a TDengine cluster, the below parameters must be configured exactly the same, any node whose configuration is different from dnodes already in the cluster can't join the cluster.
 
-| **#** | **Parameter**      | **Definition**                                                                    |
-| ----- | ------------------ | ------------------------------------------- |
-| 1     | statusInterval     | The interval by which dnode reports its status to mnode                           |
-| 2     | timezone           | Timezone                                                                          |
-| 3     | locale             | System region and encoding                       |
-| 4     | charset            | Character set |
+| **#** | **Parameter**    | **Definition**                                                                |
+| ----- | ---------------- | ----------------------------------------------------------------------------- |
+| 1     | statusInterval   | The interval by which dnode reports its status to mnode                       |
+| 2     | timezone         | Timezone                                                                      |
+| 3     | locale           | System region and encoding                                                    |
+| 4     | charset          | Character set                                                                 |
+| 5     | ttlChangeOnWrite | Whether the ttl expiration time changes with the table modification operation |
 
 ## Start Cluster
 
@@ -97,7 +98,7 @@ Then, on the first dnode i.e. h1.tdengine.com in our example, use TDengine CLI `
 CREATE DNODE "h2.taos.com:6030";
 ````
 
-This adds the end point of the new dnode (from Step 4) into the end point list of the cluster. In the command "fqdn:port" should be quoted using double quotes. Change `"h2.taos.com:6030"` to the end point of your new dnode. 
+This adds the end point of the new dnode (from Step 4) into the end point list of the cluster. In the command "fqdn:port" should be quoted using double quotes. Change `"h2.taos.com:6030"` to the end point of your new dnode.
 
 Then on the first dnode h1.tdengine.com, execute `show dnodes` in `taos`
 
