@@ -1315,8 +1315,11 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   uint64_t     requestId = pParam->requestId;
   tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
+    taosMemoryFree(pParam);
+    taosMemoryFreeClear(pMsg->pData);
+    taosMemoryFreeClear(pMsg->pEpSet);
     terrno = TSDB_CODE_TMQ_CONSUMER_CLOSED;
-    goto FAILED;
+    return -1;
   }
 
   if (code != 0) {

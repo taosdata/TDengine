@@ -37,6 +37,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type: %s";
+    case TSDB_CODE_PAR_INVALID_VARBINARY:
+      return "Invalid varbinary value: %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
