@@ -1019,7 +1019,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
 
         code = cfgSetItem(pConfig, name, value, CFG_STYPE_APOLLO_URL);
         if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-        
+
         if (strcasecmp(name, "dataDir") == 0) {
           code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_APOLLO_URL);
           if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;

@@ -74,7 +74,7 @@ grafana-cli plugins install tdengine-datasource
 sudo -u grafana grafana-cli plugins install tdengine-datasource
 ```
 
-You can also download zip files from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and install manually. The commands are as follows:
+You can also download zip files from [GitHub](https://github.com/taosdata/grafanaplugin/releases/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and install manually. The commands are as follows:
 
 ```bash
 GF_VERSION=3.3.1
@@ -218,11 +218,11 @@ The example to query the average system memory usage for the specified interval 
 
 ### Importing the Dashboard
 
-You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. Ensure that you use TDinsight for 3.x.
+You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. Ensure that you use TDinsight for 3.x. Please note TDinsight for 3.x needs to configure and run taoskeeper correctly. Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
 
 ![TDengine Database Grafana plugine import dashboard](./import_dashboard.webp)
 
-A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)). Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
+A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
 For more dashboards using TDengine data source, [search here in Grafana](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Here is a sub list:
 

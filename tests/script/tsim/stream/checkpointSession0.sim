@@ -1,0 +1,178 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1 -v debugFlag 135
+system sh/exec.sh -n dnode1 -s start 
+sleep 50
+sql connect
+
+print step 1
+
+print =============== create database
+sql create database test vgroups 1;
+
+sql use test;
+
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1, sum(a) from t1 session(ts, 10s);
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791213001,2,2,3,1.1);
+
+$loop_count = 0
+
+loop0:
+sleep 1000
+
+sql select * from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows  expect 1
+  goto loop0
+endi
+
+# row 0
+if $data01 != 2 then
+  print =====data01=$data01
+  goto loop0
+endi
+
+if $data02 != 3 then
+  print =====data02=$data02
+  goto loop0
+endi
+
+print waiting for checkpoint generation 1 ......
+
+sleep 25000
+
+print restart taosd 01 ......
+
+system sh/stop_dnodes.sh
+
+system sh/exec.sh -n dnode1 -s start
+
+sql insert into t1 values(1648791213002,3,2,3,1.1);
+
+$loop_count = 0
+
+loop1:
+sleep 1000
+
+sql select * from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows  expect 1
+  goto loop1
+endi
+
+# row 0
+if $data01 != 3 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 6 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+sql insert into t1 values(1648791233003,4,2,3,1.1);
+
+$loop_count = 0
+
+loop2:
+sleep 1000
+
+sql select * from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows  expect 2
+  goto loop2
+endi
+
+# row 0
+if $data01 != 3 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+if $data02 != 6 then
+  print =====data02=$data02
+  goto loop2
+endi
+
+# row 1
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop2
+endi
+
+if $data12 != 4 then
+  print =====data12=$data12
+  goto loop2
+endi
+
+print step 2
+
+print restart taosd 02 ......
+
+system sh/stop_dnodes.sh
+
+system sh/exec.sh -n dnode1 -s start
+
+sql insert into t1 values(1648791233004,5,2,3,1.1);
+
+loop20:
+sleep 1000
+
+sql select * from streamt;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows  expect 2
+  goto loop20
+endi
+
+# row 0
+if $data01 != 3 then
+  print =====data01=$data01
+  goto loop20
+endi
+
+if $data02 != 6 then
+  print =====data02=$data02
+  goto loop20
+endi
+
+# row 1
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop20
+endi
+
+if $data12 != 9 then
+  print =====data12=$data12
+  goto loop20
+endi
+
+print end---------------------------------
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

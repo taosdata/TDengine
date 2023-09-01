@@ -402,7 +402,7 @@ CAST(expr AS type_name)
 
 **Return value type**: The type specified by parameter `type_name`
 
-**Applicable data types**: All data types except JSON
+**Applicable data types**: All data types except JSON and VARBINARY. If type_name is VARBINARY, expr can only be VARCHAR.
 
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 
@@ -1274,6 +1274,14 @@ SELECT SERVER_STATUS();
 ```
 
 **Description**: The server status.
+
+### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**Description**: get current user.
 
 
 ## Geometry Functions

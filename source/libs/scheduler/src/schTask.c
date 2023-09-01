@@ -862,7 +862,7 @@ void schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask) {
   while (nodeInfo) {
     if (nodeInfo->handle) {
       SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
-      schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK);
+      schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK, NULL);
       SCH_TASK_DLOG("start to drop task's %dth execNode", i);
     } else {
       SCH_TASK_DLOG("no need to drop task %dth execNode", i);
@@ -874,6 +874,33 @@ void schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_TASK_DLOG("task has been dropped on %d exec nodes", size);
 }
+
+int32_t schNotifyTaskOnExecNode(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type) {
+  int32_t size = (int32_t)taosHashGetSize(pTask->execNodes);
+  if (size <= 0) {
+    SCH_TASK_DLOG("task no exec address to notify, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t       i = 0;
+  SSchNodeInfo *nodeInfo = taosHashIterate(pTask->execNodes, NULL);
+  while (nodeInfo) {
+    if (nodeInfo->handle) {
+      SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
+      SCH_ERR_RET(schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_TASK_NOTIFY, &type));
+      SCH_TASK_DLOG("start to notify %d to task's %dth execNode", type, i);
+    } else {
+      SCH_TASK_DLOG("no need to notify %d to task %dth execNode", type, i);
+    }
+
+    ++i;
+    nodeInfo = taosHashIterate(pTask->execNodes, nodeInfo);
+  }
+
+  SCH_TASK_DLOG("task has been notified %d on %d exec nodes", type, size);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
   int32_t   taskNum = (int32_t)taosArrayGetSize(pStatusList);
@@ -1001,7 +1028,7 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
   }
 
-  SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+  SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType, NULL));
 }
 
 int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
@@ -1238,8 +1265,33 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
   }
 }
 
+int32_t schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pCurrTask) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SCH_ERR_RET(schNotifyTaskOnExecNode(pJob, pCurrTask, type));
+  
+  void *pIter = taosHashIterate(list, NULL);
+  while (pIter) {
+    SSchTask *pTask = *(SSchTask **)pIter;
+    if (pTask != pCurrTask) {
+      SCH_LOCK_TASK(pTask);
+      code = schNotifyTaskOnExecNode(pJob, pTask, type);
+      SCH_UNLOCK_TASK(pTask);
+      
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+
+    pIter = taosHashIterate(list, pIter);
+  }
+
+  SCH_RET(code);
+}
+
+
 int32_t schExecRemoteFetch(SSchJob *pJob, SSchTask *pTask) {
-  SCH_RET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, SCH_FETCH_TYPE(pJob->fetchTask)));
+  SCH_RET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, SCH_FETCH_TYPE(pJob->fetchTask), NULL));
 }
 
 int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {

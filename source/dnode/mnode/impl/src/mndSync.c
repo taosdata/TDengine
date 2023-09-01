@@ -17,7 +17,6 @@
 #include "mndSync.h"
 #include "mndCluster.h"
 #include "mndTrans.h"
-#include "mndVgroup.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -75,25 +74,25 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 }
 
 static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  SSdbRaw *pRaw = pAction->pRaw;
+  SSdb    *pSdb = pMnode->pSdb;
   SSdbRow *pRow = NULL;
-  int32_t  code = -1;
+  void    *pObj = NULL;
+  int      code = -1;
 
-  if (pAction->msgType == TDMT_MND_CREATE_VG) {
-    pRow = mndVgroupActionDecode(pAction->pRaw);
-    if (pRow == NULL) goto _OUT;
+  if (pRaw->status != SDB_STATUS_CREATING) goto _OUT;
 
-    SVgObj *pVgroup = sdbGetRowObj(pRow);
-    if (pVgroup == NULL) goto _OUT;
+  pRow = (pSdb->decodeFps[pRaw->type])(pRaw);
+  if (pRow == NULL) goto _OUT;
+  pObj = sdbGetRowObj(pRow);
+  if (pObj == NULL) goto _OUT;
 
-    int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
-    if (maxVgId > pVgroup->vgId) {
-      mError("trans:%d, failed to satisfy vgroup id %d of prepare action. maxVgId:%d", pTrans->id, pVgroup->vgId,
-             maxVgId);
-      goto _OUT;
-    }
+  SdbValidateFp validateFp = pSdb->validateFps[pRaw->type];
+  code = 0;
+  if (validateFp) {
+    code = validateFp(pMnode, pTrans, pObj);
   }
 
-  code = 0;
 _OUT:
   taosMemoryFreeClear(pRow);
   return code;
@@ -476,7 +475,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
-  pMgmt->sync = syncOpen(&syncInfo);
+  pMgmt->sync = syncOpen(&syncInfo, true);
   if (pMgmt->sync <= 0) {
     mError("failed to open sync since %s", terrstr());
     return -1;

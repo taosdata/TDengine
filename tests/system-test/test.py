@@ -199,7 +199,7 @@ if __name__ == "__main__":
             createDnodeNums = value
 
         if key in ['-i', '--independentMnode']:
-            independentMnode = value
+            independentMnode = False
 
         if key in ['-R', '--restful']:
             restful = True
@@ -553,6 +553,7 @@ if __name__ == "__main__":
         else :
             # dnode > 1 cluster
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
+            print(independentMnode,"independentMnode valuse")
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)

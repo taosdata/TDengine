@@ -49,3 +49,5 @@ SELECT * FROM information_schema.INS_INDEXES
 6. 不支持对普通和子表建立索引。
 
 7. 如果某个 tag 列的唯一值较少时，不建议对其建立索引，这种情况下收效甚微。
+
+8. 新建立的超级表，会给第一列tag，随机生成一个indexNewName, 生成规则是:tag0的name + 23个byte, 在系统表可以查,也可以按需要drop,行为和其他列tag 的索引一样

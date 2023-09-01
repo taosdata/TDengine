@@ -117,7 +117,7 @@ void*           tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
-uint64_t        getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
@@ -163,7 +163,7 @@ int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
-SArray* extractPartitionColInfo(SNodeList* pNodeList);
+SArray* makeColumnArrayFromList(SNodeList* pNodeList);
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo);
 

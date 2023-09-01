@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vndCos.h"
 
 /**
  * @brief max key by precision
@@ -76,9 +77,18 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
   int32_t       code = 0;
   STsdbKeepCfg *pCfg = &pTsdb->keepCfg;
   TSKEY         now = taosGetTimestamp(pCfg->precision);
-  TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep1;
+  TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
   TSKEY         maxKey = tsMaxKeyByPrecision[pCfg->precision];
   int32_t       size = taosArrayGetSize(pMsg->aSubmitTbData);
+  int32_t       nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+
+  if (nlevel > 1 && tsS3Enabled) {
+    if (nlevel == 3) {
+      minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep1;
+    } else if (nlevel == 2) {
+      minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep0;
+    }
+  }
 
   for (int32_t i = 0; i < size; ++i) {
     SSubmitTbData *pData = TARRAY_GET_ELEM(pMsg->aSubmitTbData, i);

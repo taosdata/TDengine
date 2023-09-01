@@ -92,7 +92,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-/*  
   {
     .showType = QUERY_NODE_SHOW_MODULES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -100,7 +99,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-*/  
   {
     .showType = QUERY_NODE_SHOW_QNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -1231,8 +1229,41 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       *(double*)&pVal->typeData = pVal->datum.d;
       break;
     }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      if (pVal->node.resType.type != TSDB_DATA_TYPE_BINARY){
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+
+      void* data = NULL;
+      uint32_t size = 0;
+      bool isHexChar = isHex(pVal->literal, strlen(pVal->literal));
+      if(isHexChar){
+        if(!isValidateHex(pVal->literal, strlen(pVal->literal))){
+          return TSDB_CODE_PAR_INVALID_VARBINARY;
+        }
+        if(taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }else{
+        size = pVal->node.resType.bytes;
+        data = pVal->literal;
+      }
+
+      if (size + VARSTR_HEADER_SIZE > targetDt.bytes) {
+        if(isHexChar) taosMemoryFree(data);
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_VALUE_TOO_LONG, pVal->literal);
+      }
+      pVal->datum.p = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
+      if (NULL == pVal->datum.p) {
+        if(isHexChar) taosMemoryFree(data);
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+      }
+      varDataSetLen(pVal->datum.p, size);
+      memcpy(varDataVal(pVal->datum.p), data, size);
+      if(isHexChar)  taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
       if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
@@ -1306,7 +1337,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
 }
 
 static int32_t calcTypeBytes(SDataType dt) {
-  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_VARBINARY == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
     return dt.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -2810,6 +2841,13 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
+        pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) || (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
+        if (nodeType(pJoinTable->pLeft) == QUERY_NODE_JOIN_TABLE) {
+          ((SJoinTableNode*)pJoinTable->pLeft)->isLowLevelJoin = true;
+        }
+        if (nodeType(pJoinTable->pRight) == QUERY_NODE_JOIN_TABLE) {
+          ((SJoinTableNode*)pJoinTable->pRight)->isLowLevelJoin = true;
+        }
       }
       break;
     }
@@ -2852,7 +2890,7 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   pFunc->funcId = pSrcFunc->funcId;
   pFunc->funcType = pSrcFunc->funcType;
   strcpy(pFunc->functionName, pSrcFunc->functionName);
-  char    buf[TSDB_FUNC_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+  char    buf[TSDB_FUNC_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN + 3] = {0};
   int32_t len = 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
@@ -2860,16 +2898,20 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
       strcpy(pFunc->node.userAlias, pCol->colName);
       strcpy(pFunc->node.aliasName, pCol->colName);
     } else {
-      len = snprintf(buf, sizeof(buf), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
-      strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
-      len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pCol->colName);
-      strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+      taosCreateMD5Hash(buf, len);
+      strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN  - 1);
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
+      taosCreateMD5Hash(buf, len);
+      strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
     }
   } else {
-    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
-    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
-    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
-    strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    taosCreateMD5Hash(buf, len);
+    strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
+    taosCreateMD5Hash(buf, len);
+    strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
   }
 
   return (SNode*)pFunc;
@@ -3689,11 +3731,30 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static int32_t removeConstantValueFromList(SNodeList** pList) {
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, *pList) {
+    if (nodeType(pNode) == QUERY_NODE_VALUE || 
+        (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
+      ERASE_NODE(*pList);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+
+  if (*pList && (*pList)->length <= 0) {
+    nodesDestroyList(*pList);
+    *pList = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   int32_t code = TSDB_CODE_SUCCESS;
-
-  if (pSelect->pPartitionByList) {
+  
+  if (TSDB_CODE_SUCCESS == code && pSelect->pPartitionByList) {
     int8_t typeType = getTableTypeFromTableNode(pSelect->pFromTable);
     SNode* pPar = nodesListGetNode(pSelect->pPartitionByList, 0);
     if (!((TSDB_NORMAL_TABLE == typeType || TSDB_CHILD_TABLE == typeType) && 1 == pSelect->pPartitionByList->length &&
@@ -3902,6 +3963,11 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceTbName(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pSelect->pPartitionByList) {
+      code = removeConstantValueFromList(&pSelect->pPartitionByList);
+    }
   }
 
   return code;
@@ -4697,7 +4763,6 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
-    strcpy(field.comment, pCol->comments);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
@@ -4794,6 +4859,7 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     }
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
+          (TSDB_DATA_TYPE_VARBINARY == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
           (TSDB_DATA_TYPE_GEOMETRY == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
@@ -4846,6 +4912,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     }
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_VARBINARY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN) ||
           (TSDB_DATA_TYPE_GEOMETRY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_GEOMETRY_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
@@ -5045,7 +5112,6 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
   strcpy(pSchema->name, pCol->colName);
-  strcpy(pSchema->comment, pCol->comments);
 }
 
 typedef struct SSampleAstInfo {
@@ -5543,6 +5609,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 
     if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType) {
       if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
@@ -5569,6 +5636,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     }
 
     if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+        (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
         (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
     }
@@ -6178,7 +6246,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
     strcpy(realTable->table.dbName, pStmt->subDbName);
     strcpy(realTable->table.tableName, pStmt->subSTbName);
     strcpy(realTable->table.tableAlias, pStmt->subSTbName);
-    *pSelect = createSelectStmtImpl(true, pProjection, (SNode*)realTable);
+    *pSelect = createSelectStmtImpl(true, pProjection, (SNode*)realTable, NULL);
     ((SSelectStmt*)*pSelect)->pWhere = nodesCloneNode(pStmt->pWhere);
     pCxt->pParseCxt->topicQuery = true;
     code = translateQuery(pCxt, *pSelect);
@@ -7694,10 +7762,6 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
 
-  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_COMMENT_LEN;
-  strcpy((*pSchema)[4].name, "comment");
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8073,8 +8137,6 @@ static int32_t rewriteShowVnodes(STranslateContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pShow->pDnodeId) {
       code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", pShow->pDnodeId, &pStmt->pWhere);
-    } else {
-      code = createOperatorNode(OP_TYPE_EQUAL, "dnode_ep", pShow->pDnodeEndpoint, &pStmt->pWhere);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8860,6 +8922,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   }
 
   if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
       (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
   }
@@ -8880,15 +8943,6 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
-  if (pStmt->colComment[0]) {
-    pReq->colComment = taosStrdup(pStmt->colComment);
-    if (pReq->colComment == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pReq->colCommentLen = strlen(pReq->colComment);
-  } else {
-    pReq->colCommentLen = -1;
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8926,6 +8980,7 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   }
 
   if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
+      (TSDB_DATA_TYPE_VARBINARY == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
       (TSDB_DATA_TYPE_NCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_NCHAR_LEN)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
   }
@@ -8939,15 +8994,6 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pReq->colId = pSchema->colId;
-  if (pStmt->colComment[0]) {
-    pReq->colComment = taosStrdup(pStmt->colComment);
-    if (pReq->colComment == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    pReq->colCommentLen = strlen(pReq->colComment);
-  } else {
-    pReq->colCommentLen = -1;
-  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -9201,7 +9247,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
-//    case QUERY_NODE_SHOW_MODULES_STMT:
+    case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:

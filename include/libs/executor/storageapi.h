@@ -106,6 +106,8 @@ typedef struct SMCtbCursor {
   void    *pVal;
   int      kLen;
   int      vLen;
+  int8_t     paused;
+  int      lock;
 } SMCtbCursor;
 
 typedef struct SRowBuffPos {
@@ -295,7 +297,9 @@ int32_t vnodeGetCtbIdListByFilter(void *pVnode, int64_t suid, SArray *list, bool
 int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
  */
   SMCtbCursor* (*openCtbCursor)(void *pVnode, tb_uid_t uid, int lock);
-  void         (*closeCtbCursor)(SMCtbCursor *pCtbCur, int lock);
+  int32_t      (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
+  void         (*pauseCtbCursor)(SMCtbCursor* pCtbCur);
+  void         (*closeCtbCursor)(SMCtbCursor *pCtbCur);
   tb_uid_t     (*ctbCursorNext)(SMCtbCursor* pCur);
 } SStoreMeta;
 
@@ -375,7 +379,7 @@ typedef struct SStateStore {
                                            state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
   int32_t (*streamStateSessionGetKeyByRange)(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
 
-  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark);
+  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
   TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
   bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
@@ -383,7 +387,7 @@ typedef struct SStateStore {
   void (*windowSBfDelete)(SUpdateInfo *pInfo, uint64_t count);
   void (*windowSBfAdd)(SUpdateInfo *pInfo, uint64_t count);
 
-  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark);
+  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);
   void (*updateInfoDestoryColseWinSBF)(SUpdateInfo* pInfo);
   int32_t (*updateInfoSerialize)(void* buf, int32_t bufLen, const SUpdateInfo* pInfo);
@@ -394,7 +398,8 @@ typedef struct SStateStore {
   SStreamStateCur* (*streamStateSessionSeekKeyCurrentNext)(SStreamState* pState, const SSessionKey* key);
 
   struct SStreamFileState* (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize,
-                                                  uint32_t selectRowSize, GetTsFun fp, void* pFile, TSKEY delMark, const char*id);
+                                                  uint32_t selectRowSize, GetTsFun fp, void* pFile, TSKEY delMark,
+                                                  const char* id, int64_t ckId);
 
   void (*streamFileStateDestroy)(struct SStreamFileState* pFileState);
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);

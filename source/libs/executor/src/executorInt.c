@@ -30,10 +30,10 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "storageapi.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "storageapi.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
@@ -547,6 +547,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
+    trimDataBlock(pBlock, pBlock->info.rows, NULL);
     pBlock->info.rows = 0;
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
     trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
@@ -697,8 +698,8 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       uint32_t newSize = pBlock->info.rows + pRow->numOfRows + ((numOfRows - i) > 1 ? 1 : 0);
       blockDataEnsureCapacity(pBlock, newSize);
-      qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
-             newSize, pBlock->info.capacity, GET_TASKID(pTaskInfo));
+      qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s", newSize,
+             pBlock->info.capacity, GET_TASKID(pTaskInfo));
       // todo set the pOperator->resultInfo size
     }
 
@@ -722,9 +723,9 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
 void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                            SDiskbasedBuf* pBuf) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
-  SSDataBlock*   pBlock = pbInfo->pRes;
+  SSDataBlock* pBlock = pbInfo->pRes;
 
   // set output datablock version
   pBlock->info.version = pTaskInfo->version;
@@ -737,10 +738,12 @@ void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGr
   // clear the existed group id
   pBlock->info.id.groupId = 0;
   ASSERT(!pbInfo->mergeResultBlock);
-  doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold, false);
+  doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
+                     false);
 
   void* tbname = NULL;
-  if (pAPI->stateStore.streamStateGetParName((void*)pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
+  if (pAPI->stateStore.streamStateGetParName((void*)pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) <
+      0) {
     pBlock->info.parTbName[0] = 0;
   } else {
     memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
@@ -765,10 +768,12 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   // clear the existed group id
   pBlock->info.id.groupId = 0;
   if (!pbInfo->mergeResultBlock) {
-    doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold, false);
+    doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
+                       false);
   } else {
     while (hasRemainResults(pGroupResInfo)) {
-      doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold, true);
+      doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
+                         true);
       if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
         break;
       }
@@ -966,10 +971,10 @@ int32_t saveSessionDiscBuf(void* pState, SSessionKey* key, void* buf, int32_t si
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock,
-                                    SExprSupp* pSup, SGroupResInfo* pGroupResInfo) {
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
+                                    SGroupResInfo* pGroupResInfo) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
   SExprInfo*      pExprInfo = pSup->pExprInfo;
   int32_t         numOfExprs = pSup->numOfExprs;
@@ -986,8 +991,8 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     // ASSERT(code == 0);
     if (code == -1) {
       // for history
-      qWarn("===stream===not found session result key:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, pKey->win.skey,
-            pKey->win.ekey, pKey->groupId);
+      qWarn("===stream===not found session result key:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 "",
+            pKey->win.skey, pKey->win.ekey, pKey->groupId);
       pGroupResInfo->index += 1;
       continue;
     }
@@ -1004,7 +1009,8 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
       pBlock->info.id.groupId = pKey->groupId;
 
       void* tbname = NULL;
-      if (pAPI->stateStore.streamStateGetParName((void*)pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
+      if (pAPI->stateStore.streamStateGetParName((void*)pTaskInfo->streamInfo.pState, pBlock->info.id.groupId,
+                                                 &tbname) < 0) {
         pBlock->info.parTbName[0] = 0;
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
@@ -1070,6 +1076,142 @@ void streamOpReloadState(SOperatorInfo* pOperator) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
 }
+
+void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
+  int32_t childrenNum = taosArrayGetSize(pParam->pChildren);
+  for (int32_t i = 0; i < childrenNum; ++i) {
+    SOperatorParam* pChild = taosArrayGetP(pParam->pChildren, i);
+    freeOperatorParam(pChild, type);
+  }
+
+  taosArrayDestroy(pParam->pChildren);
+
+  taosMemoryFree(pParam->value);
+  
+  taosMemoryFree(pParam);
+}
+
+void freeExchangeGetBasicOperatorParam(void* pParam) {
+  SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
+  taosArrayDestroy(pBasic->uidList);
+}
+
+void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
+  SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pParam->value;
+  if (pExcParam->multiParams) {
+    SExchangeOperatorBatchParam* pExcBatch = (SExchangeOperatorBatchParam*)pParam->value;
+    tSimpleHashCleanup(pExcBatch->pBatchs);
+  } else {
+    freeExchangeGetBasicOperatorParam(&pExcParam->basic);
+  }
+
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeExchangeNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+void freeGroupCacheGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeGroupCacheNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+void freeMergeJoinGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
+  STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
+  taosArrayDestroy(pTableScanParam->pUidList);
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
+
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
+  if (NULL == pParam) {
+    return;
+  }
+  
+  switch (pParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+      type == OP_GET_PARAM ? freeExchangeGetOperatorParam(pParam) : freeExchangeNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
+      type == OP_GET_PARAM ? freeGroupCacheGetOperatorParam(pParam) : freeGroupCacheNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
+      type == OP_GET_PARAM ? freeMergeJoinGetOperatorParam(pParam) : freeMergeJoinNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
+      break;
+    default:
+      qError("unsupported op %d param, type %d", pParam->opType, type);
+      break;
+  }
+}
+
+void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree) {
+  SOperatorParam** ppParam = NULL;
+  SOperatorParam*** pppDownstramParam = NULL;
+  switch (type) {
+    case OP_GET_PARAM:
+      ppParam = &pOperator->pOperatorGetParam;
+      pppDownstramParam = &pOperator->pDownstreamGetParams;
+      break;
+    case OP_NOTIFY_PARAM:
+      ppParam = &pOperator->pOperatorNotifyParam;
+      pppDownstramParam = &pOperator->pDownstreamNotifyParams;
+      break;
+    default:
+      return;
+  }
+
+  if (*ppParam) {
+    freeOperatorParam(*ppParam, type);
+    *ppParam = NULL;
+  }
+
+  if (*pppDownstramParam) {
+    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+      if ((*pppDownstramParam)[i]) {
+        freeOperatorParam((*pppDownstramParam)[i], type);
+        (*pppDownstramParam)[i] = NULL;
+      }
+    }
+    if (allFree) {
+      taosMemoryFreeClear(*pppDownstramParam);
+    }
+  }
+}
+
+
+FORCE_INLINE SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam) {
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pOperator->pDownstreamGetParams[idx]);
+    if (clearParam) {
+      freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
+      pOperator->pDownstreamGetParams[idx] = NULL;
+    }
+    return pBlock;
+  }
+  
+  return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+}
+
 
 bool compareVal(const char* v, const SStateKeys* pKey) {
   if (IS_VAR_DATA_TYPE(pKey->type)) {

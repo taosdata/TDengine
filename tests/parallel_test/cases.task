@@ -6,6 +6,14 @@
 ,,y,unit-test,bash test.sh
 
 #system test
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
@@ -128,6 +136,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
@@ -138,6 +147,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3821.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -351,6 +361,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sma_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
@@ -763,6 +774,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill_with_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
@@ -1017,6 +1029,7 @@
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
 ,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim

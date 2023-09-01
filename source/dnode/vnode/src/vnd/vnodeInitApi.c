@@ -98,6 +98,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;
 
   pMeta->openCtbCursor = metaOpenCtbCursor;
+  pMeta->resumeCtbCursor = metaResumeCtbCursor;
+  pMeta->pauseCtbCursor = metaPauseCtbCursor;
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
 }

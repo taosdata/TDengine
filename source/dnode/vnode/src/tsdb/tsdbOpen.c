@@ -88,6 +88,9 @@ _err:
 
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
+    STsdb *pdb = *pTsdb;
+    tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d", TD_VID(pdb->pVnode), pdb->path, pdb->keepCfg.days,
+              pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2);
     taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
     tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;

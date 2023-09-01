@@ -22,6 +22,8 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "left.ts = right.ts is expected in join expression";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
       return "not support cross join";
+    case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
+      return "Not supported join conditions";
     default:
       break;
   }
@@ -63,6 +65,16 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       }
       pCol->node.resType = pExpr->resType;
       strcpy(pCol->colName, pExpr->aliasName);
+      if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+        SFunctionNode* pFunc = (SFunctionNode*)pNode;
+        if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
+          SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          if (NULL != pVal) {
+            strcpy(pCol->tableAlias, pVal->literal);
+            strcpy(pCol->tableName, pVal->literal);
+          }
+        }
+      }
       return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
                                                                                     : DEAL_RES_ERROR);
     }
@@ -108,6 +120,7 @@ int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
 }
 
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
+  pNew->stmtRoot = pOld->stmtRoot;
   if (NULL == pOld->pParent) {
     pSubplan->pNode = (SLogicNode*)pNew;
     pNew->pParent = NULL;
@@ -124,6 +137,19 @@ int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* 
   }
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
+
+SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr) {
+  while (pCurr) {
+    if (pCurr->stmtRoot || NULL == pCurr->pParent) {
+      return pCurr;
+    }
+
+    pCurr = pCurr->pParent;
+  }
+
+  return NULL;
+}
+
 
 static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel requirement) {
   if ((SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) ||
@@ -385,6 +411,48 @@ static bool stbHasPartTag(SNodeList* pPartKeys) {
     }
   }
   return false;
+}
+
+bool getBatchScanOptionFromHint(SNodeList* pList) {
+  SNode* pNode = NULL;
+  bool batchScan = true;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_BATCH_SCAN) {
+      batchScan = true;
+      break;
+    } else if (pHint->option == HINT_NO_BATCH_SCAN) {
+      batchScan = false;
+      break;
+    }
+  }
+
+  return batchScan;
+}
+
+int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SLogicNode* pCurr = (SLogicNode*)pNode;
+  FOREACH(pNode, pCurr->pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (NULL == *ppRes) {
+      *ppRes = tSimpleHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+      if (NULL == *ppRes) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
+  }
+  
+  FOREACH(pNode, pCurr->pChildren) {
+    code = collectTableAliasFromNodes(pNode, ppRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 bool isPartTagAgg(SAggLogicNode* pAgg) {

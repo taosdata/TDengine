@@ -27,7 +27,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.host = socket.gethostname()
 
 

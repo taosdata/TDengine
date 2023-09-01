@@ -1222,6 +1222,7 @@ int32_t bpAppendValueString(char *buf, int type, void *value, int32_t valueLen, 
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
       buf[*len] = '\'';
@@ -1369,7 +1370,7 @@ void bpCheckColTagFields(TAOS_STMT *stmt, int32_t fieldNum, TAOS_FIELD_E* pField
       exit(1);
     }
 
-    if (pFields[i].type == TSDB_DATA_TYPE_BINARY || pFields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+    if (pFields[i].type == TSDB_DATA_TYPE_BINARY || pFields[i].type == TSDB_DATA_TYPE_VARBINARY || pFields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pFields[i].bytes != (pBind[i].buffer_length + 2)) {
         printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].bytes, (pBind[i].buffer_length + 2));
         exit(1);
@@ -2256,7 +2257,7 @@ int insertNonExistsTb(TAOS_STMT *stmt, TAOS *taos) {
 
 void bpAddWrongVarBuffLen(TAOS_MULTI_BIND* pBind) {
   for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
-    if (pBind[i].buffer_type == TSDB_DATA_TYPE_BINARY || pBind[i].buffer_type == TSDB_DATA_TYPE_NCHAR) {
+    if (pBind[i].buffer_type == TSDB_DATA_TYPE_BINARY || pBind[i].buffer_type == TSDB_DATA_TYPE_VARBINARY || pBind[i].buffer_type == TSDB_DATA_TYPE_NCHAR) {
       *pBind[i].length += 100;
     }
   }

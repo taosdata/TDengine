@@ -29,6 +29,9 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "systable.h"
+#include "tjson.h"
+#include "thttp.h"
+#include "audit.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 46
@@ -37,6 +40,8 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
+static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj);
+
 static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
@@ -59,6 +64,7 @@ int32_t mndInitDb(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndDbActionInsert,
       .updateFp = (SdbUpdateFp)mndDbActionUpdate,
       .deleteFp = (SdbDeleteFp)mndDbActionDelete,
+      .validateFp = (SdbValidateFp)mndNewDbActionValidate,
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DB, mndProcessCreateDbReq);
@@ -245,6 +251,19 @@ _OVER:
 
   mTrace("db:%s, decode from raw:%p, row:%p", pDb->name, pRaw, pDb);
   return pRow;
+}
+
+static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj) {
+  SDbObj *pNewDb = pObj;
+
+  SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
+  if (pOldDb != NULL) {
+    mError("trans:%d, db name already in use. name: %s", pTrans->id, pNewDb->name);
+    sdbRelease(pMnode->pSdb, pOldDb);
+    return -1;
+  }
+
+  return 0;
 }
 
 static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
@@ -448,9 +467,18 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
 }
 
-static int32_t mndSetPrepareNewVgActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
+  if (pDbRaw == NULL) return -1;
+
+  if (mndTransAppendPrepareLog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
+  return 0;
+}
+
+static int32_t mndSetNewVgPrepareActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
-    if (mndAddPrepareNewVgAction(pMnode, pTrans, (pVgroups + v)) != 0) return -1;
+    if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgroups + v)) != 0) return -1;
   }
   return 0;
 }
@@ -459,7 +487,7 @@ static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pDbRaw) != 0) return -1;
-  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_UPDATE) != 0) return -1;
 
   for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
@@ -633,11 +661,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
-  if (mndSetPrepareNewVgActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
+  if (mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj) != 0) goto _OVER;
+  if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
+  if (mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped) != 0) goto _OVER;
-  if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -648,6 +676,22 @@ _OVER:
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
   return code;
+}
+
+static void mndBuildAuditDetailInt32(char* detail, char* tmp, char* format, int32_t para){
+  if(para > 0){
+    if(strlen(detail) > 0) strcat(detail, ", "); 
+    sprintf(tmp, format, para);
+    strcat(detail, tmp);
+  }
+}
+
+static void mndBuildAuditDetailInt64(char* detail, char* tmp, char* format, int64_t para){
+  if(para > 0){
+    if(strlen(detail) > 0) strcat(detail, ", "); 
+    sprintf(tmp, format, para);
+    strcat(detail, tmp);
+  }
 }
 
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
@@ -707,6 +751,45 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   code = mndCreateDb(pMnode, pReq, &createReq, pUser);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  char detail[3000] = {0};
+  char tmp[100] = {0};
+
+  mndBuildAuditDetailInt32(detail, tmp, "buffer:%d", createReq.buffer);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLast:%d", createReq.cacheLast);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLastSize:%d", createReq.cacheLastSize);
+  mndBuildAuditDetailInt32(detail, tmp, "compression:%d", createReq.compression);
+  mndBuildAuditDetailInt32(detail, tmp, "daysPerFile:%d", createReq.daysPerFile);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep0:%d", createReq.daysToKeep0);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep1:%d", createReq.daysToKeep1);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep2:%d", createReq.daysToKeep2);
+  mndBuildAuditDetailInt32(detail, tmp, "hashPrefix:%d", createReq.hashPrefix);
+  mndBuildAuditDetailInt32(detail, tmp, "hashSuffix:%d", createReq.hashSuffix);
+  mndBuildAuditDetailInt32(detail, tmp, "ignoreExist:%d", createReq.ignoreExist);
+  mndBuildAuditDetailInt32(detail, tmp, "maxRows:%d", createReq.maxRows);
+  mndBuildAuditDetailInt32(detail, tmp, "minRows:%d", createReq.minRows);
+  mndBuildAuditDetailInt32(detail, tmp, "numOfRetensions:%d", createReq.numOfRetensions);
+  mndBuildAuditDetailInt32(detail, tmp, "numOfStables:%d", createReq.numOfStables);
+  mndBuildAuditDetailInt32(detail, tmp, "numOfVgroups:%d", createReq.numOfVgroups);
+  mndBuildAuditDetailInt32(detail, tmp, "pages:%d", createReq.pages);
+  mndBuildAuditDetailInt32(detail, tmp, "pageSize:%d", createReq.pageSize);
+  mndBuildAuditDetailInt32(detail, tmp, "precision:%d", createReq.precision);
+  mndBuildAuditDetailInt32(detail, tmp, "replications:%d", createReq.replications);
+  mndBuildAuditDetailInt32(detail, tmp, "schemaless:%d", createReq.schemaless);
+  mndBuildAuditDetailInt32(detail, tmp, "sstTrigger:%d", createReq.sstTrigger);
+  mndBuildAuditDetailInt32(detail, tmp, "strict:%d", createReq.strict);
+  mndBuildAuditDetailInt32(detail, tmp, "tsdbPageSize:%d", createReq.tsdbPageSize);
+  mndBuildAuditDetailInt32(detail, tmp, "walFsyncPeriod:%d", createReq.walFsyncPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walLevel:%d", createReq.walLevel);
+  mndBuildAuditDetailInt32(detail, tmp, "walRetentionPeriod:%d", createReq.walRetentionPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walRetentionSize:%" PRId64, createReq.walRetentionSize);
+  mndBuildAuditDetailInt32(detail, tmp, "walRollPeriod:%d", createReq.walRollPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walSegmentSize:%" PRId64, createReq.walSegmentSize);
+  
+  SName name = {0};
+  tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -857,7 +940,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pIter == NULL) break;
 
     if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
-      if (mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray) != 0) {
+      if (mndBuildRaftAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         taosArrayDestroy(pArray);
@@ -949,6 +1032,30 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   } else {
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
+
+  char detail[3000] = {0};
+  char tmp[100] = {0};
+
+  mndBuildAuditDetailInt32(detail, tmp, "buffer:%d", alterReq.buffer);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLast:%d", alterReq.cacheLast);
+  mndBuildAuditDetailInt32(detail, tmp, "cacheLastSize:%d", alterReq.cacheLastSize);
+  mndBuildAuditDetailInt32(detail, tmp, "daysPerFile:%d", alterReq.daysPerFile);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep0:%d", alterReq.daysToKeep0);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep1:%d", alterReq.daysToKeep1);
+  mndBuildAuditDetailInt32(detail, tmp, "daysToKeep2:%d", alterReq.daysToKeep2);
+  mndBuildAuditDetailInt32(detail, tmp, "minRows:%d", alterReq.minRows);
+  mndBuildAuditDetailInt32(detail, tmp, "pages:%d", alterReq.pages);
+  mndBuildAuditDetailInt32(detail, tmp, "pageSize:%d", alterReq.pageSize);
+  mndBuildAuditDetailInt32(detail, tmp, "replications:%d", alterReq.replications);
+  mndBuildAuditDetailInt32(detail, tmp, "sstTrigger:%d", alterReq.sstTrigger);
+  mndBuildAuditDetailInt32(detail, tmp, "strict:%d", alterReq.strict);
+  mndBuildAuditDetailInt32(detail, tmp, "walFsyncPeriod:%d", alterReq.walFsyncPeriod);
+  mndBuildAuditDetailInt32(detail, tmp, "walRetentionSize:%d", alterReq.walRetentionSize);
+
+  SName name = {0};
+  tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1238,6 +1345,14 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
+
+  char detail[1000] = {0};
+  sprintf(detail, "ignoreNotExists:%d", dropReq.ignoreNotExists);
+
+  SName name = {0};
+  tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", detail);
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
