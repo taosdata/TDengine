@@ -1,5 +1,11 @@
 <template>
-  <div class="dataOut-wrap flexStart"> 
+  <div
+    :class="[
+      'dataOut-wrap',
+      'flexStart',
+      (this.$parent.currentTaskStatus != '') && 'readable',
+    ]"
+  > 
     <el-form
       class="dataOut-form"
       :size="size"
@@ -56,10 +62,6 @@
         <el-form-item 
           :label="$t('dataOut.cols')" 
           prop="sourceData.cols"
-          :rules="{
-            required: checked,
-            message: $t('pleaseSelect'),
-          }"
           >
           <el-checkbox-group v-model="info.sourceData.cols">
             <el-checkbox v-for="col in columns" :label="col.name" :key="col.name"></el-checkbox>
@@ -241,6 +243,9 @@ import { Message } from 'element-ui'
             required: true, message: this.$t('pleaseSelect'),
           }],
           'sourceData.table': [{
+            required: true, message: this.$t('pleaseSelect'),
+          }],
+          'sourceData.cols': [{
             required: true, message: this.$t('pleaseSelect'),
           }],
           'target.kafkaUrl': [{
@@ -468,8 +473,18 @@ import { Message } from 'element-ui'
 </script>
 
 <style lang="scss" scoped>
-  .dataOut-wrap {
-
+  .dataOut-wrap.readable {
+    position: relative;
+    &::before {
+      content: "";
+      background: #f2f6fc40;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+    }
   }
   .dataOut-form {
     width: 800px;
