@@ -202,17 +202,12 @@ impl TMQSource {
 impl KafkaProducer {
     // create kafka producer from dsn, the dsn: kafka://host:port/topic?ack_timeout=1&batch_size=1
     fn new(mut dsn: Dsn, receiver: Receiver<String>) -> Result<KafkaProducer> {
-        let kafka_server: Vec<String> = dsn
-            .addresses
-            .into_iter()
-            .map(|address| {
-                format!(
-                    "{}:{}",
-                    address.host.ok_or(anyhow!("host in dsn is null")).unwrap(),
-                    address.port.ok_or(anyhow!("port in dsn is null")).unwrap()
-                )
-            })
-            .collect::<Vec<String>>();
+        let mut kafka_server = Vec::new();
+        for address in dsn.addresses.into_iter() {
+            let host = address.host.ok_or(anyhow!("host in dsn is null"))?;
+            let port = address.port.ok_or(anyhow!("port in dsn is null"))?;
+            kafka_server.push(format!("{}:{}", host, port));
+        }
         let topic = dsn
             .subject
             .ok_or(anyhow!("kafka sink topic should not be null"))?;
