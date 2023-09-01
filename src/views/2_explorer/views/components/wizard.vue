@@ -6,7 +6,17 @@
         :general="general"
         @getFromVal="getFromVal"
       ></Genneral>
-      <div class="label">WHERE</div>
+      <div class="label" style="width: 200px;">
+        <el-switch
+          size="mini"
+          v-model="isWhereCondition"
+          active-text="WHERE"
+          inactive-text="GROUP BY"
+          active-color="#4259ce"
+          inactive-color="#4259ce"
+          >
+      </el-switch>
+      </div>
       <rule-list
         :rules="rules"
         :fields="fields"
@@ -17,12 +27,14 @@
         @handleOperatorChange="handleOperatorChange"
         @handleAddGroup="handleAddGroup"
         @handleDelete="handleDelete"
+        v-if="isWhereCondition"
       ></rule-list>
       <OtherRule
         :otherRule="otherRule"
         :columnList="fields"
         :general="general"
         :isInterp="isInterp"
+        :isWhereCondition="isWhereCondition"
       ></OtherRule>
       <!-- <el-col class="flexEnd">
         <el-button :disabled="previewBtn" @click="generateSql" size="small"
@@ -87,6 +99,7 @@ const conditionMap = {
       sql: "",
       count: 0,
       valueVisible: {},
+      isWhereCondition: true,
       general: {
         dbname: '',
         tbName: '',
@@ -117,14 +130,6 @@ const conditionMap = {
         every_unit: 'a',
         fill: 'NONE',
         fill_val: '',
-        // interpClause: {
-        //   range1: '',
-        //   range2: '',
-        //   every_val: '',
-        //   every_unit: '',
-        //   fill: 'NONE',
-        //   fill_val: '',
-        // }
       },
       rules: [{
         combinator: 'AND',
@@ -136,14 +141,16 @@ const conditionMap = {
             key: uuid(),
             operator: '>=',
             value: '',
-            operators: []
+            operators: [],
+            placeholder: this.$t('console.startTime')
           },
           {
             field: 'end time',
             key: uuid(),
             operator: '<',
             value: '',
-            operators: []
+            operators: [],
+            placeholder: this.$t('console.endTime')
           }
         ]
       }],
@@ -328,13 +335,13 @@ const conditionMap = {
             this.$message.error(this.$t('console.enterTip').replace('{value}',field));
             return false
           }
-        }
-    
-        if ((isField && !isValue) && !['IS NULL', 'IS NOT NULL'].includes(operator)) {
+        } else if ((isField && !isValue) && !['IS NULL', 'IS NOT NULL'].includes(operator)) {
           // 选择字段没有值
           this.$message.error(this.$t('console.enterTip').replace('{value}',field));
           return false
-        } 
+        }  else {
+          return true
+        }
         // else if (!isField) {
         //   this.$message.error('请输入规则字段')
         //   return false
@@ -353,10 +360,15 @@ const conditionMap = {
       sql = `SELECT ${this.general.fields} FROM ${this.fromVal}`
       let condition = formatQuery(query)
 
-      if (condition) {
+      // group by 和 where 条件不能同时存在
+      if (condition && this.isWhereCondition) {
         sql += ` WHERE ${condition}`
       }
 
+      if (this.otherRule.orderby) {
+        sql += ` ORDER BY ${this.otherRule.orderby}`
+      }
+      
       if (this.otherRule.limit) {
         sql += ` LIMIT ${this.otherRule.limit}`
       } else {
@@ -367,29 +379,22 @@ const conditionMap = {
         sql += ` OFFSET ${this.otherRule.offset}`
       }
 
-      if (this.otherRule.groupby) {
+      if (this.otherRule.groupby && !this.isWhereCondition) {
         sql += ` GROUP BY ${this.otherRule.groupby}`
-        if (this.otherRule.slimit) {
-          sql += ` `
-        }
       }
 
-      if (this.otherRule.partitionby) {
+      if (this.otherRule.partitionby && this.isWhereCondition) {
         sql += ` PARTITION BY ${this.otherRule.partitionby}`
       }
 
       // slimit
       if (this.otherRule.groupby || this.otherRule.partitionby) {
         if (this.otherRule.slimit) {
-          sql += ` SLIMIT ${this.otherRule.limit}`
+          sql += ` SLIMIT ${this.otherRule.slimit}`
         }
         if (this.otherRule.soffset) {
           sql += ` OFFSET ${this.otherRule.soffset}`
         }
-      }
-
-      if (this.otherRule.orderby) {
-        sql += ` ORDER BY ${this.otherRule.orderby}`
       }
 
       // window_clause
@@ -471,95 +476,19 @@ const conditionMap = {
       this.sql = this.generateSql()
     },
     async handleSendSQL() {
-      // const query = {
-      //     rules: [
-      //       {
-      //         "field": "firstName",
-      //         "value": "Stev",
-      //         "operator": "beginsWith"
-      //       },
-      //       {
-      //         "field": "lastName",
-      //         "value": "Vai, Vaughan",
-      //         "operator": "in"
-      //       },
-      //       {
-      //         "field": "age",
-      //         "value": "28",
-      //         "operator": ">"
-      //       },
-      //       {
-      //         "rules": [
-      //           {
-      //             "field": "isMusician",
-      //             "value": true,
-      //             "operator": "="
-      //           },
-      //           {
-      //             "field": "instrument",
-      //             "value": "Guitar",
-      //             "operator": "="
-      //           }
-      //         ],
-      //         "combinator": "and"
-      //       },
-      //       {
-      //         "field": "groupedField1",
-      //         "value": "groupedField4",
-      //         "operator": "=",
-      //         "valueSource": "field"
-      //       },
-      //       {
-      //         "field": "birthdate",
-      //         "value": "1954-10-03,1960-06-06",
-      //         "operator": "between"
-      //       }
-      //     ],
-      //     combinator: "or",
-      //     not: false
-      //   }
-      const query = this.rules[0]
-      let sql = ''
-      if (this.general) {
-        for (const key in this.general) {
-          if (Object.hasOwnProperty.call(this.general, key)) {
-            const value = this.general[key];
-            if (!value) {
-              return this.$message.error(this.$t('console.enterTip').replace('{value}',key))
-            }
-          }
-        }
-      }
-      sql = `SELECT ${this.general.fields} FROM ${this.fromVal}`
-
       // 校验 _c0 为必填项 
-      if (!this.validateRules(query.rules)) {
-        return 
+      if (this.isWhereCondition) {
+        const query = this.rules[0]
+        if (!this.validateRules(query.rules)) {
+          return 
+        }
       }
       
-      let condition = formatQuery(query)
-      console.log('result',condition);
-      if (condition) {
-        sql += ` WHERE ${condition}`
-      }
-      if (this.otherRule) {
-        for (const key in this.otherRule) {
-          if (Object.hasOwnProperty.call(this.otherRule, key)) {
-            const value = this.otherRule[key];
-            if (key == 'limit' && !value) {
-              return this.$message.error(this.$t('console.enterTip').replace('{value}',key))
-            }
-            if (value) {
-              sql += ` ${key} ${value}`
-            } 
-          }
-        }
-      }
-      console.log('sql',sql);
-
       if (this.requestIng) return;
       this.requestIng = true;
-      let sqlStr = sql
+      let sqlStr = this.generateSql()
+
+      console.log('sql',sqlStr);
       let { isSendSQL, updated_sqlStr } = await proprocess_sql(sqlStr); // 预处理要执行的sql语句
       
       if (isSendSQL) {

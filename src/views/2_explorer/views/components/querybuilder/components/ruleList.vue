@@ -40,13 +40,22 @@
                     <el-col>
                       <div class="id-wrap" v-if="index==0">
                         <el-select
+                          v-if="ruleItem.field === 'start time'"
                           @change="() => handleIdChange(ruleItem.field, ruleItem.key)"
                           v-model="ruleItem.field"
                           class="select"
                           :size="size"
-                          :disabled="index==0"
                         >
-                          <el-option v-for="idItem in defaultFields" :key="idItem.name" :value="idItem.field" :label="idItem.name"></el-option>
+                          <el-option value="start time" label="start time"></el-option>
+                        </el-select>
+                        <el-select
+                          v-else
+                          @change="() => handleIdChange(ruleItem.field, ruleItem.key)"
+                          v-model="ruleItem.field"
+                          class="select"
+                          :size="size"
+                        >
+                          <el-option value="end time" label="end time"></el-option>
                         </el-select>
                       </div>
                       <div class="id-wrap" v-else>
@@ -61,13 +70,32 @@
                       </div>
                     </el-col>
                     <el-col>
-                      <div class="operator-wrap">
+                      <div class="operator-wrap" v-if="index==0">
+                        <el-select
+                          v-if="ruleItem.field === 'start time'"
+                          @change="() => handleOperatorChange(ruleItem.operator, ruleItem.key)"
+                          v-model="ruleItem.operator"
+                          class="select"
+                          :size="size"
+                        >
+                          <el-option value=">=" label=">="></el-option>
+                        </el-select>
+                        <el-select
+                          v-else
+                          @change="() => handleOperatorChange(ruleItem.operator, ruleItem.key)"
+                          v-model="ruleItem.operator"
+                          class="select"
+                          :size="size"
+                        >
+                          <el-option value="<" label="<"></el-option>
+                        </el-select>
+                      </div>
+                      <div class="operator-wrap" v-else>
                         <el-select
                           @change="() => handleOperatorChange(ruleItem.operator, ruleItem.key)"
                           v-model="ruleItem.operator"
                           class="select"
                           :size="size"
-                          :disabled="index==0"
                         >
                           <el-option v-for="operatorItem in ruleItem.operators" :key="operatorItem" :value="operatorItem" :label="operatorItem"></el-option>
                         </el-select>
@@ -102,12 +130,12 @@
                           />
                         </span>
                         <!-- <el-rate v-else-if="ruleItem.operateType === 'Rate'" v-model="ruleItem.value" allow-half  :size="size"/> -->
-                        <el-input :placeholder="ruleItem.field =='_c0' ? '请输入时间': ''" v-else-if="!['IS NULL', 'IS NOT NULL'].includes(ruleItem.operator)" v-model="ruleItem.value" :size="size" />
+                        <el-input :placeholder="ruleItem.placeholder" v-else-if="!['IS NULL', 'IS NOT NULL'].includes(ruleItem.operator)" v-model="ruleItem.value" :size="size" />
                       </div>
                     </el-col>
                     <el-col>
                       <div class="operator-wrap">
-                        <el-button v-if="item.rules.length > 1" :disabled="index==0" type="danger" @click="() => handleDelete(ruleItem.key)" :size="size">Delete</el-button>
+                        <el-button v-if="item.rules.length > 1 &&  index > 0" type="danger" @click="() => handleDelete(ruleItem.key)" :size="size">Delete</el-button>
                       </div>
                     </el-col>
                   </el-row>
