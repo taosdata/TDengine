@@ -3797,7 +3797,7 @@ static void doStreamMidIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pS
     }
 
     int32_t code = setIntervalOutputBuf(pInfo->pState, &nextWin, &pResPos, groupId, pSup->pCtx, numOfOutput,
-                                        pSup->rowEntryInfoOffset, &pInfo->aggSup, &pInfo->statestore);
+                                        pSup->rowEntryInfoOffset, &pInfo->aggSup, &pInfo->stateStore);
     pResult = (SResultRow*)pResPos->pRowBuff;
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
@@ -3863,7 +3863,6 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
     setOperatorCompleted(pOperator);
     clearFunctionContext(&pOperator->exprSupp);
     clearStreamIntervalOperator(pInfo);
-    setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
     qDebug("stask:%s  ===stream===%s clear", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType));
     return NULL;
   } else {
