@@ -40,6 +40,7 @@ pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::PortPool;
+use crate::tmq_to_kafka::clean_task;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -94,6 +95,7 @@ pub struct TaskOpts {
     pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
     pub transferred: Option<Arc<Transferred>>,
     pub span: tracing::Span,
+    pub task_id: Option<String>,
 }
 
 impl Drop for TaskOpts {
@@ -361,7 +363,15 @@ impl TaskOpts {
                     .await?;
                 }
                 ("tmq", "kafka") => {
-                    tmq_to_kafka(from.clone(), to.clone()).await?;
+                    let mut from = from.clone();
+                    if let Some(task_id) = self.task_id.clone() {
+                        from.params.insert("topic_suffix".parse()?, task_id);
+                    }
+                    tmq_to_kafka(
+                        from,
+                        to.clone(),
+                        cancel.clone(),
+                    ).await?;
                 }
                 ("kafka", "taos") => {
                     kafka_to_taos(
@@ -381,5 +391,24 @@ impl TaskOpts {
             }
             Ok(())
         }
+    }
+
+    pub async fn delete_task(&self) -> Result<(), anyhow::Error> {
+        let Self {
+            from,
+            to,
+            ..
+        } = &self;
+        match (from.driver.as_str(), to.driver.as_str()) {
+            ("tmq", "kafka") => {
+                let mut from = from.clone();
+                if let Some(task_id) = self.task_id.clone() {
+                    from.params.insert("topic_suffix".parse()?, task_id);
+                }
+                clean_task(from.clone()).await?;
+            }
+            (_, _) => {}
+        }
+        Ok(())
     }
 }

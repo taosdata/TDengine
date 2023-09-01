@@ -436,6 +436,7 @@ mod tests {
             offsets: Default::default(),
             transferred: Some(transferred),
             span: tracing::info_span!("test_mqtt"),
+            task_id: None,
         };
         opts.run(&PortPool::default()).await.unwrap();
     }
