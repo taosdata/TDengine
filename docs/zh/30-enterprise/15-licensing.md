@@ -11,7 +11,7 @@ TDengine Pro 的授权，是通过对集群中的服务器设置授权码 (activ
 
 ## 授权码与授权项
 
-- 授权码中，包含各个授权项的值。授权项中，常用的包括过期时间和测点数，也包括存储空间，数据库实例数，用户数，dnode 实例数，cpu 核数等。
+- 授权码中，包含各个授权项的值。授权项中，常用的包括过期时间和测点数，也包括存储空间、数据库实例数、用户数、dnode 实例数、cpu 核数等。
 - 授权码是以集群为单位生效的。如果集群中包含多个有效的授权码，则按较大值优先的原则对各个授权项取并集。
 
 
@@ -46,19 +46,18 @@ Query OK, 1 row(s) in set (0.001976s)
 3. 推荐使用 SQL 命令的设置方式，支持 taos.cfg 设置是为了兼容老版本。
 4. 通过 SQL 命令设置的授权码会保存到集群中，因此，支持通过 show dnodes 命令查看。
 5. 3.1.0.0 版本之前，taos.cfg 中设置的授权码，无法通过 show dnodes 命令查看。3.1.0.0 版本起，如果授权码是在 taos.cfg 中设置的， taosd 会自动读取 taos.cfg 中的授权码并保存到集群中并支持通过 show dnodes 命令查看。
-6. 通过 taos.cfg 配置文件设置：在 taos.cfg 中以 activeCode 开头添加一行，空格后部分为授权码。添加后，重启 mnode leader 所在的 dnode 立即生效，或者不重启 5 分钟内生效。
 
 
 ### 配置文件
 
-使用配置文件激活授权码的方式如下，在 `taos.cfg` 配置文件中。
+使用配置文件激活授权码：在 `taos.cfg` 中以 activeCode 开头添加一行，空格后部分为授权码。添加后，重启 mnode leader 所在的 dnode 立即生效，或者不重启 5 分钟内生效。
 
 ```shell
 activeCode z9sdqG8w67fqBXlHnxWAQezQc/mabvN9N2maa6ksK6JJWl7OxrPZ2ElaXs7Gs9nYSVpezsaz2di72ZL6EAo0mcYiPlK2dDdmAt3P46xKs4Q=
 ```
 ### SQL 命令
 
-使用 SQL 命令 `alter dnode`` 激活授权码：在 taos 客户端执行，支持针对单个 dnode  或所有 dnode 设置。设置授权码一般在 5 秒内生效，如果集群节点较多，生效时间会长一些。
+使用 SQL 命令 `alter dnode` 激活授权码：在 taos 客户端执行，支持针对单个 dnode  或所有 dnode 设置。设置授权码一般在 5 秒内生效，如果集群节点较多，生效时间会长一些。
 
 下述命令中，dnode 后边的 1 为 dnode id，可以通过在 taos 客户端执行 show dnodes 获取。
 
@@ -80,6 +79,7 @@ taos> alter all dnodes 'activeCode' 'Wn8j+6KVVRnGIj5StnQ3Zs2XgtVr+h+Vue1VyrZhTL/
 ```shell
 taos> alter dnode 5 'activeCode' '';
 taos> alter dnode 5 'activeCode';
+taos> alter all dnodes 'activeCode' '';
 taos> alter all dnodes 'activeCode';
 ```
 ### 查看授权码
