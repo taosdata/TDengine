@@ -896,7 +896,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
   
   FOREACH(pNode, pJoin->pTargets) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t len = getSlotKey(pNode, NULL, name);  
+    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);  
     tSimpleHashPut(pHash, name, len, &pCol, POINTER_BYTES);
   }
 
@@ -905,7 +905,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
 
   FOREACH(pNode, pJoin->pOnLeft) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t len = getSlotKey(pNode, NULL, name);  
+    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);  
     SNode** p = tSimpleHashGet(pHash, name, len);
     if (p) {
       nodesListStrictAppend(pJoin->pTargets, *p);
@@ -914,7 +914,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
   }
   FOREACH(pNode, pJoin->pOnRight) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t len = getSlotKey(pNode, NULL, name);  
+    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);  
     SNode** p = tSimpleHashGet(pHash, name, len);
     if (p) {
       nodesListStrictAppend(pJoin->pTargets, *p);
