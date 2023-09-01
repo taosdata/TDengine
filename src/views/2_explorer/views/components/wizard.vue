@@ -395,7 +395,7 @@ const conditionMap = {
           sql += ` SLIMIT ${this.otherRule.slimit}`
         }
         if (this.otherRule.soffset) {
-          sql += ` OFFSET ${this.otherRule.soffset}`
+          sql += ` SOFFSET ${this.otherRule.soffset}`
         }
       }
 

@@ -77,7 +77,7 @@
             </el-input-number>
           </el-col>
           <el-col :span="12" class="col-style">
-            <span class="label">OFFSET</span>
+            <span class="label">SOFFSET</span>
             <el-input-number 
               v-model="otherRule.soffset" 
               placeholder="" 
@@ -117,7 +117,7 @@
             </el-input-number>
           </el-col>
           <el-col :span="12" class="col-style">
-            <span class="label">OFFSET</span>
+            <span class="label">SOFFSET</span>
             <el-input-number 
               v-model="otherRule.soffset" 
               placeholder="" 
