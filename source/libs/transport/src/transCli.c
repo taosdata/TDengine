@@ -2398,7 +2398,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     if (rpcDebugFlag & DEBUG_TRACE) {
       char tbuf[512] = {0};
       EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-      tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+      tGTrace("%s conn %p extract epset from msg, use:%s", CONN_GET_INST_LABEL(pConn), pConn, tbuf);
     }
   }
   if (rpcDebugFlag & DEBUG_TRACE) {
