@@ -40,6 +40,7 @@ target_link_libraries(
     os
     PUBLIC pthread
     PUBLIC zlibstatic
+    PUBLIC KtmW32
 )
 if(TD_WINDOWS)
     target_link_libraries(
