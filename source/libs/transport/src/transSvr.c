@@ -189,17 +189,40 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
+static bool uvCheckIp(char* range, char* ip) {
+  // impl later
+  return strcmp(range, ip) == 0;
+}
+static bool uvFilteByWhiteList(SWorkThrd* pThrd, char* user, uint32_t ip) {
+  // impl check
+  SArray** pWhite = taosHashGet(pThrd->pWhiteList, user, strlen(user));
+  if (pWhite == NULL || *pWhite == NULL) {
+    return true;
+  }
+  bool valid = false;
+  char userIp[64] = {0};
+  tinet_ntoa(userIp, ip);
+  for (int i = 0; i < taosArrayGetSize(*pWhite); i++) {
+    char* range = taosArrayGetP(*pWhite, i);
+    valid = uvCheckIp(range, userIp);
+    if (valid) {
+      return valid;
+    }
+  }
+  return valid;
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pTransInst = pConn->pTransInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-  
-  
 
   STransMsgHead* pHead = NULL;
 
   int msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
+    return false;
+  }
+  if (uvFilteByWhiteList(pThrd, pHead->user, pConn->clientIp) == false) {
     return false;
   }
 
@@ -1208,6 +1231,7 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
 void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
   // update white ip
   bool ret = (msg->func)(msg->arg);
+
   taosMemoryFree(msg);
   return;
 }
