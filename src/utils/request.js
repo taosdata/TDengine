@@ -1,6 +1,6 @@
 import axios from "axios";
 import { Message } from "element-ui";
-import JSONbig from "json-bigint";
+
 import store from "../store";
 import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
@@ -10,13 +10,7 @@ const request = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  transformResponse: [function (data) {
-    try {
-      return JSONbig.parse(data);
-    } catch (error) {
-      return data;
-    }
-  }],
+ 
 });
 
 let msg = "";
