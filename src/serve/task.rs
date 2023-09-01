@@ -533,10 +533,20 @@ pub(super) async fn get_task_metrics_by_id(
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
         let task = task_store.get(id).await.unwrap().unwrap();
         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
-            Some((Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000)
+            let time_elasped = (Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
+            if time_elasped < 1 {
+                Some(1)
+            } else {
+                Some(time_elasped)
+            }
         } else {
             if task.task.finished_at.is_some() {
-                Some((task.task.finished_at.unwrap().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000)
+                let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
+                if time_elapsed < 1 {
+                    Some(1)
+                } else {
+                    Some(time_elapsed)
+                }
             } else {
                 None
             }
