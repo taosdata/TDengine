@@ -1443,6 +1443,8 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
     code = tsdbDataFileWriteHeadFooter(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    SVersionRange ofRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+
     // .head
     ftype = TSDB_FTYPE_HEAD;
     if (writer->config->files[ftype].exist) {
@@ -1451,6 +1453,7 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
           .fid = writer->config->fid,
           .of = writer->config->files[ftype].file,
       };
+      ofRange = (SVersionRange){.minVer = op.of.minVer, .maxVer = op.of.maxVer};
       code = TARRAY2_APPEND(opArr, op);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1459,6 +1462,7 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
         .fid = writer->config->fid,
         .nf = writer->files[ftype],
     };
+    tsdbTFileUpdVerRange(&op.nf, ofRange);
     tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
     code = TARRAY2_APPEND(opArr, op);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1529,6 +1533,8 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
     code = tsdbDataFileWriteTombFooter(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    SVersionRange ofRange = (SVersionRange){.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+
     ftype = TSDB_FTYPE_TOMB;
     if (writer->config->files[ftype].exist) {
       op = (STFileOp){
@@ -1536,6 +1542,7 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
           .fid = writer->config->fid,
           .of = writer->config->files[ftype].file,
       };
+      ofRange = (SVersionRange){.minVer = op.of.minVer, .maxVer = op.of.maxVer};
       code = TARRAY2_APPEND(opArr, op);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1544,6 +1551,7 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
         .fid = writer->config->fid,
         .nf = writer->files[ftype],
     };
+    tsdbTFileUpdVerRange(&op.nf, ofRange);
     tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
     code = TARRAY2_APPEND(opArr, op);
     TSDB_CHECK_CODE(code, lino, _exit);
