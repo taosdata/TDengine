@@ -190,7 +190,10 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
 }
 
 static bool uvHandleReq(SSvrConn* pConn) {
-  STrans* pTransInst = pConn->pTransInst;
+  STrans*    pTransInst = pConn->pTransInst;
+  SWorkThrd* pThrd = pConn->hostThrd;
+  
+  
 
   STransMsgHead* pHead = NULL;
 
@@ -1219,6 +1222,11 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
 
   void* pIter = taosHashIterate(pThrd->pWhiteList, NULL);
   while (pIter) {
+    SArray* arr = *(SArray**)pIter;
+    for (int i = 0; i < taosArrayGetSize(arr); i++) {
+      char* p = taosArrayGetP(arr, i);
+      taosMemoryFree(p);
+    }
     pIter = taosHashIterate(pThrd->pWhiteList, pIter);
   }
   taosHashCleanup(pThrd->pWhiteList);
