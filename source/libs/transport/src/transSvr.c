@@ -189,24 +189,27 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
+
 static bool uvCheckIp(char* range, char* ip) {
   // impl later
   return strcmp(range, ip) == 0;
 }
 static bool uvFilteByWhiteList(SWorkThrd* pThrd, char* user, uint32_t ip) {
   // impl check
+  bool     valid = false;
   SArray** pWhite = taosHashGet(pThrd->pWhiteList, user, strlen(user));
   if (pWhite == NULL || *pWhite == NULL) {
     return true;
   }
-  bool valid = false;
+
   char userIp[64] = {0};
   tinet_ntoa(userIp, ip);
+
   for (int i = 0; i < taosArrayGetSize(*pWhite); i++) {
     char* range = taosArrayGetP(*pWhite, i);
-    valid = uvCheckIp(range, userIp);
-    if (valid) {
-      return valid;
+    if (uvCheckIp(range, userIp)) {
+      valid = true;
+      break;
     }
   }
   return valid;
