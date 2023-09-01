@@ -102,6 +102,68 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
+  if (pVal->value[0] == 'g' || pVal->value[0] == 'G') {  // geometry
+    if (pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"' && pVal->length >= sizeof("POINT")+3) {
+      int32_t code = initCtxGeomFromText();
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      char* tmp = taosMemoryCalloc(pVal->length, 1);
+      memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
+      code = doGeomFromText(tmp, (unsigned char **)&pVal->value, &pVal->length);
+      taosMemoryFree(tmp);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      pVal->type = TSDB_DATA_TYPE_GEOMETRY;
+      if (pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+        geosFreeBuffer((void*)(pVal->value));
+        return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pVal->value[0] == 'b' || pVal->value[0] == 'B') {  // varbinary
+    if (pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"' && pVal->length >= 3) {
+      pVal->type = TSDB_DATA_TYPE_VARBINARY;
+      if(isHex(pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN)){
+        if(!isValidateHex(pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN)){
+          return TSDB_CODE_PAR_INVALID_VARBINARY;
+        }
+
+        void* data = NULL;
+        uint32_t size = 0;
+        if(taosHex2Ascii(pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN, &data, &size) < 0){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+
+        if (size + VARSTR_HEADER_SIZE > TSDB_MAX_VARBINARY_LEN) {
+          taosMemoryFree(data);
+          return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+        }
+        pVal->value  = data;
+        pVal->length = size;
+      }else{
+        pVal->length -= NCHAR_ADD_LEN;
+        if (pVal->length > TSDB_MAX_VARBINARY_LEN - VARSTR_HEADER_SIZE) {
+          return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+        }
+        void *data = taosMemoryMalloc(pVal->length);
+        if(data == NULL){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        memcpy(data, pVal->value + (NCHAR_ADD_LEN - 1), pVal->length);
+        pVal->value = data;
+      }
+
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
   if (pVal->value[0] == 't' || pVal->value[0] == 'T') {
     if (pVal->length == 1 ||
         (pVal->length == 4 && (pVal->value[1] == 'r' || pVal->value[1] == 'R') &&
@@ -390,14 +452,14 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           SSmlKv   kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type};
           if (tag->type == TSDB_DATA_TYPE_NCHAR) {
             kv.length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-          } else if (tag->type == TSDB_DATA_TYPE_BINARY) {
+          } else if (tag->type == TSDB_DATA_TYPE_BINARY || tag->type == TSDB_DATA_TYPE_GEOMETRY || tag->type == TSDB_DATA_TYPE_VARBINARY) {
             kv.length = tag->bytes - VARSTR_HEADER_SIZE;
           }
           taosArrayPush((*tmp)->cols, &kv);
         }
       }
       info->currSTableMeta = (*tmp)->tableMeta;
-      info->masColKVs = (*tmp)->cols;
+      info->maxColKVs = (*tmp)->cols;
     }
   }
 
@@ -491,6 +553,10 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       char *tmp = (char *)taosMemoryMalloc(kv.length);
       memcpy(tmp, kv.value, kv.length);
       PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
+      ASSERT(kv.type != TSDB_DATA_TYPE_GEOMETRY);
+      if(kv.type == TSDB_DATA_TYPE_VARBINARY){
+        taosMemoryFree((void*)kv.value);
+      }
       kv.value = tmp;
       kv.valueEscaped = valueEscaped;
     }
@@ -512,13 +578,13 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         freeSSmlKv(&kv);
         return TSDB_CODE_SUCCESS;
       }
-      if (cnt >= taosArrayGetSize(info->masColKVs)) {
+      if (cnt >= taosArrayGetSize(info->maxColKVs)) {
         info->dataFormat = false;
         info->reRun = true;
         freeSSmlKv(&kv);
         return TSDB_CODE_SUCCESS;
       }
-      SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->masColKVs, cnt);
+      SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->maxColKVs, cnt);
       if (kv.type != maxKV->type) {
         info->dataFormat = false;
         info->reRun = true;
@@ -663,14 +729,15 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   if (info->dataFormat) {
     uDebug("SML:0x%" PRIx64 " smlParseInfluxString format true, ts:%" PRId64, info->id, ts);
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
-    if (ret != TSDB_CODE_SUCCESS) {
+    if (ret == TSDB_CODE_SUCCESS) {
+      ret = smlBuildRow(info->currTableDataCtx);
+    }
+
+    clearColValArraySml(info->currTableDataCtx->pValues);
+    if (unlikely(ret != TSDB_CODE_SUCCESS)) {
+      smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
     }
-    ret = smlBuildRow(info->currTableDataCtx);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
-    clearColValArray(info->currTableDataCtx->pValues);
   } else {
     uDebug("SML:0x%" PRIx64 " smlParseInfluxString format false, ts:%" PRId64, info->id, ts);
     taosArraySet(elements->colArray, 0, &kv);

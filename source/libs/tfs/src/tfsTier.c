@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "tfsInt.h"
 
+extern int64_t tsMinDiskFreeSize;
+
 int32_t tfsInitTier(STfsTier *pTier, int32_t level) {
   memset(pTier, 0, sizeof(STfsTier));
 
@@ -114,7 +116,7 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
 
     if (pDisk == NULL) continue;
 
-    if (pDisk->size.avail < TFS_MIN_DISK_FREE_SIZE) continue;
+    if (pDisk->size.avail < tsMinDiskFreeSize) continue;
 
     retId = diskId;
     terrno = 0;
@@ -132,7 +134,7 @@ void tfsPosNextId(STfsTier *pTier) {
   for (int32_t id = 1; id < pTier->ndisk; id++) {
     STfsDisk *pLDisk = pTier->disks[nextid];
     STfsDisk *pDisk = pTier->disks[id];
-    if (pDisk->size.avail > TFS_MIN_DISK_FREE_SIZE && pDisk->size.avail > pLDisk->size.avail) {
+    if (pDisk->size.avail > tsMinDiskFreeSize && pDisk->size.avail > pLDisk->size.avail) {
       nextid = id;
     }
   }

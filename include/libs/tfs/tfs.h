@@ -300,6 +300,25 @@ void tfsClosedir(STfsDir *pDir);
  */
 int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo);
 
+/**
+ * @brief Check if disk space available at level
+ *
+ * @param pTfs The fs object.
+ * #param level the level
+ * @return bool
+ */
+bool tfsDiskSpaceAvailable(STfs *pTfs, int32_t level);
+
+/**
+ * @brief Check if disk space sufficient at disk of level
+ *
+ * @param pTfs The fs object.
+ * @param level the level
+ * @param disk the disk
+ * @return bool
+ */
+bool tfsDiskSpaceSufficient(STfs *pTfs, int32_t level, int32_t disk);
+
 #ifdef __cplusplus
 }
 #endif

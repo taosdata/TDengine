@@ -108,6 +108,7 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
   pExchange->srcStartGroupId = pCxt->groupId;
   pExchange->srcEndGroupId = pCxt->groupId;
   pExchange->node.precision = pChild->precision;
+  pExchange->node.dynamicOp = pChild->dynamicOp;
   pExchange->node.pTargets = nodesCloneList(pChild->pTargets);
   if (NULL == pExchange->node.pTargets) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -280,7 +281,7 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
 }
 
 static bool stbSplNeedSplitJoin(bool streamQuery, SJoinLogicNode* pJoin) {
-  if (pJoin->isSingleTableJoin) {
+  if (pJoin->isSingleTableJoin || JOIN_ALGO_HASH == pJoin->joinAlgo) {
     return false;
   }
   SNode* pChild = NULL;
@@ -503,6 +504,18 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
       if (pLogicNode->ignoreGroupId && (pMerge->node.pLimit || pMerge->node.pSlimit)) {
         pMerge->ignoreGroupId = true;
         pLogicNode->ignoreGroupId = false;
+      }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+      SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
+      if (pMerge->node.pLimit) {
+        nodesDestroyNode(pMerge->node.pLimit);
+        pMerge->node.pLimit = NULL;
+      }
+      if (pMerge->node.pSlimit) {
+        nodesDestroyNode(pMerge->node.pSlimit);
+        pMerge->node.pSlimit = NULL;
       }
       break;
     }
@@ -863,8 +876,16 @@ static int32_t stbSplSplitAggNodeForPartTable(SSplitContext* pCxt, SStableSplitI
 static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartAgg = NULL;
   int32_t     code = stbSplCreatePartAggNode((SAggLogicNode*)pInfo->pSplitNode, &pPartAgg);
+
+
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
+    // if slimit was pushed down to agg, agg will be pipelined mode, add sort merge before parent agg
+    if ((SAggLogicNode*)pInfo->pSplitNode->pSlimit)
+      code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, NULL, pPartAgg, true);
+    else
+      code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
+  } else {
+    nodesDestroyNode((SNode*)pPartAgg);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
@@ -1159,7 +1180,11 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
   SNode*  pChild = NULL;
   FOREACH(pChild, pJoin->node.pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
-      code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, false);
+      //if (pJoin->node.dynamicOp) {
+      //  code = TSDB_CODE_SUCCESS;
+      //} else {
+        code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, false);
+      //}
     } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
       code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pChild);
     } else {
@@ -1175,7 +1200,9 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
 static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   int32_t code = stbSplSplitJoinNodeImpl(pCxt, pInfo->pSubplan, (SJoinLogicNode*)pInfo->pSplitNode);
   if (TSDB_CODE_SUCCESS == code) {
-    pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+    //if (!pInfo->pSplitNode->dynamicOp) {
+      pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+    //}
     SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
   }
   return code;
@@ -1577,9 +1604,9 @@ static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   char* pStr = NULL;
   nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
   if (NULL == pRuleName) {
-    qDebugL("before split: %s", pStr);
+    qDebugL("before split, JsonPlan: %s", pStr);
   } else {
-    qDebugL("apply split %s rule: %s", pRuleName, pStr);
+    qDebugL("apply split %s rule, JsonPlan: %s", pRuleName, pStr);
   }
   taosMemoryFree(pStr);
 }

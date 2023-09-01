@@ -41,7 +41,7 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
-static void remove_file(const char *fname) {
+void remove_file(const char *fname) {
   taosRemoveFile(fname);
   tsdbInfo("file:%s is removed", fname);
 }

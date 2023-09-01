@@ -97,8 +97,16 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   pVal->node.resType.bytes = inputSize;
 
   switch (pParam->buffer_type) {
-    case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pVal->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
+      memcpy(varDataVal(pVal->datum.p), pParam->buffer, pVal->node.resType.bytes);
+      pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {

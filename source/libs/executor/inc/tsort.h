@@ -191,6 +191,9 @@ int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols);
 bool tsortIsClosed(SSortHandle* pHandle);
 void tsortSetClosed(SSortHandle* pHandle);
 
+void tsortSetSingleTableMerge(SSortHandle* pHandle);
+void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
+
 #ifdef __cplusplus
 }
 #endif

@@ -176,9 +176,7 @@ class TDTestCase:
         
         # use taosBenchmark to subscribe  
         binPath = self.getPath()
-        cmd = "nohup %s -f ./7-tmq/tmqMaxGroupIds.json > /dev/null 2>&1 & " % binPath
-        tdLog.info("%s"%(cmd))
-        os.system(cmd)
+        tmqCom.startProcess(binPath, "-f ./7-tmq/tmqMaxGroupIds.json")
                 
         expectTopicNum = 1
         expectConsumerNUm = 99

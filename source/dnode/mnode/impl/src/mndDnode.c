@@ -26,6 +26,7 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "mndCluster.h"
+#include "audit.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -41,7 +42,7 @@ static const char *offlineReason[] = {
     "timezone not match",
     "locale not match",
     "charset not match",
-    "ttl change on write not match"
+    "ttlChangeOnWrite not match",
     "unknown",
 };
 
@@ -424,6 +425,47 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   return 0;
 }
 
+static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVload) {
+  bool stateChanged = false;
+  bool roleChanged = pGid->syncState != pVload->syncState ||
+                     (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm) ||
+                     pGid->roleTimeMs != pVload->roleTimeMs;
+  if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
+      pGid->startTimeMs != pVload->startTimeMs) {
+    mInfo(
+        "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
+        "canRead:%d, dnode:%d",
+        vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead, syncStr(pVload->syncState),
+        pVload->syncRestore, pVload->syncCanRead, pGid->dnodeId);
+    pGid->syncState = pVload->syncState;
+    pGid->syncTerm = pVload->syncTerm;
+    pGid->syncRestore = pVload->syncRestore;
+    pGid->syncCanRead = pVload->syncCanRead;
+    pGid->startTimeMs = pVload->startTimeMs;
+    pGid->roleTimeMs = pVload->roleTimeMs;
+    stateChanged = true;
+  }
+  return stateChanged;
+}
+
+static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
+  bool stateChanged = false;
+  bool roleChanged = pObj->syncState != pMload->syncState ||
+                     (pMload->syncTerm != -1 && pObj->syncTerm != pMload->syncTerm) ||
+                     pObj->roleTimeMs != pMload->roleTimeMs;
+  if (roleChanged || pObj->syncRestore != pMload->syncRestore) {
+    mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64 " to %" PRId64,
+          pObj->id, syncStr(pObj->syncState), syncStr(pMload->syncState), pObj->syncRestore, pMload->syncRestore,
+          pObj->syncTerm, pMload->syncTerm);
+    pObj->syncState = pMload->syncState;
+    pObj->syncTerm = pMload->syncTerm;
+    pObj->syncRestore = pMload->syncRestore;
+    pObj->roleTimeMs = pMload->roleTimeMs;
+    stateChanged = true;
+  }
+  return stateChanged;
+}
+
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatusReq statusReq = {0};
@@ -476,7 +518,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    online = mndIsDnodeOnline(pDnode, curMs);
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
-  bool    needCheck = !online || dnodeChanged || reboot;
+  bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -496,26 +539,21 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;
       }
-      bool roleChanged = false;
+      bool stateChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
         SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
         if (pGid->dnodeId == statusReq.dnodeId) {
-          if (pGid->syncState != pVload->syncState || pGid->syncRestore != pVload->syncRestore ||
-              pGid->syncCanRead != pVload->syncCanRead) {
-            mInfo(
-                "vgId:%d, state changed by status msg, old state:%s restored:%d canRead:%d new state:%s restored:%d "
-                "canRead:%d, dnode:%d",
-                pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead,
-                syncStr(pVload->syncState), pVload->syncRestore, pVload->syncCanRead, pDnode->id);
-            pGid->syncState = pVload->syncState;
-            pGid->syncRestore = pVload->syncRestore;
-            pGid->syncCanRead = pVload->syncCanRead;
-            roleChanged = true;
+          if (pVload->startTimeMs == 0) {
+            pVload->startTimeMs = statusReq.rebootTime;
           }
+          if (pVload->roleTimeMs == 0) {
+            pVload->roleTimeMs = statusReq.rebootTime;
+          }
+          stateChanged = mndUpdateVnodeState(pVgroup->vgId, pGid, pVload);
           break;
         }
       }
-      if (roleChanged) {
+      if (stateChanged) {
         SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
         if (pDb != NULL && pDb->stateTs != curMs) {
           mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name,
@@ -531,23 +569,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
-    bool roleChanged = pObj->syncState != statusReq.mload.syncState ||
-                       (statusReq.mload.syncTerm != -1 && pObj->syncTerm != statusReq.mload.syncTerm);
-    bool restoreChanged = pObj->syncRestore != statusReq.mload.syncRestore;
-    if (roleChanged || restoreChanged) {
-      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d, syncTerm from %" PRId64
-            " to %" PRId64,
-            pObj->id, syncStr(pObj->syncState), syncStr(statusReq.mload.syncState), pObj->syncRestore,
-            statusReq.mload.syncRestore, pObj->syncTerm, statusReq.mload.syncTerm);
-      pObj->syncState = statusReq.mload.syncState;
-      pObj->syncRestore = statusReq.mload.syncRestore;
-      pObj->syncTerm = statusReq.mload.syncTerm;
+    if (statusReq.mload.roleTimeMs == 0) {
+      statusReq.mload.roleTimeMs = statusReq.rebootTime;
     }
-
-    if (roleChanged) {
-      pObj->roleTimeMs = (statusReq.mload.roleTimeMs != 0) ? statusReq.mload.roleTimeMs : taosGetTimestampMs();
-    }
-
+    mndUpdateMnodeState(pObj, &statusReq.mload);
     mndReleaseMnode(pMnode, pObj);
   }
 
@@ -884,6 +909,12 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   tsGrantHBInterval = 5;
+
+  char obj[200] = {0};
+  sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
+
+  auditRecord(pReq, pMnode->clusterId, "createDnode", obj, "", "");
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
@@ -1031,6 +1062,17 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj1[30] = {0};
+  sprintf(obj1, "%d", dropReq.dnodeId);
+
+  //char obj2[150] = {0};
+  //sprintf(obj2, "%s:%d", dropReq.fqdn, dropReq.port);
+
+  char detail[100] = {0};
+  sprintf(detail, "force:%d, unsafe:%d", dropReq.force, dropReq.unsafe);
+
+  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, "", detail);
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
@@ -1100,7 +1142,55 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "keeptimeoffset");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "ttlpushinterval", 14) == 0) {
+    int32_t optLen = strlen("ttlpushinterval");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 100000) {
+      mError("dnode:%d, failed to config ttlPushInterval since value:%d. Valid range: [0, 100000]", cfgReq.dnodeId,
+             flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "ttlpushinterval");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "ttlbatchdropnum", 15) == 0) {
+    int32_t optLen = strlen("ttlbatchdropnum");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0) {
+      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
+             flag, INT32_MAX);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "ttlbatchdropnum");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #ifdef TD_ENTERPRISE
+  } else if (strncasecmp(cfgReq.config, "supportvnodes", 13) == 0) {
+    int32_t optLen = strlen("supportvnodes");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 4096) {
+      mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+    if (flag == 0) {
+      flag = tsNumOfCores * 2;
+    }
+    flag = TMAX(flag, 2);
+
+    strcpy(dcfgReq.config, "supportvnodes");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
     int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
@@ -1163,6 +1253,14 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
   }
+
+  char obj[50] = {0};
+  sprintf(obj, "%d", cfgReq.dnodeId);
+
+  char detail[500] = {0};
+  sprintf(detail, "config:%s, value:%s", cfgReq.config, cfgReq.value);
+
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", detail);
 
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1353,7 +1451,7 @@ static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t opLen, int32_
   return 0;
 
 _err:
-  mError("dnode:%d, failed to config keeptimeoffset since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
+  mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
   terrno = TSDB_CODE_INVALID_CFG;
   return -1;
 }

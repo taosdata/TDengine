@@ -90,11 +90,6 @@ typedef struct SExecResult {
   void*    res;
 } SExecResult;
 
-typedef struct STbVerInfo {
-  char    tbFName[TSDB_TABLE_FNAME_LEN];
-  int32_t sversion;
-  int32_t tversion;
-} STbVerInfo;
 
 #pragma pack(push, 1) 
 typedef struct SCTableMeta {
@@ -211,6 +206,11 @@ typedef struct SMsgSendInfo {
 typedef struct SQueryNodeStat {
   int32_t tableNum;  // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;
+
+typedef struct SQueryStat {
+  int64_t inputRowNum;
+  int32_t inputRowSize;
+} SQueryStat;
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();

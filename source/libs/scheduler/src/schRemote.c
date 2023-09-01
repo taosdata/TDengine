@@ -88,6 +88,8 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
       SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
       if (pRsp) {
         SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+      } else {
+        SCH_ERR_JRET(schNotifyJobAllTasks(pJob, pTask, TASK_NOTIFY_FINISHED));
       }
   
       taosMemoryFreeClear(msg);
@@ -481,6 +483,18 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
+  SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
+  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", pParam->queryId, pParam->taskId,
+         code);
+  if (pMsg) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchCallbackParamHeader *head = (SSchCallbackParamHeader *)param;
   rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
@@ -645,6 +659,9 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
       break;
     case TDMT_SCH_DROP_TASK:
       *fp = schHandleDropCallback;
+      break;
+    case TDMT_SCH_TASK_NOTIFY:
+      *fp = schHandleNotifyCallback;
       break;
     case TDMT_SCH_QUERY_HEARTBEAT:
       *fp = schHandleHbCallback;
@@ -1027,7 +1044,7 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType) {
+int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType, void* param) {
   int32_t msgSize = 0;
   void    *msg = NULL;
   int32_t  code = 0;
@@ -1204,6 +1221,37 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       persistHandle = true;
       break;
+    }
+    case TDMT_SCH_TASK_NOTIFY: {
+      ETaskNotifyType* pType = param;
+      STaskNotifyReq qMsg;
+      qMsg.header.vgId = addr->nodeId;
+      qMsg.header.contLen = 0;
+      qMsg.sId = schMgmt.sId;
+      qMsg.queryId = pJob->queryId;
+      qMsg.taskId = pTask->taskId;
+      qMsg.refId = pJob->refId;
+      qMsg.execId = pTask->execId;
+      qMsg.type = *pType;
+
+      msgSize = tSerializeSTaskNotifyReq(NULL, 0, &qMsg);
+      if (msgSize < 0) {
+        SCH_TASK_ELOG("tSerializeSTaskNotifyReq get size, msgSize:%d", msgSize);
+        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
+      msg = taosMemoryCalloc(1, msgSize);
+      if (NULL == msg) {
+        SCH_TASK_ELOG("calloc %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      if (tSerializeSTaskNotifyReq(msg, msgSize, &qMsg) < 0) {
+        SCH_TASK_ELOG("tSerializeSTaskNotifyReq failed, msgSize:%d", msgSize);
+        taosMemoryFree(msg);
+        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      break;      
     }
     default:
       SCH_TASK_ELOG("unknown msg type to send, msgType:%d", msgType);
