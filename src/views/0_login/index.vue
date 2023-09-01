@@ -419,6 +419,7 @@ export default {
     this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
+    
   },
   mounted() {
     this.$nextTick(() => {
