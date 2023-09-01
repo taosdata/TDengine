@@ -174,8 +174,8 @@
                 scope.row.from_detail === undefined ||
                 !getEditStatus(scope.row.labels)
               "
-              @click="edit(scope.row, scope.row.status.toLowerCase())"
-              icon="el-icon-edit"
+              @click="view(scope.row, scope.row.status.toLowerCase())"
+              icon="el-icon-view"
             ></el-button>
             <el-button
               plain
@@ -289,7 +289,7 @@ export default {
           });
       });
     },
-    edit(data, status) {
+    view(data, status) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via
