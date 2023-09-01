@@ -2224,6 +2224,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
     }
   } else {
     mDebug("no update found in nodeList");
+    taosArrayDestroy(pNodeSnapshot);
   }
 
   taosArrayDestroy(changeInfo.pUpdateNodeList);
