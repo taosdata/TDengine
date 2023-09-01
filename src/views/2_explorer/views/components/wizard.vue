@@ -6,14 +6,11 @@
         :general="general"
         @getFromVal="getFromVal"
       ></Genneral>
-      <div class="label" style="width: 200px;">
+      <div class="label" :style="!isWhereCondition && { color: '#909399'}">
+        WHERE &nbsp;
         <el-switch
           size="mini"
           v-model="isWhereCondition"
-          active-text="WHERE"
-          inactive-text="GROUP BY"
-          active-color="#4259ce"
-          inactive-color="#4259ce"
           >
       </el-switch>
       </div>
@@ -100,6 +97,7 @@ const conditionMap = {
       count: 0,
       valueVisible: {},
       isWhereCondition: true,
+      isGroupByCondition: false,
       general: {
         dbname: '',
         tbName: '',
@@ -112,6 +110,7 @@ const conditionMap = {
         orderby: '',
         partitionby: '',
         groupby: '',
+        having: '',
         slimit: '',
         soffset: '',
         window_type: '',
@@ -369,24 +368,27 @@ const conditionMap = {
         sql += ` ORDER BY ${this.otherRule.orderby}`
       }
       
-      if (this.otherRule.limit) {
-        sql += ` LIMIT ${this.otherRule.limit}`
-      } else {
-        return this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
-      }
-
-      if (this.otherRule.offset) {
-        sql += ` OFFSET ${this.otherRule.offset}`
-      }
-
-      if (this.otherRule.groupby && !this.isWhereCondition) {
-        sql += ` GROUP BY ${this.otherRule.groupby}`
-      }
-
-      if (this.otherRule.partitionby && this.isWhereCondition) {
+      if (this.isWhereCondition) {
+        if (this.otherRule.limit) {
+          sql += ` LIMIT ${this.otherRule.limit}`
+        } else {
+          return this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
+        }
+        if (this.otherRule.offset) {
+          sql += ` OFFSET ${this.otherRule.offset}`
+        }
+        if (this.otherRule.partitionby) {
         sql += ` PARTITION BY ${this.otherRule.partitionby}`
       }
-
+      } else {
+        if (this.otherRule.groupby) {
+          sql += ` GROUP BY ${this.otherRule.groupby}`
+        }
+  
+        if (this.otherRule.having) {
+          sql += ` HAVING ${this.otherRule.having}`
+        }
+      }
       // slimit
       if (this.otherRule.groupby || this.otherRule.partitionby) {
         if (this.otherRule.slimit) {
