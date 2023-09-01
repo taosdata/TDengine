@@ -43,8 +43,6 @@ typedef struct {
     SDiskID    did;
     TSKEY      minKey;
     TSKEY      maxKey;
-    int64_t    minVer;
-    int64_t    maxVer;
     STFileSet *fset;
     TABLEID    tbid[1];
     bool       hasTSData;
