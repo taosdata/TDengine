@@ -14,7 +14,7 @@ With the TDengine Java connector, Seeq effortlessly supports querying time serie
 
 ### Install Seeq
 
-Please download Seeq Server and Seeq Data Lab software installation package from Seeq official website(https://www.seeq.com/customer-download).
+Please download Seeq Server and Seeq Data Lab software installation package from the [Seeq official website](https://www.seeq.com/customer-download).
 
 ### Install and start Seeq Server
 
@@ -29,7 +29,7 @@ sudo seeq start
 
 ### Install and start Seeq Data Lab Server
 
-Seeq Data Lab needs to be installed on a separate server from Seeq Server and connected to Seeq Server through configuration. For detailed installation and configuration instructions, please refer to (the official document)[https://support.seeq.com/space/KB/1034059842].
+Seeq Data Lab needs to be installed on a separate server from Seeq Server and connected to Seeq Server through configuration. For detailed installation and configuration instructions, please refer to [the official documentation](https://support.seeq.com/space/KB/1034059842).
 
 ```
 tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
@@ -51,11 +51,11 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 
 ### Install TDengine on-premise instance
 
-Please refer to (the official document)[https://docs.taosdata.com/get-started/package/]. 
+See [Quick Install from Package](../../get-started/package/).
 
 ### Or use TDengine Cloud
 
-Please sign up account on (the TDengien Cloud)[https://cloud.tdengine.com] first.
+Register for a [TDengine Cloud](https://cloud.tdengine.com) account and log in to your account.
 
 ## Make Seeq be able to access TDengine
 
@@ -92,7 +92,7 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-!(Seeq demo schema)[./seeq/seeq-demo-schema.webp]
+![Seeq demo schema](./seeq/seeq-demo-schema.webp)
 
 ### Mock data
 
@@ -101,7 +101,7 @@ python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
 
-The source code is hosted at (GitHub Repository)[https://github.com/sangshuduo/td-forecasting].
+The source code is hosted at [GitHub Repository](https://github.com/sangshuduo/td-forecasting).
 
 ### Using Seeq for data analysis
 
@@ -289,9 +289,9 @@ Please login with Seeq administrator and create a few data sources as following.
 
 #### Launch Seeq Workbench
 
-Please login to Seeq server with IP:port and create a new Seeq Workbench, then select data sources and choose the correct tools to do data visualization and analysis. Please refer to (the official document)[https://support.seeq.com/space/KB/146440193/Seeq+Workbench] for the details.
+Please login to Seeq server with IP:port and create a new Seeq Workbench, then select data sources and choose the correct tools to do data visualization and analysis. Please refer to [the official documentation](https://support.seeq.com/space/KB/146440193/Seeq+Workbench) for the details.
 
-!(Seeq Workbench)[./seeq/seeq-demo-workbench.webp]
+![Seeq Workbench](./seeq/seeq-demo-workbench.webp)
 
 #### Use Seeq Data Lab Server for advanced data analysis
 
@@ -360,7 +360,7 @@ plt.show()
 
 Example output:
 
-!(Seeq forecast result)[./seeq/seeq-forecast-result.webp]
+![Seeq forecast result](./seeq/seeq-forecast-result.webp)
 
 ### How to configure Seeq data source to access TDengine Cloud
 
@@ -429,7 +429,7 @@ Please note that when using TDengine Cloud, you need to specify the database nam
 
 #### Seeq Workbench with TDengine Cloud data source example
 
-!(Seeq workbench with TDengine cloud)[./seeq/seeq-workbench-with-tdengine-cloud.webp]
+![Seeq workbench with TDengine Cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
 
 ## Conclusion
 
