@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument, warn, Span};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -90,6 +90,7 @@ pub async fn csv_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> Result<()> {
     let port = port_pool
         .get()
@@ -104,6 +105,7 @@ pub async fn csv_to_taos(
         &cancel,
         with_agent,
         transferred,
+        span,
     )
     .await?;
 
@@ -631,6 +633,10 @@ impl CsvSource {
 async fn test_csv_source() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
+    let span = tracing::info_span!(
+        "task::spawned",
+        trace_id = tracing::field::Empty
+    );
     use std::str::FromStr;
     csv_to_taos(
         Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
@@ -657,6 +663,7 @@ async fn test_csv_source() -> anyhow::Result<()> {
         Default::default(),
         None,
         None,
+        span.clone(),
     )
     .await?;
     tokio::time::sleep(Duration::from_secs(10)).await;

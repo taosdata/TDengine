@@ -16,6 +16,7 @@ use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
+use tracing::Span;
 
 use crate::{
     build_ipc, get_log_keep_days,
@@ -286,6 +287,7 @@ pub async fn pi_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI or PIBACKFILL");
     #[cfg(not(target_os = "windows"))]
@@ -339,6 +341,7 @@ pub async fn pi_to_taos(
         &cancel,
         with_agent,
         transferred,
+        span,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;

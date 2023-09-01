@@ -30,7 +30,7 @@ use taos::{
 use tokio::sync::{Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, error, info, instrument, Instrument};
+use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
@@ -2255,6 +2255,7 @@ pub fn listen_tcp_socket(
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<IpcHandler> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
@@ -2281,7 +2282,7 @@ pub fn listen_tcp_socket(
             let mut handlers = vec![];
             let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
                 tracing::info!("new tcp client!: {:?}", addr);
-                let span = tracing::info_span!("ipc_reader", client.address = %addr);
+                // let span = tracing::info_span!("ipc_reader", client.address = %addr);
                 let stream = stream.into_std().unwrap();
                 let _ = stream.set_nonblocking(false);
                 let client = addr.to_string();
@@ -2327,7 +2328,7 @@ pub fn listen_tcp_socket(
                             tracing::error!("ipc read err: {:#}", err);
                             let _ = se.send(err.to_string()).await;
                         }
-                    }.instrument(span))
+                    }.instrument(span.clone()))
                 }
             };
             loop {
