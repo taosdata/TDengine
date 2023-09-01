@@ -348,7 +348,6 @@ async fn consume_lush_record(
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                tracing::debug!("query_tags_sql: {query_tags_sql}");
                 match taos.query(query_tags_sql).await {
                     Ok(mut rs) => {
                         let mut rows = rs.rows();
@@ -374,7 +373,7 @@ async fn consume_lush_record(
                         }
                     }
                     Err(err) => {
-                        tracing::debug!("query_tags_sql err: {}", err.to_string());
+                        tracing::trace!("query_tags_sql err: {}", err.to_string());
                         if err.to_string().contains("0x2603") || err.to_string().contains("0x2662")
                         {
                             // table not exists
@@ -404,6 +403,7 @@ async fn consume_lush_record(
                                     }
                                     if !insert_done {
                                         // init sql shouldn't overflow
+                                        counter!(CHILD_TABLE_CREATED, 1);
                                         tag_modify.sqls.push((table_sql, false));
                                     }
                                 } else {
@@ -413,6 +413,7 @@ async fn consume_lush_record(
                                         sqls: sql_vec,
                                         tags: table.tags().clone().unwrap(),
                                     };
+                                    counter!(CHILD_TABLE_CREATED, 1);
                                     create_sql_map.insert(stable_name.clone(), tag_modify_message);
                                 }
                             }
@@ -429,7 +430,7 @@ async fn consume_lush_record(
                 for sql in message_modify.sqls {
                     info!("Tables: {}", sql.0);
                     match taos.exec(&sql.0).await {
-                        Ok(n) => counter!(CHILD_TABLE_CREATED, n as u64),
+                        Ok(n) => (),
                         Err(err) => {
                             let err_str = err.to_string();
                             tracing::warn!("create table error: {err:#}");
