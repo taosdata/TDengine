@@ -1145,7 +1145,8 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (metaGetInfo(compactor->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(compactor->ctx->dataIterMerger, (TABLEID *)row);
+        TABLEID tbid = {.suid = row->suid, .uid = row->uid};
+        code = tsdbIterMergerSkipTableData(compactor->ctx->dataIterMerger, &tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
