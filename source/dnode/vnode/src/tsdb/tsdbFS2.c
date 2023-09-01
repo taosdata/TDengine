@@ -258,14 +258,6 @@ _exit:
   return code;
 }
 
-static bool is_same_file(const STFile *f1, const STFile f2) {
-  if (f1->type != f2.type) return false;
-  if (f1->did.level != f2.did.level) return false;
-  if (f1->did.id != f2.did.id) return false;
-  if (f1->cid != f2.cid) return false;
-  return true;
-}
-
 static int32_t apply_commit(STFileSystem *fs) {
   int32_t        code = 0;
   TFileSetArray *fsetArray1 = fs->fSetArr;
