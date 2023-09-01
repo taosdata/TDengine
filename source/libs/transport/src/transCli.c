@@ -2158,7 +2158,7 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
     STraceId* trace = &pMsg->msg.info.traceId;
     char*     tbuf = taosMemoryCalloc(1, TSDB_FQDN_LEN * 5);
 
-    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+    EPSET_TO_STR(&pCtx->epSet, tbuf);
     tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
             pCtx->retryStep, pCtx->retryNextInterval);
     taosMemoryFree(tbuf);
