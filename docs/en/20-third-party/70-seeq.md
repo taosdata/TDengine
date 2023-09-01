@@ -51,7 +51,7 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 
 ### Install TDengine on-premise instance
 
-See [Quick Install from Package](../../get-started/package/).
+See [Quick Install from Package](../../get-started).
 
 ### Or use TDengine Cloud
 
