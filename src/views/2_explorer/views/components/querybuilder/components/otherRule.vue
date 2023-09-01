@@ -13,7 +13,7 @@
         </el-input>
       </el-col>
     </el-row>
-    <el-row class="row-style" v-if="isWhereCondition">
+    <el-row class="row-style">
       <el-col :span="12" class="col-style">
         <span class="label">LIMIT</span>
         <el-input-number 
@@ -77,7 +77,7 @@
             </el-input-number>
           </el-col>
           <el-col :span="12" class="col-style">
-            <span class="label">OFFSET</span>
+            <span class="label">SOFFSET</span>
             <el-input-number 
               v-model="otherRule.soffset" 
               placeholder="" 
@@ -117,7 +117,7 @@
             </el-input-number>
           </el-col>
           <el-col :span="12" class="col-style">
-            <span class="label">OFFSET</span>
+            <span class="label">SOFFSET</span>
             <el-input-number 
               v-model="otherRule.soffset" 
               placeholder="" 
