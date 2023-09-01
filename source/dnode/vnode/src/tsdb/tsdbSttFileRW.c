@@ -721,8 +721,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
       .fid = writer->config->fid,
       .nf = writer->file[0],
   };
-  op.nf.minVer = TMIN(op.nf.minVer, writer->ctx->range.minVer);
-  op.nf.maxVer = TMAX(op.nf.maxVer, writer->ctx->range.maxVer);
+  tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
 
   code = TARRAY2_APPEND(opArray, op);
   TSDB_CHECK_CODE(code, lino, _exit);
