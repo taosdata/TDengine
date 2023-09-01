@@ -24,6 +24,7 @@ pub use sink::IpcStreamWorker;
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
+use tracing::Span;
 use tracing::instrument;
 
 use crate::plugins::runners::pi::pi_datasets;
@@ -66,6 +67,7 @@ pub async fn build_ipc(
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<IpcHandler> {
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
@@ -81,6 +83,7 @@ pub async fn build_ipc(
             parser,
             connector,
             transferred,
+            span,
         )?
     } else {
         sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap()).await?

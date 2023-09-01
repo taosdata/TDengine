@@ -16,6 +16,7 @@ use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 
 use taosx_ipc::prelude::ArrowDataType;
+use tracing::Span;
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
@@ -106,6 +107,7 @@ pub async fn kafka_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!(
         "{} kafka_to_taos started, from: {}, to: {}",
@@ -126,6 +128,7 @@ pub async fn kafka_to_taos(
         &cancel,
         with_agent,
         transferred,
+        span,
     )
     .await?;
 

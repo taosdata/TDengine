@@ -18,6 +18,7 @@ use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
+use tracing::Span;
 
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
@@ -184,6 +185,7 @@ pub async fn mqtt_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: MQTT");
 
@@ -224,6 +226,7 @@ pub async fn mqtt_to_taos(
         &cancel,
         with_agent,
         transferred,
+        span,
     )
     .await?;
     let mqtt = mqtt_exe_path();
@@ -396,6 +399,7 @@ mod tests {
         pretty_env_logger::init();
         let transferred = Arc::new(Transferred::default());
         let metrics = transferred.clone();
+        use std::time::Duration;
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(200));
             loop {

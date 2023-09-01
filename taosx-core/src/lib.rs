@@ -188,6 +188,7 @@ impl TaskOpts {
             // port_pool,
             offsets,
             transferred,
+            span,
             ..
         } = self;
 
@@ -295,6 +296,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -308,6 +310,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -321,6 +324,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -334,6 +338,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -347,6 +352,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -359,6 +365,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone()
                     )
                     .await?;
                 }
@@ -384,6 +391,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }

@@ -10,6 +10,7 @@ use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
+use tracing::Span;
 
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
@@ -185,6 +186,7 @@ pub async fn opentsdb_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OpentsDB");
 
@@ -227,6 +229,7 @@ pub async fn opentsdb_to_taos(
         &cancel,
         with_agent,
         transferred,
+        span,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;

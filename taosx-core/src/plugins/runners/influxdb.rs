@@ -10,7 +10,7 @@ use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Instrument};
+use tracing::{instrument, Instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days,
@@ -252,6 +252,7 @@ pub async fn influxdb_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     // let _ = info_span!("influxdb_to_taos", x.influxdb.source = %mask_dsn(&from), x.influxdb.sink = %mask_dsn(&to)).entered();
     println!("# loading plugin: InfluxDB");
@@ -295,6 +296,7 @@ pub async fn influxdb_to_taos(
         &cancel,
         with_agent,
         transferred,
+        span,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
