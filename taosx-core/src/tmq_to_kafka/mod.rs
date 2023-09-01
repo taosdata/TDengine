@@ -6,7 +6,7 @@ use itertools::Itertools;
 use kafka::client::RequiredAcks;
 use kafka::producer::{Producer, Record};
 use serde_json::{Map, Value};
-use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
+use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Consumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
@@ -159,15 +159,18 @@ impl TMQSource {
             let dsn = self.consumer_dsn.clone();
             let topic = self.topic.to_string();
             let sender = self.sender.clone();
-            let future = tokio::spawn(TMQSource::consume(dsn, topic, sender));
+            let consumer = TmqBuilder::from_dsn(dsn)?.build().await?;
+
+            let future = tokio::spawn(
+                TMQSource::consume(consumer, topic, sender)
+            );
             futures.push(future);
         }
 
         Ok(futures)
     }
 
-    async fn consume(dsn: Dsn, topic: String, sender: Sender<String>) -> Result<()> {
-        let mut consumer = TmqBuilder::from_dsn(dsn)?.build().await?;
+    async fn consume(mut consumer: Consumer, topic: String, sender: Sender<String>) -> Result<()> {
         AsAsyncConsumer::subscribe(&mut consumer, [topic]).await?;
 
         'outer: loop {
@@ -179,7 +182,7 @@ impl TMQSource {
                         let records: Vec<Map<String, Value>> = block.deserialize().try_collect()?;
                         for record in records {
                             let record_json = serde_json::to_string(&record)?;
-                            log::debug!("sending from tmq consumer {}", record_json);
+                            log::debug!("receive from tmq consumer {}", record_json);
 
                             if sender.send(record_json).await.is_err() {
                                 // channel is closed.
@@ -239,34 +242,28 @@ impl KafkaProducer {
         let ack_timeout = self.ack_timeout;
         let batch_size = self.batch_size;
 
-        let handler = tokio::spawn(KafkaProducer::deal_message(
-            receiver,
-            kafka_server,
-            topic,
-            ack_timeout,
-            batch_size,
-            cancel,
-        ));
-        Ok(handler)
-    }
-
-    async fn deal_message(
-        mut receiver: Receiver<String>,
-        kafka_server: Vec<String>,
-        topic: String,
-        ack_timeout: u64,
-        batch_size: usize,
-        cancel: CancellationToken,
-    ) -> Result<()> {
         dbg!(&kafka_server);
         let server = kafka_server.iter().join(",");
-        let mut producer = Producer::from_hosts(kafka_server)
+        let producer = Producer::from_hosts(kafka_server)
             .with_required_acks(RequiredAcks::One)
             .with_ack_timeout(Duration::from_secs(ack_timeout))
             .create()
             .with_context(|| format!("Create kafka producer error from {server}"))?;
         tracing::info!("Start kafka producer");
 
+        let handler = tokio::spawn(
+            KafkaProducer::deal_message(receiver, producer, topic, batch_size, cancel)
+        );
+        Ok(handler)
+    }
+
+    async fn deal_message(
+        mut receiver: Receiver<String>,
+        mut producer: Producer,
+        topic: String,
+        batch_size: usize,
+        cancel: CancellationToken,
+    ) -> Result<()> {
         tokio::spawn(async move {
             let mut messages: Vec<String> = Vec::with_capacity(batch_size + 2);
             let mut interval = time::interval(Duration::from_secs(1));
@@ -276,17 +273,13 @@ impl KafkaProducer {
                     Some(message) = receiver.recv() => {
                         messages.push(message);
                         if messages.len() >= batch_size {
-                            KafkaProducer::send_messages(&mut producer, &messages, &topic)
-                            .await
-                            .unwrap();
+                            KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
                             messages = Vec::with_capacity(batch_size + 2);
                         }
                     },
                     _ = interval.tick() => {
                         if messages.len() > 0 {
-                            KafkaProducer::send_messages(&mut producer, &messages, &topic)
-                            .await
-                            .unwrap();
+                            KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
                             messages = Vec::with_capacity(batch_size + 2);
                         }
                     },
@@ -297,11 +290,10 @@ impl KafkaProducer {
             };
 
             if messages.len() > 0 {
-                KafkaProducer::send_messages(&mut producer, &messages, &topic)
-                    .await
-                    .unwrap();
+                KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
             }
-        }).await?;
+            Result::<(), anyhow::Error>::Ok(())
+        }).await??;
 
         tracing::info!("Kafka producer stopped");
         Ok(())
@@ -346,10 +338,11 @@ impl KafkaSinker {
             }
 
             for future in source_futures {
-                future.await.unwrap().unwrap();
+                future.await??;
             }
-            sink_future.await.unwrap().unwrap();
-        }).await?;
+            sink_future.await??;
+            Result::<(), anyhow::Error>::Ok(())
+        }).await??;
 
         Ok(())
     }
