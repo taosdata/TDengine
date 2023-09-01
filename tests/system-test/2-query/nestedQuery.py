@@ -6085,7 +6085,7 @@ class TDTestCase:
         #6 
         tdSql.query("select 6-1 from stable_1;")
         for i in range(self.fornum):
-            sql = "select count(*) from (select avg()/1000 from stable_1); "
+            sql = "select count(*) from (select avg(q_int)/1000 from stable_1); "
             tdLog.info(sql)
             tdLog.info(len(sql))
             tdSql.query(sql)
