@@ -369,14 +369,6 @@ const conditionMap = {
       }
       
       if (this.isWhereCondition) {
-        if (this.otherRule.limit) {
-          sql += ` LIMIT ${this.otherRule.limit}`
-        } else {
-          return this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
-        }
-        if (this.otherRule.offset) {
-          sql += ` OFFSET ${this.otherRule.offset}`
-        }
         if (this.otherRule.partitionby) {
         sql += ` PARTITION BY ${this.otherRule.partitionby}`
       }
@@ -470,6 +462,16 @@ const conditionMap = {
         } else {
           return this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
         }
+      }
+
+      // limit 放在最后
+      if (this.otherRule.limit) {
+        sql += ` LIMIT ${this.otherRule.limit}`
+      } else {
+        return this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
+      }
+      if (this.otherRule.offset) {
+        sql += ` OFFSET ${this.otherRule.offset}`
       }
       return sql
     },
