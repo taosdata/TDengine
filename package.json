@@ -31,6 +31,7 @@
     "highlight.js": "^11.4.0",
     "highlightjs": "^9.16.2",
     "js-cookie": "^2.2.1",
+    "json-bigint": "^1.0.0",
     "json2csv": "^5.0.7",
     "lodash": "^4.17.21",
     "marked": "^4.2.12",
