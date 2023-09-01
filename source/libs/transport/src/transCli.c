@@ -2166,12 +2166,11 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   if (rpcDebugFlag & DEBUG_DEBUG) {
     STraceId* trace = &pMsg->msg.info.traceId;
-    char*     tbuf = taosMemoryCalloc(1, TSDB_FQDN_LEN * 5);
+    char      tbuf[512] = {0};
 
     EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
     tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
             pCtx->retryStep, pCtx->retryNextInterval);
-    taosMemoryFree(tbuf);
   }
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
@@ -2397,7 +2396,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   bool      hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
   if (hasEpSet) {
     if (rpcDebugFlag & DEBUG_TRACE) {
-      char tbuf[256] = {0};
+      char tbuf[512] = {0};
       EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
