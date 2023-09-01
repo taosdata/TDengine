@@ -6,6 +6,13 @@
   "description": "taosexplorer",
   "glyphs": [
     {
+      "icon_id": "36018526",
+      "name": "data-metric",
+      "font_class": "data-metric",
+      "unicode": "e63a",
+      "unicode_decimal": 58938
+    },
+    {
       "icon_id": "1322281",
       "name": "icon_query",
       "font_class": "chaxun",

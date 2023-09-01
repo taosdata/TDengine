@@ -111,7 +111,15 @@
           :label="$t('datasource.via')"
           prop="via"
         ></el-table-column>
-        <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
+
+        <el-table-column label="Metrics" prop="finished_at">
+          <template slot-scope="scope">
+              <el-button @click="checkMetrics(scope.row)" size="mini" style="font-size:12px;color: #4d6992;"
+              :disabled="scope.row.status.toLowerCase()=='failed'"
+              >{{ $t('view') }}</el-button>
+            
+          </template>
+        </el-table-column>
 
         <el-table-column :label="$t('datasource.status')" prop="status">
           <template slot-scope="scope">
@@ -244,7 +252,7 @@
 </template>
 <script>
 import { Message, Switch } from "element-ui";
-import { getTask, refreshTask, getTaskActivities } from "@/api/explorer/datain";
+import { getTask, refreshTask, getTaskActivities,getMetrics } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -445,6 +453,28 @@ export default {
       }
     },
 
+    async checkMetrics(data){
+      try {
+        let result =await getMetrics(data.id)
+        if(result.message){
+          Message.error(result.message)
+          return
+        }
+        let array=Object.entries(result)
+        let html=`<ul>`
+          array.forEach(item=>{
+            html+=`<li style='margin-bottom:6px;color:#4d6992;'>${item.toString().replace(',',':')}</li>`
+          })
+         html += `</ul>`
+        this.$alert(html,'',{
+          confirmButtonText:this.$t('ok'),
+          dangerouslyUseHTMLString: true
+        })
+
+      } catch (error) {
+        console.log(error);
+      }
+    },
     start(data, index) {
       try {
         this.$confirm(
@@ -552,7 +582,6 @@ export default {
         return item;
       });
       this.taskActivities = activitList;
-      console.log("res", res);
     },
     getLevelStyle(level) {
       let style = "";
