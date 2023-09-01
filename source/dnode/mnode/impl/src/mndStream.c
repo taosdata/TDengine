@@ -1567,8 +1567,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         } else if (taskStatus == TASK_STATUS__DROPPING) {
           memcpy(varDataVal(status), "dropping", 8);
           varDataSetLen(status, 8);
-        } else if (taskStatus == TASK_STATUS__FAIL) {
-          memcpy(varDataVal(status), "fail", 4);
+        } else if (taskStatus == TASK_STATUS__UNINIT) {
+          memcpy(varDataVal(status), "uninit", 6);
           varDataSetLen(status, 4);
         } else if (taskStatus == TASK_STATUS__STOP) {
           memcpy(varDataVal(status), "stop", 4);
