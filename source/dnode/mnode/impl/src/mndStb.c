@@ -1066,6 +1066,83 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   return TSDB_CODE_SUCCESS;
 }
 
+static char* mndAuditFieldTypeStr(int32_t type){
+  switch (type)
+  {
+  case TSDB_DATA_TYPE_NULL:
+    return "null";
+  case TSDB_DATA_TYPE_BOOL:
+    return "bool";
+  case TSDB_DATA_TYPE_TINYINT:
+    return "tinyint";
+  case TSDB_DATA_TYPE_SMALLINT:
+    return "smallint";
+  case TSDB_DATA_TYPE_INT:
+    return "int";
+  case TSDB_DATA_TYPE_BIGINT:
+    return "bigint";
+  case TSDB_DATA_TYPE_FLOAT:
+    return "float";
+  case TSDB_DATA_TYPE_DOUBLE:
+    return "double";
+  case TSDB_DATA_TYPE_VARCHAR:
+    return "varchar";
+  case TSDB_DATA_TYPE_TIMESTAMP:
+    return "timestamp";
+  case TSDB_DATA_TYPE_NCHAR:
+    return "nchar";
+  case TSDB_DATA_TYPE_UTINYINT:
+    return "utinyint";
+  case TSDB_DATA_TYPE_USMALLINT:
+    return "usmallint";
+  case TSDB_DATA_TYPE_UINT:
+    return "uint";
+  case TSDB_DATA_TYPE_UBIGINT:
+    return "ubigint";
+  case TSDB_DATA_TYPE_JSON:
+    return "json";
+  case TSDB_DATA_TYPE_VARBINARY:
+    return "varbinary";
+  case TSDB_DATA_TYPE_DECIMAL:
+    return "decimal";
+  case TSDB_DATA_TYPE_BLOB:
+    return "blob";
+  case TSDB_DATA_TYPE_MEDIUMBLOB:
+    return "mediumblob";
+  case TSDB_DATA_TYPE_GEOMETRY:
+    return "geometry";
+
+  default:
+    return "error";
+  }
+}
+
+static void mndAuditFieldStr(char* detail, SArray *arr, int32_t len, int32_t max){
+  int32_t detialLen = strlen(detail);
+  int32_t fieldLen = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    SField *pField = taosArrayGet(arr, i);
+    char field[TSDB_COL_NAME_LEN + 20] = {0};
+    fieldLen = strlen(", ");
+    if(detialLen > 0 && detialLen < max-fieldLen-1) {
+      strcat(detail, ", ");
+      detialLen += fieldLen;
+    }
+    else{
+      break;
+    }
+    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
+    fieldLen = strlen(field);
+    if(detialLen < max-fieldLen-1) {
+      strcat(detail, field);
+      detialLen += fieldLen;
+    }
+    else{
+      break;
+    }
+  }
+}
+
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -1174,7 +1251,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[2000] = {0};
+  char detail[AUDIT_DETAIL_MAX] = {0};
   sprintf(detail, "colVer:%d, delay1:%" PRId64 ", delay2:%" PRId64 ", deleteMark1:%" PRId64 ", "
           "deleteMark2:%" PRId64 ", igExists:%d, numOfColumns:%d, numOfFuncs:%d, numOfTags:%d, "
           "source:%d, suid:%" PRId64 ", tagVer:%d, ttl:%d, "
@@ -1183,11 +1260,14 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           createReq.deleteMark2, createReq.igExists, createReq.numOfColumns, createReq.numOfFuncs, createReq.numOfTags,
           createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
           createReq.watermark1, createReq.watermark2);
+  
+  mndAuditFieldStr(detail, createReq.pColumns, createReq.numOfColumns, AUDIT_DETAIL_MAX);
+  mndAuditFieldStr(detail, createReq.pTags, createReq.numOfTags, AUDIT_DETAIL_MAX);
 
   SName name = {0};
-  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, createReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2532,9 +2612,9 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
           dropReq.igNotExists, dropReq.source);
  
   SName name = {0};
-  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, dropReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
