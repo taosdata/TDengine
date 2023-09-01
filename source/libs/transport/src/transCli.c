@@ -2166,10 +2166,12 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   if (rpcDebugFlag & DEBUG_DEBUG) {
     STraceId* trace = &pMsg->msg.info.traceId;
-    char      tbuf[256] = {0};
+    char*     tbuf = taosMemoryCalloc(1, TSDB_FQDN_LEN * 5);
+
     EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
     tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
             pCtx->retryStep, pCtx->retryNextInterval);
+    taosMemoryFree(tbuf);
   }
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));

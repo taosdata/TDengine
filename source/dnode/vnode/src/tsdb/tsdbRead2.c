@@ -1268,7 +1268,7 @@ static void getBlockToLoadInfo(SDataBlockToLoadInfo* pInfo, SFileDataBlockInfo* 
   }
 
   // has duplicated ts of different version in this block
-  pInfo->hasDupTs = (pBlockInfo->record.numRow > pBlockInfo->record.count);
+  pInfo->hasDupTs = (pBlockInfo->record.numRow > pBlockInfo->record.count) || (pBlockInfo->record.count <= 0);
   pInfo->overlapWithDelInfo = overlapWithDelSkyline(pScanInfo, &pBlockInfo->record, pReader->info.order);
 
   if (hasDataInLastBlock(pLastBlockReader)) {
