@@ -917,6 +917,13 @@ void streamTaskHalt(SStreamTask* pTask) {
     return;
   }
 
+  // wait for checkpoint completed
+  while(pTask->status.taskStatus == TASK_STATUS__CK) {
+    qDebug("s-task:%s status:%s during generating checkpoint, wait for 1sec and retry set status:halt", pTask->id.idStr,
+           streamGetTaskStatusStr(TASK_STATUS__CK));
+    taosMsleep(1000);
+  }
+
   // upgrade to halt status
   if (status == TASK_STATUS__PAUSE) {
     qDebug("s-task:%s upgrade status to %s from %s", pTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
