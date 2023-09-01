@@ -13,7 +13,7 @@
         </el-input>
       </el-col>
     </el-row>
-    <el-row class="row-style">
+    <el-row class="row-style" v-if="isWhereCondition">
       <el-col :span="12" class="col-style">
         <span class="label">LIMIT</span>
         <el-input-number 
@@ -52,9 +52,19 @@
               >
             </el-input>
           </el-col>
+          <el-col :span="12" class="col-style">
+            <span class="label">HAVING</span>
+            <el-input 
+              v-model="otherRule.having" 
+              placeholder="" 
+              style="margin-right: 8px; width: 280px;" 
+              :size="size"
+              >
+            </el-input>
+          </el-col>
         </el-row>
         <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 start -->
-        <el-row class="row-style" v-if="otherRule.groupby || otherRule.partitionby">
+        <el-row class="row-style">
           <el-col :span="12" class="col-style">
             <span class="label">SLIMIT</span>
             <el-input-number 
@@ -94,7 +104,7 @@
           </el-col>
         </el-row>
         <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 start -->
-        <el-row class="row-style" v-if="otherRule.groupby || otherRule.partitionby">
+        <el-row class="row-style">
           <el-col :span="12" class="col-style">
             <span class="label">SLIMIT</span>
             <el-input-number 
@@ -425,5 +435,6 @@ export default {
 }
 ::v-deep .el-collapse-item__header {
   color: #4259ce;
+  font-size: 14px;
 }
 </style>
