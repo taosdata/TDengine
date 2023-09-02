@@ -315,6 +315,7 @@ void uvWhiteListAdd(SWhiteList* pWhite, char* user, char* ip) {
 }
 
 void uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable) {
+  pWhite->ver++;
   // impl later
 }
 
