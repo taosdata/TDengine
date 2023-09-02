@@ -189,31 +189,116 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
+typedef struct {
+  int32_t netmask;
+  int32_t address;
+  int32_t network;
+  int32_t broadcast;
+  char    info[32];
+  int8_t  type;
+} SubnetUtils;
 
-static bool uvCheckIp(char* range, char* ip) {
-  // impl later
-  return strcmp(range, ip) == 0;
+int32_t subnetInit(SubnetUtils* pUtils, char* range) {
+  strncpy(pUtils->info, range, strlen(range));
+
+  int16_t ip[5] = {0};
+  int     k = 0;
+  char*   start = pUtils->info;
+  char*   end = start;
+
+  for (k = 0; *start != '\0'; start = end) {
+    for (end = start; *end != '.' && *end != '/' && *end != '\0'; end++) {
+      //
+    }
+    if (*end == '.' || *end == '/') {
+      *end = '\0';
+      end++;
+    }
+    ip[k++] = atoi(start);
+  }
+  if (k < 4) {
+    return -1;
+  }
+
+  for (int i = 0; i < 4; i++) {
+    pUtils->address |= (ip[i] << (8 * (4 - i - 1)));
+  }
+
+  for (int i = 0; i < ip[4]; i++) {
+    pUtils->netmask |= (32 - i);
+  }
+
+  pUtils->network = pUtils->address & pUtils->netmask;
+  pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
+  pUtils->type = (k == 4 ? 0 : 1);
+
+  return 0;
 }
-static bool uvFilteByWhiteList(SWorkThrd* pThrd, char* user, uint32_t ip) {
+int32_t subnetIsInRange(SubnetUtils* pUtils, uint32_t ip) {
+  // impl later
+  if (pUtils == NULL) return false;
+  if (pUtils->type == 0) {
+    return pUtils->address == ip;
+  } else {
+    return pUtils->network >= ip && pUtils->broadcast <= ip;
+  }
+}
+
+static bool uvCheckIp(char* range, int32_t ip) {
+  // impl later
+  SubnetUtils subnet = {0};
+  if (subnetInit(&subnet, range) != 0) {
+    return false;
+  }
+  return subnetIsInRange(&subnet, ip);
+}
+
+static void uvWhiteListDestroy(SHashObj* pWhiteList) {
+  void* pIter = taosHashIterate(pWhiteList, NULL);
+  while (pIter) {
+    SArray* list = *(SArray**)pIter;
+    for (int i = 0; i < taosArrayGetSize(list); i++) {
+      char* range = taosArrayGetP(list, i);
+      taosMemoryFree(range);
+    }
+    taosArrayDestroy(list);
+    pIter = taosHashIterate(pWhiteList, pIter);
+  }
+  taosHashCleanup(pWhiteList);
+}
+static bool uvWhiteListAdd(SHashObj* pWhiteList, char* user, char* ip) {
+  SArray** pWhite = taosHashGet(pWhiteList, user, strlen(user));
+  if (pWhite == NULL || *pWhite == NULL) {
+    SArray* list = taosArrayInit(8, sizeof(void*));
+    taosArrayPush(list, &ip);
+    taosHashPut(pWhiteList, user, strlen(user), &list, sizeof(void*));
+  } else {
+    taosArrayPush(*pWhite, &ip);
+  }
+  return true;
+}
+
+static bool uvWhiteListFilte(SHashObj* pWhiteList, char* user, uint32_t ip) {
   // impl check
   bool     valid = false;
-  SArray** pWhite = taosHashGet(pThrd->pWhiteList, user, strlen(user));
+  SArray** pWhite = taosHashGet(pWhiteList, user, strlen(user));
   if (pWhite == NULL || *pWhite == NULL) {
     return true;
   }
 
-  char userIp[64] = {0};
-  tinet_ntoa(userIp, ip);
+  // char userIp[64] = {0};
+  // tinet_ntoa(userIp, ip);
 
   for (int i = 0; i < taosArrayGetSize(*pWhite); i++) {
     char* range = taosArrayGetP(*pWhite, i);
-    if (uvCheckIp(range, userIp)) {
+    if (uvCheckIp(range, ip)) {
       valid = true;
       break;
     }
   }
   return valid;
 }
+
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pTransInst = pConn->pTransInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -225,7 +310,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
     return false;
   }
-  if (uvFilteByWhiteList(pThrd, pHead->user, pConn->clientIp) == false) {
+  if (uvWhiteListFilte(pThrd->pWhiteList, pHead->user, pConn->clientIp) == false) {
     return false;
   }
 
