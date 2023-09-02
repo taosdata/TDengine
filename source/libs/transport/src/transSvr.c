@@ -198,24 +198,29 @@ typedef struct {
   int8_t  type;
 } SubnetUtils;
 
-int32_t subnetInit(SubnetUtils* pUtils, char* range) {
-  strncpy(pUtils->info, range, strlen(range));
+int32_t cvtIp2Int(char* ip, int16_t* dest) {
+  int   k = 0;
+  char* start = ip;
+  char* end = start;
 
-  int16_t ip[5] = {0};
-  int     k = 0;
-  char*   start = pUtils->info;
-  char*   end = start;
-
-  for (k = 0; *start != '\0'; start = end) {
-    for (end = start; *end != '.' && *end != '/' && *end != '\0'; end++) {
-      //
+  for (k = 0; *start != 0; start = end) {
+    for (end = start; *end != '.' && *end != '/' && *end != 0; end++) {
     }
     if (*end == '.' || *end == '/') {
-      *end = '\0';
+      *end = 0;
       end++;
     }
-    ip[k++] = atoi(start);
+    dest[k++] = atoi(start);
   }
+  return k;
+}
+int32_t subnetInit(SubnetUtils* pUtils, char* range) {
+  char buf[32] = {0};
+  strncpy(pUtils->info, range, strlen(range));
+  strncpy(buf, range, strlen(range));
+
+  int16_t ip[5] = {0};
+  int8_t  k = cvtIp2Int(buf, ip);
   if (k < 4) {
     return -1;
   }
@@ -225,7 +230,7 @@ int32_t subnetInit(SubnetUtils* pUtils, char* range) {
   }
 
   for (int i = 0; i < ip[4]; i++) {
-    pUtils->netmask |= (32 - i);
+    pUtils->netmask |= (1 << (31 - i));
   }
 
   pUtils->network = pUtils->address & pUtils->netmask;
@@ -234,7 +239,12 @@ int32_t subnetInit(SubnetUtils* pUtils, char* range) {
 
   return 0;
 }
-int32_t subnetIsInRange(SubnetUtils* pUtils, uint32_t ip) {
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) {
+  sprintf(buf, "raw: %s, address: %d,  netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
+          pUtils->netmask, pUtils->network, pUtils->broadcast);
+  return 0;
+}
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   // impl later
   if (pUtils == NULL) return false;
   if (pUtils->type == 0) {
@@ -250,7 +260,7 @@ static bool uvCheckIp(char* range, int32_t ip) {
   if (subnetInit(&subnet, range) != 0) {
     return false;
   }
-  return subnetIsInRange(&subnet, ip);
+  return subnetCheckIp(&subnet, ip);
 }
 
 static void uvWhiteListDestroy(SHashObj* pWhiteList) {
