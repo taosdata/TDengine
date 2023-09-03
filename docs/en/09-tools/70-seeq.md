@@ -49,11 +49,7 @@ sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of
 sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
 ```
 
-### Install TDengine on-premise instance
-
-See [Quick Install from Package](../../get-started/package/).
-
-### Or use TDengine Cloud
+### Sign up TDengine Cloud
 
 Register for a [TDengine Cloud](https://cloud.tdengine.com) account and log in to your account.
 
@@ -106,6 +102,10 @@ The source code is hosted at [GitHub Repository](https://github.com/sangshuduo/t
 ### Using Seeq for data analysis
 
 #### Data Source configuration
+
+Configuring a Seeq data source connection to TDengine Cloud or a local installation instance does not have any essential differences. After logging in to TDengine Cloud, select "Programming - Java" and copy the JDBC URL string with the token provided. Then, use this JDBC URL string to fill in the DatabaseJdbcUrl value in the Seeq Data Source configuration.
+
+Please note that when using TDengine Cloud, you need to specify the database name in your SQL commands.
 
 Please login with Seeq administrator and create a few data sources as following.
 
@@ -160,7 +160,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
@@ -220,7 +220,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
@@ -279,7 +279,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
@@ -361,75 +361,6 @@ plt.show()
 Example output:
 
 ![Seeq forecast result](./seeq/seeq-forecast-result.webp)
-
-### How to configure Seeq data source to access TDengine Cloud
-
-Configuring a Seeq data source connection to TDengine Cloud or a local installation instance does not have any essential differences. After logging in to TDengine Cloud, select "Programming - Java" and copy the JDBC URL string with the token provided. Then, use this JDBC URL string to fill in the DatabaseJdbcUrl value in the Seeq Data Source configuration.
-
-Please note that when using TDengine Cloud, you need to specify the database name in your SQL commands.
-
-#### The data source of TDengine Cloud example
-
-```
-{
-    "QueryDefinitions": [
-        {
-            "Name": "CloudVoltage",
-            "Type": "SIGNAL",
-            "Sql": "SELECT  ts, voltage FROM test.meters",
-            "Enabled": true,
-            "TestMode": false,
-            "TestQueriesDuringSync": true,
-            "InProgressCapsulesEnabled": false,
-            "Variables": null,
-            "Properties": [
-                {
-                    "Name": "Name",
-                    "Value": "Voltage",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Interpolation Method",
-                    "Value": "linear",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Maximum Interpolation",
-                    "Value": "2day",
-                    "Sql": null,
-                    "Uom": "string"
-                }
-            ],
-            "CapsuleProperties": null
-        }
-    ],
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
-
-#### Seeq Workbench with TDengine Cloud data source example
-
-![Seeq workbench with TDengine Cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
 
 ## Conclusion
 

@@ -49,10 +49,6 @@ sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of
 sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
 ```
 
-## TDengine 本地实例安装方法
-
-请参考[官网文档](../../get-started/package/)。 
-
 ## TDengine Cloud 访问方法
 如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
 
@@ -105,6 +101,10 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 ### 使用 Seeq 进行数据分析
 
 #### 配置数据源（Data Source）
+
+配置 Seeq 数据源连接 TDengine Cloud 和连接 TDengine 本地安装实例没有本质的不同，只要登录 TDengine Cloud 后选择“编程 - Java”并拷贝带 token 字符串的 JDBC 填写为 Seeq Data Source 的 DatabaseJdbcUrl 值。
+
+注意使用 TDengine Cloud 时 SQL 命令中需要指定数据库名称。
 
 使用 Seeq 管理员角色的帐号登录，并新建数据源。
 
@@ -159,7 +159,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
@@ -219,7 +219,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
@@ -278,7 +278,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
@@ -361,73 +361,6 @@ plt.show()
 
 ![Seeq forecast result](./seeq/seeq-forecast-result.webp)
 
-### 配置 Seeq 数据源连接 TDengine Cloud
-
-配置 Seeq 数据源连接 TDengine Cloud 和连接 TDengine 本地安装实例没有本质的不同，只要登录 TDengine Cloud 后选择“编程 - Java”并拷贝带 token 字符串的 JDBC 填写为 Seeq Data Source 的 DatabaseJdbcUrl 值。
-注意使用 TDengine Cloud 时 SQL 命令中需要指定数据库名称。
-
-#### 用 TDengine Cloud 作为数据源的配置内容示例：
-
-```
-{
-    "QueryDefinitions": [
-        {
-            "Name": "CloudVoltage",
-            "Type": "SIGNAL",
-            "Sql": "SELECT  ts, voltage FROM test.meters",
-            "Enabled": true,
-            "TestMode": false,
-            "TestQueriesDuringSync": true,
-            "InProgressCapsulesEnabled": false,
-            "Variables": null,
-            "Properties": [
-                {
-                    "Name": "Name",
-                    "Value": "Voltage",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Interpolation Method",
-                    "Value": "linear",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Maximum Interpolation",
-                    "Value": "2day",
-                    "Sql": null,
-                    "Uom": "string"
-                }
-            ],
-            "CapsuleProperties": null
-        }
-    ],
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
-
-#### TDengine Cloud 作为数据源的 Seeq Workbench 界面示例
-
-![Seeq workbench with TDengine cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
 
 ## 方案总结
 
