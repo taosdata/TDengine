@@ -1084,7 +1084,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         lines = ['1000E0DC000124 /NC_LINK_ROOT/MACHINE/CONTROLLER/WARNING="[]",/NC_LINK_ROOT/MACHINE/PART_COUNT=5900000i,/NC_LINK_ROOT/MACHINE/STATUS=1i,/NC_LINK_ROOT/MACHINE/VARIABLE@PROCESS_TIME_RECORD="[]" 1680918783010000000']
         self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
         self.tdSql.query("desc `1000E0DC000124`")
-        self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG'))
+        if self.tdSql.query_data[-1] == ('_tag_null', 'NCHAR', 1, 'TAG'):
+            self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG'))
+        elif self.tdSql.query_data[-1] == ('_tag_null', 'NCHAR', 1, 'TAG', ''):
+            self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG', ''))
+        else:
+            raise Exception
 
     def ts_3116(self):
         self.tdSql.execute('drop database if exists iot_dev;')
