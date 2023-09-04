@@ -347,69 +347,69 @@ const conditionMap = {
     },
     generateSql() {
       const query = this.rules[0]
-      let sql = ''
-      sql = `SELECT ${this.general.fields} FROM ${this.fromVal}`
+      
+      this.sql = `SELECT ${this.general.fields} FROM ${this.fromVal}`
       let condition = formatQuery(query)
 
       if (condition) {
-        sql += ` WHERE ${condition}`
+        this.sql += ` WHERE ${condition}`
       }
 
       if (this.otherRule.orderby) {
-        sql += ` ORDER BY ${this.otherRule.orderby}`
+        this.sql += ` ORDER BY ${this.otherRule.orderby}`
       }
       
       if (this.otherRule.partitionby) {
-        sql += ` PARTITION BY ${this.otherRule.partitionby}`
+        this.sql += ` PARTITION BY ${this.otherRule.partitionby}`
       }
       
       if (this.otherRule.groupby) {
-        sql += ` GROUP BY ${this.otherRule.groupby}`
+        this.sql += ` GROUP BY ${this.otherRule.groupby}`
         if (this.otherRule.having) {
-          sql += ` HAVING ${this.otherRule.having}`
+          this.sql += ` HAVING ${this.otherRule.having}`
         }
       }
 
       // slimit
       if (this.otherRule.groupby || this.otherRule.partitionby) {
-        if (this.otherRule.slimit) {
-          sql += ` SLIMIT ${this.otherRule.slimit}`
+        if (String(this.otherRule.slimit) != 'undefined') {
+          this.sql += ` SLIMIT ${this.otherRule.slimit}`
         }
-        if (this.otherRule.soffset) {
-          sql += ` SOFFSET ${this.otherRule.soffset}`
+        if (String(this.otherRule.soffset) != 'undefined') {
+          this.sql += ` SOFFSET ${this.otherRule.soffset}`
         }
       }
 
       // window_clause
       if (this.otherRule.window_type) {
-        sql += " ";
+        this.sql += " ";
         const ts_col = this.fields.find(
           (item) => item.type === "TIMESTAMP"
         )?.field;
         switch (this.otherRule.window_type) {
           case "SESSION":
             if (ts_col && this.otherRule.tol_val) {
-              sql += ` SESSION(${ts_col},${this.otherRule.tol_val}${this.otherRule.tol_unit})`;
+              this.sql += ` SESSION(${ts_col},${this.otherRule.tol_val}${this.otherRule.tol_unit})`;
             }
             break;
           case "STATE":
-            sql += this.otherRule.state_column ? ` STATE_WINDOW(${this.otherRule.state_column})` : '';
+            this.sql += this.otherRule.state_column ? ` STATE_WINDOW(${this.otherRule.state_column})` : '';
             break;
           case "INTERVAL":
             if (this.otherRule.interval_val) {
-              sql += `INTERVAL(${this.otherRule.interval_val}${this.otherRule.interval_unit}`;
+              this.sql += `INTERVAL(${this.otherRule.interval_val}${this.otherRule.interval_unit}`;
               if(this.otherRule.interval_offset){
-                sql += `,${this.otherRule.interval_offset}${this.otherRule.offset_unit}`
+                this.sql += `,${this.otherRule.interval_offset}${this.otherRule.offset_unit}`
               }
-              sql +=`)`
+              this.sql +=`)`
             }
             if (this.otherRule.sliding_val) {
-              sql += ` SLIDING(${this.otherRule.sliding_val}${this.otherRule.sliding_unit})`;
+              this.sql += ` SLIDING(${this.otherRule.sliding_val}${this.otherRule.sliding_unit})`;
             }
             break;
           case "EVENT":
             if (this.otherRule.start_with && this.otherRule.end_with) {
-              sql += ` EVENT_WINDOW start with ${this.otherRule.start_with} end with ${this.otherRule.end_with}`
+              this.sql += ` EVENT_WINDOW start with ${this.otherRule.start_with} end with ${this.otherRule.end_with}`
             }
             break;
           default:
@@ -420,53 +420,65 @@ const conditionMap = {
       // interp_clause 
       if (this.isInterp) {
         const { range1, range2, every_val, every_unit, fill, fill_val } = this.otherRule
-        sql += ''
+        this.sql += ''
         // 需要进行校验,必填项 6个 框
         // rang1 <= rang2 
         // 处理range 
 
-        if (!range1) return this.$message.error(this.$t('console.enterTip').replace('{value}','RANGE'))
+        if (!range1) {
+          this.$message.error(this.$t('console.enterTip').replace('{value}','RANGE'))
+          return
+        }
         if (range1 && !range2) {
-          sql += ` RANGE(${range1})`
+          this.sql += ` RANGE(${range1})`
           // 只有rang1， every 可以省略
           if (every_val) {
-            sql += ` EVERY(${every_val}${every_unit})`
+            this.sql += ` EVERY(${every_val}${every_unit})`
           } 
         } else if (range1 && range2) {
-          if (!this.compareTime(range1,range2)) return this.$message.error('RANGE 范围必须是 timestamp1 <= timestamp2')
+          if (!this.compareTime(range1,range2)) {
+            this.$message.error('RANGE 范围必须是 timestamp1 <= timestamp2')
+            return 
+          }
           if (every_val) {
-            sql += ` RANGE(${range1},${range2}) EVERY(${every_val}${every_unit})`
+            this.sql += ` RANGE(${range1},${range2}) EVERY(${every_val}${every_unit})`
           } else {
-            return this.$message.error(this.$t('console.enterTip').replace('{value}','EVERY'))
+            this.$message.error(this.$t('console.enterTip').replace('{value}','EVERY'))
+            return 
           }
         }
 
         if (fill) { 
           if (fill === 'VALUE') {
-            if (!fill_val) return this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
-            sql += ` FILL(${fill},${fill_val})`
+            if (!fill_val) {
+              this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
+              return
+            }
+            this.sql += ` FILL(${fill},${fill_val})`
           } else {
-            sql += ` FILL(${fill})`
+            this.sql += ` FILL(${fill})`
           }
         } else {
-          return this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
+          this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
+          return 
         }
       }
 
       // limit 放在最后
-      if (this.otherRule.limit) {
-        sql += ` LIMIT ${this.otherRule.limit}`
+      if (String(this.otherRule.limit) != 'undefined') {
+        this.sql += ` LIMIT ${this.otherRule.limit}`
       } else {
-        return this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
+        this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
+        return 
       }
-      if (this.otherRule.offset) {
-        sql += ` OFFSET ${this.otherRule.offset}`
+      if (String(this.otherRule.offset) != 'undefined') {
+        this.sql += ` OFFSET ${this.otherRule.offset}`
       }
-      return sql
+      return true
     },
     getPreviewSql() {
       this.dialog = true
-      this.sql = this.generateSql()
+      this.generateSql()
     },
     async handleSendSQL() {
       // 校验 _c0 为必填项 
@@ -474,11 +486,15 @@ const conditionMap = {
       if (!this.validateRules(query.rules)) {
         return 
       }
+
+      if (!this.generateSql()) {
+        return
+      }
       
       if (this.requestIng) return;
       this.requestIng = true;
-      let sqlStr = this.generateSql()
-
+      this.generateSql()
+      let sqlStr = this.sql
       console.log('sql',sqlStr);
       let { isSendSQL, updated_sqlStr } = await proprocess_sql(sqlStr); // 预处理要执行的sql语句
       
