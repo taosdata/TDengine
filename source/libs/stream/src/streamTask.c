@@ -251,6 +251,18 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
   tEndDecode(pDecoder);
   return 0;
 }
+int32_t tDecodeStreamTaskId(SDecoder* pDecoder, SStreamTaskId* pTaskId) {
+  int64_t ver;
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &ver) < 0) return -1;
+  if (ver != SSTREAM_TASK_VER) return -1;
+
+  if (tDecodeI64(pDecoder, &pTaskId->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTaskId->taskId) < 0) return -1;
+
+  tEndDecode(pDecoder);
+  return 0;
+}
 
 static void freeItem(void* p) {
   SStreamContinueExecInfo* pInfo = p;

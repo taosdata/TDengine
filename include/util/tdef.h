@@ -184,6 +184,7 @@ typedef enum ELogicConditionType {
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
 
+#define TSDB_POINTER_PRINT_BYTES 18 // 0x1122334455667788
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN 11
@@ -223,6 +224,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
+#define TSDB_COL_FNAME_LEN       (TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024

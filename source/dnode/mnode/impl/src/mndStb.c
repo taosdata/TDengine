@@ -2612,9 +2612,9 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
           dropReq.igNotExists, dropReq.source);
  
   SName name = {0};
-  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, dropReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

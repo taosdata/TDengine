@@ -1039,11 +1039,14 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s", 
+  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:", 
           mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
 
   if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
-    auditRecord(pReq, pMnode->clusterId, "changePassword", alterReq.user, "", detail);
+    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:xxx", 
+            mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, 
+            alterReq.tabName);
+    auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
           alterReq.alterType == TSDB_ALTER_USER_ENABLE ||

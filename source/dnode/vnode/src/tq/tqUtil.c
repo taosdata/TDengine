@@ -132,12 +132,6 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
-//static void setRequestVersion(STqOffsetVal* offset, int64_t ver){
-//  if(offset->type == TMQ_OFFSET__LOG){
-//    offset->version = ver;
-//  }
-//}
-
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
   uint64_t consumerId = pRequest->consumerId;
@@ -146,7 +140,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, *pOffset);
-//  dataRsp.reqOffset.type = pOffset->type; // store origin type for getting offset in tmq_get_vgroup_offset
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
@@ -167,7 +160,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     taosWUnLockLatch(&pTq->lock);
   }
 
-//  setRequestVersion(&dataRsp.reqOffset, pOffset->version);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
 
 end : {
@@ -188,7 +180,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   SMqMetaRsp  metaRsp = {0};
   STaosxRsp   taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, *offset);
-//  taosxRsp.reqOffset.type = offset->type;   // store origin type for getting offset in tmq_get_vgroup_offset
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
@@ -222,19 +213,14 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     walReaderVerifyOffset(pHandle->pWalReader, offset);
     int64_t fetchVer = offset->version;
 
+//    uint64_t st = taosGetTimestampMs();
     int totalRows = 0;
     while (1) {
-      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
-      if (savedEpoch > pRequest->epoch) {
-        tqWarn("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey:%s vgId:%d offset %" PRId64
-               ", found new consumer epoch %d, discard req epoch %d",
-               pRequest->consumerId, pRequest->epoch, pHandle->subKey, vgId, fetchVer, savedEpoch, pRequest->epoch);
-        break;
-      }
+//      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
+//      ASSERT (savedEpoch <= pRequest->epoch);
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-//        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       }
@@ -247,7 +233,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (pHead->msgType != TDMT_VND_SUBMIT) {
         if (totalRows > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-//          setRequestVersion(&taosxRsp.reqOffset, offset->version);
           code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
           goto end;
         }
@@ -275,9 +260,9 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         goto end;
       }
 
+//      if (totalRows >= 4096 || taosxRsp.createTableNum > 0 || (taosGetTimestampMs() - st > 5)) {
       if (totalRows >= 4096 || taosxRsp.createTableNum > 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
-//        setRequestVersion(&taosxRsp.reqOffset, offset->version);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       } else {
@@ -316,7 +301,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
   // this is a normal subscribe requirement
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     return extractDataAndRspForNormalSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
-  } else {  // todo handle the case where re-balance occurs.
+  } else {
     // for taosx
     return extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
   }
