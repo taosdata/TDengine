@@ -386,16 +386,6 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    taosThreadMutexLock(&pTask->lock);
-    pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-
-    if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
-      taosThreadMutexUnlock(&pTask->lock);
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
     if (pItem != NULL) {
       noDataInWal = false;
       code = streamTaskPutDataIntoInputQ(pTask, pItem);
