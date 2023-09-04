@@ -1,7 +1,7 @@
 {
-  "supportWebsite":"https://tdengine.com",
-    "documentWebsite":"https://docs.tdengine.com",
-  "landingLogo":"",
+  "supportWebsite": "https://tdengine.com",
+  "documentWebsite": "https://docs.tdengine.com",
+  "landingLogo": "",
   "welcome": {
     "title": "CUS_NAME Explorer",
     "subTitle": "Welcome to the Explorer website.",
@@ -19,5 +19,9 @@
     "contracts": [],
     "policies": [],
     "copyright": "© 2023 CUS_NAME"
+  },
+  "serverVersionDisplay": {
+    "hide": true,
+    "showByClick": 10
   }
 }
