@@ -24,8 +24,9 @@ use std::{
     time::Duration,
 };
 use taos::{
-    taos_query::common::Describe, AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools,
-    RawBlock, Stmt, Taos, TaosPool, Ty, Value,
+    taos_query::{common::Describe, Manager},
+    AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool,
+    Ty, Value,
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -319,7 +320,8 @@ struct LushMessageTagModify {
 // #[instrument(skip(taos, record, names, marks))]
 #[instrument(skip_all)]
 async fn consume_lush_record(
-    taos: &Taos,
+    pool: &TaosPool,
+    taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     stmt: &mut Stmt,
     record: LushMessage,
     columns: &Vec<String>,
@@ -332,6 +334,7 @@ async fn consume_lush_record(
     counter!(RECORD_BATCHES, 1);
     match record {
         LushMessage::Tables(tables) => {
+            let taos = taos.as_ref().unwrap();
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
@@ -490,7 +493,7 @@ async fn consume_lush_record(
                         let mut retry = 0;
                         let mut count = 0;
                         loop {
-                            let res = taos.exec(sql.clone()).await;
+                            let res = taos.as_ref().unwrap().exec(sql.clone()).await;
                             match res {
                                 Ok(num) => {
                                     count = count + num;
@@ -516,7 +519,8 @@ async fn consume_lush_record(
                                             break;
                                         }
                                         let stable_name = stable_name.unwrap();
-                                        let desc = taos.describe(&stable_name).await?;
+                                        let desc =
+                                            taos.as_ref().unwrap().describe(&stable_name).await?;
                                         let alter_sqls = generate_alter_sql_diff_desc(
                                             &stable_name,
                                             &desc,
@@ -527,11 +531,15 @@ async fn consume_lush_record(
                                             let alter_sqls = alter_sqls.unwrap();
                                             for alter_sql in alter_sqls {
                                                 tracing::info!("alter sql: {alter_sql}");
-                                                if let Err(err) = taos.exec(alter_sql).await {
+                                                if let Err(err) =
+                                                    taos.as_ref().unwrap().exec(alter_sql).await
+                                                {
                                                     tracing::info!("alter sql error: {err:#}");
                                                 }
                                             }
                                         }
+                                    } else if errstr.contains("[0x0E") {
+                                        taos.replace(pool.get().await?);
                                     }
                                     retry += 1;
                                 }
@@ -1512,12 +1520,13 @@ async fn consume_flat_record(
 // #[instrument(skip_all)]
 #[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
-    taos: &Taos,
+    pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
+    let taos = pool.get().await?;
     let columns = ipc_reader
         .columns()
         .into_iter()
@@ -1525,13 +1534,14 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    let mut stmt = Stmt::init(taos).await?;
+    let mut stmt = Stmt::init(&taos).await?;
 
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
 
     let mut batches = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
+    let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -1540,7 +1550,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
         let last = count;
         if let Err(err) = consume_lush_record(
-            &taos,
+            pool,
+            &mut taos,
             &mut stmt,
             record,
             &columns,
@@ -1844,7 +1855,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
         }
         StreamType::Lush => {
             ipc_lush_stream_reader(
-                &taos,
+                &pool,
                 ipc_reader,
                 ipc_ack_writer,
                 license.as_ref(),
@@ -1926,7 +1937,7 @@ async fn handle_lush_message_init(
 
 #[allow(dead_code)]
 pub struct IpcStreamWorker<'a> {
-    taos: &'a Taos,
+    pool: &'a TaosPool,
     parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
@@ -1944,7 +1955,7 @@ unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
 
 impl<'a> IpcStreamWorker<'a> {
     pub fn new(
-        taos: &'a Taos,
+        pool: &'a TaosPool,
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
@@ -1954,14 +1965,15 @@ impl<'a> IpcStreamWorker<'a> {
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
-            Some(opc_config_blocking(taos, &from, 1)?)
+            let taos = futures::executor::block_on(pool.get())?;
+            Some(opc_config_blocking(&taos, &from, 1)?)
         } else {
             None
         };
 
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
-            taos,
+            pool,
             from,
             parser: IpcParser::new(schema),
             lock: lock,
@@ -1986,10 +1998,11 @@ impl<'a> IpcStreamWorker<'a> {
         record: RecordBatch,
         parser: Option<&Parser>,
     ) -> anyhow::Result<usize> {
+        let taos = self.pool.get().await?;
         if let Some(sql) = self.parser.metadata().init_sql_string() {
             let guard = self.lock.lock().await;
             let init = self.parser.metadata.init().unwrap();
-            handle_lush_message_init(init, self.taos, &sql).await?;
+            handle_lush_message_init(init, &taos, &sql).await?;
             // let max_retries = 10;
             // let mut i = 0;
             // loop {
@@ -2020,7 +2033,7 @@ impl<'a> IpcStreamWorker<'a> {
                 })
                 .unwrap();
                 consume_flat_record(
-                    &self.taos,
+                    &taos,
                     &record,
                     &mut count,
                     parser, // todo: license
@@ -2047,9 +2060,11 @@ impl<'a> IpcStreamWorker<'a> {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                let mut taos = Some(self.pool.get().await?);
                 // let stmt = unsafe { &mut *self.stmt.get() };
                 consume_lush_record(
-                    &self.taos,
+                    &self.pool,
+                    &mut taos,
                     stmt,
                     record,
                     &columns,
@@ -2090,17 +2105,14 @@ impl<'a> IpcStreamWorker<'a> {
                 let config = match res {
                     Some(config) => config,
                     None => {
-                        let _v = config.parse_tables_with(&self.taos).await?;
+                        let _v = config.parse_tables_with(&taos).await?;
                         self.opc_table_config
-                            .get_or_try_init(|| async {
-                                config.parse_tables_with(&self.taos).await
-                            })
+                            .get_or_try_init(|| async { config.parse_tables_with(&taos).await })
                             .await?
                     }
                 };
                 drop(guard);
-                let _n =
-                    consume_point_record(&self.taos, stmt, &record, &mut count, config).await?;
+                let _n = consume_point_record(&taos, stmt, &record, &mut count, config).await?;
                 if let Some(transferred) = self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }

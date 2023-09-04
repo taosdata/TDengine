@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncQueryable, AsyncTBuilder, AsyncBindable, Dsn, Stmt, TaosBuilder};
+use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
 use tracing::Instrument;
@@ -141,7 +141,7 @@ impl PutStream {
             let span_clone = span.clone();
             async fn ipc_stream_writer(
                 task: TaskDetail,
-                taos: &taos::Taos,
+                pool: &taos::TaosPool,
                 lock: Arc<tokio::sync::Mutex<()>>,
                 schema: Arc<arrow::datatypes::Schema>,
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
@@ -151,10 +151,11 @@ impl PutStream {
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
                 let from = task.from.parse().unwrap();
-                let mut stmt = Stmt::init(taos).await.context("Initialize STMT")?;
-                
+                let taos = pool.get().await?;
+                let mut stmt = Stmt::init(&taos).await.context("Initialize STMT")?;
+
                 let worker = IpcStreamWorker::new(
-                    &taos,
+                    &pool,
                     from,
                     lock,
                     schema,
@@ -172,7 +173,9 @@ impl PutStream {
                     match rx.recv() {
                         Ok(record) => {
                             log::info!("Start writing records: {record:?}");
-                            if let Err(err) = worker.process_record(&mut stmt, record, parser.as_ref()).await
+                            if let Err(err) = worker
+                                .process_record(&mut stmt, record, parser.as_ref())
+                                .await
                             {
                                 log::warn!("Write stream error: {err}");
                             }
@@ -184,10 +187,14 @@ impl PutStream {
                     }
                 }
             }
-            tokio::spawn(async move {
-                ipc_stream_writer(task, &taos, lock, schema, rx, license, transferred, span).in_current_span()
-                .await
-            }.instrument(span_clone));
+            tokio::spawn(
+                async move {
+                    ipc_stream_writer(task, &pool, lock, schema, rx, license, transferred, span)
+                        .in_current_span()
+                        .await
+                }
+                .instrument(span_clone),
+            );
             // let _ = span.enter();
         }
 
