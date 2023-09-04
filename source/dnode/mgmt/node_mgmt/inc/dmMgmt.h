@@ -20,6 +20,7 @@
 #include "uv.h"
 
 #include "dmInt.h"
+#include "tfs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,6 +80,7 @@ typedef struct SDnode {
   TdThreadMutex mutex;
   TdFilePtr     lockfile;
   SDnodeData    data;
+  STfs         *pTfs;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
 

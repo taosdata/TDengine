@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 #include "tsdbFS2.h"
+#include "vndCos.h"
 
 typedef struct {
   STsdb  *tsdb;
@@ -39,6 +40,28 @@ static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   };
 
   return TARRAY2_APPEND(rtner->fopArr, op);
+}
+
+static int32_t tsdbRemoveFileObjectS3(SRTNer *rtner, const STFileObj *fobj) {
+  int32_t code = 0, lino = 0;
+
+  STFileOp op = {
+      .optype = TSDB_FOP_REMOVE,
+      .fid = fobj->f->fid,
+      .of = fobj->f[0],
+  };
+
+  code = TARRAY2_APPEND(rtner->fopArr, op);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+  s3DeleteObjects(&object_name, 1);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+  }
+  return code;
 }
 
 static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile *to) {
@@ -72,6 +95,34 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
     taosCloseFile(&fdFrom);
     taosCloseFile(&fdTo);
+  }
+  return code;
+}
+
+static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile *to) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  char      fname[TSDB_FILENAME_LEN];
+  TdFilePtr fdFrom = NULL;
+  TdFilePtr fdTo = NULL;
+
+  tsdbTFileName(rtner->tsdb, to, fname);
+
+  fdFrom = taosOpenFile(from->fname, TD_FILE_READ);
+  if (fdFrom == NULL) code = terrno;
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  char *object_name = taosDirEntryBaseName(fname);
+  code = s3PutObjectFromFile(from->fname, object_name);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosCloseFile(&fdFrom);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    taosCloseFile(&fdFrom);
   }
   return code;
 }
@@ -114,6 +165,53 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
 
   // do copy the file
   code = tsdbDoCopyFile(rtner, fobj, &op.nf);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const SDiskID *did) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  STFileOp op = {0};
+
+  // remove old
+  op = (STFileOp){
+      .optype = TSDB_FOP_REMOVE,
+      .fid = fobj->f->fid,
+      .of = fobj->f[0],
+  };
+
+  code = TARRAY2_APPEND(rtner->fopArr, op);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // create new
+  op = (STFileOp){
+      .optype = TSDB_FOP_CREATE,
+      .fid = fobj->f->fid,
+      .nf =
+          {
+              .type = fobj->f->type,
+              .did = did[0],
+              .fid = fobj->f->fid,
+              .cid = fobj->f->cid,
+              .size = fobj->f->size,
+              .stt[0] =
+                  {
+                      .level = fobj->f->stt[0].level,
+                  },
+          },
+  };
+
+  code = TARRAY2_APPEND(rtner->fopArr, op);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // do copy the file
+  code = tsdbCopyFileS3(rtner, fobj, &op.nf);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -201,8 +299,14 @@ static int32_t tsdbDoRetention2(void *arg) {
       for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = rtner->ctx->fset->farr[ftype], 1); ++ftype) {
         if (fobj == NULL) continue;
 
-        code = tsdbDoRemoveFileObject(rtner, fobj);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
+        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1) {
+          code = tsdbRemoveFileObjectS3(rtner, fobj);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        } else {
+          code = tsdbDoRemoveFileObject(rtner, fobj);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
       }
 
       SSttLvl *lvl;
@@ -228,8 +332,26 @@ static int32_t tsdbDoRetention2(void *arg) {
         if (fobj == NULL) continue;
 
         if (fobj->f->did.level == did.level) continue;
-        code = tsdbDoMigrateFileObj(rtner, fobj, &did);
-        TSDB_CHECK_CODE(code, lino, _exit);
+
+        int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
+        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1) {
+          code = tsdbMigrateDataFileS3(rtner, fobj, &did);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        } else {
+          if (tsS3Enabled) {
+            int64_t fsize = 0;
+            if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
+              code = TAOS_SYSTEM_ERROR(terrno);
+              tsdbError("vgId:%d %s failed since file:%s stat failed, reason:%s", TD_VID(rtner->tsdb->pVnode), __func__,
+                        fobj->fname, tstrerror(code));
+              TSDB_CHECK_CODE(code, lino, _exit);
+            }
+            s3EvictCache(fobj->fname, fsize * 2);
+          }
+
+          code = tsdbDoMigrateFileObj(rtner, fobj, &did);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
       }
 
       // stt

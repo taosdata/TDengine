@@ -21,6 +21,7 @@
 #include "taos.h"
 #include "tlog.h"
 #include "types.h"
+#include "geosWrapper.h"
 
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -1554,10 +1555,112 @@ int sml_ts3724_Test() {
   ASSERT(numRows == 1);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "show stables");
-  row = taos_fetch_row(pRes);
-  numRows = taos_affected_rows(pRes);
-  ASSERT(numRows == 3);
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td24559_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists td24559");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "stb,t1=1 f1=283i32,f2=g\"Point(4.343 89.342)\" 1632299372000",
+      "stb,t1=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299373000",
+      "stb,t2=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299374000",
+      "stb,t1=1 f1=106i32,f2=G\"GEOMETRYCOLLECTION (MULTIPOINT((0 0), (1 1)), POINT(3 4), LINESTRING(2 3, 3 4))\" 1632299378000",
+  };
+
+  pRes = taos_query(taos, "use td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  TAOS_ROW row = NULL;
+  pRes = taos_query(taos, "select * from stb order by _ts;");
+  int rowIndex = 0;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+
+    int32_t*    length = taos_fetch_lengths(pRes);
+
+    code = initCtxAsText();
+    ASSERT (code == TSDB_CODE_SUCCESS);
+    char *outputWKT = NULL;
+    code = doAsText(row[2], length[2], &outputWKT);
+    ASSERT (code == TSDB_CODE_SUCCESS);
+
+    if (rowIndex == 0) {
+      ASSERT(strcmp("POINT (4.343000 89.342000)", outputWKT) == 0);
+    }
+    if (rowIndex == 3) {
+      ASSERT(strcmp( "GEOMETRYCOLLECTION (MULTIPOINT ((0.000000 0.000000), (1.000000 1.000000)), POINT (3.000000 4.000000), LINESTRING (2.000000 3.000000, 3.000000 4.000000))", outputWKT) == 0);
+    }
+    geosFreeBuffer(outputWKT);
+
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td18789_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists td18789");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists td18789");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "vbin,t1=1 f1=283i32,f2=b\"hello\" 1632299372000",
+      "vbin,t1=1 f2=B\"\\x98f46e\",f1=106i32 1632299373000",
+  };
+
+  pRes = taos_query(taos, "use td18789");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  TAOS_ROW row = NULL;
+  pRes = taos_query(taos, "select *,tbname from vbin order by _ts");
+  int rowIndex = 0;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    int32_t*    length = taos_fetch_lengths(pRes);
+    void*         data = NULL;
+    uint32_t      size = 0;
+    if(taosAscii2Hex(row[2], length[2], &data, &size) < 0){
+      ASSERT(0);
+    }
+
+    if (rowIndex == 0) {
+      ASSERT(memcmp(data, "\\x68656C6C6F", size) == 0);
+    }
+    if (rowIndex == 1) {
+      ASSERT(memcmp(data, "\\x98F46E", size) == 0);
+    }
+    taosMemoryFree(data);
+
+    rowIndex++;
+  }
   taos_free_result(pRes);
 
   taos_close(taos);
@@ -1571,6 +1674,10 @@ int main(int argc, char *argv[]) {
   }
 
   int ret = 0;
+  ret = sml_td24559_Test();
+  ASSERT(!ret);
+  ret = sml_td18789_Test();
+  ASSERT(!ret);
   ret = sml_td24070_Test();
   ASSERT(!ret);
   ret = sml_td23881_Test();

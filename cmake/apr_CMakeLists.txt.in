@@ -1,0 +1,19 @@
+# apr
+ExternalProject_Add(apr-1
+        URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
+        URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
+        DOWNLOAD_NO_PROGRESS 1
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+        #GIT_REPOSITORY https://github.com/apache/apr.git
+	#GIT_TAG 1.5.2
+        SOURCE_DIR "${TD_CONTRIB_DIR}/apr"
+        BUILD_IN_SOURCE TRUE
+        UPDATE_DISCONNECTED TRUE
+        BUILD_ALWAYS 1
+        #UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local.1/ --enable-shared=no
+        #CONFIGURE_COMMAND ./configure
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
+        TEST_COMMAND ""
+)

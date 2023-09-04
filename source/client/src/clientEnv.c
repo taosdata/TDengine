@@ -133,7 +133,8 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
   if (NEED_REDIRECT_ERROR(code)) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
-        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_DROP_TASK) {
+        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_DROP_TASK ||
+        msgType == TDMT_SCH_TASK_NOTIFY) {
       return false;
     }
     return true;

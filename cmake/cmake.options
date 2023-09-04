@@ -125,6 +125,16 @@ option(
     ON
 )
 
+IF(${TD_LINUX})
+
+option(
+    BUILD_WITH_COS
+    "If build with cos"
+    ON
+)
+
+ENDIF ()
+
 option(
     BUILD_WITH_SQLITE
     "If build with sqlite" 

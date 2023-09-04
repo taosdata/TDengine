@@ -44,6 +44,7 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   SSyncCfg *pCfg = (SSyncCfg *)pObj;
   if (tjsonAddDoubleToObject(pJson, "replicaNum", pCfg->replicaNum) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "myIndex", pCfg->myIndex) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "changeVersion", pCfg->changeVersion) < 0) return -1;
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
@@ -113,8 +114,9 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
-  sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64, pNode->vgId, 
-                                            realfile, len, pNode->raftCfg.lastConfigIndex);
+  sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64 ", "
+        "changeVersion:%d", pNode->vgId, 
+        realfile, len, pNode->raftCfg.lastConfigIndex, pNode->raftCfg.cfg.changeVersion);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
@@ -135,6 +137,8 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
   tjsonGetInt32ValueFromDouble(pJson, "replicaNum", pCfg->replicaNum, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "myIndex", pCfg->myIndex, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "changeVersion", pCfg->changeVersion, code);
   if (code < 0) return -1;
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "nodeInfo");
@@ -242,7 +246,8 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
   }
 
   code = 0;
-  sInfo("vgId:%d, succceed to read sync cfg file %s", pNode->vgId, file);
+  sInfo("vgId:%d, succceed to read sync cfg file %s, changeVersion:%d", 
+    pNode->vgId, file, pCfg->cfg.changeVersion);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
