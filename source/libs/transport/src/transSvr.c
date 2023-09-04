@@ -72,6 +72,10 @@ typedef struct SSvrMsg {
 } SSvrMsg;
 
 typedef struct {
+  int64_t ver;
+  SArray* list;
+} SWhiteUserList;
+typedef struct {
   SHashObj* pList;
   int64_t   ver;
 } SWhiteList;
@@ -118,7 +122,7 @@ void        uvWhiteListDestroy(SWhiteList* pWhite);
 void        uvWhiteListAdd(SWhiteList* pWhite, char* user, char* ip);
 void        uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable);
 bool        uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn);
-bool        uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip);
+bool        uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver);
 void        uvWhiteListSetConnVer(SWhiteList* pWhite, SSvrConn* pConn);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -289,12 +293,13 @@ void uvWhiteListDestroy(SWhiteList* pWhite) {
   SHashObj* pWhiteList = pWhite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
-    SArray* pArr = *(SArray**)pIter;
-    for (int i = 0; i < taosArrayGetSize(pArr); i++) {
-      char* range = taosArrayGetP(pArr, i);
+    SWhiteUserList* pList = *(SWhiteUserList**)pIter;
+    for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
+      char* range = taosArrayGetP(pList->list, i);
       taosMemoryFree(range);
     }
-    taosArrayDestroy(pArr);
+    taosArrayDestroy(pList->list);
+    taosMemoryFree(pList);
     pIter = taosHashIterate(pWhiteList, pIter);
   }
   taosHashCleanup(pWhiteList);
@@ -304,13 +309,17 @@ void uvWhiteListDestroy(SWhiteList* pWhite) {
 void uvWhiteListAdd(SWhiteList* pWhite, char* user, char* ip) {
   SHashObj* pWhiteList = pWhite->pList;
 
-  SArray** ppArr = taosHashGet(pWhiteList, user, strlen(user));
-  if (ppArr == NULL || *ppArr == NULL) {
-    SArray* pArr = taosArrayInit(8, sizeof(void*));
-    taosArrayPush(pArr, &ip);
-    taosHashPut(pWhiteList, user, strlen(user), &pArr, sizeof(void*));
+  SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppList == NULL || *ppList == NULL) {
+    SWhiteUserList* pList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
+    pList->list = taosArrayInit(8, sizeof(void*));
+    taosArrayPush(pList->list, &ip);
+    pList->ver += 1;
+    taosHashPut(pWhiteList, user, strlen(user), &pList, sizeof(void*));
   } else {
-    taosArrayPush(*ppArr, &ip);
+    SWhiteUserList* pList = *ppList;
+    pList->ver += 1;
+    taosArrayPush(pList->list, &ip);
   }
 }
 
@@ -319,17 +328,19 @@ void uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable) {
   // impl later
 }
 
-bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip) {
+bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) {
   // impl check
-  SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = false;
-  SArray**  ppArr = taosHashGet(pWhiteList, user, strlen(user));
-  if (ppArr == NULL || *ppArr == NULL) {
+  SHashObj*        pWhiteList = pWhite->pList;
+  bool             valid = false;
+  SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppList == NULL || *ppList == NULL) {
     return true;
   }
+  SWhiteUserList* pList = *ppList;
+  if (pList->ver == ver) return true;
 
-  for (int i = 0; i < taosArrayGetSize(*ppArr); i++) {
-    char* range = taosArrayGetP(*ppArr, i);
+  for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
+    char* range = taosArrayGetP(pList->list, i);
     if (uvCheckIp(range, ip)) {
       valid = true;
       break;
@@ -338,10 +349,9 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip) {
   return valid;
 }
 bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
-  if (pWhite->ver == pConn->whiteListVer) {
-    return true;
-  }
-  return uvWhiteListFilte(pWhite, pConn->user, pConn->clientIp);
+  if (pWhite->ver == pConn->whiteListVer) return true;
+
+  return uvWhiteListFilte(pWhite, pConn->user, pConn->clientIp, pConn->whiteListVer);
 }
 void uvWhiteListSetConnVer(SWhiteList* pWhite, SSvrConn* pConn) {
   // if conn already check by current whiteLis
