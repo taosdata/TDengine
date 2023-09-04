@@ -23,6 +23,7 @@ use tracing::{instrument, Instrument};
 
 mod extensions;
 
+use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 use dashmap::DashMap;
@@ -40,7 +41,6 @@ pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::PortPool;
-use crate::tmq_to_kafka::clean_task;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -260,7 +260,8 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
-                    ).in_current_span()
+                    )
+                    .in_current_span()
                     .await?;
                 }
                 ("tmq", "local") => {
@@ -365,7 +366,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
-                        span.clone()
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -374,11 +375,7 @@ impl TaskOpts {
                     if let Some(task_id) = self.task_id.clone() {
                         from.params.insert("topic_suffix".parse()?, task_id);
                     }
-                    tmq_to_kafka(
-                        from,
-                        to.clone(),
-                        cancel.clone(),
-                    ).await?;
+                    tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
                 ("kafka", "taos") => {
                     kafka_to_taos(
@@ -402,11 +399,7 @@ impl TaskOpts {
     }
 
     pub async fn delete_task(&self) -> Result<(), anyhow::Error> {
-        let Self {
-            from,
-            to,
-            ..
-        } = &self;
+        let Self { from, to, .. } = &self;
         match (from.driver.as_str(), to.driver.as_str()) {
             ("tmq", "kafka") => {
                 let mut from = from.clone();

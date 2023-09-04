@@ -8,6 +8,8 @@ publish = false
 
 [dependencies]
 chrono = "0.4"
+flume = { version = "0.11" }
+futures = { version = "0.3" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 shadow-rs = "0.21.0"
@@ -19,7 +21,6 @@ arrow = { workspace = true }
 taos-query = { workspace = true }
 tonic = { workspace = true }
 metrics = "0.21.0"
-
 [dev-dependencies]
 actix-web = "4"
 anyhow = "1"

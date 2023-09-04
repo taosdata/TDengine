@@ -15,12 +15,15 @@ use serde::{Deserialize, Serialize};
 
 use taos::Code;
 
-use taosx_core::{METRICS_TIME_START, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND};
+use taosx_core::{METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
 use tokio_cron_scheduler::Job;
 
 use utoipa::*;
 
-use crate::serve::{controller::{TaskControllerRef, Status}, NewTask, TaskDecorator, TaskFilter, UpdateTask};
+use crate::serve::{
+    controller::{Status, TaskControllerRef},
+    NewTask, TaskDecorator, TaskFilter, UpdateTask,
+};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -533,7 +536,9 @@ pub(super) async fn get_task_metrics_by_id(
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
         let task = task_store.get(id).await.unwrap().unwrap();
         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
-            let time_elasped = (Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
+            let time_elasped = (Utc::now().timestamp_millis()
+                - task_started_timestamp.as_f64().unwrap() as i64)
+                / 1000;
             if time_elasped < 1 {
                 Some(1)
             } else {
@@ -541,7 +546,9 @@ pub(super) async fn get_task_metrics_by_id(
             }
         } else {
             if task.task.finished_at.is_some() {
-                let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
+                let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
+                    - task_started_timestamp.as_f64().unwrap() as i64)
+                    / 1000;
                 if time_elapsed < 1 {
                     Some(1)
                 } else {
@@ -552,13 +559,24 @@ pub(super) async fn get_task_metrics_by_id(
             }
         };
         if time_elapsed_in_seconds.is_some() {
-            map.insert(METRICS_TIME_COST.to_string(), Some((time_elapsed_in_seconds.unwrap()).into()));
-            let records_vec = map.iter().filter(|(k, _v)| k.contains("records")).map(|(_k, v)| v).collect_vec();
+            map.insert(
+                METRICS_TIME_COST.to_string(),
+                Some((time_elapsed_in_seconds.unwrap()).into()),
+            );
+            let records_vec = map
+                .iter()
+                .filter(|(k, _v)| k.contains("records"))
+                .map(|(_k, v)| v)
+                .collect_vec();
             let records = records_vec.get(0);
-            if records.is_some() {
-                // should be safe
-                let records = records.unwrap().clone().clone().unwrap().clone().as_i64().unwrap();
-                map.insert(METRICS_TIME_RECORDS_PER_SECOND.to_string(), Some((records / time_elapsed_in_seconds.unwrap()).into()));
+            if let Some(Some(records)) = records {
+                map.insert(
+                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+                    Some(
+                        (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
+                            .into(),
+                    ),
+                );
             }
         }
     }
