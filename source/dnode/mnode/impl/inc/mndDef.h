@@ -275,20 +275,26 @@ typedef struct {
   SAcctCfg  cfg;
   SAcctInfo info;
 } SAcctObj;
+typedef struct {
+  int32_t     num;
+  SIpV4Range* pIpRange;
+} SIpWhiteList;
 
 typedef struct {
-  char      user[TSDB_USER_LEN];
-  char      pass[TSDB_PASSWORD_LEN];
-  char      acct[TSDB_USER_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int8_t    superUser;
-  int8_t    sysInfo;
-  int8_t    enable;
-  int8_t    reserve;
-  int32_t   acctId;
-  int32_t   authVersion;
-  int32_t   passVersion;
+  char          user[TSDB_USER_LEN];
+  char          pass[TSDB_PASSWORD_LEN];
+  char          acct[TSDB_USER_LEN];
+  int64_t       createdTime;
+  int64_t       updateTime;
+  int8_t        superUser;
+  int8_t        sysInfo;
+  int8_t        enable;
+  int8_t        reserve;
+  int32_t       acctId;
+  int32_t       authVersion;
+  int32_t       passVersion;
+  SIpWhiteList* pIpWhiteList;
+
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;

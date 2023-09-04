@@ -746,9 +746,9 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   serverAdd.sin_port = (uint16_t)htons(port);
 
   fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (fd < 0) { // exception
+  if (fd < 0) {  // exception
     return false;
-  } else if (fd <= 2) { // in, out, err
+  } else if (fd <= 2) {  // in, out, err
     taosCloseSocketNoCheck1(fd);
     return false;
   }
@@ -895,6 +895,9 @@ int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len
 }
 
 // Function converting an IP address string to an uint32_t.
+
+#endif  // endif 0
+
 uint32_t ip2uint(const char *const ip_addr) {
   char ip_addr_cpy[20];
   char ip[5];
@@ -921,9 +924,6 @@ uint32_t ip2uint(const char *const ip_addr) {
 
   return *((uint32_t *)ip);
 }
-
-#endif  // endif 0
-
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
   // ASSERT(0);

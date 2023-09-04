@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndUser.h"
+#include "audit.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -22,9 +23,8 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
-#include "audit.h"
 
-#define USER_VER_NUMBER   4
+#define USER_VER_NUMBER   5
 #define USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
@@ -67,6 +67,103 @@ int32_t mndInitUser(SMnode *pMnode) {
 }
 
 void mndCleanupUser(SMnode *pMnode) {}
+
+static void ipRangeToStr(SIpV4Range *range, char *buf) {
+  char ipstr[24] = {0};
+  tinet_ntoa(ipstr, range->ip);
+
+  if (range->mask == 0) {
+    sprintf(buf, "%s", ipstr);
+  } else {
+    sprintf(buf, "%s/%d", ipstr, range->mask);
+  }
+}
+static void ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
+  int32_t len = 0;
+  for (int i = 0; i < num; i++) {
+    char tbuf[24] = {0};
+    ipRangeToStr(&range[i], tbuf);
+    len = sprintf(buf + len, "%s,", tbuf);
+  }
+  buf[len - 1] = 0;
+}
+int32_t convertIpWhiteListToStr(SIpWhiteList *pList, char **buf) {
+  *buf = taosMemoryCalloc(1, pList->num * (sizeof(SIpV4Range) + 1));
+
+  ipRangeListToStr(pList->pIpRange, pList->num, *buf);
+  return strlen(*buf);
+}
+int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteList *pList) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, len);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pList->num) < 0) return -1;
+
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range *pRange = &(pList->pIpRange[i]);
+    if (tEncodeU32(&encoder, pRange->ip) < 0) return -1;
+    if (tEncodeU32(&encoder, pRange->mask) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDerializeIpWhileList(void *buf, int32_t len, SIpWhiteList *pList) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, len);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pList->num) < 0) return -1;
+
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range *pRange = &(pList->pIpRange[i]);
+    if (tDecodeU32(&decoder, &pRange->ip) < 0) return -1;
+    if (tDecodeU32(&decoder, &pRange->mask) < 0) return -1;
+  }
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+
+  return 0;
+}
+SIpWhiteList *createIpWhiteList(void *buf, int32_t len) {
+  int32_t  num = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, len);
+
+  if (tStartDecode(&decoder) < 0) return NULL;
+  if (tDecodeI32(&decoder, &num) < 0) return NULL;
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+
+  SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
+  tDerializeIpWhileList(buf, len, p);
+  return p;
+}
+
+static SIpWhiteList *createDefaultIpWhiteList() {
+  SIpWhiteList *pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * 1);
+  pWhiteList->num = 1;
+
+  SIpV4Range *range = &(pWhiteList->pIpRange[0]);
+
+  range->ip = ip2uint("127.0.0.1");  // refactor later
+  range->mask = 0;
+  return pWhiteList;
+}
+static bool isRangeInIpWhiteList(SIpWhiteList *pList, SIpV4Range *tgt) {
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range *el = &pList->pIpRange[i];
+    if (tgt->ip == el->ip && tgt->mask == el->mask) {
+      return true;
+    }
+  }
+  return false;
+}
 
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   SUserObj userObj = {0};
@@ -241,6 +338,16 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     useDb = taosHashIterate(pUser->useDbs, useDb);
   }
 
+  // save white list
+  int32_t num = pUser->pIpWhiteList->num;
+  int32_t tlen = sizeof(SIpWhiteList) + num * sizeof(SIpV4Range);
+  char   *buf = taosMemoryCalloc(1, tlen);
+  int32_t len = tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteList);
+
+  SDB_SET_INT32(pRaw, dataPos, len, _OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, len, _OVER);
+  taosMemoryFree(buf);
+
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -398,6 +505,21 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       taosMemoryFree(key);
     }
   }
+  // decoder white list
+  if (sver >= 5) {
+    int32_t len = 0;
+    SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
+
+    char *buf = buf = taosMemoryMalloc(len);
+    if (buf == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, buf, len, _OVER);
+
+    pUser->pIpWhiteList = createIpWhiteList(buf, len);
+  }
+
+  if (pUser->pIpWhiteList == NULL) {
+    pUser->pIpWhiteList = createDefaultIpWhiteList();
+  }
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
@@ -414,6 +536,8 @@ _OVER:
       taosHashCleanup(pUser->readTbs);
       taosHashCleanup(pUser->writeTbs);
       taosHashCleanup(pUser->useDbs);
+      taosMemoryFree(pUser->pIpWhiteList);
+      // taosMemoryFree(pUser->pWhiteIpList);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -516,6 +640,7 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->readTbs);
   taosHashCleanup(pUser->writeTbs);
   taosHashCleanup(pUser->useDbs);
+  // taosMemoryFree(pUser->pWhiteIpList);
   pUser->readDbs = NULL;
   pUser->writeDbs = NULL;
   pUser->topics = NULL;
@@ -579,9 +704,23 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
 
+  if (pCreate->numIpRanges == 0) {
+    userObj.pIpWhiteList = createDefaultIpWhiteList();
+
+  } else {
+    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + pCreate->numIpRanges * sizeof(SIpV4Range));
+    for (int i = 0; i < pCreate->numIpRanges; i++) {
+      p->pIpRange[i].ip = pCreate->pIpRanges[i].ip;
+      p->pIpRange[i].mask = pCreate->pIpRanges[i].mask;
+    }
+    userObj.pIpWhiteList = p;
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
+
+    taosMemoryFree(userObj.pIpWhiteList);
     return -1;
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
@@ -590,18 +729,22 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    goto _OVER;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    goto _OVER;
   }
 
   mndTransDrop(pTrans);
   return 0;
+_OVER:
+  taosMemoryFree(userObj.pIpWhiteList);
+
+  return -1;
 }
 
 static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
@@ -631,7 +774,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN){
+  if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN) {
     terrno = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
     goto _OVER;
   }
@@ -657,8 +800,8 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "createType:%d, enable:%d, superUser:%d, sysInfo:%d", 
-          createReq.createType, createReq.enable, createReq.superUser, createReq.sysInfo);
+  sprintf(detail, "createType:%d, enable:%d, superUser:%d, sysInfo:%d", createReq.createType, createReq.enable,
+          createReq.superUser, createReq.sysInfo);
 
   auditRecord(pReq, pMnode->clusterId, "createUser", createReq.user, "", detail);
 
@@ -791,62 +934,62 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
   return 0;
 }
 
-static char* mndUserAuditTypeStr(int32_t type){
-  if(type == TSDB_ALTER_USER_PASSWD){
+static char *mndUserAuditTypeStr(int32_t type) {
+  if (type == TSDB_ALTER_USER_PASSWD) {
     return "changePassword";
   }
-  if(type == TSDB_ALTER_USER_SUPERUSER){
+  if (type == TSDB_ALTER_USER_SUPERUSER) {
     return "changeSuperUser";
   }
-  if(type == TSDB_ALTER_USER_ADD_READ_DB){
+  if (type == TSDB_ALTER_USER_ADD_READ_DB) {
     return "addReadToDB";
   }
-  if(type == TSDB_ALTER_USER_ADD_READ_DB){
+  if (type == TSDB_ALTER_USER_ADD_READ_DB) {
     return "addReadToDB";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_READ_DB){
+  if (type == TSDB_ALTER_USER_REMOVE_READ_DB) {
     return "removeReadFromDB";
   }
-  if(type == TSDB_ALTER_USER_ADD_WRITE_DB){
+  if (type == TSDB_ALTER_USER_ADD_WRITE_DB) {
     return "addWriteToDB";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_WRITE_DB){
+  if (type == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
     return "removeWriteFromDB";
   }
-  if(type == TSDB_ALTER_USER_ADD_ALL_DB){
+  if (type == TSDB_ALTER_USER_ADD_ALL_DB) {
     return "addToAllDB";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_ALL_DB){
+  if (type == TSDB_ALTER_USER_REMOVE_ALL_DB) {
     return "removeFromAllDB";
   }
-  if(type == TSDB_ALTER_USER_ENABLE){
+  if (type == TSDB_ALTER_USER_ENABLE) {
     return "enableUser";
   }
-  if(type == TSDB_ALTER_USER_SYSINFO){
+  if (type == TSDB_ALTER_USER_SYSINFO) {
     return "userSysInfo";
   }
-  if(type == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
+  if (type == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC) {
     return "addSubscribeTopic";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
+  if (type == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC) {
     return "removeSubscribeTopic";
   }
-  if(type == TSDB_ALTER_USER_ADD_READ_TABLE){
+  if (type == TSDB_ALTER_USER_ADD_READ_TABLE) {
     return "addReadToTable";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_READ_TABLE){
+  if (type == TSDB_ALTER_USER_REMOVE_READ_TABLE) {
     return "removeReadFromTable";
   }
-  if(type == TSDB_ALTER_USER_ADD_WRITE_TABLE){
+  if (type == TSDB_ALTER_USER_ADD_WRITE_TABLE) {
     return "addWriteToTable";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_WRITE_TABLE){
+  if (type == TSDB_ALTER_USER_REMOVE_WRITE_TABLE) {
     return "removeWriteFromTable";
   }
-  if(type == TSDB_ALTER_USER_ADD_ALL_TABLE){
+  if (type == TSDB_ALTER_USER_ADD_ALL_TABLE) {
     return "addToAllTable";
   }
-  if(type == TSDB_ALTER_USER_REMOVE_ALL_TABLE){
+  if (type == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
     return "removeFromAllTable";
   }
   return "error";
@@ -874,7 +1017,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType && 
+  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType &&
       (alterReq.pass[0] == 0 || strlen(alterReq.pass) >= TSDB_PASSWORD_LEN)) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
     goto _OVER;
@@ -1007,11 +1150,13 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     if (mndTablePriviledge(pMnode, newUser.writeTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE ||
+      alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
     if (mndRemoveTablePriviledge(pMnode, newUser.readTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE ||
+      alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
     if (mndRemoveTablePriviledge(pMnode, newUser.writeTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
@@ -1035,50 +1180,77 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     taosHashRemove(newUser.topics, alterReq.objname, len);
   }
 
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WHITE_LIST) {
+    int32_t num = pUser->pIpWhiteList->num + alterReq.numIpRanges;
+
+    SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
+    int32_t       idx = pUser->pIpWhiteList->num;
+    memcpy(pNew->pIpRange, pUser->pIpWhiteList->pIpRange, sizeof(SIpV4Range) * idx);
+    for (int i = 0; i < alterReq.numIpRanges; i++) {
+      SIpV4Range *range = &(alterReq.pIpRanges[i]);
+      if (!isRangeInIpWhiteList(pUser->pIpWhiteList, range)) {
+        // already exist, just ignore;
+        memcpy(&pNew->pIpRange[idx], range, sizeof(SIpV4Range));
+        idx++;
+        continue;
+      }
+    }
+    pNew->num = idx + 1;
+    newUser.pIpWhiteList = pNew;
+  }
+  if (alterReq.alterType == TSDB_ALTER_USER_DROP_WHITE_LIST) {
+    int32_t       num = pUser->pIpWhiteList->num;
+    SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
+
+    int idx = 0;
+    for (int i = 0; i < alterReq.numIpRanges; i++) {
+      SIpV4Range *range = &(alterReq.pIpRanges[i]);
+      if (!isRangeInIpWhiteList(pUser->pIpWhiteList, range)) {
+        // already exist, just ignore;
+        memcpy(&pNew->pIpRange[idx], &pUser->pIpWhiteList->pIpRange[i], sizeof(SIpV4Range));
+        idx++;
+      }
+    }
+    pNew->num = idx + 1;
+  }
+
   code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:", 
-          mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
+  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:",
+          mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
+          alterReq.tabName);
 
-  if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
-    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:xxx", 
-            mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, 
+  if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
+    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:xxx",
+            mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
             alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
-  }
-  else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
-          alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
-          alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
+  } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
+             alterReq.alterType == TSDB_ALTER_USER_SYSINFO) {
     auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
-  }
-  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE||
-          alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE){
-    if (strcmp(alterReq.objname, "1.*") != 0){
+  } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB ||
+             alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE ||
+             alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE ||
+             alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE) {
+    if (strcmp(alterReq.objname, "1.*") != 0) {
       SName name = {0};
       tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
       auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, name.dbname, detail);
-    }else{
+    } else {
       auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, "*", detail);
     }
-  }
-  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
+  } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC) {
     auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.user, alterReq.objname, detail);
-  }
-  else if(alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
+  } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC) {
     auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, alterReq.objname, detail);
-  }
-  else{
-    if (strcmp(alterReq.objname, "1.*") != 0){
+  } else {
+    if (strcmp(alterReq.objname, "1.*") != 0) {
       SName name = {0};
       tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
       auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, name.dbname, detail);
-    }else{
+    } else {
       auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.user, "*", detail);
     }
   }
@@ -1243,6 +1415,22 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->createdTime, false);
 
+    // get ip white list
+    // char *buf = taosMemoryCalloc(1, (sizeof(SIpV4Range) + 1) * pUser->pIpWhiteList->num);
+    char   *buf = NULL;
+    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
+
+    char *varstr = taosMemoryCalloc(1, VARSTR_HEADER_SIZE + tlen);
+    varDataSetLen(varstr, tlen);
+    memcpy(varDataVal(varstr), buf, tlen);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+
+    taosMemoryFree(varstr);
+    taosMemoryFree(buf);
+
     numOfRows++;
     sdbRelease(pSdb, pUser);
   }
@@ -1293,9 +1481,9 @@ static void mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, int3
     if (strcmp("t", value) != 0) {
       SNode  *pAst = NULL;
       int32_t sqlLen = 0;
-      size_t bufSz = strlen(value) + 1;
-      char* sql = taosMemoryMalloc(bufSz + 1);
-      char* obj = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
+      size_t  bufSz = strlen(value) + 1;
+      char   *sql = taosMemoryMalloc(bufSz + 1);
+      char   *obj = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
 
       if (sql != NULL && obj != NULL && nodesStringToNode(value, &pAst) == 0) {
         nodesNodeToSQL(pAst, sql, bufSz, &sqlLen);
@@ -1312,7 +1500,7 @@ static void mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, int3
       taosMemoryFree(obj);
       taosMemoryFree(sql);
     } else {
-      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
+      char *condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, *numOfRows, (const char *)condition, false);
@@ -1332,7 +1520,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   int32_t   cols = 0;
   char     *pWrite;
 
-  bool     fetchNextUser = pShow->restore ? false : true;
+  bool fetchNextUser = pShow->restore ? false : true;
   pShow->restore = false;
 
   while (numOfRows < rows) {
@@ -1354,8 +1542,10 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
     int32_t numOfWriteTbs = taosHashGetSize(pUser->writeTbs);
     if (numOfRows + numOfReadDbs + numOfWriteDbs + numOfTopics + numOfReadTbs + numOfWriteTbs >= rows) {
-      mInfo("will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables %d", 
-        numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs);
+      mInfo(
+          "will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables "
+          "%d",
+          numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs);
       pShow->restore = true;
       sdbRelease(pSdb, pUser);
       break;
@@ -1383,7 +1573,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
+      char *condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
@@ -1418,7 +1608,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
+      char *condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
@@ -1454,7 +1644,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
+      char *condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
@@ -1492,7 +1682,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
 
-      char* condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
+      char *condition = taosMemoryMalloc(TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);

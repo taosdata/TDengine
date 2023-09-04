@@ -208,15 +208,6 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
-typedef struct {
-  int32_t netmask;
-  int32_t address;
-  int32_t network;
-  int32_t broadcast;
-  char    info[32];
-  int8_t  type;
-} SubnetUtils;
-
 int32_t cvtIp2Int(char* ip, int16_t* dest) {
   int   k = 0;
   char* start = ip;
@@ -233,6 +224,15 @@ int32_t cvtIp2Int(char* ip, int16_t* dest) {
   }
   return k;
 }
+typedef struct {
+  int32_t netmask;
+  int32_t address;
+  int32_t network;
+  int32_t broadcast;
+  char    info[32];
+  int8_t  type;
+} SubnetUtils;
+
 int32_t subnetInit(SubnetUtils* pUtils, char* range) {
   char buf[32] = {0};
   strncpy(pUtils->info, range, strlen(range));
@@ -247,9 +247,10 @@ int32_t subnetInit(SubnetUtils* pUtils, char* range) {
   for (int i = 0; i < 4; i++) {
     pUtils->address |= (ip[i] << (8 * (4 - i - 1)));
   }
-
-  for (int i = 0; i < ip[4]; i++) {
-    pUtils->netmask |= (1 << (31 - i));
+  if (k == 5) {
+    for (int i = 0; i < ip[4]; i++) {
+      pUtils->netmask |= (1 << (31 - i));
+    }
   }
 
   pUtils->network = pUtils->address & pUtils->netmask;
