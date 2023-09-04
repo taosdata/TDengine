@@ -730,7 +730,7 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   int32_t showMore = 1;
   do {
     if (numOfRows < resShowMaxNum) {
-      printf("*************************** %d.row ***************************\r\n", numOfRows + 1);
+      printf("*************************** %"PRId64".row ***************************\r\n", numOfRows + 1);
 
       int32_t *length = taos_fetch_lengths(tres);
 
