@@ -116,7 +116,11 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
 
     if (pDisk == NULL) continue;
 
-    if (pDisk->size.avail < tsMinDiskFreeSize) continue;
+    if (pDisk->size.avail < tsMinDiskFreeSize) {
+      uInfo("disk %s is full and skip it, level:%d id:%d free size:%" PRId64 " min free size:%" PRId64, pDisk->path,
+            pDisk->level, pDisk->id, pDisk->size.avail, tsMinDiskFreeSize);
+      continue;
+    }
 
     retId = diskId;
     terrno = 0;
