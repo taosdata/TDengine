@@ -20,6 +20,7 @@ public class StatisticCache {
      */
     public static AtomicLong totalRead = new AtomicLong();
     public static AtomicLong totalPush = new AtomicLong();
+    public static AtomicLong totalRecordBatch = new AtomicLong();
     public static AtomicLong totalResp = new AtomicLong();
 
     /**

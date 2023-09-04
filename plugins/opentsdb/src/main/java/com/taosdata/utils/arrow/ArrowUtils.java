@@ -1,5 +1,6 @@
 package com.taosdata.utils.arrow;
 
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.model.entity.OpentsdbDataEntity;
 import com.taosdata.model.entity.OpentsdbDataPointEntity;
 import com.taosdata.model.entity.OpentsdbMetricEntity;
@@ -253,6 +254,8 @@ public class ArrowUtils {
             // 这里固定传1
             vectorSchemaRoot.setRowCount(1);
             writer.writeBatch();
+            // 计数
+            StatisticCache.totalRecordBatch.incrementAndGet();
             // 为了连续发送，此处不写结束信号
             // writer.end();
             // 如果首次提交，返回完整字节流，其后只提交RecordBatch
