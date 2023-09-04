@@ -412,6 +412,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
       taosThreadMutexUnlock(&pTask->lock);
       streamMetaReleaseTask(pStreamMeta, pTask);
+      if (pItem != NULL) {
+        streamFreeQitem(pItem);
+      }
       continue;
     }
 

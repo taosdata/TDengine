@@ -521,7 +521,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     ASSERT(pTask->status.timerActive == 0);
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
 
-    if (pTask->info.triggerParam != 0) {
+    if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
       qDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
       taosTmrStop(pTask->schedInfo.pTimer);
       pTask->info.triggerParam = 0;
