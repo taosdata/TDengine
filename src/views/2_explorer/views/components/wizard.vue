@@ -441,7 +441,7 @@ const conditionMap = {
             return 
           }
           if (every_val) {
-            this.sql += ` RANGE(${range1},${range2}) EVERY(${every_val}${every_unit})`
+            this.sql += ` RANGE('${range1}','${range2}') EVERY(${every_val}${every_unit})`
           } else {
             this.$message.error(this.$t('console.enterTip').replace('{value}','EVERY'))
             return 
