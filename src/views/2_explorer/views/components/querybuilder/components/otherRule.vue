@@ -87,6 +87,7 @@
               placeholder="" 
               style="margin-right: 8px; width: 280px;" 
               :size="size"
+              :min="0"
               controls-position="right"
               >
             </el-input-number>
@@ -98,6 +99,7 @@
               placeholder="" 
               style="margin-right: 8px; width: 280px;" 
               :size="size"
+              :min="0"
               controls-position="right"
               >
             </el-input-number>
