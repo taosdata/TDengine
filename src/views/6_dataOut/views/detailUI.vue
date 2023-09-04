@@ -98,7 +98,7 @@
             message: $t('pleaseSelect'),
           }"
           >
-          <el-input v-model="info.sourceData.ts"> </el-input>
+          <el-input v-model="info.sourceData.ts" :placeholder="$t('dataOut.tsPlaceholder')"> </el-input>
         </el-form-item>
         <!-- <el-form-item label="Topic Suffix" prop="sourceData.topic_suffix"
           :rules="{
@@ -125,13 +125,13 @@
       </p>
       <template v-if="otherModel == 'Kafka'">
         <el-form-item :label="$t('dataOut.kafka')" prop="target.kafkaUrl">
-          <el-input v-model="info.target.kafkaUrl"> </el-input>
+          <el-input v-model="info.target.kafkaUrl" placeholder="localhost:9092"> </el-input>
         </el-form-item>
         <el-form-item :label="$t('dataOut.kafkaTopic')" prop="target.topic">
-          <el-input v-model="info.target.topic"> </el-input>
+          <el-input v-model="info.target.topic" :placeholder="$t('dataOut.topicPlaceholder')"> </el-input>
         </el-form-item> 
         <el-form-item :label="$t('dataOut.kafkaAckTimeout')" prop="target.ack_timeout">
-          <el-input v-model="info.target.ack_timeout"> </el-input>
+          <el-input v-model="info.target.ack_timeout" :placeholder="$t('dataOut.timeoutPlaceholder')"> </el-input>
         </el-form-item>
         <el-form-item :label="$t('dataOut.kafkaBatchSize')" prop="target.batch_size">
           <el-input-number v-model="info.target.batch_size" :min="0"> </el-input-number>
@@ -205,7 +205,7 @@ import { Message } from 'element-ui'
           target: {
             kafkaUrl: '',
             topic: '',
-            ack_timeout: '1s',
+            ack_timeout: '',
             batch_size: ''
           },
         },
@@ -517,6 +517,9 @@ import { Message } from 'element-ui'
     .el-checkbox {
       flex: 0 48%;
       margin-right: 1% !important;
+    }
+    .el-radio-button__inner {
+      cursor: initial;
     }
   }
   .bottom {

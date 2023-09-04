@@ -1046,9 +1046,12 @@ export default {
     cols: '列',
     tags: '标签',
     kafka: 'Kafka Server',
-    kafkaTopic: 'Topics',
+    kafkaTopic: 'Topic',
     kafkaAckTimeout: 'Timeout',
-    kafkaBatchSize: '批量发送 kafka 条数'
+    kafkaBatchSize: '批量发送 kafka 条数',
+    tsPlaceholder: '如果输入了 开始时间和结束时间，则必输，默认为 ts ',
+    topicPlaceholder: 'Topic 必须为 Kafka 中已经存在的 Topic',
+    timeoutPlaceholder: 'kafka ack_timeout，默认为 1 s。消息需要 ack，ack 级别=1',
   },
   docs: {
     connector: {

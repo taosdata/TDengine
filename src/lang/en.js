@@ -773,9 +773,12 @@ export default {
     cols: 'Cols',
     tags: 'Tags',
     kafka: 'Kafka Server',
-    kafkaTopic: 'Topics',
+    kafkaTopic: 'Topic',
     kafkaAckTimeout: 'Timeout',
-    kafkaBatchSize: 'Batch Size'
+    kafkaBatchSize: 'Batch Size',
+    tsPlaceholder: 'If the start time and end time are specified, the value is mandatory. Default value ts.',
+    topicPlaceholder: 'The Topic must be an existing Topic in Kafka.',
+    timeoutPlaceholder: 'kafka ack_timeout. Default value 1s. The message requires an ack. The ack level is 1.',
   },
   dataout: {
     dump: {
