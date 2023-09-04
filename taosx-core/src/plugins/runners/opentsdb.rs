@@ -10,7 +10,7 @@ use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
+use tracing::{Instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
@@ -218,8 +218,10 @@ pub async fn opentsdb_to_taos(
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
-    // create socket channel
 
+    let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
+    exec_span.follows_from(&span);
+    // create socket channel
     let mut ipc_handler = build_ipc(
         &config.ipc_stream,
         None,
@@ -232,6 +234,7 @@ pub async fn opentsdb_to_taos(
         span,
     )
     .await?;
+
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = opentsdb_jar_path();
@@ -319,9 +322,10 @@ pub async fn opentsdb_to_taos(
         // waiting until the end
         tracing::info!("waiting for OpenTSDB connector");
         tokio::spawn(async move {
+            let pid = child.id();
             tokio::select! {
                 // application exit with error code
-                status = child.wait() => {
+                status = child.wait().instrument(tracing::info_span!("process", plugin.pid = pid)) => {
                     let status = status?;
                     tracing::info!("OpenTSDB exit with {}", status);
                     if !status.success() {
@@ -355,7 +359,7 @@ pub async fn opentsdb_to_taos(
             // wait for completion
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
-        }).await??;
+        }.instrument(exec_span)).await??;
     }
     Ok(())
 }
