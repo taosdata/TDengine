@@ -53,7 +53,7 @@ public class SubscribeDemo {
 
             // create consumer
             Properties properties = new Properties();
-            properties.getProperty(TMQConstants.CONNECT_TYPE, "jni");
+            properties.setProperty(TMQConstants.CONNECT_TYPE, "jni");
             properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, "127.0.0.1:6030");
             properties.setProperty(TMQConstants.CONNECT_USER, "root");
             properties.setProperty(TMQConstants.CONNECT_PASS, "taosdata");
