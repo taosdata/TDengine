@@ -248,7 +248,7 @@ typedef struct SStreamChildEpInfo {
 
 typedef struct SStreamTaskKey {
   int64_t streamId;
-  int64_t taskId;
+  int32_t taskId;
 } SStreamTaskKey;
 
 typedef struct SStreamTaskId {
