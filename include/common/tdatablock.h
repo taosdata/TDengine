@@ -28,6 +28,7 @@ typedef struct SBlockOrderInfo {
   bool             nullFirst;
   int32_t          order;
   int32_t          slotId;
+  void*            compFn;
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
@@ -210,6 +211,10 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols);
 
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
+/**
+ * @brief find how many rows already in order start from first row
+ */
+int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);

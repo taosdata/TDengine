@@ -86,7 +86,15 @@ class TDTestCase:
                     'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
-                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'FLOAT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'smallint', 'count':1},{'type': 'tinyint', 'count':1},{'type': 'bool', 'count':1},{'type': 'binary', 'len':10, 'count':1},{'type': 'nchar', 'len':10, 'count':1}],
+                    'colSchema':   [{'type': 'INT', 'count':1},
+                                    {'type': 'BIGINT', 'count':1},
+                                    {'type': 'FLOAT', 'count':1},
+                                    {'type': 'DOUBLE', 'count':1},
+                                    {'type': 'smallint', 'count':1},
+                                    {'type': 'tinyint', 'count':1},
+                                    {'type': 'bool', 'count':1},
+                                    {'type': 'binary', 'len':10, 'count':1},
+                                    {'type': 'nchar', 'len':10, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
                     'ctbPrefix':  't',
                     'ctbStartIdx': 0,
@@ -128,26 +136,35 @@ class TDTestCase:
 
 
     def test_sort_for_partition_hint(self):
-        sql = 'explain select count(*), c1 from meters partition by c1'
-        sql_hint = 'explain select /*+ sort_for_group() */count(*), c1 from meters partition by c1'
-        tdSql.query(sql)
-        self.check_explain_res_has_row("Partition on", tdSql.queryResult)
-        tdSql.query(sql_hint)
-        self.check_explain_res_has_row("Sort", tdSql.queryResult)
+        sql = 'select count(*), c1 from meters partition by c1'
+        sql_hint = 'select /*+ sort_for_group() */count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
-        sql = 'explain select count(*), c1, tbname from meters partition by tbname, c1'
-        sql_hint = 'explain select /*+ sort_for_group() */ count(*), c1, tbname from meters partition by tbname, c1'
-        tdSql.query(sql)
-        self.check_explain_res_has_row("Partition on", tdSql.queryResult)
-        tdSql.query(sql_hint)
-        self.check_explain_res_has_row("Sort", tdSql.queryResult)
+        sql = 'select count(*), c1, tbname from meters partition by tbname, c1'
+        sql_hint = 'select /*+ sort_for_group() */ count(*), c1, tbname from meters partition by tbname, c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
-        sql_interval = 'explain select count(*), c1 from meters partition by c1 interval(1s)'
-        sql_interval_hint = 'explain select /*+ sort_for_group() */ count(*), c1 from meters partition by c1 interval(1s)'
-        tdSql.query(sql_interval)
-        self.check_explain_res_has_row("Partition on", tdSql.queryResult)
-        tdSql.query(sql_interval_hint)
-        self.check_explain_res_has_row("Partition on", tdSql.queryResult)
+        sql = 'select count(*), c1, tbname from meters partition by tbname, c1 interval(1s)'
+        sql_hint = 'select /*+ sort_for_group() */ count(*), c1, tbname from meters partition by tbname, c1 interval(1s)'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+
+        sql = 'select count(*), c1, t1 from meters partition by t1, c1'
+        sql_hint = 'select /*+ sort_for_group() */ count(*), c1, t1 from meters partition by t1, c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+
+        sql = 'select count(*), c1, t1 from meters partition by t1, c1 interval(1s)'
+        sql_hint = 'select /*+ sort_for_group() */ count(*), c1, t1 from meters partition by t1, c1 interval(1s)'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+
+        sql = 'select count(*), c1 from meters partition by c1 interval(1s)'
+        sql_hint = 'select /*+ sort_for_group() */ count(*), c1 from meters partition by c1 interval(1s)'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
     def add_order_by(self, sql: str, order_by: str, select_list: str = "*") -> str:
         return "select %s from (%s)t order by %s" % (select_list, sql, order_by)
@@ -157,8 +174,13 @@ class TDTestCase:
 
     def query_with_time(self, sql):
         start = datetime.now()
-        tdSql.query(sql)
+        tdSql.query(sql, queryTimes=1)
         return (datetime.now().timestamp() - start.timestamp()) * 1000
+
+    def explain_sql(self, sql: str):
+        sql = "explain " + sql
+        tdSql.query(sql)
+        return tdSql.queryResult
 
     def query_and_compare_res(self, sql1, sql2):
         dur = self.query_with_time(sql1)
@@ -180,8 +202,9 @@ class TDTestCase:
         for sql in sqls:
             sql_hint = self.add_order_by(self.add_hint(sql), order_by, select_list)
             sql = self.add_order_by(sql, order_by, select_list)
+            self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+            self.check_explain_res_has_row("Partition", self.explain_sql(sql))
             self.query_and_compare_res(sql, sql_hint)
-        pass
 
     def test_sort_for_partition_res(self):
         sqls_par_c1_agg = [
@@ -200,7 +223,7 @@ class TDTestCase:
                 ]
 
         sqls_par_tbname_c1 = [
-                "select count(*), c1 , tbname as tb from meters partition by tbname, c1"
+                "select count(*), c1 , tbname as a from meters partition by tbname, c1"
                 ]
         sqls_par_tag_c1 = [
                 "select count(*), c1, t1 from meters partition by t1, c1"
@@ -209,13 +232,60 @@ class TDTestCase:
         self.prepare_and_query(sqls_par_c1, "c1, ts, c2", "c1, ts, c2")
         self.prepare_and_query(sqls_par_c1_c2_agg, "c1, c2")
         self.prepare_and_query(sqls_par_c1_c2, "c1, c2, ts, c3", "c1, c2, ts, c3")
-        self.prepare_and_query(sqls_par_tbname_c1, "tb, c1")
+        self.prepare_and_query(sqls_par_tbname_c1, "a, c1")
         self.prepare_and_query(sqls_par_tag_c1, "t1, c1")
+
+    def get_interval_template_sqls(self, col_name):
+        sqls = [
+                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1s)' %  (col_name, col_name),
+                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(30s)' % (col_name, col_name),
+                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1m)' %  (col_name, col_name),
+                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(30m)' % (col_name, col_name),
+                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1h)' %  (col_name, col_name),
+
+                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1s)' %  (col_name, col_name),
+                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30s)' % (col_name, col_name),
+                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1m)' %  (col_name, col_name),
+                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30m)' % (col_name, col_name),
+                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1h)' %  (col_name, col_name),
+
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1s)' %  (col_name, col_name, col_name),
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30s)' % (col_name, col_name, col_name),
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1m)' %  (col_name, col_name, col_name),
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30m)' % (col_name, col_name, col_name),
+                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1h)' %  (col_name, col_name, col_name),
+
+                'select _wstart as ts, count(*), tbname as a, %s from meters partition by %s, tbname interval(1s)' %  (col_name, col_name),
+                'select _wstart as ts, count(*), t1 as a, %s from meters partition by %s, t1 interval(1s)' %  (col_name, col_name),
+                ]
+        order_list = 'a, %s, ts' % (col_name)
+        return (sqls, order_list)
+
+    def test_sort_for_partition_interval(self):
+        sqls, order_list = self.get_interval_template_sqls('c1')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c2')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c3')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c4')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c5')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c6')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c7')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c8')
+        self.prepare_and_query(sqls, order_list)
+        sqls, order_list = self.get_interval_template_sqls('c9')
+        self.prepare_and_query(sqls, order_list)
 
     def run(self):
         self.prepareTestEnv()
         self.test_sort_for_partition_hint()
         self.test_sort_for_partition_res()
+        self.test_sort_for_partition_interval()
 
     def stop(self):
         tdSql.close()

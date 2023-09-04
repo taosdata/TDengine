@@ -1661,22 +1661,6 @@ static int32_t smaIndexOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return smaIndexOptimizeImpl(pCxt, pLogicSubplan, pScan);
 }
 
-static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
-      *(bool*)pContext = true;
-      return DEAL_RES_END;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool planOptNodeListHasCol(SNodeList* pKeys) {
-  bool hasCol = false;
-  nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
-  return hasCol;
-}
-
 static EDealRes partTagsOptHasTbname(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
@@ -1755,7 +1739,7 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  return !planOptNodeListHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
+  return !keysHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
 }
 
 static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
@@ -2042,7 +2026,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
 
   int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
-  TSWAP(pProjectNode->node.pHint, pChild->pHint);
+  if (pProjectNode->node.pHint && !pChild->pHint) TSWAP(pProjectNode->node.pHint, pChild->pHint);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
@@ -2735,7 +2719,7 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   }
 
   SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
-  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || planOptNodeListHasCol(pAgg->pGroupKeys) ||
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || keysHasCol(pAgg->pGroupKeys) ||
       !planOptNodeListHasTbname(pAgg->pGroupKeys)) {
     return false;
   }
@@ -3591,8 +3575,7 @@ static int32_t stableJoinOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 static bool partColOptShouldBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
     SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
-    if (pPartition->node.pParent && nodeType(pPartition->node.pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) return false;
-    if (planOptNodeListHasCol(pPartition->pPartitionKeys)) return true;
+    if (keysHasCol(pPartition->pPartitionKeys)) return true;
   }
   return false;
 }
@@ -3604,6 +3587,7 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
   if (pSort) {
     pSort->groupSort = false;
     TSWAP(pSort->node.pChildren, pPartition->node.pChildren);
+    optResetParent((SLogicNode*)pSort);
     FOREACH(node, pPartition->pPartitionKeys) {
       SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
       if (!pOrder) {
@@ -3613,6 +3597,30 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
         pOrder->order = ORDER_ASC;
         pOrder->pExpr = nodesCloneNode(node);
         if (!pOrder->pExpr) code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    if (pPartition->needBlockOutputTsOrder) {
+      SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+      if (!pOrder) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        pSort->excludePkCol = true;
+        nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
+        pOrder->order = ORDER_ASC;
+        pOrder->pExpr = 0;
+        FOREACH(node, pPartition->node.pTargets) {
+          if (nodeType(node) == QUERY_NODE_COLUMN) {
+            SColumnNode* pCol = (SColumnNode*)node;
+            if (pCol->slotId == pPartition->tsSlotId) {
+              pOrder->pExpr = nodesCloneNode((SNode*)pCol);
+              break;
+            }
+          }
+        }
+        if (!pOrder->pExpr) {
+          code = TSDB_CODE_PAR_INTERNAL_ERROR;
+        }
       }
     }
   }
@@ -3639,13 +3647,17 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 
   // replace with sort node
   SSortLogicNode* pSort = partColOptCreateSort(pNode);
-  if (!pSort) code = TSDB_CODE_OUT_OF_MEMORY;
-  if (code == TSDB_CODE_SUCCESS) {
+  if (!pSort) {
+    // if sort create failed, we eat the error, skip the optimization
+    code = TSDB_CODE_SUCCESS;
+  } else {
     pSort->calcGroupId = true;
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    pCxt->optimized = true;
+    if (code == TSDB_CODE_SUCCESS) {
+      pCxt->optimized = true;
+    } else {
+      nodesDestroyNode((SNode*)pSort);
+    }
   }
   return code;
 }

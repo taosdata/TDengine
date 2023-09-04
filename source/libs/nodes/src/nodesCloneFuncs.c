@@ -444,6 +444,7 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pGroupKeys);
   CLONE_NODE_LIST_FIELD(pAggFuncs);
   COPY_SCALAR_FIELD(hasGroupKeyOptimized);
+  COPY_SCALAR_FIELD(isPartTb);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -532,6 +533,7 @@ static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pSortKeys);
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(calcGroupId);
+  COPY_SCALAR_FIELD(excludePkCol);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -540,6 +542,8 @@ static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLog
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pTags);
   CLONE_NODE_FIELD(pSubtable);
+  COPY_SCALAR_FIELD(needBlockOutputTsOrder);
+  COPY_SCALAR_FIELD(tsSlotId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -679,6 +683,8 @@ static int32_t physiPartitionCopy(const SPartitionPhysiNode* pSrc, SPartitionPhy
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pTargets);
+  COPY_SCALAR_FIELD(needBlockOutputTsOrder);
+  COPY_SCALAR_FIELD(tsSlotId);
   return TSDB_CODE_SUCCESS;
 }
 

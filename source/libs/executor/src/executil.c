@@ -2262,75 +2262,71 @@ void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t 
   ts[4] = pWin->ekey + delta;  // window end key
 }
 
-void extractCols(SArray* pSortGroupCols, SArray* pColVals, SSDataBlock* pBlock, int32_t rowIndex) {
+int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pBlock, int32_t rowIndex) {
   SColumnDataAgg* pColAgg = NULL;
+  const char*     isNull = oldkeyBuf;
+  const char*     p = oldkeyBuf + sizeof(int8_t) * taosArrayGetSize(pSortGroupCols);
 
-  size_t numOfGroupCols = taosArrayGetSize(pSortGroupCols);
+  for (int32_t i = 0; i < taosArrayGetSize(pSortGroupCols); ++i) {
+    const SColumn* pCol = (SColumn*)taosArrayGet(pSortGroupCols, i);
+    const SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
 
-  for (int32_t i = 0; i < numOfGroupCols; ++i) {
-    SColumn*         pCol = (SColumn*) taosArrayGet(pSortGroupCols, i);
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
-
-    // valid range check. todo: return error code.
-    if (pCol->slotId > taosArrayGetSize(pBlock->pDataBlock)) {
-      continue;
-    }
-
-    if (pBlock->pBlockAgg != NULL) {
-      pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
-    }
-
-    SGroupKeys* pkey = taosArrayGet(pColVals, i);
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
-      pkey->isNull = true;
+      if (isNull[i] != 1) return 1;
     } else {
-      pkey->isNull = false;
-      char* val = colDataGetData(pColInfoData, rowIndex);
-      if (pkey->type == TSDB_DATA_TYPE_JSON) {
-        if (tTagIsJson(val)) {
-          terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
-          return;
-        }
-        int32_t dataLen = getJsonValueLen(val);
-        memcpy(pkey->pData, val, dataLen);
-      } else if (IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, varDataTLen(val));
-        ASSERT(varDataTLen(val) <= pkey->bytes);
+      if (isNull[i] != 0) return 1;
+      const char* val = colDataGetData(pColInfoData, rowIndex);
+      if (pCol->type == TSDB_DATA_TYPE_JSON) {
+        int32_t len = getJsonValueLen(val);
+        if (memcmp(p, val, len) != 0) return 1;
+        p += len;
+      } else if (IS_VAR_DATA_TYPE(pCol->type)) {
+        if (memcmp(p, val, varDataTLen(val)) != 0) return 1;
+        p += varDataTLen(val);
       } else {
-        memcpy(pkey->pData, val, pkey->bytes);
+        if (0 != memcmp(p, val, pCol->bytes)) return 1;
+        p += pCol->bytes;
       }
     }
   }
+  if ((int32_t)(p - oldkeyBuf) != oldKeysLen) return 1;
+  return 0;
 }
 
-int32_t buildKeys(char* buf, SArray* pColVals) {
-  size_t numOfGroupCols = taosArrayGetSize(pColVals);
+int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock,
+                 int32_t rowIndex) {
+  uint32_t        colNum = taosArrayGetSize(pSortGroupCols);
+  SColumnDataAgg* pColAgg = NULL;
+  char*           isNull = keyBuf;
+  char*           p = keyBuf + sizeof(int8_t) * colNum;
 
-  char* isNull = (char*)buf;
-  char* pStart = (char*)buf + sizeof(int8_t) * numOfGroupCols;
-  for (int32_t i = 0; i < numOfGroupCols; ++i) {
-    SGroupKeys* pkey = taosArrayGet(pColVals, i);
-    if (pkey->isNull) {
+  for (int32_t i = 0; i < colNum; ++i) {
+    const SColumn*         pCol = (SColumn*)taosArrayGet(pSortGroupCols, i);
+    const SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+    if (pCol->slotId > taosArrayGetSize(pBlock->pDataBlock)) continue;
+
+    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+
+    if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       isNull[i] = 1;
-      continue;
-    }
-
-    isNull[i] = 0;
-    if (pkey->type == TSDB_DATA_TYPE_JSON) {
-      int32_t dataLen = getJsonValueLen(pkey->pData);
-      memcpy(pStart, (pkey->pData), dataLen);
-      pStart += dataLen;
-    } else if (IS_VAR_DATA_TYPE(pkey->type)) {
-      varDataCopy(pStart, pkey->pData);
-      pStart += varDataTLen(pkey->pData);
-      ASSERT(varDataTLen(pkey->pData) <= pkey->bytes);
     } else {
-      memcpy(pStart, pkey->pData, pkey->bytes);
-      pStart += pkey->bytes;
+      isNull[i] = 0;
+      const char* val = colDataGetData(pColInfoData, rowIndex);
+      if (pCol->type == TSDB_DATA_TYPE_JSON) {
+        int32_t len = getJsonValueLen(val);
+        memcpy(p, val, len);
+        p += len;
+      } else if (IS_VAR_DATA_TYPE(pCol->type)) {
+        varDataCopy(p, val);
+        p += varDataTLen(val);
+      } else {
+        memcpy(p, val, pCol->bytes);
+        p += pCol->bytes;
+      }
     }
   }
-
-  return (int32_t)(pStart - (char*)buf);
+  return (int32_t)(p - keyBuf);
 }
 
 uint64_t calcGroupId(char* pData, int32_t len) {
@@ -2356,37 +2352,13 @@ SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys) {
   return ret;
 }
 
-int32_t extractSortGroupKeysInfo(SArray** pColVals, int32_t* keyLen, char** keyBuf, const SArray* pColList) {
-  *pColVals = taosArrayInit(4, sizeof(SGroupKeys));
-  if ((*pColVals) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+int32_t extractKeysLen(const SArray* keys) {
+  int32_t len = 0;
+  int32_t keyNum = taosArrayGetSize(keys);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SColumn* pCol = (SColumn*)taosArrayGet(keys, i);
+    len += pCol->bytes;
   }
-
-  *keyLen = 0;
-  int32_t numOfGroupCols = taosArrayGetSize(pColList);
-  for (int32_t i = 0; i < numOfGroupCols; ++i) {
-    SColumn* pCol = (SColumn*)taosArrayGet(pColList, i);
-    (*keyLen) += pCol->bytes;  // actual data + null_flag
-
-    SGroupKeys key = {0};
-    key.bytes = pCol->bytes;
-    key.type = pCol->type;
-    key.isNull = false;
-    key.pData = taosMemoryCalloc(1, pCol->bytes);
-    if (key.pData == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    taosArrayPush((*pColVals), &key);
-  }
-
-  int32_t nullFlagSize = sizeof(int8_t) * numOfGroupCols;
-  (*keyLen) += nullFlagSize;
-
-  (*keyBuf) = taosMemoryCalloc(1, (*keyLen));
-  if ((*keyBuf) == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  return TSDB_CODE_SUCCESS;
+  len += sizeof(int8_t) * keyNum; //null flag
+  return len;
 }

@@ -56,6 +56,10 @@ typedef struct SPartitionOperatorInfo {
   int32_t        groupIndex;        // group index
   int32_t        pageIndex;         // page index of current group
   SExprSupp      scalarSup;
+
+  int32_t remainRows;
+  int32_t orderedRows;
+  SArray* pOrderInfoArr;
 } SPartitionOperatorInfo;
 
 static void*    getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
@@ -685,37 +689,49 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
 
-  SDataGroupInfo* pGroupInfo =
-      (pInfo->groupIndex != -1) ? taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex) : NULL;
-  if (pInfo->groupIndex == -1 || pInfo->pageIndex >= taosArrayGetSize(pGroupInfo->pPageList)) {
-    // try next group data
-    ++pInfo->groupIndex;
-    if (pInfo->groupIndex >= taosArrayGetSize(pInfo->sortedGroupArray)) {
-      setOperatorCompleted(pOperator);
-      clearPartitionOperator(pInfo);
-      return NULL;
+  if (pInfo->remainRows == 0) {
+    blockDataCleanup(pInfo->binfo.pRes);
+    SDataGroupInfo* pGroupInfo =
+        (pInfo->groupIndex != -1) ? taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex) : NULL;
+    if (pInfo->groupIndex == -1 || pInfo->pageIndex >= taosArrayGetSize(pGroupInfo->pPageList)) {
+      // try next group data
+      ++pInfo->groupIndex;
+      if (pInfo->groupIndex >= taosArrayGetSize(pInfo->sortedGroupArray)) {
+        setOperatorCompleted(pOperator);
+        clearPartitionOperator(pInfo);
+        return NULL;
+      }
+
+      pGroupInfo = taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex);
+      pInfo->pageIndex = 0;
     }
 
-    pGroupInfo = taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex);
-    pInfo->pageIndex = 0;
+    int32_t* pageId = taosArrayGet(pGroupInfo->pPageList, pInfo->pageIndex);
+    void*    page = getBufPage(pInfo->pBuf, *pageId);
+    if (page == NULL) {
+      qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
+      T_LONG_JMP(pTaskInfo->env, terrno);
+    }
+
+    blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->rowCapacity);
+    blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
+
+    pInfo->pageIndex += 1;
+    releaseBufPage(pInfo->pBuf, page);
+    pInfo->binfo.pRes->info.id.groupId = pGroupInfo->groupId;
+    pInfo->binfo.pRes->info.dataLoad = 1;
+    pInfo->orderedRows = 0;
   }
 
-  int32_t* pageId = taosArrayGet(pGroupInfo->pPageList, pInfo->pageIndex);
-  void*    page = getBufPage(pInfo->pBuf, *pageId);
-  if (page == NULL) {
-    qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
-    T_LONG_JMP(pTaskInfo->env, terrno);
+  if (pInfo->pOrderInfoArr) {
+    pInfo->binfo.pRes->info.rows += pInfo->remainRows;
+    blockDataTrimFirstRows(pInfo->binfo.pRes, pInfo->orderedRows);
+    pInfo->orderedRows = blockDataGetSortedRows(pInfo->binfo.pRes, pInfo->pOrderInfoArr);
+    pInfo->remainRows = pInfo->binfo.pRes->info.rows - pInfo->orderedRows;
+    pInfo->binfo.pRes->info.rows = pInfo->orderedRows;
   }
 
-  blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->rowCapacity);
-  blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
-
-  pInfo->pageIndex += 1;
-  releaseBufPage(pInfo->pBuf, page);
-
-  pInfo->binfo.pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
-  pInfo->binfo.pRes->info.id.groupId = pGroupInfo->groupId;
 
   pOperator->resultInfo.totalRows += pInfo->binfo.pRes->info.rows;
   return pInfo->binfo.pRes;
@@ -732,7 +748,6 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
   SSDataBlock*            pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    blockDataCleanup(pRes);
     return buildPartitionResult(pOperator);
   }
 
@@ -815,6 +830,7 @@ static void destroyPartitionOperatorInfo(void* param) {
 
   cleanupExprSupp(&pInfo->scalarSup);
   destroyDiskbasedBuf(pInfo->pBuf);
+  taosArrayDestroy(pInfo->pOrderInfoArr);
   taosMemoryFreeClear(param);
 }
 
@@ -831,6 +847,17 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &numOfCols);
   pInfo->pGroupCols = makeColumnArrayFromList(pPartNode->pPartitionKeys);
+
+  if (pPartNode->needBlockOutputTsOrder) {
+    SBlockOrderInfo order = {.order = ORDER_ASC, .pColData = NULL, .nullFirst = false, .slotId = pPartNode->tsSlotId};
+    pInfo->pOrderInfoArr = taosArrayInit(1, sizeof(SBlockOrderInfo));
+    if (!pInfo->pOrderInfoArr) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = terrno;
+      goto _error;
+    }
+    taosArrayPush(pInfo->pOrderInfoArr, &order);
+  }
 
   if (pPartNode->pExprs != NULL) {
     int32_t    num = 0;

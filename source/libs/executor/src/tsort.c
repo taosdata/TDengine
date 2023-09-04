@@ -1555,7 +1555,14 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   return info;
 }
 
-int32_t tsortBuildKeys(SArray* pSortGroupCols, SArray* pColVals, STupleHandle* pTuple, char* keyBuf) {
-  extractCols(pSortGroupCols, pColVals, pTuple->pBlock, pTuple->rowIndex);
-  return buildKeys(keyBuf, pColVals);
+int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen,
+                              const STupleHandle* pTuple) {
+  int32_t ret;
+  if (0 == compKeys(pSortCols, keyBuf, *keyLen, pTuple->pBlock, pTuple->rowIndex)) {
+    ret = 0;
+  } else {
+    *keyLen = buildKeys(keyBuf, pSortCols, pTuple->pBlock, pTuple->rowIndex);
+    ret = 1;
+  }
+  return ret;
 }

@@ -22,11 +22,10 @@
 typedef struct SSortOpGroupIdCalc {
   STupleHandle* pSavedTuple;
   SArray*       pSortColsArr;
-  SArray*       pSortColVals;
   char*         keyBuf;
-  char*         lastKeyBuf;
-  int32_t       lastKeysLen;
+  int32_t       lastKeysLen; // default to be 0
   uint64_t      lastGroupId;
+  bool          excludePKCol;
 } SSortOpGroupIdCalc;
 
 typedef struct SSortOperatorInfo {
@@ -93,7 +92,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
 
   if (pSortNode->calcGroupId) {
-    SSortOpGroupIdCalc* pGroupIdCalc = taosMemoryCalloc(1, sizeof(SSortOpGroupIdCalc));
+    int32_t keyLen;
+    SSortOpGroupIdCalc* pGroupIdCalc = pInfo->pGroupIdCalc = taosMemoryCalloc(1, sizeof(SSortOpGroupIdCalc));
     if (!pGroupIdCalc) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
@@ -105,17 +105,15 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
       if (!pGroupIdCalc->pSortColsArr) code = TSDB_CODE_OUT_OF_MEMORY;
       nodesClearList(pSortColsNodeArr);
     }
-    int32_t keyLen;
-    if (TSDB_CODE_SUCCESS == code)
-      code = extractSortGroupKeysInfo(&pGroupIdCalc->pSortColVals, &keyLen, &pGroupIdCalc->keyBuf,
-                                      pGroupIdCalc->pSortColsArr);
     if (TSDB_CODE_SUCCESS == code) {
-      pGroupIdCalc->lastKeysLen = 0;
-      pGroupIdCalc->lastKeyBuf = taosMemoryCalloc(1, keyLen);
-      if (!pGroupIdCalc->lastKeyBuf) code = TSDB_CODE_OUT_OF_MEMORY;
+      // PK ts col should always at last, see partColOptCreateSort
+      if (pSortNode->excludePkCol) taosArrayPop(pGroupIdCalc->pSortColsArr);
+      keyLen = extractKeysLen(pGroupIdCalc->pSortColsArr);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      pInfo->pGroupIdCalc = pGroupIdCalc;
+      pGroupIdCalc->lastKeysLen = 0;
+      pGroupIdCalc->keyBuf = taosMemoryCalloc(1, keyLen);
+      if (!pGroupIdCalc->keyBuf) code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
   if (code != TSDB_CODE_SUCCESS) goto _error;
@@ -172,35 +170,40 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
 }
 
 /**
- * @brief get next tuple with group id attached, all tuples fetched from tsortNextTuple are sorted by group keys
- * @param pBlock the output block, the group id will be saved in it
- * @retval NULL if next group tuple arrived, the pre fetched tuple will be saved in pInfo.pSavedTuple
+ * @brief get next tuple with group id attached, here assume that all tuples are sorted by group keys
+ * @param [in, out] pBlock the output block, the group id will be saved in it
+ * @retval NULL if next group tuple arrived and this new group tuple will be saved in pInfo.pSavedTuple
+ * @retval NULL if no more tuples
  */
 static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pInfo, SSDataBlock* pBlock) {
-  STupleHandle *ret = pInfo->pGroupIdCalc->pSavedTuple;
-  pInfo->pGroupIdCalc->pSavedTuple = NULL;
-  if (!ret) {
-    ret = tsortNextTuple(pHandle);
+  STupleHandle* retTuple = pInfo->pGroupIdCalc->pSavedTuple;
+  if (!retTuple) {
+    retTuple = tsortNextTuple(pHandle);
   }
 
-  if (ret) {
-    int32_t len = tsortBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->pSortColVals, ret,
-                                 pInfo->pGroupIdCalc->keyBuf);
-    bool    newGroup = len != pInfo->pGroupIdCalc->lastKeysLen
-                           ? true
-                           : memcmp(pInfo->pGroupIdCalc->lastKeyBuf, pInfo->pGroupIdCalc->keyBuf, len) != 0;
-    bool    emptyBlock = pBlock->info.rows == 0;
-    if (newGroup && !emptyBlock) {
-      // new group arrived, and we have already copied some tuples for cur group, save the new group tuple, return NULL
-      pInfo->pGroupIdCalc->pSavedTuple = ret;
-      ret = NULL;
+  if (retTuple) {
+    int32_t newGroup;
+    if (pInfo->pGroupIdCalc->pSavedTuple) {
+      newGroup = true;
+      pInfo->pGroupIdCalc->pSavedTuple = NULL;
     } else {
-      if (newGroup) {
-        ASSERT(emptyBlock);
-        pInfo->pGroupIdCalc->lastKeysLen = len;
-        pInfo->pGroupIdCalc->lastGroupId = pBlock->info.id.groupId = calcGroupId(pInfo->pGroupIdCalc->keyBuf, len);
-        TSWAP(pInfo->pGroupIdCalc->keyBuf, pInfo->pGroupIdCalc->lastKeyBuf);
-      } else if (emptyBlock) {
+      newGroup = tsortCompAndBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->keyBuf,
+                                       &pInfo->pGroupIdCalc->lastKeysLen, retTuple);
+    }
+    bool emptyBlock = pBlock->info.rows == 0;
+    if (newGroup) {
+      if (!emptyBlock) {
+        // new group arrived, and we have already copied some tuples for cur group, save the new group tuple, return
+        // NULL. Note that the keyBuf and lastKeysLen has been updated to new value
+        pInfo->pGroupIdCalc->pSavedTuple = retTuple;
+        retTuple = NULL;
+      } else {
+        // new group with empty block
+        pInfo->pGroupIdCalc->lastGroupId = pBlock->info.id.groupId =
+            calcGroupId(pInfo->pGroupIdCalc->keyBuf, pInfo->pGroupIdCalc->lastKeysLen);
+      }
+    } else {
+      if (emptyBlock) {
         // new block but not new group, assign last group id to it
         pBlock->info.id.groupId = pInfo->pGroupIdCalc->lastGroupId;
       } else {
@@ -209,7 +212,7 @@ static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInf
     }
   }
 
-  return ret;
+  return retTuple;
 }
 
 SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
@@ -401,14 +404,8 @@ static int32_t calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNod
 
 static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc) {
   if (pCalc) {
-    for (int i = 0; i < taosArrayGetSize(pCalc->pSortColVals); i++) {
-      SGroupKeys key = *(SGroupKeys*)taosArrayGet(pCalc->pSortColVals, i);
-      taosMemoryFree(key.pData);
-    }
-    taosArrayDestroy(pCalc->pSortColVals);
     taosArrayDestroy(pCalc->pSortColsArr);
     taosMemoryFree(pCalc->keyBuf);
-    taosMemoryFree(pCalc->lastKeyBuf);
     taosMemoryFree(pCalc);
   }
 }

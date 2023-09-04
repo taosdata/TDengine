@@ -738,6 +738,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
   nodesDestroyList(pOutputGroupKeys);
 
+  pAgg->isGroupTb = pAgg->pGroupKeys ? keysHasTbname(pAgg->pGroupKeys) : 0;
+  pAgg->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
   } else {
@@ -959,6 +962,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pWindow->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
@@ -1254,6 +1258,14 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     if (NULL == pPartition->pPartitionKeys) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (keysHasCol(pPartition->pPartitionKeys) && pSelect->pWindow &&
+      nodeType(pSelect->pWindow) == QUERY_NODE_INTERVAL_WINDOW) {
+    pPartition->needBlockOutputTsOrder = true;
+    SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
+    SColumnNode* pTsCol = (SColumnNode*)pInterval->pCol;
+    pPartition->tsSlotId = pTsCol->slotId;
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags) {

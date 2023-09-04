@@ -198,22 +198,20 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
                                         SStorageAPI* pStorageAPI);
 
 /**
- * @brief extract col data according to sort/group cols
- * @param pSortGroupCols sort keys or group keys, array of SColumnNode
- * @param [out] pColVals col vals extracted, array of SGroupKeys
+ * @brief build a tuple into keyBuf
+ * @param [out] keyBuf the output buf
+ * @param [in] pSortGroupCols the cols to build
+ * @param [in] pBlock block the tuple in
  */
-void extractCols(SArray* pSortGroupCols, SArray* pColVals, SSDataBlock* pBlock, int32_t rowIndex);
-/**
- * @breif build keys buffer with col values
- * @retval key length
- * @param [out] buf buffer to store result key
- */
-int32_t buildKeys(char* buf, SArray* pColVals);
+int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock, int32_t rowIndex);
+
+int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pDataBlock,
+              int32_t rowIndex);
 
 uint64_t calcGroupId(char *pData, int32_t len);
 
 SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
 
-int32_t extractSortGroupKeysInfo(SArray** pColVals, int32_t* keyLen, char** keyBuf, const SArray* pColList);
+int32_t extractKeysLen(const SArray* keys);
 
 #endif  // TDENGINE_EXECUTIL_H
