@@ -35,12 +35,12 @@ use tracing::{debug, error, info, instrument, Instrument, Span};
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
+use super::*;
+use metrics::*;
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
-use metrics::*;
-use super::*;
 
 // mod rpc_client;
 
@@ -569,7 +569,7 @@ struct ModifyStructForPointMessage {
     value_cloumn_length: usize,
 }
 
-#[instrument(skip_all,)]
+#[instrument(skip_all)]
 async fn consume_point_record(
     taos: &Taos,
     _: &mut Stmt,
@@ -1231,15 +1231,20 @@ async fn consume_flat_record(
                                                     }
                                                     match _taos.exec(&sql).await {
                                                         Ok(n) => counter!(STABLE_CREATED, n as u64),
-                                                        Err(err) => return Err(err)?
+                                                        Err(err) => return Err(err)?,
                                                     }
                                                     let sql = records.table_sql();
 
                                                     loop {
                                                         match _taos.exec(&sql).await {
-                                                            Ok(n) => counter!(CHILD_TABLE_CREATED, n as u64),
+                                                            Ok(n) => counter!(
+                                                                CHILD_TABLE_CREATED,
+                                                                n as u64
+                                                            ),
                                                             Err(err) => {
-                                                                if err.to_string().contains("[0x2605]")
+                                                                if err
+                                                                    .to_string()
+                                                                    .contains("[0x2605]")
                                                                 {
                                                                     let table = records
                                                                         .table
@@ -1250,17 +1255,23 @@ async fn consume_flat_record(
                                                                         .describe(table)
                                                                         .await
                                                                         .unwrap();
-                                                                    for f in desc.iter().filter(|f| {
-                                                                        f.is_tag()
-                                                                            && f.ty().is_var_type()
-                                                                    }) {
+                                                                    for f in
+                                                                        desc.iter().filter(|f| {
+                                                                            f.is_tag()
+                                                                                && f.ty()
+                                                                                    .is_var_type()
+                                                                        })
+                                                                    {
                                                                         let sql = format!(
                                                                             "alter table `{table}` modify tag `{}` {}({})",
                                                                             f.field(),
                                                                             f.ty(),
                                                                             f.length() * 2
                                                                         );
-                                                                        _taos.exec(&sql).await.unwrap();
+                                                                        _taos
+                                                                            .exec(&sql)
+                                                                            .await
+                                                                            .unwrap();
                                                                         continue;
                                                                     }
                                                                 } else if err
@@ -1284,12 +1295,15 @@ async fn consume_flat_record(
                                                                             .unwrap();
                                                                         res.into_iter().for_each(
                                                                             |tag_added| {
-                                                                                if tag_added.is_tag()
-                                                                                    && tag_added.field()
+                                                                                if tag_added
+                                                                                    .is_tag()
+                                                                                    && tag_added
+                                                                                        .field()
                                                                                         == tag_meta
                                                                                             .field()
                                                                                 {
-                                                                                    need_add = false;
+                                                                                    need_add =
+                                                                                        false;
                                                                                 }
                                                                             },
                                                                         );
@@ -1308,7 +1322,7 @@ async fn consume_flat_record(
                                                                     }
                                                                 } else {
                                                                     Err(err)?;
-                                                                } 
+                                                                }
                                                             }
                                                         }
                                                         break;
@@ -1362,7 +1376,8 @@ async fn consume_flat_record(
                                                     if err.to_string().contains("[0x2605]") {
                                                         let table =
                                                             records.table.using.as_deref().unwrap();
-                                                        let desc = _taos.describe(table).await.unwrap();
+                                                        let desc =
+                                                            _taos.describe(table).await.unwrap();
                                                         for f in desc.iter().filter(|f| {
                                                             f.is_tag() && f.ty().is_var_type()
                                                         }) {
@@ -1456,7 +1471,10 @@ async fn consume_flat_record(
                                     error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                                     counter!(WRITE_RAW_BLOCK_FAILS, 1);
                                     counter!(RECORD_FAILS, raw.nrows() as u64);
-                                    counter!(POINT_FAILS, (raw.nrows() * raw.column_views().len()) as u64);
+                                    counter!(
+                                        POINT_FAILS,
+                                        (raw.nrows() * raw.column_views().len()) as u64
+                                    );
                                     Err(err)?;
                                     break;
                                 }
@@ -1493,7 +1511,7 @@ async fn consume_flat_record(
 }
 
 // #[instrument(skip_all)]
-#[instrument(skip_all, )]
+#[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -2140,55 +2158,64 @@ pub async fn listen_tcp_socket_with_agent(
     let closed = Arc::new(AtomicBool::new(false));
     let closed2 = closed.clone();
 
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notified = notify.clone();
     let thread = tokio::spawn(
         async move {
             let mut handlers = vec![];
+            let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
+                tracing::info!("new tcp client!: {:?}", addr);
+                let stream = stream.into_std().unwrap();
+                let _ = stream.set_nonblocking(false);
+                // let client = addr.as_socket_ipv4().unwrap().to_string();
+                let se = sender.clone();
+                let cancel = cancel.clone();
+                let (id, remote, token) = with_agent.clone();
+
+                tokio::spawn(async move {
+                    let client = addr.to_string();
+                    let res =
+                        ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id).await;
+                    if let Err(err) = res {
+                        tracing::error!("{:?}", err);
+                        let _ = se.send(format!("{err:#}")).await;
+                    } else {
+                        tracing::info!("IPC reader stopped for client {client}",);
+                    }
+                })
+            };
             loop {
                 if closed2.load(std::sync::atomic::Ordering::SeqCst) {
-                    tracing::debug!("IPC stopped");
+                    tracing::debug!(scope = "agent", "IPC stopped");
                     break;
                 }
-
-                if let Err(e) = socket
-                    .accept()
-                    .await
-                    .with_context(|| format!("IPC accept next connection error"))
-                    .and_then(|(stream, addr)| {
-                        tracing::info!("new tcp client!: {:?}", addr);
-                        let stream = stream.into_std()?;
-                        let _ = stream.set_nonblocking(false)?;
-                        // let client = addr.as_socket_ipv4().unwrap().to_string();
-                        let se = sender.clone();
-                        let cancel = cancel.clone();
-                        let (id, remote, token) = with_agent.clone();
-
-                        let h = tokio::spawn(async move {
-                            let client = addr.to_string();
-                            let res =
-                                ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
-                                    .await;
-                            if let Err(err) = res {
-                                tracing::error!("{:?}", err);
-                                let _ = se.send(format!("{err:#}")).await;
-                            } else {
-                                tracing::info!("IPC reader stopped for client {client}",);
+                tokio::select! {
+                    _ = notified.notified() => {
+                        break;
+                    }
+                    accept = socket.accept() => {
+                        match accept {
+                            Ok((stream, addr)) => {
+                                let h = accept_stream(stream, addr);
+                                handlers.push(h);
                             }
-                        });
-                        handlers.push(h);
-                        anyhow::Ok(())
-                    })
-                {
-                    /* connection failed */
-                    tracing::debug!("IPC stream error: {e:#}, might be stopped");
-                    break;
+                            Err(e) => {
+                                /* connection failed */
+                                tracing::info!("IPC stream acceptation error {e}, might be stopped");
+                                break;
+                            }
+                        }
+                    }
                 }
             }
             tracing::info!("IPC stream listener stopped");
-            tokio::time::sleep(Duration::from_micros(1000)).await;
+            let instant = std::time::Instant::now();
+            // tokio::time::sleep(Duration::from_micros(1000)).await;
 
             for h in handlers {
                 let _ = h.await;
             }
+            tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
             anyhow::Ok(())
         }
         .instrument(tracing::info_span!("agent_ipc_listener")),
@@ -2197,22 +2224,29 @@ pub async fn listen_tcp_socket_with_agent(
     let handle = tokio::spawn(async move {
         let _ = receiver.recv().await;
         tracing::debug!("shutdown socket");
+        notify.notify_one();
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = thread.await;
+        match tokio::time::timeout(Duration::from_secs(60 * 60), thread).await {
+            Ok(Ok(_)) => anyhow::Ok(()),
+            Ok(Err(err)) => anyhow::bail!("Thread join error: {err}"),
+            Err(elapse_) => {
+                anyhow::bail!("Task running deadline elapsed(1h), but seems not finished")
+            }
+        }
     });
     Ok(IpcHandler::new(closer, handle, error_receiver))
 }
 
 pub struct IpcHandler {
     closer: tokio::sync::mpsc::Sender<()>,
-    handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<anyhow::Result<()>>,
     receiver: tokio::sync::mpsc::Receiver<String>,
 }
 
 impl IpcHandler {
     fn new(
         closer: tokio::sync::mpsc::Sender<()>,
-        handle: tokio::task::JoinHandle<()>,
+        handle: tokio::task::JoinHandle<anyhow::Result<()>>,
         receiver: tokio::sync::mpsc::Receiver<String>,
     ) -> Self {
         Self {
@@ -2224,8 +2258,8 @@ impl IpcHandler {
     pub async fn send<T>(&self, _: T) -> Result<(), tokio::sync::mpsc::error::SendError<()>> {
         self.closer.send(()).await
     }
-    pub async fn wait(mut self) -> Result<(), tokio::task::JoinError> {
-        (&mut self.handle).await
+    pub async fn wait(mut self) -> anyhow::Result<()> {
+        (&mut self.handle).await?
     }
 
     /// Receive error
@@ -2241,7 +2275,7 @@ impl IpcHandler {
     /// Close IPC listener and wait until IPC handler joint.
     pub async fn close(self) -> anyhow::Result<()> {
         let _ = self.closer.send(()).await;
-        self.handle.await?;
+        self.handle.await??;
         Ok(())
     }
 }
@@ -2357,10 +2391,12 @@ pub fn listen_tcp_socket(
                 }
             }
             tracing::info!("IPC stream listener stopped");
-            tokio::time::sleep(Duration::from_micros(1000)).await;
+
+            let instant = std::time::Instant::now();
             for h in handlers {
                 let _ = h.await;
             }
+            tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
         }
         .instrument(tracing::info_span!("plain_ipc_listener").or_current()),
     );
@@ -2370,8 +2406,13 @@ pub fn listen_tcp_socket(
             tracing::debug!("shutdown socket");
             notify.notify_one();
             closed.store(true, std::sync::atomic::Ordering::SeqCst);
-            let _ = tokio::time::timeout(Duration::from_secs(60), thread).await;
-            tracing::debug!("shutdown IPC listener");
+            match tokio::time::timeout(Duration::from_secs(60 * 60), thread).await {
+                Ok(Ok(_)) => anyhow::Ok(()),
+                Ok(err) => err.map_err(Into::into),
+                Err(_) => {
+                    anyhow::bail!("Task running deadline elapsed(1h), but seems not finished")
+                }
+            }
         }
         .instrument(tracing::info_span!("plain_ipc_listener_abort_handle").or_current()),
     );
