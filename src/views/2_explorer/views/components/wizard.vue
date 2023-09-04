@@ -6,13 +6,8 @@
         :general="general"
         @getFromVal="getFromVal"
       ></Genneral>
-      <div class="label" :style="!isWhereCondition && { color: '#909399'}">
-        WHERE &nbsp;
-        <el-switch
-          size="mini"
-          v-model="isWhereCondition"
-          >
-      </el-switch>
+      <div class="label">
+        WHERE
       </div>
       <rule-list
         :rules="rules"
@@ -24,14 +19,12 @@
         @handleOperatorChange="handleOperatorChange"
         @handleAddGroup="handleAddGroup"
         @handleDelete="handleDelete"
-        v-if="isWhereCondition"
       ></rule-list>
       <OtherRule
         :otherRule="otherRule"
         :columnList="fields"
         :general="general"
         :isInterp="isInterp"
-        :isWhereCondition="isWhereCondition"
       ></OtherRule>
       <!-- <el-col class="flexEnd">
         <el-button :disabled="previewBtn" @click="generateSql" size="small"
@@ -96,7 +89,6 @@ const conditionMap = {
       sql: "",
       count: 0,
       valueVisible: {},
-      isWhereCondition: true,
       isGroupByCondition: false,
       general: {
         dbname: '',
@@ -359,8 +351,7 @@ const conditionMap = {
       sql = `SELECT ${this.general.fields} FROM ${this.fromVal}`
       let condition = formatQuery(query)
 
-      // group by 和 where 条件不能同时存在
-      if (condition && this.isWhereCondition) {
+      if (condition) {
         sql += ` WHERE ${condition}`
       }
 
@@ -368,19 +359,17 @@ const conditionMap = {
         sql += ` ORDER BY ${this.otherRule.orderby}`
       }
       
-      if (this.isWhereCondition) {
-        if (this.otherRule.partitionby) {
+      if (this.otherRule.partitionby) {
         sql += ` PARTITION BY ${this.otherRule.partitionby}`
       }
-      } else {
-        if (this.otherRule.groupby) {
-          sql += ` GROUP BY ${this.otherRule.groupby}`
-        }
-  
+      
+      if (this.otherRule.groupby) {
+        sql += ` GROUP BY ${this.otherRule.groupby}`
         if (this.otherRule.having) {
           sql += ` HAVING ${this.otherRule.having}`
         }
       }
+
       // slimit
       if (this.otherRule.groupby || this.otherRule.partitionby) {
         if (this.otherRule.slimit) {
@@ -481,11 +470,9 @@ const conditionMap = {
     },
     async handleSendSQL() {
       // 校验 _c0 为必填项 
-      if (this.isWhereCondition) {
-        const query = this.rules[0]
-        if (!this.validateRules(query.rules)) {
-          return 
-        }
+      const query = this.rules[0]
+      if (!this.validateRules(query.rules)) {
+        return 
       }
       
       if (this.requestIng) return;

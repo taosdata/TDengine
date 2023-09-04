@@ -40,7 +40,7 @@
       </el-col>
     </el-row>
     <el-collapse v-model="activeNames" class="row-style">
-      <el-collapse-item title="GROUP BY" name="1" v-if="!isWhereCondition">
+      <el-collapse-item title="GROUP BY / PARTITION BY" name="1">
         <el-row class="row-style">
           <el-col :span="12" class="col-style">
             <span class="label">GROUP BY</span>
@@ -49,6 +49,7 @@
               placeholder="" 
               style="margin-right: 8px; width: 280px;" 
               :size="size"
+              :disabled="otherRule.partitionby != ''"
               >
             </el-input>
           </el-col>
@@ -59,38 +60,11 @@
               placeholder="" 
               style="margin-right: 8px; width: 280px;" 
               :size="size"
+              :disabled="otherRule.partitionby != ''"
               >
             </el-input>
           </el-col>
         </el-row>
-        <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 start -->
-        <el-row class="row-style">
-          <el-col :span="12" class="col-style">
-            <span class="label">SLIMIT</span>
-            <el-input-number 
-              v-model="otherRule.slimit" 
-              placeholder="" 
-              style="margin-right: 8px; width: 280px;" 
-              :size="size"
-              controls-position="right"
-              >
-            </el-input-number>
-          </el-col>
-          <el-col :span="12" class="col-style">
-            <span class="label">SOFFSET</span>
-            <el-input-number 
-              v-model="otherRule.soffset" 
-              placeholder="" 
-              style="margin-right: 8px; width: 280px;" 
-              :size="size"
-              controls-position="right"
-              >
-            </el-input-number>
-          </el-col>
-        </el-row>
-        <!-- slimit 和 PARTITION BY/GROUP BY 搭配使用 end -->
-      </el-collapse-item>
-      <el-collapse-item title="PARTITION BY" name="2" v-if="isWhereCondition">
         <el-row class="row-style">
           <el-col :span="12" class="col-style">
             <span class="label">PARTITION BY</span>
@@ -99,6 +73,7 @@
               placeholder="" 
               style="margin-right: 8px; width: 280px;" 
               :size="size"
+              :disabled="otherRule.groupby != '' || otherRule.having != ''"
               >
             </el-input>
           </el-col>
@@ -172,18 +147,13 @@
               class="col-style row-style"
             >
               <span class="label">{{ $t('stream.column') }}</span>
-              <el-select
+              <el-input
                 v-model="otherRule.state_column"
                 placeholder=""
                 :size="size"
                 style="width: 280px;"
               >
-                <el-option
-                  v-for="item in stateColumn"
-                  :key="item.field"
-                  :value="item.field"
-                ></el-option>
-              </el-select>
+              </el-input>
             </el-col>
             <template v-if="otherRule.window_type == 'INTERVAL'">
               <el-col class="col-style row-style">
@@ -397,10 +367,6 @@ export default {
     isInterp: {
       type: Boolean,
       default: () => false
-    },
-    isWhereCondition: {
-      type: Boolean,
-      default: () => true
     }
   },
   computed: {
