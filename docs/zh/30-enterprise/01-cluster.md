@@ -80,3 +80,11 @@ split vgroup <vgroup_id>
 - 分裂任务执行过程中，可持续提供读写服务；期间，可能存在可感知的短暂的读写业务中断。
 - 在分裂过程中，不支持流和订阅。分裂结束后，历史 WAL 会清空。
 - 分裂过程中，可支持节点宕机重启容错；但不支持节点磁盘故障容错。
+
+## 在线更新集群配置
+
+从 3.1.1.0 版本开始，TDengine Pro 支持在线热更新 `supportVnodes` 这个很重要的 dnode 配置参数。这个参数的原始配置方式是在 `taos.cfg` 配置文件中，表示该 dnode 能够支持的最大的 vnode 数量。当创建一个数据库时需要分配新的 vnode，当删除一个数据库时其 vnode 都会被销毁。
+
+但在线更新 `supportVnodes` 不会产生持久化，当系统重启后，允许的最大 vnode 数量仍然由 taos.cfg 中配置的 `supportVnodes` 决定。
+
+如果通过在线更新或配置文件方式设置的 `supportVnodes` 小于 dnode 当前已经实际存在的 vnode 数量，已经存在的 vnode 不会受影响。但当尝试创建新的 database 时，是否能够创建成功则仍然受实际生效的 `supportVnodes` 参数决定。
