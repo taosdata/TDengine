@@ -299,9 +299,9 @@ fn main() -> Result<()> {
         if args.globals.otel.unwrap_or(false) {
             let tracer = opentelemetry_jaeger::new_agent_pipeline()
                 .with_service_name("x")
-                .install_simple()?;
-            // .with_auto_split_batch(true)
-            // .install_batch(opentelemetry::runtime::Tokio)?;
+                // .install_simple()?;
+                .with_auto_split_batch(true)
+                .install_batch(opentelemetry::runtime::Tokio)?;
 
             // Create a tracing layer with the configured tracer
             let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);

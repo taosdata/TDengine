@@ -12,6 +12,7 @@ use arrow::{
     ipc::reader::StreamReader,
     record_batch::RecordBatch,
 };
+use futures::Stream;
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
 use tracing::{error, log};
@@ -444,6 +445,20 @@ impl<R: Read> IpcReader<R> {
         let schema = reader.schema();
         let parser = IpcParser::new(schema);
         Ok(Self { parser, reader })
+    }
+
+    pub fn into_stream(self) -> impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>>
+    where
+        R: Send + 'static,
+    {
+        let (tx, rx) = flume::unbounded();
+        std::thread::spawn(move || {
+            for item in self {
+                tx.send(item)?;
+            }
+            Ok::<_, flume::SendError<_>>(())
+        });
+        rx.into_stream()
     }
 }
 
