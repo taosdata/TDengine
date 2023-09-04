@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use arrow_flight::{FlightData, PutResult};
+use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use taos::{AsyncQueryable, AsyncTBuilder, AsyncBindable, Dsn, Stmt, TaosBuilder};
-use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
+use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
 use tonic::{Status, Streaming};
 use tracing::Instrument;
 
@@ -150,6 +151,7 @@ impl PutStream {
                 span: tracing::Span,
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
+                metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
                 let from = task.from.parse().unwrap();
                 let mut stmt = Stmt::init(taos).await.context("Initialize STMT")?;
                 
