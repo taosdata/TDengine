@@ -36,7 +36,9 @@ if [ "$verMode" == "cluster" ];then
   dockerParam=""
 elif [ "$verMode" == "cloud" ];then
   chmod u+x ${enterpriseDir}/packaging/docker/run.sh
+  chmod u+x ${enterpriseDir}/packaging/docker/td_cluster_check
   cp docker/run.sh ${enterpriseDir}/packaging/docker/
+  cp docker/td_cluster_check ${enterpriseDir}/packaging/docker/
   tdengineNameType="-cloud"
   dockerParam="-d y"
 else
