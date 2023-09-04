@@ -312,7 +312,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
   ASSERT(remain >= 0);
 
-  if (remain == 0) {  // all tasks are ready
+  if (remain == 0) {  // all tasks are in TASK_STATUS__CK_READY state
     qDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
     pMeta->totalTasks = 0;
 

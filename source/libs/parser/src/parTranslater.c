@@ -3734,7 +3734,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 static int32_t removeConstantValueFromList(SNodeList** pList) {
   SNode* pNode = NULL;
   WHERE_EACH(pNode, *pList) {
-    if (nodeType(pNode) == QUERY_NODE_VALUE || 
+    if (nodeType(pNode) == QUERY_NODE_VALUE ||
         (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
       ERASE_NODE(*pList);
       continue;
@@ -3753,7 +3753,11 @@ static int32_t removeConstantValueFromList(SNodeList** pList) {
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
+  if (pSelect->pPartitionByList) {
+    code = removeConstantValueFromList(&pSelect->pPartitionByList);
+  }
+
   if (TSDB_CODE_SUCCESS == code && pSelect->pPartitionByList) {
     int8_t typeType = getTableTypeFromTableNode(pSelect->pFromTable);
     SNode* pPar = nodesListGetNode(pSelect->pPartitionByList, 0);

@@ -1760,3 +1760,44 @@ _end:
   return rsp.code;
 }
 
+int32_t tqProcessTaskStopReq(STQ* pTq, SRpcMsg* pMsg) {
+  int32_t vgId = TD_VID(pTq->pVnode);
+  char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  SRpcMsg rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
+
+  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)msg;
+
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d process stop req, failed to acquire task:0x%x, it may have been dropped already", vgId,
+            pReq->taskId);
+    // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tqDebug("s-task:%s receive stop msg from mnode", pTask->id.idStr);
+  streamTaskStop(pTask);
+
+  SStreamTask* pHistoryTask = NULL;
+  if (pTask->historyTaskId.taskId != 0) {
+    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
+    if (pHistoryTask == NULL) {
+      tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%x, it may have been dropped already",
+              pMeta->vgId, pTask->historyTaskId.taskId);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
+      return TSDB_CODE_SUCCESS;
+    }
+
+    tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
+
+    streamTaskStop(pHistoryTask);
+    streamMetaReleaseTask(pMeta, pHistoryTask);
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  tmsgSendRsp(&rsp);
+  return 0;
+}

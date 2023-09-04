@@ -642,7 +642,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SName tableName = {0};
   tNameFromString(&tableName, createTopicReq.subStbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  sprintf(detail, "igExists:%d, subStbName:%s, subType:%d, withMeta:%d, sql:%s", 
+  sprintf(detail, "igExists:%d, subStbName:%s, subType:%d, withMeta:%d, sql:%s",
           createTopicReq.igExists, tableName.tname, createTopicReq.subType, createTopicReq.withMeta, sql);
 
   SName dbname = {0};
