@@ -447,7 +447,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
         pScan->pScanPseudoCols = pNewScanPseudoCols;
       }
     }
-*/    
+*/
   }
 
   if (NULL != pScan->pScanCols) {
@@ -516,7 +516,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
-  
+
   int32_t code = TSDB_CODE_SUCCESS;
 
   // set left and right node
@@ -564,7 +564,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
   }
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
     if (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pRight) && !pJoin->isLowLevelJoin) {

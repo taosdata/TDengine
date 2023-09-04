@@ -2157,7 +2157,6 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (rpcDebugFlag & DEBUG_DEBUG) {
     STraceId* trace = &pMsg->msg.info.traceId;
     char      tbuf[512] = {0};
-
     EPSET_TO_STR(&pCtx->epSet, tbuf);
     tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
             pCtx->retryStep, pCtx->retryNextInterval);
@@ -2388,7 +2387,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     if (rpcDebugFlag & DEBUG_TRACE) {
       char tbuf[512] = {0};
       EPSET_TO_STR(&pCtx->epSet, tbuf);
-      tGTrace("%s conn %p extract epset from msg, use:%s", CONN_GET_INST_LABEL(pConn), pConn, tbuf);
+      tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }
   if (rpcDebugFlag & DEBUG_TRACE) {

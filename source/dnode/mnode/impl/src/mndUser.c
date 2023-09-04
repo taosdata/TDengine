@@ -657,7 +657,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "createType:%d, enable:%d, superUser:%d, sysInfo:%d", 
+  sprintf(detail, "createType:%d, enable:%d, superUser:%d, sysInfo:%d",
           createReq.createType, createReq.enable, createReq.superUser, createReq.sysInfo);
 
   auditRecord(pReq, pMnode->clusterId, "createUser", createReq.user, "", detail);
@@ -1039,16 +1039,16 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:", 
+  sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:",
           mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, alterReq.tabName);
 
   if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
-    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:xxx", 
-            mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo, 
+    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:xxx",
+            mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
             alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);
   }
-  else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || 
+  else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER ||
           alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
           alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
     auditRecord(pReq, pMnode->clusterId, "alterUser", alterReq.user, "", detail);

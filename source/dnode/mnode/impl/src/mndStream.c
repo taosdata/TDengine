@@ -876,13 +876,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   char detail[2000] = {0};
   sprintf(detail,
           "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64
-          ", "
-          "fillHistory:%d, igExists:%d, "
-          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64
-          ", "
-          "maxDelay:%" PRId64
-          ", numOfTags:%d, sourceDB:%s, "
-          "targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
+          ", fillHistory:%d, igExists:%d, igExpired:%d, igUpdate:%d, lastTs:%" PRId64
+          ", maxDelay:%" PRId64 ", numOfTags:%d, sourceDB:%s, targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
           createStreamReq.checkpointFreq, createStreamReq.createStb, createStreamReq.deleteMark,
           createStreamReq.fillHistory, createStreamReq.igExists, createStreamReq.igExpired, createStreamReq.igUpdate,
           createStreamReq.lastTs, createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB,
