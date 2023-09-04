@@ -393,7 +393,7 @@ const conditionMap = {
             }
             break;
           case "STATE":
-            sql += this.otherRule.state_column ? ` STATE_WINDOW(\`${this.otherRule.state_column}\`)` : '';
+            sql += this.otherRule.state_column ? ` STATE_WINDOW(${this.otherRule.state_column})` : '';
             break;
           case "INTERVAL":
             if (this.otherRule.interval_val) {
