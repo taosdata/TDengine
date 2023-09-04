@@ -235,7 +235,13 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
     qDebug("s-task:%s enter into scan-history data stage, status:%s", id, str);
     streamTaskLaunchScanHistory(pTask);
   } else {
-    qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
+    if (pTask->info.fillHistory == 1) {
+      qDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
+      pTask->status.taskStatus = TASK_STATUS__DROPPING;
+      ASSERT(pTask->historyTaskId.taskId == 0);
+    } else {
+      qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
+    }
   }
 
   // when current stream task is ready, check the related fill history task.

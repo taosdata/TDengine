@@ -659,6 +659,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
     void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if (p == NULL) {
+      // pTask->chkInfo.checkpointVer may be 0, when a follower is become a leader
+      // In this case, we try not to start fill-history task anymore.
       if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
         doClear(pKey, pVal, pCur, pRecycleList);
         tFreeStreamTask(pTask);
