@@ -75,9 +75,9 @@ void dsReset(DataSinkHandle handle) {
   }
 }
 
-void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd) {
+void dsGetDataLength(DataSinkHandle handle, int32_t bucketId, int64_t* pLen, bool* pQueryEnd) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  pHandleImpl->fGetLen(pHandleImpl, pLen, pQueryEnd);
+  pHandleImpl->fGetLen(pHandleImpl, bucketId, pLen, pQueryEnd);
 }
 
 int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput) {

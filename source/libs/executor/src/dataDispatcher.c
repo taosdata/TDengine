@@ -163,7 +163,7 @@ static void resetDispatcher(struct SDataSinkHandle* pHandle) {
   taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int32_t bucketId, int64_t* pLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
     *pQueryEnd = pDispatcher->queryEnd;

@@ -2498,3 +2498,41 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);
 }
+
+
+void blockDataDeepClear(SSDataBlock* pDataBlock) {
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    p->pData = NULL;
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      p->varmeta.offset = NULL;
+      p->varmeta.length = 0;
+      p->varmeta.allocLen = 0;
+    } else {
+      p->nullbitmap = NULL;
+    }
+  }
+  pDataBlock->info.capacity = 0;
+  pDataBlock->info.rows = 0;
+}
+
+
+static int32_t cloneEmptyBlockFromBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
+  *ppDst = taosMemoryMalloc(sizeof(*pSrc));
+  if (NULL == *ppDst) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*ppDst)->pBlockAgg = NULL;
+  (*ppDst)->pDataBlock = taosArrayDup(pSrc->pDataBlock, NULL);
+  if (NULL == (*ppDst)->pDataBlock) {
+    taosMemoryFree(*ppDst);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  memcpy(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
+  blockDataDeepClear(*ppDst);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+

@@ -154,7 +154,7 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pDeleter->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int32_t bucketId, int64_t* pLen, bool* pQueryEnd) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   if (taosQueueEmpty(pDeleter->pDataBlocks)) {
     *pQueryEnd = pDeleter->queryEnd;

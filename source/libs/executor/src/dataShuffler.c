@@ -34,6 +34,8 @@ typedef struct SSfCacheEntry {
 
 typedef struct SSfBucketInfo {
   TdThreadMutex    mutex;
+  int8_t           status;
+  bool             lastBlkLocked;
   SArray*          pBlockList;
   SArray*          pRowIdxList;
   SSfCacheEntry*   pCurrent;
@@ -50,6 +52,9 @@ typedef struct SDataShuffleHandle {
   int32_t             bucketNum;
   int32_t             maxBlockPerBucket;
   SSfBucketInfo*      pBuckets;
+  int16_t*            pBucketIdx;
+  int32_t             bucketMapSize;
+  char*               pBucketMap;
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
@@ -117,23 +122,112 @@ static int32_t sfUpdateStatus(SDataShuffleHandle* pShuffler) {
   return status;
 }
 
-static int32_t sfPutDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
-  int32_t              code = 0;
-  SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
+static FORCE_INLINE int16_t sfGetColDataBucketIdx(SDataShuffleHandle* pShuffler, SColumnInfoData* pCol, int32_t i) {
+  void* pData = colDataGetData(pCol, i);
+  return (*pShuffler->hashFp)(pData, colDataGetLen(pCol, pData)) % pShuffler->bucketNum;
+}
 
-  if (!sfAllocBuf(pShuffler, pInput, pBuf)) {
-    taosFreeQitem(pBuf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+static int32_t sfAcquireBucketLastBlock(SDataShuffleHandle* pShuffler, SSfBucketInfo* pBucket, SSDataBlock* pSrc, int32_t rowNum, SSDataBlock** ppRes, bool* bucketFull) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSDataBlock* pBlock = NULL;
+  
+  atomic_store_8((int8_t*)pBucket->lastBlkLocked, 1);
+  taosThreadMutexLock(&pBucket->mutex);
+  int32_t blockNum = taosArrayGetSize(pBucket->pBlockList);
+  if (blockNum > 0) {
+    pBlock = taosArrayGetP(pBucket->pBlockList, blockNum - 1);
+    if ((pBlock->info.rows + rowNum) > 4096) {
+      pBlock = NULL;
+    }
   }
+  if (NULL == pBlock) {
+    code = cloneEmptyBlockFromBlock(&pBlock, pSrc);
+    if (code) {
+      taosThreadMutexUnlock(&pBucket->mutex);
+      return code;
+    }
+    taosArrayPush(pBucket->pBlockList, &pBlock);
+  }
+  taosThreadMutexUnlock(&pBucket->mutex);
 
-  sfToDataCacheEntry(pShuffler, pInput, pBuf);
-  code = taosWriteQitem(pShuffler->pDataBlocks, pBuf);
-  if (code != 0) {
+  code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + rowNum);
+  if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
-  int32_t status = sfUpdateStatus(pShuffler);
-  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
+  *bucketFull = taosArrayGetSize(pBucket->pBlockList) >= pShuffler->maxBlockPerBucket;
+  *ppRes = pBlock;
+
+  return code;
+}
+
+static FORCE_INLINE void sfReleaseBucketLastBlock(SSfBucketInfo* pBucket) {
+  atomic_store_8((int8_t*)pBucket->lastBlkLocked, 0);
+}
+
+static int32_t sfPutDataBlockImpl(SDataShuffleHandle* pShuffler, SSfBucketInfo* pBucket, SSDataBlock* pSrc, bool* bucketFull) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSDataBlock* pBlock = NULL;
+  int32_t rowNum = taosArrayGetSize(pBucket->pRowIdxList);
+  int32_t colNum = taosArrayGetSize(pSrc->pDataBlock);
+  code = sfAcquireBucketLastBlock(pShuffler, pBucket, pSrc, rowNum, &pBlock, bucketFull);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  int32_t* rowIdx = NULL;
+  int32_t capacity = 0;
+  for (int32_t i = 0; i < rowNum; ++i) {
+    rowIdx = taosArrayGet(pBucket->pRowIdxList, i);
+    for (int32_t n = 0; n < colNum; ++n) {
+      SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, n);
+      SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, n);
+      
+      colDataSetVal(pCol2, pBlock->info.rows, colDataGetData(pCol1, rowIdx), colDataIsNull_s(pCol1, rowIdx));
+      pBlock->info.rows++;
+    }
+  }
+  
+  sfReleaseBucketLastBlock(pBucket);
+
+  return code;
+}
+
+static int32_t sfPutDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
+  int16_t idx = 0;
+  int32_t bucketIdx = 0;
+
+  memset(pShuffler->pBucketMap, 0, pShuffler->bucketMapSize);
+  
+  SColumnInfoData* pCol = taosArrayGet(pInput->pData->pDataBlock, pShuffler->pSlot->slotId);
+  for (int32_t i = 0; i < pInput->pData->info.rows; ++i) {
+    idx = sfGetColDataBucketIdx(pShuffler, pCol, i);
+    taosArrayPush(pShuffler->pBuckets[idx].pRowIdxList, &i);
+    if (colDataIsNull_f(pShuffler->pBucketMap, idx)) {
+      continue;
+    }
+    colDataSetNull_f(pShuffler->pBucketMap, idx);
+    pShuffler->pBucketIdx[bucketIdx++] = idx;
+  }
+
+  SSfBucketInfo* pBucket = NULL;
+  bool full = false;
+  bool bucketFull = false;
+  for (int32_t i = 0; i < bucketIdx; ++i) {
+    pBucket = &pShuffler->pBuckets[i];
+    code = sfPutDataBlockImpl(pShuffler, pBucket, pInput->pData, &bucketFull);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (bucketFull) {
+      full = true;
+    }
+  }
+
+  *pContinue = !full;
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -173,7 +267,7 @@ static void sfReset(struct SDataSinkHandle* pHandle) {
   taosThreadMutexUnlock(&pShuffler->mutex);
 }
 
-static void sfGetDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void sfGetDataLength(SDataSinkHandle* pHandle, int32_t bucketId, int64_t* pLen, bool* pQueryEnd) {
   SDataShuffleHandle* pShuffler = (SDataShuffleHandle*)pHandle;
   if (taosQueueEmpty(pShuffler->pDataBlocks)) {
     *pQueryEnd = pShuffler->queryEnd;
@@ -243,6 +337,7 @@ static int32_t destroyDataShuffler(SDataSinkHandle* pHandle) {
       taosArrayDestroy(pShuffler->pBuckets[i].pRowIdxList);
     }
   }
+  taosMemoryFree(pShuffler->pBucketIdx);
   taosThreadMutexDestroy(&pShuffler->mutex);
   taosMemoryFree(pShuffler->pManager);
   return TSDB_CODE_SUCCESS;
@@ -268,6 +363,17 @@ int32_t createDataShuffler(SDataSinkManager* pManager, const SDataSinkNode* pDat
   shuffler->pManager = pManager;
   shuffler->pBuckets = taosMemoryCalloc(pNode->bucketNum, sizeof(*shuffler->pBuckets));
   if (NULL == shuffler->pBuckets) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
+  }
+  shuffler->pBucketIdx = taosMemoryMalloc(pNode->bucketNum * sizeof(*shuffler->pBucketIdx));
+  if (NULL == shuffler->pBucketIdx) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
+  }
+  shuffler->bucketMapSize = BitmapLen(pNode->bucketNum);
+  shuffler->pBucketMap = taosMemoryMalloc(shuffler->bucketMapSize);
+  if (NULL == shuffler->pBucketMap) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }

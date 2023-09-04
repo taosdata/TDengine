@@ -371,39 +371,6 @@ static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pB
   return code;
 }
 
-void blockDataDeepClear(SSDataBlock* pDataBlock) {
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    p->pData = NULL;
-    if (IS_VAR_DATA_TYPE(p->info.type)) {
-      p->varmeta.offset = NULL;
-      p->varmeta.length = 0;
-      p->varmeta.allocLen = 0;
-    } else {
-      p->nullbitmap = NULL;
-    }
-  }
-  pDataBlock->info.capacity = 0;
-  pDataBlock->info.rows = 0;
-}
-
-static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) {
-  *ppDst = taosMemoryMalloc(sizeof(*pSrc));
-  if (NULL == *ppDst) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  (*ppDst)->pBlockAgg = NULL;
-  (*ppDst)->pDataBlock = taosArrayDup(pSrc->pDataBlock, NULL);
-  if (NULL == (*ppDst)->pDataBlock) {
-    taosMemoryFree(*ppDst);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  memcpy(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
-  blockDataDeepClear(*ppDst);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t buildGroupCacheResultBlock(SGroupCacheOperatorInfo* pGCache, int32_t downstreamIdx, void* pBuf, SSDataBlock** ppRes) {
   *ppRes = pGCache->pDownstreams[downstreamIdx].pBaseBlock;
   
@@ -500,7 +467,7 @@ static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* p
     
     pGCache->execInfo.pDownstreamBlkNum[downstreamIdx]++;
     if (NULL == pGCache->pDownstreams[downstreamIdx].pBaseBlock) {
-      code = buildGroupCacheBaseBlock(&pGCache->pDownstreams[downstreamIdx].pBaseBlock, pBlock);
+      code = cloneEmptyBlockFromBlock(&pGCache->pDownstreams[downstreamIdx].pBaseBlock, pBlock);
       if (code) {
         return code;
       }

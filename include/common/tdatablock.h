@@ -62,6 +62,9 @@ typedef struct SBlockOrderInfo {
 // SColumnInfoData, rowNumber
 #define colDataGetData(p1_, r_) \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
+#define colDataGetLen(p1_, d_) \
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? varDataNetTLen(d_) : (p1_)->info.bytes)
+
 
 #define IS_JSON_NULL(type, data) \
   ((type) == TSDB_DATA_TYPE_JSON && (*(data) == TSDB_DATA_TYPE_NULL || tTagIsJsonNull(data)))
@@ -252,6 +255,9 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+
+void blockDataDeepClear(SSDataBlock* pDataBlock);
+int32_t cloneEmptyBlockFromBlock(SSDataBlock** ppDst, SSDataBlock* pSrc);
 
 #ifdef __cplusplus
 }

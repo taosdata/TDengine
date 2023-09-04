@@ -102,7 +102,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     }
 
     if (!ctx->needFetch) {
-      dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL);
+      dsGetDataLength(ctx->sinkHandle, 0, &ctx->affectedRows, NULL);
     }
   }
 
@@ -300,7 +300,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   *dataLen = 0;
 
   while (true) {
-    dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+    dsGetDataLength(ctx->sinkHandle, 0, &len, &queryEnd);
 
     if (len < 0) {
       QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64 "", len);
@@ -393,7 +393,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   int32_t     code = 0;
   SOutputData output = {0};
 
-  dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+  dsGetDataLength(ctx->sinkHandle, 0, &len, &queryEnd);
 
   if (len <= 0 || len != sizeof(SDeleterRes)) {
     QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
