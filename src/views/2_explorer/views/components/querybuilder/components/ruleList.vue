@@ -19,7 +19,7 @@
               <div class="ctl-wrap">
                 <el-button type="primary" @click="() => handleAddRule(item.id)" :size="size" :disabled="index==0" >Add Rule</el-button>
                 <el-button type="primary" @click="() => handleAddGroup(item.id)" :size="size">Add Group</el-button>
-                <el-button v-if="item.id !== 0" type="danger" @click="() => handleDelete(item.key)" :size="size">Delete</el-button>
+                <el-button v-if="index !== 0" type="danger" @click="() => handleDelete(item.key)" :size="size">Delete</el-button>
               </div>
             </el-col>
           </el-row>
