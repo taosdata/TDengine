@@ -129,9 +129,13 @@ pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
     HttpResponse::Ok()
         .content_type(ContentType::json())
         .json(if lang.is_cn() {
-            super::controller::DATA_SOURCE_DEFINITIONS_CN.values().collect_vec()
+            super::controller::DATA_SOURCE_DEFINITIONS_CN
+                .values()
+                .collect_vec()
         } else {
-            super::controller::DATA_SOURCE_DEFINITIONS.values().collect_vec()
+            super::controller::DATA_SOURCE_DEFINITIONS
+                .values()
+                .collect_vec()
         })
 }
 
@@ -202,11 +206,9 @@ pub(super) async fn data_source_collection(
         Ok(data) => HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data),
-        Err(err) => {
-            HttpResponse::InternalServerError().json(Failed {
-                code: 0xFFFF.into(),
-                message: format!("{:#}", err)
-            })
-        }
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
     }
 }

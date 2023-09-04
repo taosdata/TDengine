@@ -91,16 +91,10 @@ impl Parse for Cast {
         match self.r#as {
             IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
                 m.insert("length".to_string(), len.to_string());
-                m.insert(
-                    "cast_to".to_string(),
-                    self.r#as.ty().name().to_string(),
-                );
+                m.insert("cast_to".to_string(), self.r#as.ty().name().to_string());
             }
             IpcDataType::Json => {
-                m.insert(
-                    "cast_to".to_string(),
-                    self.r#as.ty().name().to_string(),
-                );
+                m.insert("cast_to".to_string(), self.r#as.ty().name().to_string());
             }
             _ => (),
         }

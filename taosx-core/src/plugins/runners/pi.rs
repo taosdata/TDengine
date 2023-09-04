@@ -101,7 +101,13 @@ pub enum PiError {
 }
 
 impl PiConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16, is_real_run: bool) -> Result<Self, PiError> {
+    pub fn new(
+        mut dsn: Dsn,
+        td_database: String,
+        ipc: u16,
+        sql: u16,
+        is_real_run: bool,
+    ) -> Result<Self, PiError> {
         let server_name = dsn
             .addresses
             .first()
@@ -165,7 +171,8 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
-        if is_real_run && point_list.is_empty()
+        if is_real_run
+            && point_list.is_empty()
             && template_for_af_element.is_empty()
             && template_for_pi_point.is_empty()
         {

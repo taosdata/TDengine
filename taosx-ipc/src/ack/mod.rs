@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Display,
-    io::{Read, Write},
+    io::{BufReader, Read, Write},
     str::FromStr,
     sync::Arc,
 };
@@ -82,7 +82,7 @@ pub struct AckReader<R: Read> {
     ack: AckType,
     schema: Option<Schema>,
     reader: Option<R>,
-    ipc_reader: Option<StreamReader<R>>,
+    ipc_reader: Option<StreamReader<BufReader<R>>>,
 }
 
 impl<R: Read> AckReader<R> {

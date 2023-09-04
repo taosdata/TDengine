@@ -5,14 +5,10 @@ use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::{
-    tmq::*,
-    utils::get_main_version_from_server_version,
-    Action,
-};
+use crate::{tmq::*, utils::get_main_version_from_server_version, Action};
 use dashmap::DashMap;
-use taos::taos_query::tmq::Assignment;
 use metrics::counter;
+use taos::taos_query::tmq::Assignment;
 
 async fn write_data(
     id: usize,
@@ -574,21 +570,24 @@ pub async fn tmq_to_td(
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
             let version = version.clone();
-            let handle = tokio::spawn(async move {
-                sync(
-                    task_id,
-                    sender,
-                    consumer,
-                    &taos,
-                    table,
-                    actions,
-                    cancellation,
-                    metrics,
-                    offsets,
-                    version,
-                )
-                .await
-            }.in_current_span());
+            let handle = tokio::spawn(
+                async move {
+                    sync(
+                        task_id,
+                        sender,
+                        consumer,
+                        &taos,
+                        table,
+                        actions,
+                        cancellation,
+                        metrics,
+                        offsets,
+                        version,
+                    )
+                    .await
+                }
+                .in_current_span(),
+            );
             handles.push(handle);
             log::info!("spawn consuming task with id {task_id}",);
 

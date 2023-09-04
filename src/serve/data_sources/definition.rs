@@ -484,7 +484,12 @@ impl DataSourceDefinition {
             }
         }
 
-        for auth_item in self.authentication.alternatives.iter_mut().filter(|item| item.name != "plain") {
+        for auth_item in self
+            .authentication
+            .alternatives
+            .iter_mut()
+            .filter(|item| item.name != "plain")
+        {
             let mut is_current_auth = true;
             for param in &auth_item.params {
                 if !dsn.params.contains_key(&(param.name.clone())) {

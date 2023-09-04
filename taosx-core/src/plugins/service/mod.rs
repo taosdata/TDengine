@@ -121,7 +121,7 @@ pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn service() -> anyhow::Result<()> {
-    use taos::{TaosBuilder, AsyncTBuilder};
+    use taos::{AsyncTBuilder, TaosBuilder};
     let taos = TaosBuilder::from_dsn("taos+ws://localhost:6041/test")
         .expect("connect")
         .pool()?;

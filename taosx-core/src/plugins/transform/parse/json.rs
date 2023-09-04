@@ -2,8 +2,10 @@ use std::{str::FromStr, sync::Arc};
 
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array, Int32Array,
-        Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, TimestampMicrosecondArray, TimestampNanosecondArray, TimestampMillisecondArray, BooleanArray,
+        Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
+        Int32Array, Int64Array, Int8Array, StringArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+        UInt8Array,
     },
     datatypes::{DataType, Schema, TimeUnit},
     record_batch::RecordBatch,
@@ -407,9 +409,15 @@ impl Parse for Json {
                         .collect_vec();
                     let array: ArrayRef = match time_unit {
                         TimeUnit::Second => todo!(),
-                        TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from_iter(values)),
-                        TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from_iter(values)),
-                        TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from_iter(values)),
+                        TimeUnit::Millisecond => {
+                            Arc::new(TimestampMillisecondArray::from_iter(values))
+                        }
+                        TimeUnit::Microsecond => {
+                            Arc::new(TimestampMicrosecondArray::from_iter(values))
+                        }
+                        TimeUnit::Nanosecond => {
+                            Arc::new(TimestampNanosecondArray::from_iter(values))
+                        }
                     };
                     arrays.push((f.name(), array));
                 }
@@ -417,18 +425,15 @@ impl Parse for Json {
                     let values = json_values
                         .iter()
                         .map(|(_n, v)| {
-                            if let Some(v) =
-                                v.as_ref().and_then(|v| v.get(name))
-                            {
+                            if let Some(v) = v.as_ref().and_then(|v| v.get(name)) {
                                 v.as_bool()
                             } else {
                                 None
                             }
                         })
                         .collect_vec();
-                    let array: ArrayRef =
-                        Arc::new(BooleanArray::from_iter(values));
-                        arrays.push((f.name(), array));
+                    let array: ArrayRef = Arc::new(BooleanArray::from_iter(values));
+                    arrays.push((f.name(), array));
                 }
                 _ => todo!(),
             }
