@@ -39,7 +39,7 @@ class TestNumericBoundary(TDCase):
             self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({data_value[1]})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({data_value[0]})')
             self.tdSql.execute(f'insert into {dbname}.tb1 values (now, {data_value[0]})')
-            self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {data_value[1]})')
+            self.tdSql.execute(f'insert into {dbname}.tb2 values (now+1s, {data_value[1]})')
             self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], data_value[1])
             self.tdSql.checkEqual(self.tdSql.query_data[0][1], data_value[0])
@@ -53,13 +53,13 @@ class TestNumericBoundary(TDCase):
 
             self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 {data_type})')
             self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {data_value[1]})')
-            self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {data_value[0]})')
+            self.tdSql.execute(f'insert into {dbname}.tb3 values (now+1s, {data_value[0]})')
             self.tdSql.query(f'select c1 from {dbname}.tb3 where c1>0')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], data_value[1])
             self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={data_value[0]}')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], data_value[0])
             self.tdSql.error(f'insert into {dbname}.tb3 values (now, {data_value[1]+1})')
-            self.tdSql.error(f'insert into {dbname}.tb3 values (now, {data_value[0]-1})')
+            self.tdSql.error(f'insert into {dbname}.tb3 values (now+1s, {data_value[0]-1})')
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
