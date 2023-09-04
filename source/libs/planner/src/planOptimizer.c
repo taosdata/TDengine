@@ -1765,8 +1765,12 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 }
 
 // todo refact: just to mask compilation warnings
-static void partTagsSetAlias(char* pAlias, int32_t len, const char* pTableAlias, const char* pColName) {
-  snprintf(pAlias, len, "%s.%s", pTableAlias, pColName);
+static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
+  char    name[TSDB_COL_FNAME_LEN + 1] = {0};
+  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+
+  taosCreateMD5Hash(name, len);
+  strncpy(pAlias, name, TSDB_COL_NAME_LEN - 1);
 }
 
 static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
@@ -1778,7 +1782,7 @@ static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
   snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pFuncName);
   if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    partTagsSetAlias(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), pCol->tableAlias, pCol->colName);
+    partTagsSetAlias(pFunc->node.aliasName, pCol->tableAlias, pCol->colName);
   } else {
     strcpy(pFunc->node.aliasName, ((SExprNode*)pNode)->aliasName);
   }
@@ -2292,7 +2296,10 @@ static SNode* rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNode
     strcpy(pFunc->node.aliasName, pSelectValue->node.aliasName);
   } else {
     int64_t pointer = (int64_t)pFunc;
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%" PRId64 "", pFunc->functionName, pointer);
+    char name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
+    taosCreateMD5Hash(name, len);
+    strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   }
   int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode(pCol));
   if (TSDB_CODE_SUCCESS == code) {

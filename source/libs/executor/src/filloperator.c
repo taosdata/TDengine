@@ -1367,6 +1367,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = -1;
         } break;
+        case STREAM_CHECKPOINT:
         case STREAM_CREATE_CHILD_TABLE: {
           return pBlock;
         } break;

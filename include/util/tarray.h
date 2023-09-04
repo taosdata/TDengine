@@ -200,7 +200,10 @@ void taosArrayClear(SArray* pArray);
  * @param pArray
  * @param fp
  */
+
 void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
+
+void taosArrayClearP(SArray* pArray, void (*fp)(void*));
 
 void* taosArrayDestroy(SArray* pArray);
 

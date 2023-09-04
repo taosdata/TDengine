@@ -804,7 +804,7 @@ TEST(TdbPageRecycleTest, recycly_delete_interior_ofp_nocommit) {
       // sprintf(&key[count - 2], "%c", i);
       key[count - 2] = '0' + i;
 
-      ret = tdbTbInsert(pDb, key, count, NULL, NULL, txn);
+      ret = tdbTbInsert(pDb, key, count, NULL, 0, txn);
       GTEST_ASSERT_EQ(ret, 0);
     }
   }

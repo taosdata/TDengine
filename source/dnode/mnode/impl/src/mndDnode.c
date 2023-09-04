@@ -1062,16 +1062,16 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj1[150] = {0};
-  sprintf(obj1, "%s:%d", dropReq.fqdn, dropReq.port);
+  char obj1[30] = {0};
+  sprintf(obj1, "%d", dropReq.dnodeId);
 
-  char obj2[30] = {0};
-  sprintf(obj2, "%d", dropReq.dnodeId);
+  //char obj2[150] = {0};
+  //sprintf(obj2, "%s:%d", dropReq.fqdn, dropReq.port);
 
   char detail[100] = {0};
   sprintf(detail, "force:%d, unsafe:%d", dropReq.force, dropReq.unsafe);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, obj2, detail);
+  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, "", detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
