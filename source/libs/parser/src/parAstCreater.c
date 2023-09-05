@@ -13,8 +13,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <uv.h>
 #include <regex.h>
+#include <uv.h>
 
 #include "parAst.h"
 #include "parUtil.h"
@@ -1655,8 +1655,8 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
 
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char* ipCopy = taosStrdup(ipRange);
-  char* slash = strchr(ipCopy, '/');
+  char*   ipCopy = taosStrdup(ipRange);
+  char*   slash = strchr(ipCopy, '/');
   if (slash) {
     *slash = '\0';
     struct in_addr addr;
@@ -1664,11 +1664,9 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
       int prefix = atoi(slash + 1);
       if (prefix < 0 || prefix > 32) {
         code = TSDB_CODE_PAR_INVALID_IP_RANGE;
-      } else {      
+      } else {
         pIpRange->ip = addr.s_addr;
-        uint32_t mask = (1 << (32 - prefix)) - 1;
-        mask = htonl(~mask);
-        pIpRange->mask = mask;
+        pIpRange->mask = prefix;
         code = TSDB_CODE_SUCCESS;
       }
     } else {
@@ -1678,7 +1676,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
     struct in_addr addr;
     if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
       pIpRange->ip = addr.s_addr;
-      pIpRange->mask = 0xFFFFFFFF;
+      pIpRange->mask = 0;
       code = TSDB_CODE_SUCCESS;
     } else {
       code = TSDB_CODE_PAR_INVALID_IP_RANGE;
@@ -1686,7 +1684,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   }
 
   taosMemoryFreeClear(ipCopy);
-  return code;  
+  return code;
 }
 
 static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIpRangesNodeList, SIpV4Range* pIpRanges) {
@@ -1758,7 +1756,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   pStmt->alterType = alterType;
   switch (alterType) {
     case TSDB_ALTER_USER_PASSWD: {
-      char password[TSDB_USET_PASSWORD_LEN] = {0};
+      char    password[TSDB_USET_PASSWORD_LEN] = {0};
       SToken* pVal = pAlterInfo;
       if (!checkPassword(pCxt, pVal, password)) {
         nodesDestroyNode((SNode*)pStmt);
@@ -1777,7 +1775,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
       pStmt->sysinfo = taosStr2Int8(pVal->z, NULL, 10);
       break;
     }
-    case TSDB_ALTER_USER_ADD_WHITE_LIST: 
+    case TSDB_ALTER_USER_ADD_WHITE_LIST:
     case TSDB_ALTER_USER_DROP_WHITE_LIST: {
       SNodeList* pIpRangesNodeList = pAlterInfo;
       pStmt->pNodeListIpRanges = pIpRangesNodeList;
