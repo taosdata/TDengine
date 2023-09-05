@@ -430,7 +430,7 @@ const conditionMap = {
           return
         }
         if (range1 && !range2) {
-          this.sql += ` RANGE(${range1})`
+          this.sql += ` RANGE('${range1}')`
           // 只有rang1， every 可以省略
           if (every_val) {
             this.sql += ` EVERY(${every_val}${every_unit})`
