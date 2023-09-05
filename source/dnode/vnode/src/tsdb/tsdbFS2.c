@@ -983,7 +983,7 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
-int32_t tsdbTSnapRangeCmprFn(STSnapRange *fsr1, STSnapRange *fsr2) {
+static int32_t tsdbTSnapRangeCmprFn(STSnapRange *fsr1, STSnapRange *fsr2) {
   if (fsr1->fid < fsr2->fid) return -1;
   if (fsr1->fid > fsr2->fid) return 1;
   if (fsr1->sver < fsr2->sver) return -1;
@@ -993,7 +993,7 @@ int32_t tsdbTSnapRangeCmprFn(STSnapRange *fsr1, STSnapRange *fsr2) {
   return 0;
 }
 
-int32_t tsdbTFileInsertSnapRange(STFile *f, TSnapRangeArray *snapR) {
+static int32_t tsdbTFileInsertSnapRange(STFile *f, TSnapRangeArray *snapR) {
   STSnapRange *fsr = taosMemoryCalloc(1, sizeof(*fsr));
   if (fsr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1011,7 +1011,7 @@ int32_t tsdbTFileInsertSnapRange(STFile *f, TSnapRangeArray *snapR) {
   return code;
 }
 
-int32_t tsdbTFSetInsertSnapRange(STFileSet *fset, TSnapRangeArray *snapR) {
+static int32_t tsdbTFSetInsertSnapRange(STFileSet *fset, TSnapRangeArray *snapR) {
   STFile tf = {.fid = fset->fid, .minVer = VERSION_MAX, .maxVer = VERSION_MIN};
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] == NULL) continue;
@@ -1058,24 +1058,246 @@ TSnapRangeArray *tsdbFSToSnapRangeArray(STFileSystem *fs) {
   return snapR;
 }
 
+static STSnapRange *taosDupSnapRange(STSnapRange *x) {
+  STSnapRange *y = taosMemoryCalloc(1, sizeof(STSnapRange));
+  if (y == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    ASSERTS(terrno == 0, "Out of memory");
+    return NULL;
+  }
+  y->fid = x->fid;
+  y->sver = x->sver;
+  y->ever = x->ever;
+  return y;
+}
+
+static TSnapRangeArray *taosDupSnapRangeArray(const TSnapRangeArray *X) {
+  TSnapRangeArray *Y = taosMemoryCalloc(1, sizeof(*Y));
+  if (Y == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  TARRAY2_INIT(Y);
+
+  if (X) {
+    STSnapRange *x;
+    TARRAY2_FOREACH(X, x) {
+      STSnapRange *tp = taosDupSnapRange(x);
+      TARRAY2_APPEND(Y, tp);
+    }
+  }
+  return Y;
+}
+
+static TSnapRangeArray *tsdbSnapDiff(const TSnapRangeArray *snapR, const TSnapRangeArray *pExclude) {
+  TSnapRangeArray *Z = NULL;
+  TSnapRangeArray *U = NULL;
+  TSnapRangeArray *V = NULL;
+  TSnapRangeArray *X = taosDupSnapRangeArray(snapR);
+  TSnapRangeArray *Y = taosDupSnapRangeArray(pExclude);
+  int32_t          code = -1;
+
+  // separate intersections of snap ranges
+  U = taosMemoryCalloc(1, sizeof(TSnapRangeArray));
+  if (U == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+  TARRAY2_INIT(U);
+
+  V = taosMemoryCalloc(1, sizeof(TSnapRangeArray));
+  if (V == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+  TARRAY2_INIT(V);
+
+  int32_t i = 0;
+  int32_t j = 0;
+  while (i < TARRAY2_SIZE(X) && j < TARRAY2_SIZE(Y)) {
+    STSnapRange *x = TARRAY2_GET(X, i);
+    STSnapRange *y = TARRAY2_GET(Y, j);
+
+    if (x->fid < y->fid) {
+      STSnapRange *tmp = taosDupSnapRange(x);
+      TARRAY2_APPEND(U, tmp);
+      i++;
+    } else if (x->fid > y->fid) {
+      STSnapRange *tmp = taosDupSnapRange(y);
+      TARRAY2_APPEND(V, tmp);
+      j++;
+    } else {
+      if (x->sver < y->sver) {
+        if (x->ever < y->ever) {
+          STSnapRange *tmp = taosDupSnapRange(x);
+          TARRAY2_APPEND(U, tmp);
+          i++;
+        } else {
+          STSnapRange *tmp = taosDupSnapRange(x);
+          tmp->ever = y->sver - 1;
+          TARRAY2_APPEND(U, tmp);
+          x->sver = y->sver;
+        }
+      } else if (x->sver > y->sver) {
+        if (y->ever < x->ever) {
+          STSnapRange *tmp = taosDupSnapRange(y);
+          TARRAY2_APPEND(V, tmp);
+          j++;
+        } else {
+          STSnapRange *tmp = taosDupSnapRange(y);
+          tmp->ever = x->sver - 1;
+          TARRAY2_APPEND(V, tmp);
+          y->sver = x->sver;
+        }
+      } else {
+        if (x->ever < y->ever) {
+          STSnapRange *tmp = taosDupSnapRange(x);
+          TARRAY2_APPEND(U, tmp);
+          i++;
+          tmp = taosDupSnapRange(y);
+          tmp->ever = x->ever;
+          TARRAY2_APPEND(V, tmp);
+          y->sver = x->ever + 1;
+        } else if (x->ever > y->ever) {
+          STSnapRange *tmp = taosDupSnapRange(y);
+          TARRAY2_APPEND(V, tmp);
+          j++;
+          tmp = taosDupSnapRange(x);
+          tmp->ever = y->ever;
+          TARRAY2_APPEND(U, tmp);
+          x->sver = y->ever + 1;
+        } else {
+          STSnapRange *tmp = taosDupSnapRange(x);
+          TARRAY2_APPEND(U, tmp);
+          i++;
+          tmp = taosDupSnapRange(y);
+          TARRAY2_APPEND(V, tmp);
+          j++;
+        }
+      }
+    }
+  }
+  while (i < TARRAY2_SIZE(X)) {
+    STSnapRange *x = TARRAY2_GET(X, i);
+    STSnapRange *tmp = taosDupSnapRange(x);
+    TARRAY2_APPEND(U, tmp);
+    i++;
+  }
+  while (j < TARRAY2_SIZE(Y)) {
+    STSnapRange *y = TARRAY2_GET(Y, j);
+    STSnapRange *tmp = taosDupSnapRange(y);
+    TARRAY2_APPEND(V, tmp);
+    j++;
+  }
+
+  // difference of snap ranges
+  Z = taosMemoryCalloc(1, sizeof(*Z));
+  if (Z == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+  TARRAY2_INIT(Z);
+
+  i = 0;
+  j = 0;
+  while (i < TARRAY2_SIZE(U) && j < TARRAY2_SIZE(V)) {
+    STSnapRange *u = TARRAY2_GET(U, i);
+    STSnapRange *v = TARRAY2_GET(V, j);
+
+    if (u->fid < v->fid) {
+      STSnapRange *tmp = taosDupSnapRange(u);
+      TARRAY2_APPEND(Z, tmp);
+      i++;
+    } else if (u->fid == v->fid) {
+      if (u->sver < v->sver) {
+        STSnapRange *tmp = taosDupSnapRange(u);
+        TARRAY2_APPEND(Z, tmp);
+        i++;
+      } else if (u->sver > v->sver) {
+        ASSERT(u->ever > v->ever);
+        j++;
+      } else {
+        ASSERT(u->ever == v->ever);
+        i++;
+        j++;
+      }
+    }
+  }
+  while (i < TARRAY2_SIZE(U)) {
+    STSnapRange *u = TARRAY2_GET(U, i);
+    STSnapRange *tmp = taosDupSnapRange(u);
+    TARRAY2_APPEND(Z, tmp);
+    i++;
+  }
+
+  code = 0;
+_out:
+  TSnapRangeArray **ppArrs[4] = {&X, &Y, &U, &V};
+  int               len = sizeof(ppArrs) / sizeof(ppArrs[0]);
+  for (int i = 0; i < len; i++) {
+    if (ppArrs[i][0] == NULL) continue;
+    TARRAY2_DESTROY(ppArrs[i][0], tsdbTSnapRangeClear);
+    taosMemoryFree(ppArrs[i][0]);
+    ppArrs[i][0] = NULL;
+  }
+  if (code != 0 && Z) {
+    TARRAY2_DESTROY(Z, tsdbTSnapRangeClear);
+    taosMemoryFree(Z);
+    Z = NULL;
+  }
+  return Z;
+}
+
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pExclude,
                                       TSnapRangeArray **fsrArr) {
-  int32_t      code = 0;
+  int32_t      code = -1;
   STFileSet   *fset;
   STSnapRange *fsr1 = NULL;
 
-  fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
-  if (fsrArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  TSnapRangeArray *snapF = tsdbFSToSnapRangeArray(fs);
+  if (snapF == NULL) {
+    tsdbError("failed to generate snap ranges from fs since %s.", terrstr());
+    goto _out;
+  }
+  TSnapRangeArray *snapD = tsdbSnapDiff(snapF, pExclude);
+  if (snapD == NULL) {
+    tsdbError("failed to get diff of snap ranges since %s.", terrstr());
+    goto _out;
+  }
 
+  fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
+  if (fsrArr[0] == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+
+  int32_t i = 0;
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver, ever, &fsr1);
-    if (code) break;
+    while (i < TARRAY2_SIZE(snapD)) {
+      STSnapRange *u = TARRAY2_GET(snapD, i);
+      if (fset->fid < u->fid) {
+        break;
+      } else if (fset->fid > u->fid) {
+        i++;
+        continue;
+      } else {
+        i++;
+      }
+      int64_t sver1 = TMAX(sver, u->sver);
+      int64_t ever1 = TMIN(ever, u->ever);
+      if (sver1 > ever1) {
+        continue;
+      }
+      code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
+      if (code) break;
 
-    code = TARRAY2_APPEND(fsrArr[0], fsr1);
-    if (code) break;
+      code = TARRAY2_APPEND(fsrArr[0], fsr1);
+      if (code) break;
 
-    fsr1 = NULL;
+      fsr1 = NULL;
+    }
+    if (code) break;
   }
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
@@ -1083,6 +1305,16 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
     tsdbTSnapRangeClear(&fsr1);
     TARRAY2_DESTROY(fsrArr[0], tsdbTSnapRangeClear);
     fsrArr[0] = NULL;
+  }
+
+_out:
+  TSnapRangeArray **ppArrs[2] = {&snapF, &snapD};
+  int               len = sizeof(ppArrs) / sizeof(ppArrs[0]);
+  for (int i = 0; i < len; i++) {
+    if (ppArrs[i][0] == NULL) continue;
+    TARRAY2_DESTROY(ppArrs[i][0], tsdbTSnapRangeClear);
+    taosMemoryFree(ppArrs[i][0]);
+    ppArrs[i][0] = NULL;
   }
   return code;
 }
