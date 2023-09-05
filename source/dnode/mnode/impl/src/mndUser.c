@@ -669,7 +669,7 @@ _OVER:
 
   mndReleaseUser(pMnode, pUser);
   mndReleaseUser(pMnode, pOperUser);
-
+  tFreeSCreateUserReq(&createReq);
   return code;
 }
 
