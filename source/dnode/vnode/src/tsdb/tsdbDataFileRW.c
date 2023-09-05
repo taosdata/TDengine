@@ -982,7 +982,7 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const TS
       goto _exit;
     }
 
-    for (; writer->ctx->brinBlkArrayIdx < TARRAY2_SIZE(writer->ctx->brinBlkArray); writer->ctx->brinBlkArrayIdx++) {
+    if (writer->ctx->brinBlkArrayIdx < TARRAY2_SIZE(writer->ctx->brinBlkArray)) {
       const SBrinBlk *brinBlk = TARRAY2_GET_PTR(writer->ctx->brinBlkArray, writer->ctx->brinBlkArrayIdx);
 
       if (brinBlk->minTbid.uid != writer->ctx->tbid->uid) {
@@ -995,7 +995,6 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const TS
 
       writer->ctx->brinBlockIdx = 0;
       writer->ctx->brinBlkArrayIdx++;
-      break;
     }
   }
 
@@ -1112,7 +1111,7 @@ static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TA
       break;
     }
 
-    for (; writer->ctx->brinBlkArrayIdx < TARRAY2_SIZE(writer->ctx->brinBlkArray); writer->ctx->brinBlkArrayIdx++) {
+    if (writer->ctx->brinBlkArrayIdx < TARRAY2_SIZE(writer->ctx->brinBlkArray)) {
       const SBrinBlk *brinBlk = TARRAY2_GET_PTR(writer->ctx->brinBlkArray, writer->ctx->brinBlkArrayIdx);
 
       code = tsdbDataFileReadBrinBlock(writer->ctx->reader, brinBlk, writer->ctx->brinBlock);
@@ -1120,7 +1119,6 @@ static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TA
 
       writer->ctx->brinBlockIdx = 0;
       writer->ctx->brinBlkArrayIdx++;
-      break;
     }
   }
 
@@ -1253,7 +1251,7 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
       break;
     }
 
-    for (; writer->ctx->tombBlkArrayIdx < TARRAY2_SIZE(writer->ctx->tombBlkArray); ++writer->ctx->tombBlkArrayIdx) {
+    if (writer->ctx->tombBlkArrayIdx < TARRAY2_SIZE(writer->ctx->tombBlkArray)) {
       const STombBlk *tombBlk = TARRAY2_GET_PTR(writer->ctx->tombBlkArray, writer->ctx->tombBlkArrayIdx);
 
       code = tsdbDataFileReadTombBlock(writer->ctx->reader, tombBlk, writer->ctx->tombBlock);
@@ -1261,7 +1259,6 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
 
       writer->ctx->tombBlockIdx = 0;
       writer->ctx->tombBlkArrayIdx++;
-      break;
     }
   }
 
