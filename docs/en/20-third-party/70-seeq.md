@@ -1,22 +1,22 @@
 ---
 sidebar_label: Seeq
 title: Seeq
-description: 如何使用 Seeq 和 TDengine 进行时序数据分析
+description: How to use Seeq and TDengine to perform time series data analysis
 ---
 
-# 如何使用 Seeq 和 TDengine 进行时序数据分析
+# How to use Seeq and TDengine to perform time series data analysis
 
-## 方案介绍
+## Introduction
 
-Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在工艺制造组织中使用机器学习创新的新功能。这些功能使组织能够将自己或第三方机器学习算法部署到前线流程工程师和主题专家使用的高级分析应用程序，从而使单个数据科学家的努力扩展到许多前线员工。
+Seeq is an advanced analytics software for the manufacturing industry and the Industrial Internet of Things (IIoT). Seeq supports the use of machine learning innovations within process manufacturing organizations. These capabilities enable organizations to deploy their own or third-party machine learning algorithms into advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline workers.
 
-通过 TDengine Java connector， Seeq 可以轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析、预测等功能。
+With the TDengine Java connector, Seeq effortlessly supports querying time series data provided by TDengine and offers functionalities such as data visualization, analysis, and forecasting.
 
-### Seeq 安装方法
+### Install Seeq
 
-从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。
+Please download Seeq Server and Seeq Data Lab software installation package from the [Seeq official website](https://www.seeq.com/customer-download).
 
-### Seeq Server 安装和启动
+### Install and start Seeq Server
 
 ```
 tar xvzf seeq-server-xxx.tar.gz
@@ -27,9 +27,9 @@ sudo seeq service enable
 sudo seeq start
 ```
 
-### Seeq Data Lab Server 安装和启动
+### Install and start Seeq Data Lab Server
 
-Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 官方文档](https://support.seeq.com/space/KB/1034059842)。
+Seeq Data Lab needs to be installed on a separate server from Seeq Server and connected to Seeq Server through configuration. For detailed installation and configuration instructions, please refer to [the official documentation](https://support.seeq.com/space/KB/1034059842).
 
 ```
 tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
@@ -49,42 +49,43 @@ sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of
 sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
 ```
 
-## TDengine 本地实例安装方法
+### Install TDengine on-premise instance
 
-请参考[官网文档](../../get-started)。 
+See [Quick Install from Package](../../get-started).
 
-## TDengine Cloud 访问方法
-如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
+### Or use TDengine Cloud
 
-## 如何配置 Seeq 访问 TDengine
+Register for a [TDengine Cloud](https://cloud.tdengine.com) account and log in to your account.
 
-1. 查看 data 存储位置
+## Make Seeq be able to access TDengine
+
+1. Get data location configuration
 
 ```
 sudo seeq config get Folders/Data
 ```
 
-2. 从 maven.org 下载 TDengine Java connector 包，目前最新版本为[3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar)，并拷贝至 data 存储位置的 plugins\lib 中。
+2. Download TDengine Java connector from maven.org. Please use the latest version (Current is 3.2.5, https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar).
 
-3. 重新启动 seeq server
+3. Restart Seeq server
 
 ```
 sudo seeq restart
 ```
 
-4. 输入 License
+4. Input License
 
-使用浏览器访问 ip:34216 并按照说明输入 license。
+Use a browser to access ip:34216 and input the license according to the guide.
 
-## 使用 Seeq 分析 TDengine 时序数据
+## How to use Seeq to analyze time-series data that TDengine serves
 
-本章节演示如何使用 Seeq 软件配合 TDengine 进行时序数据分析。
+This chapter demonstrates how to use Seeq software in conjunction with TDengine for time series data analysis.
 
-### 场景介绍
+### Scenario Overview
 
-示例场景为一个电力系统，用户每天从电站仪表收集用电量数据，并将其存储在 TDengine 集群中。现在用户想要预测电力消耗将会如何发展，并购买更多设备来支持它。用户电力消耗随着每月订单变化而不同，另外考虑到季节变化，电力消耗量会有所不同。这个城市位于北半球，所以在夏天会使用更多的电力。我们模拟数据来反映这些假定。
+The example scenario involves a power system where users collect electricity consumption data from metering devices at a power station on a daily basis. This data is stored in a TDengine cluster. The user now wants to predict how the electricity consumption will develop and purchase additional equipment to support it. The electricity consumption varies with monthly orders, and seasonal variations also affect the power consumption. Since the city is located in the Northern Hemisphere, more electricity is consumed during the summer. We will use simulated data to reflect these assumptions.
 
-### 数据 Schema
+### Schema
 
 ```
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
@@ -93,20 +94,20 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 ![Seeq demo schema](./seeq/seeq-demo-schema.webp)
 
-### 构造数据方法
+### Mock data
 
 ```
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
 
-源代码托管在[GitHub 仓库](https://github.com/sangshuduo/td-forecasting)。
+The source code is hosted at [GitHub Repository](https://github.com/sangshuduo/td-forecasting).
 
-### 使用 Seeq 进行数据分析
+### Using Seeq for data analysis
 
-#### 配置数据源（Data Source）
+#### Data Source configuration
 
-使用 Seeq 管理员角色的帐号登录，并新建数据源。
+Please login with Seeq administrator and create a few data sources as following.
 
 - Power
 
@@ -286,15 +287,15 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 }
 ```
 
-#### 使用 Seeq Workbench
+#### Launch Seeq Workbench
 
-登录 Seeq 服务页面并新建 Seeq Workbench，通过选择数据源搜索结果和根据需要选择不同的工具，可以进行数据展现或预测，详细使用方法参见[官方知识库](https://support.seeq.com/space/KB/146440193/Seeq+Workbench)。
+Please login to Seeq server with IP:port and create a new Seeq Workbench, then select data sources and choose the correct tools to do data visualization and analysis. Please refer to [the official documentation](https://support.seeq.com/space/KB/146440193/Seeq+Workbench) for the details.
 
 ![Seeq Workbench](./seeq/seeq-demo-workbench.webp)
 
-#### 用 Seeq Data Lab Server 进行进一步的数据分析
+#### Use Seeq Data Lab Server for advanced data analysis
 
-登录 Seeq 服务页面并新建 Seeq Data Lab，可以进一步使用 Python 编程或其他机器学习工具进行更复杂的数据挖掘功能。
+Please login to the Seeq service with IP:port and create a new Seeq Data Lab. Then you can use advanced tools including Python environment and machine learning add-ons for more complex analysis.
 
 ```Python
 from seeq import spy
@@ -357,16 +358,17 @@ pd.concat([data2, predicts]).set_index("ds").plot(title = "current data with for
 plt.show()
 ```
 
-运行程序输出结果：
+Example output:
 
 ![Seeq forecast result](./seeq/seeq-forecast-result.webp)
 
-### 配置 Seeq 数据源连接 TDengine Cloud
+### How to configure Seeq data source to access TDengine Cloud
 
-配置 Seeq 数据源连接 TDengine Cloud 和连接 TDengine 本地安装实例没有本质的不同，只要登录 TDengine Cloud 后选择“编程 - Java”并拷贝带 token 字符串的 JDBC 填写为 Seeq Data Source 的 DatabaseJdbcUrl 值。
-注意使用 TDengine Cloud 时 SQL 命令中需要指定数据库名称。
+Configuring a Seeq data source connection to TDengine Cloud or a local installation instance does not have any essential differences. After logging in to TDengine Cloud, select "Programming - Java" and copy the JDBC URL string with the token provided. Then, use this JDBC URL string to fill in the DatabaseJdbcUrl value in the Seeq Data Source configuration.
 
-#### 用 TDengine Cloud 作为数据源的配置内容示例：
+Please note that when using TDengine Cloud, you need to specify the database name in your SQL commands.
+
+#### The data source of TDengine Cloud example
 
 ```
 {
@@ -425,14 +427,14 @@ plt.show()
 }
 ```
 
-#### TDengine Cloud 作为数据源的 Seeq Workbench 界面示例
+#### Seeq Workbench with TDengine Cloud data source example
 
-![Seeq workbench with TDengine cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
+![Seeq workbench with TDengine Cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
 
-## 方案总结
+## Conclusion
 
-通过集成Seeq和TDengine，可以充分利用TDengine高效的存储和查询性能，同时也可以受益于Seeq提供给用户的强大数据可视化和分析功能。
+By integrating Seeq and TDengine, it is possible to leverage the efficient storage and querying performance of TDengine while also benefiting from Seeq's powerful data visualization and analysis capabilities provided to users.
 
-这种集成使用户能够充分利用TDengine的高性能时序数据存储和检索，确保高效处理大量数据。同时，Seeq提供高级分析功能，如数据可视化、异常检测、相关性分析和预测建模，使用户能够获得有价值的洞察并基于数据进行决策。
+This integration allows users to take advantage of TDengine's high-performance time-series data storage and retrieval, ensuring efficient handling of large volumes of data. At the same time, Seeq provides advanced analytics features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, enabling users to gain valuable insights and make data-driven decisions.
 
-综合来看，Seeq和TDengine共同为制造业、工业物联网和电力系统等各行各业的时序数据分析提供了综合解决方案。高效数据存储和先进的分析相结合，赋予用户充分发挥时序数据潜力的能力，推动运营改进，并支持预测和规划分析应用。
+Together, Seeq and TDengine provide a comprehensive solution for time series data analysis in diverse industries such as manufacturing, IIoT, and power systems. The combination of efficient data storage and advanced analytics empowers users to unlock the full potential of their time series data, driving operational improvements, and enabling predictive and prescriptive analytics applications.

@@ -2311,7 +2311,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
-
     int64_t   k[2] = {p->streamId, p->taskId};
     int32_t *index = taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
     if (index == NULL) {
