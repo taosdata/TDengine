@@ -10,7 +10,7 @@ release.py 也可为 taos-agent 及连接器不依赖 taosx 独立打包，详�
 - rust 开发环境（taosX 依赖）
 - golang 1.20及以上（taos-opc、taos-mqtt 依赖）
 - PI System 授权(AF SDK)（pi-connector 依赖）
-- jdk1.8+、maven3(taos-influxdb 依赖)
+- jdk1.8+、maven3(taosx-influxdb  taosx-opentsdb 依赖)
 - Rust 1.65+ node.js 16+, yarn( taos-explorer 依赖)
 - Inno setup 6.2 及以上
 - 在运行release.py之前需要通过命令 pip install toml 来安装toml模块
@@ -36,9 +36,9 @@ version = "1.0.0"
 - -c: cpu type [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...]
 - -o: package target [taosx | agent] taosx 安装包还是 taos-agent 安装包，默认 taosx
 - -b: build mode,可选 Debug\Release,默认 Release
-- -l: 需要同时打包的连接器列表，可以多个空格隔开； 当前支持：opc pi mqtt influxdb.该参数不传表示包含支持的所有连接器（linux 下无 pi），注意 taosx\taosx-agent\taos-explorer 不是连接器，一定在安装包里
+- -l: 需要同时打包的连接器列表，可以多个空格隔开； 当前支持：opc pi mqtt influxdb opentsdb.该参数不传表示包含支持的所有连接器（linux 下无 pi），注意 taosx\taosx-agent\taos-explorer 不是连接器，一定在安装包里
 - -s: submodel build mode, 各个模块单独配置 Debug/Release，该配置比-b参数优先，没有配置的模块使用-b配置
-- -s: ```examples, -s pi debug``` 表示 pi 模块使用 debug 模式，无论-b参数如何配置（支持对 taosx, taosx-agent, pi, opc, mqtt, influxdb, taos-explorer 分别配置）
+- -s: ```examples, -s pi debug``` 表示 pi 模块使用 debug 模式，无论-b参数如何配置（支持对 taosx, taosx-agent, pi, opc, mqtt, influxdb, opentsdb, taos-explorer 分别配置）
 - -s: ```examples, -s pi debug taosx release``` 表示 pi 模块使用 debug 模式，taosx 使用 release 模式，无论 -b 参数如何配置
 - -t: 脚本快速测试，单独测试某一过程（仅支持 windows, 支持 taosx,agent,opc,pi,mqtt,package, explorer）
 - -t pi: 示例，测试 pi 编译安装
@@ -67,7 +67,9 @@ version = "1.0.0"
     │   ├── taos-explorer.exe
     ├── plugins
     │   ├── influxdb
-    │   │   └── taosx-inflxdb.jar
+    │   │   └── taosx-influxdb.jar
+    ├── opentsdb
+    │   │   └── taosx-opentsdb.jar
     │   ├── mqtt
     │   │   └── taosx-mqtt.exe
     │   └── opc
@@ -140,7 +142,9 @@ version = "1.0.0"
   │   ├── ...
   ├── plugins
   │   ├── influxdb
-  │   │   └── taosx-inflxdb.jar
+  │   │   └── taosx-influxdb.jar
+  │   ├── opentsdb
+  │   │   └── taosx-opentsdb.jar
   │   ├── mqtt
   │   │   └── taosx-mqtt.exe
   │   └── opc

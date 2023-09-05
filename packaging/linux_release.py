@@ -10,6 +10,7 @@ release_dir = os.path.abspath(os.path.join(top_dir, "release"))
 opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
 mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
+opentsdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","opentsdb"))
 explore_dir = os.path.abspath(os.path.join(top_dir, "..","explorer"))
 systemd_path = ""
 target = "taosx"
@@ -29,6 +30,8 @@ def release(release_info,build_info):
             build_and_install_mqtt_on_linux(release_info,info.VersionMode)
         if info.Name =='influxdb':
             build_and_install_influxdb_on_linux(info.VersionMode)
+        if info.Name =='opentsdb':
+            build_and_install_opentsdb_on_linux(info.VersionMode)
         if info.Name =='taosx':
             build_and_install_taosx_on_linux(info.VersionMode)
         if info.Name =='taosx-agent':
@@ -106,7 +109,7 @@ def build_and_install_mqtt_on_linux(release_info,mode='release'):
 
 
 def build_and_install_influxdb_on_linux(mode='release'):
-    logging.info("build_and_install taosx-influxdb under linux")
+    logging.info("build_and_install taosx-influxdb on linux")
     platform = "linux"
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"plugins","influxdb")
@@ -125,6 +128,27 @@ def build_and_install_influxdb_on_linux(mode='release'):
 
     shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","influxdb","taosx-influxdb.jar"))
     logging.info("taox-influxdb copied to {release_dir}".format(release_dir=dst_dir))
+
+def build_and_install_opentsdb_on_linux(mode='release'):
+    logging.info("build_and_install taosx-opentsdb on linux")
+    platform = "linux"
+    arch = "amd64"
+    dst_dir = os.path.join(release_dir,"plugins","opentsdb")
+    binary_file = os.path.join(opentsdb_dir,"target","taosx-opentsdb.jar")
+    check_directory(dst_dir)
+
+    os.chdir(opentsdb_dir)
+    if mode.lower() == 'release':
+        build_command = "mvn clean package"
+    else:
+        # debug mode
+        build_command = "mvn clean package"
+    logging.info(f"build_command: {build_command}")
+    os.system(build_command)
+    logging.info("taox-opentsdb built successfully")
+
+    shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","opentsdb","taosx-opentsdb.jar"))
+    logging.info("taox-opentsdb copied to {release_dir}".format(release_dir=dst_dir))
 
 
 def build_and_install_taosx_on_linux(mode='release'):
@@ -236,6 +260,9 @@ def test_handle(release_info, process):
     elif process == "influxdb":
         print("Calling influxDB function...")
         build_and_install_influxdb_on_linux("Debug")
+    elif process == "opentsdb":
+        print("Calling opentsDB function...")
+        build_and_install_opentsdb_on_linux("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
 
