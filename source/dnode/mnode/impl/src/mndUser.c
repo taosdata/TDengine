@@ -145,14 +145,48 @@ SIpWhiteList *createIpWhiteList(void *buf, int32_t len) {
   return p;
 }
 
+int32_t ipRangeListCvtIp2Int(char *ip, int16_t *dest) {
+  int   k = 0;
+  char *start = ip;
+  char *end = start;
+
+  for (k = 0; *start != 0; start = end) {
+    for (end = start; *end != '.' && *end != '/' && *end != 0; end++) {
+    }
+    if (*end == '.' || *end == '/') {
+      *end = 0;
+      end++;
+    }
+    dest[k++] = atoi(start);
+  }
+  return k;
+}
+uint32_t util_cvtIp2Int(char *ip, uint32_t *mask) {
+  int16_t dst[5] = {0};
+  char    buf[20] = {0};
+  memcpy(buf, ip, strlen(ip));
+  int32_t  sz = ipRangeListCvtIp2Int(buf, dst);
+  uint32_t ret = 0;
+
+  for (int i = 0; i < 4; i++) {
+    uint8_t n = dst[i];
+    ret |= (n & 0xFF) << 8 * (4 - i - 1);
+  }
+  if (sz >= 5) {
+    *mask = dst[4];
+  } else {
+    *mask = 0;
+  }
+  return ret;
+}
 static SIpWhiteList *createDefaultIpWhiteList() {
   SIpWhiteList *pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * 1);
   pWhiteList->num = 1;
+  // pWhiteList->pIpRange =
 
   SIpV4Range *range = &(pWhiteList->pIpRange[0]);
 
-  range->ip = ip2uint("127.0.0.1");  // refactor later
-  range->mask = 0;
+  range->ip = util_cvtIp2Int("127.0.0.1", &range->mask);  // refactor later
   return pWhiteList;
 }
 static bool isRangeInIpWhiteList(SIpWhiteList *pList, SIpV4Range *tgt) {
@@ -1415,8 +1449,6 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->createdTime, false);
 
-    // get ip white list
-    // char *buf = taosMemoryCalloc(1, (sizeof(SIpV4Range) + 1) * pUser->pIpWhiteList->num);
     char   *buf = NULL;
     int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
 

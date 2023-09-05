@@ -276,8 +276,8 @@ typedef struct {
   SAcctInfo info;
 } SAcctObj;
 typedef struct {
-  int32_t     num;
-  SIpV4Range* pIpRange;
+  int32_t    num;
+  SIpV4Range pIpRange[];
 } SIpWhiteList;
 
 typedef struct {
