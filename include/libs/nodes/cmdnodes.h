@@ -222,6 +222,10 @@ typedef struct SCreateUserStmt {
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    sysinfo;
+  int32_t numIpRanges;
+  SIpV4Range* pIpRanges;
+
+  SNodeList* pNodeListIpRanges;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
@@ -231,6 +235,10 @@ typedef struct SAlterUserStmt {
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    enable;
   int8_t    sysinfo;
+  int32_t numIpRanges;
+  SIpV4Range* pIpRanges;
+
+  SNodeList* pNodeListIpRanges;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {

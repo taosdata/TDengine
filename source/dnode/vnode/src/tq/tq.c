@@ -1429,7 +1429,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
   }
 
   int8_t  status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY) {
+  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
     // no lock needs to secure the access of the version
     if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
       // discard all the data  when the stream task is suspended.
@@ -1714,20 +1714,47 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tqDebug("s-task:%s receive task nodeEp update msg from mnode", pTask->id.idStr);
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
+  streamSetStatusNormal(pTask);
+
+  SStreamTask** ppHTask = NULL;
+  if (pTask->historyTaskId.taskId != 0) {
+    keys[0] = pTask->historyTaskId.streamId;
+    keys[1] = pTask->historyTaskId.taskId;
+
+    ppHTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if (ppHTask == NULL || *ppHTask == NULL) {
+      tqError("vgId:%d failed to acquire fill-history task:0x%x when handling update, it may have been dropped already",
+              pMeta->vgId, req.taskId);
+    } else {
+      tqDebug("s-task:%s fill-history task update nodeEp along with stream task", (*ppHTask)->id.idStr);
+      streamTaskUpdateEpsetInfo(*ppHTask, req.pNodeList);
+    }
+  }
 
   {
-    streamSetStatusNormal(pTask);
     streamMetaSaveTask(pMeta, pTask);
+    if (ppHTask != NULL) {
+      streamMetaSaveTask(pMeta, *ppHTask);
+    }
+
     if (streamMetaCommit(pMeta) < 0) {
       //     persist to disk
     }
   }
 
   streamTaskStop(pTask);
+  if (ppHTask != NULL) {
+    streamTaskStop(*ppHTask);
+  }
+
   tqDebug("s-task:%s task nodeEp update completed", pTask->id.idStr);
 
   pMeta->closedTask += 1;
+  if (ppHTask != NULL) {
+    pMeta->closedTask += 1;
+  }
 
+  // possibly only handle the stream task.
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   allStopped = (pMeta->closedTask == numOfTasks);
   if (allStopped) {
@@ -1766,6 +1793,7 @@ _end:
       taosWUnLockLatch(&pMeta->lock);
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
         vInfo("vgId:%d, restart all stream tasks", vgId);
+        tqStartStreamTasks(pTq);
         tqCheckAndRunStreamTaskAsync(pTq);
       }
     }

@@ -235,7 +235,13 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
     qDebug("s-task:%s enter into scan-history data stage, status:%s", id, str);
     streamTaskLaunchScanHistory(pTask);
   } else {
-    qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
+    if (pTask->info.fillHistory == 1) {
+      qDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
+      pTask->status.taskStatus = TASK_STATUS__DROPPING;
+      ASSERT(pTask->historyTaskId.taskId == 0);
+    } else {
+      qDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
+    }
   }
 
   // when current stream task is ready, check the related fill history task.
@@ -579,19 +585,17 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 // todo fix the bug: 2. race condition
 // an fill history task needs to be started.
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
-  int32_t tId = pTask->historyTaskId.taskId;
-  if (tId == 0) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      hTaskId = pTask->historyTaskId.taskId;
+  if (hTaskId == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   ASSERT(pTask->status.downstreamReady == 1);
   qDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
-         pTask->historyTaskId.streamId, tId);
+         pTask->historyTaskId.streamId, hTaskId);
 
-  SStreamMeta* pMeta = pTask->pMeta;
-  int32_t      hTaskId = pTask->historyTaskId.taskId;
-
-  int64_t keys[2] = {pTask->historyTaskId.streamId, pTask->historyTaskId.taskId};
+  int64_t keys[2] = {pTask->historyTaskId.streamId, hTaskId};
 
   // Set the execute conditions, including the query time window and the version range
   SStreamTask** pHTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
@@ -610,11 +614,12 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         // todo failed to create timer
         taosMemoryFree(pInfo);
       } else {
-        atomic_add_fetch_8(&pTask->status.timerActive, 1);// timer is active
+        int32_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);// timer is active
+        ASSERT(ref == 1);
         qDebug("s-task:%s set timer active flag", pTask->id.idStr);
       }
     } else {  // timer exists
-      ASSERT(pTask->status.timerActive > 0);
+      ASSERT(pTask->status.timerActive == 1);
       qDebug("s-task:%s set timer active flag, task timer not null", pTask->id.idStr);
       taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
     }
@@ -916,6 +921,13 @@ void streamTaskHalt(SStreamTask* pTask) {
 
   if (status == TASK_STATUS__HALT) {
     return;
+  }
+
+  // wait for checkpoint completed
+  while(pTask->status.taskStatus == TASK_STATUS__CK) {
+    qDebug("s-task:%s status:%s during generating checkpoint, wait for 1sec and retry set status:halt", pTask->id.idStr,
+           streamGetTaskStatusStr(TASK_STATUS__CK));
+    taosMsleep(1000);
   }
 
   // upgrade to halt status

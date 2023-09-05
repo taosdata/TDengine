@@ -3734,7 +3734,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 static int32_t removeConstantValueFromList(SNodeList** pList) {
   SNode* pNode = NULL;
   WHERE_EACH(pNode, *pList) {
-    if (nodeType(pNode) == QUERY_NODE_VALUE || 
+    if (nodeType(pNode) == QUERY_NODE_VALUE ||
         (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
       ERASE_NODE(*pList);
       continue;
@@ -3753,7 +3753,11 @@ static int32_t removeConstantValueFromList(SNodeList** pList) {
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
+  if (pSelect->pPartitionByList) {
+    code = removeConstantValueFromList(&pSelect->pPartitionByList);
+  }
+
   if (TSDB_CODE_SUCCESS == code && pSelect->pPartitionByList) {
     int8_t typeType = getTableTypeFromTableNode(pSelect->pFromTable);
     SNode* pPar = nodesListGetNode(pSelect->pPartitionByList, 0);
@@ -5740,8 +5744,15 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
-
-  return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  
+  createReq.numIpRanges = pStmt->numIpRanges;
+  if (pStmt->numIpRanges > 0) {
+    createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
+    memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
+  }
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  tFreeSCreateUserReq(&createReq);
+  return code;
 }
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
@@ -5756,7 +5767,14 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }
 
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  alterReq.numIpRanges = pStmt->numIpRanges;
+  if (pStmt->numIpRanges > 0) {
+    alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpV4Range));
+    memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
+  }
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  tFreeSAlterUserReq(&alterReq);
+  return code;
 }
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {

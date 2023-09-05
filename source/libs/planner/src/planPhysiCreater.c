@@ -539,7 +539,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-  
+
   pScan->onlyMetaCtbIdx = pScanLogicNode->onlyMetaCtbIdx;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
@@ -726,7 +726,7 @@ static int32_t mergeEqCond(SNode** ppDst, SNode** ppSrc) {
     *ppSrc = NULL;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   if (NULL == pLogicCond) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -754,7 +754,7 @@ static int32_t getJoinDataBlockDescNode(SNodeList* pChildren, int32_t idx, SData
     planError("Invalid join children num:%d or child type:%d", pChildren->length, nodeType(nodesListGetNode(pChildren, 0)));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -775,12 +775,12 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   if (TSDB_CODE_SUCCESS == code) {
     code = getJoinDataBlockDescNode(pChildren, 1, &pRightDesc);
   }
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond,
                   &pJoin->pPrimKeyCond);
   }
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->node.pTargets,
                          &pJoin->pTargets);
@@ -869,7 +869,7 @@ static int32_t createHashJoinColList(int16_t lBlkId, int16_t rBlkId, SNode* pEq1
   if (NULL == pJoin->pOnLeft || NULL == pJoin->pOnRight) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  
+
   code = extractHashJoinOnCols(lBlkId, rBlkId, pEq1, pJoin);
   if (TSDB_CODE_SUCCESS == code) {
     code = extractHashJoinOnCols(lBlkId, rBlkId, pEq2, pJoin);
@@ -893,10 +893,10 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SNodeList* pNew = nodesMakeList();
-  
+
   FOREACH(pNode, pJoin->pTargets) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);  
+    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);
     tSimpleHashPut(pHash, name, len, &pCol, POINTER_BYTES);
   }
 
@@ -905,7 +905,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
 
   FOREACH(pNode, pJoin->pOnLeft) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);  
+    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);
     SNode** p = tSimpleHashGet(pHash, name, len);
     if (p) {
       nodesListStrictAppend(pJoin->pTargets, *p);
@@ -914,7 +914,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
   }
   FOREACH(pNode, pJoin->pOnRight) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);  
+    int32_t len = getSlotKey(pNode, NULL, name, TSDB_COL_FNAME_LEN);
     SNode** p = tSimpleHashGet(pHash, name, len);
     if (p) {
       nodesListStrictAppend(pJoin->pTargets, *p);
@@ -930,7 +930,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
       if (p == NULL) {
         break;
       }
-    
+
       nodesListStrictAppend(pJoin->pTargets, *p);
     }
   }
@@ -958,10 +958,10 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond, &pJoin->pPrimKeyCond);
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pColEqCond, &pJoin->pColEqCond);
-  } 
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pTagEqCond, &pJoin->pTagEqCond);
-  } 
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOtherOnCond) {
     code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1, pJoinLogicNode->pOtherOnCond, &pJoin->pFilterConditions);
   }
@@ -973,10 +973,10 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createHashJoinColList(pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin->pPrimKeyCond, pJoin->pColEqCond, pJoin->pTagEqCond, pJoin);
-  } 
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = sortHashJoinTargets(pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc);
   }
@@ -1001,7 +1001,7 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
       planError("Invalid join algorithm:%d", pJoinLogicNode->joinAlgo);
       break;
   }
-                                   
+
   return TSDB_CODE_FAILED;
 }
 
@@ -1019,7 +1019,7 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   pGrpCache->batchFetch = pLogicNode->batchFetch;
   SDataBlockDescNode* pChildDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
   int32_t             code = TSDB_CODE_SUCCESS;
-/*  
+/*
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pChildDesc->dataBlockId, -1, pLogicNode->pGroupCols, &pGrpCache->pGroupCols);
   }
@@ -1045,7 +1045,7 @@ static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList*
   }
   if (TSDB_CODE_SUCCESS == code) {
     memcpy(pDynCtrl->stbJoin.srcScan, pLogicNode->stbJoin.srcScan, sizeof(pDynCtrl->stbJoin.srcScan));
-    
+
     SNode* pNode = NULL;
     int32_t i = 0;
     FOREACH(pNode, pVgList) {
@@ -1062,7 +1062,7 @@ static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList*
 
   return code;
 }
-                                    
+
 static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SDynQueryCtrlLogicNode* pLogicNode,
                                             SPhysiNode** pPhyNode) {
   int32_t code = TSDB_CODE_SUCCESS;
