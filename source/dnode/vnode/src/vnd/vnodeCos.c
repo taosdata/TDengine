@@ -59,17 +59,19 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   cos_request_options_t *options = NULL;
   cos_string_t           bucket, object, file;
   cos_table_t           *resp_headers;
-  int                    traffic_limit = 0;
+  // int                    traffic_limit = 0;
 
   cos_pool_create(&p, NULL);
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_table_t *headers = NULL;
+  /*
   if (traffic_limit) {
     // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
+  */
   cos_str_set(&bucket, tsS3BucketName);
   cos_str_set(&file, file_str);
   cos_str_set(&object, object_str);
@@ -185,7 +187,7 @@ bool s3Get(const char *object_name, const char *path) {
   cos_string_t           file;
   cos_table_t           *resp_headers = NULL;
   cos_table_t           *headers = NULL;
-  int                    traffic_limit = 0;
+  // int                    traffic_limit = 0;
 
   //创建内存池
   cos_pool_create(&p, NULL);
@@ -194,12 +196,13 @@ bool s3Get(const char *object_name, const char *path) {
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
+  /*
   if (traffic_limit) {
     //限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
-
+  */
   //下载对象
   cos_str_set(&file, path);
   cos_str_set(&object, object_name);
@@ -278,7 +281,7 @@ void s3EvictCache(const char *path, long object_size) {
     size_t ef_size = TARRAY_SIZE(evict_files);
     for (size_t i = 0; i < ef_size; ++i) {
       SEvictFile *evict_file = taosArrayGet(evict_files, i);
-      taosRemoveFile(evict_file->name);
+      (void)taosRemoveFile(evict_file->name);
       evict_size += evict_file->size;
       if (evict_size >= object_size) {
         break;
