@@ -338,6 +338,7 @@ pub async fn opentsdb_to_taos(
                 err = ipc_handler.recv_error() => {
                     tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
+                        let _ = child.kill().await;
                         let _ = ipc_handler.close().await?;
                         anyhow::bail!("OpenTSDB writer error: {err}");
                     }

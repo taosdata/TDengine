@@ -219,7 +219,7 @@ async fn ipc_tcp_forward(
 
     while let Some(res) = stream.next().await {
         let _: PutResult = res.context("Got server response with error")?;
-        ipc_ack_writer.write_ok()?;
+        let _ = ipc_ack_writer.write_ok();
     }
 
     info!("[{task_id}] Putting stream finished");
@@ -2225,7 +2225,10 @@ pub async fn listen_tcp_socket_with_agent(
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id).await;
                     if let Err(err) = res {
                         tracing::error!("{:?}", err);
-                        let _ = se.send(format!("{err:#}")).await;
+                        let r = se.send(format!("{err:?}")).await;
+                        if let Err(send_err) = r {
+                            tracing::error!("error <{err:?}> reported to server: {send_err:?}");
+                        }
                     } else {
                         tracing::info!("IPC reader stopped for client {client}",);
                     }
