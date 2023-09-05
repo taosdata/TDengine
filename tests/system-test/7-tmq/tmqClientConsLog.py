@@ -93,19 +93,20 @@ class TDTestCase:
         cfgPath = tdCom.getClientCfgPath()
         taosLogFile = '%s/../log/taoslog*'%(cfgPath)
         filterResultFile = '%s/../log/filter'%(cfgPath)
-        cmdStr = 'grep "process poll rsp, vgId:" %s >> %s'%(taosLogFile, filterResultFile)
+        cmdStr = 'grep -h "process poll rsp, vgId:" %s >> %s'%(taosLogFile, filterResultFile)
         tdLog.info(cmdStr)
         os.system(cmdStr)
         
         consumerDict = {}
         for index, line in enumerate(open(filterResultFile,'r')):
+
             # tdLog.info("row[%d]: %s"%(index, line))
             valueList = line.split(',')
             # for i in range(len(valueList)):
                 # tdLog.info("index[%d]: %s"%(i, valueList[i]))
             # get consumer id
             list2 = valueList[0].split(':')
-            list3 = list2[4].split()
+            list3 = list2[3].split()
             consumerId = list3[0]
             print("consumerId: %s"%(consumerId))
             

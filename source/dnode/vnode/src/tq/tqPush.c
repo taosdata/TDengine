@@ -30,7 +30,7 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   return 0;
 }
 
-int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
   if (msgType == TDMT_VND_SUBMIT) {
     tqProcessSubmitReqForSubscribe(pTq);
   }
@@ -39,20 +39,14 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
   int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
   taosRUnLockLatch(&pTq->pStreamMeta->lock);
 
-  tqTrace("handle submit, restore:%d, size:%d", pTq->pVnode->restored, numOfTasks);
+  tqDebug("handle submit, restore:%d, numOfTasks:%d", pTq->pVnode->restored, numOfTasks);
 
   // push data for stream processing:
   // 1. the vnode has already been restored.
   // 2. the vnode should be the leader.
   // 3. the stream is not suspended yet.
-  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored) {
-    if (numOfTasks == 0) {
-      return 0;
-    }
-
-    if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE) {
-      tqStartStreamTasks(pTq);
-    }
+  if ((!tsDisableStream) && (numOfTasks > 0) && (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE)) {
+    tqScanWalAsync(pTq, true);
   }
 
   return 0;

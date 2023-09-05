@@ -569,6 +569,8 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
 static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
   if (strcasecmp(typeStr, "binary") == 0) {
     pVal->type = TSDB_DATA_TYPE_BINARY;
+  } else if (strcasecmp(typeStr, "varbinary") == 0) {
+    pVal->type = TSDB_DATA_TYPE_VARBINARY;
   } else if (strcasecmp(typeStr, "nchar") == 0) {
     pVal->type = TSDB_DATA_TYPE_NCHAR;
   } else {
@@ -577,7 +579,7 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
   }
   pVal->length = strlen(value->valuestring);
 
-  if (pVal->type == TSDB_DATA_TYPE_BINARY && pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+  if ((pVal->type == TSDB_DATA_TYPE_BINARY || pVal->type == TSDB_DATA_TYPE_VARBINARY) && pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
   }
   if (pVal->type == TSDB_DATA_TYPE_NCHAR &&
@@ -1010,7 +1012,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
-    clearColValArray(info->currTableDataCtx->pValues);
+    clearColValArraySml(info->currTableDataCtx->pValues);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
@@ -1214,7 +1216,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
-    clearColValArray(info->currTableDataCtx->pValues);
+    clearColValArraySml(info->currTableDataCtx->pValues);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;

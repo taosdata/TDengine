@@ -33,7 +33,7 @@ static void dumpQueryPlan(SQueryPlan* pPlan) {
   }
   char* pStr = NULL;
   nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
-  planDebugL("QID:0x%" PRIx64 " Query Plan: %s", pPlan->queryId, pStr);
+  planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
   taosMemoryFree(pStr);
 }
 

@@ -326,6 +326,38 @@ static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
   return code;
 }
 
+static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, int32_t bytes){
+  if(pToken->type != TK_NK_STRING){
+    return TSDB_CODE_PAR_INVALID_VARBINARY;
+  }
+
+  if(isHex(pToken->z, pToken->n)){
+    if(!isValidateHex(pToken->z, pToken->n)){
+      return TSDB_CODE_PAR_INVALID_VARBINARY;
+    }
+
+    void* data = NULL;
+    uint32_t size = 0;
+    if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (size + VARSTR_HEADER_SIZE > bytes) {
+      taosMemoryFree(data);
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+    *pData = data;
+    *nData = size;
+  }else{
+    if (pToken->n + VARSTR_HEADER_SIZE > bytes) {
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+    *pData = taosStrdup(pToken->z);
+    *nData = pToken->n;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
                              SMsgBuf* pMsgBuf) {
   int64_t  iv;
@@ -477,7 +509,13 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       val->nData = pToken->n;
       break;
     }
-
+    case TSDB_DATA_TYPE_VARBINARY: {
+      code = parseVarbinary(pToken, &val->pData, &val->nData, pSchema->bytes);
+      if(code != TSDB_CODE_SUCCESS){
+        return generateSyntaxErrMsg(pMsgBuf, code, pSchema->name);
+      }
+      break;
+    }
     case TSDB_DATA_TYPE_GEOMETRY: {
       unsigned char* output = NULL;
       size_t         size = 0;
@@ -659,6 +697,7 @@ static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
       *(double*)&pValue->typeData = pValue->datum.d;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
       pValue->datum.p = taosMemoryCalloc(1, pVal->nData + VARSTR_HEADER_SIZE);
       if (NULL == pValue->datum.p) {
@@ -688,7 +727,6 @@ static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
       *(uint64_t*)&pValue->typeData = pValue->datum.i;
       break;
     case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -1362,6 +1400,13 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
+      break;
+    }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      int32_t code = parseVarbinary(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
+      if(code != TSDB_CODE_SUCCESS){
+        return generateSyntaxErrMsg(&pCxt->msg, code, pSchema->name);
+      }
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {

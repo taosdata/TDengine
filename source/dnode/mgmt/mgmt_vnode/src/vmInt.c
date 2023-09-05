@@ -208,7 +208,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
-    vnodeDestroy(path, pMgmt->pTfs);
+    vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs);
   }
 
   taosMemoryFree(pVnode->path);
@@ -267,6 +267,7 @@ static void *vmOpenVnodeInThread(void *param) {
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
 
     SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
       pThread->failed++;
@@ -460,7 +461,6 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
-  tfsClose(pMgmt->pTfs);
   taosThreadRwlockDestroy(&pMgmt->lock);
   taosMemoryFree(pMgmt);
 }
@@ -535,20 +535,9 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);
 
-  SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
-  dCfg.level = 0;
-  dCfg.primary = 1;
-  SDiskCfg *pDisks = tsDiskCfg;
-  int32_t   numOfDisks = tsDiskCfgNum;
-  if (numOfDisks <= 0 || pDisks == NULL) {
-    pDisks = &dCfg;
-    numOfDisks = 1;
-  }
-
-  pMgmt->pTfs = tfsOpen(pDisks, numOfDisks);
+  pMgmt->pTfs = pInput->pTfs;
   if (pMgmt->pTfs == NULL) {
-    dError("failed to init tfs since %s", terrstr());
+    dError("tfs is null.");
     goto _OVER;
   }
   tmsgReportStartup("vnode-tfs", "initialized");

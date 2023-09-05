@@ -201,7 +201,6 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 对于已经存在的超级表，检查列的schema信息
 1. 检查列的schema信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
 2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与subquery的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
-3. 至少自定义一个tag，否则报错。详见 自定义TAG
 
 ## 自定义TAG
 
@@ -248,4 +247,13 @@ T = 最新事件时间 - DELETE_MARK
 - [tail](../function/#tail)
 - [unique](../function/#unique)
 - [mode](../function/#mode)
+
+## 暂停、恢复流计算
+1.流计算暂停计算任务
+PAUSE STREAM [IF EXISTS] stream_name;
+没有指定IF EXISTS，如果该stream不存在，则报错；如果存在，则暂停流计算。指定了IF EXISTS，如果该stream不存在，则返回成功；如果存在，则暂停流计算
+
+2.流计算恢复计算任务
+RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
+没有指定IF EXISTS，如果该stream不存在，则报错，如果存在，则恢复流计算；指定了IF EXISTS，如果stream不存在，则返回成功；如果存在，则恢复流计算。如果指定IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
 
