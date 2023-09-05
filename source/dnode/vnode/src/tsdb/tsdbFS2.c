@@ -983,6 +983,81 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
+int32_t tsdbTSnapRangeCmprFn(STSnapRange *fsr1, STSnapRange *fsr2) {
+  if (fsr1->fid < fsr2->fid) return -1;
+  if (fsr1->fid > fsr2->fid) return 1;
+  if (fsr1->sver < fsr2->sver) return -1;
+  if (fsr1->sver > fsr2->sver) return 1;
+  if (fsr1->ever < fsr2->ever) return -1;
+  if (fsr1->ever < fsr2->ever) return 1;
+  return 0;
+}
+
+int32_t tsdbTFileInsertSnapRange(STFile *f, TSnapRangeArray *snapR) {
+  STSnapRange *fsr = taosMemoryCalloc(1, sizeof(*fsr));
+  if (fsr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  fsr->fid = f->fid;
+  fsr->sver = f->minVer;
+  fsr->ever = f->maxVer;
+
+  int32_t code = TARRAY2_SORT_INSERT(snapR, fsr, tsdbTSnapRangeCmprFn);
+  if (code) {
+    taosMemoryFree(fsr);
+    fsr = NULL;
+  }
+  return code;
+}
+
+int32_t tsdbTFSetInsertSnapRange(STFileSet *fset, TSnapRangeArray *snapR) {
+  STFile tf = {.fid = fset->fid, .minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset->farr[ftype] == NULL) continue;
+    STFile *f = fset->farr[ftype]->f;
+    tsdbTFileUpdVerRange(&tf, (SVersionRange){.minVer = f->minVer, .maxVer = f->maxVer});
+  }
+
+  int32_t code = tsdbTFileInsertSnapRange(&tf, snapR);
+  if (code) return code;
+
+  const SSttLvl *lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    STFileObj *fobj;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      code = tsdbTFileInsertSnapRange(fobj->f, snapR);
+      if (code) return code;
+    }
+  }
+  return code;
+}
+
+TSnapRangeArray *tsdbFSToSnapRangeArray(STFileSystem *fs) {
+  int32_t          code = 0;
+  TSnapRangeArray *snapR = taosMemoryCalloc(1, sizeof(*snapR));
+  if (snapR == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  TARRAY2_INIT(snapR);
+
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  STFileSet *fset;
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    code = tsdbTFSetInsertSnapRange(fset, snapR);
+    if (code) break;
+  }
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+
+  if (code) {
+    TARRAY2_DESTROY(snapR, tsdbTSnapRangeClear);
+    taosMemoryFree(snapR);
+    snapR = NULL;
+  }
+  return snapR;
+}
+
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pExclude,
                                       TSnapRangeArray **fsrArr) {
   int32_t      code = 0;
