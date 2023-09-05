@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, collections::BTreeMap};
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -530,7 +530,7 @@ pub(super) async fn get_task_metrics_by_id(
                 },
             )
         })
-        .collect::<std::collections::HashMap<_, _>>();
+        .collect::<std::collections::BTreeMap<_, _>>();
     let task_started_timestamp = map.get(METRICS_TIME_START);
     if task_started_timestamp.is_some() {
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
