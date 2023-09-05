@@ -1234,11 +1234,11 @@ static TSnapRangeArray *tsdbSnapDiff(const TSnapRangeArray *snapR, const TSnapRa
 _out:
   TSnapRangeArray **ppArrs[4] = {&X, &Y, &U, &V};
   int               len = sizeof(ppArrs) / sizeof(ppArrs[0]);
-  for (int i = 0; i < len; i++) {
-    if (ppArrs[i][0] == NULL) continue;
-    TARRAY2_DESTROY(ppArrs[i][0], tsdbTSnapRangeClear);
-    taosMemoryFree(ppArrs[i][0]);
-    ppArrs[i][0] = NULL;
+  for (int k = 0; k < len; k++) {
+    if (ppArrs[k][0] == NULL) continue;
+    TARRAY2_DESTROY(ppArrs[k][0], tsdbTSnapRangeClear);
+    taosMemoryFree(ppArrs[k][0]);
+    ppArrs[k][0] = NULL;
   }
   if (code != 0 && Z) {
     TARRAY2_DESTROY(Z, tsdbTSnapRangeClear);
@@ -1310,11 +1310,11 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
 _out:
   TSnapRangeArray **ppArrs[2] = {&snapF, &snapD};
   int               len = sizeof(ppArrs) / sizeof(ppArrs[0]);
-  for (int i = 0; i < len; i++) {
-    if (ppArrs[i][0] == NULL) continue;
-    TARRAY2_DESTROY(ppArrs[i][0], tsdbTSnapRangeClear);
-    taosMemoryFree(ppArrs[i][0]);
-    ppArrs[i][0] = NULL;
+  for (int k = 0; k < len; k++) {
+    if (ppArrs[k][0] == NULL) continue;
+    TARRAY2_DESTROY(ppArrs[k][0], tsdbTSnapRangeClear);
+    taosMemoryFree(ppArrs[k][0]);
+    ppArrs[k][0] = NULL;
   }
   return code;
 }
