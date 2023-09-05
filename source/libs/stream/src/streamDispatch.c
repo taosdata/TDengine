@@ -982,8 +982,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
     }
 
-    streamFreeQitem(pTask->msgInfo.pData);
-    pTask->msgInfo.pData = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
