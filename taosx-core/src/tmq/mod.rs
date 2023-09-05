@@ -83,8 +83,8 @@ impl Topic {
 pub const METRICS_TMQ_TOPICS: &str = "metrics.tmq.topics";
 pub const METRICS_TMQ_WORKERS: &str = "metrics.tmq.workers";
 pub const METRICS_TMQ_MESSAGES: &str = "metrics.tmq.messages";
-pub const METRICS_TMQ_MESSAGES_OF_META: &str = "metrics.tmq.messages_of_meta"; 
-pub const METRICS_TMQ_WRITE_META_FAILS: &str = "metrics.tmq.write_meta_fails"; 
+pub const METRICS_TMQ_MESSAGES_OF_META: &str = "metrics.tmq.messages_of_meta";
+pub const METRICS_TMQ_WRITE_META_FAILS: &str = "metrics.tmq.write_meta_fails";
 pub const METRICS_TMQ_MESSAGES_OF_DATA: &str = "metrics.tmq.messages_of_data";
 pub const METRICS_TMQ_BLOCKS: &str = "metrics.tmq.blocks";
 // pub const METRICS_TMQ_WRITE_RAW_BLOCK_FAILS: &str = "tmq.write_raw_block_fails";

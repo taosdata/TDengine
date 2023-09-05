@@ -14,10 +14,7 @@ use tokio::sync::{Barrier, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::{
-    taoz::ZFile,
-    tmq::*, utils::get_main_version_from_server_version,
-};
+use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
 
 use dashmap::DashMap;
 use taos::taos_query::tmq::Assignment;
@@ -117,7 +114,10 @@ impl ZFileMan {
             metrics
                 .records
                 .fetch_add(block.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-            counter!(METRICS_TMQ_POINTS, block.nrows() as u64 * block.ncols() as u64);
+            counter!(
+                METRICS_TMQ_POINTS,
+                block.nrows() as u64 * block.ncols() as u64
+            );
             metrics.points.fetch_add(
                 block.nrows() as u64 * block.ncols() as u64,
                 std::sync::atomic::Ordering::SeqCst,
@@ -445,9 +445,21 @@ pub async fn tmq_to_local(
             let metrics = metrics.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
-            let handle = tokio::spawn(backup(
-                sender, consumer, man, task_id, barrier, cancel, metrics, stop_at, offsets, version.clone(),
-            ).in_current_span());
+            let handle = tokio::spawn(
+                backup(
+                    sender,
+                    consumer,
+                    man,
+                    task_id,
+                    barrier,
+                    cancel,
+                    metrics,
+                    stop_at,
+                    offsets,
+                    version.clone(),
+                )
+                .in_current_span(),
+            );
             handles.push(handle);
             task_id += 1;
         }

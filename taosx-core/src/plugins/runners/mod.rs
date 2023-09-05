@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
 
 pub mod influxdb;
-pub mod opentsdb;
+pub mod kafka;
 pub mod mqtt;
 pub mod opc;
+pub mod opentsdb;
 pub mod pi;
-pub mod kafka;
 
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_PLUGINS_HOME_DEFAULT: &'static str = {

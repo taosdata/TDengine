@@ -6,7 +6,10 @@ use itertools::Itertools;
 use kafka::client::RequiredAcks;
 use kafka::producer::{Producer, Record};
 use serde_json::{Map, Value};
-use taos::{AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Consumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
+use taos::{
+    AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Consumer, Dsn, IsAsyncData, TaosBuilder,
+    TmqBuilder,
+};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
@@ -23,20 +26,18 @@ pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Resu
 pub async fn clean_task(from: Dsn) -> Result<()> {
     log::warn!("clean task {}", &from.to_string());
     let mut dsn = from.clone();
-    let db = dsn
-        .subject
-        .ok_or(anyhow!("db in dsn is null"))?;
-    let table = dsn
-        .params
-        .remove("table")
-        .ok_or(anyhow!("table is null"))?;
+    let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
+    let table = dsn.params.remove("table").ok_or(anyhow!("table is null"))?;
     let topic_suffix = dsn
         .params
         .remove("topic_suffix")
         .ok_or(anyhow!("topic suffix is null"))?;
 
     let conn = TaosBuilder::from_dsn(from)?.build().await?;
-    let sql = format!("drop topic if exists {}", tmq_topic_name(&db, &table, &topic_suffix));
+    let sql = format!(
+        "drop topic if exists {}",
+        tmq_topic_name(&db, &table, &topic_suffix)
+    );
     conn.exec(sql).await?;
     Ok(())
 }
@@ -161,9 +162,7 @@ impl TMQSource {
             let sender = self.sender.clone();
             let consumer = TmqBuilder::from_dsn(dsn)?.build().await?;
 
-            let future = tokio::spawn(
-                TMQSource::consume(consumer, topic, sender)
-            );
+            let future = tokio::spawn(TMQSource::consume(consumer, topic, sender));
             futures.push(future);
         }
 
@@ -216,10 +215,14 @@ impl KafkaProducer {
             .remove("batch_size")
             .unwrap_or("1".to_string())
             .parse()?;
-        let ack_timeout: u64 = parse_duration::parse(dsn
-            .params
-            .remove("ack_timeout")
-            .unwrap_or("1".to_string()).as_str()).context("ack timeout config error, should be a valid duartion config")?.as_secs();
+        let ack_timeout: u64 = parse_duration::parse(
+            dsn.params
+                .remove("ack_timeout")
+                .unwrap_or("1".to_string())
+                .as_str(),
+        )
+        .context("ack timeout config error, should be a valid duartion config")?
+        .as_secs();
 
         Ok(KafkaProducer {
             topic,
@@ -246,9 +249,9 @@ impl KafkaProducer {
             .with_context(|| format!("Create kafka producer error from {server}"))?;
         tracing::info!("Start kafka producer");
 
-        let handler = tokio::spawn(
-            KafkaProducer::deal_message(receiver, producer, topic, batch_size, cancel)
-        );
+        let handler = tokio::spawn(KafkaProducer::deal_message(
+            receiver, producer, topic, batch_size, cancel,
+        ));
         Ok(handler)
     }
 
@@ -282,25 +285,32 @@ impl KafkaProducer {
                         break 'outer;
                     }
                 }
-            };
+            }
 
             if messages.len() > 0 {
                 KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
             }
             Result::<(), anyhow::Error>::Ok(())
-        }).await??;
+        })
+        .await??;
 
         tracing::info!("Kafka producer stopped");
         Ok(())
     }
 
-    async fn send_messages(producer: &mut Producer, messages: &Vec<String>, topic: &String) -> Result<()> {
+    async fn send_messages(
+        producer: &mut Producer,
+        messages: &Vec<String>,
+        topic: &String,
+    ) -> Result<()> {
         let records: Vec<Record<_, _>> = messages
             .into_iter()
             .map(|r| Record::from_value(topic.as_str(), r.as_bytes()))
             .collect::<Vec<Record<_, _>>>();
 
-        producer.send_all(&records).context("Kafka send message error")?;
+        producer
+            .send_all(&records)
+            .context("Kafka send message error")?;
         Ok(())
     }
 }
@@ -337,7 +347,8 @@ impl KafkaSinker {
             }
             sink_future.await??;
             Result::<(), anyhow::Error>::Ok(())
-        }).await??;
+        })
+        .await??;
 
         Ok(())
     }

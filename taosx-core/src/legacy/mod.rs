@@ -97,7 +97,6 @@ pub const METRICS_LEGACY_BLOCKS: &str = "metrics.legacy.blocks";
 pub const METRICS_LEGACY_RECORDS: &str = "metrics.legacy.records";
 pub const METRICS_LEGACY_POINTS: &str = "metrics.legacy.points";
 
-
 #[derive(Debug)]
 pub struct LegacyMetrics {
     pub workers: AtomicU16,
@@ -568,7 +567,10 @@ async fn sync_single_table_partial(
             metrics
                 .records
                 .fetch_add(block.nrows() as _, Ordering::AcqRel);
-            counter!(METRICS_LEGACY_POINTS, block.nrows() as u64 * block.ncols() as u64);
+            counter!(
+                METRICS_LEGACY_POINTS,
+                block.nrows() as u64 * block.ncols() as u64
+            );
             metrics
                 .points
                 .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
@@ -588,7 +590,8 @@ async fn sync_single_table_partial(
         while let Some(block) = blocks.try_next().await? {
             // dbg!(res.summary());
             if !prepare {
-                stmt.prepare(&sql).await
+                stmt.prepare(&sql)
+                    .await
                     .with_context(|| format!("[{new_table_name}] prepare statement error"))?;
                 prepare = true;
             }
@@ -607,7 +610,8 @@ async fn sync_single_table_partial(
                             range.start,
                             range.end,
                         );
-                        stmt.bind(&params).await
+                        stmt.bind(&params)
+                            .await
                             .context(format!("[{new_table_name}] bind by chunk {batch_size}"))?;
                         stmt.add_batch().await.context(format!(
                             "[{new_table_name}] add batch by chunk {batch_size}"
@@ -631,9 +635,11 @@ async fn sync_single_table_partial(
                     continue;
                 }
             }
-            stmt.bind(views).await
+            stmt.bind(views)
+                .await
                 .with_context(|| format!("[{table}] bind error"))?;
-            stmt.add_batch().await
+            stmt.add_batch()
+                .await
                 .with_context(|| format!("[{table}] add batch"))?;
 
             let res = stmt.execute().await;
@@ -652,7 +658,8 @@ async fn sync_single_table_partial(
                             stmt.prepare(&sql).await.context("re-prepare statement")?;
                         } else {
                             stmt = Stmt::init(to).await.context("re-initialize stmt")?;
-                            stmt.prepare(&sql).await
+                            stmt.prepare(&sql)
+                                .await
                                 .with_context(|| format!("[{table}] re-prepare statement error"))?;
                         }
                         let mut batch_size = block.nrows() / chunks;
@@ -666,9 +673,11 @@ async fn sync_single_table_partial(
                                 .iter()
                                 .map(|view| view.slice(range.clone()).unwrap())
                                 .collect();
-                            stmt.bind(&params).await
+                            stmt.bind(&params)
+                                .await
                                 .context(format!("[{table}] bind by batch limit {batch_size}"))?;
-                            stmt.add_batch().await
+                            stmt.add_batch()
+                                .await
                                 .context(format!("[{table}] add batch with limit {batch_size}"))?;
                             // stmt.execute().context(format!(
                             //     "[{table}] execute with batch limit {batch_size}"
@@ -704,7 +713,8 @@ async fn sync_single_table_partial(
                     }
                 } else if err_str.contains("0x0x0020") {
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    stmt.execute().await
+                    stmt.execute()
+                        .await
                         .with_context(|| format!("[table: {table}] insert error: {err}"))?;
                 } else {
                     Err(err)

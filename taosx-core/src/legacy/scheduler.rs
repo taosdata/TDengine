@@ -17,7 +17,9 @@ use tokio::{
 };
 use tracing::{instrument, Instrument};
 
-use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange, Action, METRICS_LEGACY_CREATED_TABLES};
+use crate::{
+    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+};
 
 use super::{sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs};
 
@@ -115,7 +117,9 @@ async fn worker(
                                     break;
                                 }
                                 Err(err) => {
-                                    tracing::error!("sync_super_table_schema_with_subs {stable} err: {err:#}");
+                                    tracing::error!(
+                                        "sync_super_table_schema_with_subs {stable} err: {err:#}"
+                                    );
                                     let table_count = tables.len();
                                     let err_string = err.to_string();
                                     if (err_string.contains("0xE00")
@@ -134,7 +138,7 @@ async fn worker(
                                     log::error!(
                                         "[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:#}, continue next"
                                     );
-                                    
+
                                     if let Some(path) = opts.fails_to.as_ref() {
                                         path.lock().unwrap().write_fmt(format_args!(
                                             "meta\t{}:{}\t{}\n",
@@ -156,7 +160,9 @@ async fn worker(
                         //normal
                         let mut errors = String::new();
                         for table in &tables {
-                            if let Err(err) = sync_normal_table_schema(&from, &table, &actions, &to).await {
+                            if let Err(err) =
+                                sync_normal_table_schema(&from, &table, &actions, &to).await
+                            {
                                 log::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
                                     path.lock().unwrap().write_fmt(format_args!(
@@ -267,18 +273,21 @@ impl Scheduler {
         let (sender, receiver) = flume::bounded((workers * 2) as usize);
         let handles = (0..workers)
             .map(|i| {
-                tokio::spawn(worker(
-                    i,
-                    source.clone(),
-                    target.clone(),
-                    receiver.clone(),
-                    query.clone(),
-                    opts.clone(),
-                    metrics.clone(),
-                    actions.clone(),
-                    source_is_v3,
-                    target_is_v3,
-                ).in_current_span())
+                tokio::spawn(
+                    worker(
+                        i,
+                        source.clone(),
+                        target.clone(),
+                        receiver.clone(),
+                        query.clone(),
+                        opts.clone(),
+                        metrics.clone(),
+                        actions.clone(),
+                        source_is_v3,
+                        target_is_v3,
+                    )
+                    .in_current_span(),
+                )
             })
             .collect_vec();
 

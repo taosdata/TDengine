@@ -1516,10 +1516,7 @@ async fn test_with_agent() -> anyhow::Result<()> {
     ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
     let mut target = "taos:///opcua";
-    let span = tracing::info_span!(
-        "task::spawned",
-        trace_id = tracing::field::Empty
-    );
+    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
     opc_to_taos(
         opc.parse().unwrap(),
         vec![],

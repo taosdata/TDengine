@@ -20,7 +20,12 @@ async fn main() -> Result<()> {
         .with_stable(
             "meters---",
             vec![
-                IpcField::new("ts", false, timestamp_type, IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
+                IpcField::new(
+                    "ts",
+                    false,
+                    timestamp_type,
+                    IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond),
+                ),
                 IpcField::new("c1", false, ArrowDataType::Int32, IpcDataType::Int32),
                 IpcField::new("c2", false, ArrowDataType::Float64, IpcDataType::Float64),
                 IpcField::new(

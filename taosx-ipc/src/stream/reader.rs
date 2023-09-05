@@ -1,4 +1,11 @@
-use std::{any::Any, collections::HashMap, io::Read, ops::Deref, str::FromStr, sync::Arc};
+use std::{
+    any::Any,
+    collections::HashMap,
+    io::{BufReader, Read},
+    ops::Deref,
+    str::FromStr,
+    sync::Arc,
+};
 
 use arrow::{
     array::{
@@ -428,7 +435,7 @@ impl IpcParser {
 
 pub struct IpcReader<R: Read> {
     pub parser: IpcParser,
-    pub reader: StreamReader<R>,
+    pub reader: StreamReader<BufReader<R>>,
 }
 
 impl<R: Read> Deref for IpcReader<R> {
@@ -470,7 +477,6 @@ pub struct LushInsertAttrs {
 }
 
 impl LushInsertAttrs {
-
     pub fn stable_name(&self) -> &Option<String> {
         &self.using
     }

@@ -6,9 +6,9 @@ chrono = { version = "0.4.26" }
 chrono-tz = { version = "0.8.3" }
 
 regex = { version = "1.9" }
-arrow = { version = "38.0.0", features = ["chrono-tz"] }
-arrow-flight = { version = "38.0.0" }
-parquet = "38.0.0"
+arrow = { version = "46.0.0", features = ["chrono-tz"] }
+arrow-flight = { version = "46.0.0" }
+parquet = "46.0.0"
 
 tonic = "0.9"
 
