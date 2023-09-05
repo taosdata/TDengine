@@ -3,8 +3,8 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -13,12 +13,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
 use crate::{
-    build_ipc, get_log_keep_days,
-    utils::{mask_dsn, port_pool::PortPool},
-    Action, DataSet, Transferred,
+    Action, build_ipc,
+    DataSet,
+    get_log_keep_days, Transferred, utils::{mask_dsn, port_pool::PortPool}, ValidatedSource,
 };
 
 use super::get_plugin_dir;
+use std::error::Error;
 
 const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
@@ -520,5 +521,41 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
             }
         }
+    }
+}
+
+pub async fn influxdb_validate(mut dsn: Dsn) -> anyhow::Result<ValidatedSource> {
+    let host = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.host.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let port = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.port.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let protocol = dsn.protocol.as_deref().unwrap_or("http");
+    let influx_url = format!("{}://{}:{}/", protocol, host, port);
+    // http 客户端
+    let client = reqwest::Client::new();
+    // 发送请求，获取结果
+    let mut result = client.get(influx_url).send().await;
+    // 请求成功
+    if result.is_ok() {
+        let response = result.unwrap();
+        let mut headers = response.headers();
+        // 组装结果
+        Ok(ValidatedSource {
+            available: true,
+            version: Some(format!("{} - {}", headers.get("x-influxdb-build").unwrap().to_str().unwrap().to_string(), headers.get("x-influxdb-version").unwrap().to_str().unwrap().to_string())),
+            since: Some(String::from("")),
+        })
+    } else {
+        Ok(ValidatedSource {
+            available: false,
+            version: Some(String::from("")),
+            since: Some(result.err().unwrap().source().unwrap().to_string()),
+        })
     }
 }

@@ -13,10 +13,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
 use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred, ValidatedSource,
 };
 
 use super::get_plugin_dir;
+use std::error::Error;
 
 #[derive(Debug, serde::Serialize)]
 struct OpentsdbConfig {
@@ -418,5 +419,43 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
             }
         }
+    }
+}
+
+pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
+    let host = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.host.clone())
+        .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
+    let port = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.port.clone())
+        .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
+    let protocol = dsn.protocol.as_deref().unwrap_or("http");
+    let opents_url = format!("{}://{}:{}/api/version", protocol, host, port);
+    // http 客户端
+    let client = reqwest::Client::new();
+    // 发送请求，获取结果
+    let mut result = client.get(opents_url).send().await;
+    // 请求成功
+    if result.is_ok() {
+        let response = result.unwrap();
+        let mut text = response.text().await.unwrap();
+        // 转换为json格式
+        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        // 组装结果
+        Ok(ValidatedSource {
+            available: true,
+            version: Some(json.get("version").unwrap().to_string()),
+            since: Some(String::from("")),
+        })
+    } else {
+        Ok(ValidatedSource {
+            available: false,
+            version: Some(String::from("")),
+            since: Some(result.err().unwrap().source().unwrap().to_string()),
+        })
     }
 }
