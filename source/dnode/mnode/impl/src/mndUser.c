@@ -164,6 +164,12 @@ static SIpWhiteList *createDefaultIpWhiteList() {
   }
   return pWhiteList;
 }
+static SIpWhiteList *cloneIpWhiteList(SIpWhiteList *pIpWhiteList) {
+  int32_t       sz = sizeof(SIpWhiteList) + pIpWhiteList->num * sizeof(SIpV4Range);
+  SIpWhiteList *pNew = taosMemoryCalloc(1, sz);
+  memcpy(pNew, pIpWhiteList, sz);
+  return pNew;
+}
 static bool isRangeInIpWhiteList(SIpWhiteList *pList, SIpV4Range *tgt) {
   for (int i = 0; i < pList->num; i++) {
     SIpV4Range *el = &pList->pIpRange[i];
@@ -184,13 +190,12 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.sysInfo = 1;
   userObj.enable = 1;
   userObj.pIpWhiteList = createDefaultIpWhiteList();
-
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
-  if (pRaw == NULL) return -1;
+  if (pRaw == NULL) goto _ERROR;
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
@@ -199,25 +204,29 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
     mError("user:%s, failed to create since %s", userObj.user, terrstr());
-    return -1;
+    goto _ERROR;
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, userObj.user);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    goto _ERROR;
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    goto _ERROR;
   }
 
   mndTransDrop(pTrans);
+  taosMemoryFree(userObj.pIpWhiteList);
   return 0;
+_ERROR:
+  taosMemoryFree(userObj.pIpWhiteList);
+  return -1;
 }
 
 static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
@@ -523,11 +532,12 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     int32_t len = 0;
     SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
 
-    char *buf = buf = taosMemoryMalloc(len);
+    char *buf = taosMemoryMalloc(len);
     if (buf == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, buf, len, _OVER);
 
     pUser->pIpWhiteList = createIpWhiteList(buf, len);
+    taosMemoryFree(buf);
   }
 
   if (pUser->pIpWhiteList == NULL) {
@@ -550,7 +560,6 @@ _OVER:
       taosHashCleanup(pUser->writeTbs);
       taosHashCleanup(pUser->useDbs);
       taosMemoryFree(pUser->pIpWhiteList);
-      // taosMemoryFree(pUser->pWhiteIpList);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -638,6 +647,8 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->writeTbs = mndDupTableHash(pUser->writeTbs);
   pNew->topics = mndDupTopicHash(pUser->topics);
   pNew->useDbs = mndDupUseDbHash(pUser->useDbs);
+  pNew->pIpWhiteList = cloneIpWhiteList(pUser->pIpWhiteList);
+
   taosRUnLockLatch(&pUser->lock);
 
   if (pNew->readDbs == NULL || pNew->writeDbs == NULL || pNew->topics == NULL) {
@@ -653,7 +664,7 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->readTbs);
   taosHashCleanup(pUser->writeTbs);
   taosHashCleanup(pUser->useDbs);
-  // taosMemoryFree(pUser->pWhiteIpList);
+  taosMemoryFree(pUser->pIpWhiteList);
   pUser->readDbs = NULL;
   pUser->writeDbs = NULL;
   pUser->topics = NULL;
