@@ -1242,9 +1242,9 @@ export default {
     sourcetype: 'Source Type',
     sourcename: 'Source Name',
     agentInfo: `
-      1. When using PI or OPC-DA data sources, you need to enable the proxy.
+      1. When using PI or OPC-DA data sources, you need to enable the agent.
       <br /> 
-      2. In other cases, such as when the data source is isolated from the TDengine cluster network, proxies are used to provide cross-network access to the data source.
+      2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
     select: 'Select',
     add: 'Add',

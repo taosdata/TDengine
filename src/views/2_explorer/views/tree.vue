@@ -205,9 +205,8 @@
       @close="closeDialog"
     >
       <div class="tag-list">
-        <!-- <span class="title">Tags</span> -->
         <div class="open-tag" v-if="showtag">
-          <span class="label">{{$t('data.enabletag')}}</span>
+          <span class="label" style="width:150px;margin-bottom:0px;">{{$t('data.enabletag')}}</span>
           <el-switch v-model="switchtag"> </el-switch>
         </div>
         <template v-if="switchtag">
@@ -218,7 +217,7 @@
           ></TagColumn>
         </template>
       </div>
-      <el-form :model="serachForm" ref="searchForm" label-width="90px">
+      <el-form :model="serachForm" ref="searchForm" label-width="120px">
         <!-- <el-form-item label="Tag" prop="tagname" v-if="showtag">
           <div class="tag-column">
              <el-select v-model="tagCondition" placeholder="请选择">
@@ -282,8 +281,8 @@ const conditionMap = {
   STRING: RegularOperator.concat(getGeneralFn(["STRING"])),
   JSON: JsonOperator,
   BOOL: CompareOperator.concat(
-    getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
-  ),
+    getGeneralFn(["NOT BETWEEN", "BETWEEN"])
+  ).concat(["NOT BETWEEN AND", "BETWEEN AND"]),
 };
 const conditionList = CompareOperator.concat(
   getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
@@ -803,7 +802,7 @@ export default {
               return Object.assign(
                 item,
                 {
-                  conditionList: conditionMap["NUMBER"],
+                  conditionList: conditionMap["BOOL"],
                 },
                 {
                   value: "",
@@ -814,7 +813,6 @@ export default {
               );
             })
             .filter((val) => val.note == "TAG");
-
           
           this.showtag = true;
           this.dialogtitle = this.$t("data.searchsub");
@@ -869,7 +867,7 @@ export default {
                   " " +
                   `${item.condition}` +
                   " " +
-                  `${item.value}`;
+                  `'${item.value}'`;
               });
               await this.$store
                 .dispatch(
@@ -1133,6 +1131,8 @@ export default {
 .tag-list {
   .open-tag {
     display: flex;
+    align-items: center;
+    margin-bottom:10px;
   }
   .label {
     color: #4d6992;

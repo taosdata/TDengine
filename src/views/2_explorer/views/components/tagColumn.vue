@@ -1,12 +1,12 @@
 <template>
   <div class="tag-column">
     <span class="label">{{tagColumnData.field}}</span>
-    <el-select :value="tagColumnData.condition" placeholder="" size="small" @change="setCondition">
+    <el-select :value="tagColumnData.condition" placeholder="" size="small" @change="setCondition" style="width:200px;">
       <el-option
         v-for="item in tagColumnData.conditionList"
         :key="item"
         :label="item"
-        :value="item"
+        :value="item"  
       >
       </el-option>
     </el-select>
@@ -36,7 +36,6 @@ export default {
     setCondition(val){
         this.tagColumnData.condition=val
         this.$forceUpdate()
-        console.log(val,'---',this.tagColumnData);
     },
     setTagValue(val){
         this.tagColumnData.value=val
@@ -53,7 +52,7 @@ export default {
     .label{
         text-align: center;
         line-height: 30px;
-        margin-right:-10px;
+        margin-right:0px;
     }
 }
 </style>
