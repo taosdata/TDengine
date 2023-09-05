@@ -1070,6 +1070,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       // pack partial val to local if any space left
       if (nLocal > nHeader + kLen + sizeof(SPgno)) {
         if (ASSERT(pVal != NULL && vLen != 0)) {
+          tdbFree(pBuf);
           return -1;
         }
         memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
