@@ -224,6 +224,35 @@ int32_t tqStopStreamTasks(STQ* pTq) {
   return 0;
 }
 
+int32_t tqStartStreamTasks(STQ* pTq) {
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+
+  tqDebug("vgId:%d start to stop all %d stream task(s)", vgId, numOfTasks);
+
+  if (numOfTasks == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosWLockLatch(&pMeta->lock);
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+
+    int64_t key[2] = {pTaskId->streamId, pTaskId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasks, key, sizeof(key));
+
+    int8_t status = (*pTask)->status.taskStatus;
+    if (status == TASK_STATUS__STOP) {
+      streamSetStatusNormal(*pTask);
+    }
+  }
+
+  taosWUnLockLatch(&pMeta->lock);
+  return 0;
+}
+
 int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
   // seek the stored version and extract data from WAL
   int64_t firstVer = walReaderGetValidFirstVer(pTask->exec.pWalReader);

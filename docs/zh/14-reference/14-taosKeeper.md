@@ -16,7 +16,7 @@ taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的�
 taosKeeper 有两种安装方式：
 taosKeeper 安装方式：
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](../../operation/pkg-install)。
+- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](../../get-started/)。
 
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
