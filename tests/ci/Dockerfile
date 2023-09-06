@@ -1,6 +1,6 @@
 FROM python:3.8
 RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-RUN pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro taos-ws-py
+RUN pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro
 RUN apt-get update
 RUN apt-get install -y psmisc sudo tree libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config build-essential valgrind \
      vim  libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
