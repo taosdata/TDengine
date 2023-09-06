@@ -60,6 +60,7 @@
   import random from './querybuilder/utils/random'
   import formatQuery from './querybuilder/utils/formatQuery'
   import { proprocess_sql } from "../../utils/preProcessSQL";
+  import { parsinginZone } from "@/utils/index";
   import {
   TDengineStringType,
   TDengineNumberType,
@@ -430,7 +431,7 @@ const conditionMap = {
           return
         }
         if (range1 && !range2) {
-          this.sql += ` RANGE('${range1}')`
+          this.sql += ` RANGE('${parsinginZone(range1)}')`
           // 只有rang1， every 可以省略
           if (every_val) {
             this.sql += ` EVERY(${every_val}${every_unit})`
@@ -441,7 +442,7 @@ const conditionMap = {
             return 
           }
           if (every_val) {
-            this.sql += ` RANGE('${range1}','${range2}') EVERY(${every_val}${every_unit})`
+            this.sql += ` RANGE('${parsinginZone(range1)}','${parsinginZone(range2)}') EVERY(${every_val}${every_unit})`
           } else {
             this.$message.error(this.$t('console.enterTip').replace('{value}','EVERY'))
             return 
