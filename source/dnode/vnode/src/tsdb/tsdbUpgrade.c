@@ -487,9 +487,9 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
           code = tsdbUpgradeOpenTombFile(tsdb, fset, &ctx->fd, &ctx->fobj, &ctx->toStt);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-        SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+        SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
         code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                      ctx->bufArr, &range);
+                                      ctx->bufArr, &tombRange);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -500,9 +500,9 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
       code = tsdbUpgradeOpenTombFile(tsdb, fset, &ctx->fd, &ctx->fobj, &ctx->toStt);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+    SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
     code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                  ctx->bufArr, &range);
+                                  ctx->bufArr, &tombRange);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
