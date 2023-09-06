@@ -874,8 +874,13 @@ void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResult
   if (TSDB_CODE_SUCCESS == code) {
     code = cloneCatalogReq(&pNewWrapper->pCatalogReq, pWrapper->pCatalogReq);
   }
-  doAsyncQueryFromAnalyse(pResultMeta, pNewWrapper, code);
-  nodesDestroyNode(pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    doAsyncQueryFromAnalyse(pResultMeta, pNewWrapper, code);
+    nodesDestroyNode(pRoot);
+  } else {
+    handleQueryAnslyseRes(pWrapper, pResultMeta, code);
+    return;
+  }
 }
 
 void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code) {
@@ -1148,8 +1153,7 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -1162,7 +1166,7 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
       removeRequest(pTmp->self);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
