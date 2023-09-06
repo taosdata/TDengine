@@ -546,10 +546,9 @@ pub async fn tmq_to_td(
             let topic = topic.name.clone();
             consumer_handles.push(tokio::spawn(async move {
                 tracing::debug!("Subscribe consumer {id}");
-                consumer
-                    .subscribe([&topic])
-                    .await
-                    .with_context(|| format!("Subscribe consumer [{id}] with topic `{topic}` error"))?;
+                consumer.subscribe([&topic]).await.with_context(|| {
+                    format!("Subscribe consumer [{id}] with topic `{topic}` error")
+                })?;
                 anyhow::Ok(consumer)
             }));
         }

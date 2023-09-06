@@ -51,7 +51,6 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         let mut key = BinaryBuilder::new();
         let mut value = BinaryBuilder::new();
 
-
         for ms in message_sets.iter() {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos();

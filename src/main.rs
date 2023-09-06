@@ -66,6 +66,18 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
 mod run;
 mod serve;
 
+fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
+    match s {
+        "none" => Ok(FmtSpan::NONE),
+        "full" => Ok(FmtSpan::FULL),
+        "new" => Ok(FmtSpan::NEW),
+        "enter" => Ok(FmtSpan::ENTER),
+        "exit" => Ok(FmtSpan::EXIT),
+        "active" => Ok(FmtSpan::ACTIVE),
+        _ => Err(s.to_string()),
+    }
+}
+
 #[derive(Debug, Parser, Clone)]
 pub(crate) struct GlobalOpts {
     /// For verbosity print.
@@ -81,7 +93,7 @@ pub(crate) struct GlobalOpts {
     debug: bool,
 
     /// Log keep days.
-    #[clap(long, global = true)]
+    #[clap(long, global = true, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 
     /// Be careful to use this, we suggest only use it when failed at first time.
@@ -93,6 +105,16 @@ pub(crate) struct GlobalOpts {
     /// Enable OpenTelemetry tracing and metrics exporter.
     #[clap(long, global = true, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL")]
     otel: Option<bool>,
+
+    #[clap(
+        short = 'e',
+        long,
+        global = true,
+        default_value = "none",
+        value_parser = fmt_span_from_str,
+        env = "TRACING_EVENTS"
+    )]
+    tracing_events: FmtSpan,
 }
 
 impl GlobalOpts {
@@ -224,6 +246,7 @@ fn main() -> Result<()> {
         clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
         clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
     };
+    let span_events = args.globals.tracing_events.clone();
     let worker_threads = args.globals.executor_worker_threads();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(4096)
@@ -241,7 +264,7 @@ fn main() -> Result<()> {
                 .with_level(true)
                 .with_thread_ids(true)
                 .with_thread_names(true)
-                .with_span_events(FmtSpan::ACTIVE)
+                .with_span_events(span_events.clone())
                 .with_ansi(false)
                 .with_writer(non_blocking)
                 .with_file(true)
@@ -255,8 +278,8 @@ fn main() -> Result<()> {
             .with_regex(true)
             .from_env_lossy()
             .add_directive("tungstenite=warn".parse()?)
-            .add_directive("actix_server=info".parse()?)
-            .add_directive("actix_http=info".parse()?)
+            // .add_directive("actix_server=info".parse()?)
+            // .add_directive("actix_http=info".parse()?)
             .add_directive("tokio_tungstenite=info".parse()?)
             .add_directive("mio=warn".parse()?);
 
@@ -276,6 +299,7 @@ fn main() -> Result<()> {
                     .with_level(true)
                     .with_thread_ids(true)
                     .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
                     .with_ansi(true)
                     .pretty()
                     .with_filter(filter)
@@ -288,6 +312,7 @@ fn main() -> Result<()> {
                     .with_level(true)
                     .with_thread_ids(true)
                     .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
                     .with_ansi(false)
                     .compact()
                     .with_filter(filter)
