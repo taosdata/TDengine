@@ -47,7 +47,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
     }
 
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
-    return code;
+    if (code) return code;
   }
   return 0;
 }
