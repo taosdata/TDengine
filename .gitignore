@@ -26,3 +26,4 @@ plugins/mqtt/mqtt
 plugins/mqtt/target/
 plugins/opc/target/
 release
+centos7.target
