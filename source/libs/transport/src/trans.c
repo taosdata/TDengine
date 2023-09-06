@@ -183,6 +183,8 @@ int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 
+void rpcSetIpWhite(void* thandl, void* arg) { return ; }
+
 void* rpcAllocHandle() { return (void*)transAllocHandle(); }
 
 int32_t rpcInit() {

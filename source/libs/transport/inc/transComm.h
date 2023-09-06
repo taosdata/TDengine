@@ -29,6 +29,8 @@ extern "C" {
 #include "ttrace.h"
 #include "tutil.h"
 
+typedef bool (*FilteFunc)(void* arg);
+
 typedef void* queue[2];
 /* Private macros. */
 #define QUEUE_NEXT(q) (*(queue**)&((*(q))[0]))

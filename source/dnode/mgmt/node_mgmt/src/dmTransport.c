@@ -63,6 +63,12 @@ static void dmConvertErrCode(tmsg_t msgType) {
     terrno = TSDB_CODE_VND_STOPPED;
   }
 }
+static void dmUpdateRpcIpWhite(SRpcMsg *pRpc) {
+  SUpdateIpWhite ipWhite;
+  tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
+  
+  tFreeSUpdateIpWhiteReq(&ipWhite);
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -96,7 +102,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       if (pEpSet != NULL) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
-      break;
+    case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
+      dmUpdateRpcIpWhite(pRpc);
+    } break;
     default:
       break;
   }

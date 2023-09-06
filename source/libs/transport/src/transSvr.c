@@ -18,7 +18,6 @@ static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static char* notify = "a";
 
-typedef bool (*FilteFunc)(void* arg);
 typedef struct {
   int       notifyCount;  //
   int       init;         // init or not

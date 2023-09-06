@@ -162,6 +162,7 @@ int   rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, 
 int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 void *rpcAllocHandle();
+void  rpcSetIpWhite(void *thandl, void *arg);
 
 #ifdef __cplusplus
 }
