@@ -1,6 +1,6 @@
 <template>
-  <div class="dbCreate">
-    <div class="dbCreate_title">{{ formTitle }}</div>
+  <div class="dbCreate" :style="isExplorerComp?{}:{padding:'0 20px'}">
+    <div :class="['dbCreate_title', isExplorerComp ? '' : 'datain_style color_style']">{{ formTitle }}</div>
     <div class="formWrapper">
       <el-form class="form_style1" label-position="left" label-width="230px" ref="dbForm1" :rules="rules" :model="db_form">
         <el-form-item :label="$t('data.name')" prop="name">
@@ -8,9 +8,9 @@
         </el-form-item>
       </el-form>
       <div class="section2">
-        <div class="sub_title">{{ $t("data.configParams") }}</div>
+        <div :class="['sub_title',isExplorerComp ? '' : 'color_style']">{{ $t("data.configParams") }}</div>
         <el-form size="small" class="form_style_2col" label-position="left" label-width="230px" :model="db_form" :rules="rules">
-          <el-collapse v-model="activeNames">
+          <el-collapse v-model="activeNames" :class="isExplorerComp ? '' : 'data-collapse'">
             <el-collapse-item :title="$t('data.performanceRelatedParameters')" name="1">
               <div class="column1">
                 <!-- BUFFER -->
@@ -495,6 +495,9 @@
       formTitle() {
         return this.isEdit ? this.$t("data.editDatabase") : this.$t("data.createDatabase");
       },
+      isExplorerComp() {
+        return this.$store.state.dbs.curComp == 'explorer'
+      },
       rules() {
         return {
           name: [
@@ -545,6 +548,7 @@
                   type: "success",
                   message: this.$t("createSucc"),
                 });
+                this.cancel()
             })
             .catch((err) => {
               this.$message({
@@ -557,7 +561,12 @@
         });
       },
       cancel() {
-        this.$store.commit("console/CANCEL_DETAIL");
+        if (this.isExplorerComp) {
+          this.$store.commit("console/CANCEL_DETAIL");
+        } else {
+          // 关闭数据写入弹框
+          this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', false)
+        }
       },
       checkKeep(_, value, callback) {
         if (!validUnit(value)) {
@@ -585,6 +594,13 @@
   .dbCreate_title {
     font-size: 24px;
     font-weight: 400;
+  }
+
+  .datain_style {
+    text-align: center;
+  }
+  .color_style {
+    color: #4d6992;
   }
 
   .formWrapper {
@@ -623,6 +639,12 @@
     font-size: 16px;
   }
 
+  .data-collapse {
+    ::v-deep .el-collapse-item__header {
+      color: #4d6992;
+    }
+  }
+
   .column2, .column3 {
     margin-left: 50px;
   }
@@ -643,5 +665,6 @@
 
   .confirm_line {
     margin-top: 30px;
+    text-align: right;
   }
 </style>

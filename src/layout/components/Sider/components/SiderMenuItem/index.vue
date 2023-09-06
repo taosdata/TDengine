@@ -13,7 +13,9 @@
         :disabled="!isDisabled(item.path)"
         class="menuItem"
         @click="menuClick(item.title)"
+        style="display:flex;align-items:center"
       >
+      <!-- <span style="color:red;font-size:24px;">{{ item.title }}</span> -->
         <div :aria-data="item.path">
           <span>
             <Icon
@@ -21,6 +23,7 @@
               class="menuItem_icon"
               :class="{ menuItem_icon_unfold: opened }"
             ></Icon>
+            <!-- <img src="https://enncdn.oss-cn-beijing.aliyuncs.com/bg/test.jpg" alt="" style="width:24px;height:24px;"> -->
           </span>
           <span class="menuItem_title" v-if="opened">
             {{ item.title }}

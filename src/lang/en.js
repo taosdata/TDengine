@@ -56,7 +56,7 @@ export default {
   save: "Save",
   error: "Error",
   copy: "Copy",
-  copyagent: "Introduction to Agent Usage",
+  copyagent: "Steps to Install Agent",
   copyagentWaring:"Make sure to copy your agent token now. You won't be able see it again",
   share: "Share",
   shareSucc: "Share success",
@@ -401,6 +401,12 @@ export default {
     viewTable: "View Table Config",
     createnormalTable: 'Create Normal Table',
     createsubTable: 'Create Sub Table',
+    searchsp:'Search Super Table',
+    searchnt:'Search Normal Table',
+    searchsub:'Search Sub Table',
+    searchtbtip:'Please enter the table name',
+    fulltagtip:'Please enter full tag information',
+    enabletag:'Enable TAG query',
     name: "Name",
     keep: "Keep",
     update: "Update",
@@ -482,7 +488,7 @@ export default {
     subTables: "SubTables",
     tableName: "Table Name",
     showData: "Show Data",
-    createTableUse: "Create Table Using {}",
+    createTableUse: "Create Super Table",
     fields: "Fields",
     pageSize: "Page Size",
     selectAll: "Select All",
@@ -578,6 +584,10 @@ export default {
     databaseInfo: "DB Info",
     content: "Content",
     sqlTip: "In SQL statement, table name must be prefixed with database name.\nFor example, select * from testdb.table1;",
+    enterTip: 'Please enter {value} value',
+    sqlWaringTip: "The SQL you input doesn't have any conditions to limit the input and output, this may cause some problems such as too much time cost, too big result set, too big resource consumption. It's strongly recommended to add some conditions to filter by time range, tags, and use 'limit/slimit' to control the number of output groups.",
+    startTime: 'Please enter the start time.',
+    endTime: 'Please enter the end time.'
   },
   sql: {
     analysis: "Analysis",
@@ -762,8 +772,13 @@ export default {
     endTime: 'End time',
     cols: 'Cols',
     tags: 'Tags',
-    kafka: 'Kafka',
-    kafkaTopic: 'Kafka Topic'
+    kafka: 'Kafka Server',
+    kafkaTopic: 'Topic',
+    kafkaAckTimeout: 'Timeout',
+    kafkaBatchSize: 'Batch Size',
+    tsPlaceholder: 'If the start time and end time are specified, the value is mandatory. Default value ts.',
+    topicPlaceholder: 'The Topic must be an existing Topic in Kafka.',
+    timeoutPlaceholder: 'kafka ack_timeout. Default value 1s. The message requires an ack. The ack level is 1.',
   },
   dataout: {
     dump: {
@@ -936,6 +951,7 @@ export default {
     storage: 'Storage',
     streams: 'Streams',
     timeseries: 'Time Series',
+    clusterId: 'Cluster ID',
     version: 'Version',
     license: 'License',
     stables: "STables",
@@ -1128,7 +1144,9 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
-    csvwholeinfo:'Please fill in the complete csv information',
+    restarttask:'Please restart the task',
+    csvconfigtip:'Please configure csv information',
+    csvwholeinfo:'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
     customcolname:'Custom Columns',
     customcol:'Please enter custom columns',
     uploadcsvtip:'Please upload file or enter the file url',
@@ -1151,6 +1169,7 @@ export default {
     μs:'μs',
     ns:'ns',
     getschema:'Get Schema',
+    getmetrics:'Get Metrics',
     refreshsuccess:'Refreshed Scucessfully',
     influxdbtip:'Choose or create a TDengine database with precision of ns',
     taskid:'Task ID',
@@ -1167,7 +1186,7 @@ export default {
     value:'Value',
     repeattip:'Cannot enter ts, topic, and qos as new fields ',
     primarytip:'Primary keys only support columns of type timestamp',
-    bothtagsuper:'Tags and super table name must both exist or be empty',
+    bothtagsuper:'Tags and super table name must both exist',
     selectfieldtip:'Please check the Field(Source) with value',
     createsubtbtip:'Select Column(Targte) as template',
     ascolumn: 'As Column',
@@ -1177,6 +1196,7 @@ export default {
     coltype: 'Column Type(Target)',
     primarykey:'Primary Key',
     name: 'Child Table Naming Rule',
+    normalname:'Normal Table Naming Rule',
     using: 'SuperTable Name',
     targetdb: 'Target Database',
     expired: 'Expired',
@@ -1222,9 +1242,9 @@ export default {
     sourcetype: 'Source Type',
     sourcename: 'Source Name',
     agentInfo: `
-      1. When using PI or OPC-DA data sources, you need to enable the proxy.
+      1. When using PI or OPC-DA data sources, you need to enable the agent.
       <br /> 
-      2. In other cases, such as when the data source is isolated from the TDengine cluster network, proxies are used to provide cross-network access to the data source.
+      2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
     select: 'Select',
     add: 'Add',
@@ -1833,23 +1853,23 @@ export default {
     step1:'Install',
     step2:'Configure',
     step3:'Start',
-    step4:'Status',
+    step4:'Check Status',
     step1linux:'Linux',
-    linuxdesc:`Download agent installer package from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
+    linuxdesc:`Download agent installer package from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
     linuxcode:`cd $TMPDIR
     mkdir agent-installer
     cd agent-installer
-    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    wget -c https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
     tar xvf taosx-agent-latest-linux-x64.tar.gz
     cd taosx-agent-*
     ./install.sh
     # remove files
     #cd ../../; rm -rf agent-installer`,
   step1window:'Windows',
-  windowdesc:`Download agent installer from <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
+  windowdesc:`Download agent installer from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
   step2sub1:'Configuration file path:',
   step2sub2linux:`Configuration file path: <code>/etc/taos/agent.toml</code>`, 
-  step2sub2window:`Configuration file path: <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
+  step2sub2window:`Copy the following lines into configuration file at:<code> C:\\Program Files\\taosX\\config\\agent.toml</code>`,
   step2sub3:'The configuration file is in TOML format, like bellow:',
   step2sub4:'Copy the content to configuration file.',
   step3sub1:'Start agent service with:',

@@ -1,8 +1,8 @@
 @font-face {
   font-family: "element-icons"; /* Project id 3857053 */
-  src: url('iconfont.woff2?t=1676276247642') format('woff2'),
-       url('iconfont.woff?t=1676276247642') format('woff'),
-       url('iconfont.ttf?t=1676276247642') format('truetype');
+  src: url('iconfont.woff2?t=1693466963256') format('woff2'),
+       url('iconfont.woff?t=1693466963256') format('woff'),
+       url('iconfont.ttf?t=1693466963256') format('truetype');
 }
 
 .element-icons {
@@ -11,6 +11,42 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.el-icon-data-metric:before {
+  content: "\e63a";
+}
+
+.el-icon-chaxun:before {
+  content: "\e66b";
+}
+
+.el-icon-query:before {
+  content: "\e601";
+}
+
+.el-icon-search-tables:before {
+  content: "\e6d6";
+}
+
+.el-icon-profile:before {
+  content: "\e63f";
+}
+
+.el-icon-profile-copy:before {
+  content: "\ed50";
+}
+
+.el-icon-files1:before {
+  content: "\ed4f";
+}
+
+.el-icon-files-:before {
+  content: "\e609";
+}
+
+.el-icon-files:before {
+  content: "\e60a";
 }
 
 .el-icon-file-table:before {

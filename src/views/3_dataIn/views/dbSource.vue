@@ -48,6 +48,7 @@ export default {
       editId: 0,
       dbName: "",
       isEditable: false,
+      isCopyable: false,
       agentID: "",
       mqttParser: null,
       staticParser: null,
@@ -67,8 +68,8 @@ export default {
       let opcconfigData = this.uidata[0].groups.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
       )[0].params[0];
-      if(!opcconfigData.value){
-        opcconfigData.value=JSON.stringify(constOpc)
+      if (!opcconfigData.value) {
+        opcconfigData.value = JSON.stringify(constOpc);
       }
       this.echoData = deepClone(
         JSON.parse(opcconfigData.value).column_configs.map(
@@ -109,13 +110,13 @@ export default {
         }
       }
     },
-    toggleComponent(type, id, editid, dbname) {
+    toggleComponent(type, id, editid, dbname, iscopy) {
       // this.currentName = name;
       if (type) {
         //新增
 
         let data = this.sourceList.filter((item) => item.id === type);
-        if (type == "mqtt" || type == 'kafka') {
+        if (type == "mqtt" || type == "kafka") {
           this.uidata = this.deepClone(data);
           this.parserobj = deepClone(this.staticParser);
           this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
@@ -150,6 +151,10 @@ export default {
             this.currentName = "ui";
             this.tagName = "influxdb";
             break;
+          case "opentsdb":
+            this.currentName = "ui";
+            this.tagName = "opentsdb";
+            break;
           case "pitable":
             this.currentName = "dbsource";
             this.tagName = "pi";
@@ -173,7 +178,7 @@ export default {
           case "csv":
             this.currentName = "opcui";
             this.tagName = "csv";
-            break
+            break;
           case "taos":
             this.currentName = "ui";
             this.tagName = "taos";
@@ -194,7 +199,7 @@ export default {
             this.tagName = "opc";
             this.protocol = "ua";
             // if (this.$store.state.app.opcnodesfiles.length == 0) {
-              this.echoOpcData();
+            this.echoOpcData();
             // }
 
             break;
@@ -211,6 +216,10 @@ export default {
           case "influxdb":
             this.currentName = "ui";
             this.tagName = "influxdb";
+            break;
+          case "opentsdb":
+            this.currentName = "ui";
+            this.tagName = "opentsdb";
             break;
           case "mqtt":
             this.currentName = "opcui";
@@ -246,19 +255,24 @@ export default {
               (item) => {
                 if (item.name == "value") {
                   item["value"] = "json";
-                  item["name"] = "payload"
+                  item["name"] = "payload";
                 }
                 return item;
               }
             );
 
-          break;
+            break;
+        }
+        if (iscopy) {
+          this.isCopyable = true;
+        } else {
+          this.isCopyable = false;
+          this.editId = editid;
         }
         this.isEditable = true;
-        this.editId = editid;
         this.dbName = dbname;
         this.getData();
-        if (id === "tmq" || id === 'taos') {
+        if (id === "tmq" || id === "taos") {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {

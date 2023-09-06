@@ -13,6 +13,8 @@ const state = {
   dialogFormVisible: false,
   db_form: {},
   formStatus: "create",
+  curComp: 'explorer',
+  dialogDbVisible: false
 };
 // 修改数据库前的值
 let dbConfigTemp = {};
@@ -53,6 +55,12 @@ const mutations = {
   SET_SELECTED_DB: (state, selected_db) => {
     state.selected_db = selected_db;
   },
+  SET_ADD_DB_COMP: (state, curComp) => {
+    state.curComp = curComp
+  },
+  SET_DIALOG_DB_VISABLE: (stat, dialogDbVisible) => {
+    state.dialogDbVisible = dialogDbVisible
+  }
 };
 
 const actions = {

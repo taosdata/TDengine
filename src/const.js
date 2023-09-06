@@ -1355,3 +1355,5 @@ export const GeneralOperator = [
 ];
 export const RegularOperator = ["MATCH", "NMATCH", "LIKE", "NOT LIKE"] 
 
+export const TDengineFill = ['NONE','VALUE','PREV','NULL','LINEAR','NEXT','NULL_F','VALUE_F']
+

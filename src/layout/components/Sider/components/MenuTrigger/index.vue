@@ -20,7 +20,6 @@ export default {
   computed: mapState("sidebar", ["opened"]),
   methods: {
     triggerClick() {
-      console.log('点击');
       this.$store.commit("sidebar/TOGGLE_SIDEBAR");
     }
   }

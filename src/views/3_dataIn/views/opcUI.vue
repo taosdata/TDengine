@@ -3,7 +3,7 @@
     <div
       :class="[
         'left-ui',
-        this.$parent.currentTaskStatus == 'running' ? 'readable' : '',
+        (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
       ]"
     >
       <section class="header">
@@ -208,7 +208,6 @@
                         <el-upload
                           class="upload-demo"
                           ref="upload"
-                          accept=".csv"
                           :limit="limit"
                           :data="uploadData"
                           :action="uploadUrl"
@@ -442,7 +441,6 @@
                       <el-upload
                         class="upload-demo"
                         ref="upload"
-                        accept=".csv"
                         :limit="limit"
                         :data="uploadData"
                         :action="uploadUrl"
@@ -655,7 +653,10 @@
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
-      <section v-if="tagName == 'mqtt' || tagName == 'kafka'" class="mqtt-config">
+      <section
+        v-if="tagName == 'mqtt' || tagName == 'kafka'"
+        class="mqtt-config"
+      >
         <div class="header">
           <div class="block-title">
             <span>{{ dbsource[0].parser?.display }}</span>
@@ -681,11 +682,12 @@
           :echoData="echoData"
           ref="csvdata"
           :dbName="dbName"
+          @handleDbBtn="handleDbBtn"
         ></CsvData>
       </section>
-      <section class="choose-db" v-else>
+      <section class="choose-db">
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
-        <el-select v-model="dbname" placeholder="">
+        <el-select v-model="dbname" placeholder="" style="margin-right: 8px;">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -693,6 +695,9 @@
             :value="db.name"
           ></el-option>
         </el-select>
+        <el-button size="medium" type="primary" plain  @click="handleDbBtn">
+          {{ $t('data.createDatabase') }}
+        </el-button>
       </section>
       <section class="bottom">
         <el-button @click="cancel" class="cancel-btn">{{
@@ -711,6 +716,7 @@
         :subfield="false"
       />
     </div>
+    <DialogCreateDb></DialogCreateDb>
   </div>
 </template>
 <script>
@@ -725,6 +731,7 @@ import { validPath } from "@/utils/validate";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
+import DialogCreateDb from '../components/addDbDialog.vue';
 export default {
   name: "DbSourceUI",
   components: {
@@ -732,6 +739,7 @@ export default {
     MqttConnector,
     opcConnector,
     CsvData,
+    DialogCreateDb
   },
   props: {
     echoData: {
@@ -772,6 +780,7 @@ export default {
         return [];
       },
     },
+    
     isEditable: {
       type: Boolean,
       default: false,
@@ -827,7 +836,7 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
-      dbprecision: '',
+      dbprecision: "",
       isShowConfiguration: false,
       loading: false,
       configurationdata: [],
@@ -869,7 +878,7 @@ export default {
     }
   },
   mounted() {
-    if (this.tagName == "mqtt" || this.tagName == 'kafka') {
+    if (this.tagName == "mqtt" || this.tagName == "kafka") {
       this.constmqttCols = this.dbsource[0].parser.fields;
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
@@ -954,7 +963,7 @@ export default {
         this.opcPointavalible = true;
       }
     }
-    
+
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
@@ -970,8 +979,15 @@ export default {
     },
     dbname: {
       handler() {
-        if ( this.tagName == "kafka") {
-          this.getdbprecision()
+        if (this.tagName == "kafka") {
+          this.getdbprecision();
+        }
+      }
+    },
+    "$store.state.dbs.dialogDbVisible": {
+      handler(val) {
+        if (!val) {
+          this.getDatabases()
         }
       }
     }
@@ -1074,9 +1090,11 @@ export default {
     },
 
     async getdbprecision() {
-      let res = await sendSQLReq(`select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`)
+      let res = await sendSQLReq(
+        `select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`
+      );
       if (res && res.code == 0) {
-        this.dbprecision = res.data[0][0]
+        this.dbprecision = res.data[0][0];
       }
     },
 
@@ -1191,7 +1209,10 @@ export default {
                     return;
                   }
                 }
-                if (data.groups[index].params[g].name == "topics" && this.tagName == 'mqtt') {
+                if (
+                  data.groups[index].params[g].name == "topics" &&
+                  this.tagName == "mqtt"
+                ) {
                   Message({
                     type: "warning",
                     message:
@@ -1381,7 +1402,8 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if (this.tagName == "csv") {
-          this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
+          console.log(this.dbname,'当前的数据库0000000');
+          // this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
         }
         if (!this.dbname) {
           Message({
@@ -1390,7 +1412,7 @@ export default {
           });
           return;
         }
-        if (this.tagName == "mqtt" || this.tagName == 'kafka') {
+        if (this.tagName == "mqtt" || this.tagName == "kafka") {
           if (this.$refs.mqtt) {
             this.$refs.mqtt.submit();
             if (this.$refs.mqtt.showSuperTip) {
@@ -1492,57 +1514,95 @@ export default {
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
-        if (this.tagName == 'kafka') {
+        if (this.tagName == "kafka") {
           let value = this.$store.state.app.mqttParser.parse.payload;
           piParams["parser"] = {
             ...this.$store.state.app.mqttParser,
             parse: {
               value: {
                 ...value,
-                keep: false
+                keep: false,
               },
               ts: {
-                as: `timestamp(${this.dbprecision})`
-              } 
-            }
+                as: `timestamp(${this.dbprecision})`,
+              },
+            },
           };
         }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
         }
         if (this.tagName == "csv") {
-          this.$refs.csvdata.$refs.param.submit2()
-          if(!this.$refs.csvdata.$refs.param.isAllValid){
-            return
+          this.$refs.csvdata.$refs.param.submit();
+          this.$refs.csvdata.$refs.param.submit2();
+          if (
+            this.$refs.csvdata.activeName == "first" &&
+            this.$refs.csvdata.fileList.length == 0
+          ) {
+            Message.error(this.$t("datasource.uploadcsvtip"));
+            return;
+          }
+          if (
+            this.$refs.csvdata.activeName == "second" &&
+            !this.$refs.csvdata.fileurl
+          ) {
+            Message.error(this.$t("datasource.uploadcsvtip"));
+            return;
+          }
+          if (!this.$refs.csvdata.$refs.param.isAllValid) {
+            return;
+          }
+          if (!this.$refs.csvdata.$refs.csvconfig) {
+            Message.error(this.$t("datasource.csvconfigtip"));
+            return;
           }
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
-          model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname
+           if(this.$store.state.app.csvtags.length>0&&!model.tags){
+            model['tags']=this.$store.state.app.csvtags
+           }
+          if (model.tags&&model.tags.length > 0) {
+            model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
+            model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
+            piParams["parser"] = this.$store.state.app.csvParser;
+          } else {
+            piParams["parser"] = Object.assign(
+              { parse: parse },
+              {
+                model: {
+                  name: this.$refs.csvdata.$refs.param.ruleForm2.subname,
+                  columns: model.columns,
+                },
+              }
+            );
+          }
 
-          model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
-          piParams["parser"] = this.$store.state.app.csvParser;
-
-          let flag = Object.keys(parse).some((item) => parse[item].as == "");
-          if (
-            model.columns.length == 0 ||
-            model.tags.length==0||
-            model.columns[0] == undefined ||
-            flag
-          ) {
-            Message.error(this.$t('datasource.csvwholeinfo'));
+          if (model.columns.length == 0 || model.columns[0] == undefined) {
+            Message.error(this.$t("datasource.csvwholeinfo"));
+            return;
+          }
+          let flag = (model.tags?[...model.columns, ...model.tags]:[...model.columns]).some(
+            (item) => parse[item].as == ""
+          );
+          if (flag) {
+            Message.error(this.$t("datasource.csvwholeinfo"));
             return;
           }
           piParams["from"] =
-            `csv:` +
+            `csv:` + (this.$refs.csvdata.activeName=='first'?
             this.$refs.csvdata.fileList.map((item, index) => {
               return item.response[0];
-            }) +
+            }):this.$refs.csvdata.fileurl) +
             dns.substring(3) +
             `&has_header=` +
-            this.$refs.csvdata.$refs.param.ruleForm.hasHeader+(!this.$refs.csvdata.$refs.param.ruleForm.hasHeader?`&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`:'');
+            this.$refs.csvdata.$refs.param.ruleForm.hasHeader +
+            (!this.$refs.csvdata.$refs.param.ruleForm.hasHeader
+              ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
+              : "");
+              console.log('csv最新代码');
         }
 
-        if (this.isEditable) {
+        if (this.isEditable&&this.editId) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
@@ -1570,6 +1630,12 @@ export default {
 
     cancel() {
       this.$parent.currentName = "dbsource";
+    },
+
+    handleDbBtn() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
+      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
     },
 
     handleClick(tab, event) {
@@ -1921,6 +1987,15 @@ export default {
         }
       }
     }
+    :deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 38px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  }
   }
   .right-ui {
     margin-left: 20px;
@@ -1937,15 +2012,6 @@ export default {
     color: #acaab2;
     margin-bottom: 0px !important;
     white-space: normal !important;
-  }
-  :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 38px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
   }
 
   .target {

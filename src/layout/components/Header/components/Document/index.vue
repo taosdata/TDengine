@@ -48,9 +48,10 @@ export default {
   name: "Dcoument",
   computed: {
     docsUrl() {
-      return this.$store.state.language == "en"
-        ? "https://docs.tdengine.com/"
-        : "https://docs.tdengine.com/";
+      // return this.$store.state.language == "en"
+      //   ? "https://docs.tdengine.com/"
+      //   : "https://docs.tdengine.com/";
+      return "/docs/"
     },
     discordUrl() {
       return this.$store.state.language == "en"

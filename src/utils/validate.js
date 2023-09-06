@@ -121,9 +121,11 @@ export function validDir(arg) {
 
 //linux文件路径校验
 export function validPath(arg) {
-  if((String.raw`${arg}`).includes('\\')){
+  if((String.raw`${arg}`).includes('\\')){//windows路径
     arg=(String.raw`${arg}`).replace(/\\/g,'\\\\')
+    return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
+  }else{
+    return /^(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
   }
-  console.log(arg,'文件路径',(String.raw`${arg}`).replace(/\\/g,'\\\\'));
-  return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
+  
 }
