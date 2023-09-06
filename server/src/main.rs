@@ -132,6 +132,17 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
+            .service(web::redirect("/docs", "/docs/"))
+            .service(
+                Embed::new("/docs/", &StaticAssets)
+                    .index_file("index.html")
+                    .fallback_handler(|_: &_| {
+                        let embed = StaticAssets::get("docs/index.html").unwrap();
+                        HttpResponse::Ok()
+                            .content_type(ContentType::html())
+                            .body(embed.data)
+                    }),
+            )
             .service(
                 Embed::new("/", &StaticAssets)
                     .index_file("index.html")
@@ -489,11 +500,15 @@ impl Args {
 
         if let Some(active_code) = license.active_code.as_ref() {
             let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-            conn.exec(&sql).await.map_err(|err| RestErrResponse::new(format!("Invalid activeCode: {err:#}")))?;
+            conn.exec(&sql)
+                .await
+                .map_err(|err| RestErrResponse::new(format!("Invalid activeCode: {err:#}")))?;
         }
         if let Some(active_code) = license.c_active_code.as_ref() {
             let sql = format!("alter all dnodes 'cActiveCode' '{active_code}'");
-            conn.exec(&sql).await.map_err(|err| RestErrResponse::new(format!("Invalid cActiveCode: {err:#}")))?;
+            conn.exec(&sql)
+                .await
+                .map_err(|err| RestErrResponse::new(format!("Invalid cActiveCode: {err:#}")))?;
         }
         let renewed = conn
             .query("show dnodes")
