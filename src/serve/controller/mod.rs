@@ -1697,6 +1697,9 @@ impl TaskController {
 
     /// Update agent activities.
     pub async fn push_agent_activity(&self, activity: &Activity) -> anyhow::Result<()> {
+        if activity.status == "pending" {
+            self.agent_tasks.write().await.remove(&activity.id);
+        }
         push_agent_activity(&self.pool, activity).await
     }
 
