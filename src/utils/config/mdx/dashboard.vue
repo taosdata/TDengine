@@ -160,7 +160,7 @@ sudo systemctl enable grafana-server</code>
     <p v-html="$t('docs.dashboard.cont3')"></p>
     <p>
       <img
-        src="./assets/dashboard/keeper.webp"
+        src="./assets/dashboard/keeper1.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>

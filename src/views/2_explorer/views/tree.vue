@@ -60,7 +60,9 @@
                   effect="light"
                   placement="top"
                   :content="getTooltip(data, 'view')"
-                  v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                  v-if="
+                    !['sfile', 'nfile', 'column', 'tag'].includes(data.typeName)
+                  "
                 >
                   <i
                     class="el-icon-view operate-icon"
@@ -68,6 +70,19 @@
                   ></i>
                 </el-tooltip>
                 <template v-if="!data.noOperate">
+                  <el-tooltip
+                    effect="light"
+                    placement="top"
+                    :content="getTooltip(data, 'search')"
+                    v-if="['sfile', 'nfile', 'stable'].includes(data.typeName)"
+                  >
+                    <i
+                      style="margin-right: 10px"
+                      v-permission
+                      class="el-icon-query"
+                      @click.stop="search(data, node)"
+                    ></i>
+                  </el-tooltip>
                   <el-tooltip
                     effect="light"
                     placement="top"
@@ -85,13 +100,21 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'edit')"
-                    v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                    v-if="
+                      !['sfile', 'nfile', 'column', 'tag'].includes(
+                        data.typeName
+                      )
+                    "
                   >
                     <i
                       v-permission
                       class="el-icon-edit operate-icon"
                       @click.stop="edit(data, node)"
-                      v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                      v-if="
+                        !['sfile', 'nfile', 'column', 'tag'].includes(
+                          data.typeName
+                        )
+                      "
                     ></i>
                   </el-tooltip>
                   <template v-if="isRoot === 'root'">
@@ -113,13 +136,21 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'del')"
-                    v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                    v-if="
+                      !['sfile', 'nfile', 'column', 'tag'].includes(
+                        data.typeName
+                      )
+                    "
                   >
                     <i
                       v-permission
                       class="el-icon-delete operate-icon"
                       @click.stop="del(data, node)"
-                      v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
+                      v-if="
+                        !['sfile', 'nfile', 'column', 'tag'].includes(
+                          data.typeName
+                        )
+                      "
                     ></i>
                   </el-tooltip>
                 </template>
@@ -166,6 +197,50 @@
         </el-tooltip>
       </VueEasyTree>
     </div>
+    <el-dialog
+      :title="dialogtitle"
+      :visible.sync="searchdialog"
+      width="40%"
+      :destroy-on-close="true"
+      @close="closeDialog"
+    >
+      <div class="tag-list">
+        <div class="open-tag" v-if="showtag">
+          <span class="label" style="width:150px;margin-bottom:0px;">{{$t('data.enabletag')}}</span>
+          <el-switch v-model="switchtag"> </el-switch>
+        </div>
+        <template v-if="switchtag">
+          <TagColumn
+            v-for="(item, index) in tagList"
+            :key="index"
+            :tagColumnData="item"
+          ></TagColumn>
+        </template>
+      </div>
+      <el-form :model="serachForm" ref="searchForm" label-width="120px">
+        <!-- <el-form-item label="Tag" prop="tagname" v-if="showtag">
+          <div class="tag-column">
+             <el-select v-model="tagCondition" placeholder="请选择">
+              <el-option
+                v-for="item in conditionList"
+                :key="item"
+                :label="item"
+                :value="item"
+              >
+              </el-option>
+            </el-select>
+             
+          </div>
+        </el-form-item> -->
+        <el-form-item :label="$t('datasource.csvtable')  " prop="tablename" :rules="tablerule">
+          <el-input v-model="serachForm.tablename" size="small"></el-input>
+        </el-form-item>
+      </el-form>
+      <div class="footer">
+        <el-button @click="closeDialog" size="small">{{$t('cancel')}}</el-button>
+        <el-button type="primary" @click="searchTables">{{$t('confirm')}}</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -181,12 +256,37 @@ import {
   getMatrixStructReq,
   getTableStructReq,
 } from "@/api/gateway/data/tables.js";
+import { sendSQLReq } from "@/api/gateway/console";
 import PanelHeader from "./components/panelHeader.vue";
 import VueEasyTree from "@/components/Tree";
 import { deepClone } from "@/utils";
 import moment from "moment";
 import { Message } from "element-ui";
+import TagColumn from "./components/tagColumn.vue";
+import {
+  CompareOperator,
+  JsonOperator,
+  GeneralOperator,
+  RegularOperator,
+} from "@/const";
 const clickNoChange = ["sql", "xterm"];
+const getGeneralFn = (type) => {
+  return GeneralOperator.filter((item) => !type.includes(item.label)).map(
+    (item) => item.label
+  );
+};
+const conditionMap = {
+  TIMESTAMP: CompareOperator.concat(getGeneralFn(["TIMESTAMP"])),
+  NUMBER: CompareOperator.concat(getGeneralFn(["NUMBER"])),
+  STRING: RegularOperator.concat(getGeneralFn(["STRING"])),
+  JSON: JsonOperator,
+  BOOL: CompareOperator.concat(
+    getGeneralFn(["NOT BETWEEN", "BETWEEN"])
+  ).concat(["NOT BETWEEN", "BETWEEN"]),
+};
+const conditionList = CompareOperator.concat(
+  getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
+);
 export default {
   props: {
     addSql: {
@@ -194,7 +294,7 @@ export default {
       default: "",
     },
   },
-  components: { PanelHeader, VueEasyTree },
+  components: { PanelHeader, VueEasyTree, TagColumn },
   data() {
     this.icon = {
       database: "database_icon",
@@ -207,6 +307,31 @@ export default {
     };
     this.notAdd = ["column", "tag"];
     return {
+      switchtag: false,
+      tagList: [],
+      conditionList,
+      dialogtitle: "",
+      searchdialog: false,
+      showtag: false,
+      currentSearch: "",
+      serachForm: {
+        tagname: "",
+        tablename: "",
+      },
+      tagrule: [
+        {
+          required: false,
+          message: this.$t("data.searchtbtip"),
+          trigger: "blur",
+        },
+      ],
+      tablerule: [
+        {
+          required: true,
+          message: this.$t("data.searchtbtip"),
+          trigger: "blur",
+        },
+      ],
       isRoot: localStorage.getItem("username"),
       defaultProps: {
         children: "children",
@@ -238,6 +363,11 @@ export default {
     this.height = this.$el.clientHeight - 70 + "px";
   },
   methods: {
+    closeDialog() {
+      this.serachForm.tagname = "";
+      this.serachForm.tablename = "";
+      this.searchdialog = false;
+    },
     refersh() {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
@@ -294,6 +424,7 @@ export default {
     addDatabase() {
       this.$store.commit("dbs/HANDLE_ADD_DB");
       this.$store.commit("console/SET_TAB_NAME", this.$t("add"));
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "explorer");
       this.$store.state.console.partActive = "detail";
       this.$store.state.console.currentComponent = "DatabaseCreate";
     },
@@ -419,7 +550,7 @@ export default {
       if (clickNoChange.includes(this.$store.state.console.partActive)) {
         return;
       }
-      this.$store.state.console.partActive = "sql";
+      this.$store.state.console.partActive = "wizard";
     },
     // 处理全局db和stb
     async handleVar(data, node) {
@@ -433,11 +564,6 @@ export default {
           this.$store.commit("tables/SET_SELECTED_TB", "");
           break;
         case "sfile":
-          //操作数据库时，获取数据库配置
-          // if (!Object.prototype.hasOwnProperty.call(data, "minrows")) {
-          //   console.log(await getDBStruct(data.parent),'为啥assign-----');
-          //   Object.assign(data, await getDBStruct(data.name));
-          // }
           this.$store.commit("dbs/SET_SELECTED_DB", node.parent.data.name);
           this.$store.commit("stables/SET_SELECTED_STB", node.parent.data.name);
           this.$store.commit("tables/SET_SELECTED_TB", "");
@@ -508,9 +634,9 @@ export default {
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
         "console/SET_TAB_NAME",
-        this.$t(`console.${data.typeName === 'table' 
-        ? data.type 
-        : data.typeName}Info`)
+        this.$t(
+          `console.${data.typeName === "table" ? data.type : data.typeName}Info`
+        )
       );
       this.$store.state.console.partActive = "detail";
     },
@@ -538,6 +664,7 @@ export default {
           break;
       }
       this.$store.commit("console/SET_TAB_NAME", this.$t("edit"));
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "explorer");
       this.$store.state.console.partActive = "detail";
     },
     async del(data, node) {
@@ -566,8 +693,8 @@ export default {
               .finally(() => {
                 this.requesting = false;
               })
-              .catch(res => {
-                this.$message.error(res?.desc)
+              .catch((res) => {
+                this.$message.error(res?.desc);
               });
           });
           break;
@@ -596,8 +723,8 @@ export default {
               .finally(() => {
                 this.requesting = false;
               })
-              .catch(res => {
-                this.$message.error(res?.desc)
+              .catch((res) => {
+                this.$message.error(res?.desc);
               });
           });
           break;
@@ -628,8 +755,8 @@ export default {
               .finally(() => {
                 this.requesting = false;
               })
-              .catch(res => {
-                this.$message.error(res?.desc)
+              .catch((res) => {
+                this.$message.error(res?.desc);
               });
           });
           break;
@@ -650,6 +777,136 @@ export default {
       );
       this.$store.state.console.partActive = "detail";
     },
+    async search(data, node) {
+      this.searchdialog = true;
+      this.currentSearch = data;
+      switch (data.typeName) {
+        case "sfile":
+          this.showtag = false;
+          this.switchtag=false
+          this.dialogtitle = this.$t("data.searchsp");
+          break;
+        case "stable":
+          let result = await sendSQLReq(
+            `describe ${data.db_name}.${data.name}`
+          );
+          this.tagList = result.data.map((db) => {
+            return Object.fromEntries(
+              result.column_meta.map((item, index) => {
+                return [item[0], db[index]];
+              })
+            );
+          });
+          this.tagList = this.tagList
+            .map((item) => {
+              return Object.assign(
+                item,
+                {
+                  conditionList: conditionMap["BOOL"],
+                },
+                {
+                  value: "",
+                },
+                {
+                  condition: "",
+                },
+                {
+                  betweenVal:''
+                }
+              );
+            })
+            .filter((val) => val.note == "TAG");
+          
+          this.showtag = true;
+          this.dialogtitle = this.$t("data.searchsub");
+          break;
+        case "nfile":
+          this.showtag = false;
+          this.switchtag=false
+          this.dialogtitle = this.$t("data.searchnt");
+          break;
+      }
+    },
+    async searchTables() {
+      try {
+        let flag = true;
+        this.$refs.searchForm.validate((valid) => {
+          if (valid) {
+            flag = true;
+            return true;
+          } else {
+            flag = false;
+            return false;
+          }
+        });
+        if (!flag) {
+          return;
+        }
+        switch (this.currentSearch.typeName) {
+          case "sfile": //查询超级表
+            await this.$store
+              .dispatch(
+                "console/sendConsoleSQL",
+                `select stable_name from information_schema.ins_stables where db_name='${this.currentSearch.db_name}' and  stable_name like '%${this.serachForm.tablename}%'`
+              )
+              .catch(() => false);
+
+            break;
+          case "stable":
+            if (this.switchtag) {
+              for (let i = 0; i < this.tagList.length; i++) {
+
+                if (!this.tagList[i].condition ||(!this.tagList[i].condition.includes('NULL')&& !this.tagList[i].value)) {
+                  Message.warning(this.$t("data.fulltagtip"));
+                  return;
+                }
+              }
+              let wherestr = "";
+              this.tagList.forEach((item, index) => {
+                wherestr +=
+                  " " +
+                  (index == 0 ? "" : "and") +
+                  " " +
+                  `${item.field}` +
+                  " " +
+                  `${item.condition}` + 
+                  ( item.condition.includes('NULL')?'':item.condition.includes('IN')?("("+`'${item.value}'`+')'):" " +
+                   `'${item.value}'`)
+                  ;
+                  if(item.condition.includes('BETWEEN')){
+                    wherestr += ` AND '${item.betweenVal}'`
+                  }
+              });
+              await this.$store
+                .dispatch(
+                  "console/sendConsoleSQL",
+                  `select distinct tbname from \`${this.currentSearch.db_name}\`.\`${this.currentSearch.stable_name}\` where ${wherestr}`
+                )
+                .catch(() => false);
+            } else {
+              await this.$store
+                .dispatch(
+                  "console/sendConsoleSQL",
+                  `select table_name from information_schema.ins_tables where db_name='${this.currentSearch.db_name}' and  stable_name='${this.currentSearch.stable_name}' and table_name like '%${this.serachForm.tablename}%'`
+                )
+                .catch(() => false);
+            }
+
+            break;
+          case "nfile":
+            await this.$store
+              .dispatch(
+                "console/sendConsoleSQL",
+                `select table_name from information_schema.ins_tables where db_name='${this.currentSearch.db_name}' and  stable_name is null and table_name like '%${this.serachForm.tablename}%'`
+              )
+              .catch(() => false);
+            break;
+        }
+        this.searchdialog = false;
+      } catch (error) {
+        console.log(error, "查询表格");
+      }
+    },
     getTooltip(data, operate) {
       let obj = {
         database: {
@@ -664,12 +921,14 @@ export default {
           edit: this.$t("data.editStable", [data.name]),
           view: this.$t("data.viewStable"),
           del: this.$t("data.delStable"),
+          search: this.$t("data.searchsp"),
         },
         nfile: {
           add: this.$t("data.createnormalTable", [data.name]),
           edit: this.$t("data.editTable", [data.name]),
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
+          search: this.$t("data.searchnt"),
         },
         table: {
           add: this.$t("data.createnormalTable", [data.name]),
@@ -682,13 +941,14 @@ export default {
           edit: this.$t("data.editTable", [data.name]),
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
+          search: this.$t("data.searchsub"),
         },
-        column:{
-          view:this.$t("data.viewTable"),
+        column: {
+          view: this.$t("data.viewTable"),
         },
-        tag:{
-          view:this.$t("data.viewTable"),
-        }
+        tag: {
+          view: this.$t("data.viewTable"),
+        },
       };
       return obj[data.typeName][operate];
     },
@@ -860,5 +1120,35 @@ export default {
 .el-tooltip__popper.el-tree-popper[x-placement^="right"] .popper__arrow,
 .el-tooltip__popper[x-placement^="right"] .popper__arrow::after {
   border-right-color: $color-primary !important;
+}
+.footer {
+  display: flex;
+  justify-content: center;
+  .el-button {
+    height: 36px;
+    padding: 8px 20px;
+    font-size: 14px;
+  }
+}
+.tag-column {
+  display: flex;
+  .el-select {
+    margin-right: 10px;
+  }
+}
+.tag-list {
+  .open-tag {
+    display: flex;
+    align-items: center;
+    margin-bottom:10px;
+  }
+  .label {
+    color: #4d6992;
+    font-size: 16px;
+    display: block;
+    font-weight: 500;
+    margin-bottom: 15px;
+    margin-right: 10px;
+  }
 }
 </style>

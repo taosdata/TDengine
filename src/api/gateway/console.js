@@ -1,5 +1,6 @@
 import { request } from "@/utils/request";
 import store from "@/store";
+import JSONbig from "json-bigint";
 import { compHeadAndData, getLocalTimezone } from "@/utils";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
@@ -9,6 +10,13 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
     headers: {
       "Content-Type": "text/plain"
     },
+    transformResponse: [function (data) {
+      try {
+        return JSONbig.parse(data);
+      } catch (error) {
+        return data;
+      }
+    }],
     data: sqlStr
   }).then(data => {
     let cData = JSON.parse(JSON.stringify(data))

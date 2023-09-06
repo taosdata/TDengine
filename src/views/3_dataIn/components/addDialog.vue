@@ -85,6 +85,7 @@
             :value="item.id"
             v-for="item in originalTypes"
             :key="item.id"
+            :disabled="item.disabled"
           ></el-option>
         </el-select>
         <span
@@ -223,7 +224,7 @@ export default {
       this.$parent.$refs.agents.add();
     },
     handleAdd() {
-      this.$store.commit('app/SET_FILE_EMPTY',[])
+      this.$store.commit("app/SET_FILE_EMPTY", []);
       localStorage.setItem("datainName", this.ruleForm.name);
       this.$parent.$parent.agentID = this.ruleForm.agent;
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
@@ -276,6 +277,27 @@ export default {
       handler(val) {
         if (val == "mqtt") {
           //   this.$emit("showMqttDialog");
+        }
+      },
+    },
+    "ruleForm.agent": {
+      deep: true,
+      handler(val) {
+        if (val) {
+          this.originalTypes.map((item) => {
+            if (["csv", "tmq", "taos", "kafka"].includes(item.id)) {
+              item["disabled"] = true;
+              this.ruleForm.type=''
+            } else {
+              item["disabled"] = false;
+            }
+            return item;
+          });
+        } else {
+          this.originalTypes.map((item) => {
+            item["disabled"] = false;
+            return item;
+          });
         }
       },
     },

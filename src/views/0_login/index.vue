@@ -1,62 +1,6 @@
 <template>
   <div class="login">
-    <section class="header">
-      <div class="inside-header">
-        <!-- <div class="dynamic-title">TDengine Management System</div> -->
-        <div class="site-logo">
-          <a
-            :href="dataJson.officialWebsite"
-            target="_blank"
-            title="TD Hero"
-            rel="home"
-          >
-            <img :src="dataJson.logo" alt title="TD Hero" width="200" />
-          </a>
-        </div>
-        <div class="site-navigation">
-          <nav class="main-navigation">
-            <ul id="menu-menu">
-              <li class="gitIframe" v-if="!oemName">
-                <a href="https://github.com/taosdata/TDengine">
-                  <iframe
-                    src="https://tdengine.com/star.html?user=taosdata&amp;repo=TDengine&amp;type=star&amp;count=true"
-                    frameborder="0"
-                    scrolling="0"
-                    width="180"
-                    height="32"
-                    title="GitHub"
-                  ></iframe>
-                </a>
-              </li>
-              <li
-                v-for="item in dataJson.externalLinks"
-                :key="item.name"
-                class="link"
-              >
-                <a :href="item.url">{{ item.name }}</a>
-              </li>
-
-              <!-- <li class="link"><a href="#!" @click="search">Search</a></li>
-              <li>
-                <a href="javascript:void(0)">
-                  <img
-                    data-v-28e6c436=""
-                    src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png"
-                    width="32"
-                    height="32"
-                    alt="Select language"
-                    data-rl-src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png"
-                    loading="lazy"
-                    class="ls-is-cached rl-lazyloaded"
-              />-->
-              <!-- <img src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png" alt="" width="100"> -->
-              <!-- </a>
-              </li>-->
-            </ul>
-          </nav>
-        </div>
-      </div>
-    </section>
+    
     <section class="content">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
@@ -117,69 +61,11 @@
         </el-form>
       </div>
     </section>
-    <section class="plans"></section>
-    <section class="footer">
-      <div class="footer-contract">
-        <div class="inside">
-          <div class="foot-top">
-            <div class="left">
-              <figure class="logo">
-                <a
-                  :href="dataJson.officialWebsite"
-                  target="_blank"
-                  title="TD Hero"
-                  rel="home"
-                >
-                  <img :src="dataJson.logo" alt title="TD Hero" width="100" />
-                </a>
-              </figure>
-              <p class="profile">{{ dataJson.footer.profile }}</p>
-            </div>
-            <div class="right" v-if="dataJson.footer.contracts">
-              <div class="sales">
-                <span class="button">Contract us</span>
-              </div>
-              <div class="social">
-                <template v-for="(item, index) in dataJson.footer.contracts">
-                  <a :href="item.url" :key="index" class="social-btn">
-                    <span :class="item.icon"></span>
-                  </a>
-                </template>
-              </div>
-            </div>
-          </div>
-          <div class="foot-bottom">
-            <!-- <div class="copy-right"> -->
-            <div class="cp-left">{{ dataJson.footer.copyright }}</div>
-            <div class="cp-right">
-              <template v-for="(item, index) in dataJson.footer.policies">
-                <a :href="item.url" :key="index">{{ item.name }}</a>
-              </template>
-            </div>
-            <!-- </div> -->
-          </div>
-        </div>
-      </div>
-    </section>
+   
     <div class="copyright" v-if="!oemName">
-      <!-- <span >©  2023</span>
-      <span >
-        涛思数据 |
-        <a
-          href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010502047618"
-          target="_blank"
-          rel="noopener"
-          >京公网安备 11010502047618号</a
-        >
-        |
-        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener"
-          >京ICP备17069529号-1</a
-        >
-        | 新版时序数据库 TDengine v3.0</span
-      > -->
+     
       <span>{{ $t("copyright") }}</span>
     </div>
-    <SearchPop :hidden.sync="hidden"></SearchPop>
   </div>
 </template>
 <script>
@@ -201,11 +87,7 @@ export default {
       if (value === "") {
         callback(new Error(this.$t("login.passwordTips")));
       } else {
-        // setTimeout(() => {
-        //   if (this.dynamicValidateForm.password !== "") {
-        //     this.$refs.dynamicValidateForm.validateField("password");
-        //   }
-        // });
+       
 
         callback();
       }
@@ -217,7 +99,6 @@ export default {
         process.env.VUE_APP_CUS_NAME !== "TDengine",
       loading: false,
       earch: require("@/assets/earth.webp"),
-      hidden: false,
       dynamicValidateForm: {
         cluster: "",
         password: "",
@@ -279,12 +160,6 @@ export default {
         }
       });
     },
-    resetForm(formName) {
-      this.$refs[formName].resetFields();
-    },
-    search() {
-      this.hidden = true;
-    },
     async getClusterID() {
       try {
         return sendSQLReq(`select id from information_schema.ins_cluster;`)
@@ -326,7 +201,6 @@ export default {
           console.log(reason);
           Promise.reject(reason);
         }).then((res) => {
-          console.log("login response", res);
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
@@ -419,6 +293,7 @@ export default {
     this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
+    
   },
   mounted() {
     this.$nextTick(() => {

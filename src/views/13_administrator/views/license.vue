@@ -23,6 +23,9 @@
       title=""
       :column="3"
     >
+      <el-descriptions-item :label="$t('topic.clusterId')" :labelStyle='style' >
+        <span>{{ clusterId }}</span>
+      </el-descriptions-item>
       <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
         <span style="color:#333;"> {{(item.key == 'expire_time' && item.value !=='unlimited')? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
       </el-descriptions-item>
@@ -178,6 +181,9 @@ export default {
         return '120px'
       }
       return '240px'
+    },
+    clusterId() {
+      return localStorage.getItem('local_clusterID') || ''
     }
   },
   created() {
@@ -244,7 +250,11 @@ export default {
       try {
         await activeLicence(this.ruleForm).then(res => {
           console.log('res',res);
-          this.$message.success(this.$t('operateSucc'))
+          if (res && res.code == 0) {
+            this.$message.success(this.$t('operateSucc'))
+          } else {
+            this.$message.error(res?.desc)
+          }
         })     
       } catch (error) {
         this.$message.error(error)
