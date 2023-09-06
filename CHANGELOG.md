@@ -5,7 +5,138 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2023-08-04
+## [1.2.0] - 2023-09-06
+
+**Full Changelog**: [v1.1.0...v1.2.0](https://github.com/taosdata/taosx/compare/v1.1.0...v1.2.0)
+
+### Bug Fixes
+
+- *agent*: Set tcp stream blocking mode (#622) ([0e95066](0e950662b61413fa7d576f3f2bbe366c8aaca3b1))
+- *agent*: Fix ipc read error in agent (#645) ([6670316](6670316ce8bc3d8020d5b365bd07cc8b07400ed0))
+- *agent*: Fix error context when target database name error ([74b19e3](74b19e3104694f82cb74a6f4c0fa3a6575f18c1a))
+- *agent*: Check agent alive status error when agent stopped (#684) ([4a593ce](4a593ceac3c3a277e45166a39f1805bf3fd09eba))
+- *csv*: Fix csv import in-completed (#603) ([f86f4d0](f86f4d001c9ab1e139213e3a4c0200d8ed9d9304))
+- *csv*: Fix csv import in-completed (#602) ([a08d9be](a08d9be598cd87b37245cb8a720e06ec16a7a138))
+- *csv*: Fail fast while write with IPC (#615) ([2a7598a](2a7598a901e35916c1e20664b9ab06443fcffa8d))
+- *csv*: Fail fast while write with IPC (#616) ([88b0b0f](88b0b0f59c2d2a2b056d6fd2eb5115ba1316dad0))
+- *influxdb*: Add protocol option to support https #[TD-25628](https://jira.taosdata.com:18080/browse/TD-25628) (#588) ([d316d78](d316d78c0d2061a34492bfb2881925324e8deb34))
+- *influxdb*: Modify the content of the data source page. #[TD-25677](https://jira.taosdata.com:18080/browse/TD-25677) (#618) ([4de1cf7](4de1cf7316c1d5e6b52c2c6dc1a710b41d8e81bd))
+- *influxdb*: Fix tiny bugs. #[TD-25792](https://jira.taosdata.com:18080/browse/TD-25792) (#617) ([8e6f4bf](8e6f4bf961c14110ee8b29d7a4c85a4c2b43cc66))
+- *influxdb*: Fix the bug of the name of measurement with dot. #[TD-25887](https://jira.taosdata.com:18080/browse/TD-25887) (#643) ([3028b78](3028b78b537a4ce5ae901b3bebd0e00278b797bc))
+- *influxdb*: Special handling for influxdb cloud. #[TD-25842](https://jira.taosdata.com:18080/browse/TD-25842) (#642) ([066a2f9](066a2f902a11dfbfa6c5cac3e879f1f9fd4b21bf))
+- *influxdb/opentsdb*: Modify tolerance type. [TD-26147](https://jira.taosdata.com:18080/browse/TD-26147) (#690) ([225c10a](225c10a1bc7d474780be0af1ee24b81793e235ec))
+- *ipc*: Retry ipc tcp forward #[TS-3800](https://jira.taosdata.com:18080/browse/TS-3800) (#599) ([2dd3c73](2dd3c734f41dbf49d695d096fd6a5b5d881c357e))
+- *ipc*: Fix lush ipc writing error (#619) ([c276564](c276564da23474a529e77500fe47310a28b4ccbd))
+- *ipc*: Fix lush ipc writing erro (#621) ([64db9d1](64db9d1846328ffa513fde0e446481d471f0fec4))
+- *kafka*: Group consuming not work #[TD-25653](https://jira.taosdata.com:18080/browse/TD-25653) (#591) ([5b22611](5b226115387aa1c685376aa3a20198de399c3d4a))
+- *kafka*: Group consuming not work #[TD-25653](https://jira.taosdata.com:18080/browse/TD-25653) (#592) ([3937cf0](3937cf025b4ee901955a00bfb396c7e67d41e388))
+- *kafka*: Fix td to kafka fail on topic exist (#641) ([44c3ca4](44c3ca4423223e4189365ac268411d733f2a3998))
+- *opentsdb*: Fix error message when target database removed ([932fb29](932fb2936596d473fbcb5942f5939567fad3adff))
+- *opentsdb*: Filter empty dps. #[TD-25906](https://jira.taosdata.com:18080/browse/TD-25906) (#653) ([263e70e](263e70e9b71e1710289651dfa53efadad7c515e0))
+- *opentsdb*: Add datasource validate. #[TD-25750](https://jira.taosdata.com:18080/browse/TD-25750) #[TD-25755](https://jira.taosdata.com:18080/browse/TD-25755) (#679) ([da3ae1f](da3ae1f97b73f949a1d39d1f35600e0df37b6f62))
+- *pi*: Fix time zone parsing in toml (#631) ([2797292](2797292934fece476fee3459898c9961ac40558e))
+- *serve*: Resume task when connection closed in tmq (#586) ([c87462e](c87462eb75d03bcbf4b9096b30fd05427334f787))
+- *serve*: Fix serve mode hangout (#610) ([b7be616](b7be6167fa2735523719a9e1a603e57a49a5c5d2))
+- *serve*: Fix serve mode hangout (#611) ([ee73499](ee734995cff6b68c4d991fcd43f479b89a59f487))
+
+- Fix token param check error ([d749351](d749351b604b92f5fcf7bb11216acbf8cb6e6208))
+- Fix token param check error ([5ae5a9f](5ae5a9f6f97d2907fc56fdfc34962570c8d88b2a))
+- Fix cloud image error when start a task ([83e0ee6](83e0ee60155b2ac941d295b164a9f2b75219208e))
+- Add protocol option. #[TD-25628](https://jira.taosdata.com:18080/browse/TD-25628) (#593) ([16d5d3e](16d5d3e1c12a6fb316781a5b37bcfcb4e93f10c5))
+- Fix error hint (#597) ([ff1d614](ff1d614a0e880e34e07908b7026053feb56a5c44))
+- Fix error hint (#598) ([f135fe4](f135fe4c123439d4ffc931d3c10d1fb463e9cfe5))
+- Fix get string content from value error (#606) ([3cd5426](3cd54267fd5f6acf86bc7f02d45fdae1e2db89c1))
+- Fix get string content from value error (#607) ([37276de](37276de6a62876fe1273f85809a1a51f8957143e))
+- Fix panic "call blocking only when running on the multi-threaded runtime" (#613) ([104a3e0](104a3e01c114a0d0dddafdfdb3c130ba942260e6))
+- Fix panic "call blocking only when running on the multi-threaded runtime" (#614) ([10ba932](10ba9329db2db0d9d6179b1117b52a3d9be0b09a))
+- Use universal enterprise edition check method (#626) ([38c00a6](38c00a60e1d0e2493338f2eb6b9e8f77e4ab997a))
+- Use universal enterprise edition check method (#625) ([ced66db](ced66dbc2a23f8b4e607e7b7e240ffae8ffc3e2e))
+- Fix possible blocking while build ipc reader (#640) ([8a252ac](8a252ac0c4e3d3d4e8cdf83e25acf48ae380ba00))
+- Fix possible blocking while build ipc reader (#639) ([374d1e8](374d1e80d30e30dd9fc1e0fd862c992eec29b114))
+- Check timezone range. [TD-25889](https://jira.taosdata.com:18080/browse/TD-25889) (#646) ([f82db93](f82db93b02628a4750f2bc277020849d9f08fe5d))
+- Update retry wait time and add log info ([c60d4c5](c60d4c5760430ef62c5f4fc3b287d7bd72d82b9b))
+- Fix [TD-25957](https://jira.taosdata.com:18080/browse/TD-25957) file code error ([1942092](1942092e0aa4e132d95a8b1676990d885c5e24e9))
+- Fix [TD-25958](https://jira.taosdata.com:18080/browse/TD-25958) check error ([58142c6](58142c6ebd9bfde8576755698a5643dcb3832d67))
+- Change taos to async taos ([59ca2f0](59ca2f0aba4bf9256f5bbf6658777bf4f1b3a863))
+- Update connector version (#654) ([1598784](1598784a0e4bfb697d706809a6395153d9c00601))
+- Fix server run on windows (#655) ([9503aff](9503aff943501fc004c760bde0fd33fa3f5ff056))
+- Change task_id to topic_suffix and delete taos in config (#657) ([8e957c1](8e957c1a1652f4ac861e409f7497542d318d7856))
+- Modify the time accuracy of the returned data. ([28a27c3](28a27c371ca39f0da968aa01e10cfb764aba9913))
+- Modify statistic, it is a two-layer dataset. ([2b5ca9e](2b5ca9ee8e8b1e995d9f559b86ce5ec003c00178))
+- Fix metrics not right when connector use multiple conn ([54a988b](54a988beceb22e52e0604a97e9db978d58589100))
+- Fix child table metrics in lush message process ([0ca2de5](0ca2de5b7fede400f6a8f969f32c7162e1e0df45))
+- Fix kafka sinker batch size ([70cb2a5](70cb2a5198617d809a8bb399d666b3578a35bd59))
+- Fix for error throwing ([6bdc067](6bdc067abe71ae01b269dd548667831d7dc7ea40))
+- Fix [TD-26097](https://jira.taosdata.com:18080/browse/TD-26097), time cost < 1s ([7d69d61](7d69d6152771240b9e0b439a6175d8302edbdd40))
+- Fix for kafka address ([0321701](0321701822b8b40259d2ba76cc7942c323a8ab80))
+- Fix ipc handler not completed ([0fe30e7](0fe30e7dc8ad8a1f5b36ab19c1e56fc587aab1b1))
+- Metrics time lost when use agent ([33f07ca](33f07ca33747f7a74c533e431f909b9a724f2b8a))
+- Tsdb not completed with agent (#681) ([057502c](057502c3b5652c25288bf0bad675488b72a8bee9))
+- Add tolerance interval. [TD-26147](https://jira.taosdata.com:18080/browse/TD-26147) ([8f11a9f](8f11a9ff763ec57f43a0c453f1d36fad4fd5bf44))
+
+
+### Enhancements
+
+- *ipc*: Point message improvment (#600) ([56ce39f](56ce39fa687d2bb8a6caefa22d2f2c48a1bb4dd7))
+- *ipc*: Point message improvment (#601) ([6e31880](6e31880c98fbf0e83433f7b1b58b0ea5cdeb346d))
+- *opc*: Register node in parallel in subscribe mode (#582) ([7dfb3af](7dfb3afb450284dc8200111933af5524be4e2cc1))
+- *opc*: Change arrow ack to lush (#635) ([b6fc7f4](b6fc7f4e4908455479f45f57af9c013121f47aef))
+- *packaging*: Add post-install tips (#589) ([f82f5bf](f82f5bf1c873790c9257dc6a516d90ac27559d77))
+- *tmq*: Improve tmq to td error message (#609) ([4ba5f1f](4ba5f1f303433c367c3a79e0a0273d6e5b403511))
+- *tmq*: Improve tmq to td error message (#608) ([0a3cc90](0a3cc90afd1393b3d1b13b9b3d6c5ac94e5a12bb))
+
+- Lush message support alter length [TD-25679](https://jira.taosdata.com:18080/browse/TD-25679) (#627) ([6cf2529](6cf2529ee360458c56e41067a68b1fc596abee59))
+- Sink connector for kafka (#499) ([ad6ddad](ad6ddad8afce198c6f5eb23164e2f9679b6ed6f4))
+- Handle 0x032c for flat message (#630) ([23bf58c](23bf58c9c99085a510b6cd5a265b2808768799bd))
+- Improvements for tmq and ipc (#632) ([1e44bb7](1e44bb756b9b5b5455c3ba05b91850a46adc6f1e))
+- Modify point message insert (#636) ([a933e3e](a933e3e289c18e07b3570f414d7ee6aee3259c86))
+- Modify point message insert (#637) ([6edd156](6edd15682951d238f743be01bd0a116dd7e08d8c))
+- Agent message support metrics ([6e1d71f](6e1d71f713ab9e636d07f59b1532f798b610174e))
+- Wait for IPC stream listener task done (#656) ([c61e8d2](c61e8d2d25144504ac8dbd02a828018a0f189d20))
+- Support metrics for tasks ([09148c8](09148c8e95345790d3ebd780a4892a203696d6f0))
+- Kafka config ack timeout support duration config like (1s, 5m) ([719f56d](719f56d7b4e387df7d21262684ca1e28c49fc193))
+- Kafka config ack timeout support duration config like (1s, 5m) ([cad0f22](cad0f22dfcfd1e0643a2b641b651e73435ae46cf))
+- Add response statistic. [TD-25854](https://jira.taosdata.com:18080/browse/TD-25854) ([d1cb03f](d1cb03f4c894bd7e37e0de1c9c210eadec48428d))
+- Metrics key sort (#683) ([b8967ad](b8967adad9f9125943222d7fb8f3c1c80ddcdd35))
+
+
+### Features
+
+- *influxdb*: Optimize time format and column type. #[TD-25662](https://jira.taosdata.com:18080/browse/TD-25662) (#596) ([662d8c7](662d8c7017cb9d0d443740c2c2d8352c4805a501))
+- *kafka*: Check kafka is available#[TD-25752](https://jira.taosdata.com:18080/browse/TD-25752) (#623) ([553e425](553e425ca3132558b3bd401c62bec10acad734ca))
+
+- Add opentsdb connector. #[TS-3770](https://jira.taosdata.com:18080/browse/TS-3770) (#612) ([7fcd101](7fcd101677b3e01ed4b05b5fe1914b67f84840d3))
+- Enable tracing with open-telemetry ([8faa21c](8faa21c2d1efdcadd628935a7f4bb0a857c34496))
+- Support metrics snapshot in server mode ([bb4772d](bb4772dcf0038ffa9347f6e84a1aeb713e1ff3c3))
+- Use jemallocator by default in linux ([59ce247](59ce247f98757e9a1db62011095bef8859aad7b3))
+- Add opentsdb to installer (#682) ([93b7ad5](93b7ad5d41699c2d48e64d4ca9ff172b230762da))
+- Add --tracing-events option for tracing span ([1484b73](1484b736cd17a1d6c1966e935cc35834ef01d2b6))
+
+
+### Refactor
+
+- *kafka*: Error handle (#624) ([5602062](5602062a2b8461d2ddb6a29b9d7e8eb9146dff25))
+
+- Error message modify ([58b8357](58b835778f9fb42ecca721c0fa1a390dabbf18b0))
+- Error message modify ([eaacc5e](eaacc5eaa6a1d8913e3c621a29629cfbb7233f47))
+- Modify name value (#511) ([2e67956](2e679565f482f3c15b994929222677fa0c2872d8))
+- Opc metrics ([c623ba9](c623ba964a8f5a9ef7ff1b6f18d2bfc47916c93a))
+- Remove table counter temp ([b233b2d](b233b2db13427e7d7d6b048f1056c84ea1e10b95))
+
+
+### Dep
+
+
+- Update taos v0.9.4 ([7477ce3](7477ce3fb17311d5591d970e0ada36fc5098fc07))
+
+
+### Packaging
+
+
+- Add post-install tips (#587) ([6788bbc](6788bbcbbcd534d1c1a586cbae70306f18816345))
+
+
+## [1.1.0] - 2023-08-05
 
 **Full Changelog**: [v1.0.4...v1.1.0](https://github.com/taosdata/taosx/compare/v1.0.4...v1.1.0)
 
@@ -44,6 +175,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix max_frame_size too large ([a4b58e5](a4b58e547fc11adf0ea6542309013e9a446d0c91))
 - Stop kafka task causes pending ([9114878](91148787a6093dd1f8f3b7d33fc636d5cb9bb0f4))
 - Fix child table sync fail ([96c8119](96c81191185d7e7dea1a8656bc57af0262d3d94b))
+- Use native-tls instead of rustls ([62f5963](62f5963bf53f4b4497b9bb911dc1d3144c89aecf))
+- Packaging script fix ([7c71adf](7c71adf359223edd7f698fbbcb7a204329a32366))
 
 
 ### Enhancements

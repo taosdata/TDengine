@@ -66,3 +66,9 @@ groups:
             - D
             - H
             - M
+      - name: tolerance
+        display: Tolerance interval(ms)
+        description: When synchronizing real-time data, overlap each window forward to ensure data integrity
+        placeholder: Please input the tolerance interval
+        hint: integer
+        value: 10000

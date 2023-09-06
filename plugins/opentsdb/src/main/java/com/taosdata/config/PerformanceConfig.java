@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 @Data
 public class PerformanceConfig {
 
+    private int tolerance = 10000;
     private int limitConnect = 1;
     private int limitBatch = 500;
     private int limitSpeed = 50000;

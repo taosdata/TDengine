@@ -314,7 +314,12 @@ public class BucketThread implements Runnable {
             end = now;
         }
         // 更新lastEnd
-        this.lastEnd = end;
+        if (now - end < performanceConfig.getTolerance()) {
+            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+            this.lastEnd = end - performanceConfig.getTolerance();
+        } else {
+            this.lastEnd = end;
+        }
         // 返回时间范围
         return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
@@ -354,7 +359,12 @@ public class BucketThread implements Runnable {
             end = now;
         }
         // 更新lastEnd
-        this.lastEnd = end;
+        if (now - end < performanceConfig.getTolerance()) {
+            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+            this.lastEnd = end - performanceConfig.getTolerance();
+        } else {
+            this.lastEnd = end;
+        }
         // 返回时间范围
         return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
@@ -394,7 +404,12 @@ public class BucketThread implements Runnable {
             end = now;
         }
         // 更新lastEnd
-        this.lastEnd = end;
+        if (now - end < performanceConfig.getTolerance()) {
+            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+            this.lastEnd = end - performanceConfig.getTolerance();
+        } else {
+            this.lastEnd = end;
+        }
         // 返回时间范围
         return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
@@ -416,7 +431,12 @@ public class BucketThread implements Runnable {
             // 以min(newBegin, newEnd)为结束
             long end = Math.min(newBegin, newEnd);
             // 更新lastEnd
-            this.lastEnd = end;
+            if (System.currentTimeMillis() - end < performanceConfig.getTolerance()) {
+                // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+                this.lastEnd = end - performanceConfig.getTolerance();
+            } else {
+                this.lastEnd = end;
+            }
             // 返回时间范围
             return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         } else {

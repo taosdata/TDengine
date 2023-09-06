@@ -171,6 +171,9 @@ public class PreLoading implements CommandLineRunner {
             }
             this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
             // 如果设置了性能参数，则覆盖默认值
+            if (tomlParseResult.getLong("performance.tolerance") != null) {
+                this.performanceConfig.setTolerance(tomlParseResult.getLong("performance.tolerance").intValue());
+            }
             if (tomlParseResult.getLong("performance.limitConnect") != null) {
                 this.performanceConfig.setLimitConnect(tomlParseResult.getLong("performance.limitConnect").intValue());
             }

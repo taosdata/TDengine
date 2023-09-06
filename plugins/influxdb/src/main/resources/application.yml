@@ -19,19 +19,21 @@ spring:
 # task parameters
 task:
   # whether to resume running from the last breakpoint: normal(default)/resume
-  mode: resume
+  mode: normal
   # empty is all, follow this principle
   buckets:
-    - influxdb
+    - taosdata
     - test
-  beginTime: 2023-04-01 00:00:00
+  measurements:
+  beginTime: 2023-05-16 08:00:00
   # empty is now
-  endTime: 2023-04-05 23:59:59
+  endTime: 2023-06-30 16:14:00
   # specify the way of task assignment: 1-queue 2-average
   assignmentType: 1
 
 #performance parameters
 performance:
+  tolerance: 10000
   limitConnect: 2
   limitBatch: 1000
   limitSpeed: 100000

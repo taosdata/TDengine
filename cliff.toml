@@ -78,6 +78,7 @@ commit_parsers = [
     { message = "^ref:", skip = true},
     { message = "^chore", skip = true},
     { message = "^init", skip = true},
+    { message = "^dev", skip = true},
     { body = ".*security", group = "Security"},
 ]
 
