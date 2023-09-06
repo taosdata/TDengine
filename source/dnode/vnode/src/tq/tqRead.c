@@ -491,11 +491,11 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
 
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     if (ret != NULL) {
-      tqDebug("block found, ver:%" PRId64 ", uid:%" PRId64", %s", pReader->msg.ver, pSubmitTbData->uid, idstr);
+      tqDebug("block found, ver:%" PRId64 ", uid:%" PRId64 ", %s", pReader->msg.ver, pSubmitTbData->uid, idstr);
       return true;
     } else {
-      tqInfo("discard submit block, uid:%" PRId64 ", total queried tables:%d continue %s", pSubmitTbData->uid,
-          taosHashGetSize(pReader->tbIdHash), idstr);
+      tqDebug("discard submit block, uid:%" PRId64 ", total queried tables:%d continue %s", pSubmitTbData->uid,
+              taosHashGetSize(pReader->tbIdHash), idstr);
     }
 
     pReader->nextBlk++;
