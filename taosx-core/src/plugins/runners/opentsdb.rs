@@ -69,6 +69,8 @@ struct TaskConfig {
 struct PerformanceConfig {
     #[serde(rename = "readWindow")]
     performance_read_window: Option<String>,
+    #[serde(rename = "tolerance")]
+    performance_tolerance: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -77,6 +79,8 @@ pub enum OpentsdbError {
     OpentsUrlIsRequired(Dsn),
     #[error("The data begin time is required: {0}")]
     TaskBeginTimeIsRequired(Dsn),
+    #[error("Invalid tolerance: {0}")]
+    InvalidTolerance(std::num::ParseIntError),
     #[error("plugin not found: {0}")]
     ExeNotFound(String),
 }
@@ -119,6 +123,11 @@ impl OpentsdbConfig {
 
         // the performance config
         let performance_read_window = dsn.remove("readWindow");
+        let performance_tolerance = dsn
+            .remove("tolerance")
+            .unwrap_or("10000".to_string())
+            .parse()
+            .map_err(|err| OpentsdbError::InvalidTolerance(err))?;
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -139,6 +148,7 @@ impl OpentsdbConfig {
 
         let performance = PerformanceConfig {
             performance_read_window,
+            performance_tolerance,
         };
 
         Ok(Self {

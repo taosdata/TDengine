@@ -85,6 +85,8 @@ struct TaskConfig {
 struct PerformanceConfig {
     #[serde(rename = "readWindow")]
     performance_read_window: Option<String>,
+    #[serde(rename = "tolerance")]
+    performance_tolerance: u16,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -168,6 +170,7 @@ impl InfluxdbConfig {
 
         // the performance config
         let performance_read_window = dsn.remove("readWindow");
+        let performance_tolerance = dsn.remove("tolerance").unwrap().parse::<u16>().unwrap();
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -196,6 +199,7 @@ impl InfluxdbConfig {
 
         let performance = PerformanceConfig {
             performance_read_window,
+            performance_tolerance,
         };
 
         Ok(Self {
