@@ -12,11 +12,11 @@ protocol:
   description: The protocol of the InfluxDB connection
   choices:
     - name: http
-      display: HTTP 协议
-      description: 使用 HTTP 协议连接 InfluxDB
+      display: HTTP Protocol
+      description: Connect to OpenTSDB using the HTTP protocol
     - name: https
-      display: HTTPS 协议
-      description: 使用 HTTPS 协议连接 InfluxDB
+      display: HTTPS Protocol
+      description: Connect to OpenTSDB using the HTTPS protocol
 options:
   host:
     display: IP address
@@ -139,3 +139,9 @@ groups:
             - D
             - H
             - M
+      - name: tolerance
+        display: Tolerance interval(ms)
+        description: When synchronizing real-time data, overlap each window forward to ensure data integrity
+        placeholder: Please input the tolerance interval
+        hint: integer
+        value: 10000

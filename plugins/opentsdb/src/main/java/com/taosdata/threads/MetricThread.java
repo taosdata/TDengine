@@ -18,7 +18,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.HashSet;
 
@@ -305,7 +304,12 @@ public class MetricThread implements Runnable {
             end = now;
         }
         // 更新lastEnd
-        this.lastEnd = end;
+        if (now - end < performanceConfig.getTolerance()) {
+            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+            this.lastEnd = end - performanceConfig.getTolerance();
+        } else {
+            this.lastEnd = end;
+        }
         // 返回时间范围
         return new Date(begin).getTime() + "," + new Date(end).getTime();
     }
@@ -345,7 +349,12 @@ public class MetricThread implements Runnable {
             end = now;
         }
         // 更新lastEnd
-        this.lastEnd = end;
+        if (now - end < performanceConfig.getTolerance()) {
+            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+            this.lastEnd = end - performanceConfig.getTolerance();
+        } else {
+            this.lastEnd = end;
+        }
         // 返回时间范围
         return new Date(begin).getTime() + "," + new Date(end).getTime();
     }
@@ -385,7 +394,12 @@ public class MetricThread implements Runnable {
             end = now;
         }
         // 更新lastEnd
-        this.lastEnd = end;
+        if (now - end < performanceConfig.getTolerance()) {
+            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+            this.lastEnd = end - performanceConfig.getTolerance();
+        } else {
+            this.lastEnd = end;
+        }
         // 返回时间范围
         return new Date(begin).getTime() + "," + new Date(end).getTime();
     }
@@ -407,7 +421,12 @@ public class MetricThread implements Runnable {
             // 以min(newBegin, newEnd)为结束
             long end = Math.min(newBegin, newEnd);
             // 更新lastEnd
-            this.lastEnd = end;
+            if (System.currentTimeMillis() - end < performanceConfig.getTolerance()) {
+                // 距离当前时间较近时，调整lastEnd，增加下次查询范围
+                this.lastEnd = end - performanceConfig.getTolerance();
+            } else {
+                this.lastEnd = end;
+            }
             // 返回时间范围
             return new Date(begin).getTime() + "," + new Date(end).getTime();
         } else {

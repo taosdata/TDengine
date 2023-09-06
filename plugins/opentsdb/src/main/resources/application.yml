@@ -30,6 +30,7 @@ task:
 
 #performance parameters
 performance:
+  tolerance: 10000
   limitConnect: 2
   limitBatch: 1000
   limitSpeed: 100000

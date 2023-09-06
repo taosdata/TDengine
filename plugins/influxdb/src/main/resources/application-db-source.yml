@@ -1,8 +1,11 @@
 # influx (test based on version 3.0.2.2)
 influx:
-  url: http://192.168.217.130:8086/
-  token: _pvAyLL6gqoupsXEzhvUS6EhETmG-0eE8yRIEdJknmvPos8DTDJ1Tg3K2W6O7qqGEXsg6OkjkRUfQrqpxBS8Gg==
-  orgId: 3233855dc7e37d8d
+  url: http://192.168.217.138:8186
+  version: 1.7
+  username: taosdata
+  password: taosdata
+  token: _FnpTYi30Mc4eCZcuATp4AkUMf6Yp3xI4blP_zkXhwh3fgK3wHe2y6TOjnjGS8kEFM9Pm2NKRY1sOnkJeTtLTg==
+  orgId: f3af42a3895a5e33
   maxTotal: 20
   maxIdle: 10
   minIdle: 5
