@@ -2895,12 +2895,12 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
 
   SScalarParam output = {0};
   code = tagScanCreateResultData(&type, numOfTables, &output);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
   code = scalarCalculate(pTagCond, pBlockList, &output);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
