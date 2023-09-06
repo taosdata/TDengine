@@ -269,8 +269,9 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data) {
 
   if ((pTask->sinkRecorder.numOfPackages % 5000) == 0) {
     SSinkTaskRecorder* pRec = &pTask->sinkRecorder;
-    tqInfo("s-task:%s vgId:d write %d blocks (%" PRId64 " rows) into dst table, duration:%.2fSec.", pTask->id.idStr,
-           vgId, pRec->numOfPackages, pRec->numOfRows, (taosGetTimestampMs() - pTask->tsInfo.sinkStart) / 1000.0);
+    tqInfo("s-task:%s vgId:d write %" PRId64 " blocks (%" PRId64 " rows) into dst table, duration:%.2fSec.",
+           pTask->id.idStr, vgId, pRec->numOfPackages, pRec->numOfRows,
+           (taosGetTimestampMs() - pTask->tsInfo.sinkStart) / 1000.0);
   }
 
   tqDebug("vgId:%d, s-task:%s write results completed", vgId, pTask->id.idStr);
