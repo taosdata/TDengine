@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, collections::BTreeMap};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use actix_files::NamedFile;
 use actix_web::{

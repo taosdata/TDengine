@@ -3,8 +3,8 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -13,9 +13,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
 use crate::{
-    Action, build_ipc,
-    DataSet,
-    get_log_keep_days, Transferred, utils::{mask_dsn, port_pool::PortPool}, ValidatedSource,
+    build_ipc, get_log_keep_days,
+    utils::{mask_dsn, port_pool::PortPool},
+    Action, DataSet, Transferred, ValidatedSource,
 };
 
 use super::get_plugin_dir;
@@ -548,7 +548,21 @@ pub async fn influxdb_validate(mut dsn: Dsn) -> anyhow::Result<ValidatedSource> 
         // 组装结果
         Ok(ValidatedSource {
             available: true,
-            version: Some(format!("{} - {}", headers.get("x-influxdb-build").unwrap().to_str().unwrap().to_string(), headers.get("x-influxdb-version").unwrap().to_str().unwrap().to_string())),
+            version: Some(format!(
+                "{} - {}",
+                headers
+                    .get("x-influxdb-build")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                headers
+                    .get("x-influxdb-version")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            )),
             since: Some(String::from("")),
         })
     } else {
