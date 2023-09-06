@@ -140,7 +140,6 @@ class StaticFullSync(TDCase):
                 taosd_master.execute(f'grant subscribe on {self.stbname[source]} to {self.source_user_name}')
             self.sync_db_stb('database')
             self.sync_db_stb('stable')
-            time.sleep(5)
             for source in range(len(self.source_taosd_list)):
                 taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(
                             self.source_taosd_list[source][1]))
