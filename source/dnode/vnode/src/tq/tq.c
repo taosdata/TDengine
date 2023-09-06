@@ -890,9 +890,10 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   return streamSendCheckRsp(pTq->pStreamMeta, &req, &rsp, &pMsg->info, taskId);
 }
 
-int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
+int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
   char*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t len = pMsg->contLen - sizeof(SMsgHead);
+  int32_t vgId = pTq->pStreamMeta->vgId;
 
   int32_t             code;
   SStreamTaskCheckRsp rsp;
@@ -901,7 +902,9 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
   tDecoderInit(&decoder, (uint8_t*)pReq, len);
   code = tDecodeStreamTaskCheckRsp(&decoder, &rsp);
   if (code < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&decoder);
+    tqError("vgId:%d failed to parse check rsp msg, code:%s", vgId, tstrerror(terrno));
     return -1;
   }
 

@@ -487,10 +487,18 @@ int32_t doSinkResultBlock(SVnode* pVnode, int32_t blockIndex, char* stbFullName,
           pTableSinkInfo->uid = mr.me.uid;
           metaReaderClear(&mr);
         }
-      } else { // not exist, wait and retry
+      } else {  // not exist, wait and retry
         metaReaderClear(&mr);
-        taosMsleep(100);
-        tqDebug("s-task:%s wait for the table:%s ready before insert data", id, dstTableName);
+        if (streamTaskShouldStop(&pTask->status)) {
+          tqDebug("s-task:%s task will stop, quit from waiting for table:%s create", id, dstTableName);
+          taosArrayDestroy(tbData.aRowP);
+          taosArrayDestroy(pVals);
+
+          return TSDB_CODE_SUCCESS;
+        } else {
+          taosMsleep(100);
+          tqDebug("s-task:%s wait 100ms for the table:%s ready before insert data", id, dstTableName);
+        }
       }
     }
 
