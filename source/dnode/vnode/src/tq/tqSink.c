@@ -147,7 +147,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data) {
     pTask->tsInfo.sinkStart = taosGetTimestampMs();
   }
 
-  tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table", vgId, pTask->id.idStr, numOfBlocks);
+  tqInfo("vgId:%d, s-task:%s write %d stream resBlock(s) into table", vgId, pTask->id.idStr, numOfBlocks);
 
   SArray* tagArray = NULL;
   SArray* pVals = NULL;
@@ -401,7 +401,6 @@ static int32_t doPutIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSi
   int32_t code = tqPutTableInfo(pSinkTableMap, groupId, pTableSinkInfo);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pTableSinkInfo);
-    tqError("s-task:%s failed to put tableSinkInfo in to cache, code:%s", id, tstrerror(code));
   } else {
     tqDebug("s-task:%s new dst table:%s(uid:%" PRIu64 ") added into cache, total:%d", id, pTableSinkInfo->name.data,
             pTableSinkInfo->uid, tSimpleHashGetSize(pSinkTableMap));
@@ -674,7 +673,7 @@ int32_t doSinkResultBlock(SVnode* pVnode, int32_t blockIndex, char* stbFullName,
   code = tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg);
 
   if (code == TSDB_CODE_SUCCESS) {
-    tqDebug("s-task:%s send submit msg to dstTable:%s, numOfRows:%d", id, pTableSinkInfo->name.data, numOfRows);
+    tqDebug("s-task:%s send submit msg to dstTable:%s, numOfRows:%d", id, dstTableName, numOfRows);
   } else {
     tqError("s-task:%s failed to put into write-queue since %s", id, terrstr());
   }
