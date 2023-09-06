@@ -855,7 +855,8 @@ export default {
           case "stable":
             if (this.switchtag) {
               for (let i = 0; i < this.tagList.length; i++) {
-                if (!this.tagList[i].condition || !this.tagList[i].value) {
+
+                if (!this.tagList[i].condition ||(!this.tagList[i].condition.includes('NULL')&& !this.tagList[i].value)) {
                   Message.warning(this.$t("data.fulltagtip"));
                   return;
                 }
@@ -868,9 +869,10 @@ export default {
                   " " +
                   `${item.field}` +
                   " " +
-                  `${item.condition}` +
-                  " " +
-                  `'${item.value}'`;
+                  `${item.condition}` + 
+                  ( item.condition.includes('NULL')?'':item.condition.includes('IN')?("("+`'${item.value}'`+')'):" " +
+                   `'${item.value}'`)
+                  ;
                   if(item.condition.includes('BETWEEN')){
                     wherestr += ` AND '${item.betweenVal}'`
                   }
