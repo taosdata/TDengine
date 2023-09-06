@@ -312,10 +312,17 @@ typedef struct STaskSchedInfo {
   void*   pTimer;
 } STaskSchedInfo;
 
+typedef struct SSinkTaskRecorder {
+  int64_t numOfPackages;
+  int64_t numOfRows;
+} SSinkTaskRecorder;
+
 typedef struct {
+  int64_t created;
   int64_t init;
   int64_t step1Start;
   int64_t step2Start;
+  int64_t sinkStart;
 } STaskTimestamp;
 
 struct SStreamTask {
@@ -345,6 +352,7 @@ struct SStreamTask {
     STaskSinkSma           smaSink;
     STaskSinkFetch         fetchSink;
   };
+  SSinkTaskRecorder sinkRecorder;
 
   void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle
