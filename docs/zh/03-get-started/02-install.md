@@ -5,9 +5,9 @@ sidebar_label: 安装与配置
 
 ## 简介
 
-TDengine Pro 包含两个安装包： 
+TDengine Enterprise 包含两个安装包： 
 - `TDengine-server-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-server-3.1.0.3-Linux-x64.tar.gz`
-- `TDengine-pro-tools-<version>-<OS-<platform>.tar.gz`，例如 `TDengine-pro-tools-1.2.0-Linux-x64.tar.gz`
+- `taosX-<version>-<OS-<platform>.tar.gz`，例如 `taosX-1.2.0-Linux-x64.tar.gz`
 
 TDengine-server 安装包中主要包含： 
 - `taosd`: 数据库服务端核心组件
@@ -16,7 +16,7 @@ TDengine-server 安装包中主要包含：
 - `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
 - `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
 
-TDengine-pro-tools 安装包中主要包含：
+taosX 安装包中主要包含：
 - `taosX`：数据接入、同步、备份和恢复的零代码平台
 - `taosAgent`：用于一些特定数据源接入时（taosX）的代理服务
 - `taosExplorer`：可视化管理工具的服务端
@@ -46,7 +46,7 @@ sudo ./install.sh
 install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 :::
 
-## 安装 TDengine ProTools
+## 安装 taosX
 
 ### Linux 安装
 

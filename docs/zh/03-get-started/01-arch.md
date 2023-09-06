@@ -3,11 +3,11 @@ title: 部署架构及说明
 sidebar_label: 部署架构
 ---
 
-本节简要描述 TDengine Pro 的部署架构，并对其中的核心组件予以说明。
+本节简要描述 TDengine Enterprise 的部署架构，并对其中的核心组件予以说明。
 
 ## 部署架构
 
-下图展示了整个 TDengine 产品生态的部署架构，其所有核心组件都来自于前面章节中讲述过的 TDengine server 安装包以及 TDengine Pro Tools 安装包。
+下图展示了整个 TDengine 产品生态的部署架构，其所有核心组件都来自于前面章节中讲述过的 TDengine server 安装包以及 taosX 安装包。
 
 ![TDengine 产品生态部署架构图](./arch_taos.png)
 
