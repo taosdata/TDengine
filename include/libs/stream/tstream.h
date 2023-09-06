@@ -313,7 +313,8 @@ typedef struct STaskSchedInfo {
 } STaskSchedInfo;
 
 typedef struct SSinkTaskRecorder {
-  int64_t numOfPackages;
+  int64_t numOfSubmit;
+  int64_t numOfBlocks;
   int64_t numOfRows;
 } SSinkTaskRecorder;
 
