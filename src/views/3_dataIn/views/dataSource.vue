@@ -114,10 +114,13 @@
 
         <el-table-column label="Metrics" prop="finished_at">
           <template slot-scope="scope">
-              <el-button @click="checkMetrics(scope.row)" size="mini" style="font-size:12px;color: #4d6992;"
-              :disabled="scope.row.status.toLowerCase()=='failed'"
-              >{{ $t('view') }}</el-button>
-            
+            <el-button
+              @click="checkMetrics(scope.row)"
+              size="mini"
+              style="font-size: 12px; color: #4d6992"
+              :disabled="scope.row.status.toLowerCase() == 'failed'"
+              >{{ $t("view") }}</el-button
+            >
           </template>
         </el-table-column>
 
@@ -252,7 +255,12 @@
 </template>
 <script>
 import { Message, Switch } from "element-ui";
-import { getTask, refreshTask, getTaskActivities,getMetrics } from "@/api/explorer/datain";
+import {
+  getTask,
+  refreshTask,
+  getTaskActivities,
+  getMetrics,
+} from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
@@ -413,7 +421,13 @@ export default {
             : "";
         this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
-        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname,iscopy);
+        this.$parent.toggleComponent(
+          "",
+          data.from_detail.id,
+          data.id,
+          dbname,
+          iscopy
+        );
       }
     },
     //copy一个新的task
@@ -453,29 +467,35 @@ export default {
       }
     },
 
-    async checkMetrics(data){
+    async checkMetrics(data) {
       try {
-        let result =await getMetrics(data.id)
-        if(result.message){
-          Message.error(result.message)
-          return
+        let result = await getMetrics(data.id);
+        if (result.message) {
+          Message.error(result.message);
+          return;
         }
-        let array=Object.entries(result)
-        console.log(Array.from(array).length==0,'metrics9999');
-        if(Array.from(array).length==0){
-          Message.error(this.$t('datasource.restarttask'))
-          return
+        let array = Object.entries(result);
+        console.log(Array.from(array).length == 0, "metrics9999");
+        if (Array.from(array).length == 0) {
+          Message.error(this.$t("datasource.restarttask"));
+          return;
         }
-        let html=`<ul>`
-          array.forEach(item=>{
-            html+=`<li style='margin-bottom:6px;color:#4d6992;'>${item.toString().replace(',',':')}</li>`
-          })
-         html += `</ul>`
-        this.$alert(html,'',{
-          confirmButtonText:this.$t('ok'),
-          dangerouslyUseHTMLString: true
-        })
-
+        let html = `<ul class='db-metrics'><li >
+          <span>${this.$t("name")}</span>
+          <span>${this.$t("datasource.value")}</span>
+          </li>`;
+        array.forEach((item) => {
+          html += `<li ><span>${
+            item.toString().split(",")[0]
+          }</span>
+              <span>${item.toString().split(",")[1]}</span>
+              </li>`;
+        });
+        html += `</ul>`;
+        this.$alert(html, "", {
+          confirmButtonText: this.$t("ok"),
+          dangerouslyUseHTMLString: true,
+        });
       } catch (error) {
         console.log(error);
       }
@@ -669,9 +689,28 @@ export default {
   }
 }
 
-  ::v-deep.el-table td.el-table__cell div {
-    word-wrap: break-word;
-    word-break: break-word;
+::v-deep.el-table td.el-table__cell div {
+  word-wrap: break-word;
+  word-break: break-word;
+}
+</style>
+<style lang="scss">
+.db-metrics {
+  max-height:300px;
+  li{
+    display: flex;
+    span{
+      display: inline-block;
+      flex:1;
+      padding: 3px 10px;
+    }
+    &:first-child{
+      background: #f5f7fa;
+      padding: 4px 10px;
+      border-top:1px solid  #eaeefb;
+    }
+    border:1px solid  #eaeefb;
+    border-top:none;
   }
-
+}
 </style>
