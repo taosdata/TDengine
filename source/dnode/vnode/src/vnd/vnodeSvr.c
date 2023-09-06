@@ -944,14 +944,10 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
     int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
-    char detail[1000] = {0};
-    sprintf(detail, "btime:%" PRId64 ", flags:%d, ttl:%d, type:%d", 
-            pCreateReq->btime, pCreateReq->flags, pCreateReq->ttl, pCreateReq->type);
-
     SName name = {0};
     tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
-    auditRecord(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, detail);
+    auditRecord(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, pCreateReq->sql, pCreateReq->sqlLen);
   }
 
   vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
